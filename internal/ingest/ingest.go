@@ -29,13 +29,15 @@ var ErrUnknownTarget = errors.New("target is not assigned to this agent")
 
 // Service handles what agents send. It is safe for concurrent use.
 type Service struct {
-	store *store.Store
-	log   *slog.Logger
+	store    *store.Store
+	log      *slog.Logger
+	pending  chan struct{} // wakes the processor after a snapshot arrives
+	onEvents func(store.Scope, []store.Event)
 }
 
 // New returns a Service backed by st.
 func New(st *store.Store, log *slog.Logger) *Service {
-	return &Service{store: st, log: log}
+	return &Service{store: st, log: log, pending: make(chan struct{}, 1)}
 }
 
 // Register records an agent's version, hostname and platforms.
@@ -120,6 +122,12 @@ func (s *Service) Snapshot(ctx context.Context, a store.Agent, snap agentproto.S
 	})
 	if err != nil {
 		return false, err
+	}
+	if inserted {
+		select {
+		case s.pending <- struct{}{}:
+		default:
+		}
 	}
 	s.log.DebugContext(ctx, "snapshot received", "agent_id", a.ID, "target", t.Name, "snapshot_id", snap.SnapshotID,
 		"workloads", len(snap.Workloads), "complete", snap.Complete, "duplicate", !inserted)
