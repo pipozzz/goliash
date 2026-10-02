@@ -112,6 +112,25 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 - **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
   release by at least the tracked jump), `inconsistent` (targets of one environment disagree).
 
+### Sign-in, API and metrics
+
+```sh
+bin/goliash login-link -email you@example.com      # first user becomes owner; prints a one-time link
+bin/goliash user create -email dev@example.com -role member
+bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 and /metrics
+```
+
+- **Magic links** are e-mailed when SMTP is configured (`GOLIASH_SMTP_*`); `goliash login-link` works without it.
+- **OIDC**: `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID`, `GOLIASH_OIDC_CLIENT_SECRET`, optional `GOLIASH_OIDC_NAME`
+  and `GOLIASH_OIDC_DOMAINS` (people from these e-mail domains are created as viewers on first sign-in; others
+  need an account). Redirect URI: `<public URL>/auth/oidc/callback`.
+- Set `GOLIASH_PUBLIC_URL` to the address people use; with `https://` cookies are marked Secure.
+- **Roles**: viewer reads; member maps services, edits policies and acks; admin manages agents, targets, channels,
+  tokens and users; owner can do everything.
+- **REST API** (session or `Authorization: Bearer glsh_api_…`): `GET /api/v1/matrix`, `/services`, `/environments`,
+  `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`.
+- **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.
+
 ### Notifications
 
 ```sh

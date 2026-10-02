@@ -11,6 +11,13 @@ linters:
     - revive
     - unconvert
 
+  exclusions:
+    rules:
+      # Test servers echo input and redirect on purpose.
+      - path: _test\.go
+        linters: [gosec]
+        text: "G705|G710"
+
 formatters:
   enable:
     - gofumpt

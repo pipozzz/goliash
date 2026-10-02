@@ -129,7 +129,17 @@ type SMTPConfig struct {
 type Email struct{ Config SMTPConfig }
 
 // Send implements Sender.
-func (e Email) Send(_ context.Context, ch store.Channel, msg Message) error {
+func (e Email) Send(ctx context.Context, ch store.Channel, msg Message) error {
+	var body strings.Builder
+	for _, it := range msg.Items {
+		fmt.Fprintf(&body, "- %s (%s)\r\n", it.Text, it.At.Format("2006-01-02 15:04 MST"))
+	}
+	body.WriteString("\r\n-- \r\nGoliash\r\n")
+	return e.SendPlain(ctx, ch, msg.Title(), body.String())
+}
+
+// SendPlain sends a plain-text e-mail to the channel's recipients.
+func (e Email) SendPlain(_ context.Context, ch store.Channel, subject, text string) error {
 	if e.Config.Addr == "" || e.Config.From == "" {
 		return ErrNoSMTP
 	}
@@ -146,11 +156,8 @@ func (e Email) Send(_ context.Context, ch store.Channel, msg Message) error {
 	}
 	var body strings.Builder
 	fmt.Fprintf(&body, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n",
-		e.Config.From, strings.Join(cfg.To, ", "), strings.ReplaceAll(msg.Title(), "\n", " "))
-	for _, it := range msg.Items {
-		fmt.Fprintf(&body, "- %s (%s)\r\n", it.Text, it.At.Format("2006-01-02 15:04 MST"))
-	}
-	body.WriteString("\r\n-- \r\nGoliash\r\n")
+		e.Config.From, strings.Join(cfg.To, ", "), strings.NewReplacer("\r", " ", "\n", " ").Replace(subject))
+	body.WriteString(text)
 
 	var auth smtp.Auth
 	if e.Config.Username != "" {
