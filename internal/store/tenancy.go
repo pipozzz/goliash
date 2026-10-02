@@ -124,3 +124,14 @@ func (s *Store) ListEnvironments(ctx context.Context, sc Scope) ([]Environment, 
 	}
 	return envs, rows.Err()
 }
+
+// GetEnvironmentByName returns the workspace's environment with the given name.
+func (s *Store) GetEnvironmentByName(ctx context.Context, sc Scope, name string) (Environment, error) {
+	env := Environment{Scope: sc}
+	err := s.queryRow(ctx, s.db, `
+		SELECT id, name, position, created_at FROM environments
+		WHERE org_id = ? AND workspace_id = ? AND name = ?`, sc.OrgID, sc.WorkspaceID, name).
+		Scan(&env.ID, &env.Name, &env.Position, &env.CreatedAt)
+	env.CreatedAt = env.CreatedAt.UTC()
+	return env, notFound(err)
+}

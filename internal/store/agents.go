@@ -20,6 +20,7 @@ type Agent struct {
 	Platforms    []string
 	RegisteredAt time.Time // zero until the agent first calls register
 	LastSeenAt   time.Time
+	StaleSince   time.Time // set while the agent misses heartbeats
 	CreatedAt    time.Time
 }
 
@@ -72,6 +73,15 @@ func (s *Store) GetAgent(ctx context.Context, sc Scope, id string) (Agent, error
 	return a, err
 }
 
+// GetAgentByName returns the workspace's agent with the given name.
+func (s *Store) GetAgentByName(ctx context.Context, sc Scope, name string) (Agent, error) {
+	a, _, err := s.scanAgent(s.queryRow(ctx, s.db, `
+		SELECT `+agentColumns+`, ''
+		FROM agents a
+		WHERE a.org_id = ? AND a.workspace_id = ? AND a.name = ?`, sc.OrgID, sc.WorkspaceID, name))
+	return a, err
+}
+
 // RegisterAgent records what an agent reported when it started.
 func (s *Store) RegisterAgent(ctx context.Context, sc Scope, id, version, hostname string, platforms []string) error {
 	if platforms == nil {
@@ -89,13 +99,56 @@ func (s *Store) RegisterAgent(ctx context.Context, sc Scope, id, version, hostna
 	return expectOne(res, err)
 }
 
-// TouchAgent records that the agent was seen at t (heartbeat).
-func (s *Store) TouchAgent(ctx context.Context, sc Scope, id string, t time.Time) error {
-	res, err := s.exec(ctx, s.db, `
-		UPDATE agents SET last_seen_at = ?
-		WHERE org_id = ? AND workspace_id = ? AND id = ?`,
-		t.UTC(), sc.OrgID, sc.WorkspaceID, id)
-	return expectOne(res, err)
+// TouchAgent records that the agent was seen now (heartbeat) and clears its stale mark.
+// It reports whether the agent had been marked stale.
+func (s *Store) TouchAgent(ctx context.Context, sc Scope, id string) (wasStale bool, err error) {
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		var staleSince sql.NullTime
+		if err := s.queryRow(ctx, tx, `SELECT stale_since FROM agents
+			WHERE org_id = ? AND workspace_id = ? AND id = ?`, sc.OrgID, sc.WorkspaceID, id).Scan(&staleSince); err != nil {
+			return notFound(err)
+		}
+		wasStale = staleSince.Valid
+		_, err := s.exec(ctx, tx, `UPDATE agents SET last_seen_at = ?, stale_since = NULL WHERE id = ?`, s.now(), id)
+		return err
+	})
+	return wasStale, err
+}
+
+// MarkStaleAgents marks agents last seen before cutoff as stale and returns those
+// newly marked. Agents that never connected are left alone.
+func (s *Store) MarkStaleAgents(ctx context.Context, cutoff time.Time) ([]Agent, error) {
+	var stale []Agent
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		rows, err := s.query(ctx, tx, `SELECT `+agentColumns+`, '' FROM agents a
+			WHERE a.stale_since IS NULL AND a.last_seen_at IS NOT NULL AND a.last_seen_at < ?
+			ORDER BY a.id`, cutoff.UTC())
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			a, _, err := s.scanAgent(rows)
+			if err != nil {
+				return err
+			}
+			stale = append(stale, a)
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		_ = rows.Close()
+
+		now := s.now()
+		for i := range stale {
+			if _, err := s.exec(ctx, tx, `UPDATE agents SET stale_since = ? WHERE id = ?`, now, stale[i].ID); err != nil {
+				return err
+			}
+			stale[i].StaleSince = now
+		}
+		return nil
+	})
+	return stale, err
 }
 
 // RevokeAgentTokens revokes every token of an agent.
@@ -108,23 +161,24 @@ func (s *Store) RevokeAgentTokens(ctx context.Context, sc Scope, agentID string)
 }
 
 const agentColumns = `a.id, a.org_id, a.workspace_id, a.name, a.version, a.hostname, a.platforms,
-	a.registered_at, a.last_seen_at, a.created_at`
+	a.registered_at, a.last_seen_at, a.stale_since, a.created_at`
 
-func (s *Store) scanAgent(row *sql.Row) (Agent, string, error) {
+func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 	var (
-		a                    Agent
-		platforms, extra     string
-		registered, lastSeen sql.NullTime
+		a                                Agent
+		platforms, extra                 string
+		registered, lastSeen, staleSince sql.NullTime
 	)
 	err := row.Scan(&a.ID, &a.Scope.OrgID, &a.Scope.WorkspaceID, &a.Name, &a.Version, &a.Hostname,
-		&platforms, &registered, &lastSeen, &a.CreatedAt, &extra)
+		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &extra)
 	if err != nil {
 		return Agent{}, "", notFound(err)
 	}
 	if err := json.Unmarshal([]byte(platforms), &a.Platforms); err != nil {
 		return Agent{}, "", err
 	}
-	a.RegisteredAt, a.LastSeenAt, a.CreatedAt = timeOrZero(registered), timeOrZero(lastSeen), a.CreatedAt.UTC()
+	a.RegisteredAt, a.LastSeenAt, a.StaleSince = timeOrZero(registered), timeOrZero(lastSeen), timeOrZero(staleSince)
+	a.CreatedAt = a.CreatedAt.UTC()
 	return a, extra, nil
 }
 

@@ -21,6 +21,9 @@ type Target struct {
 	Settings            json.RawMessage // platform settings as sent to the agent (agentproto.Target)
 	PollIntervalSeconds int
 	LastSnapshotAt      time.Time
+	CollectorStatus     string // ok, degraded or failing, as last reported by the agent; empty before the first report
+	CollectorError      string
+	CollectorReportedAt time.Time
 	CreatedAt           time.Time
 }
 
@@ -71,7 +74,7 @@ func (s *Store) ListAgentTargets(ctx context.Context, sc Scope, agentID string) 
 }
 
 const targetColumns = `id, org_id, workspace_id, environment_id, agent_id, platform, name, settings,
-	poll_interval_seconds, last_snapshot_at, created_at`
+	poll_interval_seconds, last_snapshot_at, collector_status, collector_error, collector_reported_at, created_at`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -81,14 +84,25 @@ func scanTarget(row scanner) (Target, error) {
 		agentID  sql.NullString
 		settings string
 		last     sql.NullTime
+		reported sql.NullTime
 	)
 	if err := row.Scan(&t.ID, &t.Scope.OrgID, &t.Scope.WorkspaceID, &t.EnvironmentID, &agentID, &t.Platform,
-		&t.Name, &settings, &t.PollIntervalSeconds, &last, &t.CreatedAt); err != nil {
+		&t.Name, &settings, &t.PollIntervalSeconds, &last, &t.CollectorStatus, &t.CollectorError, &reported,
+		&t.CreatedAt); err != nil {
 		return Target{}, err
 	}
 	t.AgentID, t.Settings = agentID.String, json.RawMessage(settings)
-	t.LastSnapshotAt, t.CreatedAt = timeOrZero(last), t.CreatedAt.UTC()
+	t.LastSnapshotAt, t.CollectorReportedAt, t.CreatedAt = timeOrZero(last), timeOrZero(reported), t.CreatedAt.UTC()
 	return t, nil
+}
+
+// ReportCollectorStatus stores the collector health an agent reported for one of its targets.
+func (s *Store) ReportCollectorStatus(ctx context.Context, sc Scope, agentID, targetID, status, lastError string) error {
+	res, err := s.exec(ctx, s.db, `
+		UPDATE targets SET collector_status = ?, collector_error = ?, collector_reported_at = ?
+		WHERE org_id = ? AND workspace_id = ? AND id = ? AND agent_id = ?`,
+		status, lastError, s.now(), sc.OrgID, sc.WorkspaceID, targetID, agentID)
+	return expectOne(res, err)
 }
 
 func nullString(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }

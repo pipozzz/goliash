@@ -164,6 +164,12 @@ func TestEnvironmentsInPromotionOrder(t *testing.T) {
 		if got := strings.Join(names, ","); got != "dev,staging,prod" {
 			t.Fatalf("order = %s", got)
 		}
+		if env, err := s.GetEnvironmentByName(ctx, ws.Scope(), "staging"); err != nil || env.Position != 20 {
+			t.Fatalf("by name: %+v %v", env, err)
+		}
+		if _, err := s.GetEnvironmentByName(ctx, ws.Scope(), "qa"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("missing env: %v", err)
+		}
 	})
 }
 
@@ -194,6 +200,9 @@ func TestAgentTokenLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if byName, err := s.GetAgentByName(ctx, ws.Scope(), "eu-cluster"); err != nil || byName.ID != created.ID {
+			t.Fatalf("by name: %+v %v", byName, err)
+		}
 		if got.Version != "0.1.0" || got.Hostname != "node-1" || strings.Join(got.Platforms, ",") != "kubernetes,ecs" {
 			t.Fatalf("register not stored: %+v", got)
 		}
@@ -209,6 +218,64 @@ func TestAgentTokenLifecycle(t *testing.T) {
 		}
 		if _, err := s.AgentByTokenHash(ctx, "unknown"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("unknown token: %v", err)
+		}
+	})
+}
+
+func TestStaleAgents(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		never, err := s.CreateAgent(ctx, f.ws.Scope(), "never-connected", "hash-never")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		clock := time.Date(2026, 10, 2, 8, 0, 0, 0, time.UTC)
+		s.now = func() time.Time { return clock }
+		if wasStale, err := s.TouchAgent(ctx, f.ws.Scope(), f.agnt.ID); err != nil || wasStale {
+			t.Fatalf("touch: wasStale=%v err=%v", wasStale, err)
+		}
+
+		clock = clock.Add(11 * time.Minute)
+		stale, err := s.MarkStaleAgents(ctx, clock.Add(-10*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(stale) != 1 || stale[0].ID != f.agnt.ID || !stale[0].StaleSince.Equal(clock) {
+			t.Fatalf("stale = %+v (never-connected agent %s must be ignored)", stale, never.ID)
+		}
+		if again, err := s.MarkStaleAgents(ctx, clock); err != nil || len(again) != 0 {
+			t.Fatalf("stale agent reported twice: %+v %v", again, err)
+		}
+
+		if wasStale, err := s.TouchAgent(ctx, f.ws.Scope(), f.agnt.ID); err != nil || !wasStale {
+			t.Fatalf("touch after stale: wasStale=%v err=%v", wasStale, err)
+		}
+		got, err := s.GetAgent(ctx, f.ws.Scope(), f.agnt.ID)
+		if err != nil || !got.StaleSince.IsZero() || !got.LastSeenAt.Equal(clock) {
+			t.Fatalf("after touch: %+v %v", got, err)
+		}
+	})
+}
+
+func TestReportCollectorStatus(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		if err := s.ReportCollectorStatus(ctx, f.ws.Scope(), f.agnt.ID, f.tgt.ID, "degraded", "forbidden"); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.GetTarget(ctx, f.ws.Scope(), f.tgt.ID)
+		if err != nil || got.CollectorStatus != "degraded" || got.CollectorError != "forbidden" || got.CollectorReportedAt.IsZero() {
+			t.Fatalf("target = %+v, %v", got, err)
+		}
+		other, err := s.CreateAgent(ctx, f.ws.Scope(), "other", "hash-other")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ReportCollectorStatus(ctx, f.ws.Scope(), other.ID, f.tgt.ID, "ok", ""); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("agent reported status for a target it does not own: %v", err)
 		}
 	})
 }
