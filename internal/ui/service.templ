@@ -168,6 +168,7 @@ templ ServicePage(v ServiceView) {
 					}
 				</div>
 				<div class="panel-body">
+					@releaseNotesSource(v)
 					if v.CanMember {
 						<form class="stack" method="post" action={ templ.URL("/services/" + v.Name + "/policy") }>
 							<div class="row">
@@ -220,4 +221,21 @@ templ ServicePage(v ServiceView) {
 			</section>
 		</div>
 	}
+}
+
+templ releaseNotesSource(v ServiceView) {
+	<p class="hint">
+		switch {
+			case v.NotesGitHub != "":
+				{ "Release notes: " }
+				<a href={ templ.URL("https://github.com/" + v.NotesGitHub + "/releases") } target="_blank" rel="noopener noreferrer">{ v.NotesGitHub }</a>
+				{ " " + v.NotesFrom }
+			case v.NotesChangelog != "":
+				{ "Release notes: " }
+				<a href={ templ.URL(v.NotesChangelog) } target="_blank" rel="noopener noreferrer">changelog</a>
+				{ " " + v.NotesFrom }
+			default:
+				{ "No release notes source. Images that set the org.opencontainers.image.source label get one automatically." }
+		}
+	</p>
 }

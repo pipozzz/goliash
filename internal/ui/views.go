@@ -242,8 +242,11 @@ type ServiceView struct {
 	Envs       []ServiceEnv
 	Releases   []ReleaseView
 	PolicyFrom string // service, catalog or default
-	Events     []EventView
-	Acks       []AckView
+	// Where release dates and notes come from: a GitHub owner/repo or a changelog URL,
+	// and why (policy, catalog or image label).
+	NotesGitHub, NotesChangelog, NotesFrom string
+	Events                                 []EventView
+	Acks                                   []AckView
 }
 
 // ReleaseView is one upstream release on a service page.
