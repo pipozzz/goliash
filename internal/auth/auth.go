@@ -33,9 +33,18 @@ const (
 type Principal struct {
 	User  store.User // zero for API tokens
 	Scope store.Scope
-	Role  string
+	Role  string // effective role in Scope's workspace; empty without workspace access
 	Via   string // session or token
+
+	Workspace  store.Workspace // the workspace the request works in (sessions only)
+	Workspaces []store.Access  // every workspace the user may open (sessions only)
 }
+
+// OrgWide reports whether the principal manages the whole organization (owner or admin).
+func (p Principal) OrgWide() bool { return p.Via == "session" && store.OrgWide(p.User.Role) }
+
+// WorkspaceCookie remembers which workspace a browser works in.
+const WorkspaceCookie = "goliash_ws"
 
 // Can reports whether the principal has at least the given role.
 func (p Principal) Can(role string) bool { return store.RoleRank(p.Role) >= store.RoleRank(role) }
@@ -122,18 +131,21 @@ func (a *Auth) LoginLink(ctx context.Context, u store.User) (string, error) {
 	return a.publicURL.String() + "/auth/magic?token=" + url.QueryEscape(raw), nil
 }
 
-// workspaceOf returns the workspace a user works in. Self-hosted has one.
-func (a *Auth) workspaceOf(ctx context.Context, u store.User) (store.Scope, error) {
-	all, err := a.store.ListWorkspaces(ctx)
-	if err != nil {
-		return store.Scope{}, err
+// workspaceFor picks the workspace a session works in: the one in the workspace
+// cookie when the user may open it, else the first they may open.
+func (a *Auth) workspaceFor(r *http.Request, u store.User) (store.Access, []store.Access, error) {
+	all, err := a.store.UserWorkspaces(r.Context(), u)
+	if err != nil || len(all) == 0 {
+		return store.Access{}, all, err
 	}
-	for _, w := range all {
-		if w.OrgID == u.OrgID {
-			return w.Scope(), nil
+	if c, err := r.Cookie(WorkspaceCookie); err == nil {
+		for _, acc := range all {
+			if acc.Workspace.ID == c.Value {
+				return acc, all, nil
+			}
 		}
 	}
-	return store.Scope{}, errors.New("organization has no workspace")
+	return all[0], all, nil
 }
 
 // Authenticate resolves a request's principal from its session cookie or its
@@ -163,11 +175,14 @@ func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 	if err != nil {
 		return Principal{}, false, err
 	}
-	sc, err := a.workspaceOf(r.Context(), u)
+	cur, all, err := a.workspaceFor(r, u)
 	if err != nil {
 		return Principal{}, false, err
 	}
-	return Principal{User: u, Scope: sc, Role: u.Role, Via: "session"}, true, nil
+	return Principal{
+		User: u, Scope: cur.Workspace.Scope(), Role: cur.Role, Via: "session",
+		Workspace: cur.Workspace, Workspaces: all,
+	}, true, nil
 }
 
 // startSession signs a user in on this browser.

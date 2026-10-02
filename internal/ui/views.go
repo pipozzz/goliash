@@ -27,6 +27,30 @@ type Base struct {
 	Error      string
 	CanMember  bool
 	CanAdmin   bool
+	OrgAdmin   bool // organization owner or admin: manages workspaces
+	Workspace  string
+	Workspaces []WorkspaceOption
+}
+
+// WorkspaceOption is one entry of the workspace switcher.
+type WorkspaceOption struct {
+	ID      string
+	Name    string
+	Current bool
+}
+
+// WorkspaceItem is one row of the workspaces page.
+type WorkspaceItem struct {
+	ID                         string
+	Name, Slug                 string
+	Targets, Services, Members int
+	Current                    bool
+}
+
+// WorkspacesView is the workspaces page.
+type WorkspacesView struct {
+	Base
+	Items []WorkspaceItem
 }
 
 // MatrixView is the home page.
@@ -340,7 +364,9 @@ type NotificationsView struct {
 type UserView struct {
 	ID        string
 	Email     string
-	Role      string
+	Role      string // role in the current workspace; empty for organization-wide users or no access
+	Access    string
+	OrgWide   bool
 	LastLogin time.Time
 	IsSelf    bool
 }
@@ -356,10 +382,11 @@ type AuditView struct {
 // SettingsView is the users and tokens page.
 type SettingsView struct {
 	Base
-	Audit       []AuditView
-	Users       []UserView
-	Secret      string
-	SecretLabel string
+	CanGrantOwner bool
+	Audit         []AuditView
+	Users         []UserView
+	Secret        string
+	SecretLabel   string
 }
 
 // LoginView is the sign-in page.
@@ -418,4 +445,11 @@ func nsSuffix(ns string) string {
 	return " · " + ns
 }
 
-func roles() []string { return []string{"viewer", "member", "admin", "owner"} }
+func workspaceRoles() []string { return []string{"viewer", "member", "admin", "none"} }
+
+func roleLabel(r string) string {
+	if r == "none" {
+		return "no access"
+	}
+	return r
+}

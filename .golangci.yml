@@ -16,7 +16,7 @@ linters:
       # Test servers echo input and redirect on purpose.
       - path: _test\.go
         linters: [gosec]
-        text: "G705|G710"
+        text: "G705|G710|G124"
 
 formatters:
   enable:

@@ -60,6 +60,8 @@ p { margin: 0; }
 .count { font: 600 11px/1 var(--sans); background: var(--warn-soft); color: var(--warn); padding: 3px 6px; border-radius: 999px; }
 .who { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
 .who form { margin: 0; }
+.switcher select { font-weight: 600; padding: 6px 28px 6px 10px; }
+.ws-name { font-weight: 600; color: var(--ink); }
 @media (max-width: 720px) {
   .top-inner { padding: 8px 16px 0; gap: 8px 16px; }
   .who { margin-left: auto; }

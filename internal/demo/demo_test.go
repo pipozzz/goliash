@@ -23,17 +23,19 @@ func TestSeed(t *testing.T) {
 	}
 	defer func() { _ = st.Close() }()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := Seed(ctx, st, log); err != nil {
+	ws, _ := st.EnsureDefaultWorkspace(ctx)
+	if err := Seed(ctx, st, ws, log); err != nil {
 		t.Fatal(err)
 	}
-	if err := Seed(ctx, st, log); !errors.Is(err, ErrAlreadySeeded) {
+	if err := Seed(ctx, st, ws, log); !errors.Is(err, ErrAlreadySeeded) {
 		t.Fatalf("second seed: %v", err)
 	}
-
-	ws, _ := st.EnsureDefaultWorkspace(ctx)
 	o, err := versions.LoadOverview(ctx, st, ws.Scope())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(o.Stale) != 0 {
+		t.Fatalf("demo data looks stale: %v", o.Stale)
 	}
 	if len(o.Matrix.Rows) != 7 || o.Matrix.Unmapped != 1 {
 		t.Fatalf("rows=%d unmapped=%d", len(o.Matrix.Rows), o.Matrix.Unmapped)

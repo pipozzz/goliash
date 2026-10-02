@@ -118,6 +118,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /settings/users/{id}/link", s.page(a, s.userLink))
 	mux.Handle("POST /settings/users/{id}/delete", s.page(a, s.deleteUser))
 	mux.Handle("POST /settings/tokens", s.page(a, s.createToken))
+	mux.Handle("POST /workspace", s.page(v, s.switchWorkspace))
+	mux.Handle("GET /workspaces", s.page(a, s.workspaces))
+	mux.Handle("POST /workspaces", s.page(a, s.createWorkspace))
 }
 
 type handler func(w http.ResponseWriter, r *http.Request, p auth.Principal) error
@@ -128,6 +131,10 @@ func (s *Server) page(role string, h handler) http.Handler {
 		p, ok, err := s.auth.Authenticate(r)
 		if err != nil {
 			s.fail(w, r, err)
+			return
+		}
+		if ok && p.Via == "session" && p.Scope.WorkspaceID == "" {
+			http.Error(w, "You have no access to any workspace yet. Ask an admin to invite you to one.", http.StatusForbidden)
 			return
 		}
 		if !ok || p.Via != "session" {
@@ -157,7 +164,11 @@ func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 func (s *Server) base(ctx context.Context, p auth.Principal, page, title string) Base {
 	b := Base{
 		Title: title, Page: page, Email: p.User.Email, Role: p.Role,
-		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin),
+		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(),
+		Workspace: p.Workspace.Name,
+	}
+	for _, a := range p.Workspaces {
+		b.Workspaces = append(b.Workspaces, WorkspaceOption{ID: a.Workspace.ID, Name: a.Workspace.Name, Current: a.Workspace.ID == p.Scope.WorkspaceID})
 	}
 	if items, err := s.inboxItems(ctx, p.Scope); err == nil {
 		b.InboxCount = len(items)
@@ -912,22 +923,48 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Princ
 	return back(w, r, "/notifications", "notice", "Rule added.")
 }
 
-// ---- users and tokens ----
+// ---- users, workspaces and tokens ----
+
+// accessLabel describes a user's access to the current workspace.
+func accessLabel(u store.User, wsRole string) string {
+	if store.OrgWide(u.Role) {
+		return u.Role + " of the organization"
+	}
+	if wsRole == "" {
+		return "no access here"
+	}
+	return wsRole
+}
 
 func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsView, error) {
-	v := SettingsView{Base: s.base(ctx, p, "settings", "Users")}
+	v := SettingsView{Base: s.base(ctx, p, "settings", "Users"), CanGrantOwner: p.User.Role == store.RoleOwner}
 	users, err := s.store.ListUsers(ctx, p.User.OrgID)
 	if err != nil {
 		return v, err
 	}
-	for _, u := range users {
-		v.Users = append(v.Users, UserView{ID: u.ID, Email: u.Email, Role: u.Role, LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID})
+	roles, err := s.store.WorkspaceRoles(ctx, p.Scope.WorkspaceID)
+	if err != nil {
+		return v, err
 	}
-	entries, err := s.store.ListAudit(ctx, p.User.OrgID, 100)
+	for _, u := range users {
+		// Workspace admins see the people of their workspace only (an MSP's clients
+		// never see each other); organization admins see everyone.
+		if !p.OrgWide() && roles[u.ID] == "" {
+			continue
+		}
+		v.Users = append(v.Users, UserView{
+			ID: u.ID, Email: u.Email, Role: roles[u.ID], Access: accessLabel(u, roles[u.ID]), OrgWide: store.OrgWide(u.Role),
+			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID,
+		})
+	}
+	entries, err := s.store.ListAudit(ctx, p.User.OrgID, 200)
 	if err != nil {
 		return v, err
 	}
 	for _, e := range entries {
+		if !p.OrgWide() && e.WorkspaceID != p.Scope.WorkspaceID {
+			continue
+		}
 		keys := make([]string, 0, len(e.Details))
 		for k := range e.Details {
 			keys = append(keys, k)
@@ -940,6 +977,9 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 			}
 		}
 		v.Audit = append(v.Audit, AuditView{At: e.At, Actor: e.Actor, Action: e.Action, Details: strings.Join(parts, " ")})
+		if len(v.Audit) == 100 {
+			break
+		}
 	}
 	return v, nil
 }
@@ -963,34 +1003,87 @@ func (s *Server) showSecret(w http.ResponseWriter, r *http.Request, p auth.Princ
 	return render(w, r, SettingsPage(v))
 }
 
+// inviteUser gives an e-mail address access: a role in this workspace (viewer,
+// member, admin), or the whole organization (org-admin, owner) for organization admins.
 func (s *Server) inviteUser(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
-	role := r.FormValue("role")
-	if role == store.RoleOwner && !p.Can(store.RoleOwner) || store.RoleRank(role) == 0 {
-		return back(w, r, "/settings", "error", "Choose a role you are allowed to give.")
-	}
+	access := r.FormValue("role")
 	email := strings.TrimSpace(r.FormValue("email"))
 	if !strings.Contains(email, "@") {
 		return back(w, r, "/settings", "error", "Enter an e-mail address.")
 	}
-	u, err := s.store.CreateUser(ctx, p.User.OrgID, email, "", role)
-	if errors.Is(err, store.ErrExists) {
-		return back(w, r, "/settings", "error", email+" already has an account.")
+	orgRole := ""
+	switch access {
+	case store.RoleViewer, store.RoleMember, store.RoleAdmin:
+	case "org-admin":
+		orgRole = store.RoleAdmin
+	case store.RoleOwner:
+		orgRole = store.RoleOwner
+	default:
+		return back(w, r, "/settings", "error", "Choose a role.")
 	}
-	if err != nil {
+	if (orgRole != "" && !p.OrgWide()) || (orgRole == store.RoleOwner && p.User.Role != store.RoleOwner) {
+		return back(w, r, "/settings", "error", "Choose a role you are allowed to give.")
+	}
+
+	userRole := orgRole
+	if userRole == "" {
+		userRole = store.RoleViewer // workspace access comes from the membership
+		if access != store.RoleViewer {
+			userRole = store.RoleMember
+		}
+	}
+	u, err := s.store.CreateUser(ctx, p.User.OrgID, email, "", userRole)
+	isNew := err == nil
+	if errors.Is(err, store.ErrExists) {
+		if u, err = s.store.GetUserByEmail(ctx, p.User.OrgID, email); err != nil {
+			return err
+		}
+		if orgRole != "" || store.OrgWide(u.Role) {
+			return back(w, r, "/settings", "error", email+" already has an account.")
+		}
+	} else if err != nil {
 		return err
+	}
+	if orgRole == "" {
+		if err := s.store.SetMembership(ctx, u.ID, p.Scope.WorkspaceID, access); err != nil {
+			return err
+		}
+	}
+	s.audit(ctx, p, "user.invite", "user", u.Email, "role", access, "workspace", p.Workspace.Slug)
+	if !isNew {
+		return back(w, r, "/settings", "notice", u.Email+" now has "+access+" access to "+p.Workspace.Name+".")
 	}
 	link, err := s.auth.LoginLink(ctx, u)
 	if err != nil {
 		return err
 	}
-	s.audit(ctx, p, "user.invite", "user", u.Email, "role", role)
-	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, u.Email+" invited as "+role+". They can also sign in with an e-mailed link or single sign-on.")
+	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link,
+		u.Email+" invited ("+access+"). They can also sign in with an e-mailed link or single sign-on.")
+}
+
+// manageable returns a user the principal may manage in the current workspace.
+func (s *Server) manageable(ctx context.Context, p auth.Principal, id string) (store.User, string, bool) {
+	u, err := s.store.GetUser(ctx, id)
+	if err != nil || u.OrgID != p.User.OrgID || u.ID == p.User.ID {
+		return store.User{}, "", false
+	}
+	roles, err := s.store.WorkspaceRoles(ctx, p.Scope.WorkspaceID)
+	if err != nil {
+		return store.User{}, "", false
+	}
+	if store.OrgWide(u.Role) && !p.OrgWide() {
+		return store.User{}, "", false
+	}
+	if !p.OrgWide() && roles[u.ID] == "" {
+		return store.User{}, "", false
+	}
+	return u, roles[u.ID], true
 }
 
 func (s *Server) userLink(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	u, err := s.store.GetUser(r.Context(), r.PathValue("id"))
-	if err != nil || u.OrgID != p.User.OrgID {
+	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
+	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}
 	link, err := s.auth.LoginLink(r.Context(), u)
@@ -1001,31 +1094,39 @@ func (s *Server) userLink(w http.ResponseWriter, r *http.Request, p auth.Princip
 	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, "")
 }
 
+// setRole changes a person's role in this workspace; "none" takes their access away.
 func (s *Server) setRole(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
 	role := r.FormValue("role")
-	if store.RoleRank(role) == 0 || (role == store.RoleOwner && !p.Can(store.RoleOwner)) {
-		return back(w, r, "/settings", "error", "Choose a role you are allowed to give.")
+	u, old, ok := s.manageable(ctx, p, r.PathValue("id"))
+	if !ok || store.OrgWide(u.Role) {
+		return back(w, r, "/settings", "error", "You cannot change this user here.")
 	}
-	u, err := s.store.GetUser(r.Context(), r.PathValue("id"))
-	if err != nil || u.OrgID != p.User.OrgID || u.ID == p.User.ID {
-		return back(w, r, "/settings", "error", "You cannot change this user.")
+	switch role {
+	case store.RoleViewer, store.RoleMember, store.RoleAdmin:
+		if err := s.store.SetMembership(ctx, u.ID, p.Scope.WorkspaceID, role); err != nil {
+			return err
+		}
+	case "none":
+		if err := s.store.RemoveMembership(ctx, u.ID, p.Scope.WorkspaceID); err != nil {
+			return err
+		}
+	default:
+		return back(w, r, "/settings", "error", "Choose a role.")
 	}
-	if u.Role == store.RoleOwner && !p.Can(store.RoleOwner) {
-		return back(w, r, "/settings", "error", "Only owners can change an owner.")
+	s.audit(ctx, p, "user.role", "user", u.Email, "from", old, "to", role, "workspace", p.Workspace.Slug)
+	if role == "none" {
+		return back(w, r, "/settings", "notice", u.Email+" no longer has access to "+p.Workspace.Name+".")
 	}
-	if err := s.store.SetUserRole(r.Context(), p.User.OrgID, u.ID, role); err != nil {
-		return err
-	}
-	s.audit(r.Context(), p, "user.role", "user", u.Email, "from", u.Role, "to", role)
-	return back(w, r, "/settings", "notice", u.Email+" is now "+role+".")
+	return back(w, r, "/settings", "notice", u.Email+" is now "+role+" in "+p.Workspace.Name+".")
 }
 
 func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	u, err := s.store.GetUser(r.Context(), r.PathValue("id"))
-	if err != nil || u.OrgID != p.User.OrgID || u.ID == p.User.ID {
-		return back(w, r, "/settings", "error", "You cannot remove this user.")
+	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
+	if !ok || !p.OrgWide() {
+		return back(w, r, "/settings", "error", "Only organization admins can remove people.")
 	}
-	if u.Role == store.RoleOwner && !p.Can(store.RoleOwner) {
+	if u.Role == store.RoleOwner && p.User.Role != store.RoleOwner {
 		return back(w, r, "/settings", "error", "Only owners can remove an owner.")
 	}
 	if err := s.store.DeleteUser(r.Context(), p.User.OrgID, u.ID); err != nil {
@@ -1045,7 +1146,78 @@ func (s *Server) createToken(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return err
 	}
 	s.audit(r.Context(), p, "api_token.create", "token", name)
-	return s.showSecret(w, r, p, "API token "+name+":", token, "")
+	return s.showSecret(w, r, p, "API token "+name+" for "+p.Workspace.Name+":", token, "")
+}
+
+// switchWorkspace remembers the workspace this browser works in.
+func (s *Server) switchWorkspace(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	id := r.FormValue("workspace")
+	for _, a := range p.Workspaces {
+		if a.Workspace.ID == id {
+			http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
+				Name: auth.WorkspaceCookie, Value: id, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
+				Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
+			})
+			return back(w, r, "/", "notice", "Switched to "+a.Workspace.Name+".")
+		}
+	}
+	return back(w, r, "/", "error", "You cannot open that workspace.")
+}
+
+var workspaceSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+
+func (s *Server) workspaces(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	if !p.OrgWide() {
+		http.Error(w, "Only organization owners and admins manage workspaces.", http.StatusForbidden)
+		return nil
+	}
+	v := WorkspacesView{Base: withFlash(s.base(ctx, p, "workspaces", "Workspaces"), r)}
+	all, err := s.store.ListOrgWorkspaces(ctx, p.User.OrgID)
+	if err != nil {
+		return err
+	}
+	for _, ws := range all {
+		c, err := s.store.CountWorkspace(ctx, ws.ID)
+		if err != nil {
+			return err
+		}
+		v.Items = append(v.Items, WorkspaceItem{
+			ID: ws.ID, Name: ws.Name, Slug: ws.Slug, Targets: c.Targets,
+			Services: c.Services, Members: c.Members, Current: ws.ID == p.Scope.WorkspaceID,
+		})
+	}
+	return render(w, r, WorkspacesPage(v))
+}
+
+func (s *Server) createWorkspace(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	if !p.OrgWide() {
+		http.Error(w, "Only organization owners and admins manage workspaces.", http.StatusForbidden)
+		return nil
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	slug := strings.ToLower(strings.TrimSpace(r.FormValue("slug")))
+	if name == "" || !workspaceSlug.MatchString(slug) {
+		return back(w, r, "/workspaces", "error", "Give a name and a slug of lowercase letters, digits and dashes.")
+	}
+	ws, err := s.store.CreateWorkspace(ctx, p.User.OrgID, name, slug)
+	if err != nil {
+		return back(w, r, "/workspaces", "error", "Could not create the workspace; is the slug taken?")
+	}
+	for i, env := range []string{"dev", "staging", "prod"} {
+		if r.FormValue("envs") == "1" {
+			if _, err := s.store.CreateEnvironment(ctx, ws.Scope(), env, (i+1)*10); err != nil {
+				return err
+			}
+		}
+	}
+	// An organization-level change: recorded without a workspace, so only organization admins see it.
+	_ = s.store.Audit(ctx, store.AuditEntry{
+		OrgID: p.User.OrgID, Actor: p.Name(), Action: "workspace.create",
+		Details: map[string]string{"workspace": ws.Slug, "name": ws.Name},
+	})
+	return back(w, r, "/workspaces", "notice", "Workspace "+ws.Name+" created. Switch to it to add agents and people.")
 }
 
 // Hub fans out "something changed" to open browser streams, per workspace.

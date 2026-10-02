@@ -155,21 +155,21 @@ templ SettingsPage(v SettingsView) {
 			@secret(v.SecretLabel, v.Secret)
 		}
 		<section class="panel">
-			<div class="panel-head"><h2>Users</h2></div>
+			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
 			<table>
-				<thead><tr><th>E-mail</th><th>Role</th><th>Last sign-in</th><th></th></tr></thead>
+				<thead><tr><th>E-mail</th><th>Access</th><th>Last sign-in</th><th></th></tr></thead>
 				<tbody>
 					for _, u := range v.Users {
 						<tr>
 							<td><strong>{ u.Email }</strong></td>
 							<td>
-								if u.IsSelf {
-									{ u.Role }
+								if u.IsSelf || u.OrgWide {
+									{ u.Access }
 								} else {
 									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
 										<select name="role" aria-label="Role" onchange="this.form.requestSubmit()">
-											for _, r := range roles() {
-												<option value={ r } selected?={ r == u.Role }>{ r }</option>
+											for _, r := range workspaceRoles() {
+												<option value={ r } selected?={ r == u.Role || (r == "none" && u.Role == "") }>{ roleLabel(r) }</option>
 											}
 										</select>
 									</form>
@@ -177,11 +177,13 @@ templ SettingsPage(v SettingsView) {
 							</td>
 							<td>@timeAgo(u.LastLogin)</td>
 							<td class="num">
-								if !u.IsSelf {
+								if !u.IsSelf && (!u.OrgWide || v.OrgAdmin) {
 									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/link") }>
 										<button class="link" type="submit">Sign-in link</button>
 									</form>
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/delete") } hx-confirm="Remove this user?">
+								}
+								if !u.IsSelf && v.OrgAdmin {
+									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/delete") } hx-confirm="Remove this person from the organization?">
 										<button class="link" type="submit" style="color:var(--bad)">Remove</button>
 									</form>
 								}
@@ -194,16 +196,22 @@ templ SettingsPage(v SettingsView) {
 				<form class="inline" method="post" action="/settings/users">
 					<label>E-mail<input name="email" type="email" required/></label>
 					<label>
-						Role
+						Access
 						<select name="role">
-							<option value="viewer">viewer</option>
-							<option value="member">member</option>
-							<option value="admin">admin</option>
+							<option value="viewer">viewer of { v.Workspace }</option>
+							<option value="member">member of { v.Workspace }</option>
+							<option value="admin">admin of { v.Workspace }</option>
+							if v.OrgAdmin {
+								<option value="org-admin">admin of the organization</option>
+							}
+							if v.CanGrantOwner {
+								<option value="owner">owner of the organization</option>
+							}
 						</select>
 					</label>
 					<button type="submit">Invite</button>
 				</form>
-				<p class="hint">Invited people sign in with an e-mailed link or single sign-on. Without e-mail, send them the sign-in link shown after inviting.</p>
+				<p class="hint">Inviting someone who already has an account gives them access to this workspace too. Without e-mail, send them the sign-in link shown after inviting.</p>
 			</div>
 		</section>
 		<section class="panel">

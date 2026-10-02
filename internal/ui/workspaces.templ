@@ -1,0 +1,50 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ WorkspacesPage(v WorkspacesView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Workspaces</h1>
+				<p class="sub">Each workspace keeps its own agents, targets, services, history and people, e.g. one per client.</p>
+			</div>
+		</div>
+		<section class="panel">
+			<table>
+				<thead><tr><th>Workspace</th><th>Slug</th><th class="num">Targets</th><th class="num">Services</th><th class="num">Members</th><th></th></tr></thead>
+				<tbody>
+					for _, w := range v.Items {
+						<tr>
+							<td><strong>{ w.Name }</strong></td>
+							<td class="mono">{ w.Slug }</td>
+							<td class="num">{ itoa(w.Targets) }</td>
+							<td class="num">{ itoa(w.Services) }</td>
+							<td class="num">{ itoa(w.Members) }</td>
+							<td class="num">
+								if w.Current {
+									<span class="badge neutral">current</span>
+								} else {
+									<form method="post" action="/workspace" hx-boost="false">
+										<input type="hidden" name="workspace" value={ w.ID }/>
+										<button class="link" type="submit">Open</button>
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+			<div class="panel-body" style="border-top:1px solid var(--line)">
+				<form class="inline" method="post" action="/workspaces">
+					<label>Name<input name="name" required placeholder="Client A"/></label>
+					<label>Slug<input name="slug" required placeholder="client-a" pattern="[a-z0-9][a-z0-9-]*"/></label>
+					<label class="check"><input type="checkbox" name="envs" value="1" checked/> with dev, staging and prod</label>
+					<button type="submit">Create workspace</button>
+				</form>
+				<p class="hint">Organization owners and admins see every workspace. Invite everyone else into the workspaces they need from its Users page.</p>
+			</div>
+		</section>
+	}
+}

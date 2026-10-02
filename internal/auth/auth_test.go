@@ -114,6 +114,9 @@ func TestMagicLinkSessionAndLogout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := h.st.SetMembership(ctx, u.ID, h.ws.ID, store.RoleMember); err != nil {
+		t.Fatal(err)
+	}
 	c := h.client()
 
 	// Asking for a link answers the same for known and unknown addresses.
@@ -282,4 +285,54 @@ func TestOIDC(t *testing.T) {
 	if _, body := get(t, h.client(), h.srv.URL+"/auth/oidc/callback?code=x&state=y"); body != "login error=oidc" {
 		t.Fatalf("callback without state: %q", body)
 	}
+}
+
+func TestWorkspaceSelection(t *testing.T) {
+	h := newHarness(t, false)
+	ctx := context.Background()
+	other, _ := h.st.CreateWorkspace(ctx, h.ws.OrgID, "Client A", "client-a")
+	secret, _ := h.st.CreateWorkspace(ctx, h.ws.OrgID, "Client B", "client-b")
+	u, _ := h.st.CreateUser(ctx, h.ws.OrgID, "ops@client-a.example", "", store.RoleViewer)
+	_ = h.st.SetMembership(ctx, u.ID, other.ID, store.RoleMember)
+
+	link, _ := h.auth.LoginLink(ctx, u)
+	c := h.client()
+	get(t, c, link)
+
+	whoami := func(cookie string) Principal {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+		for _, ck := range c.Jar.Cookies(mustURL(h.srv.URL)) {
+			req.AddCookie(ck)
+		}
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: WorkspaceCookie, Value: cookie})
+		}
+		p, ok, err := h.auth.Authenticate(req)
+		if err != nil || !ok {
+			t.Fatalf("authenticate: %v %v", ok, err)
+		}
+		return p
+	}
+	p := whoami("")
+	if p.Scope.WorkspaceID != other.ID || p.Role != store.RoleMember || len(p.Workspaces) != 1 || p.OrgWide() {
+		t.Fatalf("default workspace %+v", p)
+	}
+	// A forged cookie for a workspace the user may not open is ignored.
+	if p := whoami(secret.ID); p.Scope.WorkspaceID != other.ID {
+		t.Fatalf("forged workspace cookie honoured: %s", p.Scope.WorkspaceID)
+	}
+
+	// Org admins reach every workspace and may pick one.
+	admin, _ := h.st.CreateUser(ctx, h.ws.OrgID, "admin@msp.example", "", store.RoleAdmin)
+	link, _ = h.auth.LoginLink(ctx, admin)
+	c = h.client()
+	get(t, c, link)
+	if p := whoami(secret.ID); p.Scope.WorkspaceID != secret.ID || p.Role != store.RoleAdmin || len(p.Workspaces) != 3 || !p.OrgWide() {
+		t.Fatalf("admin %+v", p)
+	}
+}
+
+func mustURL(s string) *url.URL {
+	u, _ := url.Parse(s)
+	return u
 }
