@@ -477,3 +477,98 @@ func columns(t *testing.T, s *Store, query string) map[string]bool {
 	}
 	return cols
 }
+
+func TestApplySnapshotAndEvents(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		svc, err := s.EnsureService(ctx, sc, "payments")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again, err := s.EnsureService(ctx, sc, "payments"); err != nil || again.ID != svc.ID {
+			t.Fatalf("EnsureService not idempotent: %v %v", again, err)
+		}
+		at := time.Date(2026, 10, 2, 8, 0, 0, 0, time.UTC)
+		snap := func(id string, at time.Time) {
+			if _, err := s.InsertSnapshot(ctx, Snapshot{
+				ID: id, Scope: sc, TargetID: f.tgt.ID, CollectedAt: at,
+				Complete: true, Payload: json.RawMessage(`{}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		first := Instance{
+			ID: NewID(), EnvironmentID: f.env.ID, ServiceID: svc.ID, WorkloadID: "w1", WorkloadKind: "deployment",
+			WorkloadName: "payments-api", ContainerName: "app", Image: "ghcr.io/acme/payments-api:1.4.2", Tag: "1.4.2",
+			Running: 3, IsMain: true,
+		}
+		s1 := NewID()
+		snap(s1, at)
+		if err := s.ApplySnapshot(ctx, SnapshotChanges{Scope: sc, SnapshotID: s1, TargetID: f.tgt.ID, At: at, Upsert: []Instance{first}}); err != nil {
+			t.Fatal(err)
+		}
+
+		// Same key again with a new running count updates in place (ON CONFLICT), a new version is a new row.
+		first.Running = 1
+		second := first
+		second.ID, second.Image, second.Tag = NewID(), "ghcr.io/acme/payments-api:1.5.0", "1.5.0"
+		second.Running = 2
+		s2 := NewID()
+		snap(s2, at.Add(time.Minute))
+		if err := s.ApplySnapshot(ctx, SnapshotChanges{
+			Scope: sc, SnapshotID: s2, TargetID: f.tgt.ID, At: at.Add(time.Minute),
+			Upsert: []Instance{first, second},
+			Events: []Event{{
+				Type: "version_changed", ServiceID: svc.ID, EnvironmentID: f.env.ID, TargetID: f.tgt.ID,
+				InstanceID: second.ID, FromVersion: "1.4.2", ToVersion: "1.5.0", At: at.Add(time.Minute),
+			}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		s3 := NewID()
+		snap(s3, at.Add(2*time.Minute))
+		if err := s.ApplySnapshot(ctx, SnapshotChanges{
+			Scope: sc, SnapshotID: s3, TargetID: f.tgt.ID, At: at.Add(2 * time.Minute),
+			Upsert: []Instance{second}, Remove: []string{first.ID},
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		all, err := s.ListTargetInstances(ctx, sc, f.tgt.ID)
+		if err != nil || len(all) != 2 {
+			t.Fatalf("instances %+v %v", all, err)
+		}
+		active, err := s.ListActiveInstances(ctx, sc)
+		if err != nil || len(active) != 1 || active[0].Tag != "1.5.0" || active[0].Running != 2 || !active[0].IsMain {
+			t.Fatalf("active %+v %v", active, err)
+		}
+		if !active[0].FirstSeenAt.Equal(at.Add(time.Minute)) || !active[0].LastSeenAt.Equal(at.Add(2*time.Minute)) {
+			t.Fatalf("seen times %v %v", active[0].FirstSeenAt, active[0].LastSeenAt)
+		}
+		if latest, err := s.LatestProcessedAt(ctx, sc, f.tgt.ID); err != nil || !latest.Equal(at.Add(2*time.Minute)) {
+			t.Fatalf("latest processed %v %v", latest, err)
+		}
+		if pending, _ := s.UnprocessedSnapshots(ctx, 10); len(pending) != 0 {
+			t.Fatal("snapshots not marked processed")
+		}
+
+		evs, err := s.ListEvents(ctx, sc, EventFilter{ServiceID: svc.ID, Types: []string{"version_changed", "deployed"}})
+		if err != nil || len(evs) != 1 || evs[0].ToVersion != "1.5.0" || evs[0].Source != "poll" || evs[0].InstanceID != second.ID {
+			t.Fatalf("events %+v %v", evs, err)
+		}
+		if none, _ := s.ListEvents(ctx, sc, EventFilter{Before: at}); len(none) != 0 {
+			t.Fatal("Before filter ignored")
+		}
+
+		rule, err := s.CreateMappingRule(ctx, MappingRule{Scope: sc, MatchType: "image_repo", Pattern: "x", ServiceID: svc.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rules, err := s.ListMappingRules(ctx, sc); err != nil || len(rules) != 1 || rules[0].ID != rule.ID {
+			t.Fatalf("rules %+v %v", rules, err)
+		}
+	})
+}

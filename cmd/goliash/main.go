@@ -7,6 +7,7 @@
 //	goliash env create    -name prod -position 30
 //	goliash agent create  -name eu-cluster
 //	goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1
+//	goliash matrix | events | rule create
 //	goliash version
 package main
 
@@ -23,12 +24,15 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/ingest"
+	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
+	"github.com/pipozzz/goliash/internal/versions"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
 
@@ -37,6 +41,9 @@ const usage = `Usage:
   goliash env create -name NAME [-position N]
   goliash agent create -name NAME         prints the agent token once
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm -name NAME [-settings JSON] [-poll SECONDS]
+  goliash matrix                          service × environment versions
+  goliash events [-service NAME] [-limit N]
+  goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash version
 
 Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db).
@@ -59,7 +66,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	cmd := "serve"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		cmd, args = args[0], args[1:]
-		if len(args) > 0 && args[0] == "create" && (cmd == "env" || cmd == "agent" || cmd == "target") {
+		if len(args) > 0 && args[0] == "create" && (cmd == "env" || cmd == "agent" || cmd == "target" || cmd == "rule") {
 			cmd, args = cmd+" create", args[1:]
 		}
 	}
@@ -73,6 +80,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return agentCreate(ctx, args, out)
 	case "target create":
 		return targetCreate(ctx, args, out)
+	case "matrix":
+		return matrixCmd(ctx, args, out)
+	case "events":
+		return eventsCmd(ctx, args, out)
+	case "rule create":
+		return ruleCreate(ctx, args, out)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(out, "goliash", buildinfo.String())
 		return nil
@@ -143,6 +156,7 @@ func serve(ctx context.Context, args []string) error {
 	})
 
 	go svc.WatchStale(ctx, time.Minute, nil)
+	go svc.RunProcessor(ctx, 10*time.Second)
 
 	srv := &http.Server{
 		Addr:              *listen,
@@ -262,6 +276,160 @@ func targetCreate(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(out, "target %s created (%s)\n", t.Name, t.ID)
+	return nil
+}
+
+func matrixCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("matrix")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	sc := ws.Scope()
+	services, err := db.ListServices(ctx, sc)
+	if err != nil {
+		return err
+	}
+	envs, err := db.ListEnvironments(ctx, sc)
+	if err != nil {
+		return err
+	}
+	targets, err := db.ListTargets(ctx, sc)
+	if err != nil {
+		return err
+	}
+	active, err := db.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return err
+	}
+	m := versions.BuildMatrix(services, envs, targets, active)
+
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	header := []string{"SERVICE"}
+	for _, e := range m.Environments {
+		header = append(header, strings.ToUpper(e.Name))
+	}
+	_, _ = fmt.Fprintln(tw, strings.Join(header, "\t"))
+	for _, row := range m.Rows {
+		cols := []string{row.Service.Name}
+		for _, c := range row.Cells {
+			if c.Empty() {
+				cols = append(cols, "-")
+				continue
+			}
+			var vs []string
+			for _, v := range c.Versions {
+				vs = append(vs, fmt.Sprintf("%s (%d)", v.Tag, v.Running))
+			}
+			cols = append(cols, strings.Join(vs, " + "))
+		}
+		_, _ = fmt.Fprintln(tw, strings.Join(cols, "\t"))
+	}
+	_ = tw.Flush()
+	if m.Unmapped > 0 {
+		_, _ = fmt.Fprintf(out, "\n%d workload(s) not mapped to a service yet.\n", m.Unmapped)
+	}
+	return nil
+}
+
+func eventsCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("events")
+	service := fs.String("service", "", "only events of this service")
+	limit := fs.Int("limit", 50, "number of events")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	sc := ws.Scope()
+	f := store.EventFilter{Limit: *limit}
+	if *service != "" {
+		svc, err := db.GetServiceByName(ctx, sc, *service)
+		if err != nil {
+			return fmt.Errorf("service %q: %w", *service, err)
+		}
+		f.ServiceID = svc.ID
+	}
+	evs, err := db.ListEvents(ctx, sc, f)
+	if err != nil {
+		return err
+	}
+	names := map[string]string{}
+	services, _ := db.ListServices(ctx, sc)
+	for _, s := range services {
+		names[s.ID] = s.Name
+	}
+	envs, _ := db.ListEnvironments(ctx, sc)
+	for _, e := range envs {
+		names[e.ID] = e.Name
+	}
+	targets, _ := db.ListTargets(ctx, sc)
+	for _, t := range targets {
+		names[t.ID] = t.Name
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "TIME (UTC)\tEVENT\tSERVICE\tENV\tTARGET\tCHANGE")
+	for _, e := range evs {
+		svc := names[e.ServiceID]
+		if svc == "" {
+			svc = "(unmapped)"
+		}
+		change := strings.TrimSpace(e.FromVersion + " → " + e.ToVersion)
+		switch e.Type {
+		case "deployed":
+			change = e.ToVersion
+		case "removed":
+			change = e.FromVersion
+		}
+		if e.Note != "" {
+			change += " (" + e.Note + ")"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", e.At.Format("2006-01-02 15:04"), e.Type, svc,
+			names[e.EnvironmentID], names[e.TargetID], change)
+	}
+	return tw.Flush()
+}
+
+func ruleCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("rule create")
+	match := fs.String("match", "", "image_repo, workload_name, label (pattern key=regexp) or ignore")
+	pattern := fs.String("pattern", "", "regular expression, matched against the whole value")
+	service := fs.String("service", "", "service the rule maps to (created if missing); not for ignore")
+	priority := fs.Int("priority", 100, "lower runs first")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *match == "" || *pattern == "" || (*match != "ignore" && *service == "") {
+		return errors.New("-match and -pattern are required, and -service unless -match ignore")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	r := store.MappingRule{Scope: ws.Scope(), Priority: *priority, MatchType: *match, Pattern: *pattern}
+	if _, errs := mapping.New([]store.MappingRule{r}); len(errs) > 0 {
+		return errs[0]
+	}
+	if *service != "" {
+		svc, err := db.EnsureService(ctx, ws.Scope(), *service)
+		if err != nil {
+			return err
+		}
+		r.ServiceID = svc.ID
+	}
+	r, err = db.CreateMappingRule(ctx, r)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "rule %s created; it applies from the next snapshot\n", r.ID)
 	return nil
 }
 

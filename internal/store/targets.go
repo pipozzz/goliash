@@ -73,6 +73,25 @@ func (s *Store) ListAgentTargets(ctx context.Context, sc Scope, agentID string) 
 	return targets, rows.Err()
 }
 
+// ListTargets returns all targets of the workspace by name.
+func (s *Store) ListTargets(ctx context.Context, sc Scope) ([]Target, error) {
+	rows, err := s.query(ctx, s.db, `SELECT `+targetColumns+` FROM targets
+		WHERE org_id = ? AND workspace_id = ? ORDER BY name`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var targets []Target
+	for rows.Next() {
+		t, err := scanTarget(rows)
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, t)
+	}
+	return targets, rows.Err()
+}
+
 const targetColumns = `id, org_id, workspace_id, environment_id, agent_id, platform, name, settings,
 	poll_interval_seconds, last_snapshot_at, collector_status, collector_error, collector_reported_at, created_at`
 
