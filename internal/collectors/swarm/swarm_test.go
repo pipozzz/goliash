@@ -103,20 +103,7 @@ func TestCollect(t *testing.T) {
 	}
 }
 
-func TestDockerHost(t *testing.T) {
-	for host, want := range map[string]string{
-		"tcp://proxy:2375":            "http://proxy:2375",
-		"https://docker.example:2376": "https://docker.example:2376",
-		"unix:///var/run/docker.sock": "http://docker",
-	} {
-		base, _, err := dockerClient(host)
-		if err != nil || base != want {
-			t.Errorf("%s -> %s, %v", host, base, err)
-		}
-	}
-	if _, _, err := dockerClient("ssh://host"); err == nil {
-		t.Error("ssh accepted")
-	}
+func TestMissingSettings(t *testing.T) {
 	if _, err := New(context.Background(), agentproto.Target{}); err == nil {
 		t.Error("missing settings accepted")
 	}

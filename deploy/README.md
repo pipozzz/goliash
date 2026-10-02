@@ -6,7 +6,7 @@
 | Nomad | [`nomad/goliash-server.nomad.hcl`](nomad/goliash-server.nomad.hcl) | [`nomad/goliash-agent.nomad.hcl`](nomad/goliash-agent.nomad.hcl) |
 | Docker Swarm | [`swarm/goliash-server.yml`](swarm/goliash-server.yml) | [`swarm/goliash-agent.yml`](swarm/goliash-agent.yml) (with docker-socket-proxy, GET only) |
 | ECS | any of the above, or a Fargate task with PostgreSQL | Terraform module [`ecs/goliash-agent`](ecs) (read-only IAM) |
-| Docker | [`../docker-compose.yml`](../docker-compose.yml) | `docker run ghcr.io/pipozzz/goliash-agent` |
+| Docker | [`../docker-compose.yml`](../docker-compose.yml) (`--profile watch-host` watches its own host) | [`docker/goliash-agent.yml`](docker/goliash-agent.yml) (with docker-socket-proxy, GET only) |
 
 Every agent needs a token: create the agent in the UI (**Agents → Add an agent**) or with
 `goliash agent create -name …`, then pass the token as `GOLIASH_AGENT_TOKEN` or a file in

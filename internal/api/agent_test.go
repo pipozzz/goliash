@@ -204,7 +204,7 @@ func TestAuthentication(t *testing.T) {
 		"missing":    "-",
 		"garbage":    "hello",
 		"wrong kind": ciToken,
-		"bad sum":    e.token[:len(e.token)-1] + "x",
+		"bad sum":    flipLast(e.token),
 		"not issued": other,
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -429,4 +429,13 @@ func TestUnknownEndpoint(t *testing.T) {
 	if !strings.Contains(resp.Header.Get("Content-Type"), "problem+json") {
 		t.Fatal("not a problem response")
 	}
+}
+
+// flipLast changes the last character, so the checksum no longer matches.
+func flipLast(token string) string {
+	last := "x"
+	if strings.HasSuffix(token, "x") {
+		last = "y"
+	}
+	return token[:len(token)-1] + last
 }

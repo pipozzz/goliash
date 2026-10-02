@@ -2,8 +2,8 @@
 # Copyright 2026 The Goliash Authors
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# Starts a local lab: Kubernetes (k3s), Docker Swarm (dind) and Nomad in Docker, a
-# Goliash server on http://127.0.0.1:18090 and an agent that collects all three.
+# Starts a local lab: Kubernetes (k3s), Docker Swarm and a plain Docker host (one dind) and Nomad in Docker, a
+# Goliash server on http://127.0.0.1:18090 and an agent that collects all of them.
 #
 #   scripts/lab/up.sh      # prints a sign-in link
 #   scripts/lab/down.sh
@@ -105,6 +105,11 @@ docker exec goliash-dind docker swarm init >/dev/null 2>&1 || true
 docker exec goliash-dind docker service inspect shop_web >/dev/null 2>&1 ||
   docker exec goliash-dind docker service create -q --name shop_web --label com.docker.stack.namespace=shop \
     --label goliash.service=web --replicas 2 nginx:1.27.3 >/dev/null
+# A plain container with Compose labels on the same engine, for the docker platform
+# (Swarm tasks above are left to the swarm target).
+docker exec goliash-dind docker inspect shop-web-1 >/dev/null 2>&1 ||
+  docker exec goliash-dind docker run -d -q --name shop-web-1 --label com.docker.compose.project=shop \
+    --label com.docker.compose.service=web --label goliash.service=web nginx:1.27.2 >/dev/null
 
 # --- Nomad -----------------------------------------------------------------------
 # Server only: a Nomad client cannot run in Docker on macOS, so jobs register but do not run.
@@ -134,6 +139,8 @@ if [ ! -f "$LAB/goliash.db" ]; then
     -settings '{"kubernetes":{"exclude_namespaces":["kube-system","goliash"]}}' >/dev/null
   $G target create -agent lab -env staging -platform swarm -name swarm-staging -poll 30 \
     -settings '{"swarm":{"docker_host":"tcp://127.0.0.1:12375"}}' >/dev/null
+  $G target create -agent lab -env dev -platform docker -name docker-dev -poll 30 \
+    -settings '{"docker":{"docker_host":"tcp://127.0.0.1:12375"}}' >/dev/null
   $G target create -agent lab -env dev -platform nomad -name nomad-dev -poll 60 \
     -settings '{"nomad":{"address":"http://127.0.0.1:14646"}}' >/dev/null
   $G service set -name web -owner team-web -track minor >/dev/null

@@ -217,7 +217,7 @@ components:
 
     Platform:
       type: string
-      enum: [kubernetes, ecs, nomad, swarm]
+      enum: [kubernetes, ecs, nomad, swarm, docker]
 
     RegisterRequest:
       type: object
@@ -283,7 +283,8 @@ components:
     Target:
       type: object
       description: |
-        One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region or a Swarm cluster. Exactly the
+        One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster or a Docker
+        host. Exactly the
         settings object that matches `platform` is set.
       required: [id, platform, name, poll_interval_seconds]
       properties:
@@ -315,6 +316,8 @@ components:
           $ref: '#/components/schemas/NomadSettings'
         swarm:
           $ref: '#/components/schemas/SwarmSettings'
+        docker:
+          $ref: '#/components/schemas/DockerSettings'
 
     KubernetesSettings:
       type: object
@@ -370,6 +373,20 @@ components:
           description: Docker API endpoint, normally a docker-socket-proxy that allows only GET.
           example: tcp://docker-socket-proxy:2375
 
+    DockerSettings:
+      type: object
+      required: [docker_host]
+      description: |
+        A standalone Docker host. Compose services are grouped by project and service; other containers are
+        reported one by one. Containers that belong to Swarm services are left to the swarm platform.
+      properties:
+        docker_host:
+          type: string
+          description: |
+            Docker API endpoint, normally a docker-socket-proxy that allows only GET (CONTAINERS=1, IMAGES=1 for
+            digests).
+          example: tcp://docker-socket-proxy:2375
+
     RegistryCheck:
       type: object
       required: [repository]
@@ -415,7 +432,7 @@ components:
 
     WorkloadKind:
       type: string
-      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service]
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container]
 
     Workload:
       type: object
@@ -423,18 +440,20 @@ components:
       properties:
         id:
           type: string
-          description: Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID).
+          description: |
+            Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID), or a stable name
+            for Docker (compose project/service, container name).
         kind:
           $ref: '#/components/schemas/WorkloadKind'
         namespace:
           type: string
-          description: Kubernetes or Nomad namespace.
+          description: Kubernetes or Nomad namespace, Swarm stack or Compose project.
         name:
           type: string
           example: payments-api
         labels:
           type: object
-          description: Kubernetes labels, ECS tags, Nomad meta or Swarm labels. `goliash.service` and `goliash.env` take precedence in mapping.
+          description: Kubernetes labels, ECS tags, Nomad meta or Swarm/Docker labels. `goliash.service` and `goliash.env` take precedence in mapping.
           additionalProperties:
             type: string
         desired_replicas:

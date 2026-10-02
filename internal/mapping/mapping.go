@@ -13,7 +13,7 @@ import (
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
-// Labels with a meaning to Goliash. They are Kubernetes labels, ECS tags, Nomad meta or Swarm labels.
+// Labels with a meaning to Goliash. They are Kubernetes labels, ECS tags, Nomad meta or Docker labels.
 const (
 	LabelService   = "goliash.service"   // service name; wins over everything else
 	LabelEnv       = "goliash.env"       // environment name, overriding the target's
