@@ -8,6 +8,7 @@
 //	goliash agent create  -name eu-cluster
 //	goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1
 //	goliash matrix | events | drift | check | rule create | service set
+//	goliash channel create | channel test | notify create | ack
 //	goliash version
 package main
 
@@ -31,6 +32,7 @@ import (
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
@@ -49,6 +51,11 @@ const usage = `Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
+  goliash channel create -type slack|webhook|email -name NAME [-url URL] [-secret S] [-to a@b,c@d]
+  goliash channel test -name NAME
+  goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
+                        [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
+  goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash version
 
@@ -78,6 +85,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && args[0] == "set" && cmd == "service" {
 			cmd, args = "service set", args[1:]
 		}
+		if len(args) > 0 && cmd == "channel" && (args[0] == "create" || args[0] == "test") {
+			cmd, args = "channel "+args[0], args[1:]
+		}
+		if len(args) > 0 && cmd == "notify" && args[0] == "create" {
+			cmd, args = "notify create", args[1:]
+		}
 	}
 
 	switch cmd {
@@ -101,6 +114,14 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return checkCmd(ctx, args, out)
 	case "service set":
 		return serviceSet(ctx, args, out)
+	case "channel create":
+		return channelCreate(ctx, args, out)
+	case "channel test":
+		return channelTest(ctx, args, out)
+	case "notify create":
+		return notifyCreate(ctx, args, out)
+	case "ack":
+		return ackCmd(ctx, args, out)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(out, "goliash", buildinfo.String())
 		return nil
@@ -159,6 +180,15 @@ func serve(ctx context.Context, args []string) error {
 	svc := ingest.New(db, log)
 	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
 	svc.SetUpstreams(checker)
+	notify := notifier.New(db, log, notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
+	svc.OnEvents(func(sc store.Scope, evs []store.Event) {
+		notify.Handle(sc, evs)
+		// A deploy can open or close drift; do not wait for the next minute.
+		if err := checker.EvaluateDrift(ctx, sc); err != nil && ctx.Err() == nil {
+			log.Error("drift evaluation failed", "err", err)
+		}
+	})
+	checker.OnEvents(notify.Handle)
 	agents, err := api.NewAgentHandler(db, svc, log)
 	if err != nil {
 		return err
@@ -173,7 +203,8 @@ func serve(ctx context.Context, args []string) error {
 		_, _ = w.Write([]byte("ok\n"))
 	})
 
-	go svc.WatchStale(ctx, time.Minute, nil)
+	go svc.WatchStale(ctx, time.Minute, notify.AgentStale)
+	go notify.Run(ctx, 15*time.Second)
 	go svc.RunProcessor(ctx, 10*time.Second)
 	go checker.Run(ctx, *upstreamEvery, time.Minute)
 
@@ -411,6 +442,8 @@ func checkCmd(ctx context.Context, args []string, out io.Writer) error {
 	defer func() { _ = db.Close() }()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	checker := versions.NewChecker(db, registry.New(), log, time.Minute)
+	// Notifications are queued here and delivered by the running server.
+	checker.OnEvents(notifier.New(db, log, nil).Handle)
 	sc := ws.Scope()
 	if *service != "" {
 		svc, err := db.GetServiceByName(ctx, sc, *service)
@@ -596,6 +629,172 @@ func ruleCreate(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(out, "rule %s created; it applies from the next snapshot\n", r.ID)
+	return nil
+}
+
+func smtpFromEnv() notifier.SMTPConfig {
+	return notifier.SMTPConfig{
+		Addr:     os.Getenv("GOLIASH_SMTP_ADDR"),
+		Username: os.Getenv("GOLIASH_SMTP_USERNAME"),
+		Password: os.Getenv("GOLIASH_SMTP_PASSWORD"),
+		From:     os.Getenv("GOLIASH_SMTP_FROM"),
+	}
+}
+
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func channelCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("channel create")
+	typ := fs.String("type", "", "slack, webhook or email")
+	name := fs.String("name", "", "channel name")
+	url := fs.String("url", "", "slack incoming webhook or webhook URL")
+	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
+	to := fs.String("to", "", "comma-separated e-mail recipients")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg := map[string]any{}
+	switch *typ {
+	case "slack", "webhook":
+		if *url == "" {
+			return errors.New("-url is required")
+		}
+		cfg["url"] = *url
+		if *secret != "" {
+			cfg["secret"] = *secret
+		}
+	case "email":
+		if *to == "" {
+			return errors.New("-to is required")
+		}
+		cfg["to"] = splitList(*to)
+	default:
+		return errors.New("-type must be slack, webhook or email")
+	}
+	if *name == "" {
+		return errors.New("-name is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	raw, _ := json.Marshal(cfg)
+	ch, err := db.CreateChannel(ctx, store.Channel{Scope: ws.Scope(), Type: *typ, Name: *name, Config: raw})
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "channel %s created (%s)\n", ch.Name, ch.ID)
+	return nil
+}
+
+func channelTest(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("channel test")
+	name := fs.String("name", "", "channel name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	ch, err := db.GetChannelByName(ctx, ws.Scope(), *name)
+	if err != nil {
+		return fmt.Errorf("channel %q: %w", *name, err)
+	}
+	n := notifier.New(db, slog.New(slog.NewTextHandler(io.Discard, nil)),
+		notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
+	if err := n.SendTest(ctx, ch, ws.Name); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "test notification sent to %s\n", ch.Name)
+	return nil
+}
+
+func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("notify create")
+	channel := fs.String("channel", "", "channel name")
+	events := fs.String("events", "", "comma-separated event types (empty: all), e.g. new_release,drift_detected,agent_stale")
+	mode := fs.String("mode", "instant", "instant, daily or weekly")
+	services := fs.String("services", "", "only these services")
+	owners := fs.String("owners", "", "only services of these owners")
+	envs := fs.String("envs", "", "only these environments")
+	minJump := fs.String("min-jump", "", "new releases: smallest jump to report (patch, minor, major)")
+	digestHour := fs.Int("digest-hour", 8, "UTC hour digests go out")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *mode != "instant" && *mode != "daily" && *mode != "weekly" {
+		return errors.New("-mode must be instant, daily or weekly")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	ch, err := db.GetChannelByName(ctx, ws.Scope(), *channel)
+	if err != nil {
+		return fmt.Errorf("channel %q: %w", *channel, err)
+	}
+	f := notifier.Filter{
+		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs),
+		MinJump: versions.Jump(*minJump), DigestHour: digestHour,
+	}
+	raw, _ := json.Marshal(f)
+	r, err := db.CreateRule(ctx, store.Rule{Scope: ws.Scope(), ChannelID: ch.ID, EventTypes: splitList(*events), Filter: raw, Mode: *mode})
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "notification rule %s created: %s → %s (%s)\n", r.ID, strings.Join(r.EventTypes, ","), ch.Name, r.Mode)
+	return nil
+}
+
+func ackCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("ack")
+	service := fs.String("service", "", "service name")
+	kind := fs.String("kind", "release", "release or drift")
+	untilVersion := fs.String("until-version", "", "quiet until this version (e.g. 2.1.0)")
+	forDur := fs.Duration("for", 0, "quiet for this long (e.g. 336h for 14 days)")
+	envName := fs.String("env", "", "only this environment (drift)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *untilVersion == "" && *forDur == 0 {
+		return errors.New("-until-version or -for is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	svc, err := db.GetServiceByName(ctx, ws.Scope(), *service)
+	if err != nil {
+		return fmt.Errorf("service %q: %w", *service, err)
+	}
+	a := store.Ack{Scope: ws.Scope(), ServiceID: svc.ID, Kind: *kind, UntilVersion: *untilVersion, CreatedBy: "cli"}
+	if *forDur > 0 {
+		a.UntilAt = time.Now().Add(*forDur)
+	}
+	if *envName != "" {
+		e, err := db.GetEnvironmentByName(ctx, ws.Scope(), *envName)
+		if err != nil {
+			return fmt.Errorf("environment %q: %w", *envName, err)
+		}
+		a.EnvironmentID = e.ID
+	}
+	if _, err := db.CreateAck(ctx, a); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "acknowledged %s %s\n", svc.Name, *kind)
 	return nil
 }
 
