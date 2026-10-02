@@ -154,7 +154,12 @@ func (a *Auth) oidcUser(r *http.Request) (store.User, error) {
 	_, domain, _ := strings.Cut(strings.ToLower(claims.Email), "@")
 	for _, d := range a.oidc.domains {
 		if strings.EqualFold(strings.TrimSpace(d), domain) {
-			return a.store.CreateUser(r.Context(), orgID, claims.Email, claims.Name, store.RoleViewer)
+			// Viewers of the organization's first workspace; admins can widen that.
+			u, err := a.store.CreateUser(r.Context(), orgID, claims.Email, claims.Name, store.RoleViewer)
+			if err != nil {
+				return u, err
+			}
+			return u, a.store.SetMembership(r.Context(), u.ID, ws[0].ID, store.RoleViewer)
 		}
 	}
 	return store.User{}, fmt.Errorf("%w: %s", ErrNotInvited, claims.Email)

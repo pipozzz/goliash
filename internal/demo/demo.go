@@ -97,12 +97,8 @@ func (f fakeRegistry) ListTags(_ context.Context, repo string, _ registry.Creden
 	return nil, fmt.Errorf("demo registry has no %s", repo)
 }
 
-// Seed fills the default workspace with demo data. It refuses to run twice.
-func Seed(ctx context.Context, st *store.Store, log *slog.Logger) error {
-	ws, err := st.EnsureDefaultWorkspace(ctx)
-	if err != nil {
-		return err
-	}
+// Seed fills a workspace with demo data. It refuses to run twice.
+func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Logger) error {
 	sc := ws.Scope()
 	if _, err := st.GetAgentByName(ctx, sc, "demo-agent"); err == nil {
 		return ErrAlreadySeeded
@@ -124,14 +120,12 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	if err := st.RegisterAgent(ctx, sc, agent.ID, "demo", "demo-host", []string{"ecs", "kubernetes", "swarm"}); err != nil {
-		return err
-	}
 	targetIDs := map[string]string{}
 	for _, t := range targets {
+		// Demo data never refreshes; a 30-day poll interval keeps it from looking stale.
 		tg, err := st.CreateTarget(ctx, store.Target{
 			Scope: sc, EnvironmentID: envIDs[t.env], AgentID: agent.ID,
-			Platform: t.platform, Name: t.name, Settings: json.RawMessage(`{}`),
+			Platform: t.platform, Name: t.name, Settings: json.RawMessage(`{}`), PollIntervalSeconds: 30 * 24 * 3600,
 		})
 		if err != nil {
 			return err
@@ -141,7 +135,7 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) error {
 
 	// Snapshots in time order: every target daily, with its state as of that day.
 	svc := ingest.New(st, log)
-	start := time.Now().UTC().Add(-21 * 24 * time.Hour).Truncate(time.Hour)
+	start := time.Now().UTC().Add(-21*24*time.Hour - time.Hour)
 	for day := 0; day <= 21; day++ {
 		for _, t := range targets {
 			running := stateOn(t, day)
@@ -168,9 +162,6 @@ func Seed(ctx context.Context, st *store.Store, log *slog.Logger) error {
 		if _, err := svc.ProcessPending(ctx); err != nil {
 			return err
 		}
-	}
-	if _, err := st.TouchAgent(ctx, sc, agent.ID); err != nil {
-		return err
 	}
 	for _, t := range targets {
 		if err := st.ReportCollectorStatus(ctx, sc, agent.ID, targetIDs[t.name], "ok", ""); err != nil {

@@ -60,6 +60,9 @@ const usage = `Usage:
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
+  goliash workspace create -name N -slug S [-envs]   a workspace per client or team
+  goliash workspace list
+  goliash user grant -email E -role viewer|member|admin|none   access to the -workspace
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
   goliash token create -name N            API token for /api/v1 and /metrics (shown once)
@@ -68,7 +71,8 @@ const usage = `Usage:
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
-Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db).
+Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db) and
+-workspace SLUG (env GOLIASH_WORKSPACE, default: the first workspace).
 `
 
 func main() {
@@ -103,6 +107,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && (cmd == "user" || cmd == "token") && args[0] == "create" {
 			cmd, args = cmd+" create", args[1:]
 		}
+		if len(args) > 0 && ((cmd == "user" && args[0] == "grant") || (cmd == "workspace" && (args[0] == "create" || args[0] == "list"))) {
+			cmd, args = cmd+" "+args[0], args[1:]
+		}
 	}
 
 	switch cmd {
@@ -136,6 +143,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return ackCmd(ctx, args, out)
 	case "user create":
 		return userCreate(ctx, args, out)
+	case "user grant":
+		return userGrant(ctx, args, out)
+	case "workspace create":
+		return workspaceCreate(ctx, args, out)
+	case "workspace list":
+		return workspaceList(ctx, args, out)
 	case "login-link":
 		return loginLink(ctx, args, out)
 	case "token create":
@@ -156,10 +169,15 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 }
 
+// cliWorkspace is the -workspace flag every command takes.
+var cliWorkspace string
+
 func newFlags(name string) (*flag.FlagSet, *string) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	dsn := fs.String("database", envOr("GOLIASH_DATABASE_URL", "goliash.db"),
 		"SQLite file path or postgres:// URL (env GOLIASH_DATABASE_URL)")
+	fs.StringVar(&cliWorkspace, "workspace", os.Getenv("GOLIASH_WORKSPACE"),
+		"workspace slug (env GOLIASH_WORKSPACE); default: the first workspace")
 	return fs, dsn
 }
 
@@ -173,6 +191,12 @@ func openDefault(ctx context.Context, dsn string) (*store.Store, store.Workspace
 	if err != nil {
 		_ = db.Close()
 		return nil, store.Workspace{}, fmt.Errorf("default workspace: %w", err)
+	}
+	if cliWorkspace != "" {
+		if ws, err = db.GetWorkspaceBySlug(ctx, ws.OrgID, cliWorkspace); err != nil {
+			_ = db.Close()
+			return nil, store.Workspace{}, fmt.Errorf("workspace %q: %w (see goliash workspace list)", cliWorkspace, err)
+		}
 	}
 	return db, ws, nil
 }
@@ -711,7 +735,7 @@ func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL s
 func userCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("user create")
 	email := fs.String("email", "", "e-mail address")
-	role := fs.String("role", store.RoleViewer, "owner, admin, member or viewer")
+	role := fs.String("role", store.RoleViewer, "owner or admin (whole organization), member or viewer (the -workspace)")
 	name := fs.String("name", "", "display name")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -728,9 +752,111 @@ func userCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if !store.OrgWide(u.Role) {
+		if err := db.SetMembership(ctx, u.ID, ws.ID, u.Role); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(out, "%s may open workspace %s; grant more with goliash user grant\n", u.Email, ws.Slug)
+	}
 	cliAudit(ctx, db, ws, "user.create", "user", u.Email, "role", u.Role)
 	_, _ = fmt.Fprintf(out, "user %s created with role %s\n", u.Email, u.Role)
 	return nil
+}
+
+func userGrant(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("user grant")
+	email := fs.String("email", "", "e-mail address of an existing user")
+	role := fs.String("role", store.RoleViewer, "viewer, member, admin, or none to take access away")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	u, err := db.GetUserByEmail(ctx, ws.OrgID, *email)
+	if err != nil {
+		return fmt.Errorf("user %q: %w", *email, err)
+	}
+	if store.OrgWide(u.Role) {
+		return fmt.Errorf("%s is %s of the organization and already reaches every workspace", u.Email, u.Role)
+	}
+	switch *role {
+	case store.RoleViewer, store.RoleMember, store.RoleAdmin:
+		err = db.SetMembership(ctx, u.ID, ws.ID, *role)
+	case "none":
+		err = db.RemoveMembership(ctx, u.ID, ws.ID)
+	default:
+		return errors.New("-role must be viewer, member, admin or none")
+	}
+	if err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "user.role", "user", u.Email, "to", *role, "workspace", ws.Slug)
+	_, _ = fmt.Fprintf(out, "%s: %s in %s\n", u.Email, *role, ws.Slug)
+	return nil
+}
+
+func workspaceCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("workspace create")
+	name := fs.String("name", "", "display name, e.g. Client A")
+	slug := fs.String("slug", "", "short id, e.g. client-a")
+	envs := fs.Bool("envs", false, "also create dev, staging and prod")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" || *slug == "" {
+		return errors.New("-name and -slug are required")
+	}
+	db, def, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	ws, err := db.CreateWorkspace(ctx, def.OrgID, *name, strings.ToLower(*slug))
+	if err != nil {
+		return err
+	}
+	if *envs {
+		for i, env := range []string{"dev", "staging", "prod"} {
+			if _, err := db.CreateEnvironment(ctx, ws.Scope(), env, (i+1)*10); err != nil {
+				return err
+			}
+		}
+	}
+	_ = db.Audit(ctx, store.AuditEntry{
+		OrgID: ws.OrgID, Actor: "cli", Action: "workspace.create",
+		Details: map[string]string{"workspace": ws.Slug, "name": ws.Name},
+	})
+	_, _ = fmt.Fprintf(out, "workspace %s created; use -workspace %s with other commands\n", ws.Name, ws.Slug)
+	return nil
+}
+
+func workspaceList(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("workspace list")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, def, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	all, err := db.ListOrgWorkspaces(ctx, def.OrgID)
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "SLUG\tNAME\tTARGETS\tSERVICES\tMEMBERS")
+	for _, w := range all {
+		c, err := db.CountWorkspace(ctx, w.ID)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\n", w.Slug, w.Name, c.Targets, c.Services, c.Members)
+	}
+	return tw.Flush()
 }
 
 func loginLink(ctx context.Context, args []string, out io.Writer) error {
@@ -853,12 +979,12 @@ func demoCmd(ctx context.Context, args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	db, _, err := openDefault(ctx, *dsn)
+	db, ws, err := openDefault(ctx, *dsn)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	if err := demo.Seed(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+	if err := demo.Seed(ctx, db, ws, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(out, "Demo data added: 4 demo-* targets in dev, staging and prod, 7 services, three weeks of history.")

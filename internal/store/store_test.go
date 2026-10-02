@@ -637,3 +637,45 @@ func TestAudit(t *testing.T) {
 		}
 	})
 }
+
+func TestMemberships(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		clientA, _ := s.CreateWorkspace(ctx, ws.OrgID, "Client A", "client-a")
+		clientB, _ := s.CreateWorkspace(ctx, ws.OrgID, "Client B", "client-b")
+		admin, _ := s.CreateUser(ctx, ws.OrgID, "admin@msp.example", "", RoleAdmin)
+		client, _ := s.CreateUser(ctx, ws.OrgID, "ops@client-a.example", "", RoleViewer)
+
+		all, err := s.UserWorkspaces(ctx, admin)
+		if err != nil || len(all) != 3 || all[1].Role != RoleAdmin {
+			t.Fatalf("admin access %+v %v", all, err)
+		}
+		if none, _ := s.UserWorkspaces(ctx, client); len(none) != 0 {
+			t.Fatalf("client sees %+v before being invited", none)
+		}
+		if err := s.SetMembership(ctx, client.ID, clientA.ID, RoleViewer); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetMembership(ctx, client.ID, clientA.ID, RoleMember); err != nil { // change role
+			t.Fatal(err)
+		}
+		got, _ := s.UserWorkspaces(ctx, client)
+		if len(got) != 1 || got[0].Workspace.ID != clientA.ID || got[0].Role != RoleMember {
+			t.Fatalf("client access %+v", got)
+		}
+		if roles, _ := s.WorkspaceRoles(ctx, clientB.ID); len(roles) != 0 {
+			t.Fatal("client B has members")
+		}
+		if w, err := s.GetWorkspaceBySlug(ctx, ws.OrgID, "CLIENT-A"); err != nil || w.ID != clientA.ID {
+			t.Fatalf("by slug %+v %v", w, err)
+		}
+		if c, _ := s.CountWorkspace(ctx, clientA.ID); c.Members != 1 {
+			t.Fatalf("counts %+v", c)
+		}
+		_ = s.RemoveMembership(ctx, client.ID, clientA.ID)
+		if got, _ := s.UserWorkspaces(ctx, client); len(got) != 0 {
+			t.Fatal("membership not removed")
+		}
+	})
+}

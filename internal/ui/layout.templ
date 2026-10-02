@@ -61,8 +61,23 @@ templ Layout(b Base) {
 						if b.CanAdmin {
 							@navLink(b, "settings", "/settings", "Users")
 						}
+						if b.OrgAdmin {
+							@navLink(b, "workspaces", "/workspaces", "Workspaces")
+						}
 					</nav>
 					<div class="who">
+						if len(b.Workspaces) > 1 {
+							<form method="post" action="/workspace" hx-boost="false" class="switcher">
+								<select name="workspace" aria-label="Workspace" onchange="this.form.requestSubmit()">
+									for _, w := range b.Workspaces {
+										<option value={ w.ID } selected?={ w.Current }>{ w.Name }</option>
+									}
+								</select>
+								<noscript><button type="submit" class="secondary">Open</button></noscript>
+							</form>
+						} else if b.Workspace != "" {
+							<span class="ws-name">{ b.Workspace }</span>
+						}
 						<span title={ b.Role }>{ b.Email }</span>
 						<form method="post" action="/auth/logout" hx-boost="false">
 							<button class="secondary" type="submit">Sign out</button>

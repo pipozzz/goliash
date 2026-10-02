@@ -84,6 +84,9 @@ func (e *uiEnv) as(role string) *http.Client {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+	if !store.OrgWide(role) {
+		_ = e.st.SetMembership(context.Background(), u.ID, e.ws.ID, role)
+	}
 	link, _ := e.auth.LoginLink(context.Background(), u)
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Jar: jar}
@@ -248,7 +251,7 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 	}
 
 	_, body, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {"dev@example.com"}, "role": {"member"}})
-	if !strings.Contains(body, "/auth/magic?token=") || !strings.Contains(body, "dev@example.com invited as member") {
+	if !strings.Contains(body, "/auth/magic?token=") || !strings.Contains(body, "dev@example.com invited (member)") {
 		t.Fatal("invite link not shown")
 	}
 	if _, body, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {"boss@example.com"}, "role": {"owner"}}); !strings.Contains(body, "allowed to give") {
@@ -347,5 +350,79 @@ func TestCrossOriginFormRejected(t *testing.T) {
 	}
 	if agents, _ := e.st.ListAgents(context.Background(), e.ws.Scope()); len(agents) != 0 {
 		t.Fatal("cross-site request created an agent")
+	}
+}
+
+// An MSP with a client workspace: the client sees only their own data and people.
+func TestWorkspaceIsolationForClients(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+
+	// The organization admin creates the client workspace in the UI.
+	if _, body, _ := post(t, admin, e.srv.URL+"/workspaces", url.Values{"name": {"Client A"}, "slug": {"client-a"}, "envs": {"1"}}); !strings.Contains(body, "Workspace Client A created") {
+		t.Fatalf("create workspace: %s", body)
+	}
+	clientWS, err := e.st.GetWorkspaceBySlug(ctx, e.ws.OrgID, "client-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if envs, _ := e.st.ListEnvironments(ctx, clientWS.Scope()); len(envs) != 3 {
+		t.Fatalf("environments %+v", envs)
+	}
+
+	// The admin switches to it and invites the client as workspace admin.
+	if _, body, _ := post(t, admin, e.srv.URL+"/workspace", url.Values{"workspace": {clientWS.ID}}); !strings.Contains(body, "Switched to Client A") {
+		t.Fatal("switch")
+	}
+	_, body, _ := post(t, admin, e.srv.URL+"/settings/users", url.Values{"email": {"ops@client-a.example"}, "role": {"admin"}})
+	if !strings.Contains(body, "/auth/magic?token=") {
+		t.Fatalf("invite: %s", body)
+	}
+	link := regexp.MustCompile(`http://[^"<\s]+/auth/magic\?token=[A-Za-z0-9_-]+`).FindString(body)
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar}
+	get(t, client, link, nil)
+
+	// The client works in Client A: no services from the MSP's own workspace.
+	_, page := get(t, client, e.srv.URL+"/", nil)
+	if strings.Contains(page, "k8s-prod") || strings.Contains(page, "onerror") || !strings.Contains(page, "Client A") {
+		t.Fatal("client sees another workspace's data")
+	}
+	if strings.Contains(page, `name="workspace"`) {
+		t.Fatal("client got a workspace switcher")
+	}
+	// Forcing a switch into the MSP workspace fails.
+	if _, body, _ := post(t, client, e.srv.URL+"/workspace", url.Values{"workspace": {e.ws.ID}}); !strings.Contains(body, "You cannot open that workspace") {
+		t.Fatal("client switched into a foreign workspace")
+	}
+	// As workspace admin the client manages Client A's people only.
+	_, page = get(t, client, e.srv.URL+"/settings", nil)
+	if !strings.Contains(page, "<strong>ops@client-a.example</strong>") || strings.Contains(page, "<strong>admin@example.com</strong>") || strings.Contains(page, "org-admin") {
+		t.Fatal("client admin sees organization people or org roles")
+	}
+	if strings.Contains(page, "workspace.create") {
+		t.Fatal("client admin sees organization-level audit entries")
+	}
+	if code, _ := get(t, client, e.srv.URL+"/workspaces", nil); code != http.StatusForbidden {
+		t.Fatalf("client opened workspaces page: %d", code)
+	}
+	if _, body, _ := post(t, client, e.srv.URL+"/settings/users", url.Values{"email": {"x@client-a.example"}, "role": {"org-admin"}}); !strings.Contains(body, "allowed to give") {
+		t.Fatal("client admin made an organization admin")
+	}
+	// Tokens and agents the client creates belong to Client A.
+	post(t, client, e.srv.URL+"/agents", url.Values{"name": {"client-agent"}})
+	if _, err := e.st.GetAgentByName(ctx, clientWS.Scope(), "client-agent"); err != nil {
+		t.Fatal("agent not created in the client workspace")
+	}
+	if _, err := e.st.GetAgentByName(ctx, e.ws.Scope(), "client-agent"); err == nil {
+		t.Fatal("agent leaked into the MSP workspace")
+	}
+
+	// Taking access away works and locks the client out.
+	u, _ := e.st.GetUserByEmail(ctx, e.ws.OrgID, "ops@client-a.example")
+	post(t, admin, e.srv.URL+"/settings/users/"+u.ID+"/role", url.Values{"role": {"none"}})
+	if code, _ := get(t, client, e.srv.URL+"/", nil); code != http.StatusForbidden {
+		t.Fatalf("client without access: %d", code)
 	}
 }

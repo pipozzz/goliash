@@ -85,6 +85,7 @@ func newPublicEnv(t *testing.T) *publicEnv {
 
 	// A viewer signed in through a magic link.
 	viewer, _ := st.CreateUser(ctx, ws.OrgID, "viewer@example.com", "", store.RoleViewer)
+	_ = st.SetMembership(ctx, viewer.ID, ws.ID, store.RoleViewer)
 	link, _ := a.LoginLink(ctx, viewer)
 	jarClient := &http.Client{Jar: newJar()}
 	resp, err := jarClient.Get(link) //nolint:noctx // test

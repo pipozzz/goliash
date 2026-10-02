@@ -139,6 +139,48 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`.
 - **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.
 
+### Versions, upstream and drift
+
+```sh
+bin/goliash matrix                 # service × environment, latest upstream, drift markers
+bin/goliash drift                  # open drifts
+bin/goliash events                 # history: deployed, version_changed, removed, new_release, drift_*
+bin/goliash check                  # check upstream registries now (the server does it hourly)
+bin/goliash service set -name postgres -track minor -pin-major 15
+bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -service payments
+```
+
+- **Mapping:** labels `goliash.service` / `app.kubernetes.io/name` (and `goliash.env`), then rules, then unmapped
+  workloads wait in the inbox with a suggested name.
+- **Upstream:** public registries (Docker Hub, GHCR, Quay, registry.k8s.io, …) are checked by the server; other
+  registries by the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>`. New services are checked
+  within a minute, then hourly.
+- **Policy per service:** `tag_filter`, `track` (patch/minor/major), `pin_major`, `prerelease`. Without a filter,
+  tags are compared like with like (same `-alpine` variant, same number of version parts).
+- **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
+  release by at least the tracked jump), `inconsistent` (targets of one environment disagree). Drift shows in the UI
+  at once but is announced (`drift_detected`) only after it lasts: `env` 7 days, `upstream` immediately,
+  `inconsistent` 15 minutes. Override per service, e.g. `"drift_alert_after": {"env": "72h"}`.
+- **Stale data:** a target whose agent stopped sending heartbeats, or without a snapshot for three poll intervals
+  (at least 15 minutes), is marked "stale data" in the matrix.
+- **Audit log:** every change to configuration, tokens and roles (UI, API, CLI) and every sign-in is recorded and
+  shown to admins on the Users page.
+
+### Workspaces (MSPs, teams)
+
+Each workspace has its own agents, targets, services, history, notifications and API tokens.
+
+```sh
+bin/goliash workspace create -name "Client A" -slug client-a -envs
+bin/goliash user create -email ops@client-a.example -role member -workspace client-a
+bin/goliash user grant -email ops@client-a.example -role admin -workspace client-a
+bin/goliash matrix -workspace client-a        # every command takes -workspace (or GOLIASH_WORKSPACE)
+```
+
+Organization owners and admins reach every workspace and switch between them in the top bar. Everyone else only
+sees the workspaces they were invited to, as viewer, member or workspace admin; a workspace admin manages the
+people of that workspace only. Clients of an MSP therefore never see each other.
+
 ### Notifications
 
 ```sh
