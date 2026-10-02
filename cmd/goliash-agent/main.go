@@ -16,7 +16,10 @@ import (
 
 	"github.com/pipozzz/goliash/internal/agent"
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/collectors/ecs"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
+	"github.com/pipozzz/goliash/internal/collectors/nomad"
+	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
@@ -48,6 +51,9 @@ func main() {
 		DataDir:   *dataDir,
 		Collectors: map[agentproto.Platform]collectors.Factory{
 			agentproto.Kubernetes: kubernetes.New,
+			agentproto.Ecs:        ecs.New,
+			agentproto.Nomad:      nomad.New,
+			agentproto.Swarm:      swarm.New,
 		},
 		Logger: log,
 	})
