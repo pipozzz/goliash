@@ -32,6 +32,11 @@ import (
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/collectors/ecs"
+	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
+	"github.com/pipozzz/goliash/internal/collectors/nomad"
+	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/demo"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
@@ -41,6 +46,7 @@ import (
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/internal/ui"
 	"github.com/pipozzz/goliash/internal/versions"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
 
@@ -205,6 +211,7 @@ func serve(ctx context.Context, args []string) error {
 	fs, dsn := newFlags("serve")
 	listen := fs.String("listen", envOr("GOLIASH_LISTEN", ":8080"), "HTTP listen address (env GOLIASH_LISTEN)")
 	upstreamEvery := fs.Duration("upstream-interval", time.Hour, "how often public registries are checked for new tags")
+	collect := fs.Bool("collect", true, "collect targets that have no agent in the server itself")
 	keepSnapshots := fs.Int("keep-snapshots", 20, "processed snapshots kept per target; older ones are deleted hourly")
 	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
@@ -272,6 +279,14 @@ func serve(ctx context.Context, args []string) error {
 	go svc.RunProcessor(ctx, 10*time.Second)
 	go checker.Run(ctx, *upstreamEvery, time.Minute)
 	go housekeeping(ctx, db, log, *keepSnapshots)
+	if *collect {
+		go ingest.NewServerCollectors(svc, db, map[agentproto.Platform]collectors.Factory{
+			agentproto.Kubernetes: kubernetes.New,
+			agentproto.Ecs:        ecs.New,
+			agentproto.Nomad:      nomad.New,
+			agentproto.Swarm:      swarm.New,
+		}, log).Run(ctx, time.Minute)
+	}
 
 	srv := &http.Server{
 		Addr: *listen,

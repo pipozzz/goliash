@@ -93,6 +93,11 @@ docker run -d --name goliash-agent -v goliash-agent:/data \
 
 Ready-made manifests for Kubernetes (Helm), Nomad, Docker Swarm and ECS are in [`deploy/`](deploy).
 
+**Without an agent:** a target created without an agent (`goliash target create` without `-agent`, or "the server
+itself" in the UI) is collected by the server, with the same read-only collectors. That suits a self-hosted server
+next to what it watches, e.g. the Kubernetes cluster it runs in (`helm … --set collectInCluster=true`) or a Swarm
+through a socket proxy. Turn it off with `-collect=false`.
+
 ## Install
 
 - **Images:** `ghcr.io/pipozzz/goliash` and `ghcr.io/pipozzz/goliash-agent` (linux/amd64, linux/arm64; distroless,

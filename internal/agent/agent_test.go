@@ -399,7 +399,7 @@ func TestAgentDegradedAndFailingStatus(t *testing.T) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		for id, rt := range a.runners {
-			statuses[id] = rt.runner.currentStatus()
+			statuses[id] = rt.runner.Status()
 		}
 		return statuses["T1"].Status == agentproto.Degraded && statuses["T2"].Status == agentproto.Failing
 	})
