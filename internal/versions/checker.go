@@ -50,6 +50,7 @@ type Checker struct {
 
 	mu    sync.Mutex
 	cache map[string]cachedTags
+	now   func() time.Time
 
 	driftMu sync.Mutex // one drift evaluation at a time
 }
@@ -63,7 +64,10 @@ type cachedTags struct {
 // NewChecker returns a checker. Tag lists are cached for ttl, which keeps Docker Hub
 // rate limits at bay when many services share an image.
 func NewChecker(st *store.Store, tags TagLister, log *slog.Logger, ttl time.Duration) *Checker {
-	return &Checker{store: st, tags: tags, log: log, ttl: ttl, cache: map[string]cachedTags{}}
+	return &Checker{
+		store: st, tags: tags, log: log, ttl: ttl, cache: map[string]cachedTags{},
+		now: func() time.Time { return time.Now().UTC() },
+	}
 }
 
 // OnEvents registers a callback for new_release and drift events.
@@ -368,27 +372,38 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		openByKey[key(d.ServiceID, d.EnvironmentID, d.Kind)] = d
 	}
 	var evs []store.Event
-	now := time.Now().UTC()
+	now := c.now()
 	seen := map[string]bool{}
 	for _, w := range wanted {
 		k := key(w.Service, w.Env, w.Kind)
 		seen[k] = true
 		detail, _ := json.Marshal(w.Detail)
-		if d, ok := openByKey[k]; ok {
+		d, ok := openByKey[k]
+		if ok {
 			if string(d.Detail) != string(detail) {
 				if err := c.store.UpdateDriftDetail(ctx, sc, d.ID, detail); err != nil {
 					return err
 				}
 			}
-			continue
+		} else {
+			var err error
+			if d, err = c.store.OpenDrift(ctx, store.Drift{
+				Scope: sc, ServiceID: w.Service, EnvironmentID: w.Env,
+				Kind: w.Kind, Detail: detail, Since: now,
+			}); err != nil {
+				return err
+			}
 		}
-		if _, err := c.store.OpenDrift(ctx, store.Drift{Scope: sc, ServiceID: w.Service, EnvironmentID: w.Env, Kind: w.Kind, Detail: detail}); err != nil {
-			return err
+		// Announce once the drift has lasted its alert delay.
+		if d.NotifiedAt.IsZero() && now.Sub(d.Since) >= policies[w.Service].AlertAfter(w.Kind) {
+			if err := c.store.MarkDriftNotified(ctx, sc, d.ID, now); err != nil {
+				return err
+			}
+			evs = append(evs, store.Event{
+				Type: "drift_detected", ServiceID: w.Service, EnvironmentID: w.Env,
+				FromVersion: w.Detail.Running, ToVersion: w.Detail.Other, Note: w.Kind, Source: "poll", At: now,
+			})
 		}
-		evs = append(evs, store.Event{
-			Type: "drift_detected", ServiceID: w.Service, EnvironmentID: w.Env,
-			FromVersion: w.Detail.Running, ToVersion: w.Detail.Other, Note: w.Kind, Source: "poll", At: now,
-		})
 	}
 	for k, d := range openByKey {
 		if seen[k] {
@@ -396,6 +411,9 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		}
 		if err := c.store.ResolveDrift(ctx, sc, d.ID); err != nil {
 			return err
+		}
+		if d.NotifiedAt.IsZero() {
+			continue // never announced, so nothing to take back
 		}
 		var detail DriftDetail
 		_ = json.Unmarshal(d.Detail, &detail)

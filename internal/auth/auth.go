@@ -181,6 +181,9 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 		SameSite: http.SameSiteLaxMode, MaxAge: int(sessionTTL / time.Second),
 	})
 	a.log.InfoContext(r.Context(), "signed in", "user", u.Email)
+	if err := a.store.Audit(r.Context(), store.AuditEntry{OrgID: u.OrgID, Actor: u.Email, Action: "user.sign_in"}); err != nil {
+		a.log.ErrorContext(r.Context(), "audit log write failed", "err", err)
+	}
 	return nil
 }
 

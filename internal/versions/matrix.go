@@ -30,10 +30,11 @@ type Cell struct {
 
 // RunningVersion is one tag running in a cell.
 type RunningVersion struct {
-	Tag     string
-	Digest  string
-	Running int
-	Targets []string // target names
+	Tag       string
+	Digest    string
+	Running   int
+	Targets   []string // target names
+	TargetIDs []string
 }
 
 // Empty reports whether nothing of the service runs in the environment.
@@ -89,6 +90,7 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		v.Running += i.Running
 		if name := targetName[i.TargetID]; name != "" && !contains(v.Targets, name) {
 			v.Targets = append(v.Targets, name)
+			v.TargetIDs = append(v.TargetIDs, i.TargetID)
 		}
 	}
 	m.Unmapped = len(unmapped)

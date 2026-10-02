@@ -110,10 +110,13 @@ templ cellView(c MatrixCell) {
 					<div class="targets">{ v.Targets }</div>
 				}
 			}
-			if len(c.Drifts) > 0 {
+			if len(c.Drifts) > 0 || c.StaleTitle != "" {
 				<div class="badges">
 					for _, d := range c.Drifts {
 						<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+					}
+					if c.StaleTitle != "" {
+						<span class="badge stale" title={ c.StaleTitle }>stale data</span>
 					}
 				</div>
 			}

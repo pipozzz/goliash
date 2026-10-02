@@ -618,3 +618,22 @@ func TestHousekeep(t *testing.T) {
 		}
 	})
 }
+
+func TestAudit(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		for _, a := range []string{"agent.create", "user.role"} {
+			if err := s.Audit(ctx, AuditEntry{
+				OrgID: f.ws.OrgID, WorkspaceID: f.ws.ID, Actor: "ana@example.com", Action: a,
+				Details: map[string]string{"name": "eu"},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := s.ListAudit(ctx, f.ws.OrgID, 10)
+		if err != nil || len(got) != 2 || got[0].Actor != "ana@example.com" || got[0].Details["name"] != "eu" {
+			t.Fatalf("%+v %v", got, err)
+		}
+	})
+}

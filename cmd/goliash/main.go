@@ -296,6 +296,7 @@ func envCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "environment.create", "environment", env.Name)
 	_, _ = fmt.Fprintf(out, "environment %s created (%s)\n", env.Name, env.ID)
 	return nil
 }
@@ -319,6 +320,7 @@ func agentCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "agent.create", "agent", a.Name)
 	_, _ = fmt.Fprintf(out, "agent %s created (%s)\n\nToken (shown once, store it as GOLIASH_AGENT_TOKEN):\n%s\n", a.Name, a.ID, token)
 	return nil
 }
@@ -368,6 +370,7 @@ func targetCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "target.create", "target", t.Name, "platform", t.Platform)
 	_, _ = fmt.Fprintf(out, "target %s created (%s)\n", t.Name, t.ID)
 	return nil
 }
@@ -574,6 +577,7 @@ func serviceSet(ctx context.Context, args []string, out io.Writer) error {
 	if err := db.UpdateService(ctx, svc); err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "service.update", "service", svc.Name, "policy", string(raw))
 	_, _ = fmt.Fprintf(out, "service %s updated: upstream=%q policy=%s\n", svc.Name, svc.Upstream, raw)
 	return nil
 }
@@ -671,6 +675,7 @@ func ruleCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "mapping.create", "match", r.MatchType, "pattern", r.Pattern)
 	_, _ = fmt.Fprintf(out, "rule %s created; it applies from the next snapshot\n", r.ID)
 	return nil
 }
@@ -723,6 +728,7 @@ func userCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "user.create", "user", u.Email, "role", u.Role)
 	_, _ = fmt.Fprintf(out, "user %s created with role %s\n", u.Email, u.Role)
 	return nil
 }
@@ -766,6 +772,7 @@ func loginLink(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "user.login_link", "user", u.Email)
 	_, _ = fmt.Fprintf(out, "Sign-in link for %s (works once, expires in 15 minutes):\n%s\n", u.Email, link)
 	return nil
 }
@@ -788,6 +795,7 @@ func tokenCreate(ctx context.Context, args []string, out io.Writer) error {
 	if _, err := db.CreateAPIToken(ctx, ws.Scope(), *name, hash); err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "api_token.create", "token", *name)
 	_, _ = fmt.Fprintf(out, "API token %s (shown once):\n%s\n", *name, token)
 	return nil
 }
@@ -857,6 +865,17 @@ func demoCmd(ctx context.Context, args []string, out io.Writer) error {
 	return nil
 }
 
+// cliAudit records a change made from the command line.
+func cliAudit(ctx context.Context, db *store.Store, ws store.Workspace, action string, kv ...string) {
+	details := map[string]string{}
+	for i := 0; i+1 < len(kv); i += 2 {
+		details[kv[i]] = kv[i+1]
+	}
+	if err := db.Audit(ctx, store.AuditEntry{OrgID: ws.OrgID, WorkspaceID: ws.ID, Actor: "cli", Action: action, Details: details}); err != nil {
+		slog.Warn("audit log write failed", "err", err)
+	}
+}
+
 func smtpFromEnv() notifier.SMTPConfig {
 	return notifier.SMTPConfig{
 		Addr:     os.Getenv("GOLIASH_SMTP_ADDR"),
@@ -917,6 +936,7 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "channel.create", "channel", ch.Name, "type", ch.Type)
 	_, _ = fmt.Fprintf(out, "channel %s created (%s)\n", ch.Name, ch.ID)
 	return nil
 }
@@ -979,6 +999,7 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "notification_rule.create", "channel", ch.Name, "mode", r.Mode)
 	_, _ = fmt.Fprintf(out, "notification rule %s created: %s → %s (%s)\n", r.ID, strings.Join(r.EventTypes, ","), ch.Name, r.Mode)
 	return nil
 }
@@ -1019,6 +1040,7 @@ func ackCmd(ctx context.Context, args []string, out io.Writer) error {
 	if _, err := db.CreateAck(ctx, a); err != nil {
 		return err
 	}
+	cliAudit(ctx, db, ws, "ack.create", "service", svc.Name, "kind", *kind)
 	_, _ = fmt.Fprintf(out, "acknowledged %s %s\n", svc.Name, *kind)
 	return nil
 }

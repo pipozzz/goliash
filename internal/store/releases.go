@@ -88,11 +88,12 @@ type Drift struct {
 	Detail        json.RawMessage
 	Since         time.Time
 	ResolvedAt    time.Time
+	NotifiedAt    time.Time // when drift_detected was announced; zero while still within the alert delay
 }
 
 // OpenDrifts returns the workspace's unresolved drifts.
 func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, detail, since FROM drifts
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, detail, since, notified_at FROM drifts
 		WHERE org_id = ? AND workspace_id = ? AND resolved_at IS NULL ORDER BY since, id`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -102,10 +103,11 @@ func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {
 	for rows.Next() {
 		d := Drift{Scope: sc}
 		var detail string
-		if err := rows.Scan(&d.ID, &d.ServiceID, &d.EnvironmentID, &d.Kind, &detail, &d.Since); err != nil {
+		var notified sql.NullTime
+		if err := rows.Scan(&d.ID, &d.ServiceID, &d.EnvironmentID, &d.Kind, &detail, &d.Since, &notified); err != nil {
 			return nil, err
 		}
-		d.Detail, d.Since = json.RawMessage(detail), d.Since.UTC()
+		d.Detail, d.Since, d.NotifiedAt = json.RawMessage(detail), d.Since.UTC(), timeOrZero(notified)
 		out = append(out, d)
 	}
 	return out, rows.Err()
@@ -130,6 +132,13 @@ func (s *Store) OpenDrift(ctx context.Context, d Drift) (Drift, error) {
 func (s *Store) UpdateDriftDetail(ctx context.Context, sc Scope, id string, detail json.RawMessage) error {
 	_, err := s.exec(ctx, s.db, `UPDATE drifts SET detail = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
 		string(detail), sc.OrgID, sc.WorkspaceID, id)
+	return err
+}
+
+// MarkDriftNotified records that a drift was announced.
+func (s *Store) MarkDriftNotified(ctx context.Context, sc Scope, id string, at time.Time) error {
+	_, err := s.exec(ctx, s.db, `UPDATE drifts SET notified_at = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
+		at.UTC(), sc.OrgID, sc.WorkspaceID, id)
 	return err
 }
 
