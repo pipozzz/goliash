@@ -1,0 +1,10 @@
+{
+  "sent_at": "2026-10-02T08:06:00Z",
+  "uptime_seconds": 360,
+  "buffered_snapshots": 0,
+  "collectors": [
+    {"target_id": "01J9ZQ4M2N3P4Q5R6S7T8V9W0X", "status": "degraded", "last_success_at": "2026-10-02T08:05:00Z",
+     "last_snapshot_id": "01J9ZQ5A1B2C3D4E5F6G7H8J9K", "last_error": "namespace billing: forbidden"},
+    {"target_id": "01J9ZQ4M2N3P4Q5R6S7T8V9W0Y", "status": "ok", "last_success_at": "2026-10-02T08:04:30Z"}
+  ]
+}

@@ -18,7 +18,8 @@ Every Go source file starts with an SPDX header, which is authoritative:
 // SPDX-License-Identifier: Apache-2.0
 ```
 
-Apache-2.0 paths: `cmd/goliash-agent`, `internal/agent`, `internal/collectors`, `internal/registry`, `pkg`.
+Apache-2.0 paths: `cmd/goliash-agent`, `internal/agent`, `internal/collectors`, `internal/registry`, `pkg`, and the
+agent protocol spec `api/agent-v1.yaml`. Generated code gets its header from `scripts/spdx-header.sh`.
 Everything else is AGPL-3.0-only.
 
 ## The boundary rule

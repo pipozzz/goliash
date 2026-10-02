@@ -1,0 +1,580 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+openapi: 3.0.3
+info:
+  title: Goliash agent protocol
+  version: 1.0.0
+  description: |
+    The protocol between `goliash-agent` and a Goliash server.
+
+    - The agent only makes outbound HTTPS requests; the server never connects to the agent.
+    - Every request carries `Authorization: Bearer glsh_agent_…`. One token identifies one agent and is bound to
+      one workspace. The token may only send data and read that agent's configuration.
+    - The agent sends **full state** (snapshots), never events. The server diffs consecutive snapshots of a target.
+    - Credentials for orchestrators and private registries stay with the agent. The server never sends secrets;
+      a `credentials_ref` names credentials the agent resolves locally.
+    - Request bodies may be gzip-compressed (`Content-Encoding: gzip`); snapshots should be.
+    - Errors use `application/problem+json` (RFC 9457).
+
+    Call order: `register` on start, then `config` every minute, `snapshot` per target on its interval (Kubernetes:
+    after changes, debounced), `heartbeat` every minute and `registry-results` on the registry check interval.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: https://goliash.example.com
+security:
+  - agentToken: []
+
+paths:
+  /agent/v1/register:
+    post:
+      operationId: registerAgent
+      summary: Announce the agent
+      description: |
+        Called on every agent start. Idempotent: it updates the agent's version, hostname and platforms.
+        The response tells the agent which config to fetch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Agent registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '426':
+          description: The agent version is no longer supported; the agent should stop and log the reason.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /agent/v1/config:
+    get:
+      operationId: getConfig
+      summary: Fetch the agent configuration
+      description: |
+        Polled every minute. Send the last `ETag` in `If-None-Match`; the server answers `304` when nothing
+        changed.
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current configuration.
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentConfig'
+        '304':
+          description: Configuration unchanged since the given ETag.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /agent/v1/snapshot:
+    post:
+      operationId: postSnapshot
+      summary: Send the full state of one target
+      description: |
+        Idempotent by `snapshot_id`: a snapshot the server already has is acknowledged with `status: duplicate`
+        and not processed again. When offline, the agent buffers its latest snapshots on disk and sends them in
+        `collected_at` order once the server is reachable. Maximum body size is 10 MiB after compression.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Snapshot'
+      responses:
+        '202':
+          description: Snapshot accepted or already known.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotAck'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: The target is not assigned to this agent (anymore). The agent should refetch its config.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '413':
+          description: Snapshot too large.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /agent/v1/registry-results:
+    post:
+      operationId: postRegistryResults
+      summary: Send tags found in private registries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistryResults'
+      responses:
+        '202':
+          description: Results accepted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /agent/v1/heartbeat:
+    post:
+      operationId: postHeartbeat
+      summary: Report that the agent is alive and how its collectors are doing
+      description: |
+        Sent every minute. If no heartbeat arrives for 10 minutes, the server marks the agent's targets as stale.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Heartbeat'
+      responses:
+        '200':
+          description: Heartbeat recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  securitySchemes:
+    agentToken:
+      type: http
+      scheme: bearer
+      description: Agent token, prefixed `glsh_agent_`.
+
+  responses:
+    BadRequest:
+      description: The request is malformed or fails validation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing, unknown or revoked token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limited; retry after the given number of seconds.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    ULID:
+      type: string
+      pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'
+      example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D
+
+    Platform:
+      type: string
+      enum: [kubernetes, ecs, nomad, swarm]
+
+    RegisterRequest:
+      type: object
+      required: [version, hostname, platforms]
+      properties:
+        version:
+          type: string
+          description: Agent version (semver).
+          example: 0.1.0
+        hostname:
+          type: string
+          example: goliash-agent-7d9f8-x2k4p
+        platforms:
+          type: array
+          description: Platforms the agent can reach with the credentials it has.
+          items:
+            $ref: '#/components/schemas/Platform'
+        started_at:
+          type: string
+          format: date-time
+
+    RegisterResponse:
+      type: object
+      required: [agent_id, workspace_id, server_time]
+      properties:
+        agent_id:
+          $ref: '#/components/schemas/ULID'
+        workspace_id:
+          $ref: '#/components/schemas/ULID'
+        server_time:
+          type: string
+          format: date-time
+          description: Lets the agent warn about clock skew.
+
+    AgentConfig:
+      type: object
+      required: [targets, heartbeat_interval_seconds]
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Target'
+        heartbeat_interval_seconds:
+          type: integer
+          minimum: 10
+          default: 60
+        registries:
+          type: array
+          description: Private image repositories the agent checks for new tags.
+          items:
+            $ref: '#/components/schemas/RegistryCheck'
+        registry_check_interval_seconds:
+          type: integer
+          minimum: 300
+          default: 3600
+        ignored_containers:
+          type: array
+          description: Container names or image repositories to leave out of snapshots (known sidecars).
+          items:
+            type: string
+          example: [datadog-agent, envoy]
+
+    Target:
+      type: object
+      description: |
+        One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region or a Swarm cluster. Exactly the
+        settings object that matches `platform` is set.
+      required: [id, platform, name, poll_interval_seconds]
+      properties:
+        id:
+          $ref: '#/components/schemas/ULID'
+        platform:
+          $ref: '#/components/schemas/Platform'
+        name:
+          type: string
+          example: prod-eu-west-1
+        poll_interval_seconds:
+          type: integer
+          minimum: 30
+          default: 300
+          description: Full snapshot interval. Kubernetes also sends a snapshot after changes.
+        debounce_seconds:
+          type: integer
+          minimum: 0
+          default: 30
+          description: Kubernetes only. Wait this long after the last change before sending a snapshot.
+        credentials_ref:
+          type: string
+          description: Name of credentials the agent resolves locally (env, file, workload identity). Never a secret.
+        kubernetes:
+          $ref: '#/components/schemas/KubernetesSettings'
+        ecs:
+          $ref: '#/components/schemas/ECSSettings'
+        nomad:
+          $ref: '#/components/schemas/NomadSettings'
+        swarm:
+          $ref: '#/components/schemas/SwarmSettings'
+
+    KubernetesSettings:
+      type: object
+      properties:
+        kubeconfig_context:
+          type: string
+          description: Empty means in-cluster config.
+        include_namespaces:
+          type: array
+          description: Empty means all namespaces.
+          items:
+            type: string
+        exclude_namespaces:
+          type: array
+          items:
+            type: string
+          example: [kube-system]
+
+    ECSSettings:
+      type: object
+      required: [region]
+      properties:
+        region:
+          type: string
+          example: eu-west-1
+        clusters:
+          type: array
+          description: Cluster names or ARNs. Empty means all clusters in the region.
+          items:
+            type: string
+
+    NomadSettings:
+      type: object
+      required: [address]
+      properties:
+        address:
+          type: string
+          example: https://nomad.service.consul:4646
+        region:
+          type: string
+        namespaces:
+          type: array
+          description: Empty means all namespaces the token can read.
+          items:
+            type: string
+
+    SwarmSettings:
+      type: object
+      required: [docker_host]
+      properties:
+        docker_host:
+          type: string
+          description: Docker API endpoint, normally a docker-socket-proxy that allows only GET.
+          example: tcp://docker-socket-proxy:2375
+
+    RegistryCheck:
+      type: object
+      required: [repository]
+      properties:
+        repository:
+          type: string
+          description: Image repository without tag or digest.
+          example: registry.example.com/team/payments-api
+        credentials_ref:
+          type: string
+        tag_filter:
+          type: string
+          description: Regular expression; only matching tags are reported.
+          example: '^\d+\.\d+\.\d+$'
+
+    Snapshot:
+      type: object
+      required: [snapshot_id, target_id, collected_at, complete, workloads]
+      properties:
+        snapshot_id:
+          $ref: '#/components/schemas/ULID'
+        target_id:
+          $ref: '#/components/schemas/ULID'
+        collected_at:
+          type: string
+          format: date-time
+        agent_version:
+          type: string
+        complete:
+          type: boolean
+          description: |
+            True when the collector read the whole target. When false (for example one namespace was forbidden),
+            the server records what is present but does not treat missing workloads as removed.
+        errors:
+          type: array
+          description: Problems that made the snapshot incomplete.
+          items:
+            type: string
+        workloads:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workload'
+
+    WorkloadKind:
+      type: string
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service]
+
+    Workload:
+      type: object
+      required: [id, kind, name, containers]
+      properties:
+        id:
+          type: string
+          description: Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID).
+        kind:
+          $ref: '#/components/schemas/WorkloadKind'
+        namespace:
+          type: string
+          description: Kubernetes or Nomad namespace.
+        name:
+          type: string
+          example: payments-api
+        labels:
+          type: object
+          description: Kubernetes labels, ECS tags, Nomad meta or Swarm labels. `goliash.service` and `goliash.env` take precedence in mapping.
+          additionalProperties:
+            type: string
+        desired_replicas:
+          type: integer
+          minimum: 0
+        containers:
+          type: array
+          description: |
+            What is running, grouped by container name, image and digest. During a rollout the same container name
+            appears more than once with different images or digests.
+          items:
+            $ref: '#/components/schemas/Container'
+
+    Container:
+      type: object
+      required: [name, image, running]
+      properties:
+        name:
+          type: string
+          example: app
+        image:
+          type: string
+          description: Image reference as configured, e.g. `ghcr.io/org/foo:1.2.3`.
+          example: ghcr.io/acme/payments-api:1.4.2
+        digest:
+          type: string
+          description: Digest of the image actually running, when the platform reports it.
+          pattern: '^sha256:[a-f0-9]{64}$'
+        running:
+          type: integer
+          minimum: 0
+          description: Number of running replicas with this image and digest.
+
+    SnapshotAck:
+      type: object
+      required: [snapshot_id, status]
+      properties:
+        snapshot_id:
+          $ref: '#/components/schemas/ULID'
+        status:
+          type: string
+          enum: [accepted, duplicate]
+
+    RegistryResults:
+      type: object
+      required: [checked_at, results]
+      properties:
+        checked_at:
+          type: string
+          format: date-time
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryResult'
+
+    RegistryResult:
+      type: object
+      required: [repository]
+      properties:
+        repository:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryTag'
+        error:
+          type: string
+          description: Set when the repository could not be read; `tags` is then empty.
+
+    RegistryTag:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: 1.5.0
+        digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        created_at:
+          type: string
+          format: date-time
+
+    Heartbeat:
+      type: object
+      required: [sent_at, collectors]
+      properties:
+        sent_at:
+          type: string
+          format: date-time
+        uptime_seconds:
+          type: integer
+          minimum: 0
+        buffered_snapshots:
+          type: integer
+          minimum: 0
+          description: Snapshots waiting on disk to be sent.
+        collectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectorStatus'
+
+    CollectorStatus:
+      type: object
+      required: [target_id, status]
+      properties:
+        target_id:
+          $ref: '#/components/schemas/ULID'
+        status:
+          type: string
+          enum: [ok, degraded, failing]
+        last_success_at:
+          type: string
+          format: date-time
+        last_snapshot_id:
+          $ref: '#/components/schemas/ULID'
+        last_error:
+          type: string
+
+    HeartbeatResponse:
+      type: object
+      required: [config_etag]
+      properties:
+        config_etag:
+          type: string
+          description: Current config ETag; when it differs from the agent's, the agent refetches config right away.
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [title, status]
+      properties:
+        type:
+          type: string
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
