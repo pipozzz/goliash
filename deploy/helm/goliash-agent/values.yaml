@@ -1,0 +1,54 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+
+image:
+  repository: ghcr.io/pipozzz/goliash-agent
+  tag: ""            # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Goliash server URL, reachable from this cluster (outbound HTTPS only).
+serverURL: https://goliash.example.com
+
+# The agent token (glsh_agent_…), from an existing secret (recommended) or a value.
+token:
+  existingSecret: ""
+  existingSecretKey: token
+  value: ""
+
+# Secret with credentials for other targets this agent collects; every key becomes a
+# file in /etc/goliash-agent/credentials (a target's credentials_ref names the key).
+credentialsSecret: ""
+
+rbac:
+  # A ClusterRole with get, list and watch on Deployments, ReplicaSets, StatefulSets,
+  # DaemonSets, CronJobs, Jobs and Pods. Nothing else.
+  create: true
+
+# Buffered snapshots survive restarts only with a persistent volume.
+persistence:
+  enabled: false
+  size: 256Mi
+  storageClass: ""
+
+debug: false
+env: {}
+
+resources:
+  requests: { cpu: 20m, memory: 64Mi }
+  limits: { memory: 256Mi }
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,9 @@
+Goliash is starting at {{ .Values.publicURL }}.
+
+Create the first sign-in link (the first user becomes owner):
+
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "goliash.fullname" . }} -- goliash login-link -email you@example.com
+
+Optional example data:
+
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "goliash.fullname" . }} -- goliash demo

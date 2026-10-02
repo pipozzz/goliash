@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  replicas: 1   # one agent per token; a second would send duplicate snapshots
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: {{- include "agent.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "agent.selector" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "agent.fullname" . }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - { name: GOLIASH_SERVER_URL, value: {{ .Values.serverURL | quote }} }
+            - name: GOLIASH_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent.tokenSecret" . }}
+                  key: {{ ternary .Values.token.existingSecretKey "token" (ne .Values.token.existingSecret "") }}
+            - { name: GOLIASH_DATA_DIR, value: /data }
+            - { name: GOLIASH_CREDENTIALS_DIR, value: /etc/goliash-agent/credentials }
+            {{- if .Values.debug }}
+            - { name: GOLIASH_DEBUG, value: "1" }
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+            {{- if .Values.credentialsSecret }}
+            - { name: credentials, mountPath: /etc/goliash-agent/credentials, readOnly: true }
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "agent.fullname" . }} }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.credentialsSecret }}
+        - name: credentials
+          secret: { secretName: {{ .Values.credentialsSecret }} }
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests: { storage: {{ .Values.persistence.size }} }
+{{- end }}
