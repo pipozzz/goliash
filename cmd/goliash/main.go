@@ -32,6 +32,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/demo"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
@@ -63,6 +64,8 @@ const usage = `Usage:
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
   goliash token create -name N            API token for /api/v1 and /metrics (shown once)
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
+  goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
+  goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
 Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db).
@@ -137,6 +140,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return loginLink(ctx, args, out)
 	case "token create":
 		return tokenCreate(ctx, args, out)
+	case "demo":
+		return demoCmd(ctx, args, out)
+	case "healthcheck":
+		return healthcheck(ctx)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(out, "goliash", buildinfo.String())
 		return nil
@@ -174,6 +181,7 @@ func serve(ctx context.Context, args []string) error {
 	fs, dsn := newFlags("serve")
 	listen := fs.String("listen", envOr("GOLIASH_LISTEN", ":8080"), "HTTP listen address (env GOLIASH_LISTEN)")
 	upstreamEvery := fs.Duration("upstream-interval", time.Hour, "how often public registries are checked for new tags")
+	keepSnapshots := fs.Int("keep-snapshots", 20, "processed snapshots kept per target; older ones are deleted hourly")
 	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
 	debug := fs.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
@@ -239,6 +247,7 @@ func serve(ctx context.Context, args []string) error {
 	go notify.Run(ctx, 15*time.Second)
 	go svc.RunProcessor(ctx, 10*time.Second)
 	go checker.Run(ctx, *upstreamEvery, time.Minute)
+	go housekeeping(ctx, db, log, *keepSnapshots)
 
 	srv := &http.Server{
 		Addr: *listen,
@@ -780,6 +789,71 @@ func tokenCreate(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(out, "API token %s (shown once):\n%s\n", *name, token)
+	return nil
+}
+
+// housekeeping deletes data nothing reads any more, hourly.
+func housekeeping(ctx context.Context, db *store.Store, log *slog.Logger, keep int) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		r, err := db.Housekeep(ctx, keep)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			log.Error("housekeeping failed", "err", err)
+		case r != (store.HousekeepingResult{}):
+			log.Info("housekeeping", "snapshots", r.Snapshots, "notifications", r.Notifications,
+				"sessions", r.Sessions, "login_tokens", r.LoginTokens)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// healthcheck calls /healthz on the local listen port; distroless images have no curl.
+func healthcheck(ctx context.Context) error {
+	listen := envOr("GOLIASH_LISTEN", ":8080")
+	host, port, ok := strings.Cut(listen, ":")
+	if !ok {
+		return fmt.Errorf("cannot read port from GOLIASH_LISTEN=%q", listen)
+	}
+	if host == "" || host == "0.0.0.0" {
+		host = "127.0.0.1"
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+host+":"+port+"/healthz", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("/healthz answered %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func demoCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("demo")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, _, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := demo.Seed(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintln(out, "Demo data added: 4 demo-* targets in dev, staging and prod, 7 services, three weeks of history.")
 	return nil
 }
 

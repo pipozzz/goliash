@@ -572,3 +572,49 @@ func TestApplySnapshotAndEvents(t *testing.T) {
 		}
 	})
 }
+
+func TestHousekeep(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		base := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+		for i := range 8 {
+			id := NewID()
+			if _, err := s.InsertSnapshot(ctx, Snapshot{
+				ID: id, Scope: f.ws.Scope(), TargetID: f.tgt.ID,
+				CollectedAt: base.Add(time.Duration(i) * time.Minute), Complete: true, Payload: json.RawMessage(`{}`),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if i < 6 { // the last two stay unprocessed
+				if err := s.MarkSnapshotProcessed(ctx, f.ws.Scope(), id); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		u, _ := s.CreateUser(ctx, f.ws.OrgID, "a@example.com", "", RoleViewer)
+		_ = s.CreateSession(ctx, "expired", u.ID, -time.Hour)
+		_ = s.CreateSession(ctx, "valid", u.ID, time.Hour)
+
+		r, err := s.Housekeep(ctx, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Snapshots != 4 || r.Sessions != 1 {
+			t.Fatalf("removed %+v", r)
+		}
+		left, _ := s.UnprocessedSnapshots(ctx, 10)
+		if len(left) != 2 {
+			t.Fatal("unprocessed snapshots were removed")
+		}
+		if n, _ := s.CountSnapshots(ctx); n != 4 {
+			t.Fatalf("%d snapshots left, want 2 newest processed + 2 unprocessed", n)
+		}
+		if _, err := s.SessionUser(ctx, "valid"); err != nil {
+			t.Fatal("valid session removed")
+		}
+		if again, _ := s.Housekeep(ctx, 2); again.Snapshots != 0 {
+			t.Fatal("second run removed more")
+		}
+	})
+}
