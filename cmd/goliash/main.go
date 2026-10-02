@@ -7,7 +7,7 @@
 //	goliash env create    -name prod -position 30
 //	goliash agent create  -name eu-cluster
 //	goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1
-//	goliash matrix | events | rule create
+//	goliash matrix | events | drift | check | rule create | service set
 //	goliash version
 package main
 
@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -30,6 +31,7 @@ import (
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/internal/versions"
@@ -43,6 +45,10 @@ const usage = `Usage:
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-limit N]
+  goliash drift                           open drifts
+  goliash check [-service NAME]           check upstream registries now
+  goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
+                      [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash version
 
@@ -69,6 +75,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && args[0] == "create" && (cmd == "env" || cmd == "agent" || cmd == "target" || cmd == "rule") {
 			cmd, args = cmd+" create", args[1:]
 		}
+		if len(args) > 0 && args[0] == "set" && cmd == "service" {
+			cmd, args = "service set", args[1:]
+		}
 	}
 
 	switch cmd {
@@ -86,6 +95,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return eventsCmd(ctx, args, out)
 	case "rule create":
 		return ruleCreate(ctx, args, out)
+	case "drift":
+		return driftCmd(ctx, args, out)
+	case "check":
+		return checkCmd(ctx, args, out)
+	case "service set":
+		return serviceSet(ctx, args, out)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(out, "goliash", buildinfo.String())
 		return nil
@@ -122,6 +137,7 @@ func openDefault(ctx context.Context, dsn string) (*store.Store, store.Workspace
 func serve(ctx context.Context, args []string) error {
 	fs, dsn := newFlags("serve")
 	listen := fs.String("listen", envOr("GOLIASH_LISTEN", ":8080"), "HTTP listen address (env GOLIASH_LISTEN)")
+	upstreamEvery := fs.Duration("upstream-interval", time.Hour, "how often public registries are checked for new tags")
 	debug := fs.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -141,6 +157,8 @@ func serve(ctx context.Context, args []string) error {
 	log.Info("database ready", "dialect", db.Dialect(), "workspace", ws.Slug)
 
 	svc := ingest.New(db, log)
+	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
+	svc.SetUpstreams(checker)
 	agents, err := api.NewAgentHandler(db, svc, log)
 	if err != nil {
 		return err
@@ -157,6 +175,7 @@ func serve(ctx context.Context, args []string) error {
 
 	go svc.WatchStale(ctx, time.Minute, nil)
 	go svc.RunProcessor(ctx, 10*time.Second)
+	go checker.Run(ctx, *upstreamEvery, time.Minute)
 
 	srv := &http.Server{
 		Addr:              *listen,
@@ -289,34 +308,22 @@ func matrixCmd(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	sc := ws.Scope()
-	services, err := db.ListServices(ctx, sc)
+	o, err := versions.LoadOverview(ctx, db, ws.Scope())
 	if err != nil {
 		return err
 	}
-	envs, err := db.ListEnvironments(ctx, sc)
-	if err != nil {
-		return err
-	}
-	targets, err := db.ListTargets(ctx, sc)
-	if err != nil {
-		return err
-	}
-	active, err := db.ListActiveInstances(ctx, sc)
-	if err != nil {
-		return err
-	}
-	m := versions.BuildMatrix(services, envs, targets, active)
+	m := o.Matrix
 
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	header := []string{"SERVICE"}
 	for _, e := range m.Environments {
 		header = append(header, strings.ToUpper(e.Name))
 	}
+	header = append(header, "LATEST")
 	_, _ = fmt.Fprintln(tw, strings.Join(header, "\t"))
 	for _, row := range m.Rows {
 		cols := []string{row.Service.Name}
-		for _, c := range row.Cells {
+		for ei, c := range row.Cells {
 			if c.Empty() {
 				cols = append(cols, "-")
 				continue
@@ -325,14 +332,173 @@ func matrixCmd(ctx context.Context, args []string, out io.Writer) error {
 			for _, v := range c.Versions {
 				vs = append(vs, fmt.Sprintf("%s (%d)", v.Tag, v.Running))
 			}
-			cols = append(cols, strings.Join(vs, " + "))
+			cell := strings.Join(vs, " + ")
+			for _, d := range o.DriftsAt(row.Service.ID, m.Environments[ei].ID) {
+				cell += " !" + d.Kind
+			}
+			cols = append(cols, cell)
 		}
+		latest := "?"
+		if u, ok := o.Upstreams[row.Service.ID]; ok && u.HasLatest {
+			latest = u.Latest.Raw
+			if u.LatestAny.Raw != u.Latest.Raw {
+				latest += " (" + u.LatestAny.Raw + " outside pin)"
+			}
+		} else if ref := o.Refs[row.Service.ID]; ref.Repo != "" && !versions.IsPublicRegistry(ref.Repo) {
+			latest = "? (agent checks " + ref.Repo + ")"
+		}
+		cols = append(cols, latest)
 		_, _ = fmt.Fprintln(tw, strings.Join(cols, "\t"))
 	}
 	_ = tw.Flush()
 	if m.Unmapped > 0 {
 		_, _ = fmt.Fprintf(out, "\n%d workload(s) not mapped to a service yet.\n", m.Unmapped)
 	}
+	return nil
+}
+
+func driftCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("drift")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	o, err := versions.LoadOverview(ctx, db, ws.Scope())
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "SERVICE\tENV\tKIND\tSINCE\tDETAIL")
+	for _, ds := range o.Drifts {
+		for _, d := range ds {
+			var det versions.DriftDetail
+			_ = json.Unmarshal(d.Detail, &det)
+			detail := det.Running + " behind " + det.Other
+			switch d.Kind {
+			case "env":
+				detail = fmt.Sprintf("%s, %s runs %s", det.Running, det.OtherIn, det.Other)
+			case "upstream":
+				detail = fmt.Sprintf("%s, upstream %s (%s)", det.Running, det.Other, det.Jump)
+			case "inconsistent":
+				var parts []string
+				for t, v := range det.Targets {
+					parts = append(parts, t+"="+v)
+				}
+				sort.Strings(parts)
+				detail = strings.Join(parts, " ")
+			}
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", o.Services[d.ServiceID].Name, o.Envs[d.EnvironmentID].Name,
+				d.Kind, time.Since(d.Since).Round(time.Minute), detail)
+		}
+	}
+	return tw.Flush()
+}
+
+func checkCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("check")
+	service := fs.String("service", "", "check only this service")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	checker := versions.NewChecker(db, registry.New(), log, time.Minute)
+	sc := ws.Scope()
+	if *service != "" {
+		svc, err := db.GetServiceByName(ctx, sc, *service)
+		if err != nil {
+			return fmt.Errorf("service %q: %w", *service, err)
+		}
+		if err := checker.CheckService(ctx, sc, svc.ID); err != nil {
+			return err
+		}
+	} else {
+		if err := checker.CheckUpstreams(ctx, sc); err != nil {
+			return err
+		}
+		if err := checker.EvaluateDrift(ctx, sc); err != nil {
+			return err
+		}
+	}
+	_, _ = fmt.Fprintln(out, "upstreams checked")
+	return matrixCmd(ctx, []string{"-database", *dsn}, out)
+}
+
+func serviceSet(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("service set")
+	name := fs.String("name", "", "service name")
+	upstream := fs.String("upstream", "", "image repository to read releases from, e.g. docker.io/library/postgres")
+	owner := fs.String("owner", "", "owning team or person")
+	kind := fs.String("kind", "", "own or third_party")
+	track := fs.String("track", "", "smallest version jump that alerts: patch, minor or major")
+	pinMajor := fs.Int("pin-major", -1, "stay on this major; newer majors are information only (-1: no pin)")
+	tagFilter := fs.String("tag-filter", "", "regular expression upstream tags must match")
+	prerelease := fs.Bool("prerelease", false, "consider alpha, beta and rc tags")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" {
+		return errors.New("-name is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	svc, err := db.EnsureService(ctx, ws.Scope(), *name)
+	if err != nil {
+		return err
+	}
+	policy, err := versions.ParsePolicy(svc.VersionPolicy)
+	if err != nil {
+		return err
+	}
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	if set["upstream"] {
+		svc.Upstream = *upstream
+	}
+	if set["owner"] {
+		svc.Owner = *owner
+	}
+	if set["kind"] {
+		svc.Kind = *kind
+	}
+	if set["track"] {
+		policy.Track = versions.Jump(*track)
+	}
+	if set["pin-major"] {
+		policy.PinMajor = nil
+		if *pinMajor >= 0 {
+			policy.PinMajor = pinMajor
+		}
+	}
+	if set["tag-filter"] {
+		policy.TagFilter = *tagFilter
+	}
+	if set["prerelease"] {
+		policy.Prerelease = *prerelease
+	}
+	raw, err := json.Marshal(policy)
+	if err != nil {
+		return err
+	}
+	if _, err := versions.ParsePolicy(raw); err != nil {
+		return err
+	}
+	svc.VersionPolicy = raw
+	if err := db.UpdateService(ctx, svc); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "service %s updated: upstream=%q policy=%s\n", svc.Name, svc.Upstream, raw)
 	return nil
 }
 

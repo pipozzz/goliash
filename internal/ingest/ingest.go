@@ -19,9 +19,10 @@ import (
 
 // Protocol defaults sent to agents.
 const (
-	HeartbeatInterval  = time.Minute
-	StaleAfter         = 10 * time.Minute
-	kubernetesDebounce = 30
+	HeartbeatInterval     = time.Minute
+	RegistryCheckInterval = time.Hour
+	StaleAfter            = 10 * time.Minute
+	kubernetesDebounce    = 30
 )
 
 // ErrUnknownTarget means the agent sent data for a target that is not assigned to it.
@@ -29,11 +30,22 @@ var ErrUnknownTarget = errors.New("target is not assigned to this agent")
 
 // Service handles what agents send. It is safe for concurrent use.
 type Service struct {
-	store    *store.Store
-	log      *slog.Logger
-	pending  chan struct{} // wakes the processor after a snapshot arrives
-	onEvents func(store.Scope, []store.Event)
+	store     *store.Store
+	log       *slog.Logger
+	pending   chan struct{} // wakes the processor after a snapshot arrives
+	onEvents  func(store.Scope, []store.Event)
+	upstreams Upstreams
 }
+
+// Upstreams is the version checker as seen by ingest: which private repositories
+// agents should check, and where their results go.
+type Upstreams interface {
+	PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error)
+	RecordPrivateTags(ctx context.Context, sc store.Scope, repo string, tags []string, checkErr string) error
+}
+
+// SetUpstreams connects the version checker. It must be called before serving.
+func (s *Service) SetUpstreams(u Upstreams) { s.upstreams = u }
 
 // New returns a Service backed by st.
 func New(st *store.Store, log *slog.Logger) *Service {
@@ -67,6 +79,13 @@ func (s *Service) Config(ctx context.Context, a store.Agent) (agentproto.AgentCo
 	cfg := agentproto.AgentConfig{
 		HeartbeatIntervalSeconds: int(HeartbeatInterval / time.Second),
 		Targets:                  make([]agentproto.Target, 0, len(targets)),
+	}
+	if s.upstreams != nil {
+		if cfg.Registries, err = s.upstreams.PrivateRepositories(ctx, a.Scope); err != nil {
+			return agentproto.AgentConfig{}, "", err
+		}
+		interval := int(RegistryCheckInterval / time.Second)
+		cfg.RegistryCheckIntervalSeconds = &interval
 	}
 	for _, t := range targets {
 		pt, err := protoTarget(t)
@@ -165,10 +184,25 @@ func (s *Service) Heartbeat(ctx context.Context, a store.Agent, hb agentproto.He
 	return agentproto.HeartbeatResponse{ConfigEtag: etag}, nil
 }
 
-// RegistryResults accepts tags found in private registries. They are matched to
-// services once version tracking exists; until then they are only logged.
+// RegistryResults records tags an agent found in private registries as releases.
 func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentproto.RegistryResults) error {
 	s.log.DebugContext(ctx, "registry results received", "agent_id", a.ID, "repositories", len(res.Results))
+	if s.upstreams == nil {
+		return nil
+	}
+	for _, r := range res.Results {
+		var tags []string
+		for _, t := range r.Tags {
+			tags = append(tags, t.Name)
+		}
+		checkErr := ""
+		if r.Error != nil {
+			checkErr = *r.Error
+		}
+		if err := s.upstreams.RecordPrivateTags(ctx, a.Scope, r.Repository, tags, checkErr); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
