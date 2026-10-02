@@ -50,6 +50,8 @@ type Checker struct {
 
 	mu    sync.Mutex
 	cache map[string]cachedTags
+
+	driftMu sync.Mutex // one drift evaluation at a time
 }
 
 type cachedTags struct {
@@ -322,6 +324,8 @@ type WantedDrift struct {
 // EvaluateDrift opens drifts the current state shows and resolves those it no longer
 // shows, recording drift_detected and drift_resolved events.
 func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
+	c.driftMu.Lock()
+	defer c.driftMu.Unlock()
 	st, err := c.load(ctx, sc)
 	if err != nil {
 		return err

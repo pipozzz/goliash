@@ -112,6 +112,23 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 - **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
   release by at least the tracked jump), `inconsistent` (targets of one environment disagree).
 
+### Notifications
+
+```sh
+bin/goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
+bin/goliash channel create -type webhook -name ci -url https://example.com/goliash -secret s3cret
+bin/goliash channel create -type email -name oncall -to oncall@example.com   # needs GOLIASH_SMTP_ADDR, GOLIASH_SMTP_FROM
+bin/goliash channel test -name ops
+bin/goliash notify create -channel ops -events new_release,drift_detected,agent_stale -mode daily -min-jump minor
+bin/goliash ack -service postgres -kind release -until-version 17.0     # "we know about 16, quiet until 17"
+bin/goliash ack -service web -kind drift -for 336h                       # quiet for 14 days
+```
+
+Rules match event types and optionally services, owners, environments and the size of a release jump. `instant`
+rules deliver within seconds (items arriving together are batched); `daily` and `weekly` rules collect a digest
+sent at `digest_hour` (UTC). A release is announced once per service and version. Failed deliveries are retried
+with backoff. Webhook bodies are signed: `X-Goliash-Signature: sha256=HMAC(secret, X-Goliash-Timestamp + "." + body)`.
+
 ### Collectors and credentials
 
 | Platform | Reads | Needs | Credentials |
