@@ -76,7 +76,7 @@ make lint           # license boundary check + golangci-lint
 
 ## Trying it out
 
-There is no agent or UI yet; the server and the agent protocol work.
+The server, the agent protocol and the agent work; collectors for the orchestrators are next.
 
 ```sh
 make build
@@ -87,10 +87,14 @@ bin/goliash agent create -name eu-cluster    # prints the agent token once
 bin/goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1 \
   -settings '{"kubernetes":{"exclude_namespaces":["kube-system"]}}'
 bin/goliash serve -listen :8080
+
+# in another shell
+GOLIASH_SERVER_URL=http://localhost:8080 GOLIASH_AGENT_TOKEN=glsh_agent_... bin/goliash-agent -data-dir ./agent-data
 ```
 
-The agent protocol is served under `/agent/v1` (see [`api/agent-v1.yaml`](api/agent-v1.yaml)); every request is
-validated against the spec.
+The agent registers, follows its configuration (polled every minute with an ETag), sends a heartbeat every minute
+and buffers snapshots in `-data-dir` while the server is unreachable (the oldest are dropped beyond 200).
+The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validates every request against it.
 
 ## License
 
