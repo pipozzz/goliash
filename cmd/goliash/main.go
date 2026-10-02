@@ -9,6 +9,7 @@
 //	goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1
 //	goliash matrix | events | drift | check | rule create | service set
 //	goliash channel create | channel test | notify create | ack
+//	goliash user create | login-link | token create
 //	goliash version
 package main
 
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/api"
+	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
@@ -56,6 +58,9 @@ const usage = `Usage:
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
+  goliash user create -email E [-role owner|admin|member|viewer] [-name N]
+  goliash login-link -email E             one-time sign-in link (creates the first user as owner)
+  goliash token create -name N            API token for /api/v1 and /metrics (shown once)
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash version
 
@@ -91,6 +96,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && cmd == "notify" && args[0] == "create" {
 			cmd, args = "notify create", args[1:]
 		}
+		if len(args) > 0 && (cmd == "user" || cmd == "token") && args[0] == "create" {
+			cmd, args = cmd+" create", args[1:]
+		}
 	}
 
 	switch cmd {
@@ -122,6 +130,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return notifyCreate(ctx, args, out)
 	case "ack":
 		return ackCmd(ctx, args, out)
+	case "user create":
+		return userCreate(ctx, args, out)
+	case "login-link":
+		return loginLink(ctx, args, out)
+	case "token create":
+		return tokenCreate(ctx, args, out)
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(out, "goliash", buildinfo.String())
 		return nil
@@ -159,6 +173,8 @@ func serve(ctx context.Context, args []string) error {
 	fs, dsn := newFlags("serve")
 	listen := fs.String("listen", envOr("GOLIASH_LISTEN", ":8080"), "HTTP listen address (env GOLIASH_LISTEN)")
 	upstreamEvery := fs.Duration("upstream-interval", time.Hour, "how often public registries are checked for new tags")
+	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
+		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
 	debug := fs.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -193,8 +209,14 @@ func serve(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	authn, err := newAuth(ctx, db, log, *publicURL)
+	if err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
 	agents.Register(mux)
+	authn.Routes(mux)
+	api.NewPublicHandler(db, authn, log).Register(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -209,8 +231,10 @@ func serve(ctx context.Context, args []string) error {
 	go checker.Run(ctx, *upstreamEvery, time.Minute)
 
 	srv := &http.Server{
-		Addr:              *listen,
-		Handler:           mux,
+		Addr: *listen,
+		// Browsers may not send state-changing requests from other origins (CSRF);
+		// agents and API clients send no Origin and are unaffected.
+		Handler:           http.NewCrossOriginProtection().Handler(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,
 		IdleTimeout:       2 * time.Minute,
@@ -629,6 +653,123 @@ func ruleCreate(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	_, _ = fmt.Fprintf(out, "rule %s created; it applies from the next snapshot\n", r.ID)
+	return nil
+}
+
+// newAuth configures sign-in from the environment: e-mailed magic links when SMTP is
+// set, OIDC when GOLIASH_OIDC_ISSUER is set.
+func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL string) (*auth.Auth, error) {
+	var mail auth.MailFunc
+	if cfg := smtpFromEnv(); cfg.Addr != "" && cfg.From != "" {
+		mail = func(ctx context.Context, to, subject, body string) error {
+			ch := store.Channel{Name: "sign-in", Config: json.RawMessage(fmt.Sprintf(`{"to":[%q]}`, to))}
+			return notifier.Email{Config: cfg}.SendPlain(ctx, ch, subject, body)
+		}
+	}
+	a, err := auth.New(db, log, publicURL, mail)
+	if err != nil {
+		return nil, err
+	}
+	if issuer := os.Getenv("GOLIASH_OIDC_ISSUER"); issuer != "" {
+		o, err := auth.NewOIDC(ctx, auth.OIDCConfig{
+			Issuer: issuer, ClientID: os.Getenv("GOLIASH_OIDC_CLIENT_ID"), ClientSecret: os.Getenv("GOLIASH_OIDC_CLIENT_SECRET"),
+			Name: os.Getenv("GOLIASH_OIDC_NAME"), Domains: splitList(os.Getenv("GOLIASH_OIDC_DOMAINS")),
+		}, publicURL)
+		if err != nil {
+			return nil, err
+		}
+		a.SetOIDC(o)
+		log.Info("oidc sign-in enabled", "issuer", issuer)
+	}
+	return a, nil
+}
+
+func userCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("user create")
+	email := fs.String("email", "", "e-mail address")
+	role := fs.String("role", store.RoleViewer, "owner, admin, member or viewer")
+	name := fs.String("name", "", "display name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *email == "" || store.RoleRank(*role) == 0 {
+		return errors.New("-email and a valid -role are required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	u, err := db.CreateUser(ctx, ws.OrgID, *email, *name, *role)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "user %s created with role %s\n", u.Email, u.Role)
+	return nil
+}
+
+func loginLink(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("login-link")
+	email := fs.String("email", "", "e-mail address of the user")
+	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"), "server URL (env GOLIASH_PUBLIC_URL)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *email == "" {
+		return errors.New("-email is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	u, err := db.GetUserByEmail(ctx, ws.OrgID, *email)
+	if errors.Is(err, store.ErrNotFound) {
+		n, cerr := db.CountUsers(ctx, ws.OrgID)
+		if cerr != nil {
+			return cerr
+		}
+		if n > 0 {
+			return fmt.Errorf("no user %s; create one with goliash user create", *email)
+		}
+		if u, err = db.CreateUser(ctx, ws.OrgID, *email, "", store.RoleOwner); err == nil {
+			_, _ = fmt.Fprintf(out, "first user %s created as owner\n", u.Email)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	a, err := auth.New(db, slog.New(slog.NewTextHandler(io.Discard, nil)), *publicURL, nil)
+	if err != nil {
+		return err
+	}
+	link, err := a.LoginLink(ctx, u)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "Sign-in link for %s (works once, expires in 15 minutes):\n%s\n", u.Email, link)
+	return nil
+}
+
+func tokenCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("token create")
+	name := fs.String("name", "", "what the token is for, e.g. prometheus")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" {
+		return errors.New("-name is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	token, hash := tokens.New(tokens.API)
+	if _, err := db.CreateAPIToken(ctx, ws.Scope(), *name, hash); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "API token %s (shown once):\n%s\n", *name, token)
 	return nil
 }
 
