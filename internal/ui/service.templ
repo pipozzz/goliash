@@ -1,0 +1,204 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ ServicePage(v ServiceView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="muted"><a href="/">Matrix</a> / service</p>
+				<h1>{ v.Name }</h1>
+			</div>
+			if v.CanMember && !v.Private && v.RefRepo != "" {
+				<form method="post" action={ templ.URL("/services/" + v.Name + "/check") } class="inline">
+					<button class="secondary" type="submit">Check upstream now</button>
+				</form>
+			}
+		</div>
+		<dl class="facts">
+			<div class="fact"><dt>Owner</dt><dd>{ orDash(v.Owner) }</dd></div>
+			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.Kind) }</dd></div>
+			<div class="fact"><dt>Upstream</dt><dd class="mono">{ orDash(v.RefRepo) }</dd></div>
+			<div class="fact">
+				<dt>Latest acceptable</dt>
+				<dd class="mono">{ orDash(v.Latest) }</dd>
+			</div>
+			<div class="fact">
+				<dt>Last checked</dt>
+				<dd>
+					if v.Private {
+						<span class="muted">by the agent</span>
+					} else {
+						@timeAgo(v.CheckedAt)
+					}
+				</dd>
+			</div>
+		</dl>
+		if v.CheckError != "" {
+			<div class="notice error">Upstream check failed: { v.CheckError }</div>
+		}
+		if v.LatestAny != "" && v.LatestAny != v.Latest {
+			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
+		}
+		<div class="grid-2">
+			<section class="panel">
+				<div class="panel-head"><h2>Running</h2></div>
+				<table>
+					<thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead>
+					<tbody>
+						for _, e := range v.Envs {
+							<tr>
+								<td><strong>{ e.Name }</strong></td>
+								<td>
+									if len(e.Versions) == 0 {
+										<span class="none">not deployed</span>
+									}
+									for _, ver := range e.Versions {
+										<div class="ver"><span class="tag">{ ver.Tag }</span><span class="reps">× { itoa(ver.Running) }</span></div>
+										<div class="targets">{ ver.Targets }</div>
+									}
+								</td>
+								<td>
+									<div class="badges">
+										for _, d := range e.Drifts {
+											<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+										}
+									</div>
+									if len(e.Drifts) > 0 {
+										<div class="targets">
+											{ "open since " }
+											@timeAgo(e.Drifts[0].Since)
+										</div>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>Upstream releases</h2><span class="muted">newest first</span></div>
+				<div class="panel-body">
+					if len(v.Releases) == 0 {
+						<p class="muted">No releases known yet.</p>
+					} else {
+						<div class="badges">
+							for _, r := range v.Releases {
+								<span class="badge neutral mono">{ r }</span>
+							}
+						</div>
+					}
+					if v.CanMember {
+						<details>
+							<summary>Quiet notifications</summary>
+							<form class="stack" method="post" action={ templ.URL("/services/" + v.Name + "/ack") }>
+								<div class="row">
+									<label>
+										About
+										<select name="kind">
+											<option value="release">new releases</option>
+											<option value="drift">drift</option>
+										</select>
+									</label>
+									<label>
+										Until version
+										<input name="until_version" placeholder="e.g. 2.1.0"/>
+									</label>
+									<label>
+										Or for
+										<select name="for">
+											<option value="">—</option>
+											<option value="168h">7 days</option>
+											<option value="336h">14 days</option>
+											<option value="720h">30 days</option>
+										</select>
+									</label>
+								</div>
+								<div><button type="submit">Acknowledge</button></div>
+							</form>
+						</details>
+					}
+					if len(v.Acks) > 0 {
+						<table>
+							<thead><tr><th>Quiet</th><th>Until</th><th>By</th></tr></thead>
+							<tbody>
+								for _, a := range v.Acks {
+									<tr>
+										<td>{ a.Kind }{ envSuffix(a.Env) }</td>
+										<td>
+											{ a.Until }
+											if !a.Active {
+												<span class="badge neutral">expired</span>
+											}
+										</td>
+										<td class="muted">{ a.By }</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					}
+				</div>
+			</section>
+		</div>
+		<div class="grid-2">
+			<section class="panel">
+				<div class="panel-head"><h2>History</h2><a href={ templ.URL("/events?service=" + v.Name) }>All events →</a></div>
+				@timeline(v.Events, false)
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>Version policy</h2></div>
+				<div class="panel-body">
+					if v.CanMember {
+						<form class="stack" method="post" action={ templ.URL("/services/" + v.Name + "/policy") }>
+							<div class="row">
+								<label>
+									Owner
+									<input name="owner" value={ v.Owner } placeholder="team-payments"/>
+								</label>
+								<label>
+									Kind
+									<select name="kind">
+										<option value="own" selected?={ v.Kind != "third_party" }>own</option>
+										<option value="third_party" selected?={ v.Kind == "third_party" }>third-party</option>
+									</select>
+								</label>
+							</div>
+							<label>
+								Upstream repository
+								<input name="upstream" value={ v.Upstream } placeholder={ v.RefRepo }/>
+								<span class="hint">Empty: the image the service runs.</span>
+							</label>
+							<div class="row">
+								<label>
+									Alert from
+									<select name="track">
+										<option value="patch" selected?={ v.Policy.Track == "patch" || v.Policy.Track == "" }>any new version</option>
+										<option value="minor" selected?={ v.Policy.Track == "minor" }>minor versions</option>
+										<option value="major" selected?={ v.Policy.Track == "major" }>major versions</option>
+									</select>
+								</label>
+								<label>
+									Pin major
+									<input name="pin_major" inputmode="numeric" value={ v.Policy.PinMajor } placeholder="e.g. 15"/>
+								</label>
+							</div>
+							<label>
+								Tag filter
+								<input name="tag_filter" class="mono" value={ v.Policy.TagFilter } placeholder="^\d+\.\d+\.\d+$"/>
+								<span class="hint">Regular expression. Empty: tags shaped like the running one.</span>
+							</label>
+							<label class="check">
+								<input type="checkbox" name="prerelease" value="1" checked?={ v.Policy.Prerelease }/>
+								Consider alpha, beta and rc tags
+							</label>
+							<div><button type="submit">Save policy</button></div>
+						</form>
+					} else {
+						<p class="muted">Track { orDash(v.Policy.Track) }, pin { orDash(v.Policy.PinMajor) }, filter <code>{ orDash(v.Policy.TagFilter) }</code>.</p>
+					}
+				</div>
+			</section>
+		</div>
+	}
+}

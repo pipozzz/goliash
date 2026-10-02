@@ -1,0 +1,57 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ EventsPage(v EventsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>History</h1>
+				<p class="sub">Every deploy, version change, release and drift, newest first.</p>
+			</div>
+			<form class="inline" method="get" action="/events">
+				<label>
+					Service
+					<select name="service">
+						<option value="">all</option>
+						for _, s := range v.Services {
+							<option value={ s } selected?={ s == v.Service }>{ s }</option>
+						}
+					</select>
+				</label>
+				<label>
+					Environment
+					<select name="environment">
+						<option value="">all</option>
+						for _, e := range v.EnvNames {
+							<option value={ e } selected?={ e == v.Env }>{ e }</option>
+						}
+					</select>
+				</label>
+				<label>
+					Event
+					<select name="type">
+						<option value="">all</option>
+						for _, t := range v.Types {
+							<option value={ t } selected?={ t == v.Type }>{ t }</option>
+						}
+					</select>
+				</label>
+				<button class="secondary" type="submit">Filter</button>
+			</form>
+		</div>
+		<section class="panel">
+			@EventsChunk(v)
+		</section>
+	}
+}
+
+templ EventsChunk(v EventsView) {
+	@timeline(v.Events, true)
+	if v.MoreURL != "" {
+		<div class="panel-head" style="border-top:1px solid var(--line);border-bottom:0;justify-content:center" id="more">
+			<button class="link" hx-get={ v.MoreURL } hx-target="#more" hx-swap="outerHTML">Load older events</button>
+		</div>
+	}
+}

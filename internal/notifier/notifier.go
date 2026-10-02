@@ -142,7 +142,7 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			Type: e.Type, Service: svc.Name, Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
 			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, At: e.At,
 		}
-		item.Text = describe(item)
+		item.Text = Describe(item)
 		dedup := e.ID
 		if e.Type == "new_release" {
 			dedup = "new_release|" + e.ServiceID + "|" + e.ToVersion // once per service and version
@@ -167,7 +167,7 @@ func (n *Notifier) AgentStale(a store.Agent) {
 		return
 	}
 	item := Item{Type: "agent_stale", Target: a.Name, At: a.StaleSince}
-	item.Text = describe(item)
+	item.Text = Describe(item)
 	if err := n.enqueue(ctx, a.Scope, rules, item, "agent_stale|"+a.ID+"|"+a.StaleSince.Format(time.RFC3339)); err != nil {
 		n.log.Error("queueing notifications failed", "err", err)
 	}
@@ -403,8 +403,8 @@ func (n *Notifier) SendTest(ctx context.Context, ch store.Channel, workspace str
 	return sender.Send(ctx, ch, Message{Workspace: workspace, Items: []Item{item}})
 }
 
-// describe writes the one-line text people read.
-func describe(it Item) string {
+// Describe writes the one-line text people read about an item.
+func Describe(it Item) string {
 	where := it.Service
 	if it.Environment != "" {
 		where += " @ " + it.Environment

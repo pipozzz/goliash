@@ -195,3 +195,22 @@ func expectOne(res sql.Result, err error) error {
 	}
 	return nil
 }
+
+// ListAgents returns the workspace's agents by name.
+func (s *Store) ListAgents(ctx context.Context, sc Scope) ([]Agent, error) {
+	rows, err := s.query(ctx, s.db, `SELECT `+agentColumns+`, '' FROM agents a
+		WHERE a.org_id = ? AND a.workspace_id = ? ORDER BY a.name`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Agent
+	for rows.Next() {
+		a, _, err := s.scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
