@@ -43,6 +43,7 @@ func (e CollectorStatusStatus) Valid() bool {
 
 // Defines values for Platform.
 const (
+	Docker     Platform = "docker"
 	Ecs        Platform = "ecs"
 	Kubernetes Platform = "kubernetes"
 	Nomad      Platform = "nomad"
@@ -52,6 +53,8 @@ const (
 // Valid indicates whether the value is a known member of the Platform enum.
 func (e Platform) Valid() bool {
 	switch e {
+	case Docker:
+		return true
 	case Ecs:
 		return true
 	case Kubernetes:
@@ -85,23 +88,29 @@ func (e SnapshotAckStatus) Valid() bool {
 
 // Defines values for WorkloadKind.
 const (
-	Cronjob      WorkloadKind = "cronjob"
-	Daemonset    WorkloadKind = "daemonset"
-	Deployment   WorkloadKind = "deployment"
-	EcsService   WorkloadKind = "ecs_service"
-	NomadJob     WorkloadKind = "nomad_job"
-	Statefulset  WorkloadKind = "statefulset"
-	SwarmService WorkloadKind = "swarm_service"
+	ComposeService  WorkloadKind = "compose_service"
+	Cronjob         WorkloadKind = "cronjob"
+	Daemonset       WorkloadKind = "daemonset"
+	Deployment      WorkloadKind = "deployment"
+	DockerContainer WorkloadKind = "docker_container"
+	EcsService      WorkloadKind = "ecs_service"
+	NomadJob        WorkloadKind = "nomad_job"
+	Statefulset     WorkloadKind = "statefulset"
+	SwarmService    WorkloadKind = "swarm_service"
 )
 
 // Valid indicates whether the value is a known member of the WorkloadKind enum.
 func (e WorkloadKind) Valid() bool {
 	switch e {
+	case ComposeService:
+		return true
 	case Cronjob:
 		return true
 	case Daemonset:
 		return true
 	case Deployment:
+		return true
+	case DockerContainer:
 		return true
 	case EcsService:
 		return true
@@ -162,6 +171,17 @@ type Container struct {
 
 	// Running Number of running replicas with this image and digest.
 	Running int `json:"running"`
+}
+
+// DockerSettings A standalone Docker host. Compose services are grouped by project and service; other containers are
+// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
+type DockerSettings struct {
+	// DockerHost Docker API endpoint, normally a docker-socket-proxy that allows only GET (CONTAINERS=1, IMAGES=1 for
+	// digests).
+	//
+	//
+	// Example: tcp://docker-socket-proxy:2375
+	DockerHost string `json:"docker_host"`
 }
 
 // ECSSettings defines model for ECSSettings.
@@ -325,15 +345,20 @@ type SwarmSettings struct {
 	DockerHost string `json:"docker_host"`
 }
 
-// Target One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region or a Swarm cluster. Exactly the
+// Target One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster or a Docker
+// host. Exactly the
 // settings object that matches `platform` is set.
 type Target struct {
 	// CredentialsRef Name of credentials the agent resolves locally (env, file, workload identity). Never a secret.
 	CredentialsRef *string `json:"credentials_ref,omitempty"`
 
 	// DebounceSeconds Kubernetes only. Wait this long after the last change before sending a snapshot.
-	DebounceSeconds *int         `json:"debounce_seconds,omitempty"`
-	Ecs             *ECSSettings `json:"ecs,omitempty"`
+	DebounceSeconds *int `json:"debounce_seconds,omitempty"`
+
+	// Docker A standalone Docker host. Compose services are grouped by project and service; other containers are
+	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
+	Docker *DockerSettings `json:"docker,omitempty"`
+	Ecs    *ECSSettings    `json:"ecs,omitempty"`
 
 	// ID Example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D
 	ID         ULID                `json:"id"`
@@ -359,17 +384,18 @@ type Workload struct {
 	Containers      []Container `json:"containers"`
 	DesiredReplicas *int        `json:"desired_replicas,omitempty"`
 
-	// ID Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID).
+	// ID Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID), or a stable name
+	// for Docker (compose project/service, container name).
 	ID   string       `json:"id"`
 	Kind WorkloadKind `json:"kind"`
 
-	// Labels Kubernetes labels, ECS tags, Nomad meta or Swarm labels. `goliash.service` and `goliash.env` take precedence in mapping.
+	// Labels Kubernetes labels, ECS tags, Nomad meta or Swarm/Docker labels. `goliash.service` and `goliash.env` take precedence in mapping.
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// Name Example: payments-api
 	Name string `json:"name"`
 
-	// Namespace Kubernetes or Nomad namespace.
+	// Namespace Kubernetes or Nomad namespace, Swarm stack or Compose project.
 	Namespace *string `json:"namespace,omitempty"`
 }
 

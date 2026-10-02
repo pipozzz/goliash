@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Target is one collected system: a Kubernetes cluster, an ECS cluster, a Nomad region or a Swarm cluster.
+// Target is one collected system: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster or a Docker host.
 type Target struct {
 	ID                  string
 	Scope               Scope

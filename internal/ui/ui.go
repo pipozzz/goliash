@@ -745,7 +745,7 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 	}
 	platform := r.FormValue("platform")
 	switch platform {
-	case "kubernetes", "ecs", "nomad", "swarm":
+	case "kubernetes", "ecs", "nomad", "swarm", "docker":
 	default:
 		return back(w, r, "/agents", "error", "Unknown platform.")
 	}

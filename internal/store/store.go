@@ -96,10 +96,10 @@ func parseDSN(dsn string) (dialect Dialect, driver, source string, err error) {
 	return SQLite, "sqlite", "file:" + path + "?" + pragmas.Encode(), nil
 }
 
-func (s *Store) migrate(ctx context.Context) error {
+func (s *Store) migrations() (*goose.Provider, error) {
 	dir, err := fs.Sub(migrations, "migrations/"+string(s.dialect))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	gooseDialect := goose.DialectSQLite3
 	if s.dialect == Postgres {
@@ -107,7 +107,15 @@ func (s *Store) migrate(ctx context.Context) error {
 	}
 	provider, err := goose.NewProvider(gooseDialect, s.db, dir)
 	if err != nil {
-		return fmt.Errorf("migrations: %w", err)
+		return nil, fmt.Errorf("migrations: %w", err)
+	}
+	return provider, nil
+}
+
+func (s *Store) migrate(ctx context.Context) error {
+	provider, err := s.migrations()
+	if err != nil {
+		return err
 	}
 	if _, err := provider.Up(ctx); err != nil {
 		return fmt.Errorf("migrate %s: %w", s.dialect, err)

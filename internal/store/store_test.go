@@ -333,6 +333,12 @@ func TestTargets(t *testing.T) {
 		}
 
 		if _, err := s.CreateTarget(ctx, Target{
+			Scope: f.ws.Scope(), EnvironmentID: f.env.ID, Platform: "docker", Name: "docker-host",
+		}); err != nil {
+			t.Fatalf("docker platform: %v", err)
+		}
+
+		if _, err := s.CreateTarget(ctx, Target{
 			Scope: f.ws.Scope(), EnvironmentID: f.env.ID, Platform: "openshift", Name: "x",
 		}); err == nil {
 			t.Fatal("unknown platform was accepted")
@@ -678,4 +684,54 @@ func TestMemberships(t *testing.T) {
 			t.Fatal("membership not removed")
 		}
 	})
+}
+
+// Migration 9 rebuilds the SQLite targets table. Rows that reference targets must
+// survive it, and foreign keys must be enforced again afterwards.
+func TestTargetsRebuildKeepsData(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, "sqlite://"+t.TempDir()+"/goliash.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	f := setup(t, s)
+	if ok, err := s.InsertSnapshot(ctx, Snapshot{ID: NewID(), Scope: f.ws.Scope(), TargetID: f.tgt.ID, AgentID: f.agnt.ID,
+		CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)}); err != nil || !ok {
+		t.Fatal(err)
+	}
+
+	provider, err := s.migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.DownTo(ctx, 8); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var snapshots, fkOn int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM snapshots WHERE target_id = ?`, f.tgt.ID).Scan(&snapshots); err != nil || snapshots != 1 {
+		t.Fatalf("snapshots after rebuild: %d %v", snapshots, err)
+	}
+	if got, err := s.GetTarget(ctx, f.ws.Scope(), f.tgt.ID); err != nil || got.Name != f.tgt.Name || got.AgentID != f.agnt.ID {
+		t.Fatalf("target after rebuild: %+v %v", got, err)
+	}
+	if err := s.db.QueryRowContext(ctx, `PRAGMA foreign_keys`).Scan(&fkOn); err != nil || fkOn != 1 {
+		t.Fatalf("foreign_keys = %d %v", fkOn, err)
+	}
+	rows, err := s.db.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		t.Fatal("foreign key violations after rebuild")
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO snapshots (id, org_id, workspace_id, target_id, collected_at, received_at, complete, payload)
+		VALUES ('x', 'o', ?, 'no-such-target', ?, ?, TRUE, '{}')`, f.ws.ID, time.Now(), time.Now()); err == nil {
+		t.Fatal("snapshot for a missing target accepted: foreign keys are off")
+	}
 }

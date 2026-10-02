@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <strong>What runs where, on which version, in which environment — across Kubernetes, ECS, Nomad and Docker Swarm.</strong>
+  <strong>What runs where, on which version, in which environment — across Kubernetes, ECS, Nomad, Docker Swarm and plain Docker.</strong>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 
 ## Features
 
-- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, Nomad and Docker Swarm, side by side, per
+- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, Nomad, Docker Swarm and plain Docker/Compose hosts, side by side, per
   environment — with replicas, targets and rollouts in progress.
 - **Upstream awareness.** Tags from Docker Hub, GHCR, Quay, registry.k8s.io and private registries, compared with
   per-service semver policies (track minor only, pin a major, ignore `-alpine` noise). A built-in catalog of popular
@@ -80,12 +80,22 @@ docker run -d --name goliash-agent -v goliash-agent:/data \
   ghcr.io/pipozzz/goliash-agent:latest
 ```
 
-Ready-made manifests for Kubernetes (Helm), Nomad, Docker Swarm and ECS are in [`deploy/`](deploy).
+To watch the Docker host the quickstart runs on, no agent is needed:
+
+```sh
+docker compose --profile watch-host up -d --build                   # adds a read-only docker-socket-proxy
+docker compose exec goliash goliash env create -name prod -position 30
+docker compose exec goliash goliash target create -env prod -platform docker -name this-host \
+  -settings '{"docker":{"docker_host":"tcp://socket-proxy:2375"}}'
+```
+
+Ready-made manifests for Kubernetes (Helm), Nomad, Docker Swarm, plain Docker hosts and ECS are in
+[`deploy/`](deploy).
 
 **Without an agent:** a target created without an agent (`goliash target create` without `-agent`, or "the server
 itself" in the UI) is collected by the server, with the same read-only collectors. That suits a self-hosted server
-next to what it watches, e.g. the Kubernetes cluster it runs in (`helm … --set collectInCluster=true`) or a Swarm
-through a socket proxy. Turn it off with `-collect=false`.
+next to what it watches, e.g. the Kubernetes cluster it runs in (`helm … --set collectInCluster=true`) or a Swarm or
+Docker host through a socket proxy. Turn it off with `-collect=false`.
 
 ## Install
 
@@ -208,6 +218,7 @@ with backoff. Webhook bodies are signed: `X-Goliash-Signature: sha256=HMAC(secre
 | ECS | clusters → services → running tasks → task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` = AWS profile name |
 | Nomad | jobs, job versions, allocations | ACL token with `read-job` | `credentials_ref` → token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` only (docker-socket-proxy) | none |
+| Docker | running containers, grouped into Compose services; registry digests | Docker API `GET` on containers and images (docker-socket-proxy) | none |
 
 The server only sends a `credentials_ref` name. The agent resolves it from the environment variable
 `GOLIASH_CREDENTIAL_<NAME>` (upper-cased, non-alphanumerics as `_`) or the file
@@ -226,14 +237,14 @@ The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validate
 | `cmd/goliash` | Server binary | AGPL-3.0-only |
 | `cmd/goliash-agent` | Agent binary | Apache-2.0 |
 | `internal/agent` | Agent loop | Apache-2.0 |
-| `internal/collectors/{kubernetes,ecs,nomad,swarm}` | Read-only collectors | Apache-2.0 |
+| `internal/collectors/{kubernetes,ecs,nomad,swarm,docker}` | Read-only collectors | Apache-2.0 |
 | `internal/registry` | OCI Distribution API client | Apache-2.0 |
 | `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
 | `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
 | `pkg/buildinfo` | Build metadata | Apache-2.0 |
 | `internal/{api,ingest,mapping,versions,notifier,store,ui}` | Server | AGPL-3.0-only |
 | `internal/store/migrations/{sqlite,postgres}` | Database migrations (goose), embedded in the server | AGPL-3.0-only |
-| `deploy/{helm,nomad,swarm,ecs}` | Deployment manifests | AGPL-3.0-only |
+| `deploy/{helm,nomad,swarm,docker,ecs}` | Deployment manifests | AGPL-3.0-only |
 
 ### Building
 
