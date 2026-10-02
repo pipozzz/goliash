@@ -28,6 +28,22 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: goliash
+          POSTGRES_PASSWORD: goliash
+          POSTGRES_DB: goliash
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U goliash"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GOLIASH_TEST_POSTGRES_DSN: postgres://goliash:goliash@localhost:5432/goliash?sslmode=disable
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v7
