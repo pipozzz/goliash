@@ -8,7 +8,7 @@ module=$(go list -m)
 fail=0
 
 while IFS= read -r f; do
-  if ! head -n 5 "$f" | grep -qE '^// SPDX-License-Identifier: (Apache-2\.0|AGPL-3\.0-only)$'; then
+  if ! head -n 10 "$f" | grep -qE '^// SPDX-License-Identifier: (Apache-2\.0|AGPL-3\.0-only)$'; then
     echo "missing or unknown SPDX header: $f"
     fail=1
   fi
@@ -18,7 +18,7 @@ while read -r pkg dir; do
   case "$pkg" in "$module"|"$module"/*) ;; *) continue ;; esac
   for f in "$dir"/*.go; do
     [[ "$f" == *_test.go ]] && continue
-    if ! head -n 5 "$f" | grep -q '^// SPDX-License-Identifier: Apache-2.0$'; then
+    if ! head -n 10 "$f" | grep -q '^// SPDX-License-Identifier: Apache-2.0$'; then
       echo "goliash-agent depends on non-Apache-2.0 code: ${f#"$PWD"/} (package $pkg)"
       fail=1
     fi

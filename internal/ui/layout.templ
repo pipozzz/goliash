@@ -1,0 +1,134 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ logo() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+		<rect x="2" y="2" width="6" height="6" rx="1.5" fill="currentColor"></rect>
+		<rect x="9" y="2" width="6" height="6" rx="1.5" fill="currentColor" opacity=".55"></rect>
+		<rect x="16" y="2" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"></rect>
+		<rect x="2" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".55"></rect>
+		<rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"></rect>
+		<rect x="16" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".55"></rect>
+		<rect x="2" y="16" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"></rect>
+		<rect x="9" y="16" width="6" height="6" rx="1.5" fill="currentColor" opacity=".55"></rect>
+		<rect x="16" y="16" width="6" height="6" rx="1.5" fill="currentColor"></rect>
+	</svg>
+}
+
+templ head(title string) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>{ title } · Goliash</title>
+		<link rel="stylesheet" href={ templ.URL(asset("app.css")) }/>
+		<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='4' fill='%233157d5'/%3E%3C/svg%3E"/>
+	</head>
+}
+
+templ navLink(b Base, page, href, label string) {
+	<a
+		href={ templ.URL(href) }
+		if b.Page == page {
+			aria-current="page"
+		}
+	>
+		{ label }
+		if page == "inbox" && b.InboxCount > 0 {
+			<span class="count">{ itoa(b.InboxCount) }</span>
+		}
+	</a>
+}
+
+templ Layout(b Base) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@head(b.Title)
+		<body hx-boost="true">
+			<header class="top">
+				<div class="top-inner">
+					<a class="brand" href="/">
+						@logo()
+						Goliash
+					</a>
+					<nav class="nav" aria-label="Main">
+						@navLink(b, "matrix", "/", "Matrix")
+						@navLink(b, "inbox", "/inbox", "Inbox")
+						@navLink(b, "events", "/events", "History")
+						@navLink(b, "agents", "/agents", "Agents")
+						@navLink(b, "notifications", "/notifications", "Notifications")
+						if b.CanAdmin {
+							@navLink(b, "settings", "/settings", "Users")
+						}
+					</nav>
+					<div class="who">
+						<span title={ b.Role }>{ b.Email }</span>
+						<form method="post" action="/auth/logout" hx-boost="false">
+							<button class="secondary" type="submit">Sign out</button>
+						</form>
+					</div>
+				</div>
+			</header>
+			<main>
+				if b.Notice != "" {
+					<div class="notice" role="status">{ b.Notice }</div>
+				}
+				if b.Error != "" {
+					<div class="notice error" role="alert">{ b.Error }</div>
+				}
+				{ children... }
+			</main>
+			<script src={ templ.URL(asset("htmx.min.js")) }></script>
+			<script src={ templ.URL(asset("app.js")) }></script>
+		</body>
+	</html>
+}
+
+templ Login(v LoginView) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@head("Sign in")
+		<body>
+			<div class="login">
+				<div class="card">
+					<span class="brand">
+						@logo()
+						Goliash
+					</span>
+					<div>
+						<h1>Sign in</h1>
+						<p class="muted">What runs where, on which version.</p>
+					</div>
+					if v.Sent {
+						<div class="notice" role="status">If that address has an account, a sign-in link is on its way. It works once and expires in 15 minutes.</div>
+					}
+					if v.Error != "" {
+						<div class="notice error" role="alert">{ v.Error }</div>
+					}
+					if v.OIDC != "" {
+						<a class="button" href="/auth/oidc/start" style="justify-content:center">Continue with { v.OIDC }</a>
+					}
+					if v.Mail {
+						if v.OIDC != "" {
+							<div class="divider">or</div>
+						}
+						<form class="stack" method="post" action="/auth/magic">
+							<label>
+								E-mail
+								<input id="email" type="email" name="email" required autocomplete="email" autofocus/>
+							</label>
+							<button type="submit">E-mail me a sign-in link</button>
+						</form>
+					}
+					if v.OIDC == "" && !v.Mail {
+						<p class="muted">
+							Ask an administrator for a sign-in link. On the server, run
+							<code>goliash login-link -email you@example.com</code>.
+						</p>
+					}
+				</div>
+			</div>
+		</body>
+	</html>
+}

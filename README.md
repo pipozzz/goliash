@@ -76,41 +76,37 @@ make lint           # license boundary check + golangci-lint
 
 ## Trying it out
 
-The server, the agent protocol and the agent work; collectors for the orchestrators are next.
-
 ```sh
 make build
-export GOLIASH_DATABASE_URL=goliash.db       # or postgres://user:pass@host/db
+export GOLIASH_DATABASE_URL=goliash.db GOLIASH_PUBLIC_URL=http://localhost:8080
 
-bin/goliash env create -name prod -position 30
-bin/goliash agent create -name eu-cluster    # prints the agent token once
-bin/goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1 \
-  -settings '{"kubernetes":{"exclude_namespaces":["kube-system"]}}'
-bin/goliash serve -listen :8080
+bin/goliash serve &
+bin/goliash login-link -email you@example.com   # open the printed link
+```
 
-# in another shell
+In the UI, add environments, an agent (copy its token) and targets on the **Agents** page, then start the agent:
+
+```sh
 GOLIASH_SERVER_URL=http://localhost:8080 GOLIASH_AGENT_TOKEN=glsh_agent_... bin/goliash-agent -data-dir ./agent-data
 ```
 
-### Versions, upstream and drift
+Everything the UI does is also available from the CLI (`bin/goliash help`).
 
-```sh
-bin/goliash matrix                 # service × environment, latest upstream, drift markers
-bin/goliash drift                  # open drifts
-bin/goliash events                 # history: deployed, version_changed, removed, new_release, drift_*
-bin/goliash check                  # check upstream registries now (the server does it hourly)
-bin/goliash service set -name postgres -track minor -pin-major 15
-bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -service payments
-```
+### Web UI
 
-- **Mapping:** labels `goliash.service` / `app.kubernetes.io/name` (and `goliash.env`), then rules, then unmapped
-  workloads wait with a suggested name.
-- **Upstream:** public registries (Docker Hub, GHCR, Quay, registry.k8s.io, …) are checked by the server; other
-  registries by the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>`.
-- **Policy per service:** `tag_filter`, `track` (patch/minor/major), `pin_major`, `prerelease`. Without a filter,
-  tags are compared like with like (same `-alpine` variant, same number of version parts).
-- **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
-  release by at least the tracked jump), `inconsistent` (targets of one environment disagree).
+Open `GOLIASH_PUBLIC_URL` (default `http://localhost:8080`) and sign in with a link from
+`goliash login-link -email you@example.com`. The UI is server-rendered (templ + htmx), works without a build step
+and updates live over server-sent events.
+
+| Page | What it is for |
+| --- | --- |
+| Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream |
+| Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now" |
+| Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image |
+| History | every event, filterable by service, environment and type |
+| Agents | agents and targets with collector health; add agents (token shown once), environments and targets |
+| Notifications | channels (with a test button) and rules |
+| Users | invite people, change roles, sign-in links, API tokens (admins) |
 
 ### Sign-in, API and metrics
 

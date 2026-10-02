@@ -19,6 +19,7 @@ type Overview struct {
 	Services  map[string]store.Service     // by ID
 	Envs      map[string]store.Environment // by ID
 	Targets   []store.Target
+	CheckErrs map[string]string // service ID -> last upstream check error
 }
 
 // DriftsAt returns the open drifts of a service in an environment.
@@ -30,7 +31,7 @@ func (o Overview) DriftsAt(serviceID, envID string) []store.Drift {
 func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
 	o := Overview{
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
-		Services: map[string]store.Service{}, Envs: map[string]store.Environment{},
+		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
 	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -56,6 +57,9 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		o.Envs[e.ID] = e
 	}
 	for id, ref := range o.Refs {
+		if _, msg, err := st.UpstreamStatus(ctx, sc, id); err == nil && msg != "" {
+			o.CheckErrs[id] = msg
+		}
 		p, _ := ParsePolicy(o.Services[id].VersionPolicy)
 		o.Policies[id] = p
 		releases, err := st.ListReleases(ctx, sc, id)

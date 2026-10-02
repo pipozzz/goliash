@@ -1,0 +1,44 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import "time"
+
+templ timeAgo(t time.Time) {
+	if t.IsZero() {
+		<span class="faint">never</span>
+	} else {
+		<time datetime={ iso(t) } data-ago>{ short(t) }</time>
+	}
+}
+
+templ timeline(events []EventView, showService bool) {
+	if len(events) == 0 {
+		<div class="empty">No history yet. Events appear when versions change, releases ship or drift opens.</div>
+	} else {
+		<ol class="timeline">
+			for _, e := range events {
+				<li>
+					@timeAgo(e.At)
+					<div class="ev">
+						<span class={ "kind", e.Type }>{ e.Label }</span>
+						<span class="what">{ e.Text }</span>
+						if showService && e.ServiceURL != "" {
+							<a class="where" href={ templ.URL(e.ServiceURL) }>{ e.Service }</a>
+						}
+					</div>
+				</li>
+			}
+		</ol>
+	}
+}
+
+templ secret(label, value string) {
+	<div class="secret" role="status">
+		<strong>{ label }</strong>
+		<code id="secret-value">{ value }</code>
+		<button type="button" class="secondary" data-copy="secret-value">Copy</button>
+		<span class="muted">It is shown only once.</span>
+	</div>
+}

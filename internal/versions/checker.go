@@ -95,10 +95,9 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		return
 	}
 	for _, ws := range workspaces {
-		if upstream {
-			if err := c.CheckUpstreams(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
-				c.log.ErrorContext(ctx, "upstream check failed", "workspace", ws.Slug, "err", err)
-			}
+		// Every tick checks services seen for the first time; the full check runs on its interval.
+		if err := c.checkUpstreams(ctx, ws.Scope(), !upstream); err != nil && ctx.Err() == nil {
+			c.log.ErrorContext(ctx, "upstream check failed", "workspace", ws.Slug, "err", err)
 		}
 		if err := c.EvaluateDrift(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "drift evaluation failed", "workspace", ws.Slug, "err", err)
@@ -188,6 +187,10 @@ func References(m Matrix, active []store.Instance) map[string]Reference {
 // CheckUpstreams lists tags of public upstream repositories and records new releases.
 // Private repositories are left to the agent.
 func (c *Checker) CheckUpstreams(ctx context.Context, sc store.Scope) error {
+	return c.checkUpstreams(ctx, sc, false)
+}
+
+func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bool) error {
 	st, err := c.load(ctx, sc)
 	if err != nil {
 		return err
@@ -201,6 +204,11 @@ func (c *Checker) CheckUpstreams(ctx context.Context, sc store.Scope) error {
 		ref := st.refs[id]
 		if ref.Repo == "" || !IsPublicRegistry(ref.Repo) {
 			continue
+		}
+		if onlyNew {
+			if checked, _, err := c.store.UpstreamStatus(ctx, sc, id); err != nil || !checked.IsZero() {
+				continue
+			}
 		}
 		tags, err := c.listTags(ctx, ref.Repo)
 		if err != nil {

@@ -1,0 +1,60 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ InboxPage(v InboxView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Inbox</h1>
+				<p class="sub">Workloads Goliash could not map to a service. Your choice becomes a rule, so the next ones map by themselves.</p>
+			</div>
+		</div>
+		<section class="panel">
+			if len(v.Items) == 0 {
+				<div class="empty">Nothing to classify. Every running workload belongs to a service.</div>
+			} else {
+				<datalist id="services">
+					for _, s := range v.Services {
+						<option value={ s }></option>
+					}
+				</datalist>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Workload</th><th>Where</th><th>Image</th><th>Service</th></tr></thead>
+						<tbody>
+							for _, it := range v.Items {
+								<tr>
+									<td>
+										<strong>{ it.Workload }</strong>
+										<div class="targets">{ it.Kind }{ nsSuffix(it.Namespace) }</div>
+									</td>
+									<td>{ it.Target }<div class="targets">{ it.Env }</div></td>
+									<td class="mono">{ it.Image }</td>
+									<td>
+										if v.CanMember {
+											<form class="inline" method="post" action="/inbox/map">
+												<input type="hidden" name="target_id" value={ it.TargetID }/>
+												<input type="hidden" name="workload_id" value={ it.WorkloadID }/>
+												<input type="hidden" name="repo" value={ it.Repo }/>
+												<input name="service" list="services" value={ it.Suggested } required aria-label="Service name" size="16"/>
+												<button type="submit">Map</button>
+											</form>
+											<form class="inline" method="post" action="/inbox/ignore" style="margin-top:6px">
+												<input type="hidden" name="repo" value={ it.Repo }/>
+												<button class="link" type="submit">Ignore this image</button>
+											</form>
+										} else {
+											<span class="muted">suggested: { it.Suggested }</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+}

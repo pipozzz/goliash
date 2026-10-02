@@ -1,0 +1,151 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ AgentsPage(v AgentsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Agents and targets</h1>
+				<p class="sub">Agents run in your network and read orchestrators read-only. Each target belongs to one environment.</p>
+			</div>
+		</div>
+		if v.NewToken != "" {
+			@secret("Token for "+v.NewAgent+":", v.NewToken)
+			<section class="panel">
+				<div class="panel-head"><h2>Start the agent</h2></div>
+				<div class="panel-body">
+					<pre class="mono" style="margin:0;white-space:pre-wrap">{ "GOLIASH_SERVER_URL=" + v.ServerURL + " GOLIASH_AGENT_TOKEN=<token> goliash-agent -data-dir /var/lib/goliash-agent" }</pre>
+				</div>
+			</section>
+		}
+		<section class="panel">
+			<div class="panel-head"><h2>Agents</h2></div>
+			if len(v.Agents) == 0 {
+				<div class="empty">No agents yet.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Platforms</th><th>Last seen</th></tr></thead>
+						<tbody>
+							for _, a := range v.Agents {
+								<tr>
+									<td><strong>{ a.Name }</strong></td>
+									<td><span class={ "badge", a.Status }>{ a.Status }</span></td>
+									<td class="mono">{ orDash(a.Version) }</td>
+									<td class="mono">{ orDash(a.Hostname) }</td>
+									<td>{ orDash(a.Platforms) }</td>
+									<td>@timeAgo(a.LastSeen)</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>Targets</h2></div>
+			if len(v.Targets) == 0 {
+				<div class="empty">No targets yet.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Target</th><th>Platform</th><th>Environment</th><th>Collected by</th><th>Collector</th><th>Last snapshot</th></tr></thead>
+						<tbody>
+							for _, t := range v.Targets {
+								<tr>
+									<td><strong>{ t.Name }</strong></td>
+									<td>{ t.Platform }</td>
+									<td>{ t.Env }</td>
+									<td>{ t.Agent }</td>
+									<td>
+										if t.Status == "" {
+											<span class="badge neutral">no report yet</span>
+										} else {
+											<span class={ "badge", t.Status }>{ t.Status }</span>
+										}
+										if t.Error != "" {
+											<div class="targets">{ t.Error }</div>
+										}
+									</td>
+									<td>@timeAgo(t.LastSnapshot)</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		if v.CanAdmin {
+			<div class="grid-2">
+				<section class="panel">
+					<div class="panel-head"><h2>Add an agent</h2></div>
+					<div class="panel-body">
+						<form class="inline" method="post" action="/agents">
+							<label>Name<input name="name" required placeholder="eu-cluster"/></label>
+							<button type="submit">Create agent</button>
+						</form>
+					</div>
+				</section>
+				<section class="panel">
+					<div class="panel-head"><h2>Add an environment</h2></div>
+					<div class="panel-body">
+						<form class="inline" method="post" action="/environments">
+							<label>Name<input name="name" required placeholder="staging"/></label>
+							<label>Order<input name="position" inputmode="numeric" placeholder="20" size="5"/></label>
+							<button type="submit">Create</button>
+						</form>
+						<p class="hint">Order sets promotion: lower comes first (dev 10, staging 20, prod 30). An environment behind the one before it is drift.</p>
+					</div>
+				</section>
+			</div>
+			<section class="panel">
+				<div class="panel-head"><h2>Add a target</h2></div>
+				<div class="panel-body">
+					if len(v.EnvNames) == 0 {
+						<p class="muted">Create an environment first.</p>
+					} else {
+						<form class="stack" method="post" action="/targets">
+							<div class="row">
+								<label>Name<input name="name" required placeholder="prod-eu-1"/></label>
+								<label>
+									Platform
+									<select name="platform">
+										<option value="kubernetes">Kubernetes</option>
+										<option value="ecs">ECS</option>
+										<option value="nomad">Nomad</option>
+										<option value="swarm">Docker Swarm</option>
+									</select>
+								</label>
+								<label>
+									Environment
+									<select name="environment">
+										for _, e := range v.EnvNames {
+											<option value={ e }>{ e }</option>
+										}
+									</select>
+								</label>
+								<label>
+									Agent
+									<select name="agent">
+										for _, a := range v.AgentNames {
+											<option value={ a }>{ a }</option>
+										}
+										<option value="">— the server itself</option>
+									</select>
+								</label>
+							</div>
+							<label>
+								Settings (JSON)
+								<textarea name="settings" rows="2" class="mono" placeholder={ `{"kubernetes":{"exclude_namespaces":["kube-system"]}}` }></textarea>
+								<span class="hint">ECS: {`{"ecs":{"region":"eu-west-1"}}`} · Nomad: {`{"nomad":{"address":"https://nomad:4646"}}`} · Swarm: {`{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}`}</span>
+							</label>
+							<div><button type="submit">Create target</button></div>
+						</form>
+					}
+				</div>
+			</section>
+		}
+	}
+}

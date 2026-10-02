@@ -38,6 +38,7 @@ import (
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
+	"github.com/pipozzz/goliash/internal/ui"
 	"github.com/pipozzz/goliash/internal/versions"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
@@ -197,14 +198,19 @@ func serve(ctx context.Context, args []string) error {
 	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
 	svc.SetUpstreams(checker)
 	notify := notifier.New(db, log, notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
+	hub := ui.NewHub()
 	svc.OnEvents(func(sc store.Scope, evs []store.Event) {
+		hub.Publish(sc.WorkspaceID)
 		notify.Handle(sc, evs)
 		// A deploy can open or close drift; do not wait for the next minute.
 		if err := checker.EvaluateDrift(ctx, sc); err != nil && ctx.Err() == nil {
 			log.Error("drift evaluation failed", "err", err)
 		}
 	})
-	checker.OnEvents(notify.Handle)
+	checker.OnEvents(func(sc store.Scope, evs []store.Event) {
+		hub.Publish(sc.WorkspaceID)
+		notify.Handle(sc, evs)
+	})
 	agents, err := api.NewAgentHandler(db, svc, log)
 	if err != nil {
 		return err
@@ -217,6 +223,10 @@ func serve(ctx context.Context, args []string) error {
 	agents.Register(mux)
 	authn.Routes(mux)
 	api.NewPublicHandler(db, authn, log).Register(mux)
+	ui.New(ui.Options{
+		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
+		SMTP: smtpFromEnv().Addr != "",
+	}).Register(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)

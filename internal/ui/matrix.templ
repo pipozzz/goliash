@@ -1,0 +1,122 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ MatrixPage(v MatrixView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Service × environment</h1>
+				<p class="sub">What runs where, the newest release upstream, and where versions drift apart.</p>
+			</div>
+			<div class="legend">
+				<span class="badge env">behind previous env</span>
+				<span class="badge upstream">upstream newer</span>
+				<span class="badge inconsistent">targets disagree</span>
+				<span class="live off" data-live>Connecting…</span>
+			</div>
+		</div>
+		<section
+			class="panel"
+			hx-get="/ui/matrix"
+			hx-trigger="goliash:changed from:body, every 60s"
+			hx-swap="innerHTML"
+			aria-live="polite"
+		>
+			@MatrixGridView(v.Grid)
+		</section>
+	}
+}
+
+templ MatrixGridView(g MatrixGrid) {
+	if len(g.Rows) == 0 {
+		<div class="empty">
+			if g.Targets == 0 {
+				<p><strong>Nothing collected yet.</strong></p>
+				<p>Add an environment, an agent and a target on the <a href="/agents">Agents</a> page, then start the agent.</p>
+			} else if g.Unmapped > 0 {
+				<p><strong>Workloads arrived, but none is mapped to a service yet.</strong></p>
+				<p><a href="/inbox">Classify { plural(g.Unmapped, "workload", "workloads") } in the inbox</a>, or label them with <code>goliash.service</code>.</p>
+			} else {
+				<p><strong>Waiting for the first snapshot.</strong></p>
+				<p>Targets are configured; the matrix fills in as soon as an agent reports.</p>
+			}
+		</div>
+	} else {
+		<div class="scroll">
+			<table class="matrix">
+				<thead>
+					<tr>
+						<th>Service</th>
+						for _, e := range g.Envs {
+							<th class="env">
+								{ e.Name }
+								<small>{ plural(e.Targets, "target", "targets") }</small>
+							</th>
+						}
+						<th>Latest upstream</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range g.Rows {
+						<tr>
+							<td class="svc">
+								<a href={ templ.URL(r.URL) }>{ r.Service }</a>
+								if r.Owner != "" {
+									<span class="owner">{ r.Owner }</span>
+								}
+							</td>
+							for _, c := range r.Cells {
+								<td>
+									@cellView(c)
+								</td>
+							}
+							<td class="latest">
+								if r.Latest != "" {
+									<span class="tag">{ r.Latest }</span>
+								} else {
+									<span class="none">—</span>
+								}
+								if r.Note != "" {
+									<div class="targets" title={ r.NoteTitle }>{ r.Note }</div>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if g.Unmapped > 0 {
+			<div class="panel-head" style="border-top:1px solid var(--line);border-bottom:0">
+				<span class="muted">{ plural(g.Unmapped, "workload is", "workloads are") } not mapped to a service.</span>
+				<a href="/inbox">Open inbox →</a>
+			</div>
+		}
+	}
+}
+
+templ cellView(c MatrixCell) {
+	if len(c.Versions) == 0 {
+		<span class="none">—</span>
+	} else {
+		<div class="cell">
+			for _, v := range c.Versions {
+				<div class="ver">
+					<span class="tag">{ v.Tag }</span>
+					<span class="reps">× { itoa(v.Running) }</span>
+				</div>
+				if v.Targets != "" {
+					<div class="targets">{ v.Targets }</div>
+				}
+			}
+			if len(c.Drifts) > 0 {
+				<div class="badges">
+					for _, d := range c.Drifts {
+						<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+					}
+				</div>
+			}
+		</div>
+	}
+}
