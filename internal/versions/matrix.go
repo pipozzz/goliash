@@ -25,11 +25,11 @@ type Row struct {
 // Cell is what runs of one service in one environment. More than one version means
 // a rollout in progress or targets disagreeing.
 type Cell struct {
-	Versions []Version
+	Versions []RunningVersion
 }
 
-// Version is one tag running in a cell.
-type Version struct {
+// RunningVersion is one tag running in a cell.
+type RunningVersion struct {
 	Tag     string
 	Digest  string
 	Running int
@@ -40,9 +40,9 @@ type Version struct {
 func (c Cell) Empty() bool { return len(c.Versions) == 0 }
 
 // Primary is the version with most replicas.
-func (c Cell) Primary() Version {
+func (c Cell) Primary() RunningVersion {
 	if len(c.Versions) == 0 {
-		return Version{}
+		return RunningVersion{}
 	}
 	return c.Versions[0]
 }
@@ -63,7 +63,7 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		service string
 		env     int
 	}
-	cells := map[cellKey]map[string]*Version{}
+	cells := map[cellKey]map[string]*RunningVersion{}
 	unmapped := map[string]bool{}
 	for _, i := range active {
 		if !i.IsMain {
@@ -79,11 +79,11 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		}
 		k := cellKey{i.ServiceID, ei}
 		if cells[k] == nil {
-			cells[k] = map[string]*Version{}
+			cells[k] = map[string]*RunningVersion{}
 		}
 		v := cells[k][i.Tag]
 		if v == nil {
-			v = &Version{Tag: i.Tag, Digest: i.Digest}
+			v = &RunningVersion{Tag: i.Tag, Digest: i.Digest}
 			cells[k][i.Tag] = v
 		}
 		v.Running += i.Running

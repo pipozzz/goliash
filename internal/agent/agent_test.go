@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
@@ -35,6 +37,8 @@ type fakeServer struct {
 	snapshots  []agentproto.Snapshot
 	heartbeats []agentproto.Heartbeat
 	registered int
+	registries []agentproto.RegistryCheck
+	results    []agentproto.RegistryResults
 	down       bool // answer 503 to snapshots
 	gone       map[string]bool
 	authStatus int
@@ -63,7 +67,7 @@ func newFakeServer(t *testing.T, targets ...agentproto.Target) *fakeServer {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		writeJSON(w, 200, agentproto.AgentConfig{HeartbeatIntervalSeconds: 10, Targets: f.targets})
+		writeJSON(w, 200, agentproto.AgentConfig{HeartbeatIntervalSeconds: 10, Targets: f.targets, Registries: f.registries})
 	})
 	mux.HandleFunc("POST /agent/v1/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		if !f.auth(w, r) {
@@ -96,6 +100,17 @@ func newFakeServer(t *testing.T, targets ...agentproto.Target) *fakeServer {
 		}
 		f.snapshots = append(f.snapshots, snap)
 		writeJSON(w, http.StatusAccepted, agentproto.SnapshotAck{SnapshotID: snap.SnapshotID, Status: agentproto.Accepted})
+	})
+	mux.HandleFunc("POST /agent/v1/registry-results", func(w http.ResponseWriter, r *http.Request) {
+		if !f.auth(w, r) {
+			return
+		}
+		var res agentproto.RegistryResults
+		_ = json.NewDecoder(r.Body).Decode(&res)
+		f.mu.Lock()
+		f.results = append(f.results, res)
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusAccepted)
 	})
 	mux.HandleFunc("POST /agent/v1/heartbeat", func(w http.ResponseWriter, r *http.Request) {
 		if !f.auth(w, r) {
@@ -447,5 +462,59 @@ func TestBackoff(t *testing.T) {
 	}
 	if d := b.next(&statusError{Code: 429, RetryAfter: 7 * time.Second}); d != 7*time.Second {
 		t.Fatalf("Retry-After ignored: %v", d)
+	}
+}
+
+type fakeRegistry struct {
+	mu    sync.Mutex
+	creds map[string]string // repo -> password seen
+}
+
+func (r *fakeRegistry) ListTags(_ context.Context, repo string, creds registry.Credentials) ([]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.creds[repo] = creds.Username + ":" + creds.Password
+	if repo == "registry.example.com/team/broken" {
+		return nil, errors.New("registry denied access (401)")
+	}
+	return []string{"1.0.0", "1.1.0", "latest", "sha-abc"}, nil
+}
+
+func TestAgentChecksPrivateRegistries(t *testing.T) {
+	ref, filter := "registry.example.com", `^\d+\.\d+\.\d+$`
+	f := newFakeServer(t)
+	f.registries = []agentproto.RegistryCheck{
+		{Repository: "registry.example.com/team/api", CredentialsRef: &ref, TagFilter: &filter},
+		{Repository: "registry.example.com/team/broken", CredentialsRef: &ref},
+	}
+	t.Setenv("GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM", "robot:s3cret")
+	reg := &fakeRegistry{creds: map[string]string{}}
+	a, err := New(Options{
+		ServerURL: f.srv.URL, Token: testToken, DataDir: t.TempDir(), Registry: reg,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runAgent(t, a)
+
+	eventually(t, "registry results", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return len(f.results) > 0
+	})
+	f.mu.Lock()
+	res := f.results[0].Results
+	f.mu.Unlock()
+	if len(res) != 2 || len(res[0].Tags) != 2 || res[0].Tags[1].Name != "1.1.0" || res[0].Error != nil {
+		t.Fatalf("api result %+v", res[0])
+	}
+	if res[1].Error == nil || !strings.Contains(*res[1].Error, "401") {
+		t.Fatalf("broken result %+v", res[1])
+	}
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+	if reg.creds["registry.example.com/team/api"] != "robot:s3cret" {
+		t.Fatalf("credentials not resolved locally: %v", reg.creds)
 	}
 }

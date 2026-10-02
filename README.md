@@ -92,6 +92,26 @@ bin/goliash serve -listen :8080
 GOLIASH_SERVER_URL=http://localhost:8080 GOLIASH_AGENT_TOKEN=glsh_agent_... bin/goliash-agent -data-dir ./agent-data
 ```
 
+### Versions, upstream and drift
+
+```sh
+bin/goliash matrix                 # service × environment, latest upstream, drift markers
+bin/goliash drift                  # open drifts
+bin/goliash events                 # history: deployed, version_changed, removed, new_release, drift_*
+bin/goliash check                  # check upstream registries now (the server does it hourly)
+bin/goliash service set -name postgres -track minor -pin-major 15
+bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -service payments
+```
+
+- **Mapping:** labels `goliash.service` / `app.kubernetes.io/name` (and `goliash.env`), then rules, then unmapped
+  workloads wait with a suggested name.
+- **Upstream:** public registries (Docker Hub, GHCR, Quay, registry.k8s.io, …) are checked by the server; other
+  registries by the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>`.
+- **Policy per service:** `tag_filter`, `track` (patch/minor/major), `pin_major`, `prerelease`. Without a filter,
+  tags are compared like with like (same `-alpine` variant, same number of version parts).
+- **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
+  release by at least the tracked jump), `inconsistent` (targets of one environment disagree).
+
 ### Collectors and credentials
 
 | Platform | Reads | Needs | Credentials |

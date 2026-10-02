@@ -21,6 +21,7 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
@@ -39,6 +40,8 @@ type Options struct {
 	ConfigInterval time.Duration
 	HTTPClient     *http.Client
 	Logger         *slog.Logger
+	// Registry lists tags of private repositories (default: a registry.Client).
+	Registry TagLister
 }
 
 // Agent registers with the server, follows its configuration, runs a collector per
@@ -55,7 +58,14 @@ type Agent struct {
 	cfg     agentproto.AgentConfig
 	runners map[string]*runningTarget
 
-	refresh chan struct{}
+	refresh           chan struct{}
+	registriesChanged chan struct{}
+	registry          TagLister
+}
+
+// TagLister lists image tags; registry.Client in production.
+type TagLister interface {
+	ListTags(ctx context.Context, repository string, creds registry.Credentials) ([]string, error)
 }
 
 type runningTarget struct {
@@ -90,13 +100,18 @@ func New(opts Options) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	if opts.Registry == nil {
+		opts.Registry = registry.New()
+	}
 	return &Agent{
-		opts:    opts,
-		client:  c,
-		outbox:  ob,
-		log:     opts.Logger,
-		runners: map[string]*runningTarget{},
-		refresh: make(chan struct{}, 1),
+		opts:              opts,
+		client:            c,
+		outbox:            ob,
+		log:               opts.Logger,
+		runners:           map[string]*runningTarget{},
+		refresh:           make(chan struct{}, 1),
+		registriesChanged: make(chan struct{}, 1),
+		registry:          opts.Registry,
 	}, nil
 }
 
@@ -112,6 +127,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err := retry(ctx, a.log, "fetch config", func() error { return a.syncConfig(ctx) }); err != nil {
 		return err
 	}
+
+	go a.registryLoop(ctx)
 
 	fatalErr := make(chan error, 1)
 	go func() {
@@ -183,6 +200,12 @@ func (a *Agent) syncConfig(ctx context.Context) error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if !bytes.Equal(mustJSON(a.cfg.Registries), mustJSON(cfg.Registries)) {
+		select {
+		case a.registriesChanged <- struct{}{}:
+		default:
+		}
+	}
 	a.etag, a.cfg = newETag, cfg
 
 	want := map[string]agentproto.Target{}
