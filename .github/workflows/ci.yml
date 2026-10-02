@@ -72,6 +72,25 @@ jobs:
           version: "~> v2"
           args: check
 
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v4
+      - name: Helm charts lint and render
+        run: |
+          helm lint deploy/helm/goliash deploy/helm/goliash-agent --set token.value=glsh_agent_ci
+          helm template t deploy/helm/goliash > /dev/null
+          helm template t deploy/helm/goliash --set database.url=postgres://x > /dev/null
+          helm template t deploy/helm/goliash-agent --set token.existingSecret=s > /dev/null
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform module is valid
+        working-directory: deploy/ecs/goliash-agent
+        run: |
+          terraform fmt -check
+          terraform init -backend=false -input=false
+          terraform validate
+
   build:
     runs-on: ubuntu-latest
     strategy:

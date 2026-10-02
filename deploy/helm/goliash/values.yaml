@@ -1,0 +1,64 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: AGPL-3.0-only
+
+image:
+  repository: ghcr.io/pipozzz/goliash
+  tag: ""            # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# URL people use to reach Goliash (sign-in links, cookies). Use https:// in production.
+publicURL: http://localhost:8080
+
+database:
+  # Empty: SQLite on the persistent volume. Otherwise a postgres:// URL, given directly
+  # or (better) from a secret.
+  url: ""
+  existingSecret: ""
+  existingSecretKey: database-url
+
+persistence:
+  enabled: true      # holds the SQLite database; not needed with PostgreSQL
+  size: 1Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# Name of a secret whose keys become environment variables, for example
+# GOLIASH_SMTP_ADDR, GOLIASH_SMTP_FROM, GOLIASH_SMTP_USERNAME, GOLIASH_SMTP_PASSWORD,
+# GOLIASH_OIDC_ISSUER, GOLIASH_OIDC_CLIENT_ID, GOLIASH_OIDC_CLIENT_SECRET, GOLIASH_OIDC_DOMAINS.
+envFromSecret: ""
+env: {}              # extra plain environment variables
+keepSnapshots: 20
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: goliash.example.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls: []
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { memory: 512Mi }
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

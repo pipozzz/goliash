@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goliash.fullname" . }}
+  labels: {{- include "goliash.labels" . | nindent 4 }}
+spec:
+  replicas: 1   # one server per database; SQLite allows no more
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: {{- include "goliash.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "goliash.selector" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: goliash
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [serve, -keep-snapshots, {{ .Values.keepSnapshots | quote }}]
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: GOLIASH_LISTEN, value: ":8080" }
+            - { name: GOLIASH_PUBLIC_URL, value: {{ .Values.publicURL | quote }} }
+            {{- if .Values.database.existingSecret }}
+            - name: GOLIASH_DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.database.existingSecret }}, key: {{ .Values.database.existingSecretKey }} }
+            {{- else if .Values.database.url }}
+            - { name: GOLIASH_DATABASE_URL, value: {{ .Values.database.url | quote }} }
+            {{- else }}
+            - { name: GOLIASH_DATABASE_URL, value: /data/goliash.db }
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          {{- with .Values.envFromSecret }}
+          envFrom:
+            - secretRef: { name: {{ . }} }
+          {{- end }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: data
+          {{- if and .Values.persistence.enabled (not .Values.database.url) (not .Values.database.existingSecret) }}
+          persistentVolumeClaim: { claimName: {{ include "goliash.fullname" . }} }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

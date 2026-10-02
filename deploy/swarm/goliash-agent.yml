@@ -1,0 +1,55 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# goliash-agent for a Docker Swarm. The agent reads the Docker API through
+# docker-socket-proxy, which allows only GET on services, tasks and nodes.
+#
+#   printf '%s' 'glsh_agent_…' | docker secret create goliash_agent_token -
+#   GOLIASH_SERVER_URL=https://goliash.example.com docker stack deploy -c goliash-agent.yml goliash-agent
+#
+# In Goliash, create a swarm target for this agent with
+#   {"swarm":{"docker_host":"tcp://socket-proxy:2375"}}
+#
+# When the server runs in the same swarm (goliash-server.yml), uncomment the goliash
+# network below and use GOLIASH_SERVER_URL=http://goliash_server:8080.
+services:
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      SERVICES: 1
+      TASKS: 1
+      NODES: 1
+      POST: 0          # read-only
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [internal]
+    deploy:
+      placement:
+        constraints: [node.role == manager]   # the services and tasks APIs answer on managers only
+
+  agent:
+    image: ghcr.io/pipozzz/goliash-agent:latest
+    environment:
+      GOLIASH_SERVER_URL: ${GOLIASH_SERVER_URL:?set GOLIASH_SERVER_URL}
+      GOLIASH_AGENT_TOKEN_FILE: /run/secrets/goliash_agent_token
+    secrets: [goliash_agent_token]
+    volumes:
+      - agent-data:/data
+    networks:
+      - internal
+      # - goliash
+    deploy:
+      replicas: 1
+
+secrets:
+  goliash_agent_token:
+    external: true
+
+volumes:
+  agent-data:
+
+networks:
+  internal:
+    driver: overlay
+  # goliash:
+  #   external: true

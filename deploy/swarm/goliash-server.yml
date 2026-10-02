@@ -1,0 +1,36 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Goliash server on Docker Swarm (SQLite on a local volume, so pinned to one node).
+#
+#   docker stack deploy -c goliash-server.yml goliash
+#   docker exec $(docker ps -qf name=goliash_server) goliash login-link -email you@example.com
+#
+# For PostgreSQL, set GOLIASH_DATABASE_URL and drop the placement constraint.
+services:
+  server:
+    image: ghcr.io/pipozzz/goliash:latest
+    environment:
+      GOLIASH_PUBLIC_URL: http://goliash.example.com:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - goliash-data:/data
+    networks: [goliash]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/goliash", "healthcheck"]
+      interval: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      update_config: { order: stop-first }
+
+volumes:
+  goliash-data:
+
+networks:
+  goliash:
+    name: goliash
+    driver: overlay
+    attachable: true
