@@ -141,14 +141,17 @@ func GitHubRepository(source string) string {
 	}
 	owner, repo := parts[0], strings.TrimSuffix(parts[1], ".git")
 	for _, part := range []string{owner, repo} {
-		for _, r := range part {
-			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.') {
-				return ""
-			}
+		if strings.IndexFunc(part, notRepoChar) >= 0 {
+			return ""
 		}
 	}
 	if repo == "" {
 		return ""
 	}
 	return owner + "/" + repo
+}
+
+// notRepoChar reports runes GitHub does not allow in owner and repository names.
+func notRepoChar(r rune) bool {
+	return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '_' && r != '.'
 }
