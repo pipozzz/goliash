@@ -106,8 +106,10 @@ func workloadFor(ct containerJSON) agentproto.Workload {
 		}
 	}
 	if project, service := ct.Labels[labelProject], ct.Labels[labelService]; project != "" && service != "" {
-		return agentproto.Workload{ID: project + "/" + service, Kind: agentproto.ComposeService,
-			Namespace: &project, Name: service, Labels: labels}
+		return agentproto.Workload{
+			ID: project + "/" + service, Kind: agentproto.ComposeService,
+			Namespace: &project, Name: service, Labels: labels,
+		}
 	}
 	name := ct.ID
 	if len(ct.Names) > 0 {

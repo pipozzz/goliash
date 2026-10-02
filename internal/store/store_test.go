@@ -696,8 +696,10 @@ func TestTargetsRebuildKeepsData(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = s.Close() })
 	f := setup(t, s)
-	if ok, err := s.InsertSnapshot(ctx, Snapshot{ID: NewID(), Scope: f.ws.Scope(), TargetID: f.tgt.ID, AgentID: f.agnt.ID,
-		CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)}); err != nil || !ok {
+	if ok, err := s.InsertSnapshot(ctx, Snapshot{
+		ID: NewID(), Scope: f.ws.Scope(), TargetID: f.tgt.ID, AgentID: f.agnt.ID,
+		CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`),
+	}); err != nil || !ok {
 		t.Fatal(err)
 	}
 
