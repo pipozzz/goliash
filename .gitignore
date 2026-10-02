@@ -1,0 +1,10 @@
+/bin/
+/dist/
+coverage.out
+*.db
+*.db-shm
+*.db-wal
+.env
+.idea/
+.vscode/
+.DS_Store
