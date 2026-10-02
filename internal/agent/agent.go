@@ -70,7 +70,7 @@ type TagLister interface {
 
 type runningTarget struct {
 	spec   []byte // JSON of the target config, to detect changes
-	runner *runner
+	runner *Runner
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -235,23 +235,23 @@ func (a *Agent) syncConfig(ctx context.Context) error {
 }
 
 func (a *Agent) start(ctx context.Context, t agentproto.Target) *runningTarget {
-	var r *runner
+	var r *Runner
 	factory, ok := a.opts.Collectors[t.Platform]
 	if !ok {
-		r = failingRunner(t, fmt.Sprintf("this agent has no %s collector", t.Platform))
+		r = FailingRunner(t, fmt.Sprintf("this agent has no %s collector", t.Platform))
 		a.log.Warn("target platform not supported by this agent", "target", t.Name, "platform", t.Platform)
 	} else if c, err := factory(ctx, t); err != nil {
-		r = failingRunner(t, err.Error())
+		r = FailingRunner(t, err.Error())
 		a.log.Error("collector setup failed", "target", t.Name, "err", err)
 	} else {
-		r = newRunner(t, c, a.emit, a.log)
+		r = NewRunner(t, c, a.emit, a.log)
 		a.log.Info("collecting target", "target", t.Name, "platform", t.Platform, "poll_seconds", t.PollIntervalSeconds)
 	}
 	rctx, cancel := context.WithCancel(ctx)
 	rt := &runningTarget{spec: mustJSON(t), runner: r, cancel: cancel, done: make(chan struct{})}
 	go func() {
 		defer close(rt.done)
-		r.run(rctx)
+		r.Run(rctx)
 	}()
 	return rt
 }
@@ -360,7 +360,7 @@ func (a *Agent) heartbeat(ctx context.Context) error {
 	a.mu.Lock()
 	statuses := make([]agentproto.CollectorStatus, 0, len(a.runners))
 	for _, rt := range a.runners {
-		statuses = append(statuses, rt.runner.currentStatus())
+		statuses = append(statuses, rt.runner.Status())
 	}
 	etag := a.etag
 	a.mu.Unlock()

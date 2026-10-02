@@ -88,7 +88,7 @@ func (s *Service) Config(ctx context.Context, a store.Agent) (agentproto.AgentCo
 		cfg.RegistryCheckIntervalSeconds = &interval
 	}
 	for _, t := range targets {
-		pt, err := protoTarget(t)
+		pt, err := ProtoTarget(t)
 		if err != nil {
 			return agentproto.AgentConfig{}, "", fmt.Errorf("target %s: %w", t.ID, err)
 		}
@@ -102,9 +102,9 @@ func (s *Service) Config(ctx context.Context, a store.Agent) (agentproto.AgentCo
 	return cfg, `"` + hex.EncodeToString(sum[:16]) + `"`, nil
 }
 
-// protoTarget turns a stored target into its protocol form. Stored settings hold the
+// ProtoTarget turns a stored target into its protocol form. Stored settings hold the
 // platform object keyed by platform, e.g. {"kubernetes": {"exclude_namespaces": [...]}}.
-func protoTarget(t store.Target) (agentproto.Target, error) {
+func ProtoTarget(t store.Target) (agentproto.Target, error) {
 	var pt agentproto.Target
 	if err := json.Unmarshal(t.Settings, &pt); err != nil {
 		return pt, fmt.Errorf("settings: %w", err)

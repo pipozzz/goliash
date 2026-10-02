@@ -27,3 +27,6 @@ helm install goliash-agent deploy/helm/goliash-agent -n goliash \
 
 The server chart runs one replica with SQLite on a persistent volume, or PostgreSQL via `database.url` /
 `database.existingSecret`. SMTP and OIDC settings come from a secret named in `envFromSecret`.
+
+To watch only the cluster Goliash runs in, skip the agent: install the server with `--set collectInCluster=true`
+(a read-only ClusterRole for the server) and create a `kubernetes` target without an agent.

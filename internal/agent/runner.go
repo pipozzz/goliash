@@ -13,9 +13,10 @@ import (
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
-// runner collects one target on its poll interval and, for watching collectors,
-// shortly after each change.
-type runner struct {
+// Runner collects one target on its poll interval and, for watching collectors,
+// shortly after each change. The agent runs one per target; the server uses it for
+// targets it collects itself.
+type Runner struct {
 	target    agentproto.Target
 	collector collectors.Collector
 	emit      func(agentproto.Target, collectors.Result) (snapshotID string, err error)
@@ -25,8 +26,9 @@ type runner struct {
 	status agentproto.CollectorStatus
 }
 
-func newRunner(t agentproto.Target, c collectors.Collector, emit func(agentproto.Target, collectors.Result) (string, error), log *slog.Logger) *runner {
-	return &runner{
+// NewRunner returns a runner; emit stores each result as a snapshot and returns its ID.
+func NewRunner(t agentproto.Target, c collectors.Collector, emit func(agentproto.Target, collectors.Result) (string, error), log *slog.Logger) *Runner {
+	return &Runner{
 		target:    t,
 		collector: c,
 		emit:      emit,
@@ -35,16 +37,17 @@ func newRunner(t agentproto.Target, c collectors.Collector, emit func(agentproto
 	}
 }
 
-// failingRunner reports a target the agent cannot collect (no collector for its
+// FailingRunner reports a target that cannot be collected (no collector for its
 // platform, or the collector could not be built).
-func failingRunner(t agentproto.Target, reason string) *runner {
-	return &runner{
+func FailingRunner(t agentproto.Target, reason string) *Runner {
+	return &Runner{
 		target: t,
 		status: agentproto.CollectorStatus{TargetID: t.ID, Status: agentproto.Failing, LastError: &reason},
 	}
 }
 
-func (r *runner) run(ctx context.Context) {
+// Run collects until ctx ends.
+func (r *Runner) Run(ctx context.Context) {
 	if r.collector == nil {
 		<-ctx.Done()
 		return
@@ -103,7 +106,7 @@ func (r *runner) run(ctx context.Context) {
 	}
 }
 
-func (r *runner) collect(ctx context.Context) {
+func (r *Runner) collect(ctx context.Context) {
 	res, err := r.collector.Collect(ctx)
 	if ctx.Err() != nil {
 		return
@@ -131,7 +134,7 @@ func (r *runner) collect(ctx context.Context) {
 	r.log.Debug("collected", "workloads", len(res.Workloads), "complete", res.Complete, "snapshot_id", id)
 }
 
-func (r *runner) setStatus(st agentproto.CollectorStatusStatus, lastError, snapshotID string) {
+func (r *Runner) setStatus(st agentproto.CollectorStatusStatus, lastError, snapshotID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.status.Status = st
@@ -146,7 +149,8 @@ func (r *runner) setStatus(st agentproto.CollectorStatusStatus, lastError, snaps
 	}
 }
 
-func (r *runner) currentStatus() agentproto.CollectorStatus {
+// Status is the collector health to report.
+func (r *Runner) Status() agentproto.CollectorStatus {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.status
