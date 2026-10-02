@@ -74,6 +74,24 @@ make test           # SQLite; set GOLIASH_TEST_POSTGRES_DSN to also run against 
 make lint           # license boundary check + golangci-lint
 ```
 
+## Trying it out
+
+There is no agent or UI yet; the server and the agent protocol work.
+
+```sh
+make build
+export GOLIASH_DATABASE_URL=goliash.db       # or postgres://user:pass@host/db
+
+bin/goliash env create -name prod -position 30
+bin/goliash agent create -name eu-cluster    # prints the agent token once
+bin/goliash target create -agent eu-cluster -env prod -platform kubernetes -name prod-eu-1 \
+  -settings '{"kubernetes":{"exclude_namespaces":["kube-system"]}}'
+bin/goliash serve -listen :8080
+```
+
+The agent protocol is served under `/agent/v1` (see [`api/agent-v1.yaml`](api/agent-v1.yaml)); every request is
+validated against the spec.
+
 ## License
 
 The agent and the code it is built from are licensed under [Apache-2.0](LICENSES/Apache-2.0.txt); the server is
