@@ -92,6 +92,19 @@ bin/goliash serve -listen :8080
 GOLIASH_SERVER_URL=http://localhost:8080 GOLIASH_AGENT_TOKEN=glsh_agent_... bin/goliash-agent -data-dir ./agent-data
 ```
 
+### Collectors and credentials
+
+| Platform | Reads | Needs | Credentials |
+| --- | --- | --- | --- |
+| Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context` optional) |
+| ECS | clusters → services → running tasks → task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` = AWS profile name |
+| Nomad | jobs, job versions, allocations | ACL token with `read-job` | `credentials_ref` → token, else `NOMAD_TOKEN` |
+| Docker Swarm | services and running tasks | Docker API `GET` only (docker-socket-proxy) | none |
+
+The server only sends a `credentials_ref` name. The agent resolves it from the environment variable
+`GOLIASH_CREDENTIAL_<NAME>` (upper-cased, non-alphanumerics as `_`) or the file
+`$GOLIASH_CREDENTIALS_DIR/<name>` (default `/etc/goliash-agent/credentials`).
+
 The agent registers, follows its configuration (polled every minute with an ETag), sends a heartbeat every minute
 and buffers snapshots in `-data-dir` while the server is unreachable (the oldest are dropped beyond 200).
 The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validates every request against it.
