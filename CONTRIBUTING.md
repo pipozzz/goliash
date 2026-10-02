@@ -29,6 +29,12 @@ make lint            # license boundary check + golangci-lint
 make fmt             # gofumpt + goimports
 ```
 
+## Local lab
+
+`scripts/lab/up.sh` starts Kubernetes (k3s), Docker Swarm and Nomad in Docker, a server on
+http://127.0.0.1:18090 and an agent collecting all three, and prints a sign-in link. `scripts/lab/down.sh` stops it;
+its state stays in `.lab/` until you delete it.
+
 ## Ground rules
 
 - **Read-only.** Collectors only ever read. Never add code that creates, updates or deletes anything in an
