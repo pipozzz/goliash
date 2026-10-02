@@ -1,0 +1,45 @@
+{
+  "heartbeat_interval_seconds": 60,
+  "registry_check_interval_seconds": 3600,
+  "ignored_containers": ["datadog-agent", "envoy"],
+  "targets": [
+    {
+      "id": "01J9ZQ4M2N3P4Q5R6S7T8V9W0X",
+      "platform": "kubernetes",
+      "name": "prod-eu-1",
+      "poll_interval_seconds": 300,
+      "debounce_seconds": 30,
+      "kubernetes": {"exclude_namespaces": ["kube-system"]}
+    },
+    {
+      "id": "01J9ZQ4M2N3P4Q5R6S7T8V9W0Y",
+      "platform": "ecs",
+      "name": "prod-ecs-eu-west-1",
+      "poll_interval_seconds": 300,
+      "credentials_ref": "aws-prod-readonly",
+      "ecs": {"region": "eu-west-1", "clusters": ["prod"]}
+    },
+    {
+      "id": "01J9ZQ4M2N3P4Q5R6S7T8V9W0Z",
+      "platform": "nomad",
+      "name": "nomad-global",
+      "poll_interval_seconds": 300,
+      "credentials_ref": "nomad-read-token",
+      "nomad": {"address": "https://nomad.service.consul:4646", "region": "global"}
+    },
+    {
+      "id": "01J9ZQ4M2N3P4Q5R6S7T8V9W10",
+      "platform": "swarm",
+      "name": "swarm-staging",
+      "poll_interval_seconds": 300,
+      "swarm": {"docker_host": "tcp://docker-socket-proxy:2375"}
+    }
+  ],
+  "registries": [
+    {
+      "repository": "registry.example.com/team/payments-api",
+      "credentials_ref": "registry-example",
+      "tag_filter": "^\\d+\\.\\d+\\.\\d+$"
+    }
+  ]
+}

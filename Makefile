@@ -7,13 +7,16 @@ LDFLAGS  := -s -w \
 	-X $(MODULE)/pkg/buildinfo.Commit=$(COMMIT) \
 	-X $(MODULE)/pkg/buildinfo.Date=$(DATE)
 
-.PHONY: all build test lint fmt license-check tidy clean
+.PHONY: all build generate test lint fmt license-check tidy clean
 
 all: lint test build
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/goliash ./cmd/goliash
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/goliash-agent ./cmd/goliash-agent
+
+generate:
+	go generate ./...
 
 test:
 	go test -race -coverprofile=coverage.out ./...

@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-02T09:00:00Z",
+  "results": [
+    {
+      "repository": "registry.example.com/team/payments-api",
+      "tags": [
+        {"name": "1.5.0", "digest": "sha256:9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b", "created_at": "2026-09-30T14:00:00Z"},
+        {"name": "1.4.2", "digest": "sha256:3f1c9a7e2b4d6f8a0c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a"}
+      ]
+    },
+    {"repository": "registry.example.com/team/legacy", "error": "401 Unauthorized"}
+  ]
+}

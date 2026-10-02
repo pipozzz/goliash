@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "hostname": "goliash-agent-7d9f8-x2k4p",
+  "platforms": ["kubernetes"],
+  "started_at": "2026-10-02T08:00:00Z"
+}

@@ -56,7 +56,9 @@ Out of scope: deploying or upgrading services (that is CI's or Renovate's job), 
 | `internal/agent` | Agent loop | Apache-2.0 |
 | `internal/collectors/{kubernetes,ecs,nomad,swarm}` | Read-only collectors | Apache-2.0 |
 | `internal/registry` | OCI Distribution API client | Apache-2.0 |
-| `pkg/agentproto`, `pkg/buildinfo` | Shared protocol types, build metadata | Apache-2.0 |
+| `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
+| `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
+| `pkg/buildinfo` | Build metadata | Apache-2.0 |
 | `internal/{api,ingest,mapping,versions,notifier,store,ui}` | Server | AGPL-3.0-only |
 | `migrations/{sqlite,postgres}` | Database migrations | AGPL-3.0-only |
 | `deploy/{helm,nomad,swarm,ecs}` | Deployment manifests | AGPL-3.0-only |
@@ -67,6 +69,7 @@ Requires Go (version in `go.mod`) and, for linting, [golangci-lint](https://gola
 
 ```sh
 make build          # bin/goliash and bin/goliash-agent
+make generate       # regenerate pkg/agentproto after editing api/agent-v1.yaml
 make test
 make lint           # license boundary check + golangci-lint
 ```

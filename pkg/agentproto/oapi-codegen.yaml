@@ -1,0 +1,11 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+package: agentproto
+output: agentproto.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: true
+  prefer-skip-optional-pointer-on-container-types: true
+  name-normalizer: ToCamelCaseWithInitialisms
