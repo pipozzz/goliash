@@ -60,7 +60,7 @@ Out of scope: deploying or upgrading services (that is CI's or Renovate's job), 
 | `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
 | `pkg/buildinfo` | Build metadata | Apache-2.0 |
 | `internal/{api,ingest,mapping,versions,notifier,store,ui}` | Server | AGPL-3.0-only |
-| `migrations/{sqlite,postgres}` | Database migrations | AGPL-3.0-only |
+| `internal/store/migrations/{sqlite,postgres}` | Database migrations (goose), embedded in the server | AGPL-3.0-only |
 | `deploy/{helm,nomad,swarm,ecs}` | Deployment manifests | AGPL-3.0-only |
 
 ## Building
@@ -70,7 +70,7 @@ Requires Go (version in `go.mod`) and, for linting, [golangci-lint](https://gola
 ```sh
 make build          # bin/goliash and bin/goliash-agent
 make generate       # regenerate pkg/agentproto after editing api/agent-v1.yaml
-make test
+make test           # SQLite; set GOLIASH_TEST_POSTGRES_DSN to also run against PostgreSQL
 make lint           # license boundary check + golangci-lint
 ```
 

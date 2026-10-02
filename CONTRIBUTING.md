@@ -37,8 +37,14 @@ make fmt             # gofumpt + goimports
   `cmd/goliash-agent`, `internal/agent`, `internal/collectors`, `internal/registry` and `pkg`, and `AGPL-3.0-only`
   everywhere else. See [LICENSING.md](LICENSING.md).
 - **The agent never imports server code.** CI enforces this with `scripts/check-licenses.sh`.
-- **Both databases.** Schema changes need a migration in both `migrations/sqlite` and `migrations/postgres`, and
-  every table under a workspace carries `org_id` and `workspace_id`.
+- **Both databases.** Schema changes need a migration with the same number in both
+  `internal/store/migrations/sqlite` and `internal/store/migrations/postgres` (`TestSchemaParity` compares them),
+  and every table under a workspace carries `org_id` and `workspace_id`. Run the store tests against PostgreSQL with:
+
+  ```sh
+  docker run -d --name goliash-pg -e POSTGRES_USER=goliash -e POSTGRES_PASSWORD=goliash -p 55432:5432 postgres:17-alpine
+  GOLIASH_TEST_POSTGRES_DSN='postgres://goliash:goliash@localhost:55432/goliash?sslmode=disable' go test ./internal/store/
+  ```
 - **Tests.** New behavior comes with tests; bug fixes come with a test that fails without the fix.
 
 ## Pull requests
