@@ -16,6 +16,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/agent"
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
@@ -42,11 +43,13 @@ func main() {
 	defer stop()
 
 	a, err := agent.New(agent.Options{
-		ServerURL:  *server,
-		Token:      os.Getenv("GOLIASH_AGENT_TOKEN"),
-		DataDir:    *dataDir,
-		Collectors: map[agentproto.Platform]collectors.Factory{},
-		Logger:     log,
+		ServerURL: *server,
+		Token:     os.Getenv("GOLIASH_AGENT_TOKEN"),
+		DataDir:   *dataDir,
+		Collectors: map[agentproto.Platform]collectors.Factory{
+			agentproto.Kubernetes: kubernetes.New,
+		},
+		Logger: log,
 	})
 	if err != nil {
 		log.Error("invalid configuration", "err", err)
