@@ -1,0 +1,29 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Quickstart: the server with SQLite, on http://localhost:8080.
+#
+#   docker compose up -d --build
+#   docker compose exec goliash goliash demo                         # optional: example data
+#   docker compose exec goliash goliash login-link -email you@example.com
+#
+# For PostgreSQL, set GOLIASH_DATABASE_URL to a postgres:// URL.
+services:
+  goliash:
+    build:
+      context: .
+      target: server
+    image: goliash:local
+    ports:
+      - "8080:8080"
+    environment:
+      GOLIASH_PUBLIC_URL: http://localhost:8080
+    volumes:
+      - goliash-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/goliash", "healthcheck"]
+      interval: 30s
+
+volumes:
+  goliash-data:

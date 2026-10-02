@@ -74,23 +74,35 @@ make test           # SQLite; set GOLIASH_TEST_POSTGRES_DSN to also run against 
 make lint           # license boundary check + golangci-lint
 ```
 
-## Trying it out
+## Quickstart
 
 ```sh
-make build
-export GOLIASH_DATABASE_URL=goliash.db GOLIASH_PUBLIC_URL=http://localhost:8080
-
-bin/goliash serve &
-bin/goliash login-link -email you@example.com   # open the printed link
+docker compose up -d --build
+docker compose exec goliash goliash demo                            # optional: three weeks of example data
+docker compose exec goliash goliash login-link -email you@example.com
 ```
 
-In the UI, add environments, an agent (copy its token) and targets on the **Agents** page, then start the agent:
+Open the printed link. In **Agents**, add environments, an agent (copy its token) and targets, then run the agent
+where it can reach your orchestrator:
 
 ```sh
-GOLIASH_SERVER_URL=http://localhost:8080 GOLIASH_AGENT_TOKEN=glsh_agent_... bin/goliash-agent -data-dir ./agent-data
+docker run -d --name goliash-agent -v goliash-agent:/data \
+  -e GOLIASH_SERVER_URL=http://goliash.example.com -e GOLIASH_AGENT_TOKEN=glsh_agent_... \
+  ghcr.io/pipozzz/goliash-agent:latest
 ```
 
-Everything the UI does is also available from the CLI (`bin/goliash help`).
+Ready-made manifests for Kubernetes (Helm), Nomad, Docker Swarm and ECS are in [`deploy/`](deploy).
+
+## Install
+
+- **Images:** `ghcr.io/pipozzz/goliash` and `ghcr.io/pipozzz/goliash-agent` (linux/amd64, linux/arm64; distroless,
+  non-root). Images and release archives are signed with cosign (keyless) and come with SPDX SBOMs.
+- **Binaries:** archives for Linux, macOS and Windows on the GitHub releases page.
+- **From source:** `make build`, or `docker build --target server .` / `--target agent`.
+
+The server keeps its SQLite database in `/data` (set `GOLIASH_DATABASE_URL=postgres://…` for PostgreSQL) and
+deletes processed snapshots beyond the newest 20 per target every hour (`-keep-snapshots`); history lives in events.
+Releases are published by pushing a `v*` tag.
 
 ### Web UI
 

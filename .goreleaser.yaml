@@ -1,0 +1,96 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: AGPL-3.0-only
+version: 2
+project_name: goliash
+
+builds:
+  - &build
+    id: goliash
+    main: ./cmd/goliash
+    binary: goliash
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/pipozzz/goliash/pkg/buildinfo.Version={{ .Version }}
+      - -X github.com/pipozzz/goliash/pkg/buildinfo.Commit={{ .ShortCommit }}
+      - -X github.com/pipozzz/goliash/pkg/buildinfo.Date={{ .Date }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+  - <<: *build
+    id: goliash-agent
+    main: ./cmd/goliash-agent
+    binary: goliash-agent
+
+archives:
+  - id: goliash
+    ids: [goliash]
+    name_template: "goliash_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+    files: [LICENSE, LICENSING.md, README.md, LICENSES/*]
+  - id: goliash-agent
+    ids: [goliash-agent]
+    name_template: "goliash-agent_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides: [{ goos: windows, formats: [zip] }]
+    files: [LICENSES/Apache-2.0.txt, LICENSING.md, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+# One SPDX SBOM per archive (syft).
+sboms:
+  - artifacts: archive
+
+# Keyless signing in GitHub Actions (Sigstore): checksums.txt covers every archive.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args: [sign-blob, "--bundle=${signature}", "${artifact}", --yes]
+    artifacts: checksum
+
+dockers_v2:
+  - id: goliash
+    ids: [goliash]
+    dockerfile: build/goliash.Dockerfile
+    images: ["ghcr.io/pipozzz/goliash"]
+    tags: ["{{ .Version }}", "{{ if not .Prerelease }}latest{{ end }}"]
+    platforms: [linux/amd64, linux/arm64]
+    sbom: true
+    labels:
+      org.opencontainers.image.title: goliash
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: https://github.com/pipozzz/goliash
+      org.opencontainers.image.licenses: AGPL-3.0-only
+  - id: goliash-agent
+    ids: [goliash-agent]
+    dockerfile: build/goliash-agent.Dockerfile
+    images: ["ghcr.io/pipozzz/goliash-agent"]
+    tags: ["{{ .Version }}", "{{ if not .Prerelease }}latest{{ end }}"]
+    platforms: [linux/amd64, linux/arm64]
+    sbom: true
+    labels:
+      org.opencontainers.image.title: goliash-agent
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.source: https://github.com/pipozzz/goliash
+      org.opencontainers.image.licenses: Apache-2.0
+
+docker_signs:
+  - cmd: cosign
+    artifacts: all
+    args: [sign, "${artifact}@${digest}", --yes]
+
+changelog:
+  use: github
+  groups:
+    - { title: Features, regexp: '^.*?feat(\(.+\))??!?:.+$', order: 0 }
+    - { title: Fixes, regexp: '^.*?fix(\(.+\))??!?:.+$', order: 1 }
+    - { title: Other, order: 999 }
+  filters:
+    exclude: ['^chore\(deps\)', '^docs:', '^test:']
+
+release:
+  prerelease: auto

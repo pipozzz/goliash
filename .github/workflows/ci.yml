@@ -56,6 +56,22 @@ jobs:
           git diff --exit-code
       - run: go test -race -coverprofile=coverage.out ./...
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build server and agent images from source
+        run: |
+          docker build --target server -t goliash:ci .
+          docker build --target agent -t goliash-agent:ci .
+          docker run --rm goliash:ci version
+          docker run --rm goliash-agent:ci -version
+      - name: goreleaser config is valid
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+
   build:
     runs-on: ubuntu-latest
     strategy:
