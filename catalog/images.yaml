@@ -1,0 +1,87 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Global catalog of public images. Goliash uses an entry when a service runs one of
+# these images and has no version policy of its own:
+#
+#   image:              registry/repository, as Goliash normalizes it (docker.io/library/nginx)
+#   policy:             default version policy (track, pin_major, tag_filter, prerelease, drift_alert_after)
+#   github:             owner/repo whose GitHub releases give release dates and changelog links
+#   github_tag_prefix:  text before the version in release tags, e.g. "release-" (nginx)
+#   changelog:          changelog URL for projects without GitHub releases; {version} is replaced
+#
+# Additions are welcome: one entry per image, sorted by image. `go test ./internal/versions/`
+# checks every entry.
+
+- image: docker.elastic.co/elasticsearch/elasticsearch
+  github: elastic/elasticsearch
+  policy: { track: minor }
+- image: docker.io/bitnami/redis
+  github: redis/redis
+- image: docker.io/envoyproxy/envoy
+  github: envoyproxy/envoy
+- image: docker.io/grafana/grafana
+  github: grafana/grafana
+  policy: { track: minor }
+- image: docker.io/grafana/loki
+  github: grafana/loki
+- image: docker.io/hashicorp/consul
+  github: hashicorp/consul
+- image: docker.io/hashicorp/vault
+  github: hashicorp/vault
+- image: docker.io/library/caddy
+  github: caddyserver/caddy
+- image: docker.io/library/haproxy
+  changelog: https://www.haproxy.org/download/{version}/src/CHANGELOG
+- image: docker.io/library/mariadb
+  changelog: https://mariadb.com/kb/en/mariadb-{version}-release-notes/
+  policy: { track: minor }
+- image: docker.io/library/memcached
+  changelog: https://github.com/memcached/memcached/wiki/ReleaseNotes{version}
+- image: docker.io/library/mongo
+  changelog: https://www.mongodb.com/docs/manual/release-notes/
+  policy: { track: minor }
+- image: docker.io/library/mysql
+  changelog: https://dev.mysql.com/doc/relnotes/mysql/{version}/en/
+  policy: { track: minor }
+- image: docker.io/library/nats
+  github: nats-io/nats-server
+- image: docker.io/library/nginx
+  github: nginx/nginx
+  github_tag_prefix: release-
+- image: docker.io/library/postgres
+  changelog: https://www.postgresql.org/docs/release/{version}/
+  policy: { track: minor }
+- image: docker.io/library/rabbitmq
+  github: rabbitmq/rabbitmq-server
+- image: docker.io/library/redis
+  github: redis/redis
+- image: docker.io/library/traefik
+  github: traefik/traefik
+- image: docker.io/opensearchproject/opensearch
+  github: opensearch-project/OpenSearch
+  policy: { track: minor }
+- image: docker.io/prom/alertmanager
+  github: prometheus/alertmanager
+- image: docker.io/prom/node-exporter
+  github: prometheus/node_exporter
+- image: docker.io/prom/prometheus
+  github: prometheus/prometheus
+- image: quay.io/argoproj/argocd
+  github: argoproj/argo-cd
+- image: quay.io/jetstack/cert-manager-controller
+  github: cert-manager/cert-manager
+- image: quay.io/keycloak/keycloak
+  github: keycloak/keycloak
+  policy: { track: minor }
+- image: quay.io/prometheus/alertmanager
+  github: prometheus/alertmanager
+- image: quay.io/prometheus/node-exporter
+  github: prometheus/node_exporter
+- image: quay.io/prometheus/prometheus
+  github: prometheus/prometheus
+- image: registry.k8s.io/coredns/coredns
+  github: coredns/coredns
+- image: registry.k8s.io/ingress-nginx/controller
+  github: kubernetes/ingress-nginx
+  github_tag_prefix: controller-

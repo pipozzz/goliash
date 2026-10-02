@@ -82,6 +82,7 @@ type MatrixRow struct {
 	URL       string
 	Cells     []MatrixCell
 	Latest    string
+	LatestURL string
 	Note      string // e.g. "17.0 outside pin", "checked by agent"
 	NoteTitle string
 }
@@ -166,6 +167,7 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 		ref := o.Refs[row.Service.ID]
 		if u, ok := o.Upstreams[row.Service.ID]; ok && u.HasLatest {
 			r.Latest = u.Latest.Raw
+			r.LatestURL = o.ReleaseURL[row.Service.ID+"|"+u.Latest.Raw]
 			if u.LatestAny.Raw != u.Latest.Raw {
 				r.Note = u.LatestAny.Raw + " outside pin"
 			}
@@ -238,9 +240,17 @@ type ServiceView struct {
 	Private    bool
 	Policy     PolicyForm
 	Envs       []ServiceEnv
-	Releases   []string
+	Releases   []ReleaseView
+	PolicyFrom string // service, catalog or default
 	Events     []EventView
 	Acks       []AckView
+}
+
+// ReleaseView is one upstream release on a service page.
+type ReleaseView struct {
+	Version   string
+	Published time.Time
+	URL       string
 }
 
 // PolicyForm holds the version policy as form values.

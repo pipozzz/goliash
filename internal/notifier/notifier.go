@@ -32,6 +32,7 @@ type Item struct {
 	Note        string    `json:"note,omitempty"`
 	At          time.Time `json:"at"`
 	Text        string    `json:"text"`
+	URL         string    `json:"url,omitempty"` // release notes of a new release
 }
 
 // Message is what one delivery sends: one item, or a digest of many.
@@ -143,6 +144,11 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, At: e.At,
 		}
 		item.Text = Describe(item)
+		if e.Type == "new_release" {
+			if rel, err := n.store.GetRelease(ctx, sc, e.ServiceID, e.ToVersion); err == nil {
+				item.URL = rel.ChangelogURL
+			}
+		}
 		dedup := e.ID
 		if e.Type == "new_release" {
 			dedup = "new_release|" + e.ServiceID + "|" + e.ToVersion // once per service and version

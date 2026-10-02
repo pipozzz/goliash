@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pipozzz/goliash/catalog"
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 // Version is a tag read as a version: "v1.27.2", "15.6-alpine", "2.0.0-rc.1".
@@ -154,6 +157,56 @@ type Policy struct {
 	// DriftAlertAfter overrides how long a drift lasts before it is announced, per kind
 	// ("env", "upstream", "inconsistent"), as Go durations like "168h" or "15m".
 	DriftAlertAfter map[string]string `json:"drift_alert_after,omitempty"`
+
+	// Where release notes live: GitHub releases of GitHub ("owner/repo"), whose tags
+	// are the version after GitHubTagPrefix, or a Changelog URL template with {version}.
+	GitHub          string `json:"github,omitempty"`
+	GitHubTagPrefix string `json:"github_tag_prefix,omitempty"`
+	Changelog       string `json:"changelog,omitempty"`
+}
+
+// PolicySource says where a service's effective policy comes from.
+type PolicySource string
+
+// Policy sources.
+const (
+	FromService PolicySource = "service" // set on the service
+	FromCatalog PolicySource = "catalog" // the global catalog's default for its image
+	FromDefault PolicySource = "default" // nothing set: built-in defaults
+)
+
+// PolicyFor returns a service's effective policy for its upstream repository: its own
+// when set, else the catalog's default for that image. Release notes sources come from
+// the catalog unless the service names its own.
+func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
+	own, err := ParsePolicy(svc.VersionPolicy)
+	if err != nil {
+		return own, FromService, err
+	}
+	src := FromService
+	if isEmptyPolicy(svc.VersionPolicy) {
+		src = FromDefault
+	}
+	entry, ok := catalog.Lookup(repo)
+	if !ok {
+		return own, src, nil
+	}
+	p := own
+	if src == FromDefault {
+		if p, err = ParsePolicy(entry.PolicyJSON()); err != nil {
+			return own, src, err
+		}
+		src = FromCatalog
+	}
+	if p.GitHub == "" && p.Changelog == "" {
+		p.GitHub, p.GitHubTagPrefix, p.Changelog = entry.GitHub, entry.GitHubTagPrefix, entry.Changelog
+	}
+	return p, src, nil
+}
+
+func isEmptyPolicy(raw []byte) bool {
+	var m map[string]any
+	return len(raw) == 0 || (json.Unmarshal(raw, &m) == nil && len(m) == 0)
 }
 
 // Default delays before a drift is announced. It shows in the UI immediately.

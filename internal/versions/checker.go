@@ -48,9 +48,10 @@ type Checker struct {
 	ttl      time.Duration
 	onEvents func(store.Scope, []store.Event)
 
-	mu    sync.Mutex
-	cache map[string]cachedTags
-	now   func() time.Time
+	mu     sync.Mutex
+	cache  map[string]cachedTags
+	now    func() time.Time
+	github *GitHub
 
 	driftMu sync.Mutex // one drift evaluation at a time
 }
@@ -220,7 +221,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 			_ = c.store.RecordUpstreamCheck(ctx, sc, id, err.Error())
 			continue
 		}
-		evs, err := RecordTags(ctx, c.store, sc, st.byID[id], tags, ref.Tag)
+		evs, err := c.recordTags(ctx, sc, st.byID[id], ref.Repo, tags, ref.Tag)
 		if err != nil {
 			return err
 		}
@@ -246,11 +247,13 @@ func (c *Checker) listTags(ctx context.Context, repo string) ([]string, error) {
 	return tags, err
 }
 
-// RecordTags stores the acceptable versions among tags as releases of svc and returns
-// a new_release event when a version newer than everything known before appears. The
-// first check of a service is a baseline without events.
-func RecordTags(ctx context.Context, st *store.Store, sc store.Scope, svc store.Service, tags []string, running string) ([]store.Event, error) {
-	policy, err := ParsePolicy(svc.VersionPolicy)
+// recordTags stores the acceptable versions among tags as releases of svc, adds release
+// dates and changelog links where the policy says they live, and returns a new_release
+// event when a version newer than everything known before appears. The first check of
+// a service is a baseline without events.
+func (c *Checker) recordTags(ctx context.Context, sc store.Scope, svc store.Service, repo string, tags []string, running string) ([]store.Event, error) {
+	st := c.store
+	policy, _, err := PolicyFor(svc, repo)
 	if err != nil {
 		_ = st.RecordUpstreamCheck(ctx, sc, svc.ID, "version policy: "+err.Error())
 		return nil, nil
@@ -277,6 +280,7 @@ func RecordTags(ctx context.Context, st *store.Store, sc store.Scope, svc store.
 	if err != nil {
 		return nil, err
 	}
+	c.annotateReleases(ctx, sc, svc, policy)
 	if err := st.RecordUpstreamCheck(ctx, sc, svc.ID, ""); err != nil {
 		return nil, err
 	}
@@ -345,7 +349,7 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 	upstreams := map[string]Upstream{}
 	policies := map[string]Policy{}
 	for id, ref := range st.refs {
-		p, err := ParsePolicy(st.byID[id].VersionPolicy)
+		p, _, err := PolicyFor(st.byID[id], ref.Repo)
 		if err != nil {
 			continue
 		}
@@ -540,7 +544,7 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 		_ = c.store.RecordUpstreamCheck(ctx, sc, serviceID, err.Error())
 		return err
 	}
-	evs, err := RecordTags(ctx, c.store, sc, st.byID[serviceID], tags, ref.Tag)
+	evs, err := c.recordTags(ctx, sc, st.byID[serviceID], ref.Repo, tags, ref.Tag)
 	if err != nil {
 		return err
 	}
@@ -565,7 +569,7 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 		seen[ref.Repo] = true
 		host, _, _ := strings.Cut(ref.Repo, "/")
 		check := agentproto.RegistryCheck{Repository: ref.Repo, CredentialsRef: &host}
-		if p, err := ParsePolicy(st.byID[id].VersionPolicy); err == nil && p.TagFilter != "" {
+		if p, _, err := PolicyFor(st.byID[id], ref.Repo); err == nil && p.TagFilter != "" {
 			filter := p.TagFilter
 			check.TagFilter = &filter
 		}
@@ -590,7 +594,7 @@ func (c *Checker) RecordPrivateTags(ctx context.Context, sc store.Scope, repo st
 			_ = c.store.RecordUpstreamCheck(ctx, sc, id, "agent: "+checkErr)
 			continue
 		}
-		evs, err := RecordTags(ctx, c.store, sc, st.byID[id], tags, ref.Tag)
+		evs, err := c.recordTags(ctx, sc, st.byID[id], ref.Repo, tags, ref.Tag)
 		if err != nil {
 			return err
 		}
