@@ -24,6 +24,8 @@ type Overview struct {
 	// Stale lists targets whose data may be out of date (agent silent, or no recent
 	// snapshot), with their last snapshot time.
 	Stale map[string]time.Time
+	// ReleaseURL maps service ID + "|" + version to its release notes link.
+	ReleaseURL map[string]string
 }
 
 // StaleTarget reports whether a target's data is out of date: its agent stopped
@@ -50,7 +52,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	o := Overview{
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
-		Stale: map[string]time.Time{},
+		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{},
 	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -93,7 +95,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		if _, msg, err := st.UpstreamStatus(ctx, sc, id); err == nil && msg != "" {
 			o.CheckErrs[id] = msg
 		}
-		p, _ := ParsePolicy(o.Services[id].VersionPolicy)
+		p, _, _ := PolicyFor(o.Services[id], ref.Repo)
 		o.Policies[id] = p
 		releases, err := st.ListReleases(ctx, sc, id)
 		if err != nil {
@@ -105,6 +107,9 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		tags := make([]string, len(releases))
 		for i, r := range releases {
 			tags[i] = r.Version
+			if r.ChangelogURL != "" {
+				o.ReleaseURL[id+"|"+r.Version] = r.ChangelogURL
+			}
 		}
 		o.Upstreams[id] = Latest(tags, ref.Tag, p)
 	}

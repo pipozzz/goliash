@@ -320,10 +320,8 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
-	pol := o.Policies[svc.ID]
-	if pol.Track == "" {
-		pol, _ = versions.ParsePolicy(svc.VersionPolicy)
-	}
+	pol, src, _ := versions.PolicyFor(svc, ref.Repo)
+	v.PolicyFrom = string(src)
 	v.Policy = PolicyForm{TagFilter: pol.TagFilter, Track: string(pol.Track), Prerelease: pol.Prerelease}
 	if pol.PinMajor != nil {
 		v.Policy.PinMajor = strconv.Itoa(*pol.PinMajor)
@@ -352,15 +350,19 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	var parsed []versions.Version
+	type relv struct {
+		v   versions.Version
+		rel store.Release
+	}
+	var parsed []relv
 	for _, rel := range releases {
 		if pv, ok := versions.ParseVersion(rel.Version); ok {
-			parsed = append(parsed, pv)
+			parsed = append(parsed, relv{pv, rel})
 		}
 	}
-	sort.Slice(parsed, func(i, j int) bool { return parsed[i].Compare(parsed[j]) > 0 })
+	sort.Slice(parsed, func(i, j int) bool { return parsed[i].v.Compare(parsed[j].v) > 0 })
 	for i := 0; i < len(parsed) && i < 12; i++ {
-		v.Releases = append(v.Releases, parsed[i].Raw)
+		v.Releases = append(v.Releases, ReleaseView{Version: parsed[i].rel.Version, Published: parsed[i].rel.PublishedAt, URL: parsed[i].rel.ChangelogURL})
 	}
 
 	evs, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{ServiceID: svc.ID, Limit: 25})

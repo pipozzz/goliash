@@ -47,6 +47,20 @@ make fmt             # gofumpt + goimports
   ```
 - **Tests.** New behavior comes with tests; bug fixes come with a test that fails without the fix.
 
+## The image catalog
+
+[`catalog/images.yaml`](catalog/images.yaml) lists public images with a default version policy and where their
+release notes live. To add an image, add one entry in alphabetical order:
+
+```yaml
+- image: docker.io/library/nginx      # registry/repository as Goliash normalizes it
+  github: nginx/nginx                 # GitHub releases (dates and links) …
+  github_tag_prefix: release-         # … whose tags are "release-<version>"
+  policy: { track: minor }            # optional default policy
+```
+
+`go test ./internal/versions/` validates every entry.
+
 ## Pull requests
 
 - Keep each PR focused on one change.

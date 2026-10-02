@@ -162,6 +162,12 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
   within a minute, then hourly.
 - **Policy per service:** `tag_filter`, `track` (patch/minor/major), `pin_major`, `prerelease`. Without a filter,
   tags are compared like with like (same `-alpine` variant, same number of version parts).
+- **Catalog:** [`catalog/images.yaml`](catalog/images.yaml) holds default policies for popular public images
+  (postgres, redis, nginx, keycloak, traefik, grafana, prometheus, …) and where their release notes live. A service
+  without its own policy uses the catalog's; additions are welcome as pull requests.
+- **Release notes:** releases get their publication date and a release notes link from GitHub releases (the
+  catalog's `github`, or `"github": "owner/repo"` in a service's own policy) or a changelog URL template. Links
+  appear in the UI and in new-release notifications. Set `GOLIASH_GITHUB_TOKEN` to raise GitHub's rate limit.
 - **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
   release by at least the tracked jump), `inconsistent` (targets of one environment disagree). Drift shows in the UI
   at once but is announced (`drift_detected`) only after it lasts: `env` 7 days, `upstream` immediately,

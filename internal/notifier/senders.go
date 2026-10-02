@@ -78,13 +78,20 @@ func (s Slack) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	if msg.Digest || len(msg.Items) > 1 {
 		b.WriteString("*" + msg.Title() + "*\n")
 		for _, it := range msg.Items {
-			b.WriteString("• " + it.Text + "\n")
+			b.WriteString("• " + slackLine(it) + "\n")
 		}
 	} else if len(msg.Items) == 1 {
-		b.WriteString(msg.Items[0].Text)
+		b.WriteString(slackLine(msg.Items[0]))
 	}
 	body, _ := json.Marshal(map[string]any{"text": strings.TrimSpace(b.String()), "mrkdwn": true})
 	return post(ctx, s.HTTP, url, body, nil)
+}
+
+func slackLine(it Item) string {
+	if it.URL != "" {
+		return it.Text + " <" + it.URL + "|release notes>"
+	}
+	return it.Text
 }
 
 // Webhook posts the message as JSON. With a secret, the body is signed:
@@ -133,6 +140,9 @@ func (e Email) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	var body strings.Builder
 	for _, it := range msg.Items {
 		fmt.Fprintf(&body, "- %s (%s)\r\n", it.Text, it.At.Format("2006-01-02 15:04 MST"))
+		if it.URL != "" {
+			fmt.Fprintf(&body, "  %s\r\n", it.URL)
+		}
 	}
 	body.WriteString("\r\n-- \r\nGoliash\r\n")
 	return e.SendPlain(ctx, ch, msg.Title(), body.String())

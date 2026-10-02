@@ -16,6 +16,8 @@ type Release struct {
 	ServiceID    string
 	Version      string
 	Digest       string
+	PublishedAt  time.Time // from GitHub releases, when known
+	ChangelogURL string
 	DiscoveredAt time.Time
 }
 
@@ -42,7 +44,7 @@ func (s *Store) InsertReleases(ctx context.Context, sc Scope, serviceID string, 
 
 // ListReleases returns the known versions of a service in discovery order.
 func (s *Store) ListReleases(ctx context.Context, sc Scope, serviceID string) ([]Release, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, discovered_at FROM releases
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, published_at, changelog_url, discovered_at FROM releases
 		WHERE org_id = ? AND workspace_id = ? AND service_id = ? ORDER BY discovered_at, version`,
 		sc.OrgID, sc.WorkspaceID, serviceID)
 	if err != nil {
@@ -52,13 +54,40 @@ func (s *Store) ListReleases(ctx context.Context, sc Scope, serviceID string) ([
 	var out []Release
 	for rows.Next() {
 		var r Release
-		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &r.DiscoveredAt); err != nil {
+		var published sql.NullTime
+		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &published, &r.ChangelogURL, &r.DiscoveredAt); err != nil {
 			return nil, err
 		}
-		r.DiscoveredAt = r.DiscoveredAt.UTC()
+		r.PublishedAt, r.DiscoveredAt = timeOrZero(published), r.DiscoveredAt.UTC()
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// SetReleaseInfo stores a release's publication time and changelog link.
+func (s *Store) SetReleaseInfo(ctx context.Context, sc Scope, serviceID, version string, published time.Time, changelogURL string) error {
+	var pub sql.NullTime
+	if !published.IsZero() {
+		pub = sql.NullTime{Time: published.UTC(), Valid: true}
+	}
+	_, err := s.exec(ctx, s.db, `UPDATE releases SET published_at = COALESCE(?, published_at), changelog_url = ?
+		WHERE org_id = ? AND workspace_id = ? AND service_id = ? AND version = ?`,
+		pub, changelogURL, sc.OrgID, sc.WorkspaceID, serviceID, version)
+	return err
+}
+
+// GetRelease returns one release of a service.
+func (s *Store) GetRelease(ctx context.Context, sc Scope, serviceID, version string) (Release, error) {
+	all, err := s.ListReleases(ctx, sc, serviceID)
+	if err != nil {
+		return Release{}, err
+	}
+	for _, r := range all {
+		if r.Version == version {
+			return r, nil
+		}
+	}
+	return Release{}, ErrNotFound
 }
 
 // RecordUpstreamCheck stores when a service's upstream was last checked and the error, if any.

@@ -235,6 +235,7 @@ func serve(ctx context.Context, args []string) error {
 
 	svc := ingest.New(db, log)
 	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
+	checker.SetGitHub(versions.NewGitHub(os.Getenv("GOLIASH_GITHUB_TOKEN")))
 	svc.SetUpstreams(checker)
 	notify := notifier.New(db, log, notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
 	hub := ui.NewHub()
@@ -527,6 +528,7 @@ func checkCmd(ctx context.Context, args []string, out io.Writer) error {
 	defer func() { _ = db.Close() }()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	checker := versions.NewChecker(db, registry.New(), log, time.Minute)
+	checker.SetGitHub(versions.NewGitHub(os.Getenv("GOLIASH_GITHUB_TOKEN")))
 	// Notifications are queued here and delivered by the running server.
 	checker.OnEvents(notifier.New(db, log, nil).Handle)
 	sc := ws.Scope()

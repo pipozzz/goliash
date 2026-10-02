@@ -73,7 +73,9 @@ templ MatrixGridView(g MatrixGrid) {
 								</td>
 							}
 							<td class="latest">
-								if r.Latest != "" {
+								if r.Latest != "" && r.LatestURL != "" {
+									<a class="tag" href={ templ.URL(r.LatestURL) } target="_blank" rel="noopener noreferrer" title="Release notes">{ r.Latest }</a>
+								} else if r.Latest != "" {
 									<span class="tag">{ r.Latest }</span>
 								} else {
 									<span class="none">—</span>

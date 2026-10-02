@@ -83,11 +83,25 @@ templ ServicePage(v ServiceView) {
 					if len(v.Releases) == 0 {
 						<p class="muted">No releases known yet.</p>
 					} else {
-						<div class="badges">
-							for _, r := range v.Releases {
-								<span class="badge neutral mono">{ r }</span>
-							}
-						</div>
+						<table>
+							<tbody>
+								for _, r := range v.Releases {
+									<tr>
+										<td class="mono"><strong>{ r.Version }</strong></td>
+										<td class="muted">
+											if !r.Published.IsZero() {
+												{ r.Published.Format("2006-01-02") }
+											}
+										</td>
+										<td class="num">
+											if r.URL != "" {
+												<a href={ templ.URL(r.URL) } target="_blank" rel="noopener noreferrer">release notes</a>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
 					}
 					if v.CanMember {
 						<details>
@@ -147,7 +161,12 @@ templ ServicePage(v ServiceView) {
 				@timeline(v.Events, false)
 			</section>
 			<section class="panel">
-				<div class="panel-head"><h2>Version policy</h2></div>
+				<div class="panel-head">
+					<h2>Version policy</h2>
+					if v.PolicyFrom == "catalog" {
+						<span class="badge neutral" title="This image is in the Goliash catalog; saving the form makes the policy the service's own.">from catalog</span>
+					}
+				</div>
 				<div class="panel-body">
 					if v.CanMember {
 						<form class="stack" method="post" action={ templ.URL("/services/" + v.Name + "/policy") }>
