@@ -14,7 +14,8 @@
     es.onopen = function () { if (live) { live.classList.remove("off"); live.textContent = "Live"; } };
     es.onerror = function () { if (live) { live.classList.add("off"); live.textContent = "Reconnecting…"; } };
   }
-  connect();
+  // Connect once the page has settled, so the long-lived stream does not delay loading.
+  setTimeout(connect, 1500);
 
   // Relative times: <time datetime="…" data-ago> shows "5 min ago" and keeps it current.
   const units = [["year", 31536000], ["month", 2592000], ["day", 86400], ["hour", 3600], ["minute", 60]];

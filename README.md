@@ -1,20 +1,47 @@
-# Goliash
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark-dark.svg">
+    <img alt="Goliash" src="docs/assets/wordmark-light.svg" width="400">
+  </picture>
+</p>
 
-**What runs where, on which version, in which environment — across Kubernetes, ECS, Nomad and Docker Swarm.**
+<p align="center">
+  <strong>What runs where, on which version, in which environment — across Kubernetes, ECS, Nomad and Docker Swarm.</strong>
+</p>
 
-Goliash watches what is actually running, builds a *service × environment* matrix with the running and the latest
-upstream version, and tells you when a new release ships or when environments drift apart (staging 1.5.0, prod 1.3.2).
+<p align="center">
+  <a href="https://github.com/pipozzz/goliash/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/pipozzz/goliash/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSING.md"><img alt="Server: AGPL-3.0" src="https://img.shields.io/badge/server-AGPL--3.0-blue"></a>
+  <a href="LICENSING.md"><img alt="Agent: Apache-2.0" src="https://img.shields.io/badge/agent-Apache--2.0-green"></a>
+  <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/pipozzz/goliash">
+</p>
 
-> **Status:** pre-alpha. v0.1 (MVP) is under active development. Nothing here is stable yet.
+Goliash watches what actually runs, builds a **service × environment matrix** with the running and the newest
+upstream version, and tells you when a new release ships or when environments drift apart — staging on 1.5.0 while
+prod is still on 1.3.2, or two prod clusters disagreeing.
 
-## Why
+<p align="center">
+  <img alt="The Goliash matrix: services against dev, staging and prod with running versions, drift badges and the latest upstream release" src="docs/assets/matrix.png" width="900">
+</p>
 
-- **Runtime is the source of truth.** Goliash reads what really runs. Git and CI are optional extras.
-- **Read-only.** Goliash never deploys or changes anything. Every collector needs read-only permissions only.
-- **Agent-first.** Collection runs inside your network and sends data out over outbound HTTPS. Credentials never leave.
-- **Snapshots, not events.** The agent sends full state; the server diffs it. An agent outage loses no events.
-- **Less noise.** Digests, dedup and ack/snooze are part of the core.
-- **Simple to run.** One binary, SQLite or PostgreSQL.
+> **Status:** early. v0.1 works end to end and is being tried on real infrastructure; expect changes before 1.0.
+
+## Features
+
+- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, Nomad and Docker Swarm, side by side, per
+  environment — with replicas, targets and rollouts in progress.
+- **Upstream awareness.** Tags from Docker Hub, GHCR, Quay, registry.k8s.io and private registries, compared with
+  per-service semver policies (track minor only, pin a major, ignore `-alpine` noise). A built-in catalog of popular
+  images, release dates and release-notes links from GitHub.
+- **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
+  disagree — shown at once, announced only when it lasts.
+- **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
+- **Notifications with less noise.** Slack, webhooks (signed) and e-mail, instant or as daily/weekly digests, with
+  dedup and ack/snooze.
+- **Built for teams and MSPs.** Workspaces per client, roles, magic-link and OIDC sign-in, audit log, REST API and
+  Prometheus metrics.
+- **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
+  in your network. One binary each, SQLite or PostgreSQL, Helm/Nomad/Swarm/ECS manifests included.
 
 Out of scope: deploying or upgrading services (that is CI's or Renovate's job), CVE scanning, library versions in code.
 
@@ -27,52 +54,14 @@ Out of scope: deploying or upgrading services (that is CI's or Renovate's job), 
 │ Swarm  ──read-only──► agent ───┼──HTTPS────► │   │                  │           │
 │ private registries ──► agent   │  snapshots  │   ▼                  ▼           │
 └────────────────────────────────┘             │ events, matrix   notifier ──► Slack, webhook, e-mail
-                                               │ REST API + UI    SQLite / Postgres│
+                                               │ UI, REST API     SQLite / Postgres│
                                                └──────────────────────────────────┘
 ```
 
-- **goliash-agent** reads orchestrators and private registries and sends snapshots, heartbeats and registry results.
+- **goliash-agent** reads orchestrators and private registries and sends full snapshots, heartbeats and registry
+  results. Snapshots, not events: an agent outage loses nothing.
 - **goliash** (server) turns snapshots into events, maps containers to services and environments, compares them
-  with upstream releases using per-service semver policies, and sends notifications. Self-hosted, the server can
-  also run collectors itself, without an agent.
-
-## v0.1 scope
-
-| Area | v0.1 |
-| --- | --- |
-| Collectors | Kubernetes (watch), ECS, Nomad, Docker Swarm |
-| Agent protocol | `register`, `config`, `snapshot`, `heartbeat`, `registry-results` (REST + JSON, OpenAPI) |
-| Versions | Snapshot diff → events, service × environment matrix, OCI registry tags with semver policy |
-| Notifications | Slack webhook, generic webhook, e-mail |
-| Storage | SQLite and PostgreSQL |
-| UI | Server-rendered (templ + htmx) |
-
-## Repository layout
-
-| Path | What | License |
-| --- | --- | --- |
-| `cmd/goliash` | Server binary | AGPL-3.0-only |
-| `cmd/goliash-agent` | Agent binary | Apache-2.0 |
-| `internal/agent` | Agent loop | Apache-2.0 |
-| `internal/collectors/{kubernetes,ecs,nomad,swarm}` | Read-only collectors | Apache-2.0 |
-| `internal/registry` | OCI Distribution API client | Apache-2.0 |
-| `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
-| `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
-| `pkg/buildinfo` | Build metadata | Apache-2.0 |
-| `internal/{api,ingest,mapping,versions,notifier,store,ui}` | Server | AGPL-3.0-only |
-| `internal/store/migrations/{sqlite,postgres}` | Database migrations (goose), embedded in the server | AGPL-3.0-only |
-| `deploy/{helm,nomad,swarm,ecs}` | Deployment manifests | AGPL-3.0-only |
-
-## Building
-
-Requires Go (version in `go.mod`) and, for linting, [golangci-lint](https://golangci-lint.run) v2.
-
-```sh
-make build          # bin/goliash and bin/goliash-agent
-make generate       # regenerate pkg/agentproto after editing api/agent-v1.yaml
-make test           # SQLite; set GOLIASH_TEST_POSTGRES_DSN to also run against PostgreSQL
-make lint           # license boundary check + golangci-lint
-```
+  with upstream releases and sends notifications. It can also collect targets itself, without an agent.
 
 ## Quickstart
 
@@ -108,6 +97,8 @@ through a socket proxy. Turn it off with `-collect=false`.
 The server keeps its SQLite database in `/data` (set `GOLIASH_DATABASE_URL=postgres://…` for PostgreSQL) and
 deletes processed snapshots beyond the newest 20 per target every hour (`-keep-snapshots`); history lives in events.
 Releases are published by pushing a `v*` tag.
+
+## Usage
 
 ### Web UI
 
@@ -225,6 +216,36 @@ The server only sends a `credentials_ref` name. The agent resolves it from the e
 The agent registers, follows its configuration (polled every minute with an ETag), sends a heartbeat every minute
 and buffers snapshots in `-data-dir` while the server is unreachable (the oldest are dropped beyond 200).
 The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validates every request against it.
+
+## Development
+
+### Repository layout
+
+| Path | What | License |
+| --- | --- | --- |
+| `cmd/goliash` | Server binary | AGPL-3.0-only |
+| `cmd/goliash-agent` | Agent binary | Apache-2.0 |
+| `internal/agent` | Agent loop | Apache-2.0 |
+| `internal/collectors/{kubernetes,ecs,nomad,swarm}` | Read-only collectors | Apache-2.0 |
+| `internal/registry` | OCI Distribution API client | Apache-2.0 |
+| `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
+| `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
+| `pkg/buildinfo` | Build metadata | Apache-2.0 |
+| `internal/{api,ingest,mapping,versions,notifier,store,ui}` | Server | AGPL-3.0-only |
+| `internal/store/migrations/{sqlite,postgres}` | Database migrations (goose), embedded in the server | AGPL-3.0-only |
+| `deploy/{helm,nomad,swarm,ecs}` | Deployment manifests | AGPL-3.0-only |
+
+### Building
+
+Requires Go (version in `go.mod`) and, for linting, [golangci-lint](https://golangci-lint.run) v2.
+
+```sh
+make build          # bin/goliash and bin/goliash-agent
+make generate       # regenerate pkg/agentproto after editing api/agent-v1.yaml
+make test           # SQLite; set GOLIASH_TEST_POSTGRES_DSN to also run against PostgreSQL
+make lint           # license boundary check + golangci-lint
+scripts/lab/up.sh   # k3s, Swarm and Nomad in Docker with a server and agent; prints a sign-in link
+```
 
 ## License
 
