@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -20,6 +21,23 @@ type Overview struct {
 	Envs      map[string]store.Environment // by ID
 	Targets   []store.Target
 	CheckErrs map[string]string // service ID -> last upstream check error
+	// Stale lists targets whose data may be out of date (agent silent, or no recent
+	// snapshot), with their last snapshot time.
+	Stale map[string]time.Time
+}
+
+// StaleTarget reports whether a target's data is out of date: its agent stopped
+// sending heartbeats, or its last snapshot is older than three poll intervals
+// (at least 15 minutes).
+func StaleTarget(t store.Target, agentStale bool, now time.Time) bool {
+	if t.LastSnapshotAt.IsZero() {
+		return false
+	}
+	limit := 3 * time.Duration(t.PollIntervalSeconds) * time.Second
+	if limit < 15*time.Minute {
+		limit = 15 * time.Minute
+	}
+	return agentStale || now.Sub(t.LastSnapshotAt) > limit
 }
 
 // DriftsAt returns the open drifts of a service in an environment.
@@ -32,6 +50,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	o := Overview{
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
+		Stale: map[string]time.Time{},
 	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -43,6 +62,20 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	}
 	if o.Targets, err = st.ListTargets(ctx, sc); err != nil {
 		return o, err
+	}
+	agents, err := st.ListAgents(ctx, sc)
+	if err != nil {
+		return o, err
+	}
+	agentStale := map[string]bool{}
+	for _, a := range agents {
+		agentStale[a.ID] = !a.StaleSince.IsZero()
+	}
+	now := time.Now()
+	for _, t := range o.Targets {
+		if StaleTarget(t, agentStale[t.AgentID], now) {
+			o.Stale[t.ID] = t.LastSnapshotAt
+		}
 	}
 	active, err := st.ListActiveInstances(ctx, sc)
 	if err != nil {

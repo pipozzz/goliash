@@ -185,6 +185,20 @@ func back(w http.ResponseWriter, r *http.Request, path, key, msg string) error {
 	return nil
 }
 
+// audit records a change made in the UI; kv are detail key/value pairs, never secrets.
+func (s *Server) audit(ctx context.Context, p auth.Principal, action string, kv ...string) {
+	details := map[string]string{}
+	for i := 0; i+1 < len(kv); i += 2 {
+		details[kv[i]] = kv[i+1]
+	}
+	if err := s.store.Audit(ctx, store.AuditEntry{
+		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID,
+		Actor: p.Name(), Action: action, Details: details,
+	}); err != nil {
+		s.log.ErrorContext(ctx, "audit log write failed", "action", action, "err", err)
+	}
+}
+
 func render(w http.ResponseWriter, r *http.Request, c templ.Component) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return c.Render(r.Context(), w)
@@ -403,6 +417,7 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 		_ = s.checker.EvaluateDrift(ctx, p.Scope)
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
+	s.audit(ctx, p, "service.update", "service", svc.Name, "owner", svc.Owner, "kind", svc.Kind, "upstream", svc.Upstream, "policy", string(raw))
 	return back(w, r, path, "notice", "Policy saved. Drift was re-evaluated with it.")
 }
 
@@ -427,6 +442,7 @@ func (s *Server) ack(w http.ResponseWriter, r *http.Request, p auth.Principal) e
 	if _, err := s.store.CreateAck(ctx, a); err != nil {
 		return err
 	}
+	s.audit(ctx, p, "ack.create", "service", svc.Name, "kind", a.Kind, "until_version", a.UntilVersion, "until", short(a.UntilAt))
 	return back(w, r, path, "notice", "Acknowledged. Matching notifications stay quiet.")
 }
 
@@ -586,6 +602,7 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 		_ = s.checker.EvaluateDrift(ctx, p.Scope)
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
+	s.audit(ctx, p, "mapping.create", "service", svc.Name, "image", r.FormValue("repo"))
 	return back(w, r, "/inbox", "notice", "Mapped to "+svc.Name+". Other workloads running this image map to it from the next snapshot.")
 }
 
@@ -600,6 +617,7 @@ func (s *Server) inboxIgnore(w http.ResponseWriter, r *http.Request, p auth.Prin
 	}); err != nil {
 		return err
 	}
+	s.audit(r.Context(), p, "mapping.ignore", "image", repo)
 	return back(w, r, "/inbox", "notice", repo+" is ignored from the next snapshot.")
 }
 
@@ -641,15 +659,24 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	if err != nil {
 		return v, err
 	}
+	agentStale := map[string]bool{}
+	for _, a := range agents {
+		agentStale[a.ID] = !a.StaleSince.IsZero()
+	}
 	for _, t := range targets {
 		by := agentName[t.AgentID]
 		if t.AgentID == "" {
 			by = "server"
 		}
-		v.Targets = append(v.Targets, TargetView{
+		tv := TargetView{
 			Name: t.Name, Platform: t.Platform, Env: envName[t.EnvironmentID], Agent: by,
 			Status: t.CollectorStatus, Error: t.CollectorError, LastSnapshot: t.LastSnapshotAt,
-		})
+		}
+		if versions.StaleTarget(t, agentStale[t.AgentID], time.Now()) {
+			tv.Status = "stale"
+			tv.Error = "No recent snapshot; the versions shown may be out of date."
+		}
+		v.Targets = append(v.Targets, tv)
 	}
 	return v, nil
 }
@@ -677,6 +704,7 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request, p auth.Prin
 	if err != nil {
 		return err
 	}
+	s.audit(ctx, p, "agent.create", "agent", name)
 	v.NewToken, v.NewAgent = token, name
 	v.Notice = "Agent " + name + " created. Copy its token now."
 	w.Header().Set("Cache-Control", "no-store")
@@ -692,6 +720,7 @@ func (s *Server) createEnvironment(w http.ResponseWriter, r *http.Request, p aut
 	if _, err := s.store.CreateEnvironment(r.Context(), p.Scope, name, pos); err != nil {
 		return back(w, r, "/agents", "error", "Could not create the environment; is the name taken?")
 	}
+	s.audit(r.Context(), p, "environment.create", "environment", name, "position", strconv.Itoa(pos))
 	return back(w, r, "/agents", "notice", "Environment "+name+" created.")
 }
 
@@ -730,6 +759,7 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 	if _, err := s.store.CreateTarget(ctx, t); err != nil {
 		return back(w, r, "/agents", "error", "Could not create the target; is the name taken?")
 	}
+	s.audit(ctx, p, "target.create", "target", name, "platform", platform, "environment", env.Name, "agent", r.FormValue("agent"))
 	return back(w, r, "/agents", "notice", "Target "+name+" created. The agent picks it up within a minute.")
 }
 
@@ -826,6 +856,7 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 	if _, err := s.store.CreateChannel(r.Context(), store.Channel{Scope: p.Scope, Type: typ, Name: name, Config: raw}); err != nil {
 		return back(w, r, "/notifications", "error", "Could not add the channel; is the name taken?")
 	}
+	s.audit(r.Context(), p, "channel.create", "channel", name, "type", typ)
 	return back(w, r, "/notifications", "notice", "Channel "+name+" added. Send a test to check it.")
 }
 
@@ -877,6 +908,7 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if _, err := s.store.CreateRule(ctx, store.Rule{Scope: p.Scope, ChannelID: ch.ID, EventTypes: r.Form["events"], Filter: raw, Mode: mode}); err != nil {
 		return err
 	}
+	s.audit(ctx, p, "notification_rule.create", "channel", ch.Name, "mode", mode, "events", strings.Join(r.Form["events"], ","))
 	return back(w, r, "/notifications", "notice", "Rule added.")
 }
 
@@ -890,6 +922,24 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 	}
 	for _, u := range users {
 		v.Users = append(v.Users, UserView{ID: u.ID, Email: u.Email, Role: u.Role, LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID})
+	}
+	entries, err := s.store.ListAudit(ctx, p.User.OrgID, 100)
+	if err != nil {
+		return v, err
+	}
+	for _, e := range entries {
+		keys := make([]string, 0, len(e.Details))
+		for k := range e.Details {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var parts []string
+		for _, k := range keys {
+			if e.Details[k] != "" && e.Details[k] != "never" {
+				parts = append(parts, k+"="+e.Details[k])
+			}
+		}
+		v.Audit = append(v.Audit, AuditView{At: e.At, Actor: e.Actor, Action: e.Action, Details: strings.Join(parts, " ")})
 	}
 	return v, nil
 }
@@ -934,6 +984,7 @@ func (s *Server) inviteUser(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return err
 	}
+	s.audit(ctx, p, "user.invite", "user", u.Email, "role", role)
 	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, u.Email+" invited as "+role+". They can also sign in with an e-mailed link or single sign-on.")
 }
 
@@ -946,6 +997,7 @@ func (s *Server) userLink(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil {
 		return err
 	}
+	s.audit(r.Context(), p, "user.login_link", "user", u.Email)
 	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, "")
 }
 
@@ -964,6 +1016,7 @@ func (s *Server) setRole(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err := s.store.SetUserRole(r.Context(), p.User.OrgID, u.ID, role); err != nil {
 		return err
 	}
+	s.audit(r.Context(), p, "user.role", "user", u.Email, "from", u.Role, "to", role)
 	return back(w, r, "/settings", "notice", u.Email+" is now "+role+".")
 }
 
@@ -978,6 +1031,7 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err := s.store.DeleteUser(r.Context(), p.User.OrgID, u.ID); err != nil {
 		return err
 	}
+	s.audit(r.Context(), p, "user.delete", "user", u.Email, "role", u.Role)
 	return back(w, r, "/settings", "notice", u.Email+" removed.")
 }
 
@@ -990,6 +1044,7 @@ func (s *Server) createToken(w http.ResponseWriter, r *http.Request, p auth.Prin
 	if _, err := s.store.CreateAPIToken(r.Context(), p.Scope, name, hash); err != nil {
 		return err
 	}
+	s.audit(r.Context(), p, "api_token.create", "token", name)
 	return s.showSecret(w, r, p, "API token "+name+":", token, "")
 }
 

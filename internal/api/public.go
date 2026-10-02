@@ -350,6 +350,10 @@ func (h *PublicHandler) createAck(w http.ResponseWriter, r *http.Request, p auth
 		h.fail(w, r, err)
 		return
 	}
+	_ = h.store.Audit(r.Context(), store.AuditEntry{
+		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID, Actor: p.Name(), Action: "ack.create",
+		Details: map[string]string{"service": svc.Name, "kind": a.Kind, "until_version": a.UntilVersion},
+	})
 	writeJSON(w, http.StatusCreated, map[string]string{"id": a.ID})
 }
 

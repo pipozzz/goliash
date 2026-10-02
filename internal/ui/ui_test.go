@@ -13,6 +13,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -266,6 +267,19 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 	}
 	if _, body, _ = post(t, c, e.srv.URL+"/notifications/channels", url.Values{"name": {"ops"}, "type": {"slack"}, "url": {"https://hooks.slack.com/services/T/B/SECRET"}}); !strings.Contains(body, "Channel ops added") || strings.Contains(body, "SECRET") {
 		t.Fatal("channel added or its URL leaked into the page")
+	}
+
+	_, page := get(t, c, e.srv.URL+"/settings", nil)
+	for _, want := range []string{
+		"user.sign_in", "agent.create", "agent=eu-cluster", "target.create", "user.invite", "user.role",
+		"api_token.create", "channel.create",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("audit log misses %s", want)
+		}
+	}
+	if regexp.MustCompile(`glsh_(agent|api)_[A-Za-z0-9]{20}`).MatchString(page) || strings.Contains(page, "SECRET") {
+		t.Error("a secret reached the audit log")
 	}
 }
 

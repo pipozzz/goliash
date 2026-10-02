@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Version is a tag read as a version: "v1.27.2", "15.6-alpine", "2.0.0-rc.1".
@@ -150,6 +151,26 @@ type Policy struct {
 	Track      Jump   `json:"track,omitempty"`      // smallest jump worth an alert; default patch
 	PinMajor   *int   `json:"pin_major,omitempty"`  // newer majors are information, not alerts
 	Prerelease bool   `json:"prerelease,omitempty"` // consider alpha, beta, rc
+	// DriftAlertAfter overrides how long a drift lasts before it is announced, per kind
+	// ("env", "upstream", "inconsistent"), as Go durations like "168h" or "15m".
+	DriftAlertAfter map[string]string `json:"drift_alert_after,omitempty"`
+}
+
+// Default delays before a drift is announced. It shows in the UI immediately.
+var defaultDriftAlertAfter = map[string]time.Duration{
+	"env":          7 * 24 * time.Hour, // prod may trail staging for a release cycle
+	"upstream":     0,                  // the tracked jump already filters noise
+	"inconsistent": 15 * time.Minute,   // a rollout across several targets takes a while
+}
+
+// AlertAfter returns how long a drift of the kind lasts before it is announced.
+func (p Policy) AlertAfter(kind string) time.Duration {
+	if v, ok := p.DriftAlertAfter[kind]; ok {
+		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+			return d
+		}
+	}
+	return defaultDriftAlertAfter[kind]
 }
 
 // ParsePolicy reads a stored policy; empty input is the default policy.
@@ -170,6 +191,14 @@ func ParsePolicy(raw []byte) (Policy, error) {
 	case JumpNone, JumpPatch, JumpMinor, JumpMajor:
 	default:
 		return p, fmt.Errorf("track must be patch, minor or major, not %q", p.Track)
+	}
+	for kind, v := range p.DriftAlertAfter {
+		if _, ok := defaultDriftAlertAfter[kind]; !ok {
+			return p, fmt.Errorf("drift_alert_after: unknown drift kind %q", kind)
+		}
+		if d, err := time.ParseDuration(v); err != nil || d < 0 {
+			return p, fmt.Errorf("drift_alert_after.%s: %q is not a duration like 168h", kind, v)
+		}
 	}
 	return p, nil
 }

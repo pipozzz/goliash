@@ -5,6 +5,7 @@ package versions
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -46,5 +47,24 @@ func TestBuildMatrix(t *testing.T) {
 	}
 	if !m.Rows[1].Cells[0].Empty() {
 		t.Fatal("web should not run in dev")
+	}
+}
+
+func TestStaleTarget(t *testing.T) {
+	now := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	tg := store.Target{PollIntervalSeconds: 300, LastSnapshotAt: now.Add(-10 * time.Minute)}
+	if StaleTarget(tg, false, now) {
+		t.Fatal("10 minutes is within 15")
+	}
+	tg.LastSnapshotAt = now.Add(-16 * time.Minute)
+	if !StaleTarget(tg, false, now) {
+		t.Fatal("16 minutes without a snapshot is stale")
+	}
+	tg.LastSnapshotAt = now.Add(-time.Minute)
+	if !StaleTarget(tg, true, now) {
+		t.Fatal("a silent agent makes its targets stale")
+	}
+	if StaleTarget(store.Target{}, true, now) {
+		t.Fatal("a target that never reported is not stale, just empty")
 	}
 }

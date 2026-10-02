@@ -169,13 +169,27 @@ func TestUpstreamAndDrift(t *testing.T) {
 	if got := l.drifts(); got != want {
 		t.Fatalf("drifts\n got: %s\nwant: %s", got, want)
 	}
-	if n := strings.Count(l.events("drift_detected"), "drift_detected"); n != 5 {
-		t.Fatalf("drift events: %s", l.events("drift_detected"))
+	// Upstream drift is announced at once; inconsistent after 15 minutes, env after 7 days.
+	announced := func() int { return strings.Count(l.events("drift_detected"), "drift_detected") }
+	if n := announced(); n != 3 {
+		t.Fatalf("announced at once: %s", l.events("drift_detected"))
+	}
+	clock := time.Now().UTC()
+	l.checker.now = func() time.Time { return clock }
+	clock = clock.Add(16 * time.Minute)
+	_ = l.checker.EvaluateDrift(ctx, l.sc)
+	if n := announced(); n != 4 || !strings.Contains(l.events("drift_detected"), "(inconsistent)") {
+		t.Fatalf("after 16 minutes: %s", l.events("drift_detected"))
+	}
+	clock = clock.Add(7 * 24 * time.Hour)
+	_ = l.checker.EvaluateDrift(ctx, l.sc)
+	if n := announced(); n != 5 {
+		t.Fatalf("after 7 days: %s", l.events("drift_detected"))
 	}
 
 	// Re-evaluating the same state changes nothing.
 	_ = l.checker.EvaluateDrift(ctx, l.sc)
-	if n := strings.Count(l.events("drift_detected"), "drift_detected"); n != 5 {
+	if n := announced(); n != 5 {
 		t.Fatal("drift reported twice")
 	}
 
@@ -221,5 +235,36 @@ func TestReferences(t *testing.T) {
 	})
 	if refs["s"].Repo != "ghcr.io/a/b" || refs["s"].Tag != "0.9" {
 		t.Fatalf("refs %+v", refs)
+	}
+}
+
+func TestShortDriftIsNotAnnounced(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	// Staging ahead of prod for a day: shown, but never announced or "resolved".
+	l.run(map[string]string{"stg-1": "1.27.3", "prod-a": "1.27.2", "prod-b": "1.27.2"})
+	_ = l.checker.EvaluateDrift(ctx, l.sc)
+	if !strings.Contains(l.drifts(), "prod:env:") {
+		t.Fatalf("env drift not open: %s", l.drifts())
+	}
+	l.run(map[string]string{"stg-1": "1.27.3", "prod-a": "1.27.3", "prod-b": "1.27.3"})
+	_ = l.checker.EvaluateDrift(ctx, l.sc)
+	if ev := l.events("drift_detected", "drift_resolved"); ev != "" {
+		t.Fatalf("short drift produced events: %s", ev)
+	}
+
+	// A policy can shorten the delay.
+	l.svc.VersionPolicy = json.RawMessage(`{"drift_alert_after":{"env":"0s"}}`)
+	_ = l.st.UpdateService(ctx, l.svc)
+	l.run(map[string]string{"stg-1": "1.27.3", "prod-a": "1.27.2", "prod-b": "1.27.2"})
+	_ = l.checker.EvaluateDrift(ctx, l.sc)
+	if ev := l.events("drift_detected"); !strings.Contains(ev, "(env)") {
+		t.Fatalf("policy delay ignored: %s", ev)
+	}
+	if _, err := ParsePolicy([]byte(`{"drift_alert_after":{"env":"soon"}}`)); err == nil {
+		t.Fatal("bad duration accepted")
+	}
+	if _, err := ParsePolicy([]byte(`{"drift_alert_after":{"weird":"1h"}}`)); err == nil {
+		t.Fatal("unknown kind accepted")
 	}
 }

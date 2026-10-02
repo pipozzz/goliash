@@ -64,8 +64,9 @@ type MatrixRow struct {
 
 // MatrixCell is one service in one environment.
 type MatrixCell struct {
-	Versions []VersionView
-	Drifts   []DriftBadge
+	Versions   []VersionView
+	Drifts     []DriftBadge
+	StaleTitle string // set when some of the data comes from targets that stopped reporting
 }
 
 // VersionView is one tag running in a cell.
@@ -121,8 +122,17 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 		r := MatrixRow{Service: row.Service.Name, Owner: row.Service.Owner, URL: serviceURL(row.Service.Name)}
 		for ei, c := range row.Cells {
 			var cell MatrixCell
+			var stale []string
 			for _, v := range c.Versions {
 				cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
+				for i, id := range v.TargetIDs {
+					if last, ok := o.Stale[id]; ok {
+						stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))
+					}
+				}
+			}
+			if len(stale) > 0 {
+				cell.StaleTitle = strings.Join(stale, "; ")
 			}
 			for _, d := range o.DriftsAt(row.Service.ID, o.Matrix.Environments[ei].ID) {
 				cell.Drifts = append(cell.Drifts, driftBadge(d))
@@ -335,9 +345,18 @@ type UserView struct {
 	IsSelf    bool
 }
 
+// AuditView is one audit log line.
+type AuditView struct {
+	At      time.Time
+	Actor   string
+	Action  string
+	Details string
+}
+
 // SettingsView is the users and tokens page.
 type SettingsView struct {
 	Base
+	Audit       []AuditView
 	Users       []UserView
 	Secret      string
 	SecretLabel string

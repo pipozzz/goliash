@@ -216,5 +216,27 @@ templ SettingsPage(v SettingsView) {
 				<p class="hint">Send it as <code>Authorization: Bearer glsh_api_…</code>. It works with <code>/api/v1</code> and <code>/metrics</code>.</p>
 			</div>
 		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>Audit log</h2><span class="muted">changes to configuration, tokens and roles, newest first</span></div>
+			if len(v.Audit) == 0 {
+				<div class="empty">Nothing recorded yet.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
+						<tbody>
+							for _, e := range v.Audit {
+								<tr>
+									<td>@timeAgo(e.At)</td>
+									<td>{ e.Actor }</td>
+									<td class="mono">{ e.Action }</td>
+									<td class="mono muted">{ e.Details }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
 	}
 }
