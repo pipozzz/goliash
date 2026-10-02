@@ -6,6 +6,8 @@ package versions
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/catalog"
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 )
 
@@ -111,5 +114,74 @@ func TestReleaseAnnotations(t *testing.T) {
 	client.cache["nginx/nginx"] = ghCache{etag: `"abc"`, releases: client.cache["nginx/nginx"].releases}
 	if _, err := client.Releases(ctx, "nginx/nginx"); err != nil || notModified.Load() != 1 {
 		t.Fatalf("revalidation: %v, 304s=%d", err, notModified.Load())
+	}
+}
+
+// labeledTags also answers which source repository each image declares.
+type labeledTags struct {
+	*fakeTags
+	sources map[string]string
+	reads   atomic.Int32
+}
+
+func (l *labeledTags) ImageSource(_ context.Context, repo, _ string, _ registry.Credentials) (string, error) {
+	l.reads.Add(1)
+	return l.sources[repo], nil
+}
+
+func TestSourceFromImageLabel(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	l.tags.tags["ghcr.io/acme/web"] = []string{"1.27.2", "1.28.0"}
+	reg := &labeledTags{fakeTags: l.tags, sources: map[string]string{
+		"ghcr.io/acme/web":        "https://github.com/acme/web.git",
+		"docker.io/library/nginx": "https://github.com/nginxinc/docker-nginx.git#abc:mainline",
+	}}
+	l.checker = NewChecker(l.st, reg, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Hour)
+	l.svc.Upstream = "ghcr.io/acme/web"
+	if err := l.st.UpdateService(ctx, l.svc); err != nil {
+		t.Fatal(err)
+	}
+	l.run(map[string]string{"prod-a": "1.27.2"})
+
+	check := func() store.Service {
+		t.Helper()
+		if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
+			t.Fatal(err)
+		}
+		svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+		return svc
+	}
+	svc := check()
+	if p, _, _ := PolicyFor(svc, "ghcr.io/acme/web"); p.GitHub != "acme/web" {
+		t.Fatalf("label not used: %+v (service %+v)", p, svc)
+	}
+	own := svc
+	own.VersionPolicy = json.RawMessage(`{"github":"acme/other"}`)
+	if p, _, _ := PolicyFor(own, "ghcr.io/acme/web"); p.GitHub != "acme/other" {
+		t.Fatalf("label overrode the service's own github: %s", p.GitHub)
+	}
+
+	reads := reg.reads.Load()
+	check()
+	if reg.reads.Load() != reads {
+		t.Fatal("source read again within its TTL")
+	}
+	l.checker.now = func() time.Time { return time.Now().UTC().Add(8 * 24 * time.Hour) }
+	check()
+	if reg.reads.Load() != reads+1 {
+		t.Fatal("source not read again after its TTL")
+	}
+
+	// A new upstream is read at once; Docker Official Images point at their packaging repo.
+	l.checker.now = func() time.Time { return time.Now().UTC() }
+	l.svc.Upstream = "docker.io/library/nginx"
+	_ = l.st.UpdateService(ctx, l.svc)
+	svc = check()
+	if svc.SourceImage != "docker.io/library/nginx" || LabelGitHub(svc, "docker.io/library/nginx") != "" {
+		t.Fatalf("official image: %+v", svc)
+	}
+	if p, _, _ := PolicyFor(svc, "docker.io/library/nginx"); p.GitHub != "nginx/nginx" {
+		t.Fatalf("catalog source lost: %s", p.GitHub)
 	}
 }

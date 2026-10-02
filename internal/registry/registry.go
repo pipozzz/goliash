@@ -61,17 +61,14 @@ var ErrUnauthorized = errors.New("registry denied access")
 
 // ListTags returns every tag of repository ("ghcr.io/acme/app", "docker.io/library/nginx").
 func (c *Client) ListTags(ctx context.Context, repository string, creds Credentials) ([]string, error) {
-	host, repo, ok := strings.Cut(repository, "/")
-	if !ok {
-		return nil, fmt.Errorf("repository %q has no registry host", repository)
-	}
-	if host == "docker.io" {
-		host = "registry-1.docker.io"
+	host, repo, err := splitRepository(repository)
+	if err != nil {
+		return nil, err
 	}
 	next := fmt.Sprintf("%s://%s/v2/%s/tags/list?n=1000", c.Scheme, host, repo)
 	var tags []string
 	for page := 0; next != "" && page < maxPages; page++ {
-		body, link, err := c.get(ctx, next, repo, creds)
+		body, link, err := c.get(ctx, next, repo, creds, "application/json")
 		if err != nil {
 			return nil, err
 		}
@@ -87,8 +84,20 @@ func (c *Client) ListTags(ctx context.Context, repository string, creds Credenti
 	return tags, nil
 }
 
-func (c *Client) get(ctx context.Context, rawURL, repo string, creds Credentials) ([]byte, string, error) {
-	resp, err := c.do(ctx, rawURL, "", creds)
+// splitRepository returns the API host and the repository path on it.
+func splitRepository(repository string) (host, repo string, err error) {
+	host, repo, ok := strings.Cut(repository, "/")
+	if !ok {
+		return "", "", fmt.Errorf("repository %q has no registry host", repository)
+	}
+	if host == "docker.io" {
+		host = "registry-1.docker.io"
+	}
+	return host, repo, nil
+}
+
+func (c *Client) get(ctx context.Context, rawURL, repo string, creds Credentials, accept string) ([]byte, string, error) {
+	resp, err := c.do(ctx, rawURL, "", creds, accept)
 	if err != nil {
 		return nil, "", err
 	}
@@ -99,7 +108,7 @@ func (c *Client) get(ctx context.Context, rawURL, repo string, creds Credentials
 		if err != nil {
 			return nil, "", err
 		}
-		if resp, err = c.do(ctx, rawURL, auth, creds); err != nil {
+		if resp, err = c.do(ctx, rawURL, auth, creds, accept); err != nil {
 			return nil, "", err
 		}
 	}
@@ -119,12 +128,12 @@ func (c *Client) get(ctx context.Context, rawURL, repo string, creds Credentials
 	return nil, "", fmt.Errorf("registry answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body[:min(len(body), 200)])))
 }
 
-func (c *Client) do(ctx context.Context, rawURL, auth string, creds Credentials) (*http.Response, error) {
+func (c *Client) do(ctx context.Context, rawURL, auth string, creds Credentials, accept string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", accept)
 	switch {
 	case auth != "":
 		req.Header.Set("Authorization", auth)

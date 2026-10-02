@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/registry"
+
 	"github.com/pipozzz/goliash/catalog"
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -189,6 +191,9 @@ func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 	}
 	entry, ok := catalog.Lookup(repo)
 	if !ok {
+		if own.GitHub == "" && own.Changelog == "" {
+			own.GitHub = LabelGitHub(svc, repo)
+		}
 		return own, src, nil
 	}
 	p := own
@@ -202,6 +207,17 @@ func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 		p.GitHub, p.GitHubTagPrefix, p.Changelog = entry.GitHub, entry.GitHubTagPrefix, entry.Changelog
 	}
 	return p, src, nil
+}
+
+// LabelGitHub is the GitHub repository repo's image declares in its
+// org.opencontainers.image.source label, as last read by the checker. Docker Official
+// Images (docker.io/library/…) are skipped: their label points at the packaging
+// repository, not the project.
+func LabelGitHub(svc store.Service, repo string) string {
+	if svc.SourceImage != repo || strings.HasPrefix(repo, "docker.io/library/") {
+		return ""
+	}
+	return registry.GitHubRepository(svc.SourceURL)
 }
 
 func isEmptyPolicy(raw []byte) bool {

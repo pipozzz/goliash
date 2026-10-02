@@ -322,6 +322,16 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
 	pol, src, _ := versions.PolicyFor(svc, ref.Repo)
 	v.PolicyFrom = string(src)
+	v.NotesGitHub, v.NotesChangelog = pol.GitHub, pol.Changelog
+	switch own, _ := versions.ParsePolicy(svc.VersionPolicy); {
+	case pol.GitHub == "" && pol.Changelog == "":
+	case own.GitHub != "" || own.Changelog != "":
+		v.NotesFrom = "set in the policy"
+	case pol.GitHub != "" && pol.GitHub == versions.LabelGitHub(svc, ref.Repo):
+		v.NotesFrom = "from the image's source label"
+	default:
+		v.NotesFrom = "from the catalog"
+	}
 	v.Policy = PolicyForm{TagFilter: pol.TagFilter, Track: string(pol.Track), Prerelease: pol.Prerelease}
 	if pol.PinMajor != nil {
 		v.Policy.PinMajor = strconv.Itoa(*pol.PinMajor)

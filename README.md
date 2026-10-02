@@ -167,8 +167,10 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
   (postgres, redis, nginx, keycloak, traefik, grafana, prometheus, …) and where their release notes live. A service
   without its own policy uses the catalog's; additions are welcome as pull requests.
 - **Release notes:** releases get their publication date and a release notes link from GitHub releases (the
-  catalog's `github`, or `"github": "owner/repo"` in a service's own policy) or a changelog URL template. Links
-  appear in the UI and in new-release notifications. Set `GOLIASH_GITHUB_TOKEN` to raise GitHub's rate limit.
+  catalog's `github`, `"github": "owner/repo"` in a service's own policy, or the image's own
+  `org.opencontainers.image.source` label) or a changelog URL template. The label is read from the registry once a
+  week, so most images built with GitHub Actions get release notes without any setup. Links appear in the UI and in
+  new-release notifications. Set `GOLIASH_GITHUB_TOKEN` to raise GitHub's rate limit.
 - **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
   release by at least the tracked jump), `inconsistent` (targets of one environment disagree). Drift shows in the UI
   at once but is announced (`drift_detected`) only after it lasts: `env` 7 days, `upstream` immediately,

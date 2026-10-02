@@ -21,6 +21,12 @@ type Service struct {
 	Upstream      string // image repository releases are read from
 	VersionPolicy json.RawMessage
 	CreatedAt     time.Time
+
+	// SourceURL is the source repository the upstream image SourceImage declares,
+	// read at SourceCheckedAt; empty when it declares none.
+	SourceURL       string
+	SourceImage     string
+	SourceCheckedAt time.Time
 }
 
 // EnsureService returns the workspace's service with the given name, creating it
@@ -72,6 +78,13 @@ func (s *Store) ListServices(ctx context.Context, sc Scope) ([]Service, error) {
 	return out, rows.Err()
 }
 
+// SetServiceSource records the source repository image declares (empty for none).
+func (s *Store) SetServiceSource(ctx context.Context, sc Scope, id, image, source string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE services SET source_url = ?, source_image = ?, source_checked_at = ?
+		WHERE org_id = ? AND workspace_id = ? AND id = ?`, source, image, s.now(), sc.OrgID, sc.WorkspaceID, id)
+	return expectOne(res, err)
+}
+
 // UpdateService changes a service's owner, kind, upstream and version policy.
 func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 	if len(svc.VersionPolicy) == 0 {
@@ -83,16 +96,19 @@ func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 	return expectOne(res, err)
 }
 
-const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at`
+const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at,
+	source_url, source_image, source_checked_at`
 
 func scanService(row scanner) (Service, error) {
 	var svc Service
 	var policy string
+	var checked sql.NullTime
 	if err := row.Scan(&svc.ID, &svc.Scope.OrgID, &svc.Scope.WorkspaceID, &svc.Name, &svc.Owner, &svc.Kind,
-		&svc.Upstream, &policy, &svc.CreatedAt); err != nil {
+		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked); err != nil {
 		return Service{}, notFound(err)
 	}
 	svc.VersionPolicy, svc.CreatedAt = json.RawMessage(policy), svc.CreatedAt.UTC()
+	svc.SourceCheckedAt = timeOrZero(checked)
 	return svc, nil
 }
 
