@@ -117,6 +117,7 @@ templ AgentsPage(v AgentsView) {
 										<option value="nomad">Nomad</option>
 										<option value="swarm">Docker Swarm</option>
 										<option value="docker">Docker</option>
+										<option value="compose">Compose files</option>
 									</select>
 								</label>
 								<label>
@@ -140,7 +141,7 @@ templ AgentsPage(v AgentsView) {
 							<label>
 								Settings (JSON)
 								<textarea name="settings" rows="2" class="mono" placeholder={ `{"kubernetes":{"exclude_namespaces":["kube-system"]}}` }></textarea>
-								<span class="hint">ECS: {`{"ecs":{"region":"eu-west-1"}}`} · Nomad: {`{"nomad":{"address":"https://nomad:4646"}}`} · Swarm or Docker: {`{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}`}, with "docker" for a standalone host</span>
+								<span class="hint">ECS: {`{"ecs":{"region":"eu-west-1"}}`} · Nomad: {`{"nomad":{"address":"https://nomad:4646"}}`} · Swarm or Docker: {`{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}`}, with "docker" for a standalone host · Compose: {`{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}`}</span>
 							</label>
 							<div><button type="submit">Create target</button></div>
 						</form>

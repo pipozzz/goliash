@@ -56,6 +56,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |
 | `GOLIASH_CREDENTIAL_<NAME>` | | | A credential; see [Collectors](collectors.md#credentials) |
+| `GOLIASH_COMPOSE_DIRS` | | | Comma-separated directories `compose` targets may read files from |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 
 Everything else (targets, intervals, which registries to check) the agent reads from the server.

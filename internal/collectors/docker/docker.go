@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -31,12 +32,13 @@ func New(_ context.Context, t agentproto.Target) (collectors.Collector, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Collector{api: c}, nil
+	return &Collector{api: c, projects: t.Docker.Projects}, nil
 }
 
 // Collector reads the running containers of one Docker host.
 type Collector struct {
-	api *Client
+	api      *Client
+	projects []string // only these Compose projects; empty means all containers
 }
 
 type containerJSON struct {
@@ -62,6 +64,9 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	digests := map[string][]string{} // image ID -> repo digests, nil when unknown
 	for _, ct := range list {
 		if ct.Labels[labelSwarmService] != "" || strings.EqualFold(ct.Labels[labelOneoff], "true") {
+			continue
+		}
+		if len(c.projects) > 0 && !slices.Contains(c.projects, ct.Labels[labelProject]) {
 			continue
 		}
 		w := workloadFor(ct)

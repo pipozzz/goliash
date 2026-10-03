@@ -49,6 +49,35 @@ docker compose -f deploy/docker/goliash-agent.yml up -d
 
 Create a `docker` target for the agent with `{"docker":{"docker_host":"tcp://socket-proxy:2375"}}`.
 
+## Track only some Compose projects
+
+To watch one stack instead of the whole host, list its Compose projects:
+
+```json
+{"docker": {"docker_host": "tcp://socket-proxy:2375", "projects": ["shop"]}}
+```
+
+## Track a Compose file without access to Docker
+
+A `compose` target reads Compose files as declared, without a Docker engine, socket proxy or agent. It suits stacks
+kept in Git, or deployed through a platform such as Dokploy, Nomploy or Coolify where Goliash cannot reach the host:
+
+```sh
+goliash target create -env prod -platform compose -name shop \
+  -settings '{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/shop/compose.yaml"]}}'
+```
+
+- **Several files** override each other in order, like `docker compose -f compose.yaml -f compose.prod.yaml`.
+- **Variables:** `${TAG:-1.2.3}` uses its default; set values with `"variables": {"TAG": "1.3.0"}`.
+- **Private repositories:** give the target a credentials reference; the URL is fetched with
+  `Authorization: Bearer <credential>` (a GitHub or GitLab token).
+- **What it reports:** every service with an `image`, with its declared replicas. Services built from source without
+  an `image` are skipped. The project is `"project"` from the settings, else the file's `name`.
+- **Files on disk:** an agent can read local files from directories its operator lists in `GOLIASH_COMPOSE_DIRS`, for
+  example `/srv/stacks`. The server itself reads URLs only, and never link-local addresses such as cloud metadata.
+
+Declared versions are what the file says, not what runs. To see what actually runs, use a `docker` target.
+
 ## What the Docker collector reports
 
 - **Compose services**: containers with Compose labels are grouped by project and service. The project is the

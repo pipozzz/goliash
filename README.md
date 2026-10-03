@@ -235,7 +235,8 @@ with backoff. Webhook bodies are signed: `X-Goliash-Signature: sha256=HMAC(secre
 | ECS | clusters → services → running tasks → task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` = AWS profile name |
 | Nomad | jobs, job versions, allocations | ACL token with `read-job` | `credentials_ref` → token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` only (docker-socket-proxy) | none |
-| Docker | running containers, grouped into Compose services; registry digests | Docker API `GET` on containers and images (docker-socket-proxy) | none |
+| Docker | running containers, grouped into Compose services (optionally only some `projects`); registry digests | Docker API `GET` on containers and images (docker-socket-proxy) | none |
+| Compose files | services and images declared in Compose files, without a Docker engine | an HTTP(S) URL, or for an agent a file in `GOLIASH_COMPOSE_DIRS` | `credentials_ref` → bearer token for the URL |
 
 The server only sends a `credentials_ref` name. The agent resolves it from the environment variable
 `GOLIASH_CREDENTIAL_<NAME>` (upper-cased, non-alphanumerics as `_`) or the file
@@ -254,7 +255,7 @@ The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validate
 | `cmd/goliash` | Server binary | AGPL-3.0-only |
 | `cmd/goliash-agent` | Agent binary | Apache-2.0 |
 | `internal/agent` | Agent loop | Apache-2.0 |
-| `internal/collectors/{kubernetes,ecs,nomad,swarm,docker}` | Read-only collectors | Apache-2.0 |
+| `internal/collectors/{kubernetes,ecs,nomad,swarm,docker,compose}` | Read-only collectors | Apache-2.0 |
 | `internal/registry` | OCI Distribution API client | Apache-2.0 |
 | `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
 | `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |

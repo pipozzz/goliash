@@ -333,7 +333,7 @@ func TestTargets(t *testing.T) {
 		}
 
 		if _, err := s.CreateTarget(ctx, Target{
-			Scope: f.ws.Scope(), EnvironmentID: f.env.ID, Platform: "docker", Name: "docker-host",
+			Scope: f.ws.Scope(), EnvironmentID: f.env.ID, Platform: "compose", Name: "compose-files",
 		}); err != nil {
 			t.Fatalf("docker platform: %v", err)
 		}
