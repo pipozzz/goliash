@@ -92,7 +92,8 @@ docker compose exec goliash goliash target create -env prod -platform docker -na
 ```
 
 Ready-made manifests for Kubernetes (Helm), Nomad, Docker Swarm, plain Docker hosts and ECS are in
-[`deploy/`](deploy).
+[`deploy/`](deploy). The Helm charts are also published as `oci://ghcr.io/pipozzz/charts/goliash` and
+`oci://ghcr.io/pipozzz/charts/goliash-agent`.
 
 **Without an agent:** a target created without an agent (`goliash target create` without `-agent`, or "the server
 itself" in the UI) is collected by the server, with the same read-only collectors. That suits a self-hosted server
@@ -155,6 +156,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   description is [`api/public-v1.yaml`](api/public-v1.yaml), also served at `/api/v1/openapi.yaml`; every response
   is tested against it.
 - **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.
+  A Grafana dashboard is in [`deploy/grafana`](deploy/grafana/goliash-dashboard.json).
 
 ### Versions, upstream and drift
 

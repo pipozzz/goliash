@@ -1,7 +1,8 @@
 name: Release
 
-# Push a tag like v0.1.0 to publish binaries, archives, SBOMs and signed
-# multi-arch images (ghcr.io/pipozzz/goliash, ghcr.io/pipozzz/goliash-agent).
+# Push a tag like v0.1.0 to publish binaries, archives, SBOMs, signed multi-arch
+# images (ghcr.io/pipozzz/goliash, ghcr.io/pipozzz/goliash-agent) and signed Helm
+# charts (oci://ghcr.io/pipozzz/charts/goliash, …/goliash-agent).
 on:
   push:
     tags: ["v*"]
@@ -36,3 +37,13 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  charts:
+    needs: release
+    uses: ./.github/workflows/helm-charts.yml
+    with:
+      tag: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write

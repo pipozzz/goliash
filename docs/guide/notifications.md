@@ -83,3 +83,17 @@ If you alert from Prometheus, scrape `GET /metrics` with an API token instead:
 | `goliash_deployed_version_info` | service, environment, version | running replicas |
 | `goliash_outdated` | service, environment | 1 when behind upstream by the tracked jump |
 | `goliash_drift_days` | service, environment, kind | days a drift has been open |
+
+```yaml
+scrape_configs:
+  - job_name: goliash
+    scheme: https
+    authorization: { credentials_file: /etc/prometheus/goliash-token }
+    static_configs: [{ targets: ["goliash.example.com"] }]
+```
+
+A ready-made Grafana dashboard is in
+[`deploy/grafana/goliash-dashboard.json`](https://github.com/pipozzz/goliash/blob/main/deploy/grafana/goliash-dashboard.json):
+open **Dashboards → New → Import** in Grafana and upload the file. It shows what runs where, open drift, services
+behind upstream per environment, and services running more than one version, filterable by environment and
+service.
