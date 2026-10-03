@@ -101,12 +101,12 @@ func (c *Collector) allowed(path string) bool {
 	if err != nil {
 		return false
 	}
-	if real, err := filepath.EvalSymlinks(abs); err == nil {
-		abs = real
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = resolved
 	}
 	for _, d := range c.dirs {
-		if real, err := filepath.EvalSymlinks(d); err == nil {
-			d = real
+		if resolved, err := filepath.EvalSymlinks(d); err == nil {
+			d = resolved
 		}
 		if rel, err := filepath.Rel(d, abs); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return true
