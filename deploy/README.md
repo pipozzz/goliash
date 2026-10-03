@@ -15,13 +15,13 @@ Every agent needs a token: create the agent in the UI (**Agents → Add an agent
 ## Kubernetes
 
 ```sh
-helm install goliash deploy/helm/goliash -n goliash --create-namespace \
+helm install goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --create-namespace \
   --set publicURL=https://goliash.example.com --set ingress.enabled=true \
   --set ingress.hosts[0].host=goliash.example.com
 kubectl -n goliash exec deploy/goliash -- goliash login-link -email you@example.com
 
 kubectl -n goliash create secret generic goliash-agent-token --from-literal=token=glsh_agent_…
-helm install goliash-agent deploy/helm/goliash-agent -n goliash \
+helm install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash \
   --set serverURL=https://goliash.example.com --set token.existingSecret=goliash-agent-token
 ```
 

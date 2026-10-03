@@ -2,7 +2,7 @@ apiVersion: v2
 name: goliash-agent
 description: Goliash agent — reads Kubernetes (and ECS, Nomad, Swarm) read-only and reports to a Goliash server.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 home: https://github.com/pipozzz/goliash
 sources: [https://github.com/pipozzz/goliash]

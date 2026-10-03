@@ -1,15 +1,13 @@
 # Kubernetes
 
-The charts live in the repository under `deploy/helm`. Clone it, or point Helm at a checkout:
-
-```sh
-git clone https://github.com/pipozzz/goliash.git && cd goliash
-```
+The charts are published with every release as signed OCI artifacts in GHCR:
+`oci://ghcr.io/pipozzz/charts/goliash` and `oci://ghcr.io/pipozzz/charts/goliash-agent`. The chart version equals the
+Goliash version. The sources are in the repository under `deploy/helm`.
 
 ## Server
 
 ```sh
-helm install goliash deploy/helm/goliash -n goliash --create-namespace \
+helm install goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --create-namespace \
   --set publicURL=https://goliash.example.com \
   --set ingress.enabled=true --set ingress.hosts[0].host=goliash.example.com
 kubectl -n goliash exec deploy/goliash -- goliash login-link -email you@example.com
@@ -25,7 +23,7 @@ kubectl -n goliash create secret generic goliash-env \
   --from-literal=GOLIASH_SECRET_KEY="$(openssl rand -base64 32)" \
   --from-literal=GOLIASH_SMTP_ADDR=smtp.example.com:587 \
   --from-literal=GOLIASH_SMTP_FROM=goliash@example.com
-helm upgrade goliash deploy/helm/goliash -n goliash --reuse-values --set envFromSecret=goliash-env
+helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --reuse-values --set envFromSecret=goliash-env
 ```
 
 With SQLite the secret key is otherwise created next to the database on the volume. With PostgreSQL, set it as
@@ -43,7 +41,7 @@ token in a secret:
 
 ```sh
 kubectl -n goliash create secret generic goliash-agent-token --from-literal=token=glsh_agent_…
-helm install goliash-agent deploy/helm/goliash-agent -n goliash \
+helm install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash \
   --set serverURL=https://goliash.example.com --set token.existingSecret=goliash-agent-token
 ```
 
@@ -64,6 +62,14 @@ Put them in a secret and name it in `credentialsSecret`; every key becomes a fil
 For Amazon ECR on EKS, give the agent an IAM role with `ecr:ListImages` through IRSA:
 
 ```sh
-helm upgrade goliash-agent deploy/helm/goliash-agent -n goliash --reuse-values \
+helm upgrade goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash --reuse-values \
   --set-string 'serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::123456789012:role/goliash-agent'
+```
+
+## Verify the charts
+
+```sh
+cosign verify ghcr.io/pipozzz/charts/goliash:0.2.0 \
+  --certificate-identity-regexp '^https://github.com/pipozzz/goliash/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

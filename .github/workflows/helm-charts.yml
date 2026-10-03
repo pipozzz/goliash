@@ -1,0 +1,44 @@
+name: Helm charts
+
+# Publishes the charts of a release tag as signed OCI artifacts:
+# oci://ghcr.io/pipozzz/charts/goliash and oci://ghcr.io/pipozzz/charts/goliash-agent.
+# The release workflow calls it; run it by hand to publish an older tag.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.2.0
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: azure/setup-helm@v4
+      - uses: sigstore/cosign-installer@v3
+      - name: Package, push and sign
+        env:
+          TAG: ${{ inputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${TAG#v}"
+          echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for chart in goliash goliash-agent; do
+            helm package "deploy/helm/$chart" --version "$version" --app-version "$version" -d charts
+            digest=$(helm push "charts/$chart-$version.tgz" oci://ghcr.io/pipozzz/charts 2>&1 | tee /dev/stderr | awk '/^Digest:/{print $2}')
+            test -n "$digest"
+            cosign sign --yes "ghcr.io/pipozzz/charts/$chart@$digest"
+          done
