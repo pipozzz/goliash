@@ -1,6 +1,6 @@
 # Goliash Contributor License Agreement
 
-> **Draft.** This agreement still needs legal review before the first external contribution is accepted.
+Version 1.0, 3 October 2026
 
 Thank you for contributing to Goliash (the "Project"). This Contributor License Agreement ("Agreement") sets out the
 terms under which you contribute. It is based on the Apache Software Foundation Individual Contributor License
