@@ -1,4 +1,6 @@
-# Install
+---
+title: Install
+---
 
 Goliash is two programs:
 
@@ -19,17 +21,17 @@ An agent is optional: the server can collect targets it can reach itself.
 - **From source:** `make build`, or `docker build --target server .` and `docker build --target agent .`.
 
 Images and release archives are signed with cosign (keyless, from the release workflow) and come with SPDX SBOMs.
-See [Security](../security.md#verify-a-release) for how to verify them.
+See [Security](/goliash/security/#verify-a-release) for how to verify them.
 
 ## Pick a platform
 
 | Platform | Server | Agent |
 | --- | --- | --- |
-| Kubernetes | [Helm chart](kubernetes.md) | [Helm chart](kubernetes.md#agent) with a read-only ClusterRole |
-| Docker and Compose | [Compose quickstart](docker.md) | [Compose file](docker.md#agent-on-another-host) with docker-socket-proxy |
-| Docker Swarm | [Stack file](swarm.md) | [Stack file](swarm.md#agent) with docker-socket-proxy |
-| Nomad | [Job](nomad.md) | [Job](nomad.md#agent) with a read-job ACL token |
-| Amazon ECS | any of the above, with PostgreSQL | [Terraform module](ecs.md) with a read-only task role |
+| Kubernetes | [Helm chart](/goliash/install/kubernetes/) | [Helm chart](/goliash/install/kubernetes/#agent) with a read-only ClusterRole |
+| Docker and Compose | [Compose quickstart](/goliash/install/docker/) | [Compose file](/goliash/install/docker/#agent-on-another-host) with docker-socket-proxy |
+| Docker Swarm | [Stack file](/goliash/install/swarm/) | [Stack file](/goliash/install/swarm/#agent) with docker-socket-proxy |
+| Nomad | [Job](/goliash/install/nomad/) | [Job](/goliash/install/nomad/#agent) with a read-job ACL token |
+| Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/goliash/install/ecs/) with a read-only task role |
 
 ## Database
 
@@ -52,14 +54,14 @@ openssl rand -base64 32
 With SQLite and neither set, the server creates `goliash.key` next to the database. With PostgreSQL, set the key
 yourself; without one, secrets are stored unencrypted and the server logs a warning.
 
-!!! warning "Back up the key with the database"
-    Without the key, stored channels cannot be read and must be created again. The server refuses to start when
-    its key does not open the stored secrets, rather than failing at the first notification.
-
+:::caution[Back up the key with the database]
+Without the key, stored channels cannot be read and must be created again. The server refuses to start when
+its key does not open the stored secrets, rather than failing at the first notification.
+:::
 ## Public URL
 
 Set `GOLIASH_PUBLIC_URL` to the address people use, for example `https://goliash.example.com`. Sign-in links and
 cookies depend on it; with `https://`, cookies are marked Secure. Put the server behind a reverse proxy or ingress
 that terminates TLS.
 
-All settings are listed in [Configuration](../reference/configuration.md).
+All settings are listed in [Configuration](/goliash/reference/configuration/).

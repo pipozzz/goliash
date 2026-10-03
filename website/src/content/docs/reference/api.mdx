@@ -1,4 +1,8 @@
-# REST API
+---
+title: REST API
+---
+
+import Redoc from '../../../components/Redoc.astro';
 
 The API under `/api/v1` reads the matrix, services, environments, targets, history and drift, and creates
 acknowledgements.
@@ -17,12 +21,6 @@ curl -s -X POST -H "Authorization: Bearer $GOLIASH_TOKEN" -H 'Content-Type: appl
 ```
 
 Prometheus metrics are at `GET /metrics`, with the same authentication; see
-[Notifications](../guide/notifications.md#metrics-instead-of-messages).
+[Notifications](/goliash/guide/notifications/#metrics-instead-of-messages).
 
-<div id="redoc"></div>
-<script src="https://cdn.redoc.ly/redoc/v2.5.1/bundles/redoc.standalone.js"></script>
-<script>
-  Redoc.init("https://raw.githubusercontent.com/pipozzz/goliash/main/api/public-v1.yaml",
-    { hideDownloadButton: false, expandResponses: "200,201", theme: { typography: { fontSize: "15px" } } },
-    document.getElementById("redoc"));
-</script>
+<Redoc spec="https://raw.githubusercontent.com/pipozzz/goliash/main/api/public-v1.yaml" />

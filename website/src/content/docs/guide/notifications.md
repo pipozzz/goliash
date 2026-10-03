@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 Notifications have two parts: **channels** (where messages go) and **rules** (which events go there, and how
 often). Both are managed on the Notifications page or with the CLI.
@@ -38,7 +40,7 @@ goliash notify create -channel oncall -events drift_detected -envs prod -mode in
 
 A release is announced once per service and version. Failed deliveries are retried with backoff, from one minute up
 to an hour between attempts. Acknowledged releases and drift are not sent; see
-[Acknowledging](versions.md#acknowledging).
+[Acknowledging](/goliash/guide/versions/#acknowledging).
 
 ## Webhook payload
 

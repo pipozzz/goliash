@@ -1,4 +1,6 @@
-# Kubernetes
+---
+title: Kubernetes
+---
 
 The charts are published with every release as signed OCI artifacts in GHCR:
 `oci://ghcr.io/pipozzz/charts/goliash` and `oci://ghcr.io/pipozzz/charts/goliash-agent`. The chart version equals the

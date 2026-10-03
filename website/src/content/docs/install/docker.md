@@ -1,4 +1,6 @@
-# Docker and Compose
+---
+title: Docker and Compose
+---
 
 ## Server
 
@@ -84,7 +86,7 @@ Declared versions are what the file says, not what runs. To see what actually ru
   namespace and the replica count is the number of running containers.
 - **Other containers** are reported one by one, by container name.
 - **Digests**: the registry digest of each running image, when the proxy allows image reads (`IMAGES=1`).
-- **Skipped**: containers that belong to Swarm services (use a [Swarm target](swarm.md) for those) and one-off
+- **Skipped**: containers that belong to Swarm services (use a [Swarm target](/goliash/install/swarm/) for those) and one-off
   `docker compose run` containers.
 
 A `goliash.service` label on a Compose service names its Goliash service; otherwise it waits in the inbox.

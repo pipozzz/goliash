@@ -1,4 +1,6 @@
-# CLI
+---
+title: CLI
+---
 
 The server binary is also its command-line tool. It works directly on the database, so run it where the server
 runs, for example with `docker compose exec goliash goliash …` or `kubectl exec deploy/goliash -- goliash …`.

@@ -1,0 +1,20 @@
+/* Copyright 2026 The Goliash Authors */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Goliash colors: navy and periwinkle from the logo, amber for what needs attention. */
+:root {
+  --sl-color-accent-low: #1b2a6b;
+  --sl-color-accent: #8aa4ff;
+  --sl-color-accent-high: #dbe3ff;
+  --sl-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #dbe3ff;
+  --sl-color-accent: #3550c8;
+  --sl-color-accent-high: #1b2a6b;
+}
+.hero img { border-radius: 1.25rem; }
+.sl-markdown-content .screenshot {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.45);
+}

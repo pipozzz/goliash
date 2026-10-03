@@ -1,0 +1,79 @@
+---
+title: Goliash
+description: What runs where, on which version — across Kubernetes, Amazon ECS, Nomad, Docker Swarm and Docker.
+template: splash
+hero:
+  tagline: What runs where, on which version, in which environment. One matrix for Kubernetes, Amazon ECS, Nomad, Docker Swarm and Compose, with upstream releases and drift.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get started
+      link: /goliash/getting-started/
+      icon: right-arrow
+    - text: Install
+      link: /goliash/install/
+      variant: minimal
+    - text: GitHub
+      link: https://github.com/pipozzz/goliash
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import matrix from '../../assets/matrix.png';
+
+<Image src={matrix} alt="The Goliash matrix: services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
+
+Goliash watches what actually runs and tells you when a new release ships or when environments drift apart:
+staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
+
+<CardGrid stagger>
+  <Card title="One matrix for every orchestrator" icon="seti:docker">
+    Kubernetes, Amazon ECS, Nomad, Docker Swarm, Docker hosts and plain Compose files side by side, per
+    environment, with replicas and rollouts in progress.
+  </Card>
+  <Card title="Upstream awareness" icon="rocket">
+    Tags from Docker Hub, GHCR, Quay, ECR and private registries, compared with semver policies. Release dates and
+    notes from GitHub, found through a built-in catalog or the image's own source label.
+  </Card>
+  <Card title="Drift that matters" icon="warning">
+    An environment behind the one before it, a version behind upstream, targets that disagree: shown at once,
+    announced only when it lasts.
+  </Card>
+  <Card title="History without CI" icon="list-format">
+    Every deploy, rollout, retag and removal, read from the runtime itself, not from pipelines.
+  </Card>
+  <Card title="Notifications with less noise" icon="comment-alt">
+    Slack, signed webhooks and e-mail, instant or as daily or weekly digests, with acknowledgements.
+  </Card>
+  <Card title="Read-only and self-hosted" icon="approve-check-circle">
+    Collectors only read; the agent only connects out. One binary each, SQLite or PostgreSQL, signed releases.
+  </Card>
+</CardGrid>
+
+## How it works
+
+```
+ your network                                    Goliash server
+┌─────────────────────────────────┐             ┌──────────────────────────────────┐
+│ Kubernetes / ECS / Nomad /      │             │ ingest → mapping → versions      │
+│ Swarm / Docker ─read-only─► agent ─HTTPS────► │   │                  │           │
+│ private registries ──► agent    │  snapshots  │   ▼                  ▼           │
+└─────────────────────────────────┘             │ events, matrix   notifier ──► Slack, webhook, e-mail
+                                                │ UI, REST API     SQLite / Postgres│
+                                                └──────────────────────────────────┘
+```
+
+The **agent** runs next to what it watches and sends full snapshots, so an outage loses nothing. The **server**
+turns snapshots into history, maps containers to services, compares them with upstream releases and notifies
+you. It can also collect what it reaches itself, without an agent.
+
+## Start here
+
+<CardGrid>
+  <LinkCard title="Getting started" description="A server, example data and your first target in five minutes." href="/goliash/getting-started/" />
+  <LinkCard title="Install" description="Helm, Docker and Compose, Swarm, Nomad and ECS." href="/goliash/install/" />
+  <LinkCard title="Versions and drift" description="Policies, the catalog, release notes and what counts as drift." href="/goliash/guide/versions/" />
+  <LinkCard title="REST API" description="The OpenAPI description, rendered." href="/goliash/reference/api/" />
+</CardGrid>

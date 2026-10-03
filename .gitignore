@@ -10,5 +10,3 @@ coverage.out
 .DS_Store
 /.lab/
 
-# MkDocs build output
-/site/
