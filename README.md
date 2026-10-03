@@ -164,8 +164,10 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 - **Mapping:** labels `goliash.service` / `app.kubernetes.io/name` (and `goliash.env`), then rules, then unmapped
   workloads wait in the inbox with a suggested name.
 - **Upstream:** public registries (Docker Hub, GHCR, Quay, registry.k8s.io, …) are checked by the server; other
-  registries by the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>`. New services are checked
-  within a minute, then hourly.
+  registries by the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>` (`user:password` or a
+  token). Private Amazon ECR repositories go through the ECR API with the agent's AWS credentials (IAM
+  `ecr:ListImages`; IRSA, task role or instance profile), where the credential, if set, names an AWS profile.
+  New services are checked within a minute, then hourly.
 - **Policy per service:** `tag_filter`, `track` (patch/minor/major), `pin_major`, `prerelease`. Without a filter,
   tags are compared like with like (same `-alpine` variant, same number of version parts).
 - **Catalog:** [`catalog/images.yaml`](catalog/images.yaml) holds default policies for popular public images
