@@ -1,4 +1,6 @@
-# Docker Swarm
+---
+title: Docker Swarm
+---
 
 ## Server
 

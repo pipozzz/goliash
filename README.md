@@ -276,6 +276,8 @@ make lint           # license boundary check + golangci-lint
 scripts/lab/up.sh   # k3s, Swarm and Nomad in Docker with a server and agent; prints a sign-in link
 ```
 
+The documentation site lives in [`website/`](website) (Astro Starlight): `cd website && npm install && npm run dev`.
+
 ## License
 
 The agent and the code it is built from are licensed under [Apache-2.0](LICENSES/Apache-2.0.txt); the server is

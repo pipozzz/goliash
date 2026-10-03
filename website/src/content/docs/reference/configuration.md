@@ -1,4 +1,6 @@
-# Configuration
+---
+title: Configuration
+---
 
 Settings come from environment variables; most have a matching flag.
 
@@ -18,7 +20,7 @@ Settings come from environment variables; most have a matching flag.
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
 
 Without a secret key, a SQLite installation creates `goliash.key` next to the database. See
-[Install](../install/index.md#secrets-at-rest).
+[Install](/goliash/install/#secrets-at-rest).
 
 ### E-mail
 
@@ -55,7 +57,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_AGENT_TOKEN_FILE` | | | File with the token, instead of the variable |
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |
-| `GOLIASH_CREDENTIAL_<NAME>` | | | A credential; see [Collectors](collectors.md#credentials) |
+| `GOLIASH_CREDENTIAL_<NAME>` | | | A credential; see [Collectors](/goliash/reference/collectors/#credentials) |
 | `GOLIASH_COMPOSE_DIRS` | | | Comma-separated directories `compose` targets may read files from |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 

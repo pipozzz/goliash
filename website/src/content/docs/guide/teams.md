@@ -1,4 +1,6 @@
-# Teams and workspaces
+---
+title: Teams and workspaces
+---
 
 ## Signing in
 

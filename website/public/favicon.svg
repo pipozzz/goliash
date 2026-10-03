@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Goliash">
+  <!-- A service × environment matrix; the warm cell is drift. -->
+  <rect width="96" height="96" rx="22" fill="#1b2a6b"/>
+  <g transform="translate(17 17)">
+    <rect x="0"  y="0"  width="18" height="18" rx="4.5" fill="#8aa4ff"/>
+    <rect x="22" y="0"  width="18" height="18" rx="4.5" fill="#8aa4ff" opacity=".55"/>
+    <rect x="44" y="0"  width="18" height="18" rx="4.5" fill="#8aa4ff" opacity=".3"/>
+    <rect x="0"  y="22" width="18" height="18" rx="4.5" fill="#8aa4ff" opacity=".55"/>
+    <rect x="22" y="22" width="18" height="18" rx="4.5" fill="#8aa4ff"/>
+    <rect x="44" y="22" width="18" height="18" rx="4.5" fill="#ffb347"/>
+    <rect x="0"  y="44" width="18" height="18" rx="4.5" fill="#8aa4ff" opacity=".3"/>
+    <rect x="22" y="44" width="18" height="18" rx="4.5" fill="#8aa4ff" opacity=".55"/>
+    <rect x="44" y="44" width="18" height="18" rx="4.5" fill="#8aa4ff"/>
+  </g>
+</svg>

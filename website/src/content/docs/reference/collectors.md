@@ -1,4 +1,6 @@
-# Collectors
+---
+title: Collectors
+---
 
 Collectors only read. They run in the agent, or in the server for targets without an agent.
 

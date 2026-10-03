@@ -1,4 +1,6 @@
-# Nomad
+---
+title: Nomad
+---
 
 ## Server
 

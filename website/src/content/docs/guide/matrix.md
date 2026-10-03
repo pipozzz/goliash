@@ -1,4 +1,6 @@
-# Matrix and mapping
+---
+title: Matrix and mapping
+---
 
 ## The matrix
 
