@@ -19,8 +19,35 @@ Settings come from environment variables; most have a matching flag.
 | | `-upstream-interval` | `1h` | How often public registries are checked |
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
 
+| `GOLIASH_BOOTSTRAP` | | | Bootstrap configuration (YAML or JSON), see below |
+| `GOLIASH_BOOTSTRAP_FILE` | | | File with the bootstrap configuration, instead of the variable |
+
 Without a secret key, a SQLite installation creates `goliash.key` next to the database. See
 [Install](/goliash/install/#secrets-at-rest).
+
+### Bootstrap
+
+A bootstrap configuration makes a deployment come up ready, without manual steps: on every start the server
+creates the environments, targets and first owner that do not exist yet. Nothing is changed or removed, so edits
+made later in the UI are kept.
+
+```yaml
+owner: you@example.com            # until they sign in, every start logs a one-time sign-in link
+environments:
+  - { name: staging, position: 20 }
+  - { name: prod, position: 30 }
+targets:
+  - name: nomad
+    environment: prod
+    platform: nomad                # kubernetes, ecs, nomad, swarm, docker or compose
+    poll_interval_seconds: 60
+    # agent: prod-eu               # empty: the server collects the target itself
+    settings:
+      nomad: { address: "http://10.0.0.5:4646" }
+      credentials_ref: nomad       # resolved from GOLIASH_CREDENTIAL_NOMAD
+```
+
+Unknown fields are rejected, so a typo stops the server instead of being ignored.
 
 ### E-mail
 
