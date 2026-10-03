@@ -35,6 +35,11 @@ jobs:
           ref: ${{ inputs.tag }}
       - uses: azure/setup-helm@v4
       - uses: sigstore/cosign-installer@v3
+      - uses: docker/login-action@v3 # cosign reads the Docker credentials, not Helm's
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Package, push and sign
         env:
           TAG: ${{ inputs.tag }}
