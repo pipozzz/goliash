@@ -309,10 +309,19 @@ type InboxItem struct {
 	Suggested  string
 }
 
+// InboxGroup is the unmapped workloads that run one image repository.
+type InboxGroup struct {
+	Repo      string
+	Suggested string
+	Tags      []string
+	Envs      []string
+	Workloads []InboxItem
+}
+
 // InboxView is the inbox page.
 type InboxView struct {
 	Base
-	Items    []InboxItem
+	Groups   []InboxGroup
 	Services []string
 }
 

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
@@ -561,14 +563,23 @@ func (s *Server) inboxItems(ctx context.Context, sc store.Scope) ([]InboxItem, e
 	for _, e := range envs {
 		envName[e.ID] = e.Name
 	}
+	rules, err := s.store.ListMappingRules(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	mapper, _ := mapping.New(rules)
 	seen := map[string]bool{}
 	var items []InboxItem
 	for _, i := range active {
 		if i.ServiceID != "" || !i.IsMain || seen[i.TargetID+"/"+i.WorkloadID] {
 			continue
 		}
-		seen[i.TargetID+"/"+i.WorkloadID] = true
 		ref := versions.ParseImage(i.Image)
+		// Ignored images leave the inbox at once, not only from the next snapshot.
+		if mapper.Map(mapping.Workload{Name: i.WorkloadName}, i.ContainerName, ref).Ignore {
+			continue
+		}
+		seen[i.TargetID+"/"+i.WorkloadID] = true
 		items = append(items, InboxItem{
 			TargetID: i.TargetID, WorkloadID: i.WorkloadID, Target: tName[i.TargetID],
 			Env: envName[i.EnvironmentID], Namespace: i.Namespace, Workload: i.WorkloadName, Kind: i.WorkloadKind,
@@ -589,44 +600,97 @@ func (s *Server) inbox(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	if err != nil {
 		return err
 	}
-	v := InboxView{Base: withFlash(s.base(ctx, p, "inbox", "Inbox"), r), Items: items}
+	v := InboxView{Base: withFlash(s.base(ctx, p, "inbox", "Inbox"), r), Groups: groupInbox(items)}
 	for _, svc := range svcs {
 		v.Services = append(v.Services, svc.Name)
 	}
 	return render(w, r, InboxPage(v))
 }
 
+// groupInbox groups inbox items by image repository, largest groups first.
+func groupInbox(items []InboxItem) []InboxGroup {
+	byRepo := map[string]*InboxGroup{}
+	var order []string
+	for _, it := range items {
+		g := byRepo[it.Repo]
+		if g == nil {
+			g = &InboxGroup{Repo: it.Repo, Suggested: it.Suggested}
+			byRepo[it.Repo] = g
+			order = append(order, it.Repo)
+		}
+		g.Workloads = append(g.Workloads, it)
+		if tag := versions.ParseImage(it.Image).Tag; tag != "" && !slices.Contains(g.Tags, tag) {
+			g.Tags = append(g.Tags, tag)
+		}
+		if it.Env != "" && !slices.Contains(g.Envs, it.Env) {
+			g.Envs = append(g.Envs, it.Env)
+		}
+	}
+	groups := make([]InboxGroup, 0, len(order))
+	for _, repo := range order {
+		groups = append(groups, *byRepo[repo])
+	}
+	sort.SliceStable(groups, func(a, b int) bool {
+		if len(groups[a].Workloads) != len(groups[b].Workloads) {
+			return len(groups[a].Workloads) > len(groups[b].Workloads)
+		}
+		return groups[a].Repo < groups[b].Repo
+	})
+	return groups
+}
+
 var serviceName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$`)
 
-// inboxMap maps a workload now and adds an image rule so later instances of the
-// same image map by themselves.
+// inboxMap maps inbox workloads to a service and adds a rule, so later ones map by
+// themselves. By default it maps every workload running the image (an image rule);
+// with only=workload it maps one workload and adds a workload-name rule, which wins
+// over image rules (the same image running as web and worker).
 func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	name := strings.TrimSpace(r.FormValue("service"))
 	if !serviceName.MatchString(name) {
 		return back(w, r, "/inbox", "error", "Service names use letters, digits, dots, dashes and underscores.")
 	}
+	repo, workloadName := r.FormValue("repo"), r.FormValue("workload_name")
+	onlyWorkload := r.FormValue("only") == "workload"
+	if repo == "" || (onlyWorkload && workloadName == "") {
+		return back(w, r, "/inbox", "error", "Nothing to map.")
+	}
+	items, err := s.inboxItems(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
 	svc, err := s.store.EnsureService(ctx, p.Scope, name)
 	if err != nil {
 		return err
 	}
-	if repo := r.FormValue("repo"); repo != "" {
-		if _, err := s.store.CreateMappingRule(ctx, store.MappingRule{
-			Scope: p.Scope, Priority: 100, MatchType: "image_repo",
-			Pattern: regexp.QuoteMeta(repo), ServiceID: svc.ID,
-		}); err != nil {
+	rule := store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: regexp.QuoteMeta(repo), ServiceID: svc.ID}
+	if onlyWorkload {
+		rule = store.MappingRule{Scope: p.Scope, Priority: 50, MatchType: "workload_name", Pattern: regexp.QuoteMeta(workloadName), ServiceID: svc.ID}
+	}
+	if _, err := s.store.CreateMappingRule(ctx, rule); err != nil {
+		return err
+	}
+	mapped := 0
+	for _, it := range items {
+		if it.Repo != repo || (onlyWorkload && it.Workload != workloadName) {
+			continue
+		}
+		if err := s.store.MapInstances(ctx, p.Scope, it.TargetID, it.WorkloadID, svc.ID); err != nil {
 			return err
 		}
-	}
-	if err := s.store.MapInstances(ctx, p.Scope, r.FormValue("target_id"), r.FormValue("workload_id"), svc.ID); err != nil {
-		return err
+		mapped++
 	}
 	if s.checker != nil {
 		_ = s.checker.EvaluateDrift(ctx, p.Scope)
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
-	s.audit(ctx, p, "mapping.create", "service", svc.Name, "image", r.FormValue("repo"))
-	return back(w, r, "/inbox", "notice", "Mapped to "+svc.Name+". Other workloads running this image map to it from the next snapshot.")
+	s.audit(ctx, p, "mapping.create", "service", svc.Name, rule.MatchType, rule.Pattern)
+	msg := fmt.Sprintf("Mapped %s to %s. New workloads running %s map to it by themselves.", plural(mapped, "workload", "workloads"), svc.Name, repo)
+	if onlyWorkload {
+		msg = fmt.Sprintf("Mapped %s to %s. Workloads named %s keep mapping to it.", workloadName, svc.Name, workloadName)
+	}
+	return back(w, r, "/inbox", "notice", msg)
 }
 
 func (s *Server) inboxIgnore(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -641,7 +705,7 @@ func (s *Server) inboxIgnore(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return err
 	}
 	s.audit(r.Context(), p, "mapping.ignore", "image", repo)
-	return back(w, r, "/inbox", "notice", repo+" is ignored from the next snapshot.")
+	return back(w, r, "/inbox", "notice", repo+" is ignored.")
 }
 
 // ---- agents and targets ----

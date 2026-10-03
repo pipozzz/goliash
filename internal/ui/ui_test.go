@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
@@ -189,7 +190,7 @@ func TestMemberMapsInboxAndEditsPolicy(t *testing.T) {
 	_, body, _ := post(t, c, e.srv.URL+"/inbox/map", url.Values{
 		"service": {"worker"}, "target_id": {e.tgt.ID}, "workload_id": {"w2"}, "repo": {"ghcr.io/acme/worker"},
 	})
-	if !strings.Contains(body, "Mapped to worker") {
+	if !strings.Contains(body, "Mapped 1 workload to worker") {
 		t.Fatalf("map result: %s", body)
 	}
 	rules, _ := e.st.ListMappingRules(ctx, e.ws.Scope())
@@ -424,5 +425,89 @@ func TestWorkspaceIsolationForClients(t *testing.T) {
 	post(t, admin, e.srv.URL+"/settings/users/"+u.ID+"/role", url.Values{"role": {"none"}})
 	if code, _ := get(t, client, e.srv.URL+"/", nil); code != http.StatusForbidden {
 		t.Fatalf("client without access: %d", code)
+	}
+}
+
+// addInbox adds unmapped workloads to the env's target: workload name -> image.
+func (e *uiEnv) addInbox(workloads map[string]string) {
+	e.t.Helper()
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	existing, _ := e.st.ListTargetInstances(ctx, sc, e.tgt.ID)
+	ch := store.SnapshotChanges{Scope: sc, SnapshotID: store.NewID(), TargetID: e.tgt.ID, At: time.Now(), Upsert: existing}
+	for name, image := range workloads {
+		ref := versions.ParseImage(image)
+		ch.Upsert = append(ch.Upsert, store.Instance{
+			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, WorkloadID: "id-" + name, WorkloadKind: "deployment", WorkloadName: name,
+			ContainerName: "app", Image: image, Tag: ref.Tag, Running: 1, IsMain: true, SuggestedService: ref.Name(),
+		})
+	}
+	_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: ch.SnapshotID, Scope: sc, TargetID: e.tgt.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+	if err := e.st.ApplySnapshot(ctx, ch); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+func (e *uiEnv) serviceOf(workload string) string {
+	e.t.Helper()
+	active, _ := e.st.ListActiveInstances(context.Background(), e.ws.Scope())
+	for _, i := range active {
+		if i.WorkloadName == workload && i.ServiceID != "" {
+			svc, _ := e.st.GetService(context.Background(), e.ws.Scope(), i.ServiceID)
+			return svc.Name
+		}
+	}
+	return ""
+}
+
+func TestInboxGroupsByImage(t *testing.T) {
+	e := newUIEnv(t)
+	c := e.as(store.RoleMember)
+	e.addInbox(map[string]string{
+		"cache-a": "redis:7.2.5", "cache-b": "redis:7.4.0", "cache-c": "redis:7.4.0",
+		"api": "ghcr.io/acme/app:3.1.0", "jobs": "ghcr.io/acme/app:3.1.0",
+		"debug": "busybox:1.36",
+	})
+
+	_, body := get(t, c, e.srv.URL+"/inbox", nil)
+	if !strings.Contains(body, "Map all 3") || !strings.Contains(body, "7.2.5, 7.4.0") || !strings.Contains(body, "Map only this") {
+		t.Fatalf("inbox not grouped: %s", body)
+	}
+	if strings.Index(body, "docker.io/library/redis") > strings.Index(body, "docker.io/library/busybox") {
+		t.Fatal("larger groups come first")
+	}
+
+	// One image, two services: map one workload on its own, then the rest of the image.
+	_, body, _ = post(t, c, e.srv.URL+"/inbox/map", url.Values{
+		"service": {"jobs"}, "repo": {"ghcr.io/acme/app"}, "only": {"workload"}, "workload_name": {"jobs"},
+	})
+	if !strings.Contains(body, "Mapped jobs to jobs") || e.serviceOf("jobs") != "jobs" || e.serviceOf("api") != "" {
+		t.Fatalf("map only this: jobs=%q api=%q", e.serviceOf("jobs"), e.serviceOf("api"))
+	}
+	_, body, _ = post(t, c, e.srv.URL+"/inbox/map", url.Values{"service": {"app"}, "repo": {"ghcr.io/acme/app"}})
+	if !strings.Contains(body, "Mapped 1 workload to app") || e.serviceOf("api") != "app" || e.serviceOf("jobs") != "jobs" {
+		t.Fatalf("map rest: api=%q jobs=%q", e.serviceOf("api"), e.serviceOf("jobs"))
+	}
+
+	_, body, _ = post(t, c, e.srv.URL+"/inbox/map", url.Values{"service": {"redis"}, "repo": {"docker.io/library/redis"}})
+	if !strings.Contains(body, "Mapped 3 workloads to redis") {
+		t.Fatalf("map all: %s", body)
+	}
+	for _, w := range []string{"cache-a", "cache-b", "cache-c"} {
+		if e.serviceOf(w) != "redis" {
+			t.Fatalf("%s not mapped at once", w)
+		}
+	}
+
+	// The workload rule wins over the image rule for later snapshots too.
+	rules, _ := e.st.ListMappingRules(context.Background(), e.ws.Scope())
+	m, _ := mapping.New(rules)
+	if d := m.Map(mapping.Workload{Name: "jobs"}, "app", versions.ParseImage("ghcr.io/acme/app:3.2.0")); d.ServiceID == "" || d.ServiceID == m.Map(mapping.Workload{Name: "api"}, "app", versions.ParseImage("ghcr.io/acme/app:3.2.0")).ServiceID {
+		t.Fatalf("rules: %+v", rules)
+	}
+
+	_, body, _ = post(t, c, e.srv.URL+"/inbox/ignore", url.Values{"repo": {"docker.io/library/busybox"}})
+	if strings.Contains(body, "debug") || !strings.Contains(body, "busybox is ignored") {
+		t.Fatal("ignored image still in the inbox")
 	}
 }
