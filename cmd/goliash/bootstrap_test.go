@@ -64,7 +64,7 @@ func TestBootstrap(t *testing.T) {
 }
 
 func TestBootstrapRejectsTypos(t *testing.T) {
-	t.Setenv("GOLIASH_BOOTSTRAP", "enviroments: [{name: prod}]")
+	t.Setenv("GOLIASH_BOOTSTRAP", "envs: [{name: prod}]")
 	if _, err := loadBootstrap(); err == nil {
 		t.Fatal("unknown field accepted")
 	}
