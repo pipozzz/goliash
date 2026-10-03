@@ -319,6 +319,13 @@ func serve(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = db.Close() }()
 	log.Info("database ready", "dialect", db.Dialect(), "workspace", ws.Slug)
+	if boot, err := loadBootstrap(); err != nil {
+		return err
+	} else if boot != nil {
+		if err := applyBootstrap(ctx, db, ws, boot, *publicURL, log); err != nil {
+			return fmt.Errorf("bootstrap: %w", err)
+		}
+	}
 
 	svc := ingest.New(db, log)
 	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
