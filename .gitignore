@@ -9,3 +9,6 @@ coverage.out
 .vscode/
 .DS_Store
 /.lab/
+
+# MkDocs build output
+/site/

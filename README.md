@@ -24,6 +24,8 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
   <img alt="The Goliash matrix: services against dev, staging and prod with running versions, drift badges and the latest upstream release" src="docs/assets/matrix.png" width="900">
 </p>
 
+**Documentation: [pipozzz.github.io/goliash](https://pipozzz.github.io/goliash/)**
+
 > **Status:** early. v0.1 works end to end and is being tried on real infrastructure; expect changes before 1.0.
 
 ## Features

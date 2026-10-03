@@ -362,14 +362,14 @@ components:
         type:
           type: string
           example: version_changed
-          description: version_changed, new_release, appeared, removed, drift_opened, drift_closed, …
+          description: deployed, version_changed, removed, new_release, drift_detected, drift_resolved or agent_stale.
         service: { type: string }
         environment: { type: string }
         target: { type: string }
         from: { type: string }
         to: { type: string }
         note: { type: string }
-        source: { type: string, description: "snapshot, poll or agent" }
+        source: { type: string, description: "Where the event came from, e.g. snapshot or poll." }
         at: { type: string, format: date-time }
 
     AckRequest:

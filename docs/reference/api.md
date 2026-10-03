@@ -1,0 +1,28 @@
+# REST API
+
+The API under `/api/v1` reads the matrix, services, environments, targets, history and drift, and creates
+acknowledgements.
+
+- **Authentication:** `Authorization: Bearer glsh_api_…` with an API token (Users → API tokens, or
+  `goliash token create`), or a browser session. A token belongs to one workspace.
+- **Errors:** `application/problem+json` (RFC 9457).
+- **Description:** [`api/public-v1.yaml`](https://github.com/pipozzz/goliash/blob/main/api/public-v1.yaml), also
+  served by every server at `/api/v1/openapi.yaml`. A test checks every response against it.
+
+```sh
+curl -s -H "Authorization: Bearer $GOLIASH_TOKEN" https://goliash.example.com/api/v1/drifts | jq
+curl -s -X POST -H "Authorization: Bearer $GOLIASH_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"service":"postgres","kind":"release","until_version":"17.0"}' \
+  https://goliash.example.com/api/v1/acks
+```
+
+Prometheus metrics are at `GET /metrics`, with the same authentication; see
+[Notifications](../guide/notifications.md#metrics-instead-of-messages).
+
+<div id="redoc"></div>
+<script src="https://cdn.redoc.ly/redoc/v2.5.1/bundles/redoc.standalone.js"></script>
+<script>
+  Redoc.init("https://raw.githubusercontent.com/pipozzz/goliash/main/api/public-v1.yaml",
+    { hideDownloadButton: false, expandResponses: "200,201", theme: { typography: { fontSize: "15px" } } },
+    document.getElementById("redoc"));
+</script>
