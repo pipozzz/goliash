@@ -14,6 +14,11 @@ on:
       tag:
         description: Release tag, e.g. v0.2.0
         required: true
+  # GitHub only registers a workflow it has seen run; a push of this file does that.
+  # The publish job is skipped then, because there is no tag.
+  push:
+    branches: [main]
+    paths: [.github/workflows/helm-charts.yml]
 
 permissions:
   contents: read
@@ -22,6 +27,7 @@ permissions:
 
 jobs:
   publish:
+    if: inputs.tag != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
