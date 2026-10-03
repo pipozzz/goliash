@@ -124,3 +124,15 @@ func TestRepository(t *testing.T) {
 		}
 	}
 }
+
+func TestCollectOnlySomeProjects(t *testing.T) {
+	srv := fakeDocker(t, true)
+	c, _ := New(context.Background(), agentproto.Target{Docker: &agentproto.DockerSettings{DockerHost: srv.URL, Projects: []string{"shop"}}})
+	res, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Workloads) != 2 || res.Workloads[0].ID != "shop/web" || res.Workloads[1].ID != "shop/worker" {
+		t.Fatalf("want only the shop project, got %+v", res.Workloads)
+	}
+}

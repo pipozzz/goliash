@@ -43,6 +43,7 @@ func (e CollectorStatusStatus) Valid() bool {
 
 // Defines values for Platform.
 const (
+	Compose    Platform = "compose"
 	Docker     Platform = "docker"
 	Ecs        Platform = "ecs"
 	Kubernetes Platform = "kubernetes"
@@ -53,6 +54,8 @@ const (
 // Valid indicates whether the value is a known member of the Platform enum.
 func (e Platform) Valid() bool {
 	switch e {
+	case Compose:
+		return true
 	case Docker:
 		return true
 	case Ecs:
@@ -156,6 +159,24 @@ type CollectorStatus struct {
 // CollectorStatusStatus defines model for CollectorStatus.Status.
 type CollectorStatusStatus string
 
+// ComposeSettings Compose files read as declared, without a Docker engine: each service with an `image` is a workload
+// running its declared replicas. Services built from source (`build` without `image`) are skipped.
+type ComposeSettings struct {
+	// Files HTTP(S) URLs (e.g. a raw file in a Git forge) or, for an agent, paths on its disk. Later files
+	// override earlier ones, like `docker compose -f a.yml -f b.yml`. With a credentials_ref, URLs are
+	// fetched with `Authorization: Bearer <credential>`.
+	//
+	//
+	// Example: ["https://raw.githubusercontent.com/acme/infra/main/shop/compose.yaml"]
+	Files []string `json:"files"`
+
+	// Project Project name shown as the namespace. Default the top-level `name`, else `compose`.
+	Project *string `json:"project,omitempty"`
+
+	// Variables Values for `${VAR}` in the files. Unset variables use their `${VAR:-default}`.
+	Variables map[string]string `json:"variables,omitempty"`
+}
+
 // Container defines model for Container.
 type Container struct {
 	// Digest Digest of the image actually running, when the platform reports it.
@@ -182,6 +203,11 @@ type DockerSettings struct {
 	//
 	// Example: tcp://docker-socket-proxy:2375
 	DockerHost string `json:"docker_host"`
+
+	// Projects Only these Compose projects. Empty means every container on the host.
+	//
+	// Example: ["shop"]
+	Projects []string `json:"projects,omitempty"`
 }
 
 // ECSSettings defines model for ECSSettings.
@@ -345,10 +371,14 @@ type SwarmSettings struct {
 	DockerHost string `json:"docker_host"`
 }
 
-// Target One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster or a Docker
-// host. Exactly the
+// Target One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster, a Docker
+// host or Compose files. Exactly the
 // settings object that matches `platform` is set.
 type Target struct {
+	// Compose Compose files read as declared, without a Docker engine: each service with an `image` is a workload
+	// running its declared replicas. Services built from source (`build` without `image`) are skipped.
+	Compose *ComposeSettings `json:"compose,omitempty"`
+
 	// CredentialsRef Name of credentials the agent resolves locally (env, file, workload identity). Never a secret.
 	CredentialsRef *string `json:"credentials_ref,omitempty"`
 

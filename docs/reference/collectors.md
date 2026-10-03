@@ -9,6 +9,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Nomad | jobs, job versions, allocations | ACL token with `read-job` | `credentials_ref` resolves to the token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
+| Compose files | services and images declared in Compose files | an HTTP(S) URL, or for an agent a file in `GOLIASH_COMPOSE_DIRS` | `credentials_ref` → bearer token for the URL |
 
 ## Target settings
 
@@ -19,7 +20,8 @@ Each target has the settings object of its platform:
 {"ecs": {"region": "eu-west-1", "clusters": ["prod"]}}
 {"nomad": {"address": "https://nomad.service.consul:4646", "region": "", "namespaces": []}}
 {"swarm": {"docker_host": "tcp://socket-proxy:2375"}}
-{"docker": {"docker_host": "tcp://socket-proxy:2375"}}
+{"docker": {"docker_host": "tcp://socket-proxy:2375", "projects": ["shop"]}}
+{"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 
 Empty lists mean everything. `docker_host` takes `tcp://`, `https://` or `unix:///var/run/docker.sock`. The poll

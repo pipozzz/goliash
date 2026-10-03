@@ -37,6 +37,7 @@ import (
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/collectors/compose"
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/internal/collectors/ecs"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
@@ -59,7 +60,7 @@ const usage = `Usage:
   goliash [serve] [flags]                 run the server
   goliash env create -name NAME [-position N]
   goliash agent create -name NAME         prints the agent token once
-  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker -name NAME [-settings JSON] [-poll SECONDS]
+  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-limit N]
   goliash drift                           open drifts
@@ -373,6 +374,7 @@ func serve(ctx context.Context, args []string) error {
 			agentproto.Nomad:      nomad.New,
 			agentproto.Swarm:      swarm.New,
 			agentproto.Docker:     docker.New,
+			agentproto.Compose:    compose.NewRemote, // URLs only: no reading the server's files
 		}, log).Run(ctx, time.Minute)
 	}
 
@@ -456,7 +458,7 @@ func targetCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("target create")
 	agentName := fs.String("agent", "", "agent that collects the target (empty: the server collects it)")
 	envName := fs.String("env", "", "environment the target belongs to")
-	platform := fs.String("platform", "", "kubernetes, ecs, nomad, swarm or docker")
+	platform := fs.String("platform", "", "kubernetes, ecs, nomad, swarm, docker or compose")
 	name := fs.String("name", "", "target name, e.g. prod-eu-1")
 	settings := fs.String("settings", "", `platform settings as JSON, e.g. {"ecs":{"region":"eu-west-1"}}`)
 	poll := fs.Int("poll", 300, "full snapshot interval in seconds")

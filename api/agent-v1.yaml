@@ -217,7 +217,7 @@ components:
 
     Platform:
       type: string
-      enum: [kubernetes, ecs, nomad, swarm, docker]
+      enum: [kubernetes, ecs, nomad, swarm, docker, compose]
 
     RegisterRequest:
       type: object
@@ -283,8 +283,8 @@ components:
     Target:
       type: object
       description: |
-        One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster or a Docker
-        host. Exactly the
+        One thing to collect: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster, a Docker
+        host or Compose files. Exactly the
         settings object that matches `platform` is set.
       required: [id, platform, name, poll_interval_seconds]
       properties:
@@ -318,6 +318,8 @@ components:
           $ref: '#/components/schemas/SwarmSettings'
         docker:
           $ref: '#/components/schemas/DockerSettings'
+        compose:
+          $ref: '#/components/schemas/ComposeSettings'
 
     KubernetesSettings:
       type: object
@@ -386,6 +388,38 @@ components:
             Docker API endpoint, normally a docker-socket-proxy that allows only GET (CONTAINERS=1, IMAGES=1 for
             digests).
           example: tcp://docker-socket-proxy:2375
+        projects:
+          type: array
+          description: Only these Compose projects. Empty means every container on the host.
+          items:
+            type: string
+          example: [shop]
+
+    ComposeSettings:
+      type: object
+      required: [files]
+      description: |
+        Compose files read as declared, without a Docker engine: each service with an `image` is a workload
+        running its declared replicas. Services built from source (`build` without `image`) are skipped.
+      properties:
+        files:
+          type: array
+          minItems: 1
+          description: |
+            HTTP(S) URLs (e.g. a raw file in a Git forge) or, for an agent, paths on its disk. Later files
+            override earlier ones, like `docker compose -f a.yml -f b.yml`. With a credentials_ref, URLs are
+            fetched with `Authorization: Bearer <credential>`.
+          items:
+            type: string
+          example: [https://raw.githubusercontent.com/acme/infra/main/shop/compose.yaml]
+        project:
+          type: string
+          description: Project name shown as the namespace. Default the top-level `name`, else `compose`.
+        variables:
+          type: object
+          description: Values for `${VAR}` in the files. Unset variables use their `${VAR:-default}`.
+          additionalProperties:
+            type: string
 
     RegistryCheck:
       type: object

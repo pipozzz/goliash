@@ -7,10 +7,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
+
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
-// Target is one collected system: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster or a Docker host.
+// Target is one collected system: a Kubernetes cluster, an ECS cluster, a Nomad region, a Swarm cluster, a
+// Docker host or a set of Compose files.
 type Target struct {
 	ID                  string
 	Scope               Scope
@@ -29,6 +33,9 @@ type Target struct {
 
 // CreateTarget adds a target. ID and CreatedAt are set by the store.
 func (s *Store) CreateTarget(ctx context.Context, t Target) (Target, error) {
+	if !agentproto.Platform(t.Platform).Valid() {
+		return Target{}, fmt.Errorf("unknown platform %q", t.Platform)
+	}
 	t.ID, t.CreatedAt = NewID(), s.now()
 	if len(t.Settings) == 0 {
 		t.Settings = json.RawMessage(`{}`)
