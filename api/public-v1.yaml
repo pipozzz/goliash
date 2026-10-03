@@ -1,0 +1,401 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+openapi: 3.0.3
+info:
+  title: Goliash API
+  version: 1.0.0
+  description: |
+    Read what runs where, on which version, and acknowledge releases and drift.
+
+    - Authenticate with `Authorization: Bearer glsh_api_…` (an API token from **Users → API tokens**) or a browser
+      session. A token belongs to one workspace; every response is about that workspace.
+    - `GET` endpoints need the viewer role, `POST /api/v1/acks` the member role. API tokens act as members.
+    - Errors use `application/problem+json` (RFC 9457).
+    - Prometheus metrics for the same data are at `GET /metrics` (text exposition, same authentication).
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: https://goliash.example.com
+security:
+  - apiToken: []
+  - session: []
+
+paths:
+  /api/v1/matrix:
+    get:
+      operationId: getMatrix
+      summary: The service × environment matrix
+      description: Every service with the versions running in each environment, open drift and the newest upstream version.
+      responses:
+        "200":
+          description: The matrix.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Matrix'
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/services:
+    get:
+      operationId: listServices
+      summary: Services
+      responses:
+        "200":
+          description: Services by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/environments:
+    get:
+      operationId: listEnvironments
+      summary: Environments in promotion order
+      responses:
+        "200":
+          description: Environments, lowest position first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Environment'
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/targets:
+    get:
+      operationId: listTargets
+      summary: Targets (clusters, regions, hosts) and their collectors
+      responses:
+        "200":
+          description: Targets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Target'
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/events:
+    get:
+      operationId: listEvents
+      summary: History of deploys, releases and drift, newest first
+      parameters:
+        - name: service
+          in: query
+          description: Service name.
+          schema: { type: string }
+        - name: environment
+          in: query
+          description: Environment name.
+          schema: { type: string }
+        - name: type
+          in: query
+          description: Comma-separated event types.
+          schema: { type: string, example: "version_changed,new_release" }
+        - name: before
+          in: query
+          description: Only events before this time (RFC 3339), for paging with the last event's `at`.
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+      responses:
+        "200":
+          description: Events, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/drifts:
+    get:
+      operationId: listDrifts
+      summary: Open drift, oldest first
+      responses:
+        "200":
+          description: Open drifts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Drift'
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/acks:
+    post:
+      operationId: createAck
+      summary: Acknowledge a release or a drift
+      description: |
+        Silences notifications for a service (optionally in one environment) until a version ships or a time passes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckRequest'
+      responses:
+        "201":
+          description: Acknowledged.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/openapi.yaml:
+    get:
+      operationId: getSpec
+      summary: This specification
+      security: []
+      responses:
+        "200":
+          description: OpenAPI 3.0 document.
+          content:
+            application/yaml:
+              schema: { type: string }
+
+components:
+  securitySchemes:
+    apiToken:
+      type: http
+      scheme: bearer
+      description: An API token (`glsh_api_…`).
+    session:
+      type: apiKey
+      in: cookie
+      name: goliash_session
+
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: No valid token or session.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: The role is not enough.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Unknown service or environment.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Environment:
+      type: object
+      required: [id, name, position]
+      properties:
+        id: { type: string }
+        name: { type: string, example: prod }
+        position:
+          type: integer
+          description: Promotion order; lower comes first (dev 10, staging 20, prod 30).
+
+    Service:
+      type: object
+      required: [id, name, owner, kind, upstream, version_policy]
+      properties:
+        id: { type: string }
+        name: { type: string, example: payments-api }
+        owner: { type: string, example: team-payments }
+        kind: { type: string, enum: [own, third_party] }
+        upstream:
+          type: string
+          description: Image repository releases are read from; empty means the image the service runs.
+        version_policy:
+          $ref: '#/components/schemas/VersionPolicy'
+
+    VersionPolicy:
+      type: object
+      description: The service's own policy; empty means the catalog's or the defaults.
+      properties:
+        track: { type: string, enum: [patch, minor, major] }
+        pin_major: { type: integer }
+        tag_filter: { type: string }
+        prerelease: { type: boolean }
+        drift_alert_after:
+          type: object
+          additionalProperties: { type: string }
+          example: { env: 168h }
+        github: { type: string, example: acme/payments }
+        github_tag_prefix: { type: string }
+        changelog: { type: string }
+
+    Target:
+      type: object
+      required: [id, name, platform, environment, collected_by]
+      properties:
+        id: { type: string }
+        name: { type: string, example: prod-eu-1 }
+        platform: { type: string, enum: [kubernetes, ecs, nomad, swarm, docker] }
+        environment: { type: string }
+        collected_by:
+          type: string
+          description: The agent's ID, or `server` when the server collects the target itself.
+        last_snapshot_at: { type: string, format: date-time }
+        collector_status: { type: string, enum: [ok, degraded, failing] }
+        collector_error: { type: string }
+
+    Version:
+      type: object
+      required: [tag, running, targets]
+      properties:
+        tag: { type: string, example: 1.27.3 }
+        digest: { type: string }
+        running:
+          type: integer
+          description: Running replicas.
+        targets:
+          type: array
+          items: { type: string }
+
+    DriftDetail:
+      type: object
+      required: [running, other]
+      properties:
+        running: { type: string }
+        other:
+          type: string
+          description: The newer version, upstream's or the lower environment's.
+        other_in:
+          type: string
+          description: The environment running `other` (env drift).
+        jump: { type: string, enum: [patch, minor, major] }
+        targets:
+          type: object
+          description: For inconsistent drift, the version per target.
+          additionalProperties: { type: string }
+
+    Drift:
+      type: object
+      required: [service, environment, kind, since, days_open, detail]
+      properties:
+        service: { type: string }
+        environment: { type: string }
+        kind:
+          type: string
+          enum: [env, upstream, inconsistent]
+          description: |
+            `env`: behind a lower environment. `upstream`: behind the newest release by the tracked jump.
+            `inconsistent`: targets of one environment run different versions.
+        since: { type: string, format: date-time }
+        days_open: { type: number }
+        detail: { $ref: '#/components/schemas/DriftDetail' }
+
+    Cell:
+      type: object
+      required: [environment, versions, drifts]
+      properties:
+        environment: { type: string }
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/Version' }
+        drifts:
+          type: array
+          items: { $ref: '#/components/schemas/Drift' }
+
+    MatrixRow:
+      type: object
+      required: [service, cells]
+      properties:
+        service: { type: string }
+        owner: { type: string }
+        upstream: { type: string }
+        latest:
+          type: string
+          description: The newest upstream version the policy accepts.
+        cells:
+          type: array
+          description: One per environment, in the order of `environments`.
+          items: { $ref: '#/components/schemas/Cell' }
+
+    Matrix:
+      type: object
+      required: [environments, services, unmapped]
+      properties:
+        environments:
+          type: array
+          items: { $ref: '#/components/schemas/Environment' }
+        services:
+          type: array
+          items: { $ref: '#/components/schemas/MatrixRow' }
+        unmapped:
+          type: integer
+          description: Running workloads not mapped to a service yet (the inbox).
+
+    Event:
+      type: object
+      required: [id, type, source, at]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          example: version_changed
+          description: version_changed, new_release, appeared, removed, drift_opened, drift_closed, …
+        service: { type: string }
+        environment: { type: string }
+        target: { type: string }
+        from: { type: string }
+        to: { type: string }
+        note: { type: string }
+        source: { type: string, description: "snapshot, poll or agent" }
+        at: { type: string, format: date-time }
+
+    AckRequest:
+      type: object
+      required: [service, kind]
+      properties:
+        service: { type: string }
+        environment:
+          type: string
+          description: Empty acknowledges the service in every environment.
+        kind: { type: string, enum: [release, drift] }
+        until_version:
+          type: string
+          description: Quiet until this version runs. Set this or `until`.
+        until:
+          type: string
+          format: date-time
+          description: Quiet until this time.
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [title, status]
+      properties:
+        type: { type: string, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }

@@ -11,3 +11,8 @@ import _ "embed"
 //
 //go:embed agent-v1.yaml
 var AgentV1 []byte
+
+// PublicV1 is the REST API specification (public-v1.yaml).
+//
+//go:embed public-v1.yaml
+var PublicV1 []byte
