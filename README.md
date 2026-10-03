@@ -149,7 +149,9 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   organization reach every workspace. Organization admins change roles on the Users page; only owners grant or
   take the owner role, and the last owner cannot be removed.
 - **REST API** (session or `Authorization: Bearer glsh_api_…`): `GET /api/v1/matrix`, `/services`, `/environments`,
-  `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`.
+  `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`. The OpenAPI
+  description is [`api/public-v1.yaml`](api/public-v1.yaml), also served at `/api/v1/openapi.yaml`; every response
+  is tested against it.
 - **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.
 
 ### Versions, upstream and drift
