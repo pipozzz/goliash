@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -24,7 +25,7 @@ type Channel struct {
 func (s *Store) CreateChannel(ctx context.Context, c Channel) (Channel, error) {
 	c.ID, c.CreatedAt = NewID(), s.now()
 	_, err := s.exec(ctx, s.db, `INSERT INTO notification_channels (id, org_id, workspace_id, type, name, config, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`, c.ID, c.Scope.OrgID, c.Scope.WorkspaceID, c.Type, c.Name, string(c.Config), c.CreatedAt)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, c.ID, c.Scope.OrgID, c.Scope.WorkspaceID, c.Type, c.Name, s.seal(c.ID, string(c.Config)), c.CreatedAt)
 	return c, err
 }
 
@@ -42,6 +43,9 @@ func (s *Store) ListChannels(ctx context.Context, sc Scope) ([]Channel, error) {
 		var cfg string
 		if err := rows.Scan(&c.ID, &c.Type, &c.Name, &cfg, &c.CreatedAt); err != nil {
 			return nil, err
+		}
+		if cfg, err = s.open(c.ID, cfg); err != nil {
+			return nil, fmt.Errorf("channel %s: %w", c.Name, err)
 		}
 		c.Config, c.CreatedAt = json.RawMessage(cfg), c.CreatedAt.UTC()
 		out = append(out, c)
