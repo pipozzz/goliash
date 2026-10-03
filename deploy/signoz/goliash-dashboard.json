@@ -1,0 +1,1023 @@
+{
+  "title": "Goliash",
+  "description": "What runs where, on which version, and where versions drift apart. Scrape Goliash /metrics with the OTel Collector Prometheus receiver.",
+  "tags": [
+    "goliash",
+    "versions",
+    "drift",
+    "prometheus"
+  ],
+  "uuid": "6f6efd79-8e2e-5cae-8b19-fc12a1e07b55",
+  "version": "v5",
+  "uploadedGrafana": false,
+  "layout": [
+    {
+      "i": "w1",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 3
+    },
+    {
+      "i": "w2",
+      "x": 3,
+      "y": 0,
+      "w": 3,
+      "h": 3
+    },
+    {
+      "i": "w3",
+      "x": 6,
+      "y": 0,
+      "w": 3,
+      "h": 3
+    },
+    {
+      "i": "w4",
+      "x": 9,
+      "y": 0,
+      "w": 3,
+      "h": 3
+    },
+    {
+      "i": "w5",
+      "x": 0,
+      "y": 3,
+      "w": 6,
+      "h": 8
+    },
+    {
+      "i": "w6",
+      "x": 6,
+      "y": 3,
+      "w": 6,
+      "h": 8
+    },
+    {
+      "i": "w7",
+      "x": 0,
+      "y": 11,
+      "w": 6,
+      "h": 6
+    },
+    {
+      "i": "w8",
+      "x": 6,
+      "y": 11,
+      "w": 6,
+      "h": 6
+    }
+  ],
+  "variables": {
+    "f30ec1de-d1a1-5306-9daa-18f994740681": {
+      "id": "f30ec1de-d1a1-5306-9daa-18f994740681",
+      "name": "environment",
+      "description": "Goliash environment",
+      "type": "DYNAMIC",
+      "dynamicVariablesAttribute": "environment",
+      "dynamicVariablesSource": "Metrics",
+      "multiSelect": true,
+      "showALLOption": true,
+      "allSelected": true,
+      "order": 0,
+      "sort": "ASC"
+    },
+    "182c7a1f-c352-5b16-b33b-280f7f8d65a5": {
+      "id": "182c7a1f-c352-5b16-b33b-280f7f8d65a5",
+      "name": "service",
+      "description": "Goliash service",
+      "type": "DYNAMIC",
+      "dynamicVariablesAttribute": "service",
+      "dynamicVariablesSource": "Metrics",
+      "multiSelect": true,
+      "showALLOption": true,
+      "allSelected": true,
+      "order": 1,
+      "sort": "ASC"
+    }
+  },
+  "widgets": [
+    {
+      "id": "w1",
+      "panelTypes": "value",
+      "title": "Behind upstream",
+      "description": "Service \u00d7 environment pairs behind the newest release by at least the tracked jump (sum of goliash_outdated).",
+      "query": {
+        "queryType": "builder",
+        "id": "bdc91398-1ef8-5086-b001-8cc1a5798573",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_outdated",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w2",
+      "panelTypes": "value",
+      "title": "Open drifts",
+      "description": "Open environment, upstream and inconsistent drift.",
+      "query": {
+        "queryType": "builder",
+        "id": "b337277e-a15a-5620-8f15-41fc596d6971",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_drift_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "count",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w3",
+      "panelTypes": "value",
+      "title": "Oldest drift (days)",
+      "description": "Days the oldest open drift has lasted.",
+      "query": {
+        "queryType": "builder",
+        "id": "8cd707c2-b304-5c39-8e19-18245c8aa14f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_drift_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "d",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w4",
+      "panelTypes": "value",
+      "title": "Running versions",
+      "description": "Distinct service, environment and version combinations running.",
+      "query": {
+        "queryType": "builder",
+        "id": "e3191792-13e6-5424-8833-0659874cba82",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_deployed_version_info",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "count",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w5",
+      "panelTypes": "table",
+      "title": "What runs where",
+      "description": "Running replicas per service, environment and version.",
+      "query": {
+        "queryType": "builder",
+        "id": "ee43d271-f315-5193-a5f4-66b374406502",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_deployed_version_info",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "service",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "environment--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "environment",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "version--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "version",
+                  "type": "tag"
+                }
+              ],
+              "legend": "Replicas",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "columnUnits": {},
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false
+    },
+    {
+      "id": "w6",
+      "panelTypes": "table",
+      "title": "Open drift",
+      "description": "Open drift by service, environment and kind, in days.",
+      "query": {
+        "queryType": "builder",
+        "id": "b6833918-d011-5397-81fd-1a4d0ff89b4d",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_drift_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "service",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "environment--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "environment",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "kind--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "kind",
+                  "type": "tag"
+                }
+              ],
+              "legend": "Days open",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "columnUnits": {
+        "A": "d"
+      },
+      "bucketCount": 30,
+      "bucketWidth": 0,
+      "mergeAllActiveQueries": false,
+      "stackedBarChart": false
+    },
+    {
+      "id": "w7",
+      "panelTypes": "graph",
+      "title": "Behind upstream by environment",
+      "description": "How many services each environment runs behind upstream.",
+      "query": {
+        "queryType": "builder",
+        "id": "017b1b00-1a56-58d5-b96b-7e372382546c",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_outdated",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "environment--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "environment",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{environment}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "legendPosition": "bottom"
+    },
+    {
+      "id": "w8",
+      "panelTypes": "graph",
+      "title": "Longest drift per service",
+      "description": "Days the longest open drift of each service has lasted.",
+      "query": {
+        "queryType": "builder",
+        "id": "eb6a8bf9-9690-5415-a7cd-feae75c44796",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_drift_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "service",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{service}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "d",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "legendPosition": "bottom"
+    }
+  ]
+}

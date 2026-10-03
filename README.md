@@ -156,7 +156,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   description is [`api/public-v1.yaml`](api/public-v1.yaml), also served at `/api/v1/openapi.yaml`; every response
   is tested against it.
 - **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.
-  A Grafana dashboard is in [`deploy/grafana`](deploy/grafana/goliash-dashboard.json).
+  Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and [SigNoz](deploy/signoz) are included.
 
 ### Versions, upstream and drift
 
