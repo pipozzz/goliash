@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"crypto/cipher"
 	"database/sql"
 	"embed"
 	"errors"
@@ -42,6 +43,7 @@ type Store struct {
 	db      *sql.DB
 	dialect Dialect
 	now     func() time.Time
+	aead    cipher.AEAD // encrypts secrets at rest; nil without a secret key
 }
 
 // Open connects to the database named by dsn and applies pending migrations.

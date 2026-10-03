@@ -15,6 +15,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -24,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -194,6 +198,10 @@ func openDefault(ctx context.Context, dsn string) (*store.Store, store.Workspace
 	if err != nil {
 		return nil, store.Workspace{}, err
 	}
+	if err := useSecretKey(ctx, db, dsn); err != nil {
+		_ = db.Close()
+		return nil, store.Workspace{}, err
+	}
 	ws, err := db.EnsureDefaultWorkspace(ctx)
 	if err != nil {
 		_ = db.Close()
@@ -206,6 +214,79 @@ func openDefault(ctx context.Context, dsn string) (*store.Store, store.Workspace
 		}
 	}
 	return db, ws, nil
+}
+
+// useSecretKey gives the store the key that encrypts notification channel secrets:
+// GOLIASH_SECRET_KEY or the file in GOLIASH_SECRET_KEY_FILE (32 bytes, base64 or hex),
+// else goliash.key next to a SQLite database, created on first use. PostgreSQL without
+// a key keeps secrets in the clear, with a warning.
+func useSecretKey(ctx context.Context, db *store.Store, dsn string) error {
+	key, source, err := secretKey(dsn)
+	if err != nil {
+		return err
+	}
+	if key == nil {
+		slog.Warn("notification channel secrets are stored unencrypted; set GOLIASH_SECRET_KEY")
+	} else {
+		if err := db.SetSecretKey(key); err != nil {
+			return fmt.Errorf("%s: %w", source, err)
+		}
+		if n, err := db.SealSecrets(ctx); err != nil {
+			return fmt.Errorf("encrypt stored secrets: %w", err)
+		} else if n > 0 {
+			slog.Info("encrypted stored channel secrets", "channels", n, "key", source)
+		}
+	}
+	if err := db.CheckSecrets(ctx); err != nil {
+		return fmt.Errorf("stored secrets: %w", err)
+	}
+	return nil
+}
+
+func secretKey(dsn string) (key []byte, source string, err error) {
+	if v := os.Getenv("GOLIASH_SECRET_KEY"); v != "" {
+		key, err = decodeKey(v)
+		return key, "GOLIASH_SECRET_KEY", err
+	}
+	if path := os.Getenv("GOLIASH_SECRET_KEY_FILE"); path != "" {
+		b, err := os.ReadFile(path) //nolint:gosec // the operator names the file
+		if err != nil {
+			return nil, "", fmt.Errorf("GOLIASH_SECRET_KEY_FILE: %w", err)
+		}
+		key, err = decodeKey(string(b))
+		return key, path, err
+	}
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		return nil, "", nil
+	}
+	dbPath := strings.TrimPrefix(dsn, "sqlite://")
+	if dbPath == ":memory:" {
+		return nil, "", nil
+	}
+	path := filepath.Join(filepath.Dir(dbPath), "goliash.key")
+	if b, err := os.ReadFile(path); err == nil { //nolint:gosec // next to the database the operator chose
+		key, err = decodeKey(string(b))
+		return key, path, err
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, "", err
+	}
+	key = make([]byte, store.SecretKeySize)
+	_, _ = rand.Read(key)
+	if err := os.WriteFile(path, []byte(base64.StdEncoding.EncodeToString(key)+"\n"), 0o600); err != nil {
+		return nil, "", fmt.Errorf("create secret key: %w", err)
+	}
+	slog.Info("created a secret key for channel secrets; back it up with the database", "path", path)
+	return key, path, nil
+}
+
+func decodeKey(s string) ([]byte, error) {
+	s = strings.TrimSpace(s)
+	for _, dec := range []func(string) ([]byte, error){base64.StdEncoding.DecodeString, base64.RawURLEncoding.DecodeString, hex.DecodeString} {
+		if b, err := dec(s); err == nil && len(b) == store.SecretKeySize {
+			return b, nil
+		}
+	}
+	return nil, fmt.Errorf("secret key must be %d bytes as base64 or hex (openssl rand -base64 32)", store.SecretKeySize)
 }
 
 func serve(ctx context.Context, args []string) error {

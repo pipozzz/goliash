@@ -104,6 +104,11 @@ Docker host through a socket proxy. Turn it off with `-collect=false`.
 - **Binaries:** archives for Linux, macOS and Windows on the GitHub releases page.
 - **From source:** `make build`, or `docker build --target server .` / `--target agent`.
 
+Notification channel secrets (Slack and webhook URLs, signing secrets) are encrypted at rest with AES-256-GCM. The
+key comes from `GOLIASH_SECRET_KEY` or `GOLIASH_SECRET_KEY_FILE` (32 bytes, base64 or hex: `openssl rand -base64 32`);
+with SQLite and neither set, the server creates `goliash.key` next to the database. Back the key up with the
+database: without it, channels must be created again. With PostgreSQL, set the key explicitly.
+
 The server keeps its SQLite database in `/data` (set `GOLIASH_DATABASE_URL=postgres://…` for PostgreSQL) and
 deletes processed snapshots beyond the newest 20 per target every hour (`-keep-snapshots`); history lives in events.
 Releases are published by pushing a `v*` tag.
