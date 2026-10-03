@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/internal/registry"
+	"github.com/pipozzz/goliash/internal/registry/ecr"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
@@ -58,20 +60,7 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 	out := make([]agentproto.RegistryResult, 0, len(checks))
 	for _, c := range checks {
 		r := agentproto.RegistryResult{Repository: c.Repository, Tags: []agentproto.RegistryTag{}}
-		var creds registry.Credentials
-		if c.CredentialsRef != nil && *c.CredentialsRef != "" {
-			secret, err := collectors.Credential(*c.CredentialsRef)
-			switch {
-			case err == nil:
-				creds = registry.ParseCredentials(secret)
-			case !errors.Is(err, collectors.ErrNoCredential):
-				msg := err.Error()
-				r.Error = &msg
-				out = append(out, r)
-				continue
-			}
-		}
-		tags, err := a.registry.ListTags(ctx, c.Repository, creds)
+		tags, err := a.listTags(ctx, c)
 		if err != nil {
 			msg := err.Error()
 			r.Error = &msg
@@ -91,4 +80,26 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 		out = append(out, r)
 	}
 	return out
+}
+
+// listTags lists a repository's tags. The credential that credentials_ref (the
+// registry host) resolves to locally is, for Amazon ECR, the AWS profile to use (none:
+// the default chain, e.g. the pod's or task's IAM role) and for other registries
+// "user:password" or a token (none: anonymous).
+func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck) ([]string, error) {
+	secret := ""
+	if c.CredentialsRef != nil && *c.CredentialsRef != "" {
+		var err error
+		if secret, err = collectors.Credential(*c.CredentialsRef); err != nil && !errors.Is(err, collectors.ErrNoCredential) {
+			return nil, err
+		}
+	}
+	if _, _, _, ok := ecr.Parse(c.Repository); ok {
+		return a.opts.ECR.ListTags(ctx, c.Repository, strings.TrimSpace(secret))
+	}
+	var creds registry.Credentials
+	if secret != "" {
+		creds = registry.ParseCredentials(secret)
+	}
+	return a.registry.ListTags(ctx, c.Repository, creds)
 }

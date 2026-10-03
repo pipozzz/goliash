@@ -518,3 +518,56 @@ func TestAgentChecksPrivateRegistries(t *testing.T) {
 		t.Fatalf("credentials not resolved locally: %v", reg.creds)
 	}
 }
+
+type fakeECR struct {
+	mu       sync.Mutex
+	profiles map[string]string // repo -> profile
+}
+
+func (e *fakeECR) ListTags(_ context.Context, repo, profile string) ([]string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.profiles[repo] = profile
+	return []string{"2.0.0", "2.1.0"}, nil
+}
+
+// ECR repositories go to the ECR API with an AWS profile, never the Distribution API.
+func TestAgentChecksECR(t *testing.T) {
+	withProfile, defaultChain := "111111111111.dkr.ecr.eu-west-1.amazonaws.com", "222222222222.dkr.ecr.us-east-1.amazonaws.com"
+	f := newFakeServer(t)
+	f.registries = []agentproto.RegistryCheck{
+		{Repository: withProfile + "/team/api", CredentialsRef: &withProfile},
+		{Repository: defaultChain + "/team/web", CredentialsRef: &defaultChain},
+	}
+	t.Setenv("GOLIASH_CREDENTIAL_111111111111_DKR_ECR_EU_WEST_1_AMAZONAWS_COM", "prod-readonly")
+	t.Setenv("GOLIASH_CREDENTIALS_DIR", t.TempDir())
+	reg := &fakeRegistry{creds: map[string]string{}}
+	ecrFake := &fakeECR{profiles: map[string]string{}}
+	a, err := New(Options{
+		ServerURL: f.srv.URL, Token: testToken, DataDir: t.TempDir(), Registry: reg, ECR: ecrFake,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runAgent(t, a)
+	eventually(t, "registry results", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return len(f.results) > 0
+	})
+	f.mu.Lock()
+	res := f.results[0].Results
+	f.mu.Unlock()
+	if len(res) != 2 || len(res[0].Tags) != 2 || res[0].Error != nil || res[1].Error != nil {
+		t.Fatalf("results %+v", res)
+	}
+	ecrFake.mu.Lock()
+	defer ecrFake.mu.Unlock()
+	if ecrFake.profiles[withProfile+"/team/api"] != "prod-readonly" || ecrFake.profiles[defaultChain+"/team/web"] != "" {
+		t.Fatalf("profiles %v", ecrFake.profiles)
+	}
+	if len(reg.creds) != 0 {
+		t.Fatalf("ECR went to the Distribution API: %v", reg.creds)
+	}
+}

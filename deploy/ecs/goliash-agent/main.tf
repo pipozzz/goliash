@@ -1,8 +1,9 @@
 # Copyright 2026 The Goliash Authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# goliash-agent as an ECS Fargate service. Its task role may only call ecs:List* and
-# ecs:Describe*, so it reads every cluster in the region and changes nothing.
+# goliash-agent as an ECS Fargate service. Its task role may only call ecs:List*,
+# ecs:Describe* and ecr:ListImages, so it reads every cluster in the region and the tags
+# of private ECR repositories, and changes nothing.
 
 terraform {
   required_version = ">= 1.5"
@@ -40,6 +41,11 @@ data "aws_iam_policy_document" "read_ecs" {
   statement {
     sid       = "ReadOnlyEcs"
     actions   = ["ecs:List*", "ecs:Describe*"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "ListEcrTags"
+    actions   = ["ecr:ListImages"]
     resources = ["*"]
   }
 }

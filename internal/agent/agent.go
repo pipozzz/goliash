@@ -22,6 +22,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/internal/registry"
+	"github.com/pipozzz/goliash/internal/registry/ecr"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
@@ -42,6 +43,13 @@ type Options struct {
 	Logger         *slog.Logger
 	// Registry lists tags of private repositories (default: a registry.Client).
 	Registry TagLister
+	// ECR lists tags of Amazon ECR repositories with AWS credentials (default: ecr.New()).
+	ECR ECRLister
+}
+
+// ECRLister lists tags of an ECR repository; profile is an AWS shared config profile.
+type ECRLister interface {
+	ListTags(ctx context.Context, repository, profile string) ([]string, error)
 }
 
 // Agent registers with the server, follows its configuration, runs a collector per
@@ -102,6 +110,9 @@ func New(opts Options) (*Agent, error) {
 	}
 	if opts.Registry == nil {
 		opts.Registry = registry.New()
+	}
+	if opts.ECR == nil {
+		opts.ECR = ecr.New()
 	}
 	return &Agent{
 		opts:              opts,
