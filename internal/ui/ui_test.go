@@ -511,3 +511,61 @@ func TestInboxGroupsByImage(t *testing.T) {
 		t.Fatal("ignored image still in the inbox")
 	}
 }
+
+func TestOrganizationRoles(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	owner := e.as(store.RoleOwner)
+	admin := e.as(store.RoleAdmin)
+	dev, _ := e.st.CreateUser(ctx, e.ws.OrgID, "dev@example.com", "", store.RoleMember)
+	_ = e.st.SetMembership(ctx, dev.ID, e.ws.ID, store.RoleMember)
+	roleOf := func(id string) string {
+		u, _ := e.st.GetUser(ctx, id)
+		return u.Role
+	}
+	setRole := func(c *http.Client, id, role string) string {
+		_, body, _ := post(t, c, e.srv.URL+"/settings/users/"+id+"/role", url.Values{"role": {role}})
+		return body
+	}
+
+	// An organization admin promotes a member to admin of the organization, not to owner.
+	if body := setRole(admin, dev.ID, "org-admin"); !strings.Contains(body, "is now admin of the organization") || roleOf(dev.ID) != store.RoleAdmin {
+		t.Fatalf("promote: %s", roleOf(dev.ID))
+	}
+	if body := setRole(admin, dev.ID, "owner"); !strings.Contains(body, "allowed to give") || roleOf(dev.ID) != store.RoleAdmin {
+		t.Fatal("admin made an owner")
+	}
+	if _, body := get(t, admin, e.srv.URL+"/settings", nil); !strings.Contains(body, `value="org-admin" selected`) {
+		t.Fatal("org role not shown as selected")
+	}
+
+	// Back to workspace access: the membership in this workspace decides again.
+	if body := setRole(admin, dev.ID, "viewer"); !strings.Contains(body, "is now viewer") || roleOf(dev.ID) != store.RoleViewer {
+		t.Fatalf("demote: %s", roleOf(dev.ID))
+	}
+	if roles, _ := e.st.WorkspaceRoles(ctx, e.ws.ID); roles[dev.ID] != store.RoleViewer {
+		t.Fatalf("membership %q", roles[dev.ID])
+	}
+
+	// Owners: only owners change them, and the last one stays.
+	users, _ := e.st.ListUsers(ctx, e.ws.OrgID)
+	var ownerID string
+	for _, u := range users {
+		if u.Role == store.RoleOwner {
+			ownerID = u.ID
+		}
+	}
+	if body := setRole(admin, ownerID, "org-admin"); !strings.Contains(body, "allowed to give") || roleOf(ownerID) != store.RoleOwner {
+		t.Fatal("admin demoted an owner")
+	}
+	if body := setRole(owner, dev.ID, "owner"); !strings.Contains(body, "is now owner") {
+		t.Fatalf("owner promotes: %s", roleOf(dev.ID))
+	}
+	if body := setRole(owner, dev.ID, "member"); !strings.Contains(body, "is now member") || roleOf(dev.ID) != store.RoleMember {
+		t.Fatalf("owner demotes another owner: %s", roleOf(dev.ID))
+	}
+	// Now ownerID is the only owner; nobody else can demote or remove them.
+	if _, body, _ := post(t, admin, e.srv.URL+"/settings/users/"+ownerID+"/delete", nil); !strings.Contains(body, "Only owners") {
+		t.Fatal("admin removed the owner")
+	}
+}

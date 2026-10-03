@@ -145,7 +145,9 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   need an account). Redirect URI: `<public URL>/auth/oidc/callback`.
 - Set `GOLIASH_PUBLIC_URL` to the address people use; with `https://` cookies are marked Secure.
 - **Roles**: viewer reads; member maps services, edits policies and acks; admin manages agents, targets, channels,
-  tokens and users; owner can do everything.
+  tokens and users; owner can do everything. Viewer, member and admin are per workspace; admin and owner of the
+  organization reach every workspace. Organization admins change roles on the Users page; only owners grant or
+  take the owner role, and the last owner cannot be removed.
 - **REST API** (session or `Authorization: Bearer glsh_api_…`): `GET /api/v1/matrix`, `/services`, `/environments`,
   `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`.
 - **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.

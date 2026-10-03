@@ -163,13 +163,19 @@ templ SettingsPage(v SettingsView) {
 						<tr>
 							<td><strong>{ u.Email }</strong></td>
 							<td>
-								if u.IsSelf || u.OrgWide {
+								if u.IsSelf || (u.OrgWide && !v.OrgAdmin) || (u.OrgRole == "owner" && !v.CanGrantOwner) {
 									{ u.Access }
 								} else {
 									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
 										<select name="role" aria-label="Role" onchange="this.form.requestSubmit()">
 											for _, r := range workspaceRoles() {
-												<option value={ r } selected?={ r == u.Role || (r == "none" && u.Role == "") }>{ roleLabel(r) }</option>
+												<option value={ r } selected?={ !u.OrgWide && (r == u.Role || (r == "none" && u.Role == "")) }>{ roleLabel(r) }</option>
+											}
+											if v.OrgAdmin {
+												<option value="org-admin" selected?={ u.OrgRole == "admin" }>admin of the organization</option>
+											}
+											if v.CanGrantOwner {
+												<option value="owner" selected?={ u.OrgRole == "owner" }>owner of the organization</option>
 											}
 										</select>
 									</form>
