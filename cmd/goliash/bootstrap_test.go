@@ -61,7 +61,6 @@ func TestBootstrap(t *testing.T) {
 	if n := strings.Count(logs.String(), "https://goliash.example.com/auth/magic?token="); n != 2 {
 		t.Fatalf("want a sign-in link on every start before the first sign-in, got %d:\n%s", n, logs.String())
 	}
-
 }
 
 func TestBootstrapRejectsTypos(t *testing.T) {
