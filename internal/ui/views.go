@@ -389,6 +389,7 @@ type UserView struct {
 	Role      string // role in the current workspace; empty for organization-wide users or no access
 	Access    string
 	OrgWide   bool
+	OrgRole   string // owner or admin for organization-wide users
 	LastLogin time.Time
 	IsSelf    bool
 }

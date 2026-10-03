@@ -1002,6 +1002,13 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Princ
 // ---- users, workspaces and tokens ----
 
 // accessLabel describes a user's access to the current workspace.
+func orgRoleOf(u store.User) string {
+	if store.OrgWide(u.Role) {
+		return u.Role
+	}
+	return ""
+}
+
 func accessLabel(u store.User, wsRole string) string {
 	if store.OrgWide(u.Role) {
 		return u.Role + " of the organization"
@@ -1030,6 +1037,7 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 		}
 		v.Users = append(v.Users, UserView{
 			ID: u.ID, Email: u.Email, Role: roles[u.ID], Access: accessLabel(u, roles[u.ID]), OrgWide: store.OrgWide(u.Role),
+			OrgRole:   orgRoleOf(u),
 			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID,
 		})
 	}
@@ -1175,8 +1183,41 @@ func (s *Server) setRole(w http.ResponseWriter, r *http.Request, p auth.Principa
 	ctx := r.Context()
 	role := r.FormValue("role")
 	u, old, ok := s.manageable(ctx, p, r.PathValue("id"))
-	if !ok || store.OrgWide(u.Role) {
+	if !ok {
 		return back(w, r, "/settings", "error", "You cannot change this user here.")
+	}
+	if old == "" && store.OrgWide(u.Role) {
+		old = "org-" + u.Role
+	}
+	orgRole := map[string]string{"org-admin": store.RoleAdmin, store.RoleOwner: store.RoleOwner}[role]
+	if orgRole != "" || store.OrgWide(u.Role) {
+		// Organization roles: only organization admins change them, only owners touch owners,
+		// and the last owner stays.
+		if !p.OrgWide() || ((orgRole == store.RoleOwner || u.Role == store.RoleOwner) && p.User.Role != store.RoleOwner) {
+			return back(w, r, "/settings", "error", "Choose a role you are allowed to give.")
+		}
+		if u.Role == store.RoleOwner && orgRole != store.RoleOwner {
+			if n, err := s.countOwners(ctx, u.OrgID); err != nil || n < 2 {
+				return back(w, r, "/settings", "error", "The organization needs another owner first.")
+			}
+		}
+	}
+	if orgRole != "" {
+		if err := s.store.SetUserRole(ctx, u.OrgID, u.ID, orgRole); err != nil {
+			return err
+		}
+		s.audit(ctx, p, "user.role", "user", u.Email, "from", old, "to", "org-"+orgRole)
+		return back(w, r, "/settings", "notice", u.Email+" is now "+orgRole+" of the organization.")
+	}
+	if store.OrgWide(u.Role) {
+		// Back to workspace access: memberships decide from now on, starting with this workspace.
+		base := store.RoleMember
+		if role == store.RoleViewer {
+			base = store.RoleViewer
+		}
+		if err := s.store.SetUserRole(ctx, u.OrgID, u.ID, base); err != nil {
+			return err
+		}
 	}
 	switch role {
 	case store.RoleViewer, store.RoleMember, store.RoleAdmin:
@@ -1197,6 +1238,17 @@ func (s *Server) setRole(w http.ResponseWriter, r *http.Request, p auth.Principa
 	return back(w, r, "/settings", "notice", u.Email+" is now "+role+" in "+p.Workspace.Name+".")
 }
 
+func (s *Server) countOwners(ctx context.Context, orgID string) (int, error) {
+	users, err := s.store.ListUsers(ctx, orgID)
+	n := 0
+	for _, u := range users {
+		if u.Role == store.RoleOwner {
+			n++
+		}
+	}
+	return n, err
+}
+
 func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
 	if !ok || !p.OrgWide() {
@@ -1204,6 +1256,11 @@ func (s *Server) deleteUser(w http.ResponseWriter, r *http.Request, p auth.Princ
 	}
 	if u.Role == store.RoleOwner && p.User.Role != store.RoleOwner {
 		return back(w, r, "/settings", "error", "Only owners can remove an owner.")
+	}
+	if u.Role == store.RoleOwner {
+		if n, err := s.countOwners(r.Context(), u.OrgID); err != nil || n < 2 {
+			return back(w, r, "/settings", "error", "The organization needs another owner first.")
+		}
 	}
 	if err := s.store.DeleteUser(r.Context(), p.User.OrgID, u.ID); err != nil {
 		return err
