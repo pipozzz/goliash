@@ -1,0 +1,23 @@
+# Agent protocol
+
+The protocol between `goliash-agent` and the server is described in
+[`api/agent-v1.yaml`](https://github.com/pipozzz/goliash/blob/main/api/agent-v1.yaml) and licensed Apache-2.0, so
+you can write your own agent or collector. The server validates every request against it.
+
+- The agent only makes outbound HTTPS requests; the server never connects to the agent.
+- Every request carries `Authorization: Bearer glsh_agent_…`. One token identifies one agent in one workspace and
+  may only send data and read that agent's configuration.
+- The agent sends **full state** (snapshots), never events. The server compares consecutive snapshots of a target.
+- Credentials stay with the agent. The server only sends a `credentials_ref` name, which the agent resolves
+  locally.
+
+Call order: `register` on start, then `config` every minute (with an ETag), a `snapshot` per target on its interval
+(Kubernetes also shortly after changes), a `heartbeat` every minute, and `registry-results` on the registry check
+interval. While the server is unreachable, the agent buffers up to 200 snapshots on disk.
+
+<div id="redoc"></div>
+<script src="https://cdn.redoc.ly/redoc/v2.5.1/bundles/redoc.standalone.js"></script>
+<script>
+  Redoc.init("https://raw.githubusercontent.com/pipozzz/goliash/main/api/agent-v1.yaml",
+    { expandResponses: "200,202" }, document.getElementById("redoc"));
+</script>
