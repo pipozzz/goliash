@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: Helm charts lint and render
         run: |
           helm lint deploy/helm/goliash deploy/helm/goliash-agent --set token.value=glsh_agent_ci
