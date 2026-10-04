@@ -27,7 +27,7 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 | `environment` | `prod` | Environment the Nomad cluster belongs to. |
 | `watch_nomad` | `true` | Watch this Nomad cluster without an agent. |
 | `nomad_address` | `""` | Nomad API. Empty = `http://<node-ip>:4646`. |
-| `nomad_token` | `""` | ACL token with `read-job`, when ACLs are on. |
+| `nomad_token` | `""` | ACL token with `list-jobs` and `read-job`, when ACLs are on. |
 | `secret_key` | `""` | Encrypts channel secrets. Empty = generated on the volume. |
 | `github_token` | `""` | Optional, for release notes lookups. |
 | `data_volume` | `goliash_data` | `/data` — SQLite database and secret key. |
@@ -39,7 +39,7 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 - **Single node.** State is SQLite on a local volume: `count = 1`; pin the job with `constraints`. For more,
   point `GOLIASH_DATABASE_URL` at PostgreSQL (see the docs).
 - **ACLs.** With Nomad ACLs on, create a read-only token and pass it as `nomad_token`:
-  `nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["read-job"] }'` then
+  `nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["list-jobs", "read-job"] }'` then
   `nomad acl token create -name goliash -policy goliash-read`.
 - **Mapping.** Add `goliash.service` to a job's `meta` to name its service; everything else waits in the Inbox.
 - **Backups.** Back up the volume: the database and `goliash.key`, which channel secrets need.

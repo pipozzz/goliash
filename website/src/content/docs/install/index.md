@@ -30,7 +30,7 @@ See [Security](/goliash/security/#verify-a-release) for how to verify them.
 | Kubernetes | [Helm chart](/goliash/install/kubernetes/) | [Helm chart](/goliash/install/kubernetes/#agent) with a read-only ClusterRole |
 | Docker and Compose | [Compose quickstart](/goliash/install/docker/) | [Compose file](/goliash/install/docker/#agent-on-another-host) with docker-socket-proxy |
 | Docker Swarm | [Stack file](/goliash/install/swarm/) | [Stack file](/goliash/install/swarm/#agent) with docker-socket-proxy |
-| Nomad | [Job](/goliash/install/nomad/) | [Job](/goliash/install/nomad/#agent) with a read-job ACL token |
+| Nomad | [Job](/goliash/install/nomad/) | [Job](/goliash/install/nomad/#agent) with a list-jobs and read-job ACL token |
 | Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/goliash/install/ecs/) with a read-only task role |
 
 ## Database

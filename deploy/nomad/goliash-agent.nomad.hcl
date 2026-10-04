@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # goliash-agent on Nomad. It reads this cluster through the Nomad API with a token
-# that has the read-job capability (a target's credentials_ref names it).
+# that has the list-jobs and read-job capabilities (a target's credentials_ref names it).
 #
-#   nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["read-job"] }'
+#   nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["list-jobs", "read-job"] }'
 #   nomad acl token create -name goliash-agent -policy goliash-read      # copy the secret ID
 #   nomad var put nomad/jobs/goliash-agent token=glsh_agent_… nomad_token=<secret ID>
 #   nomad job run goliash-agent.nomad.hcl

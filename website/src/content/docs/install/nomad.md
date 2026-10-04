@@ -14,7 +14,7 @@ nomad-pack run goliash --registry=nomploy \
 ```
 
 The first start logs a one-time sign-in link for `owner_email` in the task logs. With Nomad ACLs on, pass a token
-with `read-job` as `nomad_token`. All variables are in the
+with `list-jobs` and `read-job` as `nomad_token`. All variables are in the
 [pack README](https://github.com/pipozzz/goliash/tree/main/deploy/nomad/pack/goliash).
 
 ## Server
@@ -29,10 +29,10 @@ nomad job run deploy/nomad/goliash-server.nomad.hcl
 
 ## Agent
 
-The agent reads the cluster through the Nomad API with a token that has the `read-job` capability:
+The agent reads the cluster through the Nomad API with a token that has the `list-jobs` and `read-job` capabilities:
 
 ```sh
-nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["read-job"] }'
+nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["list-jobs", "read-job"] }'
 nomad acl token create -name goliash-agent -policy goliash-read      # copy the secret ID
 nomad var put nomad/jobs/goliash-agent token=glsh_agent_… nomad_token=<secret ID>
 nomad job run deploy/nomad/goliash-agent.nomad.hcl
