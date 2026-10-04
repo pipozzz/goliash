@@ -156,6 +156,9 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`. The OpenAPI
   description is [`api/public-v1.yaml`](api/public-v1.yaml), also served at `/api/v1/openapi.yaml`; every response
   is tested against it.
+- **AI assistants (MCP)**: every server serves the Model Context Protocol at `/mcp` (Streamable HTTP, API token),
+  and `goliash mcp` runs it on stdio for Claude Desktop or Cursor. Tools: matrix, service, drifts, changes, promotions,
+  delivery, inventory, hygiene and acknowledge.
 - **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`,
   `goliash_deploys` and `goliash_lead_time_seconds` (last 30 days).
   Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and [SigNoz](deploy/signoz) are included.
