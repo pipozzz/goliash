@@ -56,8 +56,9 @@ type WorkspacesView struct {
 // MatrixView is the home page.
 type MatrixView struct {
 	Base
-	Grid MatrixGrid
-	At   string // "2006-01-02T15:04" (UTC) when looking back; empty for now
+	Grid    MatrixGrid
+	Hygiene int    // image hygiene warnings
+	At      string // "2006-01-02T15:04" (UTC) when looking back; empty for now
 }
 
 // MatrixGrid is the part of the matrix that reloads live.
@@ -570,4 +571,10 @@ func attention(kind string, d versions.DriftDetail) (label, text string) {
 		return "targets disagree", "targets of this environment run different versions"
 	}
 	return kind, d.Running
+}
+
+// HygieneView is the image hygiene page.
+type HygieneView struct {
+	Base
+	Findings []versions.Finding
 }

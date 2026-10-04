@@ -43,6 +43,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
+	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -501,6 +502,26 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 	cw.Flush()
 }
 
+func (h *PublicHandler) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	findings, err := versions.LoadHygiene(r.Context(), h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiFinding struct {
+		Kind     string   `json:"kind"`
+		Severity string   `json:"severity"`
+		Image    string   `json:"image"`
+		Detail   string   `json:"detail"`
+		Where    []string `json:"where"`
+	}
+	out := []apiFinding{}
+	for _, f := range findings {
+		out = append(out, apiFinding{Kind: f.Kind, Severity: f.Severity, Image: f.Image, Detail: f.Detail, Where: f.Where})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (h *PublicHandler) drifts(w http.ResponseWriter, r *http.Request, p auth.Principal) {
 	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
 	if err != nil {
@@ -623,6 +644,17 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 					fmt.Fprintf(&b, "goliash_lead_time_seconds{service=%q,from=%q,to=%q} %.0f\n", d.Service.Name, lt.From.Name, lt.To.Name, lt.Median.Seconds())
 				}
 			}
+		}
+	}
+	if findings, err := versions.LoadHygiene(r.Context(), h.store, p.Scope); err == nil {
+		byKind := map[string]int{"moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "unpinned": 0}
+		for _, f := range findings {
+			byKind[f.Kind]++
+		}
+		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry or no digest.\n")
+		b.WriteString("# TYPE goliash_image_hygiene_findings gauge\n")
+		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "unpinned"} {
+			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}
 	b.WriteString("# HELP goliash_drift_days How long a drift has been open, in days.\n")

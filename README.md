@@ -166,6 +166,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
 bin/goliash matrix                 # service × environment, latest upstream, drift markers
 bin/goliash matrix -at 2026-09-12T14:00   # what ran then (history is kept for 400 days)
 bin/goliash inventory -csv         # every running container with image and digest, for audits
+bin/goliash hygiene                # moving tags, retagged images, untrusted registries (GOLIASH_ALLOWED_REGISTRIES)
 bin/goliash drift                  # open drifts
 bin/goliash promotions             # versions waiting for the next environment, with the releases they bring
 bin/goliash delivery               # deploys per environment and lead times between environments, last 30 days
