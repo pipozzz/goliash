@@ -127,6 +127,14 @@ goliash delivery -window 720h
 The same numbers are in `GET /api/v1/delivery?window=30d` and in `/metrics` as `goliash_deploys` and
 `goliash_lead_time_seconds`, for dashboards and alerts such as "nothing reached prod for two weeks".
 
+## Monthly report
+
+**Delivery → Monthly report** shows one month of a workspace on one page: services and targets, versions deployed
+per environment with lead times, new upstream releases, and everything that needs attention now (end of life,
+differences from Git, lagging versions), most important first. *Print or save as PDF* gives a clean document,
+for a monthly review or, with a workspace per client, an MSP's report to each client. Pick the month with
+`/report?month=2026-09`.
+
 ## Acknowledging
 
 An acknowledgement silences notifications for a service, optionally in one environment, until a version ships or a

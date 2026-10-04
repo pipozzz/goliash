@@ -106,6 +106,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /events", s.page(v, s.events))
 	mux.Handle("GET /promotions", s.page(v, s.promotions))
 	mux.Handle("GET /delivery", s.page(v, s.promotions))
+	mux.Handle("GET /report", s.page(v, s.report))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -561,6 +562,63 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal
 	}
 	v.Base = withFlash(s.base(ctx, p, "events", "History"), r)
 	return render(w, r, EventsPage(v))
+}
+
+func (s *Server) report(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	now := time.Now().UTC()
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -1, 0) // last full month
+	if q := r.URL.Query().Get("month"); q != "" {
+		m, err := time.Parse("2006-01", q)
+		if err != nil {
+			return back(w, r, "/report", "error", "Pick a month like 2026-09.")
+		}
+		month = m
+	}
+	rep, err := versions.MonthReport(ctx, s.store, p.Scope, month, now)
+	if err != nil {
+		return err
+	}
+	v := ReportView{
+		Base: s.base(ctx, p, "promotions", "Report "+month.Format("2006-01")), Month: month.Format("January 2006"),
+		Generated: now.Format("2 January 2006 15:04 UTC"), Services: rep.Services, Targets: rep.Targets, Deploys: rep.Deploys,
+		Prev: month.AddDate(0, -1, 0).Format("2006-01"), PrevLabel: month.AddDate(0, -1, 0).Format("January"),
+	}
+	v.Workspace = p.Workspace.Name
+	if next := month.AddDate(0, 1, 0); !next.After(now) {
+		v.Next, v.NextLabel = next.Format("2006-01"), next.Format("January")
+	}
+	for _, a := range rep.Attention {
+		label, text := attention(a.Kind, a.Detail)
+		v.Attention = append(v.Attention, AttentionView{
+			Service: a.Service, Environment: a.Environment, Kind: a.Kind,
+			Label: label, Text: text, Since: a.Since.Format("2 Jan 2006"),
+		})
+	}
+	for _, e := range rep.Envs {
+		v.EnvNames = append(v.EnvNames, e.Name)
+	}
+	for i := 1; i < len(rep.Envs); i++ {
+		v.LeadNames = append(v.LeadNames, rep.Envs[i-1].Name+" → "+rep.Envs[i].Name)
+	}
+	for _, d := range rep.Delivery {
+		row := DeliveryRow{Service: d.Service.Name}
+		for _, e := range d.Envs {
+			row.Envs = append(row.Envs, DeliveryCell{Deploys: e.Deploys})
+		}
+		for _, lt := range d.LeadTimes {
+			lead := "—"
+			if lt.Samples > 0 {
+				lead = versions.HumanDuration(lt.Median)
+			}
+			row.Leads = append(row.Leads, lead)
+		}
+		v.Delivery = append(v.Delivery, row)
+	}
+	for _, rel := range rep.Releases {
+		v.Releases = append(v.Releases, ReportReleaseView{Service: rel.Service, Version: rel.Version, At: rel.At.Format("2 Jan")})
+	}
+	return render(w, r, ReportPage(v))
 }
 
 // sinceOptions are the history page's "changed in the last …" periods.

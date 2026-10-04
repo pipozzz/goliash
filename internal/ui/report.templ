@@ -1,0 +1,93 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ ReportPage(v ReportView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>{ v.Workspace }: { v.Month }</h1>
+				<p class="sub">What was delivered during the month, and what needs attention now. Generated { v.Generated }.</p>
+			</div>
+			<div class="noprint report-nav">
+				<a href={ templ.URL("/report?month=" + v.Prev) }>← { v.PrevLabel }</a>
+				if v.Next != "" {
+					<a href={ templ.URL("/report?month=" + v.Next) }>{ v.NextLabel } →</a>
+				}
+				<button class="secondary" type="button" onclick="window.print()">Print or save as PDF</button>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="report-stats">
+				<div><strong>{ itoa(v.Services) }</strong><span>services</span></div>
+				<div><strong>{ itoa(v.Targets) }</strong><span>targets</span></div>
+				<div><strong>{ itoa(v.Deploys) }</strong><span>versions deployed</span></div>
+				<div><strong>{ itoa(len(v.Releases)) }</strong><span>new upstream releases</span></div>
+				<div><strong>{ itoa(len(v.Attention)) }</strong><span>open items</span></div>
+			</div>
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>Needs attention</h2><span class="hint">Open now, most important first</span></div>
+			if len(v.Attention) == 0 {
+				<div class="empty">Nothing: every environment runs a supported version that matches Git and upstream.</div>
+			} else {
+				<table>
+					<thead><tr><th>Service</th><th>Environment</th><th>Issue</th><th>Since</th></tr></thead>
+					<tbody>
+						for _, a := range v.Attention {
+							<tr>
+								<td><strong>{ a.Service }</strong></td>
+								<td>{ a.Environment }</td>
+								<td><span class={ "badge", a.Kind }>{ a.Label }</span> { a.Text }</td>
+								<td>{ a.Since }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>Delivered</h2><span class="hint">Versions that arrived per environment, and median lead time to the next one</span></div>
+			<table>
+				<thead>
+					<tr>
+						<th>Service</th>
+						for _, e := range v.EnvNames {
+							<th class="num">{ e }</th>
+						}
+						for _, l := range v.LeadNames {
+							<th class="num">{ l }</th>
+						}
+					</tr>
+				</thead>
+				<tbody>
+					for _, d := range v.Delivery {
+						<tr>
+							<td><strong>{ d.Service }</strong></td>
+							for _, c := range d.Envs {
+								<td class="num">{ itoa(c.Deploys) }</td>
+							}
+							for _, l := range d.Leads {
+								<td class="num mono">{ l }</td>
+							}
+						</tr>
+					}
+				</tbody>
+			</table>
+		</section>
+		if len(v.Releases) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>New upstream releases</h2></div>
+				<table>
+					<thead><tr><th>Service</th><th>Version</th><th>First seen</th></tr></thead>
+					<tbody>
+						for _, r := range v.Releases {
+							<tr><td>{ r.Service }</td><td class="mono">{ r.Version }</td><td>{ r.At }</td></tr>
+						}
+					</tbody>
+				</table>
+			</section>
+		}
+	}
+}

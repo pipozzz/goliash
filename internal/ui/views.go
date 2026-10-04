@@ -528,3 +528,46 @@ func exportURL(at string) string {
 	}
 	return "/api/v1/inventory?format=csv&at=" + url.QueryEscape(at)
 }
+
+// ReportView is the monthly report.
+type ReportView struct {
+	Base
+	Month, Generated                 string
+	Prev, PrevLabel, Next, NextLabel string
+	Services, Targets, Deploys       int
+	Attention                        []AttentionView
+	EnvNames, LeadNames              []string
+	Delivery                         []DeliveryRow
+	Releases                         []ReportReleaseView
+}
+
+// AttentionView is one open drift in the report.
+type AttentionView struct {
+	Service, Environment, Kind, Label, Text, Since string
+}
+
+// ReportReleaseView is one new upstream release in the report.
+type ReportReleaseView struct {
+	Service, Version, At string
+}
+
+// attention describes an open drift in words.
+func attention(kind string, d versions.DriftDetail) (label, text string) {
+	switch kind {
+	case "eol":
+		verb := "ends"
+		if t, err := time.Parse("2006-01-02", d.EOL); err == nil && t.Before(time.Now()) {
+			verb = "ended"
+		}
+		return "end of life", fmt.Sprintf("runs %s; release cycle %s %s support on %s", d.Running, d.Other, verb, orDash(d.EOL))
+	case "declared":
+		return "differs from Git", fmt.Sprintf("runs %s; Git declares %s", d.Running, d.Other)
+	case "upstream":
+		return "behind upstream", fmt.Sprintf("runs %s; %s is available (%s)", d.Running, d.Other, d.Jump)
+	case "env":
+		return "behind " + d.OtherIn, fmt.Sprintf("runs %s; %s runs %s", d.Running, d.OtherIn, d.Other)
+	case "inconsistent":
+		return "targets disagree", "targets of this environment run different versions"
+	}
+	return kind, d.Running
+}
