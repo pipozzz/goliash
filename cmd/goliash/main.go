@@ -64,6 +64,7 @@ const usage = `Usage:
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
+  goliash promotions                      versions waiting for the next environment, with their releases
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
@@ -142,6 +143,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return ruleCreate(ctx, args, out)
 	case "drift":
 		return driftCmd(ctx, args, out)
+	case "promotions":
+		return promotionsCmd(ctx, args, out)
 	case "check":
 		return checkCmd(ctx, args, out)
 	case "service set":
@@ -1327,4 +1330,39 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func promotionsCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("promotions")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	o, err := versions.LoadOverview(ctx, db, ws.Scope())
+	if err != nil {
+		return err
+	}
+	list, err := versions.Promotions(ctx, db, ws.Scope(), o)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		_, _ = fmt.Fprintln(out, "Nothing waits: every environment runs what the one before it runs.")
+		return nil
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "SERVICE\tPROMOTE\tFROM → TO\tWAITING\tRELEASES")
+	for _, p := range list {
+		var rel []string
+		for _, r := range p.Releases {
+			rel = append(rel, r.Version)
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s → %s\t%s → %s\t%s\t%s\n", p.Service.Name, p.Running, p.Version, p.From.Name, p.To.Name,
+			time.Since(p.Since).Round(time.Hour), strings.Join(rel, ", "))
+	}
+	return tw.Flush()
 }

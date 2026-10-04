@@ -129,6 +129,7 @@ and updates live over server-sent events.
 | Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream |
 | Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now" |
 | Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image |
+| Promotions | versions waiting for the next environment, how long, and the releases a promotion brings |
 | History | every event, filterable by service, environment and type |
 | Agents | agents and targets with collector health; add agents (token shown once), environments and targets |
 | Notifications | channels (with a test button) and rules |
@@ -163,6 +164,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
 ```sh
 bin/goliash matrix                 # service × environment, latest upstream, drift markers
 bin/goliash drift                  # open drifts
+bin/goliash promotions             # versions waiting for the next environment, with the releases they bring
 bin/goliash events                 # history: deployed, version_changed, removed, new_release, drift_*
 bin/goliash events -env prod -since 2h   # what changed before an incident
 bin/goliash check                  # check upstream registries now (the server does it hourly)

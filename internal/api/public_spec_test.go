@@ -50,6 +50,7 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		{"GET", "/api/v1/events?since=soon", e.token, "", 400},
 		{"GET", "/api/v1/events?service=missing", e.token, "", 404},
 		{"GET", "/api/v1/drifts", e.token, "", 200},
+		{"GET", "/api/v1/promotions", e.token, "", 200},
 		{"GET", "/api/v1/matrix", "", "", 401},
 		{"POST", "/api/v1/acks", e.token, `{"service":"web","kind":"drift","environment":"prod","until":"2030-01-01T00:00:00Z"}`, 201},
 		{"POST", "/api/v1/acks", e.token, `{"service":"web","kind":"release"}`, 400},

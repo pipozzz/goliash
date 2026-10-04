@@ -1,0 +1,54 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ PromotionsPage(v PromotionsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Promotions</h1>
+				<p class="sub">Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring.</p>
+			</div>
+		</div>
+		<section class="panel">
+			if len(v.Promotions) == 0 {
+				<div class="empty">Nothing waits: every environment runs what the one before it runs.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Service</th><th>Promote</th><th>Waiting</th><th>Releases it brings</th></tr></thead>
+						<tbody>
+							for _, p := range v.Promotions {
+								<tr>
+									<td><a href={ templ.URL("/services/" + p.Service) }><strong>{ p.Service }</strong></a></td>
+									<td>
+										<span class="mono">{ p.Version }</span>
+										<div class="targets">{ p.From } → { p.To } (runs <span class="mono">{ p.Running }</span>)</div>
+									</td>
+									<td>@timeAgo(p.Since)</td>
+									<td>
+										if len(p.Releases) == 0 {
+											<span class="muted">—</span>
+										} else {
+											<div class="stack" style="gap:4px">
+												for _, r := range p.Releases {
+													<div>
+														<span class="mono">{ r.Version }</span>
+														if r.URL != "" {
+															<a href={ templ.URL(r.URL) } target="_blank" rel="noopener noreferrer">release notes</a>
+														}
+													</div>
+												}
+											</div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+}
