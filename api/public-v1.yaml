@@ -250,6 +250,7 @@ components:
           example: { env: 168h }
         github: { type: string, example: acme/payments }
         gitlab: { type: string, example: gitlab.com/acme/payments }
+        eol: { type: string, example: postgresql, description: 'endoflife.date product; "none" turns end-of-life drift off' }
         github_tag_prefix: { type: string }
         changelog: { type: string }
 
@@ -297,6 +298,10 @@ components:
           type: object
           description: For inconsistent drift, the version per target.
           additionalProperties: { type: string }
+        eol:
+          type: string
+          format: date
+          description: For eol drift, when the release cycle (`other`) stops being supported.
 
     Drift:
       type: object
@@ -306,11 +311,12 @@ components:
         environment: { type: string }
         kind:
           type: string
-          enum: [env, upstream, inconsistent, declared]
+          enum: [env, upstream, inconsistent, declared, eol]
           description: |
             `env`: behind a lower environment. `upstream`: behind the newest release by the tracked jump.
             `inconsistent`: targets of one environment run different versions. `declared`: what runs differs
-            from what the Compose files in Git declare.
+            from what the Compose files in Git declare. `eol`: the running release cycle reaches its end of life
+            within 60 days or has reached it (endoflife.date).
         since: { type: string, format: date-time }
         days_open: { type: number }
         detail: { $ref: '#/components/schemas/DriftDetail' }

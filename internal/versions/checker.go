@@ -62,6 +62,7 @@ type Checker struct {
 	now    func() time.Time
 	github *GitHub
 	gitlab *GitLab
+	eol    *EOL
 
 	driftMu sync.Mutex // one drift evaluation at a time
 }
@@ -372,6 +373,7 @@ type DriftDetail struct {
 	OtherIn string            `json:"other_in,omitempty"` // environment name for env drift
 	Jump    Jump              `json:"jump,omitempty"`
 	Targets map[string]string `json:"targets,omitempty"` // inconsistent: target -> version
+	EOL     string            `json:"eol,omitempty"`     // eol: the date the release cycle (Other) stops being supported
 }
 
 // WantedDrift is a drift the current state calls for.
@@ -408,6 +410,7 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		upstreams[id] = Latest(tags, ref.Tag, p)
 	}
 	wanted := Drifts(st.matrix, upstreams, policies)
+	wanted = append(wanted, EOLDrifts(st.matrix, c.eolCycles(ctx, st, policies), c.now())...)
 
 	open, err := c.store.OpenDrifts(ctx, sc)
 	if err != nil {
@@ -474,6 +477,36 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 	}
 	c.emit(sc, evs)
 	return nil
+}
+
+// eolCycles looks up the release cycles of each service's product on endoflife.date:
+// the policy's "eol" product, else the one the site lists for the upstream image.
+func (c *Checker) eolCycles(ctx context.Context, st workspaceState, policies map[string]Policy) map[string][]EOLCycle {
+	if c.eol == nil {
+		return nil
+	}
+	out := map[string][]EOLCycle{}
+	for id, ref := range st.refs {
+		product := policies[id].EOL
+		if product == "" && ref.Repo != "" {
+			p, err := c.eol.Product(ctx, ref.Repo)
+			if err != nil {
+				c.log.DebugContext(ctx, "end-of-life products", "err", err)
+				return out
+			}
+			product = p
+		}
+		if product == "" || product == "none" {
+			continue
+		}
+		cycles, err := c.eol.Cycles(ctx, product)
+		if err != nil {
+			c.log.DebugContext(ctx, "end-of-life cycles", "product", product, "err", err)
+			continue
+		}
+		out[id] = cycles
+	}
+	return out
 }
 
 // Drifts lists the drifts the matrix shows: an environment running an older version

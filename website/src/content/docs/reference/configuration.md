@@ -20,6 +20,7 @@ Settings come from environment variables; most have a matching flag.
 | | `-collect` | `true` | Collect targets that have no agent in the server itself |
 | | `-upstream-interval` | `1h` | How often public registries are checked |
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
+| | `-eol` | `true` | Report end-of-life release cycles from endoflife.date |
 
 | `GOLIASH_BOOTSTRAP` | | | Bootstrap configuration (YAML or JSON), see below |
 | `GOLIASH_BOOTSTRAP_FILE` | | | File with the bootstrap configuration, instead of the variable |

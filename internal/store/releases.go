@@ -123,7 +123,7 @@ type Drift struct {
 }
 
 // DriftKinds are the kinds of drift the server tracks.
-var DriftKinds = []string{"env", "upstream", "inconsistent", "declared"}
+var DriftKinds = []string{"env", "upstream", "inconsistent", "declared", "eol"}
 
 // OpenDrifts returns the workspace's unresolved drifts.
 func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {

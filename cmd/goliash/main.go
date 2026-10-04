@@ -296,6 +296,7 @@ func serve(ctx context.Context, args []string) error {
 	listen := fs.String("listen", envOr("GOLIASH_LISTEN", ":8080"), "HTTP listen address (env GOLIASH_LISTEN)")
 	upstreamEvery := fs.Duration("upstream-interval", time.Hour, "how often public registries are checked for new tags")
 	collect := fs.Bool("collect", true, "collect targets that have no agent in the server itself")
+	eol := fs.Bool("eol", true, "report end-of-life release cycles from endoflife.date")
 	keepSnapshots := fs.Int("keep-snapshots", 20, "processed snapshots kept per target; older ones are deleted hourly")
 	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
@@ -332,6 +333,9 @@ func serve(ctx context.Context, args []string) error {
 	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
 	checker.SetGitHub(versions.NewGitHub(os.Getenv("GOLIASH_GITHUB_TOKEN")))
 	checker.SetGitLab(versions.NewGitLab(os.Getenv("GOLIASH_GITLAB_URL"), os.Getenv("GOLIASH_GITLAB_TOKEN")))
+	if *eol {
+		checker.SetEOL(versions.NewEOL())
+	}
 	svc.SetUpstreams(checker)
 	notify := notifier.New(db, log, notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
 	hub := ui.NewHub()
@@ -600,6 +604,8 @@ func driftCmd(ctx context.Context, args []string, out io.Writer) error {
 				detail = fmt.Sprintf("%s, upstream %s (%s)", det.Running, det.Other, det.Jump)
 			case "declared":
 				detail = fmt.Sprintf("%s, Git declares %s", det.Running, det.Other)
+			case "eol":
+				detail = fmt.Sprintf("%s, cycle %s end of life %s", det.Running, det.Other, det.EOL)
 			case "inconsistent":
 				var parts []string
 				for t, v := range det.Targets {

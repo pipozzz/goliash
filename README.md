@@ -189,7 +189,9 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
   new-release notifications. Set `GOLIASH_GITHUB_TOKEN` to raise GitHub's rate limit.
 - **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest
   release by at least the tracked jump), `inconsistent` (targets of one environment disagree), `declared` (what runs
-  differs from what Compose files in Git declare, when an environment has both). Drift shows in the UI
+  differs from what Compose files in Git declare, when an environment has both), `eol` (the running release cycle
+  reaches its end of life within 60 days, from [endoflife.date](https://endoflife.date); `"eol": "none"` turns it
+  off, `-eol=false` for servers without internet access). Drift shows in the UI
   at once but is announced (`drift_detected`) only after it lasts: `env` 7 days, `upstream` immediately,
   `inconsistent` 15 minutes, `declared` 30 minutes. Override per service, e.g. `"drift_alert_after": {"env": "72h"}`.
 - **Stale data:** a target whose agent stopped sending heartbeats, or without a snapshot for three poll intervals

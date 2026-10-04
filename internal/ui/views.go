@@ -123,6 +123,14 @@ func driftBadge(d store.Drift) DriftBadge {
 	case "upstream":
 		b.Label = "upstream " + det.Other
 		b.Title = fmt.Sprintf("%s is available (%s); running %s", det.Other, det.Jump, det.Running)
+	case "eol":
+		b.Label = "end of life"
+		if det.EOL != "" {
+			if t, err := time.Parse("2006-01-02", det.EOL); err == nil && t.After(time.Now()) {
+				b.Label = "EOL " + det.EOL
+			}
+		}
+		b.Title = fmt.Sprintf("Release cycle %s ends support on %s (endoflife.date)", det.Other, orDash(det.EOL))
 	case "declared":
 		b.Label = "Git says " + det.Other
 		b.Title = fmt.Sprintf("The Compose files declare %s; running %s", det.Other, det.Running)
