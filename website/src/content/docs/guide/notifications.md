@@ -10,12 +10,18 @@ often). Both are managed on the Notifications page or with the CLI.
 | Type | Settings |
 | --- | --- |
 | Slack | An incoming webhook URL. |
+| Discord | A channel webhook URL (Channel settings → Integrations → Webhooks). |
+| Telegram | A bot token from @BotFather and the chat ID the bot posts to. |
+| ntfy | A topic URL on ntfy.sh or your own server, e.g. `https://ntfy.sh/my-goliash`, and an optional access token. |
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients. Needs SMTP on the server (`GOLIASH_SMTP_ADDR`, `GOLIASH_SMTP_FROM`). |
 
 ```sh
 goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
 goliash channel create -type webhook -name ci -url https://example.com/goliash -secret s3cret
+goliash channel create -type discord -name releases -url https://discord.com/api/webhooks/…
+goliash channel create -type telegram -name team -token 123456:ABC… -chat-id -1001234567890
+goliash channel create -type ntfy -name phone -url https://ntfy.sh/my-goliash
 goliash channel create -type email -name oncall -to oncall@example.com
 goliash channel test -name ops
 ```

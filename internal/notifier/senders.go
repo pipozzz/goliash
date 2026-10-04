@@ -26,9 +26,12 @@ import (
 // case e-mail channels fail with ErrNoSMTP.
 func DefaultSenders(hc *http.Client, smtpCfg SMTPConfig) map[string]Sender {
 	return map[string]Sender{
-		"slack":   Slack{HTTP: hc},
-		"webhook": Webhook{HTTP: hc},
-		"email":   Email{Config: smtpCfg},
+		"slack":    Slack{HTTP: hc},
+		"webhook":  Webhook{HTTP: hc},
+		"email":    Email{Config: smtpCfg},
+		"discord":  Discord{HTTP: hc},
+		"telegram": Telegram{HTTP: hc},
+		"ntfy":     Ntfy{HTTP: hc},
 	}
 }
 
