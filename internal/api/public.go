@@ -332,6 +332,7 @@ func parseSince(s string, now time.Time) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("invalid since %q", s)
 	}
 	return now.Add(-d), nil
+}
 
 func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p auth.Principal) {
 	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
