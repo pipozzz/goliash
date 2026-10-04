@@ -1,0 +1,55 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import (
+	"strings"
+
+	"github.com/pipozzz/goliash/internal/versions"
+)
+
+templ HygienePage(v HygieneView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Image hygiene</h1>
+				<p class="sub">Images that make "what runs" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, and images without a known digest.</p>
+			</div>
+		</div>
+		<section class="panel">
+			if len(v.Findings) == 0 {
+				<div class="empty">Nothing found: every image has a version tag and a known digest.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Image</th><th>Problem</th><th>Where</th></tr></thead>
+						<tbody>
+							for _, f := range v.Findings {
+								<tr>
+									<td class="mono">{ f.Image }</td>
+									<td>
+										<span class={ "badge", findingClass(f) }>{ strings.ReplaceAll(f.Kind, "-", " ") }</span>
+										<div class="targets">{ f.Detail }</div>
+									</td>
+									<td>
+										for _, w := range f.Where {
+											<div class="targets">{ w }</div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
+}
+
+func findingClass(f versions.Finding) string {
+	if f.Severity == "warning" {
+		return "env"
+	}
+	return "neutral"
+}

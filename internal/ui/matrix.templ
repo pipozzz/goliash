@@ -19,6 +19,12 @@ templ MatrixPage(v MatrixView) {
 					<label>As of (UTC)<input type="datetime-local" name="at" value={ v.At }/></label>
 					<button class="secondary" type="submit">Go back</button>
 					<a href={ templ.URL(exportURL(v.At)) } hx-boost="false">Export CSV</a>
+					<a href="/hygiene">
+						Image hygiene
+						if v.Hygiene > 0 {
+							<span class="count">{ itoa(v.Hygiene) }</span>
+						}
+					</a>
 				</form>
 			</div>
 			if v.At == "" {

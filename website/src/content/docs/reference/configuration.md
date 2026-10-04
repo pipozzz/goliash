@@ -16,6 +16,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITHUB_TOKEN` | | | Token for GitHub release lookups; raises the rate limit |
 | `GOLIASH_GITLAB_URL` | | | A self-hosted GitLab whose releases may be read, e.g. `https://gitlab.example.com` |
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
+| `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | | `-collect` | `true` | Collect targets that have no agent in the server itself |
 | | `-upstream-interval` | `1h` | How often public registries are checked |

@@ -36,6 +36,21 @@ goliash inventory -at 2026-09-12T14:00 -csv
 curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/v1/inventory?format=csv&at=2026-09-12T14:00"
 ```
 
+## Image hygiene
+
+**Image hygiene** (linked above the matrix, with the number of warnings) lists running images that make "what
+runs" hard to know or to trust, sidecars included:
+
+| Finding | Meaning |
+| --- | --- |
+| moving tag | `latest`, `stable`, `main` or no tag: the version cannot be known, and a restart may pull something else. |
+| retagged | The same repository and tag run as different images (digests): the tag was pushed again. |
+| untrusted registry | The image comes from outside `GOLIASH_ALLOWED_REGISTRIES` (e.g. `ghcr.io/acme,docker.io/library`). |
+| unpinned (info) | No digest is known for the image. |
+
+`goliash hygiene`, `GET /api/v1/hygiene` and `goliash_image_hygiene_findings{kind}` in `/metrics` show the same.
+Compose files are left out: they declare tags, not what runs.
+
 ## Services, environments and targets
 
 - A **target** is one thing a collector reads: a Kubernetes cluster, an ECS region, a Nomad region, a Swarm or a

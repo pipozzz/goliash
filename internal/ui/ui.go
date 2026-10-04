@@ -107,6 +107,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /promotions", s.page(v, s.promotions))
 	mux.Handle("GET /delivery", s.page(v, s.promotions))
 	mux.Handle("GET /report", s.page(v, s.report))
+	mux.Handle("GET /hygiene", s.page(v, s.hygiene))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -271,6 +272,13 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	v.Grid = g
+	if findings, err := versions.LoadHygiene(r.Context(), s.store, p.Scope); err == nil {
+		for _, f := range findings {
+			if f.Severity == "warning" {
+				v.Hygiene++
+			}
+		}
+	}
 	return render(w, r, MatrixPage(v))
 }
 
@@ -619,6 +627,14 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request, p auth.Principal
 		v.Releases = append(v.Releases, ReportReleaseView{Service: rel.Service, Version: rel.Version, At: rel.At.Format("2 Jan")})
 	}
 	return render(w, r, ReportPage(v))
+}
+
+func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	findings, err := versions.LoadHygiene(r.Context(), s.store, p.Scope)
+	if err != nil {
+		return err
+	}
+	return render(w, r, HygienePage(HygieneView{Base: s.base(r.Context(), p, "matrix", "Image hygiene"), Findings: findings}))
 }
 
 // sinceOptions are the history page's "changed in the last …" periods.

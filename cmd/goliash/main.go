@@ -65,6 +65,7 @@ const usage = `Usage:
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
+  goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash promotions                      versions waiting for the next environment, with their releases
@@ -153,6 +154,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return deliveryCmd(ctx, args, out)
 	case "inventory":
 		return inventoryCmd(ctx, args, out)
+	case "hygiene":
+		return hygieneCmd(ctx, args, out)
 	case "check":
 		return checkCmd(ctx, args, out)
 	case "service set":
@@ -347,6 +350,7 @@ func serve(ctx context.Context, args []string) error {
 	if *eol {
 		checker.SetEOL(versions.NewEOL())
 	}
+	versions.SetAllowedRegistries(splitList(os.Getenv("GOLIASH_ALLOWED_REGISTRIES")))
 	svc.SetUpstreams(checker)
 	notify := notifier.New(db, log, notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
 	hub := ui.NewHub()
@@ -1475,6 +1479,29 @@ func inventoryCmd(ctx context.Context, args []string, out io.Writer) error {
 			svc = "-"
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i.Environment, i.Target, svc, i.Workload, i.Container, i.Image, i.Running)
+	}
+	return tw.Flush()
+}
+
+func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("hygiene")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	versions.SetAllowedRegistries(splitList(os.Getenv("GOLIASH_ALLOWED_REGISTRIES")))
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	findings, err := versions.LoadHygiene(ctx, db, ws.Scope())
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "SEVERITY\tKIND\tIMAGE\tDETAIL\tWHERE")
+	for _, f := range findings {
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", f.Severity, f.Kind, f.Image, f.Detail, strings.Join(f.Where, "; "))
 	}
 	return tw.Flush()
 }

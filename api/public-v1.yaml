@@ -216,6 +216,34 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/hygiene:
+    get:
+      operationId: getHygiene
+      summary: Image hygiene findings
+      description: |
+        Running images with a moving tag (latest, stable …), a tag pushed again (same tag, different digests),
+        a registry outside `GOLIASH_ALLOWED_REGISTRIES`, or no known digest (info).
+      responses:
+        "200":
+          description: Findings, warnings first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [kind, severity, image, detail, where]
+                  properties:
+                    kind: { type: string, enum: [moving-tag, retagged, untrusted-registry, unpinned] }
+                    severity: { type: string, enum: [warning, info] }
+                    image: { type: string }
+                    detail: { type: string }
+                    where:
+                      type: array
+                      items: { type: string }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/acks:
     post:
       operationId: createAck
