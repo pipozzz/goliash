@@ -28,6 +28,7 @@ page, with `goliash service set`, or through the catalog.
 | `prerelease` | Consider alpha, beta and rc versions. | `false` |
 | `drift_alert_after` | How long drift lasts before it is announced, per kind, e.g. `{"env": "72h"}`. | see below |
 | `github`, `github_tag_prefix` | GitHub repository (`owner/repo`) whose releases give dates and release notes. | from catalog or image label |
+| `gitlab` | GitLab project (`gitlab.com/group/project`) whose releases give dates and release notes; `github_tag_prefix` applies too. | from catalog or image label |
 | `changelog` | A release notes URL template with `{version}`. | none |
 
 Without a `tag_filter`, tags are compared **like with like**: a service running `1.27.2-alpine` is compared with
@@ -47,9 +48,10 @@ Additions are welcome as pull requests.
 
 ## Release notes
 
-Releases get a publication date and a release notes link from GitHub releases. The repository comes from, in order:
+Releases get a publication date and a release notes link from GitHub or GitLab releases. The repository comes
+from, in order:
 
-1. `github` in the service's own policy,
+1. `github` or `gitlab` in the service's own policy,
 2. the catalog,
 3. the image's own `org.opencontainers.image.source` label, read from the registry once a week. Most images built
    with GitHub Actions set it, so they get release notes without any setup. Docker Official Images are skipped,
@@ -57,6 +59,10 @@ Releases get a publication date and a release notes link from GitHub releases. T
 
 The service page says which one is used. Set `GOLIASH_GITHUB_TOKEN` to raise GitHub's rate limit when you track
 many services.
+
+GitLab releases are read from gitlab.com and from one self-hosted instance set in `GOLIASH_GITLAB_URL`, with an
+optional `GOLIASH_GITLAB_TOKEN` for private projects. Other hosts are never called, because a policy or an image
+label must not make the server reach arbitrary addresses.
 
 ## Drift
 

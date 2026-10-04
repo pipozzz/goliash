@@ -249,6 +249,7 @@ components:
           additionalProperties: { type: string }
           example: { env: 168h }
         github: { type: string, example: acme/payments }
+        gitlab: { type: string, example: gitlab.com/acme/payments }
         github_tag_prefix: { type: string }
         changelog: { type: string }
 

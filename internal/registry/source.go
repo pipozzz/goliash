@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -154,4 +155,33 @@ func GitHubRepository(source string) string {
 // notRepoChar reports runes GitHub does not allow in owner and repository names.
 func notRepoChar(r rune) bool {
 	return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '_' && r != '.'
+}
+
+// GitLabProject extracts "host/group/project" from a source URL on one of hosts, such
+// as https://gitlab.com/group/sub/project or https://gitlab.com/group/project/-/tree/main.
+// It returns "" for other hosts.
+func GitLabProject(source string, hosts []string) string {
+	s := strings.TrimSpace(source)
+	s = strings.TrimPrefix(s, "git+")
+	for _, p := range []string{"https://", "http://"} {
+		s = strings.TrimPrefix(s, p)
+	}
+	s, _, _ = strings.Cut(s, "#")
+	s, _, _ = strings.Cut(s, "?")
+	s, _, _ = strings.Cut(s, "/-/")
+	host, path, ok := strings.Cut(s, "/")
+	if !ok || !slices.Contains(hosts, host) {
+		return ""
+	}
+	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	for _, part := range parts {
+		if part == "" || strings.IndexFunc(part, notRepoChar) >= 0 {
+			return ""
+		}
+	}
+	return host + "/" + path
 }

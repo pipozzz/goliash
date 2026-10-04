@@ -79,3 +79,21 @@ func TestGitHubRepository(t *testing.T) {
 		}
 	}
 }
+
+func TestGitLabProject(t *testing.T) {
+	hosts := []string{"gitlab.com", "git.example.com"}
+	for in, want := range map[string]string{
+		"https://gitlab.com/gitlab-org/gitlab-runner":         "gitlab.com/gitlab-org/gitlab-runner",
+		"https://gitlab.com/group/sub/project.git":            "gitlab.com/group/sub/project",
+		"https://gitlab.com/group/project/-/tree/main/docker": "gitlab.com/group/project",
+		"https://git.example.com/ops/app#readme":              "git.example.com/ops/app",
+		"https://evil.example.org/group/project":              "",
+		"https://gitlab.com/group":                            "",
+		"https://gitlab.com.evil.org/group/project":           "",
+		"https://github.com/acme/app":                         "",
+	} {
+		if got := GitLabProject(in, hosts); got != want {
+			t.Errorf("GitLabProject(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

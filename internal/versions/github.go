@@ -106,7 +106,7 @@ func (c *Checker) SetGitHub(g *GitHub) { c.github = g }
 // releases from its GitHub releases or changelog template. Failures only cost the
 // annotation, never the check.
 func (c *Checker) annotateReleases(ctx context.Context, sc store.Scope, svc store.Service, p Policy) {
-	if p.GitHub == "" && p.Changelog == "" {
+	if p.GitHub == "" && p.GitLab == "" && p.Changelog == "" {
 		return
 	}
 	releases, err := c.store.ListReleases(ctx, sc, svc.ID)
@@ -114,12 +114,23 @@ func (c *Checker) annotateReleases(ctx context.Context, sc store.Scope, svc stor
 		return
 	}
 	byVersion := map[string]GitHubRelease{}
-	if p.GitHub != "" && c.github != nil {
+	var forge []GitHubRelease
+	switch {
+	case p.GitHub != "" && c.github != nil:
 		gh, err := c.github.Releases(ctx, p.GitHub)
 		if err != nil {
 			c.log.WarnContext(ctx, "github releases", "repo", p.GitHub, "err", err)
 		}
-		for _, r := range gh {
+		forge = gh
+	case p.GitLab != "" && c.gitlab != nil:
+		gl, err := c.gitlab.Releases(ctx, p.GitLab)
+		if err != nil {
+			c.log.WarnContext(ctx, "gitlab releases", "project", p.GitLab, "err", err)
+		}
+		forge = gl
+	}
+	{
+		for _, r := range forge {
 			if r.Draft {
 				continue
 			}

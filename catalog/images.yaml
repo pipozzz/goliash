@@ -7,7 +7,8 @@
 #   image:              registry/repository, as Goliash normalizes it (docker.io/library/nginx)
 #   policy:             default version policy (track, pin_major, tag_filter, prerelease, drift_alert_after)
 #   github:             owner/repo whose GitHub releases give release dates and changelog links
-#   github_tag_prefix:  text before the version in release tags, e.g. "release-" (nginx)
+#   gitlab:             gitlab.com/group/project whose GitLab releases give release dates and links
+#   github_tag_prefix:  text before the version in release tags, e.g. "release-" (nginx); also for gitlab
 #   changelog:          changelog URL for projects without GitHub releases; {version} is replaced
 #
 # Additions are welcome: one entry per image, sorted by image. `go test ./internal/versions/`
@@ -20,6 +21,9 @@
   github: redis/redis
 - image: docker.io/envoyproxy/envoy
   github: envoyproxy/envoy
+- image: docker.io/gitlab/gitlab-runner
+  gitlab: gitlab.com/gitlab-org/gitlab-runner
+  policy: { track: minor }
 - image: docker.io/grafana/grafana
   github: grafana/grafana
   policy: { track: minor }
