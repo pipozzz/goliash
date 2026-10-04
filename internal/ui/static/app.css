@@ -112,12 +112,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .latest .tag { color: var(--muted); }
 .badges { display: flex; gap: 4px; flex-wrap: wrap; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font: 600 11px/1.2 var(--sans); padding: 3px 7px; border-radius: 999px; white-space: nowrap; }
-.badge.env { background: var(--warn-soft); color: var(--warn); }
+.badge.env, .badge.declared { background: var(--warn-soft); color: var(--warn); }
 .badge.upstream { background: var(--info-soft); color: var(--info); }
 .badge.inconsistent, .badge.failing, .badge.stale { background: var(--bad-soft); color: var(--bad); }
 .badge.ok, .badge.online { background: var(--ok-soft); color: var(--ok); }
 .badge.degraded { background: var(--warn-soft); color: var(--warn); }
-.badge.neutral, .badge.never { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.badge.neutral, .badge.never, .badge.declared-only { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; align-items: center; }
 .live { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; }
 .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }

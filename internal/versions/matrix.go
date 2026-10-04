@@ -26,7 +26,15 @@ type Row struct {
 // a rollout in progress or targets disagreeing.
 type Cell struct {
 	Versions []RunningVersion
+	// Declared is what Compose files (in Git) say should run. When nothing reports
+	// what actually runs, Versions holds the declared versions and FromDeclared is set.
+	Declared     []RunningVersion
+	FromDeclared bool
 }
+
+// Declared reports whether targets of the platform describe what should run (files in
+// Git) rather than what runs.
+func Declared(platform string) bool { return platform == "compose" }
 
 // RunningVersion is one tag running in a cell.
 type RunningVersion struct {
@@ -56,8 +64,10 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		envIndex[e.ID] = i
 	}
 	targetName := map[string]string{}
+	declared := map[string]bool{}
 	for _, t := range targets {
 		targetName[t.ID] = t.Name
+		declared[t.ID] = Declared(t.Platform)
 	}
 
 	type cellKey struct {
@@ -65,6 +75,7 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		env     int
 	}
 	cells := map[cellKey]map[string]*RunningVersion{}
+	declaredCells := map[cellKey]map[string]*RunningVersion{}
 	unmapped := map[string]bool{}
 	for _, i := range active {
 		if !i.IsMain {
@@ -79,13 +90,17 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 			continue
 		}
 		k := cellKey{i.ServiceID, ei}
-		if cells[k] == nil {
-			cells[k] = map[string]*RunningVersion{}
+		into := cells
+		if declared[i.TargetID] {
+			into = declaredCells
 		}
-		v := cells[k][i.Tag]
+		if into[k] == nil {
+			into[k] = map[string]*RunningVersion{}
+		}
+		v := into[k][i.Tag]
 		if v == nil {
 			v = &RunningVersion{Tag: i.Tag, Digest: i.Digest}
-			cells[k][i.Tag] = v
+			into[k][i.Tag] = v
 		}
 		v.Running += i.Running
 		if name := targetName[i.TargetID]; name != "" && !contains(v.Targets, name) {
@@ -99,24 +114,39 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		row := Row{Service: svc, Cells: make([]Cell, len(envs))}
 		present := false
 		for ei := range envs {
-			for _, v := range cells[cellKey{svc.ID, ei}] {
-				sort.Strings(v.Targets)
-				row.Cells[ei].Versions = append(row.Cells[ei].Versions, *v)
+			cell := &row.Cells[ei]
+			cell.Versions = sortedVersions(cells[cellKey{svc.ID, ei}])
+			cell.Declared = sortedVersions(declaredCells[cellKey{svc.ID, ei}])
+			if len(cell.Versions) == 0 && len(cell.Declared) > 0 {
+				cell.Versions, cell.FromDeclared = cell.Declared, true
+			}
+			if len(cell.Versions) > 0 {
 				present = true
 			}
-			vs := row.Cells[ei].Versions
-			sort.Slice(vs, func(a, b int) bool {
-				if vs[a].Running != vs[b].Running {
-					return vs[a].Running > vs[b].Running
-				}
-				return vs[a].Tag > vs[b].Tag
-			})
 		}
 		if present {
 			m.Rows = append(m.Rows, row)
 		}
 	}
 	return m
+}
+
+func sortedVersions(byTag map[string]*RunningVersion) []RunningVersion {
+	vs := make([]RunningVersion, 0, len(byTag))
+	for _, v := range byTag {
+		sort.Strings(v.Targets)
+		vs = append(vs, *v)
+	}
+	sort.Slice(vs, func(a, b int) bool {
+		if vs[a].Running != vs[b].Running {
+			return vs[a].Running > vs[b].Running
+		}
+		return vs[a].Tag > vs[b].Tag
+	})
+	if len(vs) == 0 {
+		return nil
+	}
+	return vs
 }
 
 func contains(list []string, s string) bool {

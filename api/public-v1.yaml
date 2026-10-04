@@ -306,10 +306,11 @@ components:
         environment: { type: string }
         kind:
           type: string
-          enum: [env, upstream, inconsistent]
+          enum: [env, upstream, inconsistent, declared]
           description: |
             `env`: behind a lower environment. `upstream`: behind the newest release by the tracked jump.
-            `inconsistent`: targets of one environment run different versions.
+            `inconsistent`: targets of one environment run different versions. `declared`: what runs differs
+            from what the Compose files in Git declare.
         since: { type: string, format: date-time }
         days_open: { type: number }
         detail: { $ref: '#/components/schemas/DriftDetail' }
@@ -322,6 +323,13 @@ components:
         versions:
           type: array
           items: { $ref: '#/components/schemas/Version' }
+        declared:
+          type: array
+          description: What Compose files (in Git) declare, when it is reported besides what runs.
+          items: { $ref: '#/components/schemas/Version' }
+        from_declared:
+          type: boolean
+          description: Nothing reports what runs; `versions` come from Compose files.
         drifts:
           type: array
           items: { $ref: '#/components/schemas/Drift' }

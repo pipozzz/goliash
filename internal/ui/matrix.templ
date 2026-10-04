@@ -14,6 +14,7 @@ templ MatrixPage(v MatrixView) {
 				<span class="badge env">behind previous env</span>
 				<span class="badge upstream">upstream newer</span>
 				<span class="badge inconsistent">targets disagree</span>
+				<span class="badge declared">differs from Git</span>
 				<span class="live off" data-live>Connecting…</span>
 			</div>
 		</div>
@@ -112,8 +113,11 @@ templ cellView(c MatrixCell) {
 					<div class="targets">{ v.Targets }</div>
 				}
 			}
-			if len(c.Drifts) > 0 || c.StaleTitle != "" {
+			if len(c.Drifts) > 0 || c.StaleTitle != "" || c.FromDeclared {
 				<div class="badges">
+					if c.FromDeclared {
+						<span class="badge declared-only" title="Declared in Compose files; nothing reports what actually runs here.">declared</span>
+					}
 					for _, d := range c.Drifts {
 						<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
 					}

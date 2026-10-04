@@ -71,6 +71,7 @@ label must not make the server reach arbitrary addresses.
 | `env` | An environment runs an older version than the environment before it. | 7 days |
 | `upstream` | The version is behind the newest release by at least the tracked jump. | immediately |
 | `inconsistent` | Targets of one environment run different versions. | 15 minutes |
+| `declared` | What runs differs from what the Compose files in Git declare. | 30 minutes |
 
 Drift shows in the UI as soon as it exists. It is **announced** as a `drift_detected` event, which is what
 notification rules react to, only once it has lasted the time above. That way a normal promotion from staging to
@@ -79,6 +80,14 @@ prod over a few days, or a rollout in progress, does not page anyone. Override p
 ```json
 {"drift_alert_after": {"env": "72h", "inconsistent": "1h"}}
 ```
+
+### Declared versus running
+
+A `compose` target describes what **should** run; `docker`, `kubernetes` and the other targets report what **does**
+run. When an environment has both, the matrix shows what runs, and `declared` drift appears when it differs from
+the files: "Git says 1.5.0" while prod still runs 1.4.2 because a deploy failed or never happened, or someone
+changed a container by hand. When an environment only has Compose files, the matrix shows the declared versions,
+marked *declared*.
 
 When the drift ends, a `drift_resolved` event follows.
 

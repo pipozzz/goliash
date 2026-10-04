@@ -249,6 +249,7 @@ var defaultDriftAlertAfter = map[string]time.Duration{
 	"env":          7 * 24 * time.Hour, // prod may trail staging for a release cycle
 	"upstream":     0,                  // the tracked jump already filters noise
 	"inconsistent": 15 * time.Minute,   // a rollout across several targets takes a while
+	"declared":     30 * time.Minute,   // a pipeline deploys a while after the commit
 }
 
 // AlertAfter returns how long a drift of the kind lasts before it is announced.

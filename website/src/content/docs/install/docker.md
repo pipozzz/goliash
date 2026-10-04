@@ -78,7 +78,9 @@ goliash target create -env prod -platform compose -name shop \
 - **Files on disk:** an agent can read local files from directories its operator lists in `GOLIASH_COMPOSE_DIRS`, for
   example `/srv/stacks`. The server itself reads URLs only, and never link-local addresses such as cloud metadata.
 
-Declared versions are what the file says, not what runs. To see what actually runs, use a `docker` target.
+Declared versions are what the file says, not what runs. Add a `docker` target for the same environment as well,
+and Goliash compares the two: `declared` drift shows where the host runs something other than what Git declares.
+See [Versions and drift](/goliash/guide/versions/#declared-versus-running).
 
 ## What the Docker collector reports
 

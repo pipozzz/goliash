@@ -598,6 +598,8 @@ func driftCmd(ctx context.Context, args []string, out io.Writer) error {
 				detail = fmt.Sprintf("%s, %s runs %s", det.Running, det.OtherIn, det.Other)
 			case "upstream":
 				detail = fmt.Sprintf("%s, upstream %s (%s)", det.Running, det.Other, det.Jump)
+			case "declared":
+				detail = fmt.Sprintf("%s, Git declares %s", det.Running, det.Other)
 			case "inconsistent":
 				var parts []string
 				for t, v := range det.Targets {

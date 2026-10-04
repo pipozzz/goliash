@@ -99,9 +99,11 @@ type (
 		Detail      versions.DriftDetail `json:"detail"`
 	}
 	apiCell struct {
-		Environment string       `json:"environment"`
-		Versions    []apiVersion `json:"versions"`
-		Drifts      []apiDrift   `json:"drifts"`
+		Environment  string       `json:"environment"`
+		Versions     []apiVersion `json:"versions"`
+		Declared     []apiVersion `json:"declared,omitempty"`
+		FromDeclared bool         `json:"from_declared,omitempty"`
+		Drifts       []apiDrift   `json:"drifts"`
 	}
 	apiMatrixRow struct {
 		Service  string    `json:"service"`
@@ -134,9 +136,14 @@ func (h *PublicHandler) matrix(w http.ResponseWriter, r *http.Request, p auth.Pr
 		}
 		for ei, c := range row.Cells {
 			env := o.Matrix.Environments[ei]
-			cell := apiCell{Environment: env.Name, Versions: []apiVersion{}, Drifts: []apiDrift{}}
+			cell := apiCell{Environment: env.Name, Versions: []apiVersion{}, Drifts: []apiDrift{}, FromDeclared: c.FromDeclared}
 			for _, v := range c.Versions {
 				cell.Versions = append(cell.Versions, apiVersion{Tag: v.Tag, Digest: v.Digest, Running: v.Running, Targets: v.Targets})
+			}
+			if !c.FromDeclared {
+				for _, v := range c.Declared {
+					cell.Declared = append(cell.Declared, apiVersion{Tag: v.Tag, Digest: v.Digest, Running: v.Running, Targets: v.Targets})
+				}
 			}
 			for _, d := range o.DriftsAt(row.Service.ID, env.ID) {
 				cell.Drifts = append(cell.Drifts, toAPIDrift(o, d))
