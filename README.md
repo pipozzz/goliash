@@ -251,7 +251,7 @@ with backoff. Webhook bodies are signed: `X-Goliash-Signature: sha256=HMAC(secre
 | --- | --- | --- | --- |
 | Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context` optional) |
 | ECS | clusters → services → running tasks → task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` = AWS profile name |
-| Nomad | jobs, job versions, allocations | ACL token with `read-job` | `credentials_ref` → token, else `NOMAD_TOKEN` |
+| Nomad | jobs, job versions, allocations | ACL token with `list-jobs` and `read-job` | `credentials_ref` → token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` only (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services (optionally only some `projects`); registry digests | Docker API `GET` on containers and images (docker-socket-proxy) | none |
 | Compose files | services and images declared in Compose files, without a Docker engine | an HTTP(S) URL, or for an agent a file in `GOLIASH_COMPOSE_DIRS` | `credentials_ref` → bearer token for the URL |

@@ -130,7 +130,17 @@ func TestListForbidden(t *testing.T) {
 	region := "eu"
 	t.Setenv("NOMAD_TOKEN", "wrong")
 	c, _ := New(context.Background(), agentproto.Target{Nomad: &agentproto.NomadSettings{Address: srv.URL, Region: &region}})
-	if _, err := c.Collect(context.Background()); err == nil || !strings.Contains(err.Error(), "403") {
+	if _, err := c.Collect(context.Background()); err == nil || !strings.Contains(err.Error(), "403") ||
+		!strings.Contains(err.Error(), "needs list-jobs and read-job") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestListForbiddenWithoutToken(t *testing.T) {
+	srv := fakeNomad(t, "right")
+	t.Setenv("NOMAD_TOKEN", "")
+	c, _ := New(context.Background(), agentproto.Target{Nomad: &agentproto.NomadSettings{Address: srv.URL}})
+	if _, err := c.Collect(context.Background()); err == nil || !strings.Contains(err.Error(), "no ACL token") {
 		t.Fatalf("err = %v", err)
 	}
 }

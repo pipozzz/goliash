@@ -20,8 +20,8 @@ import (
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
-// New is the collectors.Factory for Nomad targets. The ACL token (read-job is
-// enough) comes from the target's credentials_ref, or NOMAD_TOKEN when none is set.
+// New is the collectors.Factory for Nomad targets. The ACL token (list-jobs and
+// read-job are enough) comes from the target's credentials_ref, or NOMAD_TOKEN when none is set.
 func New(_ context.Context, t agentproto.Target) (collectors.Collector, error) {
 	if t.Nomad == nil || t.Nomad.Address == "" {
 		return nil, errors.New("nomad target has no address")
@@ -245,7 +245,14 @@ func (c *Collector) get(ctx context.Context, path string, q url.Values, v any) e
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return fmt.Errorf("nomad API GET %s: %d %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		err := fmt.Errorf("nomad API GET %s: %d %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		if resp.StatusCode == http.StatusForbidden {
+			if c.token == "" {
+				return fmt.Errorf("%w (no ACL token: set credentials_ref or NOMAD_TOKEN)", err)
+			}
+			return fmt.Errorf("%w (the ACL token needs list-jobs and read-job)", err)
+		}
+		return err
 	}
 	return json.NewDecoder(resp.Body).Decode(v)
 }

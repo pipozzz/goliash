@@ -5,7 +5,7 @@ title: Security
 ## Read-only by design
 
 - **Collectors only read.** The Kubernetes ClusterRole allows `get`, `list` and `watch`; the ECS role
-  `ecs:List*`, `ecs:Describe*` and `ecr:ListImages`; Nomad needs `read-job`; Docker and Swarm go through a
+  `ecs:List*`, `ecs:Describe*` and `ecr:ListImages`; Nomad needs `list-jobs` and `read-job`; Docker and Swarm go through a
   docker-socket-proxy that allows only `GET`. Nothing in Goliash creates, changes or deletes anything in your
   infrastructure.
 - **The agent only connects out.** It sends snapshots to the server over HTTPS. The server never connects to the

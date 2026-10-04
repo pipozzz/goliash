@@ -59,7 +59,7 @@ variable "nomad_address" {
 }
 
 variable "nomad_token" {
-  description = "Nomad ACL token with the read-job capability, when ACLs are enabled. Empty = no token."
+  description = "Nomad ACL token with the list-jobs and read-job capabilities, when ACLs are enabled. Empty = no token."
   type        = string
   default     = ""
 }
