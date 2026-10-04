@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -62,7 +63,8 @@ const usage = `Usage:
   goliash env create -name NAME [-position N]
   goliash agent create -name NAME         prints the agent token once
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
-  goliash matrix                          service × environment versions
+  goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
+  goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash promotions                      versions waiting for the next environment, with their releases
@@ -149,6 +151,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return promotionsCmd(ctx, args, out)
 	case "delivery":
 		return deliveryCmd(ctx, args, out)
+	case "inventory":
+		return inventoryCmd(ctx, args, out)
 	case "check":
 		return checkCmd(ctx, args, out)
 	case "service set":
@@ -526,6 +530,7 @@ func targetCreate(ctx context.Context, args []string, out io.Writer) error {
 
 func matrixCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("matrix")
+	asOf := fs.String("at", "", "show what ran at this time (UTC), e.g. 2026-09-12T14:00")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -534,7 +539,17 @@ func matrixCmd(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	o, err := versions.LoadOverview(ctx, db, ws.Scope())
+	var o versions.Overview
+	if *asOf != "" {
+		at, perr := api.ParseAt(*asOf)
+		if perr != nil {
+			return perr
+		}
+		o, err = versions.OverviewAt(ctx, db, ws.Scope(), at)
+		_, _ = fmt.Fprintf(out, "As of %s UTC\n\n", at.UTC().Format("2006-01-02 15:04"))
+	} else {
+		o, err = versions.LoadOverview(ctx, db, ws.Scope())
+	}
 	if err != nil {
 		return err
 	}
@@ -1412,6 +1427,54 @@ func deliveryCmd(ctx context.Context, args []string, out io.Writer) error {
 			}
 		}
 		_, _ = fmt.Fprintln(tw, strings.Join(cols, "\t"))
+	}
+	return tw.Flush()
+}
+
+func inventoryCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("inventory")
+	asOf := fs.String("at", "", "what ran at this time (UTC), e.g. 2026-09-12T14:00")
+	asCSV := fs.Bool("csv", false, "write CSV")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	var at *time.Time
+	if *asOf != "" {
+		t, err := api.ParseAt(*asOf)
+		if err != nil {
+			return err
+		}
+		at = &t
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	items, err := versions.Inventory(ctx, db, ws.Scope(), at)
+	if err != nil {
+		return err
+	}
+	if *asCSV {
+		cw := csv.NewWriter(out)
+		_ = cw.Write([]string{"environment", "target", "platform", "service", "namespace", "workload", "kind", "container", "image", "tag", "digest", "running", "first_seen"})
+		for _, i := range items {
+			_ = cw.Write([]string{
+				i.Environment, i.Target, i.Platform, i.Service, i.Namespace, i.Workload, i.Kind, i.Container,
+				i.Image, i.Tag, i.Digest, strconv.Itoa(i.Running), i.FirstSeen.UTC().Format(time.RFC3339),
+			})
+		}
+		cw.Flush()
+		return cw.Error()
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "ENV\tTARGET\tSERVICE\tWORKLOAD\tCONTAINER\tIMAGE\tRUNNING")
+	for _, i := range items {
+		svc := i.Service
+		if svc == "" {
+			svc = "-"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%d\n", i.Environment, i.Target, svc, i.Workload, i.Container, i.Image, i.Running)
 	}
 	return tw.Flush()
 }

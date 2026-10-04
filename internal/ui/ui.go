@@ -25,6 +25,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
@@ -251,11 +252,25 @@ func (s *Server) overview(ctx context.Context, sc store.Scope) (MatrixGrid, erro
 }
 
 func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r)}
+	if q := r.URL.Query().Get("at"); q != "" {
+		at, err := api.ParseAt(q)
+		if err != nil {
+			return back(w, r, "/", "error", "Enter a date and time like 2026-09-12T14:00.")
+		}
+		o, err := versions.OverviewAt(r.Context(), s.store, p.Scope, at)
+		if err != nil {
+			return err
+		}
+		v.Grid, v.At = buildGrid(o, 0), at.UTC().Format("2006-01-02T15:04")
+		return render(w, r, MatrixPage(v))
+	}
 	g, err := s.overview(r.Context(), p.Scope)
 	if err != nil {
 		return err
 	}
-	return render(w, r, MatrixPage(MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r), Grid: g}))
+	v.Grid = g
+	return render(w, r, MatrixPage(v))
 }
 
 func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

@@ -41,6 +41,10 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		status                    int
 	}{
 		{"GET", "/api/v1/matrix", e.token, "", 200},
+		{"GET", "/api/v1/matrix?at=2020-01-01T00:00", e.token, "", 200},
+		{"GET", "/api/v1/matrix?at=yesterday", e.token, "", 400},
+		{"GET", "/api/v1/inventory", e.token, "", 200},
+		{"GET", "/api/v1/inventory?format=csv", e.token, "", 200},
 		{"GET", "/api/v1/services", e.token, "", 200},
 		{"GET", "/api/v1/environments", e.token, "", 200},
 		{"GET", "/api/v1/targets", e.token, "", 200},

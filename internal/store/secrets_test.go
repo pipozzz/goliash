@@ -10,6 +10,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestChannelSecretsAtRest(t *testing.T) {
@@ -107,6 +108,57 @@ func TestDriftKinds(t *testing.T) {
 		}
 		if _, err := s.OpenDrift(ctx, Drift{Scope: f.ws.Scope(), ServiceID: svc.ID, EnvironmentID: f.env.ID, Kind: "bogus"}); err == nil {
 			t.Fatal("unknown drift kind accepted")
+		}
+	})
+}
+
+// A version that comes back reuses its instance row; the history still knows when it
+// did not run.
+func TestInstancesAt(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		t0 := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+		apply := func(at time.Time, tag string) {
+			t.Helper()
+			current, _ := s.ListTargetInstances(ctx, sc, f.tgt.ID)
+			ch := SnapshotChanges{Scope: sc, TargetID: f.tgt.ID, SnapshotID: NewID(), At: at, Upsert: []Instance{{
+				TargetID: f.tgt.ID, EnvironmentID: f.env.ID, WorkloadID: "w", WorkloadKind: "deployment", WorkloadName: "web",
+				ContainerName: "app", Image: "nginx:" + tag, Tag: tag, Running: 2, IsMain: true,
+			}}}
+			for _, i := range current {
+				if i.Active() && i.Tag != tag {
+					ch.Remove = append(ch.Remove, i.ID)
+				}
+			}
+			_, _ = s.InsertSnapshot(ctx, Snapshot{ID: ch.SnapshotID, Scope: sc, TargetID: f.tgt.ID, CollectedAt: at, Complete: true, Payload: json.RawMessage(`{}`)})
+			if err := s.ApplySnapshot(ctx, ch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		apply(t0, "1.0")
+		apply(t0.Add(time.Hour), "1.0") // unchanged: no new period
+		apply(t0.Add(2*time.Hour), "2.0")
+		apply(t0.Add(4*time.Hour), "1.0") // back again
+		tagAt := func(at time.Time) string {
+			t.Helper()
+			is, err := s.InstancesAt(ctx, sc, at)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var tags []string
+			for _, i := range is {
+				tags = append(tags, i.Tag)
+			}
+			return strings.Join(tags, ",")
+		}
+		for at, want := range map[time.Time]string{
+			t0.Add(-time.Minute): "", t0.Add(30 * time.Minute): "1.0", t0.Add(3 * time.Hour): "2.0", t0.Add(5 * time.Hour): "1.0",
+		} {
+			if got := tagAt(at); got != want {
+				t.Errorf("at %s: %q, want %q", at.Format("15:04"), got, want)
+			}
 		}
 	})
 }

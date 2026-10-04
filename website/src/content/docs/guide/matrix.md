@@ -19,6 +19,23 @@ Badges in a cell:
 
 During a rollout, both versions show with their replica counts. The matrix updates live as snapshots arrive.
 
+## Looking back, and exporting for audits
+
+Pick a date and time in **As of** above the matrix to see what ran then: "what was in prod on 12 September at
+14:00?". Goliash keeps when each version ran for 400 days, so the answer is right even after versions moved on and
+back. Drift and upstream releases describe now, so they are not shown for the past.
+
+**Export CSV** downloads every container that runs (or ran at that time), sidecars included, with environment,
+target, workload, image, tag, digest, replicas and when it was first seen: an asset inventory for ISO 27001 or
+SOC 2 audits. The same is available from the CLI and the API:
+
+```sh
+goliash matrix -at 2026-09-12T14:00
+goliash inventory -csv > inventory.csv
+goliash inventory -at 2026-09-12T14:00 -csv
+curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/v1/inventory?format=csv&at=2026-09-12T14:00"
+```
+
 ## Services, environments and targets
 
 - A **target** is one thing a collector reads: a Kubernetes cluster, an ECS region, a Nomad region, a Swarm or a
