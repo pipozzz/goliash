@@ -104,6 +104,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/check", s.page(m, s.checkNow))
 	mux.Handle("GET /events", s.page(v, s.events))
 	mux.Handle("GET /promotions", s.page(v, s.promotions))
+	mux.Handle("GET /delivery", s.page(v, s.promotions))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -560,7 +561,31 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return err
 	}
-	v := PromotionsView{Base: s.base(ctx, p, "promotions", "Promotions")}
+	v := PromotionsView{Base: s.base(ctx, p, "promotions", "Delivery")}
+	stats, err := versions.DeliveryStats(ctx, s.store, p.Scope, o, 30*24*time.Hour, time.Now())
+	if err != nil {
+		return err
+	}
+	for _, e := range o.Matrix.Environments {
+		v.EnvNames = append(v.EnvNames, e.Name)
+	}
+	for i := 1; i < len(o.Matrix.Environments); i++ {
+		v.LeadNames = append(v.LeadNames, o.Matrix.Environments[i-1].Name+" → "+o.Matrix.Environments[i].Name)
+	}
+	for _, d := range stats {
+		row := DeliveryRow{Service: d.Service.Name}
+		for _, e := range d.Envs {
+			row.Envs = append(row.Envs, DeliveryCell{Deploys: e.Deploys, Last: e.LastDeploy})
+		}
+		for _, lt := range d.LeadTimes {
+			lead := "—"
+			if lt.Samples > 0 {
+				lead = versions.HumanDuration(lt.Median)
+			}
+			row.Leads = append(row.Leads, lead)
+		}
+		v.Delivery = append(v.Delivery, row)
+	}
 	for _, pr := range list {
 		pv := PromotionView{Service: pr.Service.Name, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since}
 		for _, rel := range pr.Releases {

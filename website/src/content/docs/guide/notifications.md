@@ -114,6 +114,8 @@ If you alert from Prometheus, scrape `GET /metrics` with an API token instead:
 | `goliash_deployed_version_info` | service, environment, version | running replicas |
 | `goliash_outdated` | service, environment | 1 when behind upstream by the tracked jump |
 | `goliash_drift_days` | service, environment, kind | days a drift has been open |
+| `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
+| `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
 
 ```yaml
 scrape_configs:

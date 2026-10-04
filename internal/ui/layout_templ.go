@@ -246,7 +246,7 @@ func Layout(b Base) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = navLink(b, "promotions", "/promotions", "Promotions").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = navLink(b, "promotions", "/delivery", "Delivery").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

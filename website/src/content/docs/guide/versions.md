@@ -100,9 +100,9 @@ marked *declared*.
 
 When the drift ends, a `drift_resolved` event follows.
 
-## Promotions
+## Promotions and delivery
 
-The **Promotions** page lists every version that runs in one environment and waits for the next, longest waiting
+The **Delivery** page lists every version that runs in one environment and waits for the next, longest waiting
 first, with the releases a promotion would bring and their release notes. It is the list to go through before a
 release to production; `goliash promotions` and `GET /api/v1/promotions` show the same.
 
@@ -115,6 +115,17 @@ SERVICE        PROMOTE           FROM → TO        WAITING   RELEASES
 payments-api   1.5.0 → 1.6.0     staging → prod   3d        1.6.0, 1.5.1
 postgres       15.6 → 15.7       staging → prod   26h       15.7
 ```
+
+Below it, the page shows how versions moved over the last 30 days, read from what ran when rather than from CI:
+how many versions arrived in each environment, and the median time a version took from one environment to the
+next (its *lead time*, e.g. staging → prod).
+
+```sh
+goliash delivery -window 720h
+```
+
+The same numbers are in `GET /api/v1/delivery?window=30d` and in `/metrics` as `goliash_deploys` and
+`goliash_lead_time_seconds`, for dashboards and alerts such as "nothing reached prod for two weeks".
 
 ## Acknowledging
 

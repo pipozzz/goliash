@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -65,6 +66,7 @@ const usage = `Usage:
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash promotions                      versions waiting for the next environment, with their releases
+  goliash delivery [-window 720h]         deploys per environment and lead times between environments
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
@@ -145,6 +147,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return driftCmd(ctx, args, out)
 	case "promotions":
 		return promotionsCmd(ctx, args, out)
+	case "delivery":
+		return deliveryCmd(ctx, args, out)
 	case "check":
 		return checkCmd(ctx, args, out)
 	case "service set":
@@ -1363,6 +1367,51 @@ func promotionsCmd(ctx context.Context, args []string, out io.Writer) error {
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s → %s\t%s → %s\t%s\t%s\n", p.Service.Name, p.Running, p.Version, p.From.Name, p.To.Name,
 			time.Since(p.Since).Round(time.Hour), strings.Join(rel, ", "))
+	}
+	return tw.Flush()
+}
+
+func deliveryCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("delivery")
+	window := fs.Duration("window", 30*24*time.Hour, "look back this long")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	o, err := versions.LoadOverview(ctx, db, ws.Scope())
+	if err != nil {
+		return err
+	}
+	stats, err := versions.DeliveryStats(ctx, db, ws.Scope(), o, *window, time.Now())
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	header := []string{"SERVICE"}
+	for _, e := range o.Matrix.Environments {
+		header = append(header, strings.ToUpper(e.Name)+" DEPLOYS")
+	}
+	for i := 1; i < len(o.Matrix.Environments); i++ {
+		header = append(header, strings.ToUpper(o.Matrix.Environments[i-1].Name+"→"+o.Matrix.Environments[i].Name))
+	}
+	_, _ = fmt.Fprintln(tw, strings.Join(header, "\t"))
+	for _, d := range stats {
+		cols := []string{d.Service.Name}
+		for _, e := range d.Envs {
+			cols = append(cols, strconv.Itoa(e.Deploys))
+		}
+		for _, lt := range d.LeadTimes {
+			if lt.Samples == 0 {
+				cols = append(cols, "-")
+			} else {
+				cols = append(cols, versions.HumanDuration(lt.Median))
+			}
+		}
+		_, _ = fmt.Fprintln(tw, strings.Join(cols, "\t"))
 	}
 	return tw.Flush()
 }

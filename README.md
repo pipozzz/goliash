@@ -129,7 +129,7 @@ and updates live over server-sent events.
 | Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream |
 | Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now" |
 | Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image |
-| Promotions | versions waiting for the next environment, how long, and the releases a promotion brings |
+| Delivery | versions waiting for the next environment with the releases they bring; deploys and lead times per environment |
 | History | every event, filterable by service, environment and type |
 | Agents | agents and targets with collector health; add agents (token shown once), environments and targets |
 | Notifications | channels (with a test button) and rules |
@@ -156,7 +156,8 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
   `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`. The OpenAPI
   description is [`api/public-v1.yaml`](api/public-v1.yaml), also served at `/api/v1/openapi.yaml`; every response
   is tested against it.
-- **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`.
+- **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`,
+  `goliash_deploys` and `goliash_lead_time_seconds` (last 30 days).
   Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and [SigNoz](deploy/signoz) are included.
 
 ### Versions, upstream and drift
@@ -165,6 +166,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
 bin/goliash matrix                 # service × environment, latest upstream, drift markers
 bin/goliash drift                  # open drifts
 bin/goliash promotions             # versions waiting for the next environment, with the releases they bring
+bin/goliash delivery               # deploys per environment and lead times between environments, last 30 days
 bin/goliash events                 # history: deployed, version_changed, removed, new_release, drift_*
 bin/goliash events -env prod -since 2h   # what changed before an incident
 bin/goliash check                  # check upstream registries now (the server does it hourly)

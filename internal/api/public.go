@@ -40,6 +40,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/events", h.with(store.RoleViewer, h.events))
 	mux.Handle("GET /api/v1/drifts", h.with(store.RoleViewer, h.drifts))
 	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
+	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -375,6 +376,61 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *PublicHandler) delivery(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	window := 30 * 24 * time.Hour
+	if s := r.URL.Query().Get("window"); s != "" {
+		since, err := parseSince(s, time.Now())
+		if err != nil || !since.Before(time.Now()) {
+			writeProblem(w, http.StatusBadRequest, "Invalid window", "use a duration like 7d or 720h")
+			return
+		}
+		window = time.Since(since).Round(time.Second)
+	}
+	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	stats, err := versions.DeliveryStats(r.Context(), h.store, p.Scope, o, window, time.Now())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiEnv struct {
+		Environment string     `json:"environment"`
+		Deploys     int        `json:"deploys"`
+		LastDeploy  *time.Time `json:"last_deploy,omitempty"`
+	}
+	type apiLead struct {
+		From          string  `json:"from"`
+		To            string  `json:"to"`
+		MedianSeconds float64 `json:"median_seconds"`
+		Samples       int     `json:"samples"`
+	}
+	type apiDelivery struct {
+		Service      string    `json:"service"`
+		Environments []apiEnv  `json:"environments"`
+		LeadTimes    []apiLead `json:"lead_times"`
+	}
+	out := []apiDelivery{}
+	for _, d := range stats {
+		ad := apiDelivery{Service: d.Service.Name, Environments: []apiEnv{}, LeadTimes: []apiLead{}}
+		for _, e := range d.Envs {
+			ae := apiEnv{Environment: e.Env.Name, Deploys: e.Deploys}
+			if !e.LastDeploy.IsZero() {
+				t := e.LastDeploy
+				ae.LastDeploy = &t
+			}
+			ad.Environments = append(ad.Environments, ae)
+		}
+		for _, lt := range d.LeadTimes {
+			ad.LeadTimes = append(ad.LeadTimes, apiLead{From: lt.From.Name, To: lt.To.Name, MedianSeconds: lt.Median.Seconds(), Samples: lt.Samples})
+		}
+		out = append(out, ad)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (h *PublicHandler) drifts(w http.ResponseWriter, r *http.Request, p auth.Principal) {
 	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
 	if err != nil {
@@ -480,6 +536,24 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 	b.WriteString("# TYPE goliash_outdated gauge\n")
 	for _, l := range outdated {
 		b.WriteString(l + "\n")
+	}
+	if stats, err := versions.DeliveryStats(r.Context(), h.store, p.Scope, o, 30*24*time.Hour, time.Now()); err == nil {
+		b.WriteString("# HELP goliash_deploys Versions that arrived in an environment in the last 30 days.\n")
+		b.WriteString("# TYPE goliash_deploys gauge\n")
+		for _, d := range stats {
+			for _, e := range d.Envs {
+				fmt.Fprintf(&b, "goliash_deploys{service=%q,environment=%q} %d\n", d.Service.Name, e.Env.Name, e.Deploys)
+			}
+		}
+		b.WriteString("# HELP goliash_lead_time_seconds Median time a version took from one environment to the next, last 30 days.\n")
+		b.WriteString("# TYPE goliash_lead_time_seconds gauge\n")
+		for _, d := range stats {
+			for _, lt := range d.LeadTimes {
+				if lt.Samples > 0 {
+					fmt.Fprintf(&b, "goliash_lead_time_seconds{service=%q,from=%q,to=%q} %.0f\n", d.Service.Name, lt.From.Name, lt.To.Name, lt.Median.Seconds())
+				}
+			}
+		}
 	}
 	b.WriteString("# HELP goliash_drift_days How long a drift has been open, in days.\n")
 	b.WriteString("# TYPE goliash_drift_days gauge\n")
