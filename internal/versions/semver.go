@@ -164,8 +164,11 @@ type Policy struct {
 	// Where release notes live: GitHub releases of GitHub ("owner/repo") or GitLab
 	// releases of GitLab ("gitlab.com/group/project"), whose tags are the version after
 	// GitHubTagPrefix, or a Changelog URL template with {version}.
-	GitHub          string `json:"github,omitempty"`
-	GitLab          string `json:"gitlab,omitempty"`
+	GitHub string `json:"github,omitempty"`
+	GitLab string `json:"gitlab,omitempty"`
+	// EOL names the endoflife.date product whose release cycles end support ("postgresql");
+	// empty means the one the site lists for the image, "none" turns it off.
+	EOL             string `json:"eol,omitempty"`
 	GitHubTagPrefix string `json:"github_tag_prefix,omitempty"`
 	Changelog       string `json:"changelog,omitempty"`
 }
@@ -209,6 +212,9 @@ func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 	if p.GitHub == "" && p.GitLab == "" && p.Changelog == "" {
 		p.GitHub, p.GitLab, p.GitHubTagPrefix, p.Changelog = entry.GitHub, entry.GitLab, entry.GitHubTagPrefix, entry.Changelog
 	}
+	if p.EOL == "" {
+		p.EOL = entry.EOL
+	}
 	return p, src, nil
 }
 
@@ -250,6 +256,7 @@ var defaultDriftAlertAfter = map[string]time.Duration{
 	"upstream":     0,                  // the tracked jump already filters noise
 	"inconsistent": 15 * time.Minute,   // a rollout across several targets takes a while
 	"declared":     30 * time.Minute,   // a pipeline deploys a while after the commit
+	"eol":          0,                  // dates are known in advance; say it once
 }
 
 // AlertAfter returns how long a drift of the kind lasts before it is announced.

@@ -10,11 +10,13 @@
 #   gitlab:             gitlab.com/group/project whose GitLab releases give release dates and links
 #   github_tag_prefix:  text before the version in release tags, e.g. "release-" (nginx); also for gitlab
 #   changelog:          changelog URL for projects without GitHub releases; {version} is replaced
+#   eol:                endoflife.date product, for images the site does not map to one itself
 #
 # Additions are welcome: one entry per image, sorted by image. `go test ./internal/versions/`
 # checks every entry.
 
 - image: docker.elastic.co/elasticsearch/elasticsearch
+  eol: elasticsearch
   github: elastic/elasticsearch
   policy: { track: minor }
 - image: docker.io/bitnami/redis
@@ -25,17 +27,21 @@
   gitlab: gitlab.com/gitlab-org/gitlab-runner
   policy: { track: minor }
 - image: docker.io/grafana/grafana
+  eol: grafana
   github: grafana/grafana
   policy: { track: minor }
 - image: docker.io/grafana/loki
   github: grafana/loki
 - image: docker.io/hashicorp/consul
+  eol: consul
   github: hashicorp/consul
 - image: docker.io/hashicorp/vault
+  eol: hashicorp-vault
   github: hashicorp/vault
 - image: docker.io/library/caddy
   github: caddyserver/caddy
 - image: docker.io/library/haproxy
+  eol: haproxy
   changelog: https://www.haproxy.org/download/{version}/src/CHANGELOG
 - image: docker.io/library/mariadb
   changelog: https://mariadb.com/kb/en/mariadb-{version}-release-notes/
@@ -43,6 +49,7 @@
 - image: docker.io/library/memcached
   changelog: https://github.com/memcached/memcached/wiki/ReleaseNotes{version}
 - image: docker.io/library/mongo
+  eol: mongodb
   changelog: https://www.mongodb.com/docs/manual/release-notes/
   policy: { track: minor }
 - image: docker.io/library/mysql
@@ -51,12 +58,14 @@
 - image: docker.io/library/nats
   github: nats-io/nats-server
 - image: docker.io/library/nginx
+  eol: nginx
   github: nginx/nginx
   github_tag_prefix: release-
 - image: docker.io/library/postgres
   changelog: https://www.postgresql.org/docs/release/{version}/
   policy: { track: minor }
 - image: docker.io/library/rabbitmq
+  eol: rabbitmq
   github: rabbitmq/rabbitmq-server
 - image: docker.io/library/redis
   github: redis/redis
@@ -72,10 +81,13 @@
 - image: docker.io/prom/prometheus
   github: prometheus/prometheus
 - image: quay.io/argoproj/argocd
+  eol: argo-cd
   github: argoproj/argo-cd
 - image: quay.io/jetstack/cert-manager-controller
+  eol: cert-manager
   github: cert-manager/cert-manager
 - image: quay.io/keycloak/keycloak
+  eol: keycloak
   github: keycloak/keycloak
   policy: { track: minor }
 - image: quay.io/prometheus/alertmanager
@@ -83,6 +95,7 @@
 - image: quay.io/prometheus/node-exporter
   github: prometheus/node_exporter
 - image: quay.io/prometheus/prometheus
+  eol: prometheus
   github: prometheus/prometheus
 - image: registry.k8s.io/coredns/coredns
   github: coredns/coredns

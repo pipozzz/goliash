@@ -72,6 +72,7 @@ label must not make the server reach arbitrary addresses.
 | `upstream` | The version is behind the newest release by at least the tracked jump. | immediately |
 | `inconsistent` | Targets of one environment run different versions. | 15 minutes |
 | `declared` | What runs differs from what the Compose files in Git declare. | 30 minutes |
+| `eol` | The running release cycle reaches its end of life within 60 days, or already has. | immediately |
 
 Drift shows in the UI as soon as it exists. It is **announced** as a `drift_detected` event, which is what
 notification rules react to, only once it has lasted the time above. That way a normal promotion from staging to
@@ -80,6 +81,14 @@ prod over a few days, or a rollout in progress, does not page anyone. Override p
 ```json
 {"drift_alert_after": {"env": "72h", "inconsistent": "1h"}}
 ```
+
+### End of life
+
+Goliash reads support dates from [endoflife.date](https://endoflife.date): it knows which product an image is
+(postgres → PostgreSQL, through the site's package URLs, or the catalog's `eol` field), picks the release cycle of
+the running version (15.6 → 15, 7.2.4 → 7.2) and opens `eol` drift 60 days before that cycle stops being supported,
+or at once when it already has. Set `"eol": "postgresql"` in a service's policy to name the product yourself, or
+`"eol": "none"` to turn it off. Without internet access, start the server with `-eol=false`.
 
 ### Declared versus running
 

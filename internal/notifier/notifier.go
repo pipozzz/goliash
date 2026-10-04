@@ -448,6 +448,8 @@ func Describe(it Item) string {
 			return fmt.Sprintf("%s: targets run different versions", where)
 		case "declared":
 			return fmt.Sprintf("%s: runs %s, but Git declares %s", where, it.From, it.To)
+		case "eol":
+			return fmt.Sprintf("%s: runs %s, whose release cycle %s reaches or has reached its end of life", where, it.From, it.To)
 		}
 		return fmt.Sprintf("%s: drift (%s)", where, it.Note)
 	case "drift_resolved":

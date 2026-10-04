@@ -23,6 +23,7 @@ type Entry struct {
 	Image           string         `yaml:"image"`
 	GitHub          string         `yaml:"github"`
 	GitLab          string         `yaml:"gitlab"` // host/group/project
+	EOL             string         `yaml:"eol"`    // endoflife.date product
 	GitHubTagPrefix string         `yaml:"github_tag_prefix"`
 	Changelog       string         `yaml:"changelog"`
 	Policy          map[string]any `yaml:"policy"`
