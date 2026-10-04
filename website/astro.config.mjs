@@ -41,6 +41,7 @@ export default defineConfig({
             { slug: 'reference/configuration' },
             { slug: 'reference/cli' },
             { slug: 'reference/api' },
+            { slug: 'reference/mcp' },
             { slug: 'reference/collectors' },
             { slug: 'reference/agent-protocol' },
           ],

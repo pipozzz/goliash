@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,6 +36,10 @@ import (
 	"syscall"
 	"text/tabwriter"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/pipozzz/goliash/internal/mcpserver"
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
@@ -66,6 +71,7 @@ const usage = `Usage:
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
   goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
+  goliash mcp [-server URL] [-token T]    MCP server on stdin/stdout for AI assistants (env GOLIASH_URL, GOLIASH_TOKEN)
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash promotions                      versions waiting for the next environment, with their releases
@@ -156,6 +162,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return inventoryCmd(ctx, args, out)
 	case "hygiene":
 		return hygieneCmd(ctx, args, out)
+	case "mcp":
+		return mcpCmd(ctx, args)
 	case "check":
 		return checkCmd(ctx, args, out)
 	case "service set":
@@ -382,6 +390,7 @@ func serve(ctx context.Context, args []string) error {
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "",
 	}).Register(mux)
+	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -1504,4 +1513,29 @@ func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", f.Severity, f.Kind, f.Image, f.Detail, strings.Join(f.Where, "; "))
 	}
 	return tw.Flush()
+}
+
+// loopbackURL is how the server reaches its own REST API (for the MCP endpoint).
+func loopbackURL(listen string) string {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return "http://127.0.0.1:8080"
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
+func mcpCmd(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	server := fs.String("server", envOr("GOLIASH_URL", "http://localhost:8080"), "Goliash server URL (env GOLIASH_URL)")
+	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *token == "" {
+		return errors.New("set GOLIASH_TOKEN (goliash token create -name mcp) or -token")
+	}
+	return mcpserver.NewServer(&mcpserver.Client{BaseURL: *server, Token: *token}).Run(ctx, &mcp.StdioTransport{})
 }
