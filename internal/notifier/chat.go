@@ -31,13 +31,13 @@ func lines(msg Message, link func(text, url string) string) (title string, body 
 	return title, body
 }
 
-// truncate keeps s within max runes, ending with an ellipsis when it was cut.
-func truncate(s string, max int) string {
+// truncate keeps s within limit runes, ending with an ellipsis when it was cut.
+func truncate(s string, limit int) string {
 	r := []rune(s)
-	if len(r) <= max {
+	if len(r) <= limit {
 		return s
 	}
-	return string(r[:max-1]) + "…"
+	return string(r[:limit-1]) + "…"
 }
 
 // Discord posts to a channel webhook.
