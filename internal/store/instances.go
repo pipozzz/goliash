@@ -92,6 +92,45 @@ func (s *Store) MapInstances(ctx context.Context, sc Scope, targetID, workloadID
 	return err
 }
 
+// InstancesAt returns the instances that ran at a point in time, with the replicas
+// they had then, as if they were active.
+func (s *Store) InstancesAt(ctx context.Context, sc Scope, at time.Time) ([]Instance, error) {
+	at = at.UTC()
+	rows, err := s.query(ctx, s.db, `SELECT instance_id, running FROM instance_history
+		WHERE org_id = ? AND workspace_id = ? AND since <= ? AND (until IS NULL OR until > ?)`,
+		sc.OrgID, sc.WorkspaceID, at, at)
+	if err != nil {
+		return nil, err
+	}
+	running := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		running[id] = n
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	all, err := s.listInstances(ctx, `WHERE org_id = ? AND workspace_id = ? AND first_seen_at <= ?
+		ORDER BY workload_name, container_name`, sc.OrgID, sc.WorkspaceID, at)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, i := range all {
+		if n, ok := running[i.ID]; ok {
+			i.Running, i.RemovedAt = n, time.Time{}
+			out = append(out, i)
+		}
+	}
+	return out, nil
+}
+
 func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([]Instance, error) {
 	rows, err := s.query(ctx, s.db, `SELECT `+instanceColumns+` FROM instances `+where, args...)
 	if err != nil {
@@ -147,10 +186,24 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 			if err != nil {
 				return err
 			}
+			// Open a history period when the instance starts running (new, or back again).
+			if _, err := s.exec(ctx, tx, `
+				INSERT INTO instance_history (id, org_id, workspace_id, instance_id, running, since)
+				SELECT ?, org_id, workspace_id, id, running, ? FROM instances
+				WHERE target_id = ? AND workload_id = ? AND container_name = ? AND image = ? AND digest = ?
+					AND NOT EXISTS (SELECT 1 FROM instance_history h WHERE h.instance_id = instances.id AND h.until IS NULL)`,
+				NewID(), at, ch.TargetID, i.WorkloadID, i.ContainerName, i.Image, i.Digest); err != nil {
+				return err
+			}
 		}
 		for _, id := range ch.Remove {
 			if _, err := s.exec(ctx, tx, `UPDATE instances SET removed_at = ?, running = 0
 				WHERE id = ? AND org_id = ? AND workspace_id = ? AND removed_at IS NULL`,
+				at, id, ch.Scope.OrgID, ch.Scope.WorkspaceID); err != nil {
+				return err
+			}
+			if _, err := s.exec(ctx, tx, `UPDATE instance_history SET until = ?
+				WHERE instance_id = ? AND org_id = ? AND workspace_id = ? AND until IS NULL`,
 				at, id, ch.Scope.OrgID, ch.Scope.WorkspaceID); err != nil {
 				return err
 			}

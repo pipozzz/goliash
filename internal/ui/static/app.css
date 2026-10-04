@@ -175,3 +175,6 @@ details[open] > summary { margin-bottom: 12px; }
   .flash { animation: flash 1.2s ease-out; }
   @keyframes flash { from { background: var(--accent-soft); } }
 }
+
+.asof { margin-top: 10px; font-size: 13px; }
+.asof input { width: auto; }

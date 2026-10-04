@@ -26,7 +26,11 @@ paths:
     get:
       operationId: getMatrix
       summary: The service × environment matrix
-      description: Every service with the versions running in each environment, open drift and the newest upstream version.
+      description: |
+        Every service with the versions running in each environment, open drift and the newest upstream version.
+        With `at`, the matrix as it was then, without drift and upstream data.
+      parameters:
+        - $ref: '#/components/parameters/At'
       responses:
         "200":
           description: The matrix.
@@ -34,6 +38,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Matrix'
+        "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
@@ -186,6 +191,31 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/inventory:
+    get:
+      operationId: getInventory
+      summary: Every running container, for audits
+      description: Every container that runs now (or ran at `at`), sidecars included, with image, tag and digest.
+      parameters:
+        - $ref: '#/components/parameters/At'
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv], default: json }
+      responses:
+        "200":
+          description: The inventory.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryItem'
+            text/csv:
+              schema: { type: string }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/acks:
     post:
       operationId: createAck
@@ -235,6 +265,13 @@ components:
       type: apiKey
       in: cookie
       name: goliash_session
+
+  parameters:
+    At:
+      name: at
+      in: query
+      description: A point in the past, RFC 3339 or `2026-09-12T14:00` (UTC). History is kept for 400 days.
+      schema: { type: string, example: "2026-09-12T14:00:00Z" }
 
   responses:
     BadRequest:
@@ -479,6 +516,24 @@ components:
               to: { type: string }
               median_seconds: { type: number }
               samples: { type: integer }
+
+    InventoryItem:
+      type: object
+      required: [environment, target, platform, workload, kind, container, image, running, first_seen]
+      properties:
+        environment: { type: string }
+        target: { type: string }
+        platform: { type: string }
+        service: { type: string }
+        namespace: { type: string }
+        workload: { type: string }
+        kind: { type: string }
+        container: { type: string }
+        image: { type: string }
+        tag: { type: string }
+        digest: { type: string }
+        running: { type: integer }
+        first_seen: { type: string, format: date-time }
 
     AckRequest:
       type: object

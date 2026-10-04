@@ -14,7 +14,11 @@ type HousekeepingResult struct {
 	Notifications int64
 	Sessions      int64
 	LoginTokens   int64
+	History       int64
 }
+
+// historyKept is how long ended instance periods are kept for time travel.
+const historyKept = 400 * 24 * time.Hour
 
 // Housekeep removes data nothing reads any more:
 //
@@ -22,6 +26,7 @@ type HousekeepingResult struct {
 //     instances and events; a snapshot is only needed until it is processed);
 //   - delivered notifications older than 30 days, and ones given up on after 30 days;
 //   - expired sessions and sign-in tokens.
+//   - instance history periods that ended more than 400 days ago.
 //
 // Unprocessed snapshots are never removed.
 func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingResult, error) {
@@ -44,6 +49,7 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 		{&r.Notifications, `DELETE FROM notification_queue WHERE created_at < ? AND (sent_at IS NOT NULL OR attempts > 0)`, []any{monthAgo}},
 		{&r.Sessions, `DELETE FROM sessions WHERE expires_at < ?`, []any{now}},
 		{&r.LoginTokens, `DELETE FROM login_tokens WHERE expires_at < ?`, []any{now.Add(-24 * time.Hour)}},
+		{&r.History, `DELETE FROM instance_history WHERE until < ?`, []any{now.Add(-historyKept)}},
 	}
 	for _, step := range steps {
 		res, err := s.exec(ctx, s.db, step.query, step.args...)

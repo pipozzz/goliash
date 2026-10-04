@@ -57,6 +57,7 @@ type WorkspacesView struct {
 type MatrixView struct {
 	Base
 	Grid MatrixGrid
+	At   string // "2006-01-02T15:04" (UTC) when looking back; empty for now
 }
 
 // MatrixGrid is the part of the matrix that reloads live.
@@ -518,4 +519,12 @@ func roleLabel(r string) string {
 		return "no access"
 	}
 	return r
+}
+
+// exportURL is the inventory CSV, now or as of a past time.
+func exportURL(at string) string {
+	if at == "" {
+		return "/api/v1/inventory?format=csv"
+	}
+	return "/api/v1/inventory?format=csv&at=" + url.QueryEscape(at)
 }

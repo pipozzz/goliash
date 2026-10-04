@@ -4,6 +4,7 @@
 package api
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -41,6 +42,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/drifts", h.with(store.RoleViewer, h.drifts))
 	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
+	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -122,7 +124,17 @@ type (
 )
 
 func (h *PublicHandler) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal) {
-	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
+	at, ok := atParam(w, r)
+	if !ok {
+		return
+	}
+	var o versions.Overview
+	var err error
+	if at != nil {
+		o, err = versions.OverviewAt(r.Context(), h.store, p.Scope, *at)
+	} else {
+		o, err = versions.LoadOverview(r.Context(), h.store, p.Scope)
+	}
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -429,6 +441,64 @@ func (h *PublicHandler) delivery(w http.ResponseWriter, r *http.Request, p auth.
 		out = append(out, ad)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// atParam reads ?at= (RFC 3339, or 2006-01-02T15:04 in UTC); nil means now.
+func atParam(w http.ResponseWriter, r *http.Request) (*time.Time, bool) {
+	s := r.URL.Query().Get("at")
+	if s == "" {
+		return nil, true
+	}
+	t, err := ParseAt(s)
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "Invalid at", "use RFC 3339, e.g. 2026-09-12T14:00:00Z")
+		return nil, false
+	}
+	return &t, true
+}
+
+// ParseAt reads a point in time: RFC 3339, or "2006-01-02T15:04" / "2006-01-02 15:04" in UTC.
+func ParseAt(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02 15:04", "2006-01-02"} {
+		if t, err := time.ParseInLocation(layout, s, time.UTC); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid time %q", s)
+}
+
+func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	at, ok := atParam(w, r)
+	if !ok {
+		return
+	}
+	items, err := versions.Inventory(r.Context(), h.store, p.Scope, at)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if r.URL.Query().Get("format") != "csv" {
+		writeJSON(w, http.StatusOK, items)
+		return
+	}
+	name := "goliash-inventory.csv"
+	if at != nil {
+		name = "goliash-inventory-" + at.UTC().Format("20060102-1504") + ".csv"
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"environment", "target", "platform", "service", "namespace", "workload", "kind", "container", "image", "tag", "digest", "running", "first_seen"})
+	for _, i := range items {
+		_ = cw.Write([]string{
+			i.Environment, i.Target, i.Platform, i.Service, i.Namespace, i.Workload, i.Kind, i.Container,
+			i.Image, i.Tag, i.Digest, strconv.Itoa(i.Running), i.FirstSeen.UTC().Format(time.RFC3339),
+		})
+	}
+	cw.Flush()
 }
 
 func (h *PublicHandler) drifts(w http.ResponseWriter, r *http.Request, p auth.Principal) {

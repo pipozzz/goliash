@@ -3,30 +3,49 @@
 
 package ui
 
+import "strings"
+
 templ MatrixPage(v MatrixView) {
 	@Layout(v.Base) {
 		<div class="head">
 			<div>
 				<h1>Service × environment</h1>
-				<p class="sub">What runs where, the newest release upstream, and where versions drift apart.</p>
+				if v.At != "" {
+					<p class="sub">As of <strong>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then. Drift and upstream releases describe now, so they are not shown. <a href="/">Back to now</a></p>
+				} else {
+					<p class="sub">What runs where, the newest release upstream, and where versions drift apart.</p>
+				}
+				<form class="inline asof" method="get" action="/">
+					<label>As of (UTC)<input type="datetime-local" name="at" value={ v.At }/></label>
+					<button class="secondary" type="submit">Go back</button>
+					<a href={ templ.URL(exportURL(v.At)) } hx-boost="false">Export CSV</a>
+				</form>
 			</div>
-			<div class="legend">
-				<span class="badge env">behind previous env</span>
-				<span class="badge upstream">upstream newer</span>
-				<span class="badge inconsistent">targets disagree</span>
-				<span class="badge declared">differs from Git</span>
-				<span class="live off" data-live>Connecting…</span>
-			</div>
+			if v.At == "" {
+				<div class="legend">
+					<span class="badge env">behind previous env</span>
+					<span class="badge upstream">upstream newer</span>
+					<span class="badge inconsistent">targets disagree</span>
+					<span class="badge declared">differs from Git</span>
+					<span class="live off" data-live>Connecting…</span>
+				</div>
+			}
 		</div>
-		<section
-			class="panel"
-			hx-get="/ui/matrix"
-			hx-trigger="goliash:changed from:body, every 60s"
-			hx-swap="innerHTML"
-			aria-live="polite"
-		>
-			@MatrixGridView(v.Grid)
-		</section>
+		if v.At != "" {
+			<section class="panel">
+				@MatrixGridView(v.Grid)
+			</section>
+		} else {
+			<section
+				class="panel"
+				hx-get="/ui/matrix"
+				hx-trigger="goliash:changed from:body, every 60s"
+				hx-swap="innerHTML"
+				aria-live="polite"
+			>
+				@MatrixGridView(v.Grid)
+			</section>
+		}
 	}
 }
 
