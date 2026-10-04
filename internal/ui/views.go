@@ -301,10 +301,26 @@ type PromotionView struct {
 	Releases                            []ReleaseView
 }
 
-// PromotionsView is the promotions page.
+// PromotionsView is the delivery page: pending promotions and delivery statistics.
 type PromotionsView struct {
 	Base
 	Promotions []PromotionView
+	EnvNames   []string // delivery table columns
+	LeadNames  []string // "dev → staging", …
+	Delivery   []DeliveryRow
+}
+
+// DeliveryRow is one service's delivery statistics over the last 30 days.
+type DeliveryRow struct {
+	Service string
+	Envs    []DeliveryCell
+	Leads   []string // median lead time per environment pair, "—" when unknown
+}
+
+// DeliveryCell is one environment of a service.
+type DeliveryCell struct {
+	Deploys int
+	Last    time.Time
 }
 
 // EventsView is the history page.

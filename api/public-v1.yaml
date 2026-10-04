@@ -162,6 +162,30 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/delivery:
+    get:
+      operationId: getDelivery
+      summary: Delivery statistics per service
+      description: |
+        Versions that arrived in each environment within the window, and the median time a version took from one
+        environment to the next, read from what ran when.
+      parameters:
+        - name: window
+          in: query
+          schema: { type: string, default: 30d, example: 7d }
+      responses:
+        "200":
+          description: Statistics per service.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Delivery'
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/acks:
     post:
       operationId: createAck
@@ -430,6 +454,31 @@ components:
               version: { type: string }
               published_at: { type: string, format: date-time }
               release_notes: { type: string }
+
+    Delivery:
+      type: object
+      required: [service, environments, lead_times]
+      properties:
+        service: { type: string }
+        environments:
+          type: array
+          items:
+            type: object
+            required: [environment, deploys]
+            properties:
+              environment: { type: string }
+              deploys: { type: integer, description: Versions that arrived within the window. }
+              last_deploy: { type: string, format: date-time }
+        lead_times:
+          type: array
+          items:
+            type: object
+            required: [from, to, median_seconds, samples]
+            properties:
+              from: { type: string }
+              to: { type: string }
+              median_seconds: { type: number }
+              samples: { type: integer }
 
     AckRequest:
       type: object
