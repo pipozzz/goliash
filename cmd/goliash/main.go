@@ -62,12 +62,12 @@ const usage = `Usage:
   goliash agent create -name NAME         prints the agent token once
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix                          service × environment versions
-  goliash events [-service NAME] [-limit N]
+  goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|discord|telegram|ntfy|webhook|email -name NAME [-url URL] [-secret S]
+  goliash channel create -type slack|discord|telegram|ntfy|grafana|webhook|email -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
   goliash channel test -name NAME
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
@@ -727,6 +727,8 @@ func serviceSet(ctx context.Context, args []string, out io.Writer) error {
 func eventsCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("events")
 	service := fs.String("service", "", "only events of this service")
+	envName := fs.String("env", "", "only events in this environment")
+	since := fs.Duration("since", 0, "only events of the last duration, e.g. 2h (what changed before an incident)")
 	limit := fs.Int("limit", 50, "number of events")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -738,12 +740,22 @@ func eventsCmd(ctx context.Context, args []string, out io.Writer) error {
 	defer func() { _ = db.Close() }()
 	sc := ws.Scope()
 	f := store.EventFilter{Limit: *limit}
+	if *since > 0 {
+		f.Since = time.Now().Add(-*since)
+	}
 	if *service != "" {
 		svc, err := db.GetServiceByName(ctx, sc, *service)
 		if err != nil {
 			return fmt.Errorf("service %q: %w", *service, err)
 		}
 		f.ServiceID = svc.ID
+	}
+	if *envName != "" {
+		env, err := db.GetEnvironmentByName(ctx, sc, *envName)
+		if err != nil {
+			return fmt.Errorf("environment %q: %w", *envName, err)
+		}
+		f.EnvironmentID = env.ID
 	}
 	evs, err := db.ListEvents(ctx, sc, f)
 	if err != nil {
@@ -1141,11 +1153,11 @@ func splitList(s string) []string {
 
 func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("channel create")
-	typ := fs.String("type", "", "slack, discord, telegram, ntfy, webhook or email")
+	typ := fs.String("type", "", "slack, discord, telegram, ntfy, grafana, webhook or email")
 	name := fs.String("name", "", "channel name")
 	url := fs.String("url", "", "Slack, Discord or webhook URL, or an ntfy topic URL")
 	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
-	token := fs.String("token", "", "Telegram bot token, or an ntfy access token")
+	token := fs.String("token", "", "Telegram bot token, Grafana service account token, or ntfy access token")
 	chatID := fs.String("chat-id", "", "Telegram chat ID")
 	to := fs.String("to", "", "comma-separated e-mail recipients")
 	if err := fs.Parse(args); err != nil {
@@ -1164,6 +1176,11 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 		if *token != "" && *typ == "ntfy" {
 			cfg["token"] = *token
 		}
+	case "grafana":
+		if *url == "" || *token == "" {
+			return errors.New("-url (Grafana) and -token (service account token) are required")
+		}
+		cfg["url"], cfg["token"] = *url, *token
 	case "telegram":
 		if *token == "" || *chatID == "" {
 			return errors.New("-token and -chat-id are required")
@@ -1175,7 +1192,7 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 		}
 		cfg["to"] = splitList(*to)
 	default:
-		return errors.New("-type must be slack, discord, telegram, ntfy, webhook or email")
+		return errors.New("-type must be slack, discord, telegram, ntfy, grafana, webhook or email")
 	}
 	if *name == "" {
 		return errors.New("-name is required")

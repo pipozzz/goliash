@@ -126,3 +126,25 @@ func TestTruncate(t *testing.T) {
 		t.Fatalf("truncate = %q", got)
 	}
 }
+
+func TestGrafanaAnnotations(t *testing.T) {
+	srv, got := capture(t, http.StatusOK)
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	msg := Message{Items: []Item{{Type: "version_changed", Service: "web", Environment: "prod", Text: "web in prod: 1.27.2 → 1.28.0", At: at}}}
+	if err := (Grafana{HTTP: srv.Client()}).Send(context.Background(), channel("grafana", `{"url":"`+srv.URL+`/","token":"glsa_x"}`), msg); err != nil {
+		t.Fatal(err)
+	}
+	var a struct {
+		Time int64    `json:"time"`
+		Tags []string `json:"tags"`
+		Text string   `json:"text"`
+	}
+	_ = json.Unmarshal([]byte(got.body), &a)
+	if got.path != "/api/annotations" || got.header.Get("Authorization") != "Bearer glsa_x" || a.Time != at.UnixMilli() ||
+		strings.Join(a.Tags, ",") != "goliash,version_changed,web,prod" || a.Text != msg.Items[0].Text {
+		t.Fatalf("annotation %s %v %+v", got.path, got.header, a)
+	}
+	if err := (Grafana{HTTP: srv.Client()}).Send(context.Background(), channel("grafana", `{"url":"`+srv.URL+`"}`), msg); err == nil {
+		t.Fatal("missing token accepted")
+	}
+}

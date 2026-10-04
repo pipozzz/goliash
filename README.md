@@ -38,7 +38,7 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
-- **Notifications with less noise.** Slack, Discord, Telegram, ntfy, webhooks (signed) and e-mail, instant or as daily/weekly digests, with
+- **Notifications with less noise.** Slack, Discord, Telegram, ntfy, webhooks (signed), e-mail and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze.
 - **Built for teams and MSPs.** Workspaces per client, roles, magic-link and OIDC sign-in, audit log, REST API and
   Prometheus metrics.
@@ -164,6 +164,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 a
 bin/goliash matrix                 # service × environment, latest upstream, drift markers
 bin/goliash drift                  # open drifts
 bin/goliash events                 # history: deployed, version_changed, removed, new_release, drift_*
+bin/goliash events -env prod -since 2h   # what changed before an incident
 bin/goliash check                  # check upstream registries now (the server does it hourly)
 bin/goliash service set -name postgres -track minor -pin-major 15
 bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -service payments
