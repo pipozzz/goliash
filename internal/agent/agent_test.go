@@ -317,6 +317,8 @@ func TestAgentBuffersWhileServerIsDown(t *testing.T) {
 	default:
 	}
 	eventually(t, "delivery after recovery", func() bool { return f.snapshotCount() == 3 })
+	// The server records a snapshot before the agent sees the response and drops it.
+	eventually(t, "outbox emptied", func() bool { return a.outbox.len() == 0 })
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -324,9 +326,6 @@ func TestAgentBuffersWhileServerIsDown(t *testing.T) {
 		if f.snapshots[i-1].SnapshotID >= f.snapshots[i].SnapshotID {
 			t.Fatalf("snapshots out of order: %s then %s", f.snapshots[i-1].SnapshotID, f.snapshots[i].SnapshotID)
 		}
-	}
-	if a.outbox.len() != 0 {
-		t.Fatal("outbox not emptied")
 	}
 }
 
