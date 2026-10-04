@@ -172,7 +172,7 @@ func TestViewer(t *testing.T) {
 	if code, _ := get(t, c, e.srv.URL+"/settings", nil); code != http.StatusForbidden {
 		t.Fatalf("viewer settings: %d", code)
 	}
-	for _, p := range []string{"/events", "/agents", "/notifications", "/services/" + url.PathEscape(`<img src=x onerror=alert(1)>`)} {
+	for _, p := range []string{"/events", "/agents", "/notifications", "/delivery", "/report", "/report?month=2026-01", "/?at=2026-01-01T00:00", "/services/" + url.PathEscape(`<img src=x onerror=alert(1)>`)} {
 		if code, _ := get(t, c, e.srv.URL+p, nil); code != 200 {
 			t.Errorf("%s: %d", p, code)
 		}

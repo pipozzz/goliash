@@ -129,7 +129,7 @@ and updates live over server-sent events.
 | Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream; "as of" a past time; CSV export |
 | Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now" |
 | Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image |
-| Delivery | versions waiting for the next environment with the releases they bring; deploys and lead times per environment |
+| Delivery | versions waiting for the next environment with the releases they bring; deploys and lead times per environment; a printable monthly report per workspace |
 | History | every event, filterable by service, environment and type |
 | Agents | agents and targets with collector health; add agents (token shown once), environments and targets |
 | Notifications | channels (with a test button) and rules |
