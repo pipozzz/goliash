@@ -251,6 +251,14 @@ func (h *PublicHandler) events(w http.ResponseWriter, r *http.Request, p auth.Pr
 		}
 		f.Before = t
 	}
+	if s := q.Get("since"); s != "" {
+		t, err := parseSince(s, time.Now())
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, "Invalid since", "use a duration like 2h or 30m, or RFC 3339")
+			return
+		}
+		f.Since = t
+	}
 	if t := q.Get("type"); t != "" {
 		f.Types = strings.Split(t, ",")
 	}
@@ -304,6 +312,25 @@ func (h *PublicHandler) events(w http.ResponseWriter, r *http.Request, p auth.Pr
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// parseSince reads "2h", "30m", "7d" (a time before now) or an RFC 3339 time.
+func parseSince(s string, now time.Time) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		n, err := strconv.Atoi(days)
+		if err != nil || n < 0 {
+			return time.Time{}, fmt.Errorf("invalid since %q", s)
+		}
+		return now.Add(-time.Duration(n) * 24 * time.Hour), nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d < 0 {
+		return time.Time{}, fmt.Errorf("invalid since %q", s)
+	}
+	return now.Add(-d), nil
 }
 
 func (h *PublicHandler) drifts(w http.ResponseWriter, r *http.Request, p auth.Principal) {

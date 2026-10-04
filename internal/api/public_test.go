@@ -218,3 +218,20 @@ func newJar() http.CookieJar {
 	jar, _ := cookiejar.New(nil)
 	return jar
 }
+
+func TestParseSince(t *testing.T) {
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	for in, want := range map[string]time.Time{
+		"2h": now.Add(-2 * time.Hour), "30m": now.Add(-30 * time.Minute), "7d": now.Add(-7 * 24 * time.Hour),
+		"2026-10-01T00:00:00Z": time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+	} {
+		if got, err := parseSince(in, now); err != nil || !got.Equal(want) {
+			t.Errorf("parseSince(%q) = %v %v", in, got, err)
+		}
+	}
+	for _, bad := range []string{"yesterday", "-2h", "xd"} {
+		if _, err := parseSince(bad, now); err == nil {
+			t.Errorf("parseSince(%q) accepted", bad)
+		}
+	}
+}

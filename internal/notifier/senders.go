@@ -32,6 +32,7 @@ func DefaultSenders(hc *http.Client, smtpCfg SMTPConfig) map[string]Sender {
 		"discord":  Discord{HTTP: hc},
 		"telegram": Telegram{HTTP: hc},
 		"ntfy":     Ntfy{HTTP: hc},
+		"grafana":  Grafana{HTTP: hc},
 	}
 }
 

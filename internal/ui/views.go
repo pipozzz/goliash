@@ -301,6 +301,7 @@ type EventsView struct {
 	Service    string
 	Env        string
 	Type       string
+	Since      string // 1h, 6h, 24h or 7d; empty means any time
 	Services   []string
 	EnvNames   []string
 	Types      []string

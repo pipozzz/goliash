@@ -13,6 +13,7 @@ often). Both are managed on the Notifications page or with the CLI.
 | Discord | A channel webhook URL (Channel settings → Integrations → Webhooks). |
 | Telegram | A bot token from @BotFather and the chat ID the bot posts to. |
 | ntfy | A topic URL on ntfy.sh or your own server, e.g. `https://ntfy.sh/my-goliash`, and an optional access token. |
+| Grafana | Grafana's URL and a service account token with `annotations:write`; every item becomes an annotation. |
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients. Needs SMTP on the server (`GOLIASH_SMTP_ADDR`, `GOLIASH_SMTP_FROM`). |
 
@@ -47,6 +48,28 @@ goliash notify create -channel oncall -events drift_detected -envs prod -mode in
 A release is announced once per service and version. Failed deliveries are retried with backoff, from one minute up
 to an hour between attempts. Acknowledged releases and drift are not sent; see
 [Acknowledging](/goliash/guide/versions/#acknowledging).
+
+## Deploys on your dashboards
+
+A Grafana channel turns events into annotations, so a deploy shows up on the graphs it may have changed:
+
+```sh
+goliash channel create -type grafana -name dashboards -url https://grafana.example.com -token glsa_…
+goliash notify create -channel dashboards -events deployed,version_changed,removed -envs prod -mode instant
+```
+
+Annotations are tagged `goliash`, the event type, the service and the environment. In a dashboard, add an
+annotation query on the built-in Grafana data source, filtered by tags (`goliash`, and for example `prod`).
+
+## What changed before an incident
+
+The History page has a *changed in the last hour / 6 hours / 24 hours / 7 days* filter, and the same works from
+the command line and the API:
+
+```sh
+goliash events -env prod -since 2h
+curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/v1/events?environment=prod&since=2h"
+```
 
 ## Webhook payload
 

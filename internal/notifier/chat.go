@@ -143,3 +143,37 @@ func (n Ntfy) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	}
 	return post(ctx, n.HTTP, cfg.URL, []byte(truncate(strings.Join(body, "\n"), 4000)), headers)
 }
+
+// Grafana adds every item as an annotation, so deploys show up on dashboards next to
+// the graphs they may have changed. Config: Grafana's URL and a service account token
+// with the annotations:write permission.
+type Grafana struct{ HTTP *http.Client }
+
+// Send implements Sender.
+func (g Grafana) Send(ctx context.Context, ch store.Channel, msg Message) error {
+	var cfg struct {
+		URL   string `json:"url"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(ch.Config, &cfg); err != nil || cfg.URL == "" || cfg.Token == "" {
+		return fmt.Errorf("channel %s needs Grafana's URL and a service account token", ch.Name)
+	}
+	endpoint := strings.TrimRight(cfg.URL, "/") + "/api/annotations"
+	for _, it := range msg.Items {
+		tags := []string{"goliash", it.Type}
+		for _, t := range []string{it.Service, it.Environment} {
+			if t != "" {
+				tags = append(tags, t)
+			}
+		}
+		text := it.Text
+		if it.URL != "" {
+			text += ` <a href="` + html.EscapeString(it.URL) + `">release notes</a>`
+		}
+		body, _ := json.Marshal(map[string]any{"time": it.At.UnixMilli(), "tags": tags, "text": text})
+		if err := post(ctx, g.HTTP, endpoint, body, map[string]string{"Authorization": "Bearer " + cfg.Token}); err != nil {
+			return fmt.Errorf("grafana: %w", err)
+		}
+	}
+	return nil
+}

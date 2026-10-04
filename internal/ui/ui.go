@@ -493,10 +493,15 @@ var eventTypes = []string{"deployed", "version_changed", "removed", "new_release
 func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	q := r.URL.Query()
-	v := EventsView{Service: q.Get("service"), Env: q.Get("environment"), Type: q.Get("type"), Types: eventTypes}
+	v := EventsView{Service: q.Get("service"), Env: q.Get("environment"), Type: q.Get("type"), Types: eventTypes, Since: q.Get("since")}
 	f := store.EventFilter{Limit: 50}
 	if v.Type != "" {
 		f.Types = []string{v.Type}
+	}
+	if d, ok := sinceOptions[v.Since]; ok {
+		f.Since = time.Now().Add(-d)
+	} else {
+		v.Since = ""
 	}
 	if b := q.Get("before"); b != "" {
 		if t, err := time.Parse(time.RFC3339Nano, b); err == nil {
@@ -527,7 +532,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal
 	v.Events = eventViews(evs, o)
 	if len(evs) == f.Limit {
 		more := url.Values{"before": {evs[len(evs)-1].At.Format(time.RFC3339Nano)}}
-		for k, val := range map[string]string{"service": v.Service, "environment": v.Env, "type": v.Type} {
+		for k, val := range map[string]string{"service": v.Service, "environment": v.Env, "type": v.Type, "since": v.Since} {
 			if val != "" {
 				more.Set(k, val)
 			}
@@ -540,6 +545,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal
 	v.Base = withFlash(s.base(ctx, p, "events", "History"), r)
 	return render(w, r, EventsPage(v))
 }
+
+// sinceOptions are the history page's "changed in the last …" periods.
+var sinceOptions = map[string]time.Duration{"1h": time.Hour, "6h": 6 * time.Hour, "24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour}
 
 // ---- inbox ----
 
@@ -929,6 +937,13 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if token := strings.TrimSpace(r.FormValue("token")); token != "" && typ == "ntfy" {
 			cfg["token"] = token
 		}
+	case "grafana":
+		u, err := url.Parse(strings.TrimSpace(r.FormValue("url")))
+		token := strings.TrimSpace(r.FormValue("token"))
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || token == "" {
+			return back(w, r, "/notifications", "error", "Enter Grafana's URL and a service account token.")
+		}
+		cfg["url"], cfg["token"] = u.String(), token
 	case "telegram":
 		token, chat := strings.TrimSpace(r.FormValue("token")), strings.TrimSpace(r.FormValue("chat_id"))
 		if token == "" || chat == "" {

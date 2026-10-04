@@ -191,6 +191,7 @@ type EventFilter struct {
 	EnvironmentID string
 	Types         []string
 	Before        time.Time // events strictly before this time, for paging
+	Since         time.Time // events at or after this time ("what changed in the last hour")
 	Limit         int       // default 100
 }
 
@@ -209,6 +210,9 @@ func (s *Store) ListEvents(ctx context.Context, sc Scope, f EventFilter) ([]Even
 		for _, t := range f.Types {
 			args = append(args, t)
 		}
+	}
+	if !f.Since.IsZero() {
+		where, args = append(where, "at >= ?"), append(args, f.Since.UTC())
 	}
 	if !f.Before.IsZero() {
 		where, args = append(where, "at < ?"), append(args, f.Before.UTC())
