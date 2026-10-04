@@ -72,6 +72,22 @@ jobs:
           version: "~> v2"
           args: check
 
+  e2e-kubernetes:
+    # Server and agent installed with the Helm charts into a kind cluster; a rollout
+    # must show up in the matrix and as a version_changed event.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - uses: helm/kind-action@v1.15.0
+        with:
+          cluster_name: goliash-e2e
+      - name: Kubernetes end-to-end test
+        env:
+          KIND_CLUSTER: goliash-e2e
+        run: scripts/e2e/kubernetes.sh
+
   deploy:
     runs-on: ubuntu-latest
     steps:
