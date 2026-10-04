@@ -79,3 +79,18 @@ func TestChannelSecretsAtRest(t *testing.T) {
 		}
 	})
 }
+
+func TestChannelTypes(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		for _, typ := range ChannelTypes {
+			if _, err := s.CreateChannel(ctx, Channel{Scope: ws.Scope(), Type: typ, Name: "ch-" + typ, Config: json.RawMessage(`{}`)}); err != nil {
+				t.Errorf("%s: %v", typ, err)
+			}
+		}
+		if _, err := s.CreateChannel(ctx, Channel{Scope: ws.Scope(), Type: "pager", Name: "x", Config: json.RawMessage(`{}`)}); err == nil {
+			t.Fatal("unknown channel type accepted")
+		}
+	})
+}

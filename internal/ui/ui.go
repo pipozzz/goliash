@@ -863,11 +863,15 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 	for _, c := range chans {
 		chName[c.ID] = c.Name
 		var cfg struct {
-			URL string   `json:"url"`
-			To  []string `json:"to"`
+			URL    string   `json:"url"`
+			To     []string `json:"to"`
+			ChatID string   `json:"chat_id"`
 		}
 		_ = json.Unmarshal(c.Config, &cfg)
 		detail := strings.Join(cfg.To, ", ")
+		if cfg.ChatID != "" {
+			detail = "chat " + cfg.ChatID
+		}
 		if cfg.URL != "" {
 			if u, err := url.Parse(cfg.URL); err == nil {
 				detail = u.Host // never show the full webhook URL: it is a secret
@@ -913,7 +917,7 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 	typ := r.FormValue("type")
 	cfg := map[string]any{}
 	switch typ {
-	case "slack", "webhook":
+	case "slack", "webhook", "discord", "ntfy":
 		u, err := url.Parse(strings.TrimSpace(r.FormValue("url")))
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 			return back(w, r, "/notifications", "error", "Enter the full URL, starting with https://.")
@@ -922,6 +926,15 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if secret := r.FormValue("secret"); secret != "" && typ == "webhook" {
 			cfg["secret"] = secret
 		}
+		if token := strings.TrimSpace(r.FormValue("token")); token != "" && typ == "ntfy" {
+			cfg["token"] = token
+		}
+	case "telegram":
+		token, chat := strings.TrimSpace(r.FormValue("token")), strings.TrimSpace(r.FormValue("chat_id"))
+		if token == "" || chat == "" {
+			return back(w, r, "/notifications", "error", "Enter the bot token and the chat ID.")
+		}
+		cfg["bot_token"], cfg["chat_id"] = token, chat
 	case "email":
 		var to []string
 		for _, a := range strings.Split(r.FormValue("to"), ",") {

@@ -67,7 +67,8 @@ const usage = `Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|webhook|email -name NAME [-url URL] [-secret S] [-to a@b,c@d]
+  goliash channel create -type slack|discord|telegram|ntfy|webhook|email -name NAME [-url URL] [-secret S]
+                         [-token T] [-chat-id ID] [-to a@b,c@d]
   goliash channel test -name NAME
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
@@ -1138,31 +1139,41 @@ func splitList(s string) []string {
 
 func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("channel create")
-	typ := fs.String("type", "", "slack, webhook or email")
+	typ := fs.String("type", "", "slack, discord, telegram, ntfy, webhook or email")
 	name := fs.String("name", "", "channel name")
-	url := fs.String("url", "", "slack incoming webhook or webhook URL")
+	url := fs.String("url", "", "Slack, Discord or webhook URL, or an ntfy topic URL")
 	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
+	token := fs.String("token", "", "Telegram bot token, or an ntfy access token")
+	chatID := fs.String("chat-id", "", "Telegram chat ID")
 	to := fs.String("to", "", "comma-separated e-mail recipients")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	cfg := map[string]any{}
 	switch *typ {
-	case "slack", "webhook":
+	case "slack", "webhook", "discord", "ntfy":
 		if *url == "" {
 			return errors.New("-url is required")
 		}
 		cfg["url"] = *url
-		if *secret != "" {
+		if *secret != "" && *typ == "webhook" {
 			cfg["secret"] = *secret
 		}
+		if *token != "" && *typ == "ntfy" {
+			cfg["token"] = *token
+		}
+	case "telegram":
+		if *token == "" || *chatID == "" {
+			return errors.New("-token and -chat-id are required")
+		}
+		cfg["bot_token"], cfg["chat_id"] = *token, *chatID
 	case "email":
 		if *to == "" {
 			return errors.New("-to is required")
 		}
 		cfg["to"] = splitList(*to)
 	default:
-		return errors.New("-type must be slack, webhook or email")
+		return errors.New("-type must be slack, discord, telegram, ntfy, webhook or email")
 	}
 	if *name == "" {
 		return errors.New("-name is required")

@@ -8,10 +8,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 )
 
-// Channel is where notifications go: a Slack incoming webhook, a generic webhook or e-mail.
+// Channel is where notifications go: Slack, Discord, Telegram, ntfy, a generic webhook or e-mail.
 type Channel struct {
 	ID        string
 	Scope     Scope
@@ -21,8 +22,14 @@ type Channel struct {
 	CreatedAt time.Time
 }
 
+// ChannelTypes are the notification channel types the server can send to.
+var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email"}
+
 // CreateChannel adds a channel.
 func (s *Store) CreateChannel(ctx context.Context, c Channel) (Channel, error) {
+	if !slices.Contains(ChannelTypes, c.Type) {
+		return Channel{}, fmt.Errorf("unknown channel type %q", c.Type)
+	}
 	c.ID, c.CreatedAt = NewID(), s.now()
 	_, err := s.exec(ctx, s.db, `INSERT INTO notification_channels (id, org_id, workspace_id, type, name, config, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`, c.ID, c.Scope.OrgID, c.Scope.WorkspaceID, c.Type, c.Name, s.seal(c.ID, string(c.Config)), c.CreatedAt)

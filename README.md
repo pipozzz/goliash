@@ -38,7 +38,7 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
-- **Notifications with less noise.** Slack, webhooks (signed) and e-mail, instant or as daily/weekly digests, with
+- **Notifications with less noise.** Slack, Discord, Telegram, ntfy, webhooks (signed) and e-mail, instant or as daily/weekly digests, with
   dedup and ack/snooze.
 - **Built for teams and MSPs.** Workspaces per client, roles, magic-link and OIDC sign-in, audit log, REST API and
   Prometheus metrics.
@@ -216,6 +216,9 @@ people of that workspace only. Clients of an MSP therefore never see each other.
 ```sh
 bin/goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
 bin/goliash channel create -type webhook -name ci -url https://example.com/goliash -secret s3cret
+bin/goliash channel create -type discord -name releases -url https://discord.com/api/webhooks/…
+bin/goliash channel create -type telegram -name team -token 123456:ABC… -chat-id -1001234567890
+bin/goliash channel create -type ntfy -name phone -url https://ntfy.sh/my-goliash
 bin/goliash channel create -type email -name oncall -to oncall@example.com   # needs GOLIASH_SMTP_ADDR, GOLIASH_SMTP_FROM
 bin/goliash channel test -name ops
 bin/goliash notify create -channel ops -events new_release,drift_detected,agent_stale -mode daily -min-jump minor

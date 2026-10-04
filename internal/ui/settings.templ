@@ -48,13 +48,20 @@ templ NotificationsPage(v NotificationsView) {
 										Type
 										<select name="type">
 											<option value="slack">Slack (incoming webhook)</option>
+											<option value="discord">Discord (channel webhook)</option>
+											<option value="telegram">Telegram (bot)</option>
+											<option value="ntfy">ntfy</option>
 											<option value="webhook">Webhook</option>
 											<option value="email">E-mail</option>
 										</select>
 									</label>
 								</div>
-								<label>URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">Slack and webhook.</span></label>
+								<label>URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">Slack, Discord and webhook URLs, or an ntfy topic such as https://ntfy.sh/my-goliash.</span></label>
 								<label>Signing secret<input name="secret" autocomplete="off"/><span class="hint">Webhook only: bodies are signed with HMAC-SHA256.</span></label>
+								<div class="row">
+									<label>Token<input name="token" autocomplete="off"/><span class="hint">Telegram bot token, or an ntfy access token (optional).</span></label>
+									<label>Chat ID<input name="chat_id" placeholder="-1001234567890"/><span class="hint">Telegram only.</span></label>
+								</div>
 								<label>
 									Recipients<input name="to" placeholder="oncall@example.com, ops@example.com"/>
 									<span class="hint">
