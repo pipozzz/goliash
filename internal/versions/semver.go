@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/registry"
@@ -160,9 +161,11 @@ type Policy struct {
 	// ("env", "upstream", "inconsistent"), as Go durations like "168h" or "15m".
 	DriftAlertAfter map[string]string `json:"drift_alert_after,omitempty"`
 
-	// Where release notes live: GitHub releases of GitHub ("owner/repo"), whose tags
-	// are the version after GitHubTagPrefix, or a Changelog URL template with {version}.
+	// Where release notes live: GitHub releases of GitHub ("owner/repo") or GitLab
+	// releases of GitLab ("gitlab.com/group/project"), whose tags are the version after
+	// GitHubTagPrefix, or a Changelog URL template with {version}.
 	GitHub          string `json:"github,omitempty"`
+	GitLab          string `json:"gitlab,omitempty"`
 	GitHubTagPrefix string `json:"github_tag_prefix,omitempty"`
 	Changelog       string `json:"changelog,omitempty"`
 }
@@ -191,8 +194,8 @@ func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 	}
 	entry, ok := catalog.Lookup(repo)
 	if !ok {
-		if own.GitHub == "" && own.Changelog == "" {
-			own.GitHub = LabelGitHub(svc, repo)
+		if own.GitHub == "" && own.GitLab == "" && own.Changelog == "" {
+			own.GitHub, own.GitLab = LabelGitHub(svc, repo), LabelGitLab(svc, repo)
 		}
 		return own, src, nil
 	}
@@ -203,8 +206,8 @@ func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 		}
 		src = FromCatalog
 	}
-	if p.GitHub == "" && p.Changelog == "" {
-		p.GitHub, p.GitHubTagPrefix, p.Changelog = entry.GitHub, entry.GitHubTagPrefix, entry.Changelog
+	if p.GitHub == "" && p.GitLab == "" && p.Changelog == "" {
+		p.GitHub, p.GitLab, p.GitHubTagPrefix, p.Changelog = entry.GitHub, entry.GitLab, entry.GitHubTagPrefix, entry.Changelog
 	}
 	return p, src, nil
 }
@@ -218,6 +221,22 @@ func LabelGitHub(svc store.Service, repo string) string {
 		return ""
 	}
 	return registry.GitHubRepository(svc.SourceURL)
+}
+
+// gitlabHosts are the GitLab hosts release notes may come from (see NewGitLab).
+var gitlabHosts atomic.Value // []string
+
+// LabelGitLab is the GitLab project ("host/group/project") repo's image declares in its
+// org.opencontainers.image.source label, when it is on an allowed GitLab host.
+func LabelGitLab(svc store.Service, repo string) string {
+	if svc.SourceImage != repo || strings.HasPrefix(repo, "docker.io/library/") {
+		return ""
+	}
+	hosts, _ := gitlabHosts.Load().([]string)
+	if len(hosts) == 0 {
+		hosts = []string{"gitlab.com"}
+	}
+	return registry.GitLabProject(svc.SourceURL, hosts)
 }
 
 func isEmptyPolicy(raw []byte) bool {

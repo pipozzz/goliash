@@ -61,6 +61,7 @@ type Checker struct {
 	cache  map[string]cachedTags
 	now    func() time.Time
 	github *GitHub
+	gitlab *GitLab
 
 	driftMu sync.Mutex // one drift evaluation at a time
 }

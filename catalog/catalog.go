@@ -22,6 +22,7 @@ var data []byte
 type Entry struct {
 	Image           string         `yaml:"image"`
 	GitHub          string         `yaml:"github"`
+	GitLab          string         `yaml:"gitlab"` // host/group/project
 	GitHubTagPrefix string         `yaml:"github_tag_prefix"`
 	Changelog       string         `yaml:"changelog"`
 	Policy          map[string]any `yaml:"policy"`

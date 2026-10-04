@@ -230,6 +230,10 @@ templ releaseNotesSource(v ServiceView) {
 				{ "Release notes: " }
 				<a href={ templ.URL("https://github.com/" + v.NotesGitHub + "/releases") } target="_blank" rel="noopener noreferrer">{ v.NotesGitHub }</a>
 				{ " " + v.NotesFrom }
+			case v.NotesGitLab != "":
+				{ "Release notes: " }
+				<a href={ templ.URL("https://" + v.NotesGitLab + "/-/releases") } target="_blank" rel="noopener noreferrer">{ v.NotesGitLab }</a>
+				{ " " + v.NotesFrom }
 			case v.NotesChangelog != "":
 				{ "Release notes: " }
 				<a href={ templ.URL(v.NotesChangelog) } target="_blank" rel="noopener noreferrer">changelog</a>

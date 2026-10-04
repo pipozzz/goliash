@@ -181,9 +181,10 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 - **Catalog:** [`catalog/images.yaml`](catalog/images.yaml) holds default policies for popular public images
   (postgres, redis, nginx, keycloak, traefik, grafana, prometheus, …) and where their release notes live. A service
   without its own policy uses the catalog's; additions are welcome as pull requests.
-- **Release notes:** releases get their publication date and a release notes link from GitHub releases (the
-  catalog's `github`, `"github": "owner/repo"` in a service's own policy, or the image's own
-  `org.opencontainers.image.source` label) or a changelog URL template. The label is read from the registry once a
+- **Release notes:** releases get their publication date and a release notes link from GitHub or GitLab releases
+  (the catalog's `github`/`gitlab`, `"github": "owner/repo"` or `"gitlab": "gitlab.com/group/project"` in a
+  service's own policy, or the image's own `org.opencontainers.image.source` label) or a changelog URL template.
+  GitLab means gitlab.com and one self-hosted instance in `GOLIASH_GITLAB_URL` (token: `GOLIASH_GITLAB_TOKEN`). The label is read from the registry once a
   week, so most images built with GitHub Actions get release notes without any setup. Links appear in the UI and in
   new-release notifications. Set `GOLIASH_GITHUB_TOKEN` to raise GitHub's rate limit.
 - **Drift:** `env` (an environment runs an older version than the one before it), `upstream` (behind the newest

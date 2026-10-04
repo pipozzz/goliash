@@ -38,8 +38,11 @@ func TestCatalogEntries(t *testing.T) {
 		if _, err := ParsePolicy(e.PolicyJSON()); err != nil {
 			t.Errorf("%s: policy: %v", image, err)
 		}
-		if e.GitHub == "" && e.Changelog == "" {
-			t.Errorf("%s: needs github or changelog", image)
+		if e.GitHub == "" && e.GitLab == "" && e.Changelog == "" {
+			t.Errorf("%s: needs github, gitlab or changelog", image)
+		}
+		if e.GitLab != "" && registry.GitLabProject("https://"+e.GitLab, []string{"gitlab.com"}) != e.GitLab {
+			t.Errorf("%s: gitlab %q is not gitlab.com/group/project", image, e.GitLab)
 		}
 		if e.GitHub != "" && !ghRepo.MatchString(e.GitHub) {
 			t.Errorf("%s: github %q is not owner/repo", image, e.GitHub)
