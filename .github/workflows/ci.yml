@@ -67,7 +67,7 @@ jobs:
           docker run --rm goliash:ci version
           docker run --rm goliash-agent:ci -version
       - name: goreleaser config is valid
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: check
