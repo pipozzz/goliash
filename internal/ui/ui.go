@@ -103,6 +103,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/ack", s.page(m, s.ack))
 	mux.Handle("POST /services/{name}/check", s.page(m, s.checkNow))
 	mux.Handle("GET /events", s.page(v, s.events))
+	mux.Handle("GET /promotions", s.page(v, s.promotions))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -548,6 +549,27 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal
 
 // sinceOptions are the history page's "changed in the last …" periods.
 var sinceOptions = map[string]time.Duration{"1h": time.Hour, "6h": 6 * time.Hour, "24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour}
+
+func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	if err != nil {
+		return err
+	}
+	list, err := versions.Promotions(ctx, s.store, p.Scope, o)
+	if err != nil {
+		return err
+	}
+	v := PromotionsView{Base: s.base(ctx, p, "promotions", "Promotions")}
+	for _, pr := range list {
+		pv := PromotionView{Service: pr.Service.Name, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since}
+		for _, rel := range pr.Releases {
+			pv.Releases = append(pv.Releases, ReleaseView{Version: rel.Version, Published: rel.PublishedAt, URL: rel.ChangelogURL})
+		}
+		v.Promotions = append(v.Promotions, pv)
+	}
+	return render(w, r, PromotionsPage(v))
+}
 
 // ---- inbox ----
 

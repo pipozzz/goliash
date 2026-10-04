@@ -143,6 +143,25 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/promotions:
+    get:
+      operationId: listPromotions
+      summary: Versions waiting to be promoted, longest waiting first
+      description: |
+        An environment that runs something newer than the environment after it, with the releases a promotion
+        would bring.
+      responses:
+        "200":
+          description: Pending promotions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Promotion'
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/acks:
     post:
       operationId: createAck
@@ -390,6 +409,27 @@ components:
         note: { type: string }
         source: { type: string, description: "Where the event came from, e.g. snapshot or poll." }
         at: { type: string, format: date-time }
+
+    Promotion:
+      type: object
+      required: [service, from, to, version, running, since, releases]
+      properties:
+        service: { type: string }
+        from: { type: string, description: The environment running the newer version. }
+        to: { type: string, description: The environment behind. }
+        version: { type: string, description: Waiting in `from`. }
+        running: { type: string, description: Running in `to`. }
+        since: { type: string, format: date-time }
+        releases:
+          type: array
+          description: Releases after `running` up to `version`, newest first.
+          items:
+            type: object
+            required: [version]
+            properties:
+              version: { type: string }
+              published_at: { type: string, format: date-time }
+              release_notes: { type: string }
 
     AckRequest:
       type: object

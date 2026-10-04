@@ -294,6 +294,19 @@ type AckView struct {
 	Active  bool
 }
 
+// PromotionView is a version waiting to be promoted.
+type PromotionView struct {
+	Service, From, To, Version, Running string
+	Since                               time.Time
+	Releases                            []ReleaseView
+}
+
+// PromotionsView is the promotions page.
+type PromotionsView struct {
+	Base
+	Promotions []PromotionView
+}
+
 // EventsView is the history page.
 type EventsView struct {
 	Base

@@ -39,6 +39,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/targets", h.with(store.RoleViewer, h.targets))
 	mux.Handle("GET /api/v1/events", h.with(store.RoleViewer, h.events))
 	mux.Handle("GET /api/v1/drifts", h.with(store.RoleViewer, h.drifts))
+	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -331,6 +332,47 @@ func parseSince(s string, now time.Time) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("invalid since %q", s)
 	}
 	return now.Add(-d), nil
+}
+
+func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	list, err := versions.Promotions(r.Context(), h.store, p.Scope, o)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiRelease struct {
+		Version      string     `json:"version"`
+		PublishedAt  *time.Time `json:"published_at,omitempty"`
+		ReleaseNotes string     `json:"release_notes,omitempty"`
+	}
+	type apiPromotion struct {
+		Service  string       `json:"service"`
+		From     string       `json:"from"`
+		To       string       `json:"to"`
+		Version  string       `json:"version"`
+		Running  string       `json:"running"`
+		Since    time.Time    `json:"since"`
+		Releases []apiRelease `json:"releases"`
+	}
+	out := []apiPromotion{}
+	for _, pr := range list {
+		ap := apiPromotion{Service: pr.Service.Name, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Releases: []apiRelease{}}
+		for _, rel := range pr.Releases {
+			ar := apiRelease{Version: rel.Version, ReleaseNotes: rel.ChangelogURL}
+			if !rel.PublishedAt.IsZero() {
+				t := rel.PublishedAt
+				ar.PublishedAt = &t
+			}
+			ap.Releases = append(ap.Releases, ar)
+		}
+		out = append(out, ap)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *PublicHandler) drifts(w http.ResponseWriter, r *http.Request, p auth.Principal) {

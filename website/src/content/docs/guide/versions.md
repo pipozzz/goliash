@@ -100,6 +100,22 @@ marked *declared*.
 
 When the drift ends, a `drift_resolved` event follows.
 
+## Promotions
+
+The **Promotions** page lists every version that runs in one environment and waits for the next, longest waiting
+first, with the releases a promotion would bring and their release notes. It is the list to go through before a
+release to production; `goliash promotions` and `GET /api/v1/promotions` show the same.
+
+```sh
+goliash promotions
+```
+
+```text
+SERVICE        PROMOTE           FROM → TO        WAITING   RELEASES
+payments-api   1.5.0 → 1.6.0     staging → prod   3d        1.6.0, 1.5.1
+postgres       15.6 → 15.7       staging → prod   26h       15.7
+```
+
 ## Acknowledging
 
 An acknowledgement silences notifications for a service, optionally in one environment, until a version ships or a
