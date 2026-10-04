@@ -89,9 +89,10 @@ type MatrixRow struct {
 
 // MatrixCell is one service in one environment.
 type MatrixCell struct {
-	Versions   []VersionView
-	Drifts     []DriftBadge
-	StaleTitle string // set when some of the data comes from targets that stopped reporting
+	Versions     []VersionView
+	FromDeclared bool // nothing reports what runs; the versions come from Compose files
+	Drifts       []DriftBadge
+	StaleTitle   string // set when some of the data comes from targets that stopped reporting
 }
 
 // VersionView is one tag running in a cell.
@@ -122,6 +123,9 @@ func driftBadge(d store.Drift) DriftBadge {
 	case "upstream":
 		b.Label = "upstream " + det.Other
 		b.Title = fmt.Sprintf("%s is available (%s); running %s", det.Other, det.Jump, det.Running)
+	case "declared":
+		b.Label = "Git says " + det.Other
+		b.Title = fmt.Sprintf("The Compose files declare %s; running %s", det.Other, det.Running)
 	case "inconsistent":
 		b.Label = "targets disagree"
 		var parts []string
@@ -148,6 +152,7 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 		for ei, c := range row.Cells {
 			var cell MatrixCell
 			var stale []string
+			cell.FromDeclared = c.FromDeclared
 			for _, v := range c.Versions {
 				cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
 				for i, id := range v.TargetIDs {

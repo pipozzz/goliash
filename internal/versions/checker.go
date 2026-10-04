@@ -478,7 +478,8 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 
 // Drifts lists the drifts the matrix shows: an environment running an older version
 // than the environment before it, a version behind upstream by at least the tracked
-// jump, and targets of one environment running different versions.
+// jump, targets of one environment running different versions, and a running version
+// that differs from what the Compose files in Git declare.
 func Drifts(m Matrix, upstreams map[string]Upstream, policies map[string]Policy) []WantedDrift {
 	var out []WantedDrift
 	for _, row := range m.Rows {
@@ -512,9 +513,23 @@ func Drifts(m Matrix, upstreams map[string]Upstream, policies map[string]Policy)
 			if targets, ok := inconsistent(cell); ok {
 				out = append(out, WantedDrift{svc, env, "inconsistent", DriftDetail{Running: primary, Targets: targets}})
 			}
+
+			// What runs differs from what the Compose files in Git declare.
+			if !cell.FromDeclared && len(cell.Declared) > 0 && !hasTag(cell.Declared, primary) {
+				out = append(out, WantedDrift{svc, env, "declared", DriftDetail{Running: primary, Other: cell.Declared[0].Tag}})
+			}
 		}
 	}
 	return out
+}
+
+func hasTag(vs []RunningVersion, tag string) bool {
+	for _, v := range vs {
+		if v.Tag == tag {
+			return true
+		}
+	}
+	return false
 }
 
 // inconsistent reports targets in one cell that run different versions with no

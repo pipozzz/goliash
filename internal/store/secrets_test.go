@@ -94,3 +94,19 @@ func TestChannelTypes(t *testing.T) {
 		}
 	})
 }
+
+func TestDriftKinds(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		svc, _ := s.EnsureService(ctx, f.ws.Scope(), "web")
+		for _, kind := range DriftKinds {
+			if _, err := s.OpenDrift(ctx, Drift{Scope: f.ws.Scope(), ServiceID: svc.ID, EnvironmentID: f.env.ID, Kind: kind, Detail: json.RawMessage(`{}`)}); err != nil {
+				t.Errorf("%s: %v", kind, err)
+			}
+		}
+		if _, err := s.OpenDrift(ctx, Drift{Scope: f.ws.Scope(), ServiceID: svc.ID, EnvironmentID: f.env.ID, Kind: "bogus"}); err == nil {
+			t.Fatal("unknown drift kind accepted")
+		}
+	})
+}

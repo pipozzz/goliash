@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"time"
 )
 
@@ -120,6 +122,9 @@ type Drift struct {
 	NotifiedAt    time.Time // when drift_detected was announced; zero while still within the alert delay
 }
 
+// DriftKinds are the kinds of drift the server tracks.
+var DriftKinds = []string{"env", "upstream", "inconsistent", "declared"}
+
 // OpenDrifts returns the workspace's unresolved drifts.
 func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {
 	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, detail, since, notified_at FROM drifts
@@ -144,6 +149,9 @@ func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {
 
 // OpenDrift records a new drift; Since defaults to now.
 func (s *Store) OpenDrift(ctx context.Context, d Drift) (Drift, error) {
+	if !slices.Contains(DriftKinds, d.Kind) {
+		return Drift{}, fmt.Errorf("unknown drift kind %q", d.Kind)
+	}
 	d.ID = NewID()
 	if d.Since.IsZero() {
 		d.Since = s.now()
