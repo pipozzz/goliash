@@ -3,6 +3,8 @@
 
 package ui
 
+import "strings"
+
 templ ServicePage(v ServiceView) {
 	@Layout(v.Base) {
 		<div class="head">
@@ -36,7 +38,15 @@ templ ServicePage(v ServiceView) {
 			</div>
 		</dl>
 		if v.CheckError != "" {
-			<div class="notice error">Upstream check failed: { v.CheckError }</div>
+			<div class="notice error">
+				Upstream check failed: { v.CheckError }
+				if v.Private && strings.Contains(v.CheckError, "denied") {
+					<p class="hint">
+						The agents check this registry with their own credentials: a <code>GOLIASH_CREDENTIAL_…</code> variable named after the registry host, a <code>docker login</code> on the host, or the cluster's image pull secrets.
+						<a href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How to give agents credentials</a>
+					</p>
+				}
+			</div>
 		}
 		if v.LatestAny != "" && v.LatestAny != v.Latest {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
