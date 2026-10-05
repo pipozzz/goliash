@@ -7,10 +7,11 @@ Cursor can answer "which version of payments runs in prod, and is it behind upst
 last two hours?" or "what reaches end of life soon?" from live data.
 
 Every tool calls the REST API with an API token, so the assistant sees and may do exactly what the token allows.
-Create one for it:
+Create one for it; a viewer token only reads, a member token may also acknowledge:
 
 ```sh
-goliash token create -name assistant
+goliash token create -name assistant -expires 90d            # reads
+goliash token create -name assistant -role member -expires 90d  # also acknowledges
 ```
 
 ## Tools

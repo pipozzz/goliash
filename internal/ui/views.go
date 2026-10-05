@@ -440,6 +440,18 @@ type UserView struct {
 	HasPassword bool
 }
 
+// TokenView is one API token on the Users page.
+type TokenView struct {
+	ID        string
+	Name      string
+	Role      string
+	CreatedBy string
+	CreatedAt time.Time
+	LastUsed  time.Time
+	ExpiresAt time.Time
+	Expired   bool
+}
+
 // AuditView is one audit log line.
 type AuditView struct {
 	At      time.Time
@@ -454,6 +466,7 @@ type SettingsView struct {
 	CanGrantOwner bool
 	Audit         []AuditView
 	Users         []UserView
+	Tokens        []TokenView
 	Secret        string
 	SecretLabel   string
 }

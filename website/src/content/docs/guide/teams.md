@@ -54,8 +54,11 @@ Every CLI command takes `-workspace` (or `GOLIASH_WORKSPACE`); without it, it wo
 
 ## API tokens
 
-API tokens (`glsh_api_…`) belong to one workspace and act as a member: they read everything and can acknowledge.
-Create them on the Users page or with `goliash token create -name prometheus`. The token is shown once.
+API tokens (`glsh_api_…`) belong to one workspace. A **viewer** token (the default) reads everything; a **member**
+token can also acknowledge. A token may expire after 30, 90 or 365 days, or never. Create them on the Users page or
+with `goliash token create -name prometheus [-role member] [-expires 90d]`; the token is shown once. The Users page
+lists every token with who created it and when it was last used, and revokes one at once (`goliash token revoke
+-name prometheus`). Things done with a token show its name in the audit log and on acknowledgements.
 
 ## Audit log
 

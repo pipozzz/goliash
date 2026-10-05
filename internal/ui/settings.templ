@@ -244,13 +244,65 @@ templ SettingsPage(v SettingsView) {
 			</div>
 		</section>
 		<section class="panel">
-			<div class="panel-head"><h2>API tokens</h2></div>
-			<div class="panel-body">
+			<div class="panel-head"><h2>API tokens</h2><span class="muted">{ "for " + v.Workspace }</span></div>
+			if len(v.Tokens) > 0 {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+						<tbody>
+							for _, t := range v.Tokens {
+								<tr>
+									<td><strong>{ t.Name }</strong></td>
+									<td>{ t.Role }</td>
+									<td>
+										@timeAgo(t.CreatedAt)
+										if t.CreatedBy != "" {
+											<div class="targets">by { t.CreatedBy }</div>
+										}
+									</td>
+									<td>@timeAgo(t.LastUsed)</td>
+									<td>
+										if t.Expired {
+											<span class="badge stale">expired</span>
+										} else if t.ExpiresAt.IsZero() {
+											<span class="muted">never</span>
+										} else {
+											<time datetime={ iso(t.ExpiresAt) }>{ t.ExpiresAt.UTC().Format("2006-01-02") }</time>
+										}
+									</td>
+									<td class="num">
+										<form class="inline" method="post" action={ templ.URL("/settings/tokens/" + t.ID + "/revoke") } hx-confirm={ "Revoke " + t.Name + "? Whatever uses it stops working." }>
+											<button class="link" type="submit" style="color:var(--bad)">Revoke</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<div class="panel-body" style="border-top:1px solid var(--line)">
 				<form class="inline" method="post" action="/settings/tokens">
-					<label>Name<input name="name" required placeholder="prometheus"/></label>
+					<label>Name<input name="name" required maxlength="100" placeholder="prometheus"/></label>
+					<label>
+						Role
+						<select name="role">
+							<option value="viewer" selected>viewer: reads</option>
+							<option value="member">member: also acknowledges</option>
+						</select>
+					</label>
+					<label>
+						Expires
+						<select name="expires">
+							<option value="">never</option>
+							<option value="30">in 30 days</option>
+							<option value="90">in 90 days</option>
+							<option value="365">in a year</option>
+						</select>
+					</label>
 					<button type="submit">Create token</button>
 				</form>
-				<p class="hint">Send it as <code>Authorization: Bearer glsh_api_…</code>. It works with <code>/api/v1</code> (<a href="/api/v1/openapi.yaml" hx-boost="false">OpenAPI</a>) and <code>/metrics</code>.</p>
+				<p class="hint">Send it as <code>Authorization: Bearer glsh_api_…</code>. It works with <code>/api/v1</code> (<a href="/api/v1/openapi.yaml" hx-boost="false">OpenAPI</a>) , <code>/metrics</code> and <code>/mcp</code>. Viewer tokens read; member tokens also acknowledge.</p>
 			</div>
 		</section>
 		<section class="panel">

@@ -267,8 +267,29 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 	if _, body, _ = post(t, c, e.srv.URL+"/settings/users/"+self.ID+"/role", url.Values{"role": {"owner"}}); !strings.Contains(body, "allowed to give") && !strings.Contains(body, "cannot change") {
 		t.Fatal("admin promoted themself")
 	}
-	if _, body, _ = post(t, c, e.srv.URL+"/settings/tokens", url.Values{"name": {"prom"}}); !strings.Contains(body, "glsh_api_") {
+	if _, body, _ = post(t, c, e.srv.URL+"/settings/tokens", url.Values{"name": {"prom"}}); !strings.Contains(body, "Choose viewer or member.") {
+		t.Fatal("token without a role")
+	}
+	if _, body, _ = post(t, c, e.srv.URL+"/settings/tokens", url.Values{"name": {"prom"}, "role": {"admin"}}); !strings.Contains(body, "Choose viewer or member.") {
+		t.Fatal("admin token created")
+	}
+	_, body, _ = post(t, c, e.srv.URL+"/settings/tokens", url.Values{"name": {"prom"}, "role": {"viewer"}, "expires": {"90"}})
+	if !strings.Contains(body, "API token prom (viewer) for") || !regexp.MustCompile(`glsh_api_[A-Za-z0-9]{20,}`).MatchString(body) {
 		t.Fatal("api token not shown")
+	}
+	toks, _ := e.st.ListAPITokens(ctx, e.ws.Scope())
+	if len(toks) != 1 || toks[0].Role != "viewer" || toks[0].CreatedBy != "admin@example.com" ||
+		toks[0].ExpiresAt.Before(time.Now().Add(89*24*time.Hour)) {
+		t.Fatalf("tokens %+v", toks)
+	}
+	if _, page := get(t, c, e.srv.URL+"/settings", nil); !strings.Contains(page, "by admin@example.com") || !strings.Contains(page, "Revoke") {
+		t.Fatalf("token list: %s", page[strings.Index(page, "<h2>API tokens"):])
+	}
+	if _, body, _ = post(t, c, e.srv.URL+"/settings/tokens/"+toks[0].ID+"/revoke", nil); !strings.Contains(body, "Token prom revoked.") {
+		t.Fatalf("revoke: %s", body)
+	}
+	if _, body, _ = post(t, c, e.srv.URL+"/settings/tokens/"+toks[0].ID+"/revoke", nil); !strings.Contains(body, "already revoked") {
+		t.Fatal("revoked twice")
 	}
 	if _, body, _ = post(t, c, e.srv.URL+"/notifications/channels", url.Values{"name": {"ops"}, "type": {"slack"}, "url": {"https://hooks.slack.com/services/T/B/SECRET"}}); !strings.Contains(body, "Channel ops added") || strings.Contains(body, "SECRET") {
 		t.Fatal("channel added or its URL leaked into the page")
@@ -277,7 +298,7 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 	_, page := get(t, c, e.srv.URL+"/settings", nil)
 	for _, want := range []string{
 		"user.sign_in", "agent.create", "agent=eu-cluster", "target.create", "user.invite", "user.role",
-		"api_token.create", "channel.create",
+		"api_token.create", "role=viewer", "api_token.revoke", "channel.create",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("audit log misses %s", want)
@@ -630,7 +651,7 @@ func TestAccountPasswordAndSessions(t *testing.T) {
 		t.Fatalf("name: %s", body)
 	}
 	raw, hash := tokens.New(tokens.API)
-	if _, err := e.st.CreateAPIToken(ctx, e.ws.Scope(), "t", hash); err != nil {
+	if _, err := e.st.CreateAPIToken(ctx, e.ws.Scope(), store.APIToken{Name: "t", Role: store.RoleMember}, hash); err != nil {
 		t.Fatal(err)
 	}
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

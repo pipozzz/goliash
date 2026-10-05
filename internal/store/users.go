@@ -267,23 +267,78 @@ func (s *Store) ConsumeLoginToken(ctx context.Context, idHash string) (User, err
 	return u, err
 }
 
-// CreateAPIToken stores a workspace API token (glsh_api_…) by its hash.
-func (s *Store) CreateAPIToken(ctx context.Context, sc Scope, name, hash string) (string, error) {
-	id := NewID()
-	_, err := s.exec(ctx, s.db, `INSERT INTO tokens (id, org_id, workspace_id, kind, name, hash, created_at)
-		VALUES (?, ?, ?, 'api', ?, ?, ?)`, id, sc.OrgID, sc.WorkspaceID, name, hash, s.now())
-	return id, err
+// APIToken is a workspace API token (glsh_api_…); only its hash is stored.
+type APIToken struct {
+	ID        string
+	Name      string
+	Role      string // viewer or member
+	CreatedBy string
+	CreatedAt time.Time
+	LastUsed  time.Time // zero when never used
+	ExpiresAt time.Time // zero when it does not expire
 }
 
-// APITokenScope returns the workspace of a non-revoked API token and records its use.
-func (s *Store) APITokenScope(ctx context.Context, hash string) (Scope, error) {
-	var sc Scope
-	var id string
-	err := s.queryRow(ctx, s.db, `SELECT id, org_id, workspace_id FROM tokens
-		WHERE hash = ? AND kind = 'api' AND revoked_at IS NULL`, hash).Scan(&id, &sc.OrgID, &sc.WorkspaceID)
-	if err != nil {
-		return Scope{}, notFound(err)
+// Expired reports whether the token no longer works because of its expiry.
+func (t APIToken) Expired(now time.Time) bool {
+	return !t.ExpiresAt.IsZero() && !now.Before(t.ExpiresAt)
+}
+
+// CreateAPIToken stores a workspace API token by its hash. t.ID and t.CreatedAt are set here.
+func (s *Store) CreateAPIToken(ctx context.Context, sc Scope, t APIToken, hash string) (APIToken, error) {
+	t.ID, t.CreatedAt = NewID(), s.now()
+	if t.Role == "" {
+		t.Role = RoleViewer
 	}
-	_, err = s.exec(ctx, s.db, `UPDATE tokens SET last_used_at = ? WHERE id = ?`, s.now(), id)
-	return sc, err
+	var expires any
+	if !t.ExpiresAt.IsZero() {
+		expires = t.ExpiresAt.UTC()
+	}
+	_, err := s.exec(ctx, s.db, `INSERT INTO tokens (id, org_id, workspace_id, kind, name, hash, created_at, role, expires_at, created_by)
+		VALUES (?, ?, ?, 'api', ?, ?, ?, ?, ?, ?)`, t.ID, sc.OrgID, sc.WorkspaceID, t.Name, hash, t.CreatedAt, t.Role, expires, t.CreatedBy)
+	return t, err
+}
+
+// APITokenAuth returns the workspace and the token of a working (not revoked, not
+// expired) API token, and records its use at most once a minute.
+func (s *Store) APITokenAuth(ctx context.Context, hash string) (Scope, APIToken, error) {
+	var sc Scope
+	var t APIToken
+	now := s.now()
+	err := s.queryRow(ctx, s.db, `SELECT id, org_id, workspace_id, name, role FROM tokens
+		WHERE hash = ? AND kind = 'api' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`, hash, now).
+		Scan(&t.ID, &sc.OrgID, &sc.WorkspaceID, &t.Name, &t.Role)
+	if err != nil {
+		return Scope{}, APIToken{}, notFound(err)
+	}
+	_, err = s.exec(ctx, s.db, `UPDATE tokens SET last_used_at = ? WHERE id = ? AND (last_used_at IS NULL OR last_used_at < ?)`,
+		now, t.ID, now.Add(-time.Minute))
+	return sc, t, err
+}
+
+// ListAPITokens returns a workspace's API tokens that are not revoked, newest first.
+func (s *Store) ListAPITokens(ctx context.Context, sc Scope) ([]APIToken, error) {
+	rows, err := s.query(ctx, s.db, `SELECT id, name, role, created_by, created_at, last_used_at, expires_at FROM tokens
+		WHERE workspace_id = ? AND kind = 'api' AND revoked_at IS NULL ORDER BY created_at DESC, name`, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []APIToken
+	for rows.Next() {
+		var t APIToken
+		var used, expires sql.NullTime
+		if err := rows.Scan(&t.ID, &t.Name, &t.Role, &t.CreatedBy, &t.CreatedAt, &used, &expires); err != nil {
+			return nil, err
+		}
+		t.CreatedAt, t.LastUsed, t.ExpiresAt = t.CreatedAt.UTC(), timeOrZero(used), timeOrZero(expires)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// RevokeAPIToken stops an API token of the workspace from working.
+func (s *Store) RevokeAPIToken(ctx context.Context, sc Scope, id string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE tokens SET revoked_at = ? WHERE workspace_id = ? AND id = ? AND kind = 'api' AND revoked_at IS NULL`,
+		s.now(), sc.WorkspaceID, id)
+	return expectOne(res, err)
 }

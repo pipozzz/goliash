@@ -8,7 +8,8 @@ The API under `/api/v1` reads the matrix, services, environments, targets, histo
 acknowledgements.
 
 - **Authentication:** `Authorization: Bearer glsh_api_…` with an API token (Users → API tokens, or
-  `goliash token create`), or a browser session. A token belongs to one workspace.
+  `goliash token create`), or a browser session. A token belongs to one workspace and is a viewer (reads) or a
+  member (also acknowledges).
 - **Errors:** `application/problem+json` (RFC 9457).
 - **Description:** [`api/public-v1.yaml`](https://github.com/pipozzz/goliash/blob/main/api/public-v1.yaml), also
   served by every server at `/api/v1/openapi.yaml`. A test checks every response against it.

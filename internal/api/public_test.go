@@ -81,7 +81,7 @@ func newPublicEnv(t *testing.T) *publicEnv {
 	NewPublicHandler(st, a, log).Register(mux)
 
 	token, hash := tokens.New(tokens.API)
-	_, _ = st.CreateAPIToken(ctx, sc, "test", hash)
+	_, _ = st.CreateAPIToken(ctx, sc, store.APIToken{Name: "test", Role: store.RoleMember}, hash)
 
 	// A viewer signed in through a magic link.
 	viewer, _ := st.CreateUser(ctx, ws.OrgID, "viewer@example.com", "", store.RoleViewer)
@@ -128,8 +128,17 @@ func TestPublicAPIAuth(t *testing.T) {
 	if code, body := e.call(nil, "POST", "/api/v1/acks", e.token, `{"service":"web","kind":"release","until_version":"2.0.0"}`); code != http.StatusCreated {
 		t.Fatalf("token ack: %d %s", code, body)
 	}
-	if acks, _ := e.st.ListAcks(context.Background(), e.sc); len(acks) != 1 || acks[0].CreatedBy != "api token" {
+	if acks, _ := e.st.ListAcks(context.Background(), e.sc); len(acks) != 1 || acks[0].CreatedBy != "api token test" {
 		t.Fatalf("acks %+v", acks)
+	}
+	// A viewer token reads but does not acknowledge.
+	ro, roHash := tokens.New(tokens.API)
+	_, _ = e.st.CreateAPIToken(context.Background(), e.sc, store.APIToken{Name: "grafana", Role: store.RoleViewer}, roHash)
+	if code, _ := e.call(nil, "GET", "/api/v1/matrix", ro, ""); code != http.StatusOK {
+		t.Fatalf("viewer token matrix: %d", code)
+	}
+	if code, _ := e.call(nil, "POST", "/api/v1/acks", ro, `{"service":"web","kind":"release","until_version":"2.0.0"}`); code != http.StatusForbidden {
+		t.Fatalf("viewer token ack: %d", code)
 	}
 	if code, _ := e.call(nil, "POST", "/api/v1/acks", e.token, `{"service":"web","kind":"oops","until_version":"2"}`); code != http.StatusBadRequest {
 		t.Fatal("bad kind accepted")

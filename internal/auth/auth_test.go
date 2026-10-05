@@ -160,7 +160,7 @@ func TestMagicLinkSessionAndLogout(t *testing.T) {
 func TestAPIToken(t *testing.T) {
 	h := newHarness(t, false)
 	tok, hash := tokens.New(tokens.API)
-	if _, err := h.st.CreateAPIToken(context.Background(), h.ws.Scope(), "prometheus", hash); err != nil {
+	if _, err := h.st.CreateAPIToken(context.Background(), h.ws.Scope(), store.APIToken{Name: "prometheus", Role: store.RoleMember}, hash); err != nil {
 		t.Fatal(err)
 	}
 	call := func(token string) (int, string) {
@@ -174,12 +174,28 @@ func TestAPIToken(t *testing.T) {
 		b, _ := io.ReadAll(resp.Body)
 		return resp.StatusCode, string(b)
 	}
-	if code, body := call(tok); code != 200 || body != "api token admin token" {
+	if code, body := call(tok); code != 200 || body != "api token prometheus member token" {
 		t.Fatalf("api token: %d %s", code, body)
+	}
+	ctx := context.Background()
+	viewer, vh := tokens.New(tokens.API)
+	_, _ = h.st.CreateAPIToken(ctx, h.ws.Scope(), store.APIToken{Name: "grafana"}, vh)
+	if code, body := call(viewer); code != 200 || body != "api token grafana viewer token" {
+		t.Fatalf("viewer token: %d %s", code, body)
+	}
+	expired, eh := tokens.New(tokens.API)
+	_, _ = h.st.CreateAPIToken(ctx, h.ws.Scope(), store.APIToken{Name: "old", ExpiresAt: time.Now().Add(-time.Minute)}, eh)
+	revoked, rh := tokens.New(tokens.API)
+	rt, _ := h.st.CreateAPIToken(ctx, h.ws.Scope(), store.APIToken{Name: "gone", ExpiresAt: time.Now().Add(time.Hour)}, rh)
+	if code, _ := call(revoked); code != 200 {
+		t.Fatal("token with a future expiry rejected")
+	}
+	if err := h.st.RevokeAPIToken(ctx, h.ws.Scope(), rt.ID); err != nil {
+		t.Fatal(err)
 	}
 	agentTok, _ := tokens.New(tokens.Agent)
 	other, _ := tokens.New(tokens.API)
-	for _, bad := range []string{agentTok, other, "nonsense"} {
+	for _, bad := range []string{agentTok, other, "nonsense", expired, revoked} {
 		if code, _ := call(bad); code != http.StatusUnauthorized {
 			t.Fatalf("%q accepted", bad)
 		}
