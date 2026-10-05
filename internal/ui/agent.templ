@@ -149,7 +149,7 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 			<tbody>
 				for _, t := range targets {
 					<tr>
-						<td><strong>{ t.Name }</strong></td>
+						<td><a href={ templ.URL("/targets/" + t.ID) }><strong>{ t.Name }</strong></a></td>
 						<td>{ t.Platform }</td>
 						<td>{ t.Env }</td>
 						<td>
@@ -184,7 +184,7 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 						if canAdmin {
 							<td class="num">
 								<div class="row-actions">
-									<a href={ templ.URL("/targets/" + t.ID) }>Edit</a>
+									<a href={ templ.URL("/targets/" + t.ID + "/edit") }>Edit</a>
 									<form class="inline" method="post" action={ templ.URL("/targets/" + t.ID + "/delete?from=" + from) } hx-confirm={ "Delete target " + t.Name + "? Its running versions leave the matrix; the history stays." }>
 										<button class="link" type="submit" style="color:var(--bad)">Delete</button>
 									</form>

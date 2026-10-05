@@ -30,6 +30,16 @@ Badges in a cell:
 
 During a rollout, both versions show with their replica counts. The matrix updates live as snapshots arrive.
 
+## One target at a glance
+
+Click a target's name under **Settings → Agents and targets** to see what runs on that cluster or host: a ring
+with the share of workloads that are up to date, counts of services, drift and workloads waiting in the inbox,
+deploys per day over thirty days, and every workload as a card, one column per namespace or project. A card shows
+the version (and a newer acceptable one), the image, a dot per running replica, drift badges and its service;
+its colour says how current it is (green up to date, amber behind, red end of life or targets disagreeing, grey not
+mapped), and problems come first. The filter above the cards matches names, services, versions and badges. Below,
+**What changed here** lists the latest deploys on this target.
+
 ## Looking back, and exporting for audits
 
 Open **Time travel** above the matrix and pick a date and time to see what ran then: "what was in prod on 12 September at

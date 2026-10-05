@@ -85,7 +85,23 @@
   }
 
   document.body.addEventListener("htmx:afterSwap", function (e) { refreshTimes(e.target); filterMatrix(); });
-  document.addEventListener("input", function (e) { if (e.target.id === "matrix-q") filterMatrix(); });
+  document.addEventListener("input", function (e) {
+    if (e.target.id === "matrix-q") filterMatrix();
+    if (e.target.matches("input[data-filter]")) filterCards(e.target);
+  });
+
+  // A filter box for cards (data-filter names their selector): words must all appear
+  // in a card's data-search; groups without a visible card hide too.
+  function filterCards(input) {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    document.querySelectorAll(input.getAttribute("data-filter")).forEach(function (el) {
+      const hay = el.getAttribute("data-search") || "";
+      el.hidden = !words.every(function (w) { return hay.indexOf(w) >= 0; });
+    });
+    document.querySelectorAll("[data-group]").forEach(function (g) {
+      g.hidden = !g.querySelector("[data-search]:not([hidden])");
+    });
+  }
   document.addEventListener("change", function (e) { if (e.target.id === "matrix-drift") filterMatrix(); });
 
   // Header menus: one open at a time; outside clicks and Escape close them.
