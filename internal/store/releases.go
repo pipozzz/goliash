@@ -233,3 +233,38 @@ func (s *Store) DriftsBetween(ctx context.Context, sc Scope, from, to time.Time)
 	}
 	return out, rows.Err()
 }
+
+// TagResolution is the exact version a moving tag stood for, by image digest.
+type TagResolution struct {
+	Repo, Digest, Version string // Version is empty when no tag matched
+	CheckedAt             time.Time
+}
+
+// TagResolutions returns the workspace's resolved moving tags.
+func (s *Store) TagResolutions(ctx context.Context, sc Scope) ([]TagResolution, error) {
+	rows, err := s.query(ctx, s.db, `SELECT repo, digest, version, checked_at FROM tag_resolutions
+		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []TagResolution
+	for rows.Next() {
+		var r TagResolution
+		if err := rows.Scan(&r.Repo, &r.Digest, &r.Version, &r.CheckedAt); err != nil {
+			return nil, err
+		}
+		r.CheckedAt = r.CheckedAt.UTC()
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// SetTagResolution records what digest of repo is (version "": nothing matched yet).
+func (s *Store) SetTagResolution(ctx context.Context, sc Scope, repo, digest, version string) error {
+	_, err := s.exec(ctx, s.db, `INSERT INTO tag_resolutions (org_id, workspace_id, repo, digest, version, checked_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET version = excluded.version, checked_at = excluded.checked_at`,
+		sc.OrgID, sc.WorkspaceID, repo, digest, version, s.now())
+	return err
+}

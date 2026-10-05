@@ -34,6 +34,10 @@ func OverviewAt(ctx context.Context, st *store.Store, sc store.Scope, at time.Ti
 		Matrix: BuildMatrix(services, envs, targets, instances), Targets: targets,
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{},
 	}
+	if o.Resolved, err = resolvedDigests(ctx, st, sc); err != nil {
+		return Overview{}, err
+	}
+	applyResolutions(&o.Matrix, o.Resolved)
 	o.SplitApps = splitApps(o.Matrix)
 	for _, s := range services {
 		o.Services[s.ID] = s

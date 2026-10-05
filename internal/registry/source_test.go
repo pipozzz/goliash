@@ -5,6 +5,8 @@ package registry
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,7 +15,7 @@ import (
 
 func fakeImages(t *testing.T) string {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			t.Errorf("registry got %s", r.Method)
 		}
 		if strings.Contains(r.URL.Path, "/manifests/") && !strings.Contains(r.Header.Get("Accept"), mediaIndex) {
@@ -35,6 +37,11 @@ func fakeImages(t *testing.T) string {
 		}[r.URL.Path]
 		if body == "" {
 			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		sum := sha256.Sum256([]byte(body))
+		w.Header().Set("Docker-Content-Digest", "sha256:"+hex.EncodeToString(sum[:]))
+		if r.Method == http.MethodHead {
 			return
 		}
 		_, _ = w.Write([]byte(body))
@@ -95,5 +102,25 @@ func TestGitLabProject(t *testing.T) {
 		if got := GitLabProject(in, hosts); got != want {
 			t.Errorf("GitLabProject(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestManifestDigests(t *testing.T) {
+	host := fakeImages(t)
+	got, err := client().ManifestDigests(context.Background(), host+"/acme/labeled", "1.0", Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The index's own digest is the sha256 of the bytes served, then each platform's.
+	if len(got) != 4 || !strings.HasPrefix(got[0], "sha256:") || len(got[0]) != len("sha256:")+64 ||
+		got[1] != "sha256:att" || got[3] != "sha256:amd" {
+		t.Fatalf("digests %v", got)
+	}
+	plain, err := client().ManifestDigests(context.Background(), host+"/acme/plain", "1.0", Credentials{})
+	if err != nil || len(plain) != 1 {
+		t.Fatalf("single manifest %v %v", plain, err)
+	}
+	if d, err := client().TagDigest(context.Background(), host+"/acme/labeled", "1.0", Credentials{}); err != nil || d != got[0] {
+		t.Fatalf("HEAD digest %q %v, want %s", d, err, got[0])
 	}
 }

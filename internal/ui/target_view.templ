@@ -129,6 +129,7 @@ templ workloadCard(c WorkloadCard) {
 		</header>
 		<div class="wl-version">
 			<span class="tag">{ c.Tag }</span>
+			@resolvedTag(c.Tag, c.Resolved)
 			if c.Upstream != "" {
 				<span class="wl-arrow" title="A newer acceptable release">→ { c.Upstream }</span>
 			}

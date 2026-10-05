@@ -155,6 +155,11 @@ func (c *Checker) load(ctx context.Context, sc store.Scope) (workspaceState, err
 		return st, err
 	}
 	st.matrix = BuildMatrix(st.services, envs, targets, st.instances)
+	resolved, err := resolvedDigests(ctx, c.store, sc)
+	if err != nil {
+		return st, err
+	}
+	applyResolutions(&st.matrix, resolved)
 	st.refs = References(st.matrix, st.instances)
 	st.byID = map[string]store.Service{}
 	for _, s := range st.services {
@@ -182,7 +187,7 @@ func References(m Matrix, active []store.Instance) map[string]Reference {
 		var ref Reference
 		for ei := len(row.Cells) - 1; ei >= 0; ei-- {
 			if !row.Cells[ei].Empty() {
-				ref.Tag = row.Cells[ei].Primary().Tag
+				ref.Tag = row.Cells[ei].Primary().Version()
 				break
 			}
 		}
@@ -234,6 +239,12 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 			c.log.WarnContext(ctx, "upstream check failed", "service", st.byID[id].Name, "repo", ref.Repo, "err", err)
 			_ = c.store.RecordUpstreamCheck(ctx, sc, id, err.Error())
 			continue
+		}
+		if c.resolveMoving(ctx, sc, st, id, ref.Repo, tags) {
+			// The exact version behind a moving tag is the reference from now on.
+			if fresh, err := c.load(ctx, sc); err == nil {
+				st, ref = fresh, fresh.refs[id]
+			}
 		}
 		svc := c.discoverSource(ctx, sc, st.byID[id], ref)
 		evs, err := c.recordTags(ctx, sc, svc, ref.Repo, tags, ref.Tag)
@@ -539,10 +550,10 @@ func partDrifts(m Matrix, svc string, part Part, upstreams map[string]Upstream, 
 			continue
 		}
 		env := m.Environments[ei].ID
-		primary := cell.Primary().Tag
+		primary := cell.Primary().Version()
 
 		if prevEnv >= 0 {
-			lower := part.Cells[prevEnv].Primary().Tag
+			lower := part.Cells[prevEnv].Primary().Version()
 			a, okA := ParseVersion(primary)
 			b, okB := ParseVersion(lower)
 			if okA && okB && a.Compare(b) < 0 {
@@ -662,6 +673,11 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	}
 	if svc.PrivateUpstream != "" {
 		_ = c.store.SetPrivateUpstream(ctx, sc, serviceID, "")
+	}
+	if c.resolveMoving(ctx, sc, st, serviceID, ref.Repo, tags) {
+		if fresh, err := c.load(ctx, sc); err == nil {
+			st, ref = fresh, fresh.refs[serviceID]
+		}
 	}
 	evs, err := c.recordTags(ctx, sc, st.byID[serviceID], ref.Repo, tags, ref.Tag)
 	if err != nil {

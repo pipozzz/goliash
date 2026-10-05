@@ -19,6 +19,19 @@ New services are checked within a minute, then every hour. **Check upstream now*
 
 ![A service page: versions running per environment with drift and end-of-life badges, and the upstream releases with their release notes](../../../assets/service.png)
 
+## Moving tags
+
+Tags such as `1`, `18-alpine` or `latest` move: they point at whatever release was pushed last. The image that runs
+has a digest, though, and the server compares it with the digests of the tags it could be (`1.27.3`, `1.27.2`, …,
+newest first). The match shows next to the tag, as **1 = 1.27.3**, and from then on drift and upstream releases
+are compared with that exact version: `1 = 1.27.3` is behind `28.0.0`, not "1 behind 28".
+
+Each digest is looked up once (a digest never changes); a digest no tag matches is tried again a day later. The
+lookups use `HEAD` requests, which Docker Hub does not count against its pull limit, and read full manifests only
+for the two newest candidates when the runtime recorded a platform's digest instead of the index's. This needs the
+digest the image runs with: Kubernetes, Docker, Swarm and Nomad report it; Compose files from Git do not. Images on
+private registries are not looked up yet.
+
 ## Version policy
 
 A policy decides which tags count as versions and which differences are worth an alert. Set it on the service

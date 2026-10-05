@@ -61,10 +61,19 @@ func Declared(platform string) bool { return platform == "compose" }
 // RunningVersion is one tag running in a cell.
 type RunningVersion struct {
 	Tag       string
+	Resolved  string // the exact release a moving tag ("1", "latest") stood for, when known
 	Digest    string
 	Running   int
 	Targets   []string // target names
 	TargetIDs []string
+}
+
+// Version is the release that runs: the exact one behind a moving tag, else the tag.
+func (v RunningVersion) Version() string {
+	if v.Resolved != "" {
+		return v.Resolved
+	}
+	return v.Tag
 }
 
 // Empty reports whether nothing of the service runs in the environment.

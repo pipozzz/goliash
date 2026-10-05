@@ -180,6 +180,13 @@ templ groupHealth(grp MatrixGroup) {
 	</span>
 }
 
+// resolvedTag shows the exact release behind a moving tag ("1 = 1.27.3").
+templ resolvedTag(tag, resolved string) {
+	if resolved != "" {
+		<span class="resolved" title={ tag + " is a moving tag; the image that runs is " + resolved + " (same digest)" }>= { resolved }</span>
+	}
+}
+
 templ cellView(c MatrixCell) {
 	if len(c.Versions) == 0 {
 		<span class="none">—</span>
@@ -188,6 +195,7 @@ templ cellView(c MatrixCell) {
 			for _, v := range c.Versions {
 				<div class="ver">
 					<span class="tag">{ v.Tag }</span>
+					@resolvedTag(v.Tag, v.Resolved)
 					<span class="reps">× { itoa(v.Running) }</span>
 				</div>
 				if v.Targets != "" {

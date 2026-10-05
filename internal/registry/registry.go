@@ -97,39 +97,69 @@ func splitRepository(repository string) (host, repo string, err error) {
 }
 
 func (c *Client) get(ctx context.Context, rawURL, repo string, creds Credentials, accept string) ([]byte, string, error) {
-	resp, err := c.do(ctx, rawURL, "", creds, accept)
+	resp, err := c.request(ctx, http.MethodGet, rawURL, repo, creds, accept)
 	if err != nil {
 		return nil, "", err
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		challenge := resp.Header.Get("WWW-Authenticate")
-		_ = resp.Body.Close()
-		auth, err := c.authorize(ctx, challenge, repo, creds)
-		if err != nil {
-			return nil, "", err
-		}
-		if resp, err = c.do(ctx, rawURL, auth, creds, accept); err != nil {
-			return nil, "", err
-		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
 		return nil, "", err
 	}
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return body, resp.Header.Get("Link"), nil
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return nil, "", fmt.Errorf("%w (%d)", ErrUnauthorized, resp.StatusCode)
-	case http.StatusTooManyRequests:
-		return nil, "", errors.New("registry rate limit reached (429)")
+	if err := statusError(resp, body); err != nil {
+		return nil, "", err
 	}
-	return nil, "", fmt.Errorf("registry answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body[:min(len(body), 200)])))
+	return body, resp.Header.Get("Link"), nil
 }
 
-func (c *Client) do(ctx context.Context, rawURL, auth string, creds Credentials, accept string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+// head returns the response headers of a HEAD request. Docker Hub does not count
+// HEAD requests against its pull limits.
+func (c *Client) head(ctx context.Context, rawURL, repo string, creds Credentials, accept string) (http.Header, error) {
+	resp, err := c.request(ctx, http.MethodHead, rawURL, repo, creds, accept)
+	if err != nil {
+		return nil, err
+	}
+	_ = resp.Body.Close()
+	if err := statusError(resp, nil); err != nil {
+		return nil, err
+	}
+	return resp.Header, nil
+}
+
+func statusError(resp *http.Response, body []byte) error {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return fmt.Errorf("%w (%d)", ErrUnauthorized, resp.StatusCode)
+	case http.StatusTooManyRequests:
+		return errors.New("registry rate limit reached (429)")
+	}
+	return fmt.Errorf("registry answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body[:min(len(body), 200)])))
+}
+
+// request sends method to rawURL, answering an authentication challenge once.
+func (c *Client) request(ctx context.Context, method, rawURL, repo string, creds Credentials, accept string) (*http.Response, error) {
+	resp, err := c.do(ctx, method, rawURL, "", creds, accept)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		challenge := resp.Header.Get("WWW-Authenticate")
+		_ = resp.Body.Close()
+		auth, err := c.authorize(ctx, challenge, repo, creds)
+		if err != nil {
+			return nil, err
+		}
+		if resp, err = c.do(ctx, method, rawURL, auth, creds, accept); err != nil {
+			return nil, err
+		}
+	}
+	return resp, nil
+}
+
+func (c *Client) do(ctx context.Context, method, rawURL, auth string, creds Credentials, accept string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
