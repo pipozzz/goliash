@@ -23,6 +23,8 @@ type diffInput struct {
 	EnvByName map[string]string // environment name -> ID
 	// ServiceID resolves a service name from a label, creating the service if needed.
 	ServiceID func(name string) (string, error)
+	// AppLabel is the workspace's own label key for applications, tried first.
+	AppLabel string
 	// Baseline is true for a target's first processed snapshot: instances are recorded
 	// but no events are emitted, so onboarding does not flood the history.
 	Baseline bool
@@ -72,6 +74,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			if w.Namespace != nil {
 				inst.Namespace = *w.Namespace
 			}
+			inst.App, inst.AppSource = workloadApp(w.Labels, in.AppLabel, inst.Namespace)
 			if d.EnvName != "" {
 				if id, ok := in.EnvByName[d.EnvName]; ok {
 					inst.EnvironmentID = id

@@ -509,7 +509,7 @@ func TestApplySnapshotAndEvents(t *testing.T) {
 		first := Instance{
 			ID: NewID(), EnvironmentID: f.env.ID, ServiceID: svc.ID, WorkloadID: "w1", WorkloadKind: "deployment",
 			WorkloadName: "payments-api", ContainerName: "app", Image: "ghcr.io/acme/payments-api:1.4.2", Tag: "1.4.2",
-			Running: 3, IsMain: true,
+			Running: 3, IsMain: true, App: "shop", AppSource: "app.kubernetes.io/part-of",
 		}
 		s1 := NewID()
 		snap(s1, at)
@@ -548,7 +548,8 @@ func TestApplySnapshotAndEvents(t *testing.T) {
 			t.Fatalf("instances %+v %v", all, err)
 		}
 		active, err := s.ListActiveInstances(ctx, sc)
-		if err != nil || len(active) != 1 || active[0].Tag != "1.5.0" || active[0].Running != 2 || !active[0].IsMain {
+		if err != nil || len(active) != 1 || active[0].Tag != "1.5.0" || active[0].Running != 2 || !active[0].IsMain ||
+			active[0].App != "shop" || active[0].AppSource != "app.kubernetes.io/part-of" {
 			t.Fatalf("active %+v %v", active, err)
 		}
 		if !active[0].FirstSeenAt.Equal(at.Add(time.Minute)) || !active[0].LastSeenAt.Equal(at.Add(2*time.Minute)) {
@@ -1193,6 +1194,25 @@ func TestSessionIdleAndRequire2FA(t *testing.T) {
 		}
 		if on, _ := s.RequireTwoFactor(ctx, ws.OrgID); !on {
 			t.Fatal("not required")
+		}
+	})
+}
+
+func TestWorkspaceAppLabel(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		if key, err := s.WorkspaceAppLabel(ctx, f.ws.ID); err != nil || key != "" {
+			t.Fatalf("default %q %v", key, err)
+		}
+		if err := s.SetWorkspaceAppLabel(ctx, f.ws.OrgID, f.ws.ID, "example.com/app"); err != nil {
+			t.Fatal(err)
+		}
+		if key, err := s.WorkspaceAppLabel(ctx, f.ws.ID); err != nil || key != "example.com/app" {
+			t.Fatalf("stored %q %v", key, err)
+		}
+		if err := s.SetWorkspaceAppLabel(ctx, "other-org", f.ws.ID, "x"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("another organization changed it: %v", err)
 		}
 	})
 }

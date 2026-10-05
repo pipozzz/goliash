@@ -70,6 +70,16 @@ templ TargetDetailPage(v TargetDetailView) {
 			<section class="panel"><div class="empty">Nothing reported yet. The first report usually arrives within a minute of the collector starting.</div></section>
 		} else {
 			<div class="toolbar">
+				<nav class="segmented" aria-label="Group by">
+					<span class="muted">Group by</span>
+					for _, m := range groupModes {
+						if v.GroupBy == m.Key {
+							<a href={ templ.URL("/targets/" + v.ID + "?group=" + m.Key) } class="on" aria-current="page">{ m.Label }</a>
+						} else {
+							<a href={ templ.URL("/targets/" + v.ID + "?group=" + m.Key) }>{ m.Label }</a>
+						}
+					}
+				</nav>
 				<input type="search" class="search" data-filter=".wl-card" placeholder="Filter workloads, services, versions" aria-label="Filter workloads" autocomplete="off"/>
 				<span class="legend-dots">
 					<span class="dot ok"></span> up to date
@@ -81,7 +91,15 @@ templ TargetDetailPage(v TargetDetailView) {
 			<div class="wl-board">
 				for _, g := range v.Groups {
 					<section class="wl-group" data-group>
-						<h2 class="wl-group-name">{ g.Name } <span class="count-pill">{ itoa(len(g.Cards)) }</span></h2>
+						<h2 class="wl-group-name">
+							<span>
+								{ g.Name }
+								if g.Caption != "" {
+									<small>{ g.Caption }</small>
+								}
+							</span>
+							<span class="count-pill">{ itoa(len(g.Cards)) }</span>
+						</h2>
 						for _, c := range g.Cards {
 							@workloadCard(c)
 						}
@@ -102,7 +120,12 @@ templ workloadCard(c WorkloadCard) {
 	<article class={ "wl-card", c.Health } data-search={ c.Search }>
 		<header>
 			<strong title={ c.Name }>{ c.Name }</strong>
-			<span class="muted">{ c.Kind }</span>
+			<span class="muted">
+				if c.ShowNamespace {
+					{ c.Namespace + " · " }
+				}
+				{ c.Kind }
+			</span>
 		</header>
 		<div class="wl-version">
 			<span class="tag">{ c.Tag }</span>

@@ -1124,3 +1124,72 @@ func TestTargetPage(t *testing.T) {
 		t.Error("imageRepo")
 	}
 }
+
+func TestTargetGrouping(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	_, body := get(t, viewer, e.srv.URL+"/targets/"+e.tgt.ID, nil)
+	if !strings.Contains(body, `aria-current="page">Application</a>`) || !strings.Contains(body, "?group=status") {
+		t.Error("application is not the default grouping")
+	}
+	if _, body = get(t, viewer, e.srv.URL+"/targets/"+e.tgt.ID+"?group=status", nil); !strings.Contains(body, `aria-current="page">Status</a>`) {
+		t.Error("status grouping not chosen")
+	}
+	if _, body = get(t, viewer, e.srv.URL+"/targets/"+e.tgt.ID+"?group=bogus", nil); !strings.Contains(body, `aria-current="page">Application</a>`) {
+		t.Error("unknown grouping does not fall back")
+	}
+
+	cards := []WorkloadCard{
+		{Name: "api", Namespace: "shop", App: "webshop", AppSource: "app.kubernetes.io/part-of", Owner: "payments", Health: "ok"},
+		{Name: "db", Namespace: "data", App: "webshop", AppSource: "app.kubernetes.io/part-of", Health: "bad"},
+		{Name: "cron", Namespace: "ops", App: "ops", AppSource: "namespace", Owner: "sre", Health: "unmapped"},
+		{Name: "odd", Health: "warn"},
+	}
+	names := func(gs []WorkloadGroup) string {
+		var out []string
+		for _, g := range gs {
+			var cs []string
+			for _, c := range g.Cards {
+				cs = append(cs, c.Name)
+			}
+			out = append(out, g.Name+":"+strings.Join(cs, ","))
+		}
+		return strings.Join(out, " ")
+	}
+	for by, want := range map[string]string{
+		"app":       "ops:cron webshop:db,api other:odd",
+		"namespace": "data:db ops:cron shop:api other:odd",
+		"team":      "payments:api sre:cron no owner:db,odd",
+		"status":    "Needs attention:db Behind:odd Not mapped:cron Up to date:api",
+	} {
+		if got := names(groupCards(cards, by)); got != want {
+			t.Errorf("group by %s = %q, want %q", by, got, want)
+		}
+	}
+	gs := groupCards(cards, "app")
+	if gs[1].Caption != "part-of label" || !gs[1].Cards[0].ShowNamespace || groupCards(cards, "namespace")[0].Cards[0].ShowNamespace {
+		t.Errorf("caption or namespace on cards: %+v", gs[1])
+	}
+}
+
+func TestAppLabelSetting(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+	if _, body, _ := post(t, admin, e.srv.URL+"/settings/app-label", url.Values{"key": {"bad key!"}}); !strings.Contains(body, "A label key is") {
+		t.Error("invalid key accepted")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/settings/app-label", url.Values{"key": {"example.com/app"}}); !strings.Contains(body, "from the example.com/app label first") {
+		t.Error("key not saved")
+	}
+	if key, _ := e.st.WorkspaceAppLabel(ctx, e.ws.ID); key != "example.com/app" {
+		t.Errorf("stored %q", key)
+	}
+	if _, body := get(t, admin, e.srv.URL+"/settings", nil); !strings.Contains(body, `value="example.com/app"`) {
+		t.Error("settings page misses the key")
+	}
+	post(t, e.as(store.RoleMember), e.srv.URL+"/settings/app-label", url.Values{"key": {""}})
+	if key, _ := e.st.WorkspaceAppLabel(ctx, e.ws.ID); key != "example.com/app" {
+		t.Error("member changed the key")
+	}
+}

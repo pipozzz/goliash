@@ -162,6 +162,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/2fa/disable", s.page(v, s.disableTwoFactor))
 	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
 	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
+	mux.Handle("POST /settings/app-label", s.page(a, s.setAppLabel))
 	mux.Handle("POST /account/name", s.page(v, s.saveName))
 	mux.Handle("POST /account/password", s.page(v, s.changePassword))
 	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
@@ -1389,6 +1390,9 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 	if req, err := s.store.RequireTwoFactor(ctx, p.User.OrgID); err == nil {
 		v.Require2FA = req
 	}
+	if key, err := s.store.WorkspaceAppLabel(ctx, p.Scope.WorkspaceID); err == nil {
+		v.AppLabel = key
+	}
 	users, err := s.store.ListUsers(ctx, p.User.OrgID)
 	if err != nil {
 		return v, err
@@ -1813,4 +1817,23 @@ func (h *Hub) PublishLocal(workspaceID string) {
 		default:
 		}
 	}
+}
+
+var labelKey = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._/-]{0,252})$`)
+
+// setAppLabel sets the label key that names a workload's application in this
+// workspace, before the well-known ones. It applies from each target's next snapshot.
+func (s *Server) setAppLabel(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	key := strings.TrimSpace(r.FormValue("key"))
+	if key != "" && !labelKey.MatchString(key) {
+		return back(w, r, "/settings", "error", "A label key is letters, digits, dots, dashes, underscores and slashes, like example.com/app.")
+	}
+	if err := s.store.SetWorkspaceAppLabel(r.Context(), p.Scope.OrgID, p.Scope.WorkspaceID, key); err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "workspace.app_label", "key", key)
+	if key == "" {
+		return back(w, r, "/settings", "notice", "Applications come from the well-known labels again, from each target's next snapshot.")
+	}
+	return back(w, r, "/settings", "notice", "Applications come from the "+key+" label first, from each target's next snapshot.")
 }
