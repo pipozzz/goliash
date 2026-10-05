@@ -944,3 +944,71 @@ func TestAgentAdministration(t *testing.T) {
 		}
 	})
 }
+
+func TestManageConfiguration(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		sc := ws.Scope()
+		dev, _ := s.CreateEnvironment(ctx, sc, "dev", 10)
+		prod, _ := s.CreateEnvironment(ctx, sc, "prod", 30)
+		if err := s.UpdateEnvironment(ctx, sc, dev.ID, "prod", 10); !errors.Is(err, ErrExists) {
+			t.Fatalf("rename onto a taken name: %v", err)
+		}
+		if err := s.UpdateEnvironment(ctx, sc, dev.ID, "development", 5); err != nil {
+			t.Fatal(err)
+		}
+		tgt, _ := s.CreateTarget(ctx, Target{Scope: sc, EnvironmentID: prod.ID, Platform: "swarm", Name: "s"})
+		if err := s.DeleteEnvironment(ctx, sc, prod.ID); !errors.Is(err, ErrInUse) {
+			t.Fatalf("deleted an environment with targets: %v", err)
+		}
+		if err := s.UpdateTarget(ctx, sc, tgt.ID, dev.ID, json.RawMessage(`{"swarm":{}}`), 120); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := s.GetTarget(ctx, sc, tgt.ID)
+		var settings map[string]any
+		_ = json.Unmarshal(got.Settings, &settings)
+		if _, ok := settings["swarm"]; got.EnvironmentID != dev.ID || got.PollIntervalSeconds != 120 || !ok || len(settings) != 1 {
+			t.Fatalf("target %+v", got)
+		}
+		if err := s.DeleteEnvironment(ctx, sc, prod.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		ch, _ := s.CreateChannel(ctx, Channel{Scope: sc, Type: "slack", Name: "ops", Config: json.RawMessage(`{}`)})
+		r, _ := s.CreateRule(ctx, Rule{Scope: sc, ChannelID: ch.ID, Mode: "instant"})
+		r2, _ := s.CreateRule(ctx, Rule{Scope: sc, ChannelID: ch.ID, Mode: "daily"})
+		if err := s.SetRulePaused(ctx, sc, r.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		if act, _ := s.ActiveRules(ctx, sc); len(act) != 1 || act[0].ID != r2.ID {
+			t.Fatalf("active rules %+v", act)
+		}
+		if all, _ := s.ListRules(ctx, sc); len(all) != 2 || !all[0].Paused {
+			t.Fatalf("rules %+v", all)
+		}
+		if err := s.DeleteRule(ctx, sc, r2.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.DeleteChannel(ctx, sc, ch.ID); err != nil {
+			t.Fatal(err)
+		}
+		if all, _ := s.ListRules(ctx, sc); len(all) != 0 {
+			t.Fatal("rules of a deleted channel remain")
+		}
+
+		svc, _ := s.EnsureService(ctx, sc, "web")
+		mr, _ := s.CreateMappingRule(ctx, MappingRule{Scope: sc, MatchType: "ignore", Pattern: "^x$"})
+		if err := s.DeleteMappingRule(ctx, sc, mr.ID); err != nil {
+			t.Fatal(err)
+		}
+		ack, _ := s.CreateAck(ctx, Ack{Scope: sc, ServiceID: svc.ID, Kind: "release", UntilVersion: "2"})
+		other, _ := s.CreateWorkspace(ctx, ws.OrgID, "Other", "other")
+		if err := s.DeleteAck(ctx, other.Scope(), ack.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatal("deleted an ack of another workspace")
+		}
+		if err := s.DeleteAck(ctx, sc, ack.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
+}

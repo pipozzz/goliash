@@ -45,6 +45,9 @@ goliash notify create -channel oncall -events drift_detected -envs prod -mode in
 | `daily` | A digest every day at `digest_hour` (UTC, default 8). |
 | `weekly` | A digest every Monday at `digest_hour`. |
 
+Members **pause** a rule (it queues nothing until resumed) or delete it on the Notifications page; admins delete a
+channel together with its rules.
+
 A release is announced once per service and version. Failed deliveries are retried with backoff, from one minute up
 to an hour between attempts. Acknowledged releases and drift are not sent; see
 [Acknowledging](/guide/versions/#acknowledging).

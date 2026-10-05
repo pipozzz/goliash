@@ -66,6 +66,10 @@ Compose files are left out: they declare tags, not what runs.
 A workload can override its environment with the label `goliash.env`, for example when one cluster hosts both
 staging and prod namespaces.
 
+Admins rename and reorder environments on the Agents page (drift is re-evaluated with the new order), and delete one
+once no target belongs to it. **Edit** on a target changes its environment, settings and poll interval; its
+collector picks the change up with the next configuration poll.
+
 ## How workloads map to services
 
 Each running workload goes through these steps, and the first match wins:
@@ -101,7 +105,8 @@ goliash rule create -match label -pattern 'team=payments' -service payments
 goliash rule create -match ignore -pattern 'docker\.io/library/busybox'
 ```
 
-Patterns are regular expressions that must match the whole value.
+Patterns are regular expressions that must match the whole value. The inbox page lists every rule; deleting one
+returns the workloads it matched to the inbox with the next snapshot, unless another rule or a label maps them.
 
 ## History
 

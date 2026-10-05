@@ -134,7 +134,13 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 	<div class="scroll">
 		<table>
 			<thead>
-				<tr><th>Target</th><th>Platform</th><th>Environment</th><th>Collected by</th><th>Collector</th><th>Last snapshot</th>
+				<tr>
+					<th>Target</th>
+					<th>Platform</th>
+					<th>Environment</th>
+					<th>Collected by</th>
+					<th>Collector</th>
+					<th>Last snapshot</th>
 					if canAdmin {
 						<th></th>
 					}
@@ -177,9 +183,12 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 						<td>@timeAgo(t.LastSnapshot)</td>
 						if canAdmin {
 							<td class="num">
-								<form class="inline" method="post" action={ templ.URL("/targets/" + t.ID + "/delete?from=" + from) } hx-confirm={ "Delete target " + t.Name + "? Its running versions leave the matrix; the history stays." }>
-									<button class="link" type="submit" style="color:var(--bad)">Delete</button>
-								</form>
+								<div class="row-actions">
+									<a href={ templ.URL("/targets/" + t.ID) }>Edit</a>
+									<form class="inline" method="post" action={ templ.URL("/targets/" + t.ID + "/delete?from=" + from) } hx-confirm={ "Delete target " + t.Name + "? Its running versions leave the matrix; the history stays." }>
+										<button class="link" type="submit" style="color:var(--bad)">Delete</button>
+									</form>
+								</div>
 							</td>
 						}
 					</tr>

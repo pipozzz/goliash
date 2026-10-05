@@ -216,6 +216,12 @@ var eventLabels = map[string]string{
 	"drift_detected": "drift", "drift_resolved": "resolved",
 }
 
+// ruleEventLabels name event types as the rule form does.
+var ruleEventLabels = map[string]string{
+	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
+	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
+}
+
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
 	targetName := map[string]string{}
 	for _, t := range o.Targets {
@@ -288,6 +294,7 @@ type ServiceEnv struct {
 
 // AckView is an acknowledgement shown on a service page.
 type AckView struct {
+	ID      string
 	Kind    string
 	Env     string
 	Until   string
@@ -368,6 +375,16 @@ type InboxView struct {
 	Base
 	Groups   []InboxGroup
 	Services []string
+	Rules    []MappingRuleView
+}
+
+// MappingRuleView is one mapping rule on the inbox page.
+type MappingRuleView struct {
+	ID      string
+	Match   string
+	Pattern string
+	Service string // empty for ignore rules
+	Created time.Time
 }
 
 // AgentView is one agent row.
@@ -404,6 +421,29 @@ type AgentsView struct {
 	AgentNames []string
 	ServerURL  string
 	Moves      []AgentOption
+	Envs       []EnvView
+}
+
+// EnvView is one environment on the agents page.
+type EnvView struct {
+	ID       string
+	Name     string
+	Position int
+	Targets  int
+}
+
+// TargetEditView is the page that edits one target.
+type TargetEditView struct {
+	Base
+	ID       string
+	Name     string
+	Platform string
+	EnvID    string
+	Envs     []EnvView
+	Settings string
+	Poll     int
+	Agent    string
+	AgentID  string
 }
 
 // AgentOption is an agent a target can move to.
@@ -437,6 +477,8 @@ type ChannelView struct {
 
 // RuleView is one notification rule.
 type RuleView struct {
+	ID      string
+	Paused  bool
 	Channel string
 	Events  string
 	Mode    string
@@ -539,6 +581,13 @@ func rowDrift(r MatrixRow) string {
 		}
 	}
 	return ""
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 // isSettings reports whether a page belongs under the Settings menu.

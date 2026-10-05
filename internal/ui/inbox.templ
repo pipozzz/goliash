@@ -63,6 +63,51 @@ templ InboxPage(v InboxView) {
 				</div>
 			}
 		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>Mapping rules</h2><span class="muted">first match wins, top to bottom</span></div>
+			if len(v.Rules) == 0 {
+				<div class="empty">No rules yet. Mapping or ignoring an image above creates one.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>Match</th>
+								<th>Pattern</th>
+								<th>Service</th>
+								<th>Created</th>
+								if v.CanMember {
+									<th></th>
+								}
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range v.Rules {
+								<tr>
+									<td>{ r.Match }</td>
+									<td class="mono">{ r.Pattern }</td>
+									<td>
+										if r.Service == "" {
+											<span class="badge neutral">ignored</span>
+										} else {
+											<a href={ templ.URL("/services/" + r.Service) }>{ r.Service }</a>
+										}
+									</td>
+									<td>@timeAgo(r.Created)</td>
+									if v.CanMember {
+										<td class="num">
+											<form method="post" action={ templ.URL("/inbox/rules/" + r.ID + "/delete") } hx-confirm="Delete this rule? Workloads it matched return to the inbox with the next snapshot, unless another rule or a label maps them.">
+												<button class="link danger-link" type="submit">Delete</button>
+											</form>
+										</td>
+									}
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
 	}
 }
 

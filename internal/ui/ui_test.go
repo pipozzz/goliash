@@ -760,3 +760,86 @@ func TestHeaderMenusAndMatrixFilter(t *testing.T) {
 		t.Error("filter shown when time travelling")
 	}
 }
+
+func TestManageConfiguration(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+	member := e.as(store.RoleMember)
+	sc := e.ws.Scope()
+
+	// Environments: rename and reorder, refuse deleting one with targets.
+	stg, _ := e.st.CreateEnvironment(ctx, sc, "staging", 20)
+	if _, body, _ := post(t, admin, e.srv.URL+"/environments/"+stg.ID, url.Values{"name": {"prod"}, "position": {"20"}}); !strings.Contains(body, "Another environment is named prod.") {
+		t.Fatal("rename onto prod")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/environments/"+stg.ID, url.Values{"name": {"stage"}, "position": {"x"}}); !strings.Contains(body, "whole number") {
+		t.Fatal("bad order accepted")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/environments/"+stg.ID, url.Values{"name": {"stage"}, "position": {"25"}}); !strings.Contains(body, "Environment stage saved.") {
+		t.Fatal("environment update")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/environments/"+e.prod.ID+"/delete", nil); !strings.Contains(body, "Move or delete the targets of prod first.") {
+		t.Fatal("deleted prod with targets")
+	}
+	if code, _, _ := post(t, member, e.srv.URL+"/environments/"+stg.ID+"/delete", nil); code != http.StatusForbidden {
+		t.Fatal("member deleted an environment")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/environments/"+stg.ID+"/delete", nil); !strings.Contains(body, "Environment stage deleted.") {
+		t.Fatal("environment delete")
+	}
+
+	// Targets: edit page and validation.
+	if _, body := get(t, admin, e.srv.URL+"/targets/"+e.tgt.ID, nil); !strings.Contains(body, "Edit target") || !strings.Contains(body, "Poll every") {
+		t.Fatal("target edit page")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/targets/"+e.tgt.ID, url.Values{"environment": {e.prod.ID}, "poll": {"5"}, "settings": {"{}"}}); !strings.Contains(body, "Poll every 30 to 86400 seconds.") {
+		t.Fatal("short poll accepted")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/targets/"+e.tgt.ID, url.Values{"environment": {e.prod.ID}, "poll": {"60"}, "settings": {"{nope"}}); !strings.Contains(body, "Settings must be a JSON object.") {
+		t.Fatal("bad settings accepted")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/targets/"+e.tgt.ID, url.Values{"environment": {e.prod.ID}, "poll": {"60"}, "settings": {"{\n  \"kubernetes\": {}\n}"}}); !strings.Contains(body, "Target k8s-prod saved.") {
+		t.Fatal("target update")
+	}
+	if got, _ := e.st.GetTarget(ctx, sc, e.tgt.ID); got.PollIntervalSeconds != 60 || string(got.Settings) != `{"kubernetes":{}}` {
+		t.Fatalf("target %+v", got)
+	}
+
+	// Notifications: members pause and delete rules; admins delete channels.
+	ch, _ := e.st.CreateChannel(ctx, store.Channel{Scope: sc, Type: "slack", Name: "ops", Config: json.RawMessage(`{"url":"https://hooks.slack.com/x"}`)})
+	rule, _ := e.st.CreateRule(ctx, store.Rule{Scope: sc, ChannelID: ch.ID, Mode: "instant"})
+	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules/"+rule.ID+"/pause", url.Values{"paused": {"true"}}); !strings.Contains(body, "Rule paused") || !strings.Contains(body, ">paused<") {
+		t.Fatal("pause")
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules/"+rule.ID+"/pause", url.Values{"paused": {"false"}}); !strings.Contains(body, "Rule resumed.") {
+		t.Fatal("resume")
+	}
+	if code, _, _ := post(t, member, e.srv.URL+"/notifications/channels/"+ch.ID+"/delete", nil); code != http.StatusForbidden {
+		t.Fatal("member deleted a channel")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID+"/delete", nil); !strings.Contains(body, "Channel ops and its rules deleted.") {
+		t.Fatal("channel delete")
+	}
+
+	// Mapping rules on the inbox page, and acknowledgements on the service page.
+	mr, _ := e.st.CreateMappingRule(ctx, store.MappingRule{Scope: sc, MatchType: "ignore", Pattern: "^busybox$"})
+	if _, body := get(t, member, e.srv.URL+"/inbox", nil); !strings.Contains(body, "^busybox$") || !strings.Contains(body, "ignored") {
+		t.Fatal("rules on the inbox page")
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/inbox/rules/"+mr.ID+"/delete", nil); !strings.Contains(body, "Rule deleted.") {
+		t.Fatal("mapping rule delete")
+	}
+	svc, _ := e.st.EnsureService(ctx, sc, "web")
+	ack, _ := e.st.CreateAck(ctx, store.Ack{Scope: sc, ServiceID: svc.ID, Kind: "release", UntilVersion: "2.0.0", CreatedBy: "x"})
+	if _, body, _ := post(t, member, e.srv.URL+"/services/web/acks/"+ack.ID+"/delete", nil); !strings.Contains(body, "Acknowledgement removed") {
+		t.Fatal("ack delete")
+	}
+
+	_, page := get(t, admin, e.srv.URL+"/settings", nil)
+	for _, want := range []string{"environment.update", "environment.delete", "target.update", "rule.pause", "rule.resume", "channel.delete", "mapping_rule.delete", "ack.delete"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("audit log misses %s", want)
+		}
+	}
+}

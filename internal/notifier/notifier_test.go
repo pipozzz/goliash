@@ -335,3 +335,22 @@ func TestEmail(t *testing.T) {
 		t.Fatalf("unconfigured smtp: %v", err)
 	}
 }
+
+func TestPausedRuleSendsNothing(t *testing.T) {
+	e := newEnv(t)
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", nil, Filter{})
+	rules, _ := e.st.ListRules(context.Background(), e.sc)
+	if err := e.st.SetRulePaused(context.Background(), e.sc, rules[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
+	e.emit(release(e.svc, "1.5.0", "1.6.0", "minor"))
+	if slack.count() != 0 {
+		t.Fatal("paused rule sent a message")
+	}
+	_ = e.st.SetRulePaused(context.Background(), e.sc, rules[0].ID, false)
+	e.emit(release(e.svc, "1.6.0", "1.7.0", "minor"))
+	if slack.count() != 1 {
+		t.Fatalf("resumed rule sent %d messages", slack.count())
+	}
+}

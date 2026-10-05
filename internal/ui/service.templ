@@ -135,7 +135,16 @@ templ ServicePage(v ServiceView) {
 					}
 					if len(v.Acks) > 0 {
 						<table>
-							<thead><tr><th>Quiet</th><th>Until</th><th>By</th></tr></thead>
+							<thead>
+								<tr>
+									<th>Quiet</th>
+									<th>Until</th>
+									<th>By</th>
+									if v.CanMember {
+										<th></th>
+									}
+								</tr>
+							</thead>
 							<tbody>
 								for _, a := range v.Acks {
 									<tr>
@@ -147,6 +156,13 @@ templ ServicePage(v ServiceView) {
 											}
 										</td>
 										<td class="muted">{ a.By }</td>
+										if v.CanMember {
+											<td class="num">
+												<form method="post" action={ templ.URL("/services/" + v.Name + "/acks/" + a.ID + "/delete") }>
+													<button class="link danger-link" type="submit">Remove</button>
+												</form>
+											</td>
+										}
 									</tr>
 								}
 							</tbody>
@@ -225,7 +241,7 @@ templ ServicePage(v ServiceView) {
 
 templ releaseNotesSource(v ServiceView) {
 	<p class="hint">
-		switch {
+		switch  {
 			case v.NotesGitHub != "":
 				{ "Release notes: " }
 				<a href={ templ.URL("https://github.com/" + v.NotesGitHub + "/releases") } target="_blank" rel="noopener noreferrer">{ v.NotesGitHub }</a>
