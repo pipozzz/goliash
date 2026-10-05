@@ -21,17 +21,17 @@ An agent is optional: the server can collect targets it can reach itself.
 - **From source:** `make build`, or `docker build --target server .` and `docker build --target agent .`.
 
 Images and release archives are signed with cosign (keyless, from the release workflow) and come with SPDX SBOMs.
-See [Security](/goliash/security/#verify-a-release) for how to verify them.
+See [Security](/security/#verify-a-release) for how to verify them.
 
 ## Pick a platform
 
 | Platform | Server | Agent |
 | --- | --- | --- |
-| Kubernetes | [Helm chart](/goliash/install/kubernetes/) | [Helm chart](/goliash/install/kubernetes/#agent) with a read-only ClusterRole |
-| Docker and Compose | [Compose quickstart](/goliash/install/docker/) | [Compose file](/goliash/install/docker/#agent-on-another-host) with docker-socket-proxy |
-| Docker Swarm | [Stack file](/goliash/install/swarm/) | [Stack file](/goliash/install/swarm/#agent) with docker-socket-proxy |
-| Nomad | [Job](/goliash/install/nomad/) | [Job](/goliash/install/nomad/#agent) with a list-jobs and read-job ACL token |
-| Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/goliash/install/ecs/) with a read-only task role |
+| Kubernetes | [Helm chart](/install/kubernetes/) | [Helm chart](/install/kubernetes/#agent) with a read-only ClusterRole |
+| Docker and Compose | [Compose quickstart](/install/docker/) | [Compose file](/install/docker/#agent-on-another-host) with docker-socket-proxy |
+| Docker Swarm | [Stack file](/install/swarm/) | [Stack file](/install/swarm/#agent) with docker-socket-proxy |
+| Nomad | [Job](/install/nomad/) | [Job](/install/nomad/#agent) with a list-jobs and read-job ACL token |
+| Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/install/ecs/) with a read-only task role |
 
 ## Database
 
@@ -64,4 +64,4 @@ Set `GOLIASH_PUBLIC_URL` to the address people use, for example `https://goliash
 cookies depend on it; with `https://`, cookies are marked Secure. Put the server behind a reverse proxy or ingress
 that terminates TLS.
 
-All settings are listed in [Configuration](/goliash/reference/configuration/).
+All settings are listed in [Configuration](/reference/configuration/).

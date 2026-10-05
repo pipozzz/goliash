@@ -4,8 +4,7 @@ import { defineConfig, passthroughImageService } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-  site: 'https://pipozzz.github.io',
-  base: '/goliash',
+  site: 'https://goliash.dev',
   trailingSlash: 'always',
   image: { service: passthroughImageService() },
   integrations: [

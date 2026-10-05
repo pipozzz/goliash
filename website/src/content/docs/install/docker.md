@@ -80,7 +80,7 @@ goliash target create -env prod -platform compose -name shop \
 
 Declared versions are what the file says, not what runs. Add a `docker` target for the same environment as well,
 and Goliash compares the two: `declared` drift shows where the host runs something other than what Git declares.
-See [Versions and drift](/goliash/guide/versions/#declared-versus-running).
+See [Versions and drift](/guide/versions/#declared-versus-running).
 
 ## What the Docker collector reports
 
@@ -88,7 +88,7 @@ See [Versions and drift](/goliash/guide/versions/#declared-versus-running).
   namespace and the replica count is the number of running containers.
 - **Other containers** are reported one by one, by container name.
 - **Digests**: the registry digest of each running image, when the proxy allows image reads (`IMAGES=1`).
-- **Skipped**: containers that belong to Swarm services (use a [Swarm target](/goliash/install/swarm/) for those) and one-off
+- **Skipped**: containers that belong to Swarm services (use a [Swarm target](/install/swarm/) for those) and one-off
   `docker compose run` containers.
 
 A `goliash.service` label on a Compose service names its Goliash service; otherwise it waits in the inbox.

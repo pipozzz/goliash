@@ -1,5 +1,5 @@
 app {
-  url = "https://pipozzz.github.io/goliash/"
+  url = "https://goliash.dev/"
 }
 
 pack {
