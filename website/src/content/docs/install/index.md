@@ -85,18 +85,24 @@ chart does). `/metrics` includes the server's own health; see [metrics](/guide/n
 
 ### Several servers
 
-With PostgreSQL, run as many servers as you like behind one address (the Helm chart's `replicaCount`). They all serve
-the UI, the API and agents; one of them, the **leader**, also runs the background work: processing snapshots,
-checking upstreams, sending notifications and housekeeping. The leader holds a PostgreSQL advisory lock; when it
-stops or loses its database connection, another server takes over within seconds. New snapshots and live updates
-reach every server through `LISTEN`/`NOTIFY`, so a browser on any server sees changes at once. Migrations run under
-a lock, so servers may start together.
+With PostgreSQL, run as many servers as you like behind one address (the Helm chart's `replicaCount`); the load
+balancer needs no sticky sessions. Every server serves the UI, the REST API, MCP and agents. One of them, the
+**leader**, also runs the background work: processing snapshots, checking upstreams, sending notifications,
+housekeeping and server-side collectors.
 
-Give every server the same `GOLIASH_SECRET_KEY` and `GOLIASH_PUBLIC_URL`. Limits on failed password sign-ins are
-counted per server. SQLite allows one server.
+- **Failover.** Leadership is a lease in the database that the leader renews every 5 seconds and that lasts 15,
+  timed by the database's clock. When the leader crashes, freezes or loses its network, another server takes over
+  within about 20 seconds; a leader that comes back after its lease ran out stops its work first. A server that
+  shuts down on purpose hands over at once. `goliash_leader` in `/metrics` shows which server leads.
+- **Shared state.** Sessions, sign-in tokens, failed sign-in counts, setup links and everything else live in the
+  database. New snapshots wake the leader and live updates reach every server's browsers through PostgreSQL
+  `LISTEN`/`NOTIFY`. MCP over HTTP keeps no session, so any server answers any request. Migrations run under a lock,
+  so servers may start together.
+- **What you provide.** Give every server the same `GOLIASH_SECRET_KEY` (a server with another key refuses to
+  start rather than misread channel secrets) and the same `GOLIASH_PUBLIC_URL`. The database itself must be highly
+  available (a managed PostgreSQL, or Patroni and the like): Goliash keeps no state outside it.
 
-The server keeps processed snapshots for the newest 20 per target (`-keep-snapshots`); history lives in events, so
-the database stays small.
+SQLite allows one server.
 
 ## Secrets at rest
 

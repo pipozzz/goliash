@@ -104,7 +104,7 @@ func New(st *store.Store, log *slog.Logger, publicURL string, mail MailFunc) (*A
 	}
 	return &Auth{
 		store: st, log: log, publicURL: u, mail: mail, passwords: true, sessionTTL: sessionTTL,
-		byClient: newLimiter(30, 15*time.Minute), byEmail: newLimiter(8, 15*time.Minute),
+		byClient: newLimiter(st, "client", 30, 15*time.Minute), byEmail: newLimiter(st, "email", 8, 15*time.Minute),
 	}, nil
 }
 
@@ -362,7 +362,7 @@ func (a *Auth) passwordLogin(w http.ResponseWriter, r *http.Request) {
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	password := r.FormValue("password")
 	ip := a.ClientIP(r)
-	if a.byClient.blocked(ip) || a.byEmail.blocked(email) {
+	if a.byClient.blocked(r.Context(), ip) || a.byEmail.blocked(r.Context(), email) {
 		a.log.WarnContext(r.Context(), "password sign-in throttled", "email", email, "ip", ip)
 		http.Redirect(w, r, "/login?error=throttled", http.StatusSeeOther)
 		return
@@ -374,13 +374,13 @@ func (a *Auth) passwordLogin(w http.ResponseWriter, r *http.Request) {
 		ok = false
 	}
 	if !ok {
-		a.byClient.fail(ip)
-		a.byEmail.fail(email)
+		a.byClient.fail(r.Context(), ip)
+		a.byEmail.fail(r.Context(), email)
 		a.log.WarnContext(r.Context(), "password sign-in failed", "email", email, "ip", ip)
 		http.Redirect(w, r, "/login?error=password", http.StatusSeeOther)
 		return
 	}
-	a.byEmail.reset(email)
+	a.byEmail.reset(r.Context(), email)
 	if u.TOTPEnabled {
 		a.secondFactor(w, r, u, "password")
 		return

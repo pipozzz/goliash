@@ -4,72 +4,50 @@
 package auth
 
 import (
-	"sync"
+	"context"
 	"time"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
-// limiter counts failed sign-ins per key (a client address or an e-mail) in a
-// sliding window. It lives in memory: a restart forgets it, which only helps the
-// person who forgot their password.
+// limiter counts failed sign-ins per key (a client address, an e-mail, a person) in
+// a sliding window. Counts live in the database, so every server of a cluster sees
+// the same ones; keys are stored as hashes. Errors count as "not blocked": a broken
+// database must not lock everyone out, and signing in fails then anyway.
 type limiter struct {
-	mu     sync.Mutex
+	store  *store.Store
+	scope  string // keeps the limiters' keys apart
 	max    int
 	window time.Duration
 	now    func() time.Time
-	fails  map[string][]time.Time
 }
 
-func newLimiter(maxFails int, window time.Duration) *limiter {
-	return &limiter{max: maxFails, window: window, now: time.Now, fails: map[string][]time.Time{}}
+func newLimiter(st *store.Store, scope string, maxFails int, window time.Duration) *limiter {
+	return &limiter{store: st, scope: scope, max: maxFails, window: window, now: time.Now}
 }
+
+func (l *limiter) key(k string) string { return hashOf(l.scope + "\x00" + k) }
 
 // blocked reports whether key has used up its failures in the window.
-func (l *limiter) blocked(key string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.recent(key)) >= l.max
+func (l *limiter) blocked(ctx context.Context, key string) bool {
+	return l.recentCount(ctx, key) >= l.max
 }
 
 // recentCount is how many failures key has in the window.
-func (l *limiter) recentCount(key string) int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.recent(key))
+func (l *limiter) recentCount(ctx context.Context, key string) int {
+	n, err := l.store.SigninFailures(ctx, l.key(key), l.now().Add(-l.window))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // fail records a failure for key.
-func (l *limiter) fail(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.fails[key] = append(l.recent(key), l.now())
-	if len(l.fails) > 10000 { // forget idle keys so the map stays small
-		for k := range l.fails {
-			if len(l.recent(k)) == 0 {
-				delete(l.fails, k)
-			}
-		}
-	}
+func (l *limiter) fail(ctx context.Context, key string) {
+	_ = l.store.AddSigninFailure(ctx, l.key(key))
 }
 
 // reset forgets key's failures after a successful sign-in.
-func (l *limiter) reset(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	delete(l.fails, key)
-}
-
-func (l *limiter) recent(key string) []time.Time {
-	cutoff := l.now().Add(-l.window)
-	ts := l.fails[key]
-	i := 0
-	for i < len(ts) && !ts[i].After(cutoff) {
-		i++
-	}
-	ts = ts[i:]
-	if len(ts) == 0 {
-		delete(l.fails, key)
-		return nil
-	}
-	l.fails[key] = ts
-	return ts
+func (l *limiter) reset(ctx context.Context, key string) {
+	_ = l.store.ClearSigninFailures(ctx, l.key(key))
 }
