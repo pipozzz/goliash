@@ -32,7 +32,7 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 | `secret_key` | `""` | Encrypts channel secrets. Empty = generated on the volume. |
 | `github_token` | `""` | Optional, for release notes lookups. |
 | `data_volume` | `goliash_data` | `/data` — SQLite database and secret key. |
-| `image` | `ghcr.io/pipozzz/goliash:0.6.1` | Image. Pin a tag in production. |
+| `image` | `ghcr.io/pipozzz/goliash:0.7.0` | Image. Pin a tag in production. |
 | `resources` | `{ cpu = 200, memory = 256 }` | Task resources. |
 
 ## Notes
