@@ -5,13 +5,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 // Flags before the command must not silently start a server.
@@ -179,5 +182,41 @@ func TestAgentCommands(t *testing.T) {
 	out.Reset()
 	if err := run(ctx, []string{"agent", "list", "-database", dsn}, &out); err != nil || !strings.Contains(out.String(), "revoked") {
 		t.Fatalf("list: %v %s", err, out.String())
+	}
+}
+
+func TestRecoveryLink(t *testing.T) {
+	ctx := context.Background()
+	db, ws, err := openDefault(ctx, t.TempDir()+"/x.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	var logs strings.Builder
+	log := slog.New(slog.NewTextHandler(&logs, nil))
+
+	// Nobody yet: the person becomes the owner and gets a link.
+	if err := recoveryLink(ctx, db, ws, "ana@example.com", "https://goliash.example.com", log); err != nil {
+		t.Fatal(err)
+	}
+	u, err := db.GetUserByEmail(ctx, ws.OrgID, "ana@example.com")
+	if err != nil || u.Role != store.RoleOwner || !strings.Contains(logs.String(), "https://goliash.example.com/auth/magic?token=") {
+		t.Fatalf("first person: %+v %v %s", u, err, logs.String())
+	}
+
+	// Someone else cannot be added through the variable.
+	logs.Reset()
+	if err := recoveryLink(ctx, db, ws, "mallory@example.com", "https://goliash.example.com", log); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.GetUserByEmail(ctx, ws.OrgID, "mallory@example.com"); !errors.Is(err, store.ErrNotFound) || strings.Contains(logs.String(), "magic?token=") {
+		t.Fatalf("stranger got in: %v %s", err, logs.String())
+	}
+
+	// An existing person gets a fresh link on every start, even after signing in.
+	logs.Reset()
+	_ = db.CreateSession(ctx, "h", u.ID, time.Hour, store.Session{})
+	if err := recoveryLink(ctx, db, ws, "ANA@example.com", "https://goliash.example.com", log); err != nil || !strings.Contains(logs.String(), "magic?token=") {
+		t.Fatalf("existing person: %v %s", err, logs.String())
 	}
 }

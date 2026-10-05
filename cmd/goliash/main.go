@@ -375,6 +375,11 @@ func serve(ctx context.Context, args []string) error {
 			return fmt.Errorf("bootstrap: %w", err)
 		}
 	}
+	if email := strings.TrimSpace(os.Getenv("GOLIASH_RECOVERY_EMAIL")); email != "" {
+		if err := recoveryLink(ctx, db, ws, email, *publicURL, log); err != nil {
+			return fmt.Errorf("recovery: %w", err)
+		}
+	}
 
 	svc := ingest.New(db, log)
 	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)

@@ -68,6 +68,7 @@ With SMTP, sign-in links can be requested by e-mail and e-mail channels work.
 
 | Variable | Meaning |
 | --- | --- |
+| `GOLIASH_RECOVERY_EMAIL` | Locked out without a shell: every start logs a one-time sign-in link for this person. Remove it once you are back in |
 | `GOLIASH_PASSWORD_LOGIN` | `false` turns password sign-in off (for example when everyone uses OIDC); default on |
 | `GOLIASH_TRUST_PROXY` | `true` takes the client address from `X-Forwarded-For`. Set it only behind a reverse proxy, which must set the header |
 

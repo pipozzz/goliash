@@ -160,3 +160,46 @@ func applyBootstrap(ctx context.Context, db *store.Store, ws store.Workspace, c 
 		"owner", u.Email, "link", link)
 	return nil
 }
+
+// recoveryLink gets a locked-out person back in where no shell is available (a
+// container console, a platform without exec): while GOLIASH_RECOVERY_EMAIL is set,
+// every start logs a one-time sign-in link for that person. With nobody in the
+// organization yet, the person is created as its owner; otherwise they must exist,
+// so the variable cannot add accounts. Whoever can set the environment and read the
+// logs controls the server anyway.
+func recoveryLink(ctx context.Context, db *store.Store, ws store.Workspace, email, publicURL string, log *slog.Logger) error {
+	u, err := db.GetUserByEmail(ctx, ws.OrgID, email)
+	if errors.Is(err, store.ErrNotFound) {
+		n, cerr := db.CountUsers(ctx, ws.OrgID)
+		if cerr != nil {
+			return cerr
+		}
+		if n > 0 {
+			log.Error("recovery: no such person; GOLIASH_RECOVERY_EMAIL must name someone who has an account", "email", email)
+			return nil
+		}
+		if u, err = db.CreateUser(ctx, ws.OrgID, email, "", store.RoleOwner); err != nil {
+			return err
+		}
+		log.Warn("recovery: the organization had nobody; created as owner", "email", u.Email)
+	} else if err != nil {
+		return err
+	}
+	a, err := auth.New(db, log, publicURL, nil)
+	if err != nil {
+		return err
+	}
+	link, err := a.LoginLink(ctx, u)
+	if err != nil {
+		return err
+	}
+	if err := db.Audit(ctx, store.AuditEntry{
+		OrgID: ws.OrgID, WorkspaceID: ws.ID, Actor: "server", Action: "user.recovery_link",
+		Details: map[string]string{"user": u.Email},
+	}); err != nil {
+		log.Error("audit log write failed", "err", err)
+	}
+	log.Warn("recovery: sign in with this link, set a password on your account page, then remove GOLIASH_RECOVERY_EMAIL "+
+		"(the link works once and expires in 15 minutes; restart for a new one)", "email", u.Email, "link", link)
+	return nil
+}
