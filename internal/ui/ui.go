@@ -124,6 +124,13 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /settings/users/{id}/role", s.page(a, s.setRole))
 	mux.Handle("POST /settings/users/{id}/link", s.page(a, s.userLink))
 	mux.Handle("POST /settings/users/{id}/delete", s.page(a, s.deleteUser))
+	mux.Handle("POST /settings/users/{id}/sign-out", s.page(a, s.signOutUser))
+	mux.Handle("POST /settings/users/{id}/password/delete", s.page(a, s.removePassword))
+	mux.Handle("GET /account", s.page(v, s.account))
+	mux.Handle("POST /account/name", s.page(v, s.saveName))
+	mux.Handle("POST /account/password", s.page(v, s.changePassword))
+	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
+	mux.Handle("POST /account/sessions/{id}/delete", s.page(v, s.signOutSession))
 	mux.Handle("POST /settings/tokens", s.page(a, s.createToken))
 	mux.Handle("POST /workspace", s.page(v, s.switchWorkspace))
 	mux.Handle("GET /workspaces", s.page(a, s.workspaces))
@@ -229,8 +236,15 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	v := LoginView{Sent: r.URL.Query().Get("sent") == "1", Mail: s.auth.MailEnabled(), OIDC: s.auth.OIDCName()}
+	v := LoginView{
+		Sent: r.URL.Query().Get("sent") == "1", Mail: s.auth.MailEnabled(), OIDC: s.auth.OIDCName(),
+		Password: s.auth.PasswordsEnabled(),
+	}
 	switch r.URL.Query().Get("error") {
+	case "password":
+		v.Error = "That e-mail and password do not match an account."
+	case "throttled":
+		v.Error = "Too many attempts. Wait 15 minutes, or sign in with a link."
 	case "link":
 		v.Error = "That sign-in link is used or expired. Ask for a new one."
 	case "oidc":
@@ -1202,7 +1216,7 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 		v.Users = append(v.Users, UserView{
 			ID: u.ID, Email: u.Email, Role: roles[u.ID], Access: accessLabel(u, roles[u.ID]), OrgWide: store.OrgWide(u.Role),
 			OrgRole:   orgRoleOf(u),
-			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID,
+			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID, HasPassword: u.HasPassword,
 		})
 	}
 	entries, err := s.store.ListAudit(ctx, p.User.OrgID, 200)

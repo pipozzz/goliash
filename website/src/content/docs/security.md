@@ -18,6 +18,8 @@ title: Security
 - Agent tokens (`glsh_agent_…`) and API tokens (`glsh_api_…`) are shown once and stored as SHA-256 hashes. They
   carry a checksum, so secret scanners can recognize them. An agent token can only send data and read that agent's
   configuration.
+- Passwords are hashed with argon2id (19 MiB, 2 passes) and must have at least 12 characters. Failed sign-ins are
+  limited per address and per client, answer the same whether or not the account exists, and take the same time.
 - Sign-in links are single-use and short-lived. Sessions are HttpOnly cookies, marked Secure when
   `GOLIASH_PUBLIC_URL` uses `https://`. Browsers may not send state-changing requests from other origins.
 - OIDC sign-in uses PKCE, state and nonce.

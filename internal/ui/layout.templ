@@ -82,7 +82,7 @@ templ Layout(b Base) {
 						} else if b.Workspace != "" {
 							<span class="ws-name">{ b.Workspace }</span>
 						}
-						<span title={ b.Role }>{ b.Email }</span>
+						<a href="/account" title={ "Your account · " + b.Role } class={ "who-link", templ.KV("active", b.Page == "account") }>{ b.Email }</a>
 						<form method="post" action="/auth/logout" hx-boost="false">
 							<button class="secondary" type="submit">Sign out</button>
 						</form>
@@ -128,20 +128,45 @@ templ Login(v LoginView) {
 					if v.OIDC != "" {
 						<a class="button" href="/auth/oidc/start" style="justify-content:center">Continue with { v.OIDC }</a>
 					}
-					if v.Mail {
+					if v.Password {
 						if v.OIDC != "" {
 							<div class="divider">or</div>
+						}
+						<form class="stack" method="post" action="/auth/password">
+							<label>
+								E-mail
+								<input id="email" type="email" name="email" required autocomplete="username" autofocus?={ v.OIDC == "" }/>
+							</label>
+							<label>
+								Password
+								<input type="password" name="password" required autocomplete="current-password"/>
+							</label>
+							<button type="submit">Sign in</button>
+						</form>
+					}
+					if v.Mail {
+						if v.OIDC != "" || v.Password {
+							<div class="divider">
+								if v.Password {
+									forgot your password or have none?
+								} else {
+									or
+								}
+							</div>
 						}
 						<form class="stack" method="post" action="/auth/magic">
 							<label>
 								E-mail
-								<input id="email" type="email" name="email" required autocomplete="email" autofocus/>
+								<input id="link-email" type="email" name="email" required autocomplete="email" autofocus?={ v.OIDC == "" && !v.Password }/>
 							</label>
-							<button type="submit">E-mail me a sign-in link</button>
+							<button type="submit" class={ templ.KV("secondary", v.Password) }>E-mail me a sign-in link</button>
 						</form>
 					}
-					if v.OIDC == "" && !v.Mail {
+					if !v.Mail {
 						<p class="muted">
+							if v.Password {
+								No password yet, or forgot it?
+							}
 							Ask an administrator for a sign-in link. On the server, run
 							<code>goliash login-link -email you@example.com</code>.
 						</p>

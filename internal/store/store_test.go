@@ -599,8 +599,8 @@ func TestHousekeep(t *testing.T) {
 			}
 		}
 		u, _ := s.CreateUser(ctx, f.ws.OrgID, "a@example.com", "", RoleViewer)
-		_ = s.CreateSession(ctx, "expired", u.ID, -time.Hour)
-		_ = s.CreateSession(ctx, "valid", u.ID, time.Hour)
+		_ = s.CreateSession(ctx, "expired", u.ID, -time.Hour, Session{})
+		_ = s.CreateSession(ctx, "valid", u.ID, time.Hour, Session{})
 
 		r, err := s.Housekeep(ctx, 2)
 		if err != nil {
@@ -736,4 +736,64 @@ func TestTargetsRebuildKeepsData(t *testing.T) {
 		VALUES ('x', 'o', ?, 'no-such-target', ?, ?, TRUE, '{}')`, f.ws.ID, time.Now(), time.Now()); err == nil {
 		t.Fatal("snapshot for a missing target accepted: foreign keys are off")
 	}
+}
+
+func TestPasswordsAndSessions(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		u, _ := s.CreateUser(ctx, ws.OrgID, "a@example.com", "", RoleViewer)
+		if u.HasPassword {
+			t.Fatal("new user has a password")
+		}
+		for _, id := range []string{"one", "two", "three"} {
+			if err := s.CreateSession(ctx, id, u.ID, time.Hour, Session{Method: "link", UserAgent: "ua-" + id, IP: "10.0.0.1"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		list, err := s.ListSessions(ctx, u.ID)
+		if err != nil || len(list) != 3 || list[0].UserAgent == "" || list[0].Method != "link" || list[0].LastSeen.IsZero() {
+			t.Fatalf("sessions %+v %v", list, err)
+		}
+
+		// Setting a password keeps only the session that set it.
+		if err := s.SetUserPassword(ctx, u.ID, "$argon2id$x", "one"); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := s.GetUser(ctx, u.ID)
+		if !got.HasPassword || got.PasswordChangedAt.IsZero() {
+			t.Fatalf("user %+v", got)
+		}
+		if h, _ := s.UserPasswordHash(ctx, u.ID); h != "$argon2id$x" {
+			t.Fatalf("hash %q", h)
+		}
+		if list, _ = s.ListSessions(ctx, u.ID); len(list) != 1 || list[0].ID != "one" {
+			t.Fatalf("sessions after password change %+v", list)
+		}
+		if su, err := s.SessionUser(ctx, "one"); err != nil || !su.HasPassword {
+			t.Fatalf("session user %+v %v", su, err)
+		}
+
+		_ = s.CreateSession(ctx, "four", u.ID, time.Hour, Session{})
+		if err := s.DeleteUserSession(ctx, "someone-else", "four"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("deleted another user's session: %v", err)
+		}
+		if n, err := s.DeleteUserSessions(ctx, u.ID, "one"); err != nil || n != 1 {
+			t.Fatalf("sign out others: %d %v", n, err)
+		}
+
+		// Removing the password signs out everywhere.
+		if err := s.SetUserPassword(ctx, u.ID, "", ""); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ = s.GetUser(ctx, u.ID); got.HasPassword || !got.PasswordChangedAt.IsZero() {
+			t.Fatalf("password not removed: %+v", got)
+		}
+		if list, _ = s.ListSessions(ctx, u.ID); len(list) != 0 {
+			t.Fatalf("sessions left %+v", list)
+		}
+		if err := s.SetUserName(ctx, u.ID, "Ana"); err != nil {
+			t.Fatal(err)
+		}
+	})
 }

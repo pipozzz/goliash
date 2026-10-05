@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/pipozzz/goliash/internal/auth"
 )
 
 // Flags before the command must not silently start a server.
@@ -70,5 +72,45 @@ func TestSecretKeyEndToEnd(t *testing.T) {
 	err := run(ctx, []string{"matrix", "-database", dsn}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "does not open") {
 		t.Fatalf("started with a new key: %v", err)
+	}
+}
+
+func TestUserPassword(t *testing.T) {
+	ctx := context.Background()
+	dsn := t.TempDir() + "/x.db"
+	if err := run(ctx, []string{"user", "password"}, io.Discard); err == nil || err.Error() != "-email is required" {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if err := run(ctx, []string{"login-link", "-database", dsn, "-email", "ana@example.com"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	stdin := func(s string) *os.File {
+		f, err := os.CreateTemp(t.TempDir(), "stdin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.WriteString(s)
+		_, _ = f.Seek(0, 0)
+		return f
+	}
+	args := []string{"-database", dsn, "-email", "ana@example.com"}
+	if err := userPassword(ctx, args, stdin("short\n"), io.Discard); err == nil {
+		t.Fatal("weak password accepted")
+	}
+	if err := userPassword(ctx, args, stdin("correct horse staple\n"), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	db, ws, _ := openDefault(ctx, dsn)
+	u, _ := db.GetUserByEmail(ctx, ws.OrgID, "ana@example.com")
+	hash, _ := db.UserPasswordHash(ctx, u.ID)
+	_ = db.Close()
+	if !auth.VerifyPassword("correct horse staple", hash) {
+		t.Fatal("password not stored")
+	}
+	if err := userPassword(ctx, append(args, "-remove"), stdin(""), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if err := userPassword(ctx, []string{"-database", dsn, "-email", "nobody@example.com"}, stdin("x"), io.Discard); err == nil {
+		t.Fatal("unknown user accepted")
 	}
 }

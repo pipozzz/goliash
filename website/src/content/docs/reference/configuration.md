@@ -63,6 +63,16 @@ Unknown fields are rejected, so a typo stops the server instead of being ignored
 
 With SMTP, sign-in links can be requested by e-mail and e-mail channels work.
 
+### Passwords
+
+| Variable | Meaning |
+| --- | --- |
+| `GOLIASH_PASSWORD_LOGIN` | `false` turns password sign-in off (for example when everyone uses OIDC); default on |
+| `GOLIASH_TRUST_PROXY` | `true` takes the client address from `X-Forwarded-For`. Set it only behind a reverse proxy, which must set the header |
+
+The client address goes into the session list, the audit log and the sign-in limits: 8 failed passwords for an
+address, or 30 from one client, pause sign-in for 15 minutes.
+
 ### OIDC sign-in
 
 | Variable | Meaning |
