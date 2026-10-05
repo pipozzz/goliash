@@ -55,7 +55,7 @@ dockers_v2:
     ids: [goliash]
     dockerfile: build/goliash.Dockerfile
     images: ["ghcr.io/pipozzz/goliash"]
-    tags: ["{{ .Version }}", "{{ if not .Prerelease }}latest{{ end }}"]
+    tags: ["{{ .Version }}", "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}", "{{ if not .Prerelease }}{{ .Major }}{{ end }}", "{{ if not .Prerelease }}latest{{ end }}"]
     platforms: [linux/amd64, linux/arm64]
     sbom: true
     labels:
@@ -68,7 +68,7 @@ dockers_v2:
     ids: [goliash-agent]
     dockerfile: build/goliash-agent.Dockerfile
     images: ["ghcr.io/pipozzz/goliash-agent"]
-    tags: ["{{ .Version }}", "{{ if not .Prerelease }}latest{{ end }}"]
+    tags: ["{{ .Version }}", "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}", "{{ if not .Prerelease }}{{ .Major }}{{ end }}", "{{ if not .Prerelease }}latest{{ end }}"]
     platforms: [linux/amd64, linux/arm64]
     sbom: true
     labels:

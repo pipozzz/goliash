@@ -557,11 +557,12 @@ type SettingsView struct {
 
 // LoginView is the sign-in page.
 type LoginView struct {
-	Sent     bool
-	Error    string
-	OIDC     string // provider name; empty when OIDC is off
-	Mail     bool
-	Password bool
+	Sent       bool
+	Error      string
+	OIDC       string // provider name; empty when OIDC is off
+	Mail       bool
+	Password   bool
+	NoAccounts bool // nobody has an account yet: point to the setup link
 }
 
 // relTime formats a time for <time datetime>.

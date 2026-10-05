@@ -145,6 +145,10 @@ func TestSignInRequired(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized || resp.Header.Get("HX-Redirect") != "/login" {
 		t.Fatalf("anonymous htmx: %d %q", resp.StatusCode, resp.Header.Get("HX-Redirect"))
 	}
+	if code, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); code != 200 || !strings.Contains(body, "Nobody has an account yet") {
+		t.Fatalf("login page of an empty server: %d", code)
+	}
+	e.as(store.RoleViewer)
 	if code, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); code != 200 || !strings.Contains(body, "goliash login-link") {
 		t.Fatalf("login page: %d", code)
 	}
@@ -1067,5 +1071,28 @@ func TestChartsOnPages(t *testing.T) {
 	_, body = get(t, c, e.srv.URL+"/services/"+url.PathEscape(svc), nil)
 	if !strings.Contains(body, "Versions over time") || !strings.Contains(body, "1.27.2 in prod from") {
 		t.Fatal("service timeline missing")
+	}
+}
+
+func TestSetupPageAndLoginHint(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); !strings.Contains(body, "Nobody has an account yet") {
+		t.Fatal("no hint on an empty server")
+	}
+	link, _ := e.auth.SetupLink(ctx)
+	if code, body := get(t, noFollow, link, nil); code != http.StatusOK || !strings.Contains(body, "Create the account") {
+		t.Fatalf("setup page: %d", code)
+	}
+	if code, _ := get(t, noFollow, e.srv.URL+"/setup?token=wrong", nil); code != http.StatusSeeOther {
+		t.Fatal("wrong token shown the page")
+	}
+	e.as(store.RoleViewer) // someone has an account now
+	if code, _ := get(t, noFollow, link, nil); code != http.StatusSeeOther {
+		t.Fatal("setup page after the first account")
+	}
+	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); strings.Contains(body, "Nobody has an account yet") {
+		t.Fatal("hint with accounts")
 	}
 }

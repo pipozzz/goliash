@@ -95,6 +95,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}))
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
+	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("/", s.notFound)
 
 	v, m, a := store.RoleViewer, store.RoleMember, store.RoleAdmin
@@ -303,13 +304,15 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	v := LoginView{
 		Sent: r.URL.Query().Get("sent") == "1", Mail: s.auth.MailEnabled(), OIDC: s.auth.OIDCName(),
-		Password: s.auth.PasswordsEnabled(),
+		Password: s.auth.PasswordsEnabled(), NoAccounts: s.auth.NoAccounts(r.Context()),
 	}
 	switch r.URL.Query().Get("error") {
 	case "password":
 		v.Error = "That e-mail and password do not match an account."
 	case "throttled":
 		v.Error = "Too many attempts. Wait 15 minutes, or sign in with a link."
+	case "setup":
+		v.Error = "That setup link is used or expired, or someone has an account already."
 	case "expired":
 		v.Error = "The sign-in step expired or was already used. Start again."
 	case "link":

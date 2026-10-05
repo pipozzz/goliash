@@ -162,6 +162,12 @@ templ Login(v LoginView) {
 						<h1>Sign in</h1>
 						<p class="muted">What runs where, on which version.</p>
 					</div>
+					if v.NoAccounts {
+						<div class="notice" role="status">
+							<strong>Nobody has an account yet.</strong> The server wrote a link to create the first one into its log, e.g.
+							<code>docker compose logs goliash | grep link=</code>
+						</div>
+					}
 					if v.Sent {
 						<div class="notice" role="status">If that address has an account, a sign-in link is on its way. It works once and expires in 15 minutes.</div>
 					}
@@ -205,7 +211,7 @@ templ Login(v LoginView) {
 							<button type="submit" class={ templ.KV("secondary", v.Password) }>E-mail me a sign-in link</button>
 						</form>
 					}
-					if !v.Mail {
+					if !v.Mail && !v.NoAccounts {
 						<p class="muted">
 							if v.Password {
 								No password yet, or forgot it?

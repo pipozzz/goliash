@@ -5,17 +5,17 @@ description: 'Run the Goliash server with Docker Compose and watch Docker hosts 
 
 ## Server
 
-The repository's `docker-compose.yml` runs the server with SQLite on a volume:
+The repository's `docker-compose.yml` runs the published image with SQLite on a volume:
 
 ```sh
-git clone https://github.com/pipozzz/goliash.git && cd goliash
-docker compose up -d --build
-docker compose exec goliash goliash login-link -email you@example.com
+curl -fsSLO https://raw.githubusercontent.com/pipozzz/goliash/main/docker-compose.yml
+docker compose up -d
+docker compose logs goliash | grep link=        # open it to create your account
 ```
 
-To use the published image instead of building it, replace `build:` with
-`image: ghcr.io/pipozzz/goliash:latest`. Set `GOLIASH_PUBLIC_URL` to the address people use, and put a reverse
-proxy with TLS in front for anything beyond a trial.
+Open the setup link from the log to create the first account. `GOLIASH_VERSION=1.0.0` pins the image (the tag `1`
+follows 1.x). Set `GOLIASH_PUBLIC_URL` to the address people use, and put a reverse proxy with TLS in front for
+anything beyond a trial.
 
 Without Compose:
 
@@ -34,7 +34,7 @@ No agent is needed. The `watch-host` profile adds a
 images:
 
 ```sh
-docker compose --profile watch-host up -d --build
+docker compose --profile watch-host up -d
 docker compose exec goliash goliash env create -name prod -position 30
 docker compose exec goliash goliash target create -env prod -platform docker -name this-host \
   -settings '{"docker":{"docker_host":"tcp://socket-proxy:2375"}}'

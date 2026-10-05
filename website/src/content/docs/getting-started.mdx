@@ -11,20 +11,18 @@ five minutes.
 ## 1. Start the server
 
 ```sh
-git clone https://github.com/pipozzz/goliash.git && cd goliash
-docker compose up -d --build
+curl -fsSLO https://raw.githubusercontent.com/pipozzz/goliash/main/docker-compose.yml
+docker compose up -d
+docker compose logs goliash | grep link=        # open it to create your account
 ```
 
 The server listens on [http://localhost:8080](http://localhost:8080) and keeps its SQLite database in a Docker volume.
 
-## 2. Sign in
+## 2. Create your account
 
-```sh
-docker compose exec goliash goliash login-link -email you@example.com
-```
-
-Open the printed link. The first person to sign in becomes the owner of the organization. When SMTP is configured,
-people can also request links by e-mail on the sign-in page; see [Configuration](/reference/configuration/).
+While nobody has an account, the server writes a one-time **setup link** to its log (the last command above shows
+it). Open it, enter your e-mail and a password: you are the owner of the organization and signed in. The link works
+once, for 24 hours; restarting the server writes a new one. Later, invite the others from **Settings → Users**.
 
 ## 3. Look around with example data (optional)
 
@@ -66,7 +64,7 @@ start its read-only socket proxy and connect a Docker host with the address `tcp
 command line:
 
 ```sh
-docker compose --profile watch-host up -d --build      # adds a read-only docker-socket-proxy
+docker compose --profile watch-host up -d               # adds a read-only docker-socket-proxy
 docker compose exec goliash goliash env create -name prod -position 30
 docker compose exec goliash goliash target create -env prod -platform docker -name this-host \
   -settings '{"docker":{"docker_host":"tcp://socket-proxy:2375"}}'

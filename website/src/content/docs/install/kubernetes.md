@@ -13,7 +13,7 @@ Goliash version. The sources are in the repository under `deploy/helm`.
 helm install goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --create-namespace \
   --set publicURL=https://goliash.example.com \
   --set ingress.enabled=true --set ingress.hosts[0].host=goliash.example.com
-kubectl -n goliash exec deploy/goliash -- goliash login-link -email you@example.com
+kubectl -n goliash logs deploy/goliash | grep link=      # the setup link for the first account
 ```
 
 The chart runs one replica with SQLite on a persistent volume. For PostgreSQL, set `database.url` or
