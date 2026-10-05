@@ -28,6 +28,18 @@ templ MatrixPage(v MatrixView) {
 		</div>
 		if v.At != "" || len(v.Grid.Rows) > 0 {
 			<div class="toolbar">
+				if len(v.Grid.Rows) > 0 {
+					<nav class="segmented" aria-label="Group by">
+						<span class="muted">Group by</span>
+						for _, m := range matrixGroupModes {
+							if v.Grid.GroupBy == m.Key {
+								<a href={ templ.URL(matrixURL(m.Key, v.At)) } class="on" aria-current="page">{ m.Label }</a>
+							} else {
+								<a href={ templ.URL(matrixURL(m.Key, v.At)) }>{ m.Label }</a>
+							}
+						}
+					</nav>
+				}
 				if v.At == "" && len(v.Grid.Rows) > 0 {
 					<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
 					<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
@@ -45,10 +57,11 @@ templ MatrixPage(v MatrixView) {
 					<div class="menu-list">
 						<form class="stack" method="get" action="/">
 							<label>Show the matrix as of (UTC)<input type="datetime-local" name="at" value={ v.At } required/></label>
+							<input type="hidden" name="group" value={ v.Grid.GroupBy }/>
 							<div class="actions">
 								<button type="submit">Show</button>
 								if v.At != "" {
-									<a href="/" class="button secondary">Back to now</a>
+									<a href={ templ.URL(matrixURL(v.Grid.GroupBy, "")) } class="button secondary">Back to now</a>
 								}
 							</div>
 						</form>
@@ -63,7 +76,7 @@ templ MatrixPage(v MatrixView) {
 		} else {
 			<section
 				class="panel"
-				hx-get="/ui/matrix"
+				hx-get={ "/ui/matrix?group=" + v.Grid.GroupBy }
 				hx-trigger="goliash:changed from:body, every 60s"
 				hx-swap="innerHTML"
 				aria-live="polite"
@@ -92,9 +105,26 @@ templ MatrixGridView(g MatrixGrid) {
 						<th>Latest upstream</th>
 					</tr>
 				</thead>
-				<tbody>
-					for _, r := range g.Rows {
-						<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) }>
+				for _, grp := range g.Groups {
+				<tbody class="mgroup">
+					if grp.Name != "" {
+						<tr class="group-head">
+							<th colspan={ itoa(len(g.Envs) + 2) } scope="rowgroup">
+								<div class="group-line">
+									<span class="group-name">{ grp.Name }</span>
+									<span class="count-pill">{ itoa(len(grp.Rows)) }</span>
+									if grp.Caption != "" {
+										<small>{ grp.Caption }</small>
+									}
+									if g.GroupBy != "status" {
+										@groupHealth(grp)
+									}
+								</div>
+							</th>
+						</tr>
+					}
+					for _, r := range grp.Rows {
+						<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) } data-health={ r.Health }>
 							<td class="svc">
 								<a href={ templ.URL(r.URL) }>{ r.Service }</a>
 								if r.Owner != "" {
@@ -121,6 +151,7 @@ templ MatrixGridView(g MatrixGrid) {
 						</tr>
 					}
 				</tbody>
+				}
 			</table>
 		</div>
 		if g.Unmapped > 0 {
@@ -130,6 +161,20 @@ templ MatrixGridView(g MatrixGrid) {
 			</div>
 		}
 	}
+}
+
+// groupHealth is a group's share of current services, as a stacked bar.
+templ groupHealth(grp MatrixGroup) {
+	{{ ok, warn, bad := grp.healthBar(96) }}
+	<span class="group-health" title={ itoa(grp.OK) + " up to date, " + itoa(grp.Warn) + " behind, " + itoa(grp.Bad) + " need attention" }>
+		<svg width="96" height="6" viewBox="0 0 96 6" aria-hidden="true">
+			<rect class="hb-bg" width="96" height="6" rx="3"></rect>
+			<rect class="hb-ok" width={ f(ok) } height="6"></rect>
+			<rect class="hb-warn" x={ f(ok) } width={ f(warn) } height="6"></rect>
+			<rect class="hb-bad" x={ f(ok + warn) } width={ f(bad) } height="6"></rect>
+		</svg>
+		<span>{ itoa(grp.OK) + " of " + itoa(len(grp.Rows)) + " current" }</span>
+	</span>
 }
 
 templ cellView(c MatrixCell) {

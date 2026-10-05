@@ -63,7 +63,10 @@
       tr.classList.toggle("filtered", !ok);
       if (ok) shown++;
     });
-    const tbody = document.querySelector("table.matrix tbody");
+    document.querySelectorAll("table.matrix tbody.mgroup").forEach(function (g) {
+      g.classList.toggle("filtered", !g.querySelector("tr[data-search]:not(.filtered)"));
+    });
+    const tbody = document.querySelector("table.matrix tbody:last-of-type");
     let none = tbody && tbody.querySelector("tr.no-match");
     if (tbody && shown === 0 && rows.length > 0) {
       if (!none) {

@@ -65,11 +65,123 @@ type MatrixView struct {
 type MatrixGrid struct {
 	Envs     []EnvHeader
 	Rows     []MatrixRow
+	GroupBy  string        // app, team, status or none
+	Groups   []MatrixGroup // Rows arranged by GroupBy; one unnamed group for none
 	Unmapped int
 	Targets  int
 	Agents   int
 	Updated  time.Time
 	Steps    []Step // first-run checklist, while the matrix is empty
+}
+
+// MatrixGroup is a run of matrix rows under one heading.
+type MatrixGroup struct {
+	Name, Caption string
+	Rows          []MatrixRow
+	OK, Warn, Bad int // rows by health, for the group's bar
+}
+
+// healthBar is the group's stacked bar: widths of the ok, warn and bad parts out of w.
+func (g MatrixGroup) healthBar(w float64) (ok, warn, bad float64) {
+	n := float64(len(g.Rows))
+	if n == 0 {
+		return 0, 0, 0
+	}
+	return w * float64(g.OK) / n, w * float64(g.Warn) / n, w * float64(g.Bad) / n
+}
+
+// matrixGroupModes are the ways to arrange the matrix, application first. Namespaces
+// are left out: one service usually runs in a different one per environment.
+var matrixGroupModes = []struct{ Key, Label string }{
+	{"app", "Application"}, {"team", "Team"}, {"status", "Status"}, {"none", "None"},
+}
+
+// matrixGroupBy returns a known grouping, application by default.
+func matrixGroupBy(s string) string {
+	for _, m := range matrixGroupModes {
+		if m.Key == s {
+			return s
+		}
+	}
+	return "app"
+}
+
+// groupRows arranges matrix rows under headings, keeping their order within each.
+func groupRows(rows []MatrixRow, by string) []MatrixGroup {
+	if by == "none" {
+		return []MatrixGroup{{Rows: rows}}
+	}
+	byKey := map[string][]MatrixRow{}
+	sources := map[string]map[string]bool{}
+	for _, r := range rows {
+		var key string
+		switch by {
+		case "team":
+			key = r.Owner
+			if key == "" {
+				key = "no owner"
+			}
+		case "status":
+			key = r.Health
+		default:
+			key = r.App
+			if key == "" {
+				key = "other"
+			}
+			if sources[key] == nil {
+				sources[key] = map[string]bool{}
+			}
+			sources[key][r.AppSource] = true
+		}
+		byKey[key] = append(byKey[key], r)
+	}
+	last := func(k string) bool { return k == "other" || k == "no owner" }
+	var keys []string
+	if by == "status" {
+		for _, sc := range statusColumns {
+			if len(byKey[sc.key]) > 0 {
+				keys = append(keys, sc.key)
+			}
+		}
+	} else {
+		for k := range byKey {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if last(keys[i]) != last(keys[j]) {
+				return last(keys[j])
+			}
+			return keys[i] < keys[j]
+		})
+	}
+	out := make([]MatrixGroup, 0, len(keys))
+	for _, k := range keys {
+		g := MatrixGroup{Name: k, Rows: byKey[k]}
+		for _, r := range g.Rows {
+			switch r.Health {
+			case "ok":
+				g.OK++
+			case "warn":
+				g.Warn++
+			default:
+				g.Bad++
+			}
+		}
+		if by == "status" {
+			for _, sc := range statusColumns {
+				if sc.key == k {
+					g.Name = sc.label
+				}
+			}
+		}
+		if by == "app" && len(sources[k]) == 1 {
+			for src := range sources[k] {
+				g.Caption = appSourceLabel(src)
+			}
+		}
+		out = append(out, g)
+	}
+	return out
 }
 
 // Step is one item of the first-run checklist.
@@ -92,6 +204,9 @@ type EnvHeader struct {
 type MatrixRow struct {
 	Service   string
 	Owner     string
+	App       string
+	AppSource string
+	Health    string // ok, warn or bad, from the row's drift
 	URL       string
 	Cells     []MatrixCell
 	Latest    string
@@ -159,8 +274,8 @@ func driftBadge(d store.Drift) DriftBadge {
 	return b
 }
 
-func buildGrid(o versions.Overview, agents int) MatrixGrid {
-	g := MatrixGrid{Unmapped: o.Matrix.Unmapped, Targets: len(o.Targets), Agents: agents, Updated: time.Now()}
+func buildGrid(o versions.Overview, agents int, groupBy string) MatrixGrid {
+	g := MatrixGrid{Unmapped: o.Matrix.Unmapped, Targets: len(o.Targets), Agents: agents, Updated: time.Now(), GroupBy: matrixGroupBy(groupBy)}
 	perEnv := map[string]int{}
 	for _, t := range o.Targets {
 		perEnv[t.EnvironmentID]++
@@ -169,7 +284,11 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 		g.Envs = append(g.Envs, EnvHeader{Name: e.Name, Targets: perEnv[e.ID]})
 	}
 	for _, row := range o.Matrix.Rows {
-		r := MatrixRow{Service: row.Service.Name, Owner: row.Service.Owner, URL: serviceURL(row.Service.Name)}
+		r := MatrixRow{
+			Service: row.Service.Name, Owner: row.Service.Owner, URL: serviceURL(row.Service.Name),
+			App: row.App, AppSource: row.AppSource,
+		}
+		var drifts []DriftBadge
 		for ei, c := range row.Cells {
 			var cell MatrixCell
 			var stale []string
@@ -188,6 +307,7 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 			for _, d := range o.DriftsAt(row.Service.ID, o.Matrix.Environments[ei].ID) {
 				cell.Drifts = append(cell.Drifts, driftBadge(d))
 			}
+			drifts = append(drifts, cell.Drifts...)
 			r.Cells = append(r.Cells, cell)
 		}
 		ref := o.Refs[row.Service.ID]
@@ -205,8 +325,10 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 		} else if ref.Repo != "" {
 			r.Note = "not checked yet"
 		}
+		r.Health = healthOf(drifts, true)
 		g.Rows = append(g.Rows, r)
 	}
+	g.Groups = groupRows(g.Rows, g.GroupBy)
 	return g
 }
 
@@ -582,7 +704,7 @@ func itoa(n int) string { return fmt.Sprint(n) }
 
 // rowSearch is what the matrix filter matches a row against: service, owner, versions and targets.
 func rowSearch(r MatrixRow) string {
-	parts := []string{r.Service, r.Owner, r.Latest}
+	parts := []string{r.Service, r.Owner, r.Latest, r.App}
 	for _, c := range r.Cells {
 		for _, v := range c.Versions {
 			parts = append(parts, v.Tag, v.Targets)
@@ -692,6 +814,15 @@ func roleLabel(r string) string {
 }
 
 // exportURL is the inventory CSV, now or as of a past time.
+// matrixURL is the matrix grouped by group, as of at (empty: now).
+func matrixURL(group, at string) string {
+	q := url.Values{"group": {group}}
+	if at != "" {
+		q.Set("at", at)
+	}
+	return "/?" + q.Encode()
+}
+
 func exportURL(at string) string {
 	if at == "" {
 		return "/api/v1/inventory?format=csv"
