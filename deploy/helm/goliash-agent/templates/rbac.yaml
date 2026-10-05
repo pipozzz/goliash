@@ -24,6 +24,11 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
+  {{- if .Values.rbac.readPullSecrets }}
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

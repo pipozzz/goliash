@@ -27,6 +27,10 @@ type Service struct {
 	SourceURL       string
 	SourceImage     string
 	SourceCheckedAt time.Time
+
+	// PrivateUpstream is the upstream repository a public registry refused to show
+	// anonymously; while it equals the upstream, the agents check it.
+	PrivateUpstream string
 }
 
 // EnsureService returns the workspace's service with the given name, creating it
@@ -85,6 +89,14 @@ func (s *Store) SetServiceSource(ctx context.Context, sc Scope, id, image, sourc
 	return expectOne(res, err)
 }
 
+// SetPrivateUpstream records that repo, a service's upstream on a public registry,
+// needs credentials (empty: it does not).
+func (s *Store) SetPrivateUpstream(ctx context.Context, sc Scope, id, repo string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE services SET private_upstream = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
+		repo, sc.OrgID, sc.WorkspaceID, id)
+	return expectOne(res, err)
+}
+
 // UpdateService changes a service's owner, kind, upstream and version policy.
 func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 	if len(svc.VersionPolicy) == 0 {
@@ -97,14 +109,14 @@ func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 }
 
 const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at,
-	source_url, source_image, source_checked_at`
+	source_url, source_image, source_checked_at, private_upstream`
 
 func scanService(row scanner) (Service, error) {
 	var svc Service
 	var policy string
 	var checked sql.NullTime
 	if err := row.Scan(&svc.ID, &svc.Scope.OrgID, &svc.Scope.WorkspaceID, &svc.Name, &svc.Owner, &svc.Kind,
-		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked); err != nil {
+		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream); err != nil {
 		return Service{}, notFound(err)
 	}
 	svc.VersionPolicy, svc.CreatedAt = json.RawMessage(policy), svc.CreatedAt.UTC()

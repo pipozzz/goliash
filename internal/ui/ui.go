@@ -455,7 +455,8 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, Kind: svc.Kind, Upstream: svc.Upstream}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
-	v.Private = ref.Repo != "" && !versions.IsPublicRegistry(ref.Repo)
+	v.Private = versions.CheckedByAgent(svc, ref.Repo)
+	v.PublicRegistry = ref.Repo != "" && versions.IsPublicRegistry(ref.Repo)
 	if u, ok := o.Upstreams[svc.ID]; ok {
 		if u.HasLatest {
 			v.Latest = u.Latest.Raw
@@ -638,7 +639,10 @@ func (s *Server) checkNow(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil || s.checker == nil {
 		return back(w, r, "/", "error", "Unknown service")
 	}
-	if err := s.checker.CheckService(ctx, p.Scope, svc.ID); err != nil {
+	if err := s.checker.CheckService(ctx, p.Scope, svc.ID); errors.Is(err, versions.ErrNeedsCredentials) {
+		s.hub.Publish(p.Scope.WorkspaceID)
+		return back(w, r, path, "notice", "The registry refused it without credentials, so the agents check it with theirs.")
+	} else if err != nil {
 		return back(w, r, path, "error", "Upstream check failed: "+err.Error())
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)

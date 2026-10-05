@@ -10,7 +10,7 @@ templ ServicePage(v ServiceView) {
 				<p class="muted"><a href="/">Matrix</a> / service</p>
 				<h1>{ v.Name }</h1>
 			</div>
-			if v.CanMember && !v.Private && v.RefRepo != "" {
+			if v.CanMember && v.PublicRegistry {
 				<form method="post" action={ templ.URL("/services/" + v.Name + "/check") } class="inline">
 					<button class="secondary" type="submit">Check upstream now</button>
 				</form>

@@ -10,7 +10,8 @@ containers run. It lists that repository's tags and keeps the newest versions th
 
 - **Public registries** are checked by the server: Docker Hub, GHCR, Quay, registry.k8s.io, gcr.io,
   public.ecr.aws, mcr.microsoft.com, registry.gitlab.com and docker.elastic.co.
-- **Every other registry** is checked by the agents, with credentials from their own environment. See
+- **Every other registry**, and private repositories on the public ones, are checked by the agents, with
+  credentials from their own environment: a configured credential, `docker login`, or Kubernetes pull secrets. See
   [Collectors](/reference/collectors/#private-registries).
 
 New services are checked within a minute, then every hour. **Check upstream now** on a service page, or

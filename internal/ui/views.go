@@ -200,7 +200,7 @@ func buildGrid(o versions.Overview, agents int) MatrixGrid {
 		} else if msg := o.CheckErrs[row.Service.ID]; msg != "" {
 			r.Note = "check failed"
 			r.NoteTitle = msg
-		} else if ref.Repo != "" && !versions.IsPublicRegistry(ref.Repo) {
+		} else if versions.CheckedByAgent(row.Service, ref.Repo) {
 			r.Note = "checked by agent"
 		} else if ref.Repo != "" {
 			r.Note = "not checked yet"
@@ -260,20 +260,21 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
-	Name       string
-	Owner      string
-	Kind       string
-	Upstream   string
-	RefRepo    string
-	Latest     string
-	LatestAny  string
-	CheckedAt  time.Time
-	CheckError string
-	Private    bool
-	Policy     PolicyForm
-	Envs       []ServiceEnv
-	Releases   []ReleaseView
-	PolicyFrom string // service, catalog or default
+	Name           string
+	Owner          string
+	Kind           string
+	Upstream       string
+	RefRepo        string
+	Latest         string
+	LatestAny      string
+	CheckedAt      time.Time
+	CheckError     string
+	Private        bool // the agents check the upstream
+	PublicRegistry bool // the server can try it: "check now"
+	Policy         PolicyForm
+	Envs           []ServiceEnv
+	Releases       []ReleaseView
+	PolicyFrom     string // service, catalog or default
 	// Where release dates and notes come from: a GitHub owner/repo or a changelog URL,
 	// and why (policy, catalog or image label).
 	NotesGitHub, NotesGitLab, NotesChangelog, NotesFrom string

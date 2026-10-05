@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -58,9 +59,10 @@ func (a *Agent) registryLoop(ctx context.Context) {
 
 func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.RegistryCheck) []agentproto.RegistryResult {
 	out := make([]agentproto.RegistryResult, 0, len(checks))
+	keys := a.keychain(ctx)
 	for _, c := range checks {
 		r := agentproto.RegistryResult{Repository: c.Repository, Tags: []agentproto.RegistryTag{}}
-		tags, err := a.listTags(ctx, c)
+		tags, err := a.listTags(ctx, c, keys)
 		if err != nil {
 			msg := err.Error()
 			r.Error = &msg
@@ -82,11 +84,40 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 	return out
 }
 
+// keychain gathers the registry credentials the agent finds by itself: Docker's
+// config.json (DOCKER_CONFIG or ~/.docker), then the image pull secrets of the
+// Kubernetes targets it collects, when it may read them.
+func (a *Agent) keychain(ctx context.Context) registry.Keychain {
+	k, err := registry.DockerConfigKeychain()
+	if err != nil {
+		a.log.Warn("docker config not readable", "err", err)
+		k = registry.Keychain{}
+	}
+	a.mu.Lock()
+	var sources []collectors.KeychainSource
+	for _, rt := range a.runners {
+		if s, ok := rt.runner.collector.(collectors.KeychainSource); ok {
+			sources = append(sources, s)
+		}
+	}
+	a.mu.Unlock()
+	for _, s := range sources {
+		found, err := s.RegistryKeychain(ctx)
+		if err != nil {
+			a.log.Warn("registry credentials from the cluster not readable", "err", err)
+			continue
+		}
+		k.Merge(found)
+	}
+	return k
+}
+
 // listTags lists a repository's tags. The credential that credentials_ref (the
-// registry host) resolves to locally is, for Amazon ECR, the AWS profile to use (none:
-// the default chain, e.g. the pod's or task's IAM role) and for other registries
-// "user:password" or a token (none: anonymous).
-func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck) ([]string, error) {
+// registry host) resolves to locally comes first: for Amazon ECR the AWS profile to
+// use (none: the default chain, e.g. the pod's or task's IAM role), for other
+// registries "user:password" or a token. Without it, the credentials found in keys
+// for the registry host are tried in turn, then anonymous access.
+func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys registry.Keychain) ([]string, error) {
 	secret := ""
 	if c.CredentialsRef != nil && *c.CredentialsRef != "" {
 		var err error
@@ -97,9 +128,19 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck) ([]str
 	if _, _, _, ok := ecr.Parse(c.Repository); ok {
 		return a.opts.ECR.ListTags(ctx, c.Repository, strings.TrimSpace(secret))
 	}
-	var creds registry.Credentials
 	if secret != "" {
-		creds = registry.ParseCredentials(secret)
+		return a.registry.ListTags(ctx, c.Repository, registry.ParseCredentials(secret))
 	}
-	return a.registry.ListTags(ctx, c.Repository, creds)
+	host, _, _ := strings.Cut(c.Repository, "/")
+	for _, creds := range keys.Lookup(host) {
+		tags, err := a.registry.ListTags(ctx, c.Repository, creds)
+		if !errors.Is(err, registry.ErrUnauthorized) {
+			return tags, err
+		}
+	}
+	tags, err := a.registry.ListTags(ctx, c.Repository, registry.Credentials{})
+	if errors.Is(err, registry.ErrUnauthorized) {
+		return nil, fmt.Errorf("%w; give this agent a credential for %s: %s, a docker login, or an image pull secret", err, host, collectors.CredentialEnv(host))
+	}
+	return tags, err
 }

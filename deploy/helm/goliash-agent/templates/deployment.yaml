@@ -31,6 +31,12 @@ spec:
                   key: {{ ternary .Values.token.existingSecretKey "token" (ne .Values.token.existingSecret "") }}
             - { name: GOLIASH_DATA_DIR, value: /data }
             - { name: GOLIASH_CREDENTIALS_DIR, value: /etc/goliash-agent/credentials }
+            {{- if .Values.rbac.readPullSecrets }}
+            - { name: GOLIASH_READ_PULL_SECRETS, value: "true" }
+            {{- end }}
+            {{- if .Values.registry.dockerConfigSecret }}
+            - { name: DOCKER_CONFIG, value: /etc/goliash-agent/docker }
+            {{- end }}
             {{- if .Values.debug }}
             - { name: GOLIASH_DEBUG, value: "1" }
             {{- end }}
@@ -44,6 +50,9 @@ spec:
             {{- if .Values.credentialsSecret }}
             - { name: credentials, mountPath: /etc/goliash-agent/credentials, readOnly: true }
             {{- end }}
+            {{- if .Values.registry.dockerConfigSecret }}
+            - { name: docker-config, mountPath: /etc/goliash-agent/docker, readOnly: true }
+            {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
@@ -56,6 +65,12 @@ spec:
         {{- if .Values.credentialsSecret }}
         - name: credentials
           secret: { secretName: {{ .Values.credentialsSecret }} }
+        {{- end }}
+        {{- if .Values.registry.dockerConfigSecret }}
+        - name: docker-config
+          secret:
+            secretName: {{ .Values.registry.dockerConfigSecret }}
+            items: [{ key: .dockerconfigjson, path: config.json }]
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}

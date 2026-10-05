@@ -62,9 +62,23 @@ snapshot on the poll interval.
 ### Private registries
 
 The agent checks the tags of private registries with credentials from its own environment, never from the server.
-Put them in a secret and name it in `credentialsSecret`; every key becomes a file in
-`/etc/goliash-agent/credentials`. The key is the registry host, for example `registry.example.com` with
-`user:password` or a token.
+The simplest is to reuse what the cluster already pulls with:
+
+- **An existing image pull secret** (`kubernetes.io/dockerconfigjson`) in the agent's namespace becomes the agent's
+  Docker config. No extra permissions:
+
+  ```sh
+  helm upgrade goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash --reuse-values \
+    --set registry.dockerConfigSecret=regcred
+  ```
+
+- **The pull secrets your workloads use**, read where they are: with `rbac.readPullSecrets=true` the agent reads the
+  `imagePullSecrets` that running pods reference, and nothing else. Kubernetes RBAC cannot narrow `get` to those
+  secrets, though: the role allows reading any secret by name, so choose this only where that is acceptable.
+
+Or give credentials one by one: put them in a secret and name it in `credentialsSecret`; every key becomes a file
+in `/etc/goliash-agent/credentials`. The key is the registry host, for example `registry.example.com` with
+`user:password` or a token. These come first.
 
 For Amazon ECR on EKS, give the agent an IAM role with `ecr:ListImages` through IRSA:
 
