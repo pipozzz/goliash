@@ -26,7 +26,9 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 
 **Documentation: [goliash.dev](https://goliash.dev/)**
 
-> **Status:** early. v0.1 works end to end and is being tried on real infrastructure; expect changes before 1.0.
+> **Status:** stable. From 1.0 the REST API, the agent protocol, MCP tools, CLI, configuration and metrics keep
+> working within 1.x; see [Versions and compatibility](https://goliash.dev/reference/compatibility/). Security
+> reports: [SECURITY.md](SECURITY.md).
 
 ## Features
 
