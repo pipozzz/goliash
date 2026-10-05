@@ -36,7 +36,7 @@ See [Security](/security/#verify-a-release) for how to verify them.
 
 ## Managing agents
 
-Create an agent on the **Agents** page (or `goliash agent create -name prod-eu`). Its page shows the token once,
+Create an agent under **Settings → Agents and targets** (or `goliash agent create -name prod-eu`). Its page shows the token once,
 with commands to start the agent on a Docker host, Kubernetes, Nomad or as a binary, and then:
 
 - **Status**: online, stale (missed heartbeats), never connected or revoked, its version (with *update available*

@@ -16,6 +16,8 @@ containers run. It lists that repository's tags and keeps the newest versions th
 New services are checked within a minute, then every hour. **Check upstream now** on a service page, or
 `goliash check`, checks at once.
 
+![A service page: versions running per environment with drift and end-of-life badges, and the upstream releases with their release notes](../../../assets/service.png)
+
 ## Version policy
 
 A policy decides which tags count as versions and which differences are worth an alert. Set it on the service
@@ -102,6 +104,8 @@ marked *declared*.
 When the drift ends, a `drift_resolved` event follows.
 
 ## Promotions and delivery
+
+![The Delivery page: versions waiting for promotion with the releases they bring, and versions per environment with lead times over the last 30 days](../../../assets/delivery.png)
 
 The **Delivery** page lists every version that runs in one environment and waits for the next, longest waiting
 first, with the releases a promotion would bring and their release notes. It is the list to go through before a

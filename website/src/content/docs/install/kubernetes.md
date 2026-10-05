@@ -39,7 +39,7 @@ which gives the server a read-only ClusterRole, and create a `kubernetes` target
 
 ## Agent
 
-Create the agent in the UI (**Agents → Add an agent**) or with `goliash agent create -name prod-eu`, and keep the
+Create the agent in the UI (**Settings → Agents and targets → Add an agent**) or with `goliash agent create -name prod-eu`, and keep the
 token in a secret:
 
 ```sh
