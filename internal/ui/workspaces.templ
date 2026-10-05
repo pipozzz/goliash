@@ -17,7 +17,12 @@ templ WorkspacesPage(v WorkspacesView) {
 				<tbody>
 					for _, w := range v.Items {
 						<tr>
-							<td><strong>{ w.Name }</strong></td>
+							<td>
+								<form class="inline env-edit" method="post" action={ templ.URL("/workspaces/" + w.ID + "/rename") }>
+									<input name="name" value={ w.Name } required maxlength="100" aria-label={ "Name of " + w.Slug }/>
+									<button class="secondary" type="submit">Rename</button>
+								</form>
+							</td>
 							<td class="mono">{ w.Slug }</td>
 							<td class="num">{ itoa(w.Targets) }</td>
 							<td class="num">{ itoa(w.Services) }</td>

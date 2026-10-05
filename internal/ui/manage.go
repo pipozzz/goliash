@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"net/http"
 	"strconv"
 	"strings"
@@ -237,4 +238,127 @@ func (s *Server) deleteAck(w http.ResponseWriter, r *http.Request, p auth.Princi
 	}
 	s.audit(ctx, p, "ack.delete", "service", name)
 	return back(w, r, "/services/"+name, "notice", "Acknowledgement removed: its notifications come again.")
+}
+
+// ---- channels, services and workspaces ----
+
+// ChannelEditView is the page that edits one notification channel. Secrets are
+// never sent back to the browser: only whether they are set.
+type ChannelEditView struct {
+	Base
+	ID        string
+	Name      string
+	Type      string
+	URLHint   string // the host of the current URL
+	HasSecret bool
+	HasToken  bool
+	ChatID    string
+	To        string
+}
+
+func setHint(set bool) string {
+	if set {
+		return "set; leave empty to keep"
+	}
+	return "not set"
+}
+
+func (s *Server) channelByID(r *http.Request, p auth.Principal) (store.Channel, map[string]any, bool) {
+	chans, err := s.store.ListChannels(r.Context(), p.Scope)
+	if err != nil {
+		return store.Channel{}, nil, false
+	}
+	for _, c := range chans {
+		if c.ID == r.PathValue("id") {
+			cfg := map[string]any{}
+			_ = json.Unmarshal(c.Config, &cfg)
+			return c, cfg, true
+		}
+	}
+	return store.Channel{}, nil, false
+}
+
+func (s *Server) editChannel(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	c, cfg, ok := s.channelByID(r, p)
+	if !ok {
+		return back(w, r, "/notifications", "error", "That channel is gone.")
+	}
+	str := func(k string) string { v, _ := cfg[k].(string); return v }
+	v := ChannelEditView{
+		Base: withFlash(s.base(r.Context(), p, "notifications", c.Name), r), ID: c.ID, Name: c.Name, Type: c.Type,
+		HasSecret: str("secret") != "", HasToken: str("token") != "" || str("bot_token") != "", ChatID: str("chat_id"),
+	}
+	if u, err := url.Parse(str("url")); err == nil && u.Host != "" {
+		v.URLHint = u.Scheme + "://" + u.Host + "/…"
+	}
+	if to, ok := cfg["to"].([]any); ok {
+		parts := make([]string, 0, len(to))
+		for _, a := range to {
+			if s, ok := a.(string); ok {
+				parts = append(parts, s)
+			}
+		}
+		v.To = strings.Join(parts, ", ")
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	return render(w, r, ChannelPage(v))
+}
+
+func (s *Server) updateChannel(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	c, old, ok := s.channelByID(r, p)
+	if !ok {
+		return back(w, r, "/notifications", "error", "That channel is gone.")
+	}
+	self := "/notifications/channels/" + c.ID
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" || len(name) > 100 {
+		return back(w, r, self, "error", "Give the channel a name of up to 100 characters.")
+	}
+	cfg, problem := channelConfig(r, c.Type, old)
+	if problem != "" {
+		return back(w, r, self, "error", problem)
+	}
+	raw, _ := json.Marshal(cfg)
+	if err := s.store.UpdateChannel(r.Context(), p.Scope, c.ID, name, raw); errors.Is(err, store.ErrExists) {
+		return back(w, r, self, "error", "Another channel is named "+name+".")
+	} else if err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "channel.update", "channel", name)
+	return back(w, r, "/notifications", "notice", "Channel "+name+" saved. Send a test to check it.")
+}
+
+func (s *Server) deleteService(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	name := r.PathValue("name")
+	svc, err := s.store.GetServiceByName(ctx, p.Scope, name)
+	if err != nil {
+		return back(w, r, "/", "error", "Unknown service.")
+	}
+	if err := s.store.DeleteService(ctx, p.Scope, svc.ID); errors.Is(err, store.ErrInUse) {
+		return back(w, r, "/services/"+url.PathEscape(name), "error", name+" still runs. Only a service that runs nowhere can be deleted.")
+	} else if err != nil {
+		return err
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	s.audit(ctx, p, "service.delete", "service", name)
+	return back(w, r, "/", "notice", "Service "+name+" deleted.")
+}
+
+func (s *Server) renameWorkspace(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	if !p.OrgWide() {
+		s.problem(w, r, http.StatusForbidden, "Not allowed", "Only organization owners and admins manage workspaces.", true)
+		return nil
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" || len(name) > 100 {
+		return back(w, r, "/workspaces", "error", "Give the workspace a name of up to 100 characters.")
+	}
+	if err := s.store.RenameWorkspace(r.Context(), p.User.OrgID, r.PathValue("id"), name); errors.Is(err, store.ErrNotFound) {
+		return back(w, r, "/workspaces", "error", "Unknown workspace.")
+	} else if err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "workspace.rename", "workspace", name)
+	return back(w, r, "/workspaces", "notice", "Workspace renamed to "+name+".")
 }

@@ -75,3 +75,38 @@ func (s *Store) UpdateTarget(ctx context.Context, sc Scope, id, environmentID st
 		environmentID, string(settings), pollSeconds, sc.WorkspaceID, id)
 	return expectOne(res, err)
 }
+
+// UpdateChannel renames a notification channel and replaces its configuration,
+// sealed like a new one.
+func (s *Store) UpdateChannel(ctx context.Context, sc Scope, id, name string, config json.RawMessage) error {
+	res, err := s.exec(ctx, s.db, `UPDATE notification_channels SET name = ?, config = ? WHERE workspace_id = ? AND id = ?`,
+		name, s.seal(id, string(config)), sc.WorkspaceID, id)
+	if err != nil && isUniqueViolation(err) {
+		return ErrExists
+	}
+	return expectOne(res, err)
+}
+
+// DeleteService removes a service that no longer runs anywhere, with its releases,
+// policy, mapping rules, acknowledgements and drift. History events stay, without
+// the service. It refuses (ErrInUse) while instances still run as the service.
+func (s *Store) DeleteService(ctx context.Context, sc Scope, id string) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		var n int
+		if err := s.queryRow(ctx, tx, `SELECT COUNT(*) FROM instances WHERE workspace_id = ? AND service_id = ? AND removed_at IS NULL`,
+			sc.WorkspaceID, id).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return ErrInUse
+		}
+		res, err := s.exec(ctx, tx, `DELETE FROM services WHERE workspace_id = ? AND id = ?`, sc.WorkspaceID, id)
+		return expectOne(res, err)
+	})
+}
+
+// RenameWorkspace changes a workspace's display name; its slug stays.
+func (s *Store) RenameWorkspace(ctx context.Context, orgID, id, name string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET name = ? WHERE org_id = ? AND id = ?`, name, orgID, id)
+	return expectOne(res, err)
+}

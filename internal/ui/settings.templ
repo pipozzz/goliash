@@ -34,6 +34,7 @@ templ NotificationsPage(v NotificationsView) {
 												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/test") }>
 													<button class="link" type="submit">Send test</button>
 												</form>
+												<a href={ templ.URL("/notifications/channels/" + c.ID) }>Edit</a>
 												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/delete") } hx-confirm={ "Delete channel " + c.Name + " and its rules?" }>
 													<button class="link danger-link" type="submit">Delete</button>
 												</form>

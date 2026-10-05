@@ -128,6 +128,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /notifications/channels/{id}/test", s.page(a, s.testChannel))
 	mux.Handle("POST /notifications/rules", s.page(m, s.createRule))
 	mux.Handle("POST /notifications/channels/{id}/delete", s.page(a, s.deleteChannel))
+	mux.Handle("GET /notifications/channels/{id}", s.page(a, s.editChannel))
+	mux.Handle("POST /notifications/channels/{id}", s.page(a, s.updateChannel))
+	mux.Handle("POST /services/{name}/delete", s.page(a, s.deleteService))
+	mux.Handle("POST /workspaces/{id}/rename", s.page(a, s.renameWorkspace))
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
 	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
 	mux.Handle("POST /environments/{id}", s.page(a, s.updateEnvironment))
@@ -473,6 +477,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			se.Drifts = append(se.Drifts, driftBadge(d))
 		}
 		v.Envs = append(v.Envs, se)
+		if len(se.Versions) > 0 {
+			v.Runs = true
+		}
 	}
 
 	releases, err := s.store.ListReleases(ctx, p.Scope, svc.ID)
@@ -1189,46 +1196,9 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	name := strings.TrimSpace(r.FormValue("name"))
 	typ := r.FormValue("type")
-	cfg := map[string]any{}
-	switch typ {
-	case "slack", "webhook", "discord", "ntfy":
-		u, err := url.Parse(strings.TrimSpace(r.FormValue("url")))
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-			return back(w, r, "/notifications", "error", "Enter the full URL, starting with https://.")
-		}
-		cfg["url"] = u.String()
-		if secret := r.FormValue("secret"); secret != "" && typ == "webhook" {
-			cfg["secret"] = secret
-		}
-		if token := strings.TrimSpace(r.FormValue("token")); token != "" && typ == "ntfy" {
-			cfg["token"] = token
-		}
-	case "grafana":
-		u, err := url.Parse(strings.TrimSpace(r.FormValue("url")))
-		token := strings.TrimSpace(r.FormValue("token"))
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || token == "" {
-			return back(w, r, "/notifications", "error", "Enter Grafana's URL and a service account token.")
-		}
-		cfg["url"], cfg["token"] = u.String(), token
-	case "telegram":
-		token, chat := strings.TrimSpace(r.FormValue("token")), strings.TrimSpace(r.FormValue("chat_id"))
-		if token == "" || chat == "" {
-			return back(w, r, "/notifications", "error", "Enter the bot token and the chat ID.")
-		}
-		cfg["bot_token"], cfg["chat_id"] = token, chat
-	case "email":
-		var to []string
-		for _, a := range strings.Split(r.FormValue("to"), ",") {
-			if a = strings.TrimSpace(a); a != "" {
-				to = append(to, a)
-			}
-		}
-		if len(to) == 0 {
-			return back(w, r, "/notifications", "error", "Enter at least one recipient.")
-		}
-		cfg["to"] = to
-	default:
-		return back(w, r, "/notifications", "error", "Unknown channel type.")
+	cfg, problem := channelConfig(r, typ, nil)
+	if problem != "" {
+		return back(w, r, "/notifications", "error", problem)
 	}
 	if name == "" {
 		return back(w, r, "/notifications", "error", "Give the channel a name.")
@@ -1239,6 +1209,70 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 	}
 	s.audit(r.Context(), p, "channel.create", "channel", name, "type", typ)
 	return back(w, r, "/notifications", "notice", "Channel "+name+" added. Send a test to check it.")
+}
+
+// channelConfig reads a channel's settings from a form. When editing, old holds the
+// stored settings: an empty field keeps its value, so secrets never travel back to
+// the browser. problem is a message for the person when something is missing.
+func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[string]any, problem string) {
+	field := func(form, key string) string {
+		if v := strings.TrimSpace(r.FormValue(form)); v != "" {
+			return v
+		}
+		if v, ok := old[key].(string); ok {
+			return v
+		}
+		return ""
+	}
+	httpURL := func(raw string) (string, bool) {
+		u, err := url.Parse(raw)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+			return "", false
+		}
+		return u.String(), true
+	}
+	cfg = map[string]any{}
+	switch typ {
+	case "slack", "webhook", "discord", "ntfy":
+		u, ok := httpURL(field("url", "url"))
+		if !ok {
+			return nil, "Enter the full URL, starting with https://."
+		}
+		cfg["url"] = u
+		if secret := field("secret", "secret"); secret != "" && typ == "webhook" {
+			cfg["secret"] = secret
+		}
+		if token := field("token", "token"); token != "" && typ == "ntfy" {
+			cfg["token"] = token
+		}
+	case "grafana":
+		u, ok := httpURL(field("url", "url"))
+		token := field("token", "token")
+		if !ok || token == "" {
+			return nil, "Enter Grafana's URL and a service account token."
+		}
+		cfg["url"], cfg["token"] = u, token
+	case "telegram":
+		token, chat := field("token", "bot_token"), field("chat_id", "chat_id")
+		if token == "" || chat == "" {
+			return nil, "Enter the bot token and the chat ID."
+		}
+		cfg["bot_token"], cfg["chat_id"] = token, chat
+	case "email":
+		var to []string
+		for _, a := range strings.Split(r.FormValue("to"), ",") {
+			if a = strings.TrimSpace(a); a != "" {
+				to = append(to, a)
+			}
+		}
+		if len(to) == 0 {
+			return nil, "Enter at least one recipient."
+		}
+		cfg["to"] = to
+	default:
+		return nil, "Unknown channel type."
+	}
+	return cfg, ""
 }
 
 func (s *Server) testChannel(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

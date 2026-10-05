@@ -275,3 +275,19 @@ textarea.mono { font-family: var(--mono); font-size: 12.5px; }
 .tile.warn strong { color: var(--warn); }
 .tile.zero { opacity: 0.65; }
 .tile.current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+
+/* On phones the matrix becomes one card per service, environments listed inside it. */
+@media (max-width: 720px) {
+  table.matrix thead { display: none; }
+  table.matrix, table.matrix tbody, table.matrix tr, table.matrix td { display: block; width: 100%; }
+  table.matrix tr { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  table.matrix tr.filtered { display: none; }
+  table.matrix td { border: 0; padding: 5px 0; display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; }
+  table.matrix td::before { content: attr(data-label); color: var(--muted); font: 600 11px/1.9 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
+  table.matrix td.svc { display: flex; align-items: baseline; gap: 8px; position: static; box-shadow: none; padding-bottom: 6px; }
+  table.matrix td.svc::before { content: none; }
+  table.matrix td.svc a { font-size: 15px; }
+  table.matrix tr.no-match td { display: block; }
+  table.matrix tr.no-match td::before { content: none; }
+  .scroll:has(> table.matrix) { overflow: visible; }
+}
