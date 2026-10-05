@@ -1,0 +1,56 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ ChannelPage(v ChannelEditView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/notifications">Notifications</a> /</p>
+				<h1>{ v.Name } <span class="badge neutral">{ v.Type }</span></h1>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-head"><h2>Edit channel</h2></div>
+			<div class="panel-body">
+				<form class="stack" method="post" action={ templ.URL("/notifications/channels/" + v.ID) } autocomplete="off">
+					<label>Name<input name="name" value={ v.Name } required maxlength="100"/></label>
+					switch v.Type {
+						case "slack", "discord", "webhook", "ntfy", "grafana":
+							<label>
+								URL
+								<input name="url" type="url" placeholder={ v.URLHint }/>
+								<span class="hint">Now { v.URLHint }. Leave empty to keep it; the full URL is not shown because it can be a secret.</span>
+							</label>
+					}
+					if v.Type == "webhook" {
+						<label>
+							Signing secret
+							<input name="secret" placeholder={ setHint(v.HasSecret) }/>
+							<span class="hint">Bodies are signed with HMAC-SHA256. Leave empty to keep it.</span>
+						</label>
+					}
+					switch v.Type {
+						case "ntfy", "grafana", "telegram":
+							<label>
+								Token
+								<input name="token" placeholder={ setHint(v.HasToken) }/>
+								<span class="hint">Leave empty to keep it.</span>
+							</label>
+					}
+					if v.Type == "telegram" {
+						<label>Chat ID<input name="chat_id" value={ v.ChatID } required/></label>
+					}
+					if v.Type == "email" {
+						<label>Recipients<input name="to" value={ v.To } required/><span class="hint">Comma-separated.</span></label>
+					}
+					<div class="actions">
+						<button type="submit">Save</button>
+						<a class="button secondary" href="/notifications">Cancel</a>
+					</div>
+				</form>
+			</div>
+		</section>
+	}
+}

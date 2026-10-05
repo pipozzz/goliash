@@ -101,12 +101,12 @@ templ MatrixGridView(g MatrixGrid) {
 									<span class="owner">{ r.Owner }</span>
 								}
 							</td>
-							for _, c := range r.Cells {
-								<td>
+							for i, c := range r.Cells {
+								<td data-label={ envLabel(g.Envs, i) }>
 									@cellView(c)
 								</td>
 							}
-							<td class="latest">
+							<td class="latest" data-label="Upstream">
 								if r.Latest != "" && r.LatestURL != "" {
 									<a class="tag" href={ templ.URL(r.LatestURL) } target="_blank" rel="noopener noreferrer" title="Release notes">{ r.Latest }</a>
 								} else if r.Latest != "" {

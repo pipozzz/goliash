@@ -895,3 +895,57 @@ func TestErrorPagesAndHeaders(t *testing.T) {
 		t.Error("HSTS on plain http")
 	}
 }
+
+func TestEditChannelServiceAndWorkspace(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleOwner)
+	sc := e.ws.Scope()
+
+	// Editing a channel never shows its secret and keeps it when the field stays empty.
+	hook := "https://hooks.slack.com/services/T/B/SECRETPART"
+	ch, _ := e.st.CreateChannel(ctx, store.Channel{Scope: sc, Type: "webhook", Name: "ops", Config: json.RawMessage(`{"url":"` + hook + `","secret":"s3cr3t"}`)})
+	_, body := get(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID, nil)
+	if !strings.Contains(body, "Edit channel") || strings.Contains(body, "SECRETPART") || strings.Contains(body, "s3cr3t") || !strings.Contains(body, "hooks.slack.com") {
+		t.Fatalf("edit page leaks or misses: %s", body)
+	}
+	if _, body, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID, url.Values{"name": {"ops-2"}}); !strings.Contains(body, "Channel ops-2 saved.") {
+		t.Fatalf("save: %s", body)
+	}
+	chans, _ := e.st.ListChannels(ctx, sc)
+	var cfg map[string]string
+	_ = json.Unmarshal(chans[0].Config, &cfg)
+	if chans[0].Name != "ops-2" || cfg["url"] != hook || cfg["secret"] != "s3cr3t" {
+		t.Fatalf("kept %+v %v", chans[0].Name, cfg)
+	}
+	_, _, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID, url.Values{"name": {"ops-2"}, "url": {"https://example.com/hook"}, "secret": {"new"}})
+	chans, _ = e.st.ListChannels(ctx, sc)
+	_ = json.Unmarshal(chans[0].Config, &cfg)
+	if cfg["url"] != "https://example.com/hook" || cfg["secret"] != "new" {
+		t.Fatalf("replaced %v", cfg)
+	}
+	if _, body, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID, url.Values{"name": {"x"}, "url": {"ftp://nope"}}); !strings.Contains(body, "full URL") {
+		t.Fatal("bad URL accepted")
+	}
+
+	// A service that runs cannot be deleted; one that runs nowhere can.
+	running := e.serviceOf("evil")
+	if _, body, _ = post(t, admin, e.srv.URL+"/services/"+url.PathEscape(running)+"/delete", nil); !strings.Contains(body, "still runs") {
+		t.Fatalf("deleted a running service: %s", body)
+	}
+	_, _ = e.st.EnsureService(ctx, sc, "old-batch")
+	if _, page := get(t, admin, e.srv.URL+"/services/old-batch", nil); !strings.Contains(page, "Delete old-batch") {
+		t.Fatal("no delete on an idle service")
+	}
+	if _, body, _ = post(t, admin, e.srv.URL+"/services/old-batch/delete", nil); !strings.Contains(body, "Service old-batch deleted.") {
+		t.Fatalf("delete: %s", body)
+	}
+
+	// Workspaces are renamed; the slug stays.
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"Acme Production"}}); !strings.Contains(body, "Workspace renamed to Acme Production.") {
+		t.Fatalf("rename: %s", body)
+	}
+	if code, _, _ := post(t, e.as(store.RoleMember), e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"x"}}); code != http.StatusForbidden {
+		t.Fatal("member renamed a workspace")
+	}
+}

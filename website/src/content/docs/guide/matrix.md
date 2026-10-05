@@ -66,7 +66,8 @@ Compose files are left out: they declare tags, not what runs.
 A workload can override its environment with the label `goliash.env`, for example when one cluster hosts both
 staging and prod namespaces.
 
-Admins rename and reorder environments on the Agents page (drift is re-evaluated with the new order), and delete one
+A service that runs nowhere any more can be deleted from its page by an admin, with its policy, releases, mapping
+rules and acknowledgements; its history stays. Admins rename and reorder environments on the Agents page (drift is re-evaluated with the new order), and delete one
 once no target belongs to it. **Edit** on a target changes its environment, settings and poll interval; its
 collector picks the change up with the next configuration poll.
 

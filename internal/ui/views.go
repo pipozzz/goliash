@@ -279,6 +279,7 @@ type ServiceView struct {
 	NotesGitHub, NotesGitLab, NotesChangelog, NotesFrom string
 	Events                                              []EventView
 	Acks                                                []AckView
+	Runs                                                bool // some environment runs the service
 }
 
 // ReleaseView is one upstream release on a service page.
@@ -610,6 +611,14 @@ type ErrorView struct {
 	Title    string
 	Message  string
 	SignedIn bool
+}
+
+// envLabel names the environment of a matrix column, for the phone layout.
+func envLabel(envs []EnvHeader, i int) string {
+	if i < len(envs) {
+		return envs[i].Name
+	}
+	return ""
 }
 
 // isSettings reports whether a page belongs under the Settings menu.

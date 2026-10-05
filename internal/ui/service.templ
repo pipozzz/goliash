@@ -236,6 +236,17 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 		</div>
+		if v.CanAdmin && !v.Runs {
+			<section class="panel">
+				<div class="panel-head"><h2>Delete service</h2></div>
+				<div class="panel-body">
+					<p class="muted">{ v.Name } runs nowhere now. Deleting it removes its policy, releases, mapping rules and acknowledgements; its history stays.</p>
+					<form method="post" action={ templ.URL("/services/" + v.Name + "/delete") } hx-confirm={ "Delete service " + v.Name + "?" }>
+						<button type="submit" class="danger">Delete { v.Name }</button>
+					</form>
+				</div>
+			</section>
+		}
 	}
 }
 

@@ -1012,3 +1012,51 @@ func TestManageConfiguration(t *testing.T) {
 		}
 	})
 }
+
+func TestChannelServiceWorkspaceEdits(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		sc := ws.Scope()
+		a, _ := s.CreateChannel(ctx, Channel{Scope: sc, Type: "slack", Name: "a", Config: json.RawMessage(`{"url":"https://x"}`)})
+		_, _ = s.CreateChannel(ctx, Channel{Scope: sc, Type: "slack", Name: "b", Config: json.RawMessage(`{}`)})
+		if err := s.UpdateChannel(ctx, sc, a.ID, "b", json.RawMessage(`{}`)); !errors.Is(err, ErrExists) {
+			t.Fatalf("rename onto b: %v", err)
+		}
+		if err := s.UpdateChannel(ctx, sc, a.ID, "a2", json.RawMessage(`{"url":"https://y"}`)); err != nil {
+			t.Fatal(err)
+		}
+		chans, _ := s.ListChannels(ctx, sc)
+		if chans[0].Name != "a2" || !strings.Contains(string(chans[0].Config), "https://y") {
+			t.Fatalf("channel %+v", chans[0])
+		}
+
+		f := setup(t, s)
+		svc, _ := s.EnsureService(ctx, f.ws.Scope(), "runs")
+		snap := NewID()
+		_, _ = s.InsertSnapshot(ctx, Snapshot{ID: snap, Scope: f.ws.Scope(), TargetID: f.tgt.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+		if err := s.ApplySnapshot(ctx, SnapshotChanges{Scope: f.ws.Scope(), SnapshotID: snap, TargetID: f.tgt.ID, At: time.Now(), Upsert: []Instance{{
+			TargetID: f.tgt.ID, EnvironmentID: f.env.ID, ServiceID: svc.ID, WorkloadID: "w", WorkloadKind: "deployment", WorkloadName: "w",
+			ContainerName: "c", Image: "x:1", Tag: "1", Running: 1, IsMain: true,
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.DeleteService(ctx, f.ws.Scope(), svc.ID); !errors.Is(err, ErrInUse) {
+			t.Fatalf("deleted a running service: %v", err)
+		}
+		idle, _ := s.EnsureService(ctx, f.ws.Scope(), "idle")
+		if err := s.DeleteService(ctx, f.ws.Scope(), idle.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.GetService(ctx, f.ws.Scope(), idle.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatal("service not deleted")
+		}
+
+		if err := s.RenameWorkspace(ctx, ws.OrgID, ws.ID, "Renamed"); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.RenameWorkspace(ctx, "other-org", ws.ID, "x"); !errors.Is(err, ErrNotFound) {
+			t.Fatal("renamed a workspace of another organization")
+		}
+	})
+}
