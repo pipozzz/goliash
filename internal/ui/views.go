@@ -226,9 +226,10 @@ type MatrixCell struct {
 
 // VersionView is one tag running in a cell.
 type VersionView struct {
-	Tag     string
-	Running int
-	Targets string
+	Tag      string
+	Resolved string // the exact release behind a moving tag
+	Running  int
+	Targets  string
 }
 
 // DriftBadge is a short drift label with an explanation on hover.
@@ -309,7 +310,7 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		var stale []string
 		cell.FromDeclared = c.FromDeclared
 		for _, v := range c.Versions {
-			cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
+			cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Resolved: v.Resolved, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
 			for i, id := range v.TargetIDs {
 				if last, ok := o.Stale[id]; ok {
 					stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))
@@ -719,7 +720,7 @@ func rowSearch(r MatrixRow) string {
 	parts := []string{r.Service, r.Owner, r.Latest, r.App}
 	for _, c := range r.Cells {
 		for _, v := range c.Versions {
-			parts = append(parts, v.Tag, v.Targets)
+			parts = append(parts, v.Tag, v.Resolved, v.Targets)
 		}
 		for _, d := range c.Drifts {
 			parts = append(parts, d.Label)

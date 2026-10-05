@@ -1246,3 +1246,18 @@ func TestMatrixGrouping(t *testing.T) {
 		t.Error("matrixGroupBy or matrixURL")
 	}
 }
+
+func TestResolvedTag(t *testing.T) {
+	var b strings.Builder
+	if err := cellView(MatrixCell{Versions: []VersionView{{Tag: "1", Resolved: "1.27.3", Running: 1}}}).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `class="resolved"`) || !strings.Contains(b.String(), "= 1.27.3") {
+		t.Errorf("cell misses the resolved version: %s", b.String())
+	}
+	b.Reset()
+	_ = cellView(MatrixCell{Versions: []VersionView{{Tag: "1.27.3", Running: 1}}}).Render(context.Background(), &b)
+	if strings.Contains(b.String(), "resolved") {
+		t.Error("exact tag shows a resolution")
+	}
+}

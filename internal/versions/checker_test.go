@@ -20,10 +20,29 @@ import (
 )
 
 type fakeTags struct {
-	mu     sync.Mutex
-	tags   map[string][]string
-	calls  map[string]int
-	denied map[string]bool // anonymous access refused
+	mu      sync.Mutex
+	tags    map[string][]string
+	calls   map[string]int
+	denied  map[string]bool     // anonymous access refused
+	digests map[string][]string // repo:tag -> digests
+	lookups int
+}
+
+func (f *fakeTags) TagDigest(_ context.Context, repo, ref string, _ registry.Credentials) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lookups++
+	if ds := f.digests[repo+":"+ref]; len(ds) > 0 {
+		return ds[0], nil
+	}
+	return "", nil
+}
+
+func (f *fakeTags) ManifestDigests(_ context.Context, repo, ref string, _ registry.Credentials) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lookups++
+	return f.digests[repo+":"+ref], nil
 }
 
 func (f *fakeTags) ListTags(_ context.Context, repo string, _ registry.Credentials) ([]string, error) {
@@ -324,5 +343,74 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 	}
 	if got := repos(); strings.Contains(got, nginx) {
 		t.Fatalf("still handed to agents after it turned public: %s", got)
+	}
+}
+
+func TestMovingTags(t *testing.T) {
+	for tag, want := range map[string]bool{"1": true, "18-alpine": true, "latest": true, "1.27": true, "1.27.3": false, "v3.6.7": false, "2.0.0-rc.1": false} {
+		if IsMoving(tag) != want {
+			t.Errorf("IsMoving(%s) = %v", tag, !want)
+		}
+	}
+	tags := strings.Fields("1 1.26.4 1.27 1.27.2 1.27.3 1.27.3-rootless 28 28.0.0 1.28.0-rc0 18-alpine 18.0-alpine 18.0 17.6-alpine latest")
+	for tag, want := range map[string]string{
+		"1":         "1.27.3 1.27.2 1.27 1.26.4",
+		"18-alpine": "18.0-alpine",
+		"latest":    "28.0.0 28 18.0 1.27.3",
+	} {
+		if got := strings.Join(movingCandidates(tag, tags, 4), " "); got != want {
+			t.Errorf("candidates of %s = %q, want %q", tag, got, want)
+		}
+	}
+}
+
+// A service on a moving tag: the digest it runs is matched with the registry's tags,
+// the matrix shows the exact version, and upstream drift compares it like with like.
+func TestResolveMovingTag(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	const repo = "docker.io/gitea/gitea"
+	gitea, _ := l.st.EnsureService(ctx, l.sc, "gitea")
+	target := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: l.sc, TargetID: target.ID, SnapshotID: store.NewID(), At: time.Now(),
+		Upsert: []store.Instance{{
+			TargetID: target.ID, EnvironmentID: target.EnvironmentID, ServiceID: gitea.ID, WorkloadID: "gitea",
+			WorkloadKind: "nomad_job", WorkloadName: "gitea", ContainerName: "gitea", Image: "gitea/gitea:1", Tag: "1",
+			Digest: "sha256:running", Running: 1, IsMain: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	l.tags.tags[repo] = strings.Fields("1 1.27 1.27.2 1.27.3 28 28.0 28.0.0 latest")
+	l.tags.digests = map[string][]string{
+		repo + ":1.27.3": {"sha256:index", "sha256:running"}, // the platform manifest that runs
+		repo + ":1.27.2": {"sha256:older"},
+	}
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.checker.EvaluateDrift(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	o, err := LoadOverview(ctx, l.st, l.sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cell Cell
+	for _, r := range o.Matrix.Rows {
+		if r.Service.ID == gitea.ID {
+			cell = r.Cells[2]
+		}
+	}
+	if v := cell.Primary(); v.Tag != "1" || v.Resolved != "1.27.3" || v.Version() != "1.27.3" {
+		t.Fatalf("prod runs %+v", v)
+	}
+	if u := o.Upstreams[gitea.ID]; u.Latest.Raw != "28.0.0" {
+		t.Fatalf("upstream compared with %q, want the like-with-like 28.0.0", u.Latest.Raw)
+	}
+	lookups := l.tags.lookups
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil || l.tags.lookups != lookups {
+		t.Fatalf("looked up a known digest again: %v %d", err, l.tags.lookups-lookups)
 	}
 }

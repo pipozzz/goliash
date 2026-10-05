@@ -5,6 +5,8 @@ package registry
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -85,6 +87,46 @@ func (c *Client) ImageSource(ctx context.Context, repository, reference string, 
 		return "", fmt.Errorf("image config of %s: %w", repository, err)
 	}
 	return cfg.Config.Labels[LabelSource], nil
+}
+
+// TagDigest returns the digest of reference's manifest (or index) with a HEAD
+// request, which registries such as Docker Hub do not count as a pull.
+func (c *Client) TagDigest(ctx context.Context, repository, reference string, creds Credentials) (string, error) {
+	host, repo, err := splitRepository(repository)
+	if err != nil {
+		return "", err
+	}
+	accept := strings.Join([]string{mediaIndex, mediaDockerList, mediaManifest, mediaDockerImage}, ", ")
+	h, err := c.head(ctx, fmt.Sprintf("%s://%s/v2/%s/manifests/%s", c.Scheme, host, repo, reference), repo, creds, accept)
+	if err != nil {
+		return "", err
+	}
+	return h.Get("Docker-Content-Digest"), nil
+}
+
+// ManifestDigests returns the digests reference (a tag) stands for: its manifest's
+// own digest and, for a multi-platform index, the digest of each platform's manifest.
+// A running image's digest matches one of them, whichever the runtime recorded.
+func (c *Client) ManifestDigests(ctx context.Context, repository, reference string, creds Credentials) ([]string, error) {
+	host, repo, err := splitRepository(repository)
+	if err != nil {
+		return nil, err
+	}
+	accept := strings.Join([]string{mediaIndex, mediaDockerList, mediaManifest, mediaDockerImage}, ", ")
+	body, _, err := c.get(ctx, fmt.Sprintf("%s://%s/v2/%s/manifests/%s", c.Scheme, host, repo, reference), repo, creds, accept)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(body)
+	out := []string{"sha256:" + hex.EncodeToString(sum[:])}
+	var m manifest
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("manifest: %w", err)
+	}
+	for _, child := range m.Manifests {
+		out = append(out, child.Digest)
+	}
+	return out, nil
 }
 
 func (c *Client) manifest(ctx context.Context, rawURL, repo string, creds Credentials, accept string) (manifest, error) {

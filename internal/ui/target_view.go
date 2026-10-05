@@ -62,6 +62,7 @@ type WorkloadCard struct {
 	Service, ServiceURL   string // empty while unmapped
 	Suggested             string
 	Image, Tag            string
+	Resolved              string // the exact release behind a moving tag
 	Running               int
 	Health                string // ok, warn, bad, unmapped
 	Drifts                []DriftBadge
@@ -156,6 +157,13 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 			Name: in.WorkloadName, Kind: in.WorkloadKind, Namespace: in.Namespace, Image: imageRepo(in.Image), Tag: in.Tag,
 			Running: w.running, Sidecars: w.side, Suggested: in.SuggestedService,
 		}
+		if r, ok := o.Resolved[in.Digest]; ok && in.Digest != "" && versions.IsMoving(in.Tag) {
+			c.Resolved = r
+		}
+		running := in.Tag
+		if c.Resolved != "" {
+			running = c.Resolved
+		}
 		if svc, ok := o.Services[in.ServiceID]; ok && in.ServiceID != "" {
 			c.Service, c.ServiceURL, c.Owner = svc.Name, serviceURL(svc.Name), svc.Owner
 			services[svc.ID] = true
@@ -163,7 +171,7 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 				c.Drifts = append(c.Drifts, driftBadge(d))
 			}
 			if up, ok := o.Upstreams[svc.ID]; ok && up.HasLatest {
-				if cur, ok := versions.ParseVersion(in.Tag); ok && up.Latest.Compare(cur) > 0 {
+				if cur, ok := versions.ParseVersion(running); ok && up.Latest.Compare(cur) > 0 {
 					c.Upstream = up.Latest.Raw
 				}
 			}
@@ -177,7 +185,7 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 		default:
 			v.Drifting++
 		}
-		words := []string{c.Name, c.Namespace, c.Service, c.Image, c.Tag, c.Kind, c.Health, c.Upstream}
+		words := []string{c.Name, c.Namespace, c.Service, c.Image, c.Tag, c.Resolved, c.Kind, c.Health, c.Upstream}
 		for _, d := range c.Drifts {
 			words = append(words, d.Label)
 		}

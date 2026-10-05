@@ -493,7 +493,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		se := ServiceEnv{Name: e.Name}
 		if row != nil {
 			for _, ver := range row.Cells[ei].Versions {
-				se.Versions = append(se.Versions, VersionView{Tag: ver.Tag, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")})
+				se.Versions = append(se.Versions, VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")})
 			}
 		}
 		for _, d := range o.DriftsAt(svc.ID, e.ID) {

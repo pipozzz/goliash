@@ -28,6 +28,8 @@ type Overview struct {
 	ReleaseURL map[string]string
 	// SplitApps lists services whose versions are compared per application.
 	SplitApps map[string]bool
+	// Resolved maps image digests to the exact release behind a moving tag.
+	Resolved map[string]string
 }
 
 // StaleTarget reports whether a target's data is out of date: its agent stopped
@@ -97,6 +99,10 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		return o, err
 	}
 	o.Matrix = BuildMatrix(services, envs, o.Targets, active)
+	if o.Resolved, err = resolvedDigests(ctx, st, sc); err != nil {
+		return o, err
+	}
+	applyResolutions(&o.Matrix, o.Resolved)
 	o.SplitApps = splitApps(o.Matrix)
 	o.Refs = References(o.Matrix, active)
 	for _, s := range services {

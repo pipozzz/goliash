@@ -1252,3 +1252,21 @@ func TestDriftPerApplication(t *testing.T) {
 		}
 	})
 }
+
+func TestTagResolutions(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		if err := s.SetTagResolution(ctx, sc, "docker.io/gitea/gitea", "sha256:a", ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetTagResolution(ctx, sc, "docker.io/gitea/gitea", "sha256:a", "1.27.3"); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.TagResolutions(ctx, sc)
+		if err != nil || len(got) != 1 || got[0].Version != "1.27.3" || got[0].CheckedAt.IsZero() {
+			t.Fatalf("%+v %v", got, err)
+		}
+	})
+}
