@@ -17,8 +17,35 @@ export default defineConfig({
       editLink: { baseUrl: 'https://github.com/pipozzz/goliash/edit/main/website/' },
       lastUpdated: true,
       customCss: ['./src/styles/theme.css'],
-      // Privacy-friendly analytics by Plausible (no cookies).
       head: [
+        // Sharing previews (Open Graph, X/Twitter, Slack, LinkedIn).
+        { tag: 'meta', attrs: { property: 'og:image', content: 'https://goliash.dev/og.png' } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        { tag: 'meta', attrs: { property: 'og:image:alt', content: 'Goliash: what runs where, on which version. The service × environment matrix.' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://goliash.dev/og.png' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#1b2a6b' } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+        // What search engines show for the project (schema.org).
+        {
+          tag: 'script',
+          attrs: { type: 'application/ld+json' },
+          content: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'Goliash',
+            url: 'https://goliash.dev/',
+            description:
+              'Self-hosted, open-source version tracking: one matrix of services × environments across Kubernetes, Amazon ECS, Nomad, Docker Swarm and Compose, with upstream releases, drift and end-of-life.',
+            applicationCategory: 'DeveloperApplication',
+            operatingSystem: 'Linux, macOS, Windows',
+            license: 'https://github.com/pipozzz/goliash/blob/main/LICENSING.md',
+            codeRepository: 'https://github.com/pipozzz/goliash',
+            image: 'https://goliash.dev/og.png',
+            offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+          }),
+        },
+        // Privacy-friendly analytics by Plausible (no cookies).
         { tag: 'script', attrs: { async: true, src: 'https://plausible.pipoline.com/js/pa-UiQoELmt_sImYLWZXbRAj.js' } },
         {
           tag: 'script',

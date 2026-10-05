@@ -1,5 +1,6 @@
 ---
 title: CLI
+description: 'Every goliash command: server, agents, targets, users, tokens, matrix, history, inventory and more.'
 ---
 
 The server binary is also its command-line tool. It works directly on the database, so run it where the server

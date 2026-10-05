@@ -1,5 +1,6 @@
 ---
 title: Security
+description: 'How Goliash stays read-only, protects tokens, sessions and secrets, and how to verify signed releases.'
 ---
 
 ## Read-only by design

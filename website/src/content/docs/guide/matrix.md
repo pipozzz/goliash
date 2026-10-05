@@ -1,5 +1,6 @@
 ---
 title: Matrix and mapping
+description: 'Read the service × environment matrix, filter it, look back in time, export the inventory and map workloads to services.'
 ---
 
 ## The matrix

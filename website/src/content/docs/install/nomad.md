@@ -1,5 +1,6 @@
 ---
 title: Nomad
+description: 'Run Goliash on Nomad with a job or the Nomad pack, and watch jobs with a list-jobs and read-job ACL token.'
 ---
 
 ## One command with nomad-pack (Nomploy)
