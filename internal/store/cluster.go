@@ -15,18 +15,19 @@ import (
 
 // Several servers may share one PostgreSQL database. They all serve the UI, the API
 // and agents; one of them, the leader, also runs the background work (processing
-// snapshots, checking upstreams, sending notifications, housekeeping). Leadership is
-// a PostgreSQL advisory lock held on its own connection: when the leader stops or
-// loses its connection, the lock goes and another server takes over. With SQLite
-// there is only one server, and it is always the leader.
+// snapshots, checking upstreams, sending notifications, housekeeping).
+//
+// Leadership is a lease: a row the leader renews every few seconds, with expiry
+// times from the database's clock so the servers' clocks do not matter. When the
+// leader stops renewing (it crashed, froze, or lost its network), another server
+// takes the lease once it expires. A leader that cannot renew in time stops its work
+// at its own deadline, before the lease can pass to someone else. With SQLite there
+// is only one server, and it is always the leader.
 
-// leaderLock is the advisory lock key: "goliash" in ASCII, as a bigint.
-const leaderLock int64 = 0x676f6c69617368
-
-// Leadership timing.
+// Lease timing.
 const (
-	leaderRetry     = 15 * time.Second // how often a follower tries to become leader
-	leaderHeartbeat = 10 * time.Second // how often the leader checks its lock connection
+	leaseTTL   = 15 * time.Second // how long a lease lasts without renewal
+	leaseRenew = 5 * time.Second  // how often the leader renews; followers try as often
 )
 
 // Leader runs work while this server leads. work starts the background loops with
@@ -34,18 +35,24 @@ const (
 type Leader struct {
 	store  *Store
 	log    *slog.Logger
+	id     string
 	leader atomic.Bool
+	until  atomic.Int64 // the local deadline of the lease, Unix nanoseconds
 
-	retry, heartbeat time.Duration
+	ttl, renew time.Duration
+	// beforeRenew, when set, runs before each renewal (tests freeze the leader here).
+	beforeRenew func()
 }
 
 // NewLeader prepares leader election.
 func (s *Store) NewLeader(log *slog.Logger) *Leader {
-	return &Leader{store: s, log: log, retry: leaderRetry, heartbeat: leaderHeartbeat}
+	return &Leader{store: s, log: log, id: NewID(), ttl: leaseTTL, renew: leaseRenew}
 }
 
 // IsLeader reports whether this server runs the background work now.
-func (l *Leader) IsLeader() bool { return l.leader.Load() }
+func (l *Leader) IsLeader() bool {
+	return l.leader.Load() && (l.store.dialect != Postgres || time.Now().UnixNano() < l.until.Load())
+}
 
 // Run competes for leadership until ctx ends, calling work each time this server
 // becomes the leader.
@@ -58,57 +65,99 @@ func (l *Leader) Run(ctx context.Context, work func(ctx context.Context)) {
 		return
 	}
 	for ctx.Err() == nil {
-		held, err := l.lead(ctx, work)
+		got, err := l.acquire(ctx)
 		if err != nil && ctx.Err() == nil {
 			l.log.Warn("leader election", "err", err)
 		}
-		if held {
-			continue // lost leadership: try again at once
+		if got {
+			l.lead(ctx, work)
+			continue // lost the lease: compete again at once
 		}
 		select {
 		case <-ctx.Done():
-		case <-time.After(l.retry):
+		case <-time.After(l.renew):
 		}
 	}
 }
 
-// lead takes the lock if it is free and holds it while running work. held reports
-// whether this server was the leader.
-func (l *Leader) lead(ctx context.Context, work func(ctx context.Context)) (held bool, err error) {
-	conn, err := l.store.db.Conn(ctx)
+// acquire takes the lease when it is free, expired or already ours.
+func (l *Leader) acquire(ctx context.Context) (bool, error) {
+	res, err := l.store.db.ExecContext(ctx, `INSERT INTO leases (name, holder, expires_at) VALUES ('leader', $1, now() + $2::interval)
+		ON CONFLICT (name) DO UPDATE SET holder = EXCLUDED.holder, expires_at = EXCLUDED.expires_at
+		WHERE leases.expires_at < now() OR leases.holder = EXCLUDED.holder`, l.id, l.ttl.String())
 	if err != nil {
 		return false, err
 	}
-	defer func() { _ = conn.Close() }()
-	var got bool
-	if err := conn.QueryRowContext(ctx, `SELECT pg_try_advisory_lock($1)`, leaderLock).Scan(&got); err != nil || !got {
-		return false, err
-	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+// lead runs work and renews the lease until ctx ends or the lease is lost.
+func (l *Leader) lead(ctx context.Context, work func(ctx context.Context)) {
 	l.log.Info("this server is the leader: it runs the background work")
+	// The local deadline is the lease's end as seen from here, a little early, so the
+	// work stops before the lease can pass to another server, even after a freeze.
+	deadline := &l.until
+	extend := func() { deadline.Store(time.Now().Add(l.ttl - l.renew/2).UnixNano()) }
+	expired := func() bool { return time.Now().UnixNano() > deadline.Load() }
+	extend()
+	workCtx, stopWork := context.WithCancel(ctx)
 	l.leader.Store(true)
-	wctx, cancel := context.WithCancel(ctx)
 	defer func() {
-		cancel()
+		stopWork()
 		l.leader.Store(false)
-		// Release explicitly; closing the connection would too.
-		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, leaderLock)
+		if ctx.Err() != nil { // stopping on purpose: hand over at once
+			_, _ = l.store.db.ExecContext(context.WithoutCancel(ctx),
+				`UPDATE leases SET expires_at = now() WHERE name = 'leader' AND holder = $1`, l.id)
+		}
 	}()
-	work(wctx)
-	tick := time.NewTicker(l.heartbeat)
+	go func() { // watchdog: stop the work when the deadline passes without renewal
+		for {
+			t := time.NewTimer(time.Until(time.Unix(0, deadline.Load())))
+			select {
+			case <-workCtx.Done():
+				t.Stop()
+				return
+			case <-t.C:
+			}
+			if expired() {
+				stopWork()
+				return
+			}
+		}
+	}()
+	work(workCtx)
+	tick := time.NewTicker(l.renew)
 	defer tick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return true, nil
+			return
+		case <-workCtx.Done():
+			l.log.Warn("the leader lease ran out before it was renewed; stopping the background work")
+			return
 		case <-tick.C:
-			hctx, hcancel := context.WithTimeout(ctx, 5*time.Second)
-			err := conn.PingContext(hctx)
-			hcancel()
-			if err != nil {
-				l.log.Warn("lost the leader lock connection; stopping the background work", "err", err)
-				return true, err
-			}
 		}
+		if l.beforeRenew != nil {
+			l.beforeRenew()
+		}
+		if expired() {
+			l.log.Warn("the leader lease ran out before it was renewed; stopping the background work")
+			return
+		}
+		rctx, rcancel := context.WithTimeout(ctx, l.renew)
+		res, err := l.store.db.ExecContext(rctx, `UPDATE leases SET expires_at = now() + $2::interval WHERE name = 'leader' AND holder = $1`,
+			l.id, l.ttl.String())
+		rcancel()
+		if err != nil {
+			l.log.Warn("renewing the leader lease failed", "err", err)
+			continue // try again until the deadline
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			l.log.Warn("another server holds the leader lease now; stopping the background work")
+			return
+		}
+		extend()
 	}
 }
 

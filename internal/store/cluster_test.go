@@ -44,7 +44,7 @@ func TestLeaderElectionAndNotify(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	fast := func() *Leader {
 		l := s.NewLeader(log)
-		l.retry, l.heartbeat = 100*time.Millisecond, 100*time.Millisecond
+		l.ttl, l.renew = 600*time.Millisecond, 100*time.Millisecond
 		return l
 	}
 
@@ -70,6 +70,38 @@ func TestLeaderElectionAndNotify(t *testing.T) {
 	// The leader stops; the other takes over.
 	stopA()
 	waitFor(t, func() bool { return b.IsLeader() && !a.IsLeader() && running.Load() == 1 })
+
+	// A frozen leader (it stops renewing, as after a VM pause or a lost network) loses
+	// the lease: another server takes over, and the frozen one stops its work.
+	ctxC, stopC := context.WithCancel(context.Background())
+	freeze := make(chan struct{})
+	var frozen atomic.Bool
+	c := fast()
+	c.beforeRenew = func() {
+		if frozen.Load() {
+			<-freeze
+		}
+	}
+	doneC := make(chan struct{})
+	defer func() { stopC(); <-doneC }()
+	go func() { c.Run(ctxC, work); close(doneC) }()
+	stopB() // hand over from b to c
+	waitFor(t, func() bool { return c.IsLeader() })
+	frozen.Store(true)
+	d := fast()
+	ctxD, stopD := context.WithCancel(context.Background())
+	doneD := make(chan struct{})
+	defer func() { stopD(); <-doneD }()
+	go func() { d.Run(ctxD, work); close(doneD) }()
+	waitFor(t, func() bool { return d.IsLeader() })
+	if c.IsLeader() || running.Load() != 1 {
+		t.Fatalf("frozen leader still leads: c=%v d=%v running=%d", c.IsLeader(), d.IsLeader(), running.Load())
+	}
+	close(freeze)
+	time.Sleep(300 * time.Millisecond)
+	if c.IsLeader() || !d.IsLeader() {
+		t.Fatal("the thawed leader took the lease back")
+	}
 
 	// Notifications reach listeners.
 	got := make(chan string, 1)

@@ -452,3 +452,23 @@ func (s *Store) CreateFirstOwner(ctx context.Context, orgID, idHash, email, name
 	})
 	return u, err
 }
+
+// SigninFailures counts the failed sign-ins of a key (a hash) since a time; every
+// server sees the same count.
+func (s *Store) SigninFailures(ctx context.Context, key string, since time.Time) (int, error) {
+	var n int
+	err := s.queryRow(ctx, s.db, `SELECT COUNT(*) FROM signin_failures WHERE key = ? AND at > ?`, key, since.UTC()).Scan(&n)
+	return n, err
+}
+
+// AddSigninFailure records a failed sign-in of a key.
+func (s *Store) AddSigninFailure(ctx context.Context, key string) error {
+	_, err := s.exec(ctx, s.db, `INSERT INTO signin_failures (key, at) VALUES (?, ?)`, key, s.now())
+	return err
+}
+
+// ClearSigninFailures forgets a key's failures after a successful sign-in.
+func (s *Store) ClearSigninFailures(ctx context.Context, key string) error {
+	_, err := s.exec(ctx, s.db, `DELETE FROM signin_failures WHERE key = ?`, key)
+	return err
+}

@@ -87,9 +87,9 @@ func (a *Auth) verifySecondFactor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		a.byEmail.fail(key)
+		a.byEmail.fail(ctx, key)
 		a.log.WarnContext(ctx, "second factor failed", "user", u.Email, "ip", a.ClientIP(r))
-		if a.byEmail.recentCount(key) >= mfaFailures {
+		if a.byEmail.recentCount(ctx, key) >= mfaFailures {
 			_, _, _ = a.store.ConsumeLoginToken(ctx, hash, store.TokenSecondFactor)
 			a.clearMFA(w)
 			http.Redirect(w, r, "/login?error=throttled", http.StatusSeeOther)
@@ -102,7 +102,7 @@ func (a *Auth) verifySecondFactor(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?error=expired", http.StatusSeeOther)
 		return
 	}
-	a.byEmail.reset(key)
+	a.byEmail.reset(ctx, key)
 	a.clearMFA(w)
 	if err := a.startSession(w, r, u, method+"+"+how); err != nil {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)

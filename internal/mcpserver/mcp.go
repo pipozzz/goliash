@@ -276,7 +276,11 @@ func HTTPHandler(apiURL string) http.Handler {
 	h := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		return NewServer(&Client{BaseURL: apiURL, Token: token})
-	}, nil)
+	}, &mcp.StreamableHTTPOptions{
+		// No session kept in this server's memory: every request stands alone, so any
+		// server of a cluster can answer it (the tools need no state between calls).
+		Stateless: true,
+	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer glsh_api_") {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="goliash"`)

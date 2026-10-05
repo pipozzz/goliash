@@ -58,26 +58,37 @@ func TestCheckPassword(t *testing.T) {
 }
 
 func TestLimiter(t *testing.T) {
-	now := time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)
-	l := newLimiter(3, 15*time.Minute)
+	ctx := context.Background()
+	st, err := store.Open(ctx, "sqlite://:memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.Close() }()
+	now := time.Now()
+	l := newLimiter(st, "test", 3, 15*time.Minute)
+	other := newLimiter(st, "other", 3, 15*time.Minute) // another server's view of the same database
+	other.scope = "test"
 	l.now = func() time.Time { return now }
 	for range 3 {
-		if l.blocked("k") {
+		if l.blocked(ctx, "k") {
 			t.Fatal("blocked too early")
 		}
-		l.fail("k")
+		other.fail(ctx, "k") // failures on any server count
 	}
-	if !l.blocked("k") || l.blocked("other") {
+	if !l.blocked(ctx, "k") || l.blocked(ctx, "other-key") {
 		t.Fatal("limit not per key")
 	}
+	if newLimiter(st, "another-scope", 3, time.Hour).blocked(ctx, "k") {
+		t.Fatal("scopes share keys")
+	}
 	now = now.Add(16 * time.Minute)
-	if l.blocked("k") {
+	if l.blocked(ctx, "k") {
 		t.Fatal("window did not slide")
 	}
-	l.fail("k")
-	l.reset("k")
-	if len(l.fails) != 0 {
-		t.Fatalf("not forgotten: %v", l.fails)
+	l.fail(ctx, "k")
+	l.reset(ctx, "k")
+	if l.recentCount(ctx, "k") != 0 {
+		t.Fatal("not forgotten")
 	}
 }
 

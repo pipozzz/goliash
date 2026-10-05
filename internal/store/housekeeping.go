@@ -49,6 +49,8 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 		{&r.Notifications, `DELETE FROM notification_queue WHERE created_at < ? AND (sent_at IS NOT NULL OR attempts > 0)`, []any{monthAgo}},
 		{&r.Sessions, `DELETE FROM sessions WHERE expires_at < ?`, []any{now}},
 		{&r.LoginTokens, `DELETE FROM login_tokens WHERE expires_at < ?`, []any{now.Add(-24 * time.Hour)}},
+		{&r.LoginTokens, `DELETE FROM signin_failures WHERE at < ?`, []any{now.Add(-24 * time.Hour)}},
+		{&r.LoginTokens, `DELETE FROM setup_tokens WHERE expires_at < ?`, []any{now.Add(-24 * time.Hour)}},
 		{&r.History, `DELETE FROM instance_history WHERE until < ?`, []any{now.Add(-historyKept)}},
 	}
 	for _, step := range steps {
@@ -56,7 +58,8 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 		if err != nil {
 			return r, err
 		}
-		*step.n, _ = res.RowsAffected()
+		n, _ := res.RowsAffected()
+		*step.n += n
 	}
 	return r, nil
 }
