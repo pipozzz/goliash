@@ -797,3 +797,51 @@ func TestPasswordsAndSessions(t *testing.T) {
 		}
 	})
 }
+
+func TestAPITokens(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		other, _ := s.CreateWorkspace(ctx, ws.OrgID, "Other", "other")
+		ro, err := s.CreateAPIToken(ctx, ws.Scope(), APIToken{Name: "grafana", CreatedBy: "ana@example.com"}, "h1")
+		if err != nil || ro.Role != RoleViewer {
+			t.Fatalf("default role: %+v %v", ro, err)
+		}
+		_, _ = s.CreateAPIToken(ctx, ws.Scope(), APIToken{Name: "old", Role: RoleMember, ExpiresAt: time.Now().Add(-time.Hour)}, "h2")
+		_, _ = s.CreateAPIToken(ctx, other.Scope(), APIToken{Name: "theirs"}, "h3")
+
+		sc, tok, err := s.APITokenAuth(ctx, "h1")
+		if err != nil || sc.WorkspaceID != ws.ID || tok.Name != "grafana" || tok.Role != RoleViewer {
+			t.Fatalf("auth %+v %+v %v", sc, tok, err)
+		}
+		if _, _, err := s.APITokenAuth(ctx, "h2"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("expired token works: %v", err)
+		}
+		list, _ := s.ListAPITokens(ctx, ws.Scope())
+		if len(list) != 2 {
+			t.Fatalf("list %+v", list)
+		}
+		byName := map[string]APIToken{}
+		for _, x := range list {
+			byName[x.Name] = x
+		}
+		if g := byName["grafana"]; g.LastUsed.IsZero() || g.CreatedBy != "ana@example.com" || g.Expired(time.Now()) {
+			t.Fatalf("grafana %+v", g)
+		}
+		if !byName["old"].Expired(time.Now()) {
+			t.Fatal("old not expired")
+		}
+		if err := s.RevokeAPIToken(ctx, other.Scope(), ro.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("revoked from another workspace: %v", err)
+		}
+		if err := s.RevokeAPIToken(ctx, ws.Scope(), ro.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := s.APITokenAuth(ctx, "h1"); !errors.Is(err, ErrNotFound) {
+			t.Fatal("revoked token works")
+		}
+		if list, _ = s.ListAPITokens(ctx, ws.Scope()); len(list) != 1 {
+			t.Fatalf("revoked token listed: %+v", list)
+		}
+	})
+}

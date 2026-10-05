@@ -9,7 +9,8 @@ info:
 
     - Authenticate with `Authorization: Bearer glsh_api_…` (an API token from **Users → API tokens**) or a browser
       session. A token belongs to one workspace; every response is about that workspace.
-    - `GET` endpoints need the viewer role, `POST /api/v1/acks` the member role. API tokens act as members.
+    - `GET` endpoints need the viewer role, `POST /api/v1/acks` the member role. An API token has the role
+      chosen when it was created: viewer (the default) or member.
     - Errors use `application/problem+json` (RFC 9457).
     - Prometheus metrics for the same data are at `GET /metrics` (text exposition, same authentication).
   license:

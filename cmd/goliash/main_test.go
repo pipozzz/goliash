@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
 )
@@ -112,5 +113,48 @@ func TestUserPassword(t *testing.T) {
 	}
 	if err := userPassword(ctx, []string{"-database", dsn, "-email", "nobody@example.com"}, stdin("x"), io.Discard); err == nil {
 		t.Fatal("unknown user accepted")
+	}
+}
+
+func TestTokenCommands(t *testing.T) {
+	ctx := context.Background()
+	dsn := t.TempDir() + "/x.db"
+	var out strings.Builder
+	if err := run(ctx, []string{"token", "create", "-database", dsn, "-name", "prom", "-role", "admin"}, &out); err == nil {
+		t.Fatal("admin token created")
+	}
+	if err := run(ctx, []string{"token", "create", "-database", dsn, "-name", "prom", "-expires", "90d"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "API token prom (viewer, expires ") || !strings.Contains(out.String(), "glsh_api_") {
+		t.Fatalf("create: %s", out.String())
+	}
+	out.Reset()
+	if err := run(ctx, []string{"token", "list", "-database", dsn}, &out); err != nil || !strings.Contains(out.String(), "prom") || !strings.Contains(out.String(), "viewer") {
+		t.Fatalf("list: %v %s", err, out.String())
+	}
+	if err := run(ctx, []string{"token", "revoke", "-database", dsn, "-name", "nope"}, io.Discard); err == nil {
+		t.Fatal("unknown token revoked")
+	}
+	if err := run(ctx, []string{"token", "revoke", "-database", dsn, "-name", "prom"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	_ = run(ctx, []string{"token", "list", "-database", dsn}, &out)
+	if strings.Contains(out.String(), "prom") {
+		t.Fatalf("revoked token listed: %s", out.String())
+	}
+}
+
+func TestParseLifetime(t *testing.T) {
+	for in, want := range map[string]time.Duration{"90d": 90 * 24 * time.Hour, "36h": 36 * time.Hour, "1d12h": 36 * time.Hour} {
+		if got, err := parseLifetime(in); err != nil || got != want {
+			t.Errorf("%s: %v %v", in, got, err)
+		}
+	}
+	for _, bad := range []string{"", "d", "xd", "-5h", "99999d", "soon"} {
+		if _, err := parseLifetime(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
 	}
 }

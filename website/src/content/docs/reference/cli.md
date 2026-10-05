@@ -28,7 +28,9 @@ Usage:
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
   goliash user password -email E [-remove]   set a password (asked for, or one line on stdin)
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
-  goliash token create -name N            API token for /api/v1 and /metrics (shown once)
+  goliash token create -name N [-role viewer|member] [-expires 90d]   API token for /api/v1, /metrics and /mcp (shown once)
+  goliash token list
+  goliash token revoke -name N
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
   goliash demo                            fill the workspace with three weeks of example data

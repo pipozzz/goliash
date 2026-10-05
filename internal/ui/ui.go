@@ -132,6 +132,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
 	mux.Handle("POST /account/sessions/{id}/delete", s.page(v, s.signOutSession))
 	mux.Handle("POST /settings/tokens", s.page(a, s.createToken))
+	mux.Handle("POST /settings/tokens/{id}/revoke", s.page(a, s.revokeToken))
 	mux.Handle("POST /workspace", s.page(v, s.switchWorkspace))
 	mux.Handle("GET /workspaces", s.page(a, s.workspaces))
 	mux.Handle("POST /workspaces", s.page(a, s.createWorkspace))
@@ -1219,6 +1220,17 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID, HasPassword: u.HasPassword,
 		})
 	}
+	toks, err := s.store.ListAPITokens(ctx, p.Scope)
+	if err != nil {
+		return v, err
+	}
+	now := time.Now()
+	for _, t := range toks {
+		v.Tokens = append(v.Tokens, TokenView{
+			ID: t.ID, Name: t.Name, Role: t.Role, CreatedBy: t.CreatedBy, CreatedAt: t.CreatedAt,
+			LastUsed: t.LastUsed, ExpiresAt: t.ExpiresAt, Expired: t.Expired(now),
+		})
+	}
 	entries, err := s.store.ListAudit(ctx, p.User.OrgID, 200)
 	if err != nil {
 		return v, err
@@ -1452,12 +1464,45 @@ func (s *Server) createToken(w http.ResponseWriter, r *http.Request, p auth.Prin
 	if name == "" {
 		return back(w, r, "/settings", "error", "Give the token a name.")
 	}
+	if len(name) > 100 {
+		return back(w, r, "/settings", "error", "Use at most 100 characters for the name.")
+	}
+	role := r.FormValue("role")
+	if role != store.RoleViewer && role != store.RoleMember {
+		return back(w, r, "/settings", "error", "Choose viewer or member.")
+	}
+	t := store.APIToken{Name: name, Role: role, CreatedBy: p.Name()}
+	if days, err := strconv.Atoi(r.FormValue("expires")); err == nil && days > 0 && days <= 3650 {
+		t.ExpiresAt = time.Now().Add(time.Duration(days) * 24 * time.Hour)
+	}
 	token, hash := tokens.New(tokens.API)
-	if _, err := s.store.CreateAPIToken(r.Context(), p.Scope, name, hash); err != nil {
+	if _, err := s.store.CreateAPIToken(r.Context(), p.Scope, t, hash); err != nil {
 		return err
 	}
-	s.audit(r.Context(), p, "api_token.create", "token", name)
-	return s.showSecret(w, r, p, "API token "+name+" for "+p.Workspace.Name+":", token, "")
+	expires := "never"
+	if !t.ExpiresAt.IsZero() {
+		expires = t.ExpiresAt.UTC().Format(time.DateOnly)
+	}
+	s.audit(r.Context(), p, "api_token.create", "token", name, "role", role, "expires", expires)
+	return s.showSecret(w, r, p, "API token "+name+" ("+role+") for "+p.Workspace.Name+":", token, "")
+}
+
+func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	toks, err := s.store.ListAPITokens(r.Context(), p.Scope)
+	if err != nil {
+		return err
+	}
+	for _, t := range toks {
+		if t.ID != r.PathValue("id") {
+			continue
+		}
+		if err := s.store.RevokeAPIToken(r.Context(), p.Scope, t.ID); err != nil {
+			return err
+		}
+		s.audit(r.Context(), p, "api_token.revoke", "token", t.Name)
+		return back(w, r, "/settings", "notice", "Token "+t.Name+" revoked. It stops working now.")
+	}
+	return back(w, r, "/settings", "error", "That token is already revoked.")
 }
 
 // switchWorkspace remembers the workspace this browser works in.

@@ -141,7 +141,7 @@ and updates live over server-sent events.
 bin/goliash login-link -email you@example.com      # first user becomes owner; prints a one-time link
 bin/goliash user create -email dev@example.com -role member
 bin/goliash user password -email you@example.com    # optional: sign in with a password too
-bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 and /metrics
+bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, /metrics and /mcp (viewer)
 ```
 
 - **Passwords** (argon2id, at least 12 characters): everyone sets one on their account page, or an admin runs

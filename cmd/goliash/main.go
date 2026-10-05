@@ -92,7 +92,9 @@ const usage = `Usage:
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
   goliash user password -email E [-remove]   set a password (asked for, or one line on stdin)
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
-  goliash token create -name N            API token for /api/v1 and /metrics (shown once)
+  goliash token create -name N [-role viewer|member] [-expires 90d]   API token for /api/v1, /metrics and /mcp (shown once)
+  goliash token list
+  goliash token revoke -name N
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
   goliash demo                            fill the workspace with three weeks of example data
@@ -133,6 +135,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		if len(args) > 0 && (cmd == "user" || cmd == "token") && args[0] == "create" {
 			cmd, args = cmd+" create", args[1:]
+		}
+		if len(args) > 0 && cmd == "token" && (args[0] == "list" || args[0] == "revoke") {
+			cmd, args = "token "+args[0], args[1:]
 		}
 		if len(args) > 0 && ((cmd == "user" && (args[0] == "grant" || args[0] == "password")) || (cmd == "workspace" && (args[0] == "create" || args[0] == "list"))) {
 			cmd, args = cmd+" "+args[0], args[1:]
@@ -192,6 +197,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return loginLink(ctx, args, out)
 	case "token create":
 		return tokenCreate(ctx, args, out)
+	case "token list":
+		return tokenList(ctx, args, out)
+	case "token revoke":
+		return tokenRevoke(ctx, args, out)
 	case "demo":
 		return demoCmd(ctx, args, out)
 	case "healthcheck":
@@ -1156,6 +1165,103 @@ func loginLink(ctx context.Context, args []string, out io.Writer) error {
 func tokenCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("token create")
 	name := fs.String("name", "", "what the token is for, e.g. prometheus")
+	role := fs.String("role", store.RoleViewer, "viewer reads; member also acknowledges")
+	expires := fs.String("expires", "", "lifetime, e.g. 90d or 720h (default: never)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" {
+		return errors.New("-name is required")
+	}
+	if *role != store.RoleViewer && *role != store.RoleMember {
+		return errors.New("-role must be viewer or member")
+	}
+	t := store.APIToken{Name: *name, Role: *role, CreatedBy: "cli"}
+	if *expires != "" {
+		d, err := parseLifetime(*expires)
+		if err != nil {
+			return err
+		}
+		t.ExpiresAt = time.Now().Add(d)
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	token, hash := tokens.New(tokens.API)
+	if _, err := db.CreateAPIToken(ctx, ws.Scope(), t, hash); err != nil {
+		return err
+	}
+	exp := "never"
+	if !t.ExpiresAt.IsZero() {
+		exp = t.ExpiresAt.UTC().Format(time.DateOnly)
+	}
+	cliAudit(ctx, db, ws, "api_token.create", "token", *name, "role", *role, "expires", exp)
+	_, _ = fmt.Fprintf(out, "API token %s (%s, expires %s; shown once):\n%s\n", *name, *role, exp, token)
+	return nil
+}
+
+// parseLifetime reads a duration with an optional day unit: 90d, 36h, 1d12h.
+func parseLifetime(s string) (time.Duration, error) {
+	var days int
+	if i := strings.Index(s, "d"); i > 0 {
+		n, err := strconv.Atoi(s[:i])
+		if err != nil {
+			return 0, fmt.Errorf("bad lifetime %q", s)
+		}
+		days, s = n, s[i+1:]
+	}
+	var rest time.Duration
+	if s != "" {
+		var err error
+		if rest, err = time.ParseDuration(s); err != nil {
+			return 0, fmt.Errorf("bad lifetime %q: use e.g. 90d or 720h", s)
+		}
+	}
+	d := time.Duration(days)*24*time.Hour + rest
+	if d <= 0 || d > 10*365*24*time.Hour {
+		return 0, errors.New("the lifetime must be between a moment and ten years")
+	}
+	return d, nil
+}
+
+func tokenList(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("token list")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	toks, err := db.ListAPITokens(ctx, ws.Scope())
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "NAME\tROLE\tCREATED\tBY\tLAST USED\tEXPIRES")
+	day := func(t time.Time, zero string) string {
+		if t.IsZero() {
+			return zero
+		}
+		return t.UTC().Format(time.DateOnly)
+	}
+	now := time.Now()
+	for _, t := range toks {
+		exp := day(t.ExpiresAt, "never")
+		if t.Expired(now) {
+			exp += " (expired)"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", t.Name, t.Role, day(t.CreatedAt, ""), t.CreatedBy, day(t.LastUsed, "never"), exp)
+	}
+	return tw.Flush()
+}
+
+func tokenRevoke(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("token revoke")
+	name := fs.String("name", "", "name of the token")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1167,12 +1273,28 @@ func tokenCreate(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	token, hash := tokens.New(tokens.API)
-	if _, err := db.CreateAPIToken(ctx, ws.Scope(), *name, hash); err != nil {
+	toks, err := db.ListAPITokens(ctx, ws.Scope())
+	if err != nil {
 		return err
 	}
-	cliAudit(ctx, db, ws, "api_token.create", "token", *name)
-	_, _ = fmt.Fprintf(out, "API token %s (shown once):\n%s\n", *name, token)
+	var match []store.APIToken
+	for _, t := range toks {
+		if t.Name == *name {
+			match = append(match, t)
+		}
+	}
+	switch len(match) {
+	case 0:
+		return fmt.Errorf("no API token %s in workspace %s", *name, ws.Slug)
+	case 1:
+	default:
+		return fmt.Errorf("%d tokens are named %s; revoke them on the Users page", len(match), *name)
+	}
+	if err := db.RevokeAPIToken(ctx, ws.Scope(), match[0].ID); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "api_token.revoke", "token", *name)
+	_, _ = fmt.Fprintf(out, "API token %s revoked\n", *name)
 	return nil
 }
 

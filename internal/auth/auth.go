@@ -37,6 +37,8 @@ type Principal struct {
 	Role  string // effective role in Scope's workspace; empty without workspace access
 	Via   string // session or token
 
+	TokenName string // the API token's name (tokens only)
+
 	Workspace  store.Workspace // the workspace the request works in (sessions only)
 	Workspaces []store.Access  // every workspace the user may open (sessions only)
 }
@@ -54,6 +56,9 @@ func (p Principal) Can(role string) bool { return store.RoleRank(p.Role) >= stor
 func (p Principal) Name() string {
 	if p.User.Email != "" {
 		return p.User.Email
+	}
+	if p.TokenName != "" {
+		return "api token " + p.TokenName
 	}
 	return "api token"
 }
@@ -202,14 +207,14 @@ func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 		if !tokens.Valid(token, tokens.API) {
 			return Principal{}, false, nil
 		}
-		sc, err := a.store.APITokenScope(r.Context(), tokens.Hash(token))
+		sc, t, err := a.store.APITokenAuth(r.Context(), tokens.Hash(token))
 		if errors.Is(err, store.ErrNotFound) {
 			return Principal{}, false, nil
 		}
 		if err != nil {
 			return Principal{}, false, err
 		}
-		return Principal{Scope: sc, Role: store.RoleAdmin, Via: "token"}, true, nil
+		return Principal{Scope: sc, Role: t.Role, Via: "token", TokenName: t.Name}, true, nil
 	}
 	c, err := r.Cookie(sessionCookie)
 	if err != nil || c.Value == "" {
