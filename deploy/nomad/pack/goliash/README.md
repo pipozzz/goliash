@@ -1,6 +1,6 @@
 # goliash
 
-[Goliash](https://pipozzz.github.io/goliash/) shows what runs where, on which version: a service × environment
+[Goliash](https://goliash.dev/) shows what runs where, on which version: a service × environment
 matrix with the running and the newest upstream version, history of every deploy, and drift between environments.
 
 Single host-networked Nomad service with a data volume. Out of the box it watches the Nomad cluster it runs on

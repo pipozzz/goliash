@@ -27,8 +27,8 @@ title: Security
 ## Secrets at rest
 
 Notification channel secrets are encrypted with AES-256-GCM and bound to their channel; see
-[Install](/goliash/install/#secrets-at-rest). Webhook deliveries can be signed with HMAC-SHA256; see
-[Notifications](/goliash/guide/notifications/#webhook-payload).
+[Install](/install/#secrets-at-rest). Webhook deliveries can be signed with HMAC-SHA256; see
+[Notifications](/guide/notifications/#webhook-payload).
 
 ## Audit log
 

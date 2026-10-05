@@ -23,7 +23,7 @@ docker compose exec goliash goliash login-link -email you@example.com
 ```
 
 Open the printed link. The first person to sign in becomes the owner of the organization. When SMTP is configured,
-people can also request links by e-mail on the sign-in page; see [Configuration](/goliash/reference/configuration/).
+people can also request links by e-mail on the sign-in page; see [Configuration](/reference/configuration/).
 
 ## 3. Look around with example data (optional)
 
@@ -56,7 +56,7 @@ docker run -d --name goliash-agent -v goliash-agent:/data \
   ghcr.io/pipozzz/goliash-agent:latest
 ```
 
-Ready-made manifests for each platform are under [Install](/goliash/install/).
+Ready-made manifests for each platform are under [Install](/install/).
 
 </TabItem>
 <TabItem label="Without an agent">
@@ -80,11 +80,11 @@ Within a minute the first snapshot arrives and workloads appear.
 
 Workloads labelled `goliash.service` or `app.kubernetes.io/name` map to services by themselves. Everything else
 waits in the **Inbox**, grouped by image with a suggested service name. One click maps every workload that runs the
-image and adds a rule, so the next ones map by themselves. See [Matrix and mapping](/goliash/guide/matrix/).
+image and adds a rule, so the next ones map by themselves. See [Matrix and mapping](/guide/matrix/).
 
 ## Next steps
 
-- Tune what counts as "behind": [Versions and drift](/goliash/guide/versions/).
-- Get told about new releases and drift: [Notifications](/goliash/guide/notifications/).
-- Invite your team or set up a workspace per client: [Teams and workspaces](/goliash/guide/teams/).
-- Run it for real: [Install](/goliash/install/).
+- Tune what counts as "behind": [Versions and drift](/guide/versions/).
+- Get told about new releases and drift: [Notifications](/guide/notifications/).
+- Invite your team or set up a workspace per client: [Teams and workspaces](/guide/teams/).
+- Run it for real: [Install](/install/).
