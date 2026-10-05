@@ -104,6 +104,7 @@ type (
 	apiDrift struct {
 		Service     string               `json:"service"`
 		Environment string               `json:"environment"`
+		App         string               `json:"app,omitempty"`
 		Kind        string               `json:"kind"`
 		Since       time.Time            `json:"since"`
 		DaysOpen    float64              `json:"days_open"`
@@ -180,7 +181,7 @@ func toAPIDrift(o versions.Overview, d store.Drift) apiDrift {
 	var det versions.DriftDetail
 	_ = json.Unmarshal(d.Detail, &det)
 	return apiDrift{
-		Service: o.Services[d.ServiceID].Name, Environment: o.Envs[d.EnvironmentID].Name, Kind: d.Kind,
+		Service: o.Services[d.ServiceID].Name, Environment: o.Envs[d.EnvironmentID].Name, App: d.App, Kind: d.Kind,
 		Since: d.Since, DaysOpen: time.Since(d.Since).Hours() / 24, Detail: det,
 	}
 }
@@ -317,6 +318,7 @@ func (h *PublicHandler) events(w http.ResponseWriter, r *http.Request, p auth.Pr
 		ID          string    `json:"id"`
 		Type        string    `json:"type"`
 		Service     string    `json:"service,omitempty"`
+		App         string    `json:"app,omitempty"`
 		Environment string    `json:"environment,omitempty"`
 		Target      string    `json:"target,omitempty"`
 		From        string    `json:"from,omitempty"`
@@ -328,7 +330,7 @@ func (h *PublicHandler) events(w http.ResponseWriter, r *http.Request, p auth.Pr
 	out := []apiEvent{}
 	for _, e := range evs {
 		out = append(out, apiEvent{
-			ID: e.ID, Type: e.Type, Service: o.Services[e.ServiceID].Name, Environment: o.Envs[e.EnvironmentID].Name,
+			ID: e.ID, Type: e.Type, Service: o.Services[e.ServiceID].Name, App: e.App, Environment: o.Envs[e.EnvironmentID].Name,
 			Target: targetName[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, Source: e.Source, At: e.At,
 		})
 	}
@@ -623,8 +625,12 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 				if d.Kind == "upstream" {
 					isOutdated = 1
 				}
-				days = append(days, fmt.Sprintf("goliash_drift_days{service=%q,environment=%q,kind=%q} %.2f",
-					row.Service.Name, env.Name, d.Kind, time.Since(d.Since).Hours()/24))
+				app := "" // only for services compared per application, so other series stay as they were
+				if d.App != "" {
+					app = fmt.Sprintf(",app=%q", d.App)
+				}
+				days = append(days, fmt.Sprintf("goliash_drift_days{service=%q,environment=%q%s,kind=%q} %.2f",
+					row.Service.Name, env.Name, app, d.Kind, time.Since(d.Since).Hours()/24))
 			}
 			outdated = append(outdated, fmt.Sprintf("goliash_outdated{service=%q,environment=%q} %d", row.Service.Name, env.Name, isOutdated))
 		}

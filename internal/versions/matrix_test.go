@@ -84,3 +84,45 @@ func TestCommonApp(t *testing.T) {
 		}
 	}
 }
+
+// One postgres image used by several applications: versions are compared within each
+// application, so different databases on different versions are not drift, while an
+// application behind its own staging still is.
+func TestMatrixSplitsByApplication(t *testing.T) {
+	envs := []store.Environment{{ID: "stg", Name: "staging"}, {ID: "prod", Name: "prod"}}
+	services := []store.Service{{ID: "s-pg", Name: "postgres"}, {ID: "s-web", Name: "web"}}
+	targets := []store.Target{{ID: "t1", Name: "dp"}, {ID: "t2", Name: "nomad"}}
+	inst := func(svc, env, target, app, tag string) store.Instance {
+		return store.Instance{
+			ServiceID: svc, EnvironmentID: env, TargetID: target, Tag: tag, Running: 1, IsMain: true,
+			WorkloadID: svc + target + app + env, App: app, AppSource: "com.docker.compose.project",
+		}
+	}
+	m := BuildMatrix(services, envs, targets, []store.Instance{
+		inst("s-pg", "prod", "t1", "auth", "18-alpine"),
+		inst("s-pg", "prod", "t1", "chat", "16-alpine"),
+		inst("s-pg", "prod", "t2", "gitea", "17"),
+		inst("s-pg", "stg", "t1", "chat", "17-alpine"),
+		inst("s-web", "stg", "t1", "shop-staging", "1.1.0"), // one app per environment: no split
+		inst("s-web", "prod", "t1", "shop", "1.0.0"),
+	})
+	pg, web := m.Rows[0], m.Rows[1]
+	if len(pg.Parts) != 3 || pg.Parts[0].App != "auth" || pg.Parts[1].App != "chat" || pg.Parts[2].App != "gitea" {
+		t.Fatalf("parts %+v", pg.Parts)
+	}
+	if web.Parts != nil || len(web.Units()) != 1 {
+		t.Fatalf("web split: %+v", web.Parts)
+	}
+	if got := pg.Parts[1].Cells[1].Primary().Tag; got != "16-alpine" {
+		t.Fatalf("chat in prod runs %s", got)
+	}
+
+	var kinds []string
+	for _, d := range Drifts(m, nil, nil) {
+		kinds = append(kinds, d.Service+"/"+d.App+"/"+d.Env+"/"+d.Kind)
+	}
+	want := []string{"s-pg/chat/prod/env", "s-web//prod/env"}
+	if len(kinds) != len(want) || kinds[0] != want[0] || kinds[1] != want[1] {
+		t.Fatalf("drifts %v, want %v", kinds, want)
+	}
+}

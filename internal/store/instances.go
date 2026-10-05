@@ -51,6 +51,7 @@ type Event struct {
 	Scope         Scope
 	Type          string // deployed, version_changed, removed, new_release, drift_detected, drift_resolved
 	ServiceID     string
+	App           string // drift events of a service compared per application
 	EnvironmentID string
 	TargetID      string
 	InstanceID    string
@@ -229,9 +230,9 @@ func (s *Store) insertEvent(ctx context.Context, q queryer, sc Scope, e Event) e
 		e.Source = "poll"
 	}
 	_, err := s.exec(ctx, q, `INSERT INTO events (id, org_id, workspace_id, type, service_id, environment_id, target_id,
-		instance_id, from_version, to_version, actor, source, note, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		instance_id, from_version, to_version, actor, source, note, at, app) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.ID, sc.OrgID, sc.WorkspaceID, e.Type, nullString(e.ServiceID), nullString(e.EnvironmentID),
-		nullString(e.TargetID), nullString(e.InstanceID), e.FromVersion, e.ToVersion, e.Actor, e.Source, e.Note, e.At.UTC())
+		nullString(e.TargetID), nullString(e.InstanceID), e.FromVersion, e.ToVersion, e.Actor, e.Source, e.Note, e.At.UTC(), e.App)
 	return err
 }
 
@@ -278,7 +279,7 @@ func (s *Store) ListEvents(ctx context.Context, sc Scope, f EventFilter) ([]Even
 	args = append(args, f.Limit)
 
 	rows, err := s.query(ctx, s.db, `SELECT id, type, service_id, environment_id, target_id, instance_id, from_version,
-		to_version, actor, source, note, at FROM events WHERE `+strings.Join(where, " AND ")+`
+		to_version, actor, source, note, at, app FROM events WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY at DESC, id DESC LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
@@ -289,7 +290,7 @@ func (s *Store) ListEvents(ctx context.Context, sc Scope, f EventFilter) ([]Even
 		e := Event{Scope: sc}
 		var svc, env, tgt, inst sql.NullString
 		if err := rows.Scan(&e.ID, &e.Type, &svc, &env, &tgt, &inst, &e.FromVersion, &e.ToVersion, &e.Actor, &e.Source,
-			&e.Note, &e.At); err != nil {
+			&e.Note, &e.At, &e.App); err != nil {
 			return nil, err
 		}
 		e.ServiceID, e.EnvironmentID, e.TargetID, e.InstanceID = svc.String, env.String, tgt.String, inst.String

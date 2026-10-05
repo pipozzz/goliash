@@ -36,6 +36,18 @@ one most of its workloads belong to (see below how it is found). Each heading sh
 to date, as a bar, and the filter hides headings with nothing left under them. The choice stays in the link, also
 while looking back with time travel.
 
+### One image, several applications
+
+A service such as `postgres` or `redis` often serves several applications, each with its own database on its own
+version. When two applications run a service in one environment, Goliash compares its versions **within each
+application**: the matrix shows one line per application (*postgres in auth*, *postgres in chat*), and drift
+(behind the previous environment, targets disagreeing, behind upstream, end of life) is worked out per line. Postgres
+16 in one application and 18 in another is not drift; an application whose production is behind its own staging
+still is. Upstream releases and the version policy stay one per service, and notifications name the application.
+
+This depends on knowing the application (see below): Compose projects, Helm releases and `app.kubernetes.io/part-of`
+work out of the box, and a Nomad job counts as an application of its own.
+
 ## One target at a glance
 
 Click a target's name under **Settings → Agents and targets** to see what runs on that cluster or host: a ring
@@ -58,7 +70,7 @@ mapped), and problems come first. The filter above the cards matches names, serv
 A workload's application is the first of these labels it has: the workspace's own label key (set under
 **Settings → Users → Applications**, for example `example.com/app`), `goliash.app`, `app.kubernetes.io/part-of`,
 `app.kubernetes.io/instance` (the Helm release), `release`, `com.docker.compose.project` and
-`com.docker.stack.namespace`. Without any of them, its namespace stands in. The column caption says where the
+`com.docker.stack.namespace`. Without any of them, a Nomad job's name stands in, else its namespace. The column caption says where the
 name came from, so a column captioned *namespace, no app label* is a hint to label those workloads. A new label
 key applies from each target's next snapshot.
 

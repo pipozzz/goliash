@@ -206,6 +206,7 @@ type MatrixRow struct {
 	Owner     string
 	App       string
 	AppSource string
+	Split     bool   // the service is compared per application; this row is its part in App
 	Health    string // ok, warn or bad, from the row's drift
 	URL       string
 	Cells     []MatrixCell
@@ -284,52 +285,63 @@ func buildGrid(o versions.Overview, agents int, groupBy string) MatrixGrid {
 		g.Envs = append(g.Envs, EnvHeader{Name: e.Name, Targets: perEnv[e.ID]})
 	}
 	for _, row := range o.Matrix.Rows {
-		r := MatrixRow{
-			Service: row.Service.Name, Owner: row.Service.Owner, URL: serviceURL(row.Service.Name),
-			App: row.App, AppSource: row.AppSource,
+		for _, part := range row.Units() {
+			g.Rows = append(g.Rows, matrixRow(o, row, part))
 		}
-		var drifts []DriftBadge
-		for ei, c := range row.Cells {
-			var cell MatrixCell
-			var stale []string
-			cell.FromDeclared = c.FromDeclared
-			for _, v := range c.Versions {
-				cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
-				for i, id := range v.TargetIDs {
-					if last, ok := o.Stale[id]; ok {
-						stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))
-					}
-				}
-			}
-			if len(stale) > 0 {
-				cell.StaleTitle = strings.Join(stale, "; ")
-			}
-			for _, d := range o.DriftsAt(row.Service.ID, o.Matrix.Environments[ei].ID) {
-				cell.Drifts = append(cell.Drifts, driftBadge(d))
-			}
-			drifts = append(drifts, cell.Drifts...)
-			r.Cells = append(r.Cells, cell)
-		}
-		ref := o.Refs[row.Service.ID]
-		if u, ok := o.Upstreams[row.Service.ID]; ok && u.HasLatest {
-			r.Latest = u.Latest.Raw
-			r.LatestURL = o.ReleaseURL[row.Service.ID+"|"+u.Latest.Raw]
-			if u.LatestAny.Raw != u.Latest.Raw {
-				r.Note = u.LatestAny.Raw + " outside pin"
-			}
-		} else if msg := o.CheckErrs[row.Service.ID]; msg != "" {
-			r.Note = "check failed"
-			r.NoteTitle = msg
-		} else if versions.CheckedByAgent(row.Service, ref.Repo) {
-			r.Note = "checked by agent"
-		} else if ref.Repo != "" {
-			r.Note = "not checked yet"
-		}
-		r.Health = healthOf(drifts, true)
-		g.Rows = append(g.Rows, r)
 	}
 	g.Groups = groupRows(g.Rows, g.GroupBy)
 	return g
+}
+
+// matrixRow is one matrix line: a service, or its part in one application when its
+// versions are compared per application.
+func matrixRow(o versions.Overview, row versions.Row, part versions.Part) MatrixRow {
+	r := MatrixRow{
+		Service: row.Service.Name, Owner: row.Service.Owner, URL: serviceURL(row.Service.Name),
+		App: row.App, AppSource: row.AppSource, Split: len(row.Parts) > 0,
+	}
+	var drifts []DriftBadge
+	if r.Split {
+		r.App, r.AppSource = part.App, part.AppSource
+	}
+	for ei, c := range part.Cells {
+		var cell MatrixCell
+		var stale []string
+		cell.FromDeclared = c.FromDeclared
+		for _, v := range c.Versions {
+			cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
+			for i, id := range v.TargetIDs {
+				if last, ok := o.Stale[id]; ok {
+					stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))
+				}
+			}
+		}
+		if len(stale) > 0 {
+			cell.StaleTitle = strings.Join(stale, "; ")
+		}
+		for _, d := range o.DriftsIn(row.Service.ID, part.App, o.Matrix.Environments[ei].ID) {
+			cell.Drifts = append(cell.Drifts, driftBadge(d))
+		}
+		drifts = append(drifts, cell.Drifts...)
+		r.Cells = append(r.Cells, cell)
+	}
+	ref := o.Refs[row.Service.ID]
+	if u, ok := o.Upstreams[row.Service.ID]; ok && u.HasLatest {
+		r.Latest = u.Latest.Raw
+		r.LatestURL = o.ReleaseURL[row.Service.ID+"|"+u.Latest.Raw]
+		if u.LatestAny.Raw != u.Latest.Raw {
+			r.Note = u.LatestAny.Raw + " outside pin"
+		}
+	} else if msg := o.CheckErrs[row.Service.ID]; msg != "" {
+		r.Note = "check failed"
+		r.NoteTitle = msg
+	} else if versions.CheckedByAgent(row.Service, ref.Repo) {
+		r.Note = "checked by agent"
+	} else if ref.Repo != "" {
+		r.Note = "not checked yet"
+	}
+	r.Health = healthOf(drifts, true)
+	return r
 }
 
 // EventView is one history line.
@@ -364,7 +376,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 	for _, e := range evs {
 		svc := o.Services[e.ServiceID]
 		it := notifier.Item{
-			Type: e.Type, Service: svc.Name, Environment: o.Envs[e.EnvironmentID].Name,
+			Type: e.Type, Service: svc.Name, App: e.App, Environment: o.Envs[e.EnvironmentID].Name,
 			Target: targetName[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note,
 		}
 		v := EventView{
@@ -889,4 +901,11 @@ type HygieneKind struct {
 	Help  string
 	Count int
 	Warn  bool
+}
+
+func orOther(app string) string {
+	if app == "" {
+		return "other"
+	}
+	return app
 }

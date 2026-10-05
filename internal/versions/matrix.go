@@ -23,6 +23,25 @@ type Row struct {
 	// App is the application the service's workloads belong to (the most common one,
 	// a label before the namespace fallback), and AppSource where its name came from.
 	App, AppSource string
+	// Parts splits the row by application when the service is used by several in one
+	// environment (one postgres image, many databases). Their versions are compared
+	// within each application only. Nil when the service is one application.
+	Parts []Part
+}
+
+// Part is a service within one application.
+type Part struct {
+	App, AppSource string
+	Cells          []Cell // one per environment
+}
+
+// Units are what drift is evaluated on: the row's parts, or the whole row as one
+// part with no application.
+func (r Row) Units() []Part {
+	if len(r.Parts) > 0 {
+		return r.Parts
+	}
+	return []Part{{Cells: r.Cells}}
 }
 
 // Cell is what runs of one service in one environment. More than one version means
@@ -79,6 +98,26 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 	}
 	cells := map[cellKey]map[string]*RunningVersion{}
 	declaredCells := map[cellKey]map[string]*RunningVersion{}
+	type partKey struct {
+		service, app string
+		env          int
+	}
+	partCells := map[partKey]map[string]*RunningVersion{}
+	partDeclared := map[partKey]map[string]*RunningVersion{}
+	appSource := map[[2]string]string{}     // service, app -> source
+	appsIn := map[cellKey]map[string]bool{} // reported apps per service and environment
+	add := func(into map[string]*RunningVersion, i store.Instance) {
+		v := into[i.Tag]
+		if v == nil {
+			v = &RunningVersion{Tag: i.Tag, Digest: i.Digest}
+			into[i.Tag] = v
+		}
+		v.Running += i.Running
+		if name := targetName[i.TargetID]; name != "" && !contains(v.Targets, name) {
+			v.Targets = append(v.Targets, name)
+			v.TargetIDs = append(v.TargetIDs, i.TargetID)
+		}
+	}
 	unmapped := map[string]bool{}
 	apps := map[string]map[[2]string]int{} // service -> {app, source} -> workloads
 	for _, i := range active {
@@ -100,22 +139,36 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 			continue
 		}
 		k := cellKey{i.ServiceID, ei}
-		into := cells
+		pk := partKey{i.ServiceID, i.App, ei}
+		into, intoPart := cells, partCells
 		if declared[i.TargetID] {
-			into = declaredCells
+			into, intoPart = declaredCells, partDeclared
+		} else {
+			if appsIn[k] == nil {
+				appsIn[k] = map[string]bool{}
+			}
+			appsIn[k][i.App] = true
 		}
 		if into[k] == nil {
 			into[k] = map[string]*RunningVersion{}
 		}
-		v := into[k][i.Tag]
-		if v == nil {
-			v = &RunningVersion{Tag: i.Tag, Digest: i.Digest}
-			into[k][i.Tag] = v
+		if intoPart[pk] == nil {
+			intoPart[pk] = map[string]*RunningVersion{}
 		}
-		v.Running += i.Running
-		if name := targetName[i.TargetID]; name != "" && !contains(v.Targets, name) {
-			v.Targets = append(v.Targets, name)
-			v.TargetIDs = append(v.TargetIDs, i.TargetID)
+		add(into[k], i)
+		add(intoPart[pk], i)
+		appSource[[2]string{i.ServiceID, i.App}] = i.AppSource
+	}
+	// A service splits by application when two of them run it in one environment.
+	split := map[string]map[string]bool{} // service -> its applications
+	for k, apps := range appsIn {
+		if len(apps) > 1 {
+			split[k.service] = map[string]bool{}
+		}
+	}
+	for k := range partCells {
+		if split[k.service] != nil {
+			split[k.service][k.app] = true
 		}
 	}
 	m.Unmapped = len(unmapped)
@@ -135,9 +188,34 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 				present = true
 			}
 		}
-		if present {
-			m.Rows = append(m.Rows, row)
+		if !present {
+			continue
 		}
+		if apps := split[svc.ID]; apps != nil {
+			names := make([]string, 0, len(apps))
+			for a := range apps {
+				names = append(names, a)
+			}
+			sort.Slice(names, func(i, j int) bool {
+				if (names[i] == "") != (names[j] == "") {
+					return names[j] == ""
+				}
+				return names[i] < names[j]
+			})
+			for _, a := range names {
+				p := Part{App: a, AppSource: appSource[[2]string{svc.ID, a}], Cells: make([]Cell, len(envs))}
+				for ei := range envs {
+					cell := &p.Cells[ei]
+					cell.Versions = sortedVersions(partCells[partKey{svc.ID, a, ei}])
+					cell.Declared = sortedVersions(partDeclared[partKey{svc.ID, a, ei}])
+					if len(cell.Versions) == 0 && len(cell.Declared) > 0 {
+						cell.Versions, cell.FromDeclared = cell.Declared, true
+					}
+				}
+				row.Parts = append(row.Parts, p)
+			}
+		}
+		m.Rows = append(m.Rows, row)
 	}
 	return m
 }

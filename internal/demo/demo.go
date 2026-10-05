@@ -66,22 +66,23 @@ var images = map[string]string{
 	"keycloak":     "quay.io/keycloak/keycloak",
 	"traefik":      "traefik",
 	"grafana":      "grafana/grafana",
+	"shop-db":      "postgres", // a second database on the same image, for the webshop
 }
 
 var targets = []demoTarget{
 	{name: "demo-dev", env: "dev", platform: "swarm", steps: []step{
 		{0, map[string]string{"payments-api": "1.5.0", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5"}},
 		{4, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.1"}},
-		{15, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.6"}},
+		{15, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.6", "shop-db": "15.7"}},
 	}},
 	{name: "demo-staging", env: "staging", platform: "kubernetes", steps: []step{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.0.4", "grafana": "11.1.0"}},
 		{6, map[string]string{"payments-api": "1.5.0", "checkout": "2.4.0", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.1.2", "grafana": "11.2.0"}},
-		{17, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.1", "traefik": "v3.1.2", "grafana": "11.2.0"}},
+		{17, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.1", "traefik": "v3.1.2", "grafana": "11.2.0", "shop-db": "15.7"}},
 	}},
 	{name: "demo-prod-eu", env: "prod", platform: "kubernetes", steps: []step{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.0.4", "grafana": "11.1.0"}},
-		{11, map[string]string{"payments-api": "1.5.0", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.1.2", "grafana": "11.2.0"}},
+		{11, map[string]string{"payments-api": "1.5.0", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.1.2", "grafana": "11.2.0", "shop-db": "15.5"}},
 	}},
 	{name: "demo-prod-us", env: "prod", platform: "ecs", steps: []step{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1"}},
@@ -248,7 +249,7 @@ func stateOn(t demoTarget, day int) map[string]string {
 func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 	ns := map[string]string{
 		"payments-api": "payments", "checkout": "shop", "postgres": "data", "redis": "data",
-		"keycloak": "auth", "traefik": "ingress", "grafana": "observability",
+		"keycloak": "auth", "traefik": "ingress", "grafana": "observability", "shop-db": "shop",
 	}[service]
 	kind := agentproto.Deployment
 	switch {
@@ -256,10 +257,10 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		kind = agentproto.EcsService
 	case t.platform == "swarm":
 		kind = agentproto.SwarmService
-	case service == "postgres" || service == "redis":
+	case service == "postgres" || service == "redis" || service == "shop-db":
 		kind = agentproto.Statefulset
 	}
-	replicas := map[string]int{"payments-api": 3, "checkout": 2, "postgres": 1, "redis": 1, "keycloak": 2, "traefik": 2, "grafana": 1}[service]
+	replicas := map[string]int{"payments-api": 3, "checkout": 2, "postgres": 1, "redis": 1, "keycloak": 2, "traefik": 2, "grafana": 1, "shop-db": 1}[service]
 	if t.env != "prod" {
 		replicas = 1
 	}
@@ -269,11 +270,15 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 			"app.kubernetes.io/name": service,
 			// Applications span namespaces: the shop's cache lives in "data" with the database.
 			"app.kubernetes.io/part-of": map[string]string{
-				"checkout": "webshop", "payments-api": "webshop", "redis": "webshop",
+				"checkout": "webshop", "payments-api": "webshop", "redis": "webshop", "shop-db": "webshop",
 				"keycloak": "identity", "postgres": "identity", "traefik": "edge", "grafana": "monitoring",
 			}[service],
 		},
 		Containers: []agentproto.Container{{Name: service, Image: images[service] + ":" + tag, Running: replicas}},
+	}
+	if service == "shop-db" {
+		// The same postgres service as identity's database, in another application.
+		w.Labels["goliash.service"] = "postgres"
 	}
 	if service == "payments-api" && t.platform == "kubernetes" {
 		w.Containers = append(w.Containers, agentproto.Container{Name: "istio-proxy", Image: "docker.io/istio/proxyv2:1.23.2", Running: replicas})
