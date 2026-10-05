@@ -674,3 +674,65 @@ func TestAccountPasswordAndSessions(t *testing.T) {
 		t.Fatal("still signed in after the admin removed the password")
 	}
 }
+
+func TestAgentPage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	c := e.as(store.RoleAdmin)
+	_, body, _ := post(t, c, e.srv.URL+"/agents", url.Values{"name": {"fresh"}})
+	if !strings.Contains(body, "Start the agent") || !strings.Contains(body, "helm upgrade --install goliash-agent") ||
+		!strings.Contains(body, "GOLIASH_SERVER_URL="+e.srv.URL) {
+		t.Fatalf("install snippets: %s", body)
+	}
+	a, _ := e.st.CreateAgent(ctx, e.ws.Scope(), "eu", "eu-hash")
+	us, _ := e.st.CreateAgent(ctx, e.ws.Scope(), "us", "us-hash")
+	tgt, _ := e.st.CreateTarget(ctx, store.Target{Scope: e.ws.Scope(), EnvironmentID: e.prod.ID, AgentID: a.ID, Platform: "swarm", Name: "swarm-eu"})
+	page := e.srv.URL + "/agents/" + a.ID
+
+	// The agent connects, then gets a new token: the old one keeps working.
+	if _, err := e.st.AgentByTokenHash(ctx, "eu-hash"); err != nil {
+		t.Fatal(err)
+	}
+	_, body, hdr := post(t, c, page+"/rotate", nil)
+	if !strings.Contains(body, "Give the agent its new token") || !strings.Contains(body, "waiting for the agent to use it") ||
+		hdr.Get("Cache-Control") != "no-store" {
+		t.Fatalf("rotate: %s", body)
+	}
+
+	// Viewers see the page without actions.
+	viewer := e.as(store.RoleViewer)
+	if _, b := get(t, viewer, page, nil); !strings.Contains(b, "swarm-eu") || strings.Contains(b, "Rotate token") {
+		t.Fatal("viewer page")
+	}
+	if code, _, _ := post(t, viewer, page+"/revoke", nil); code != http.StatusForbidden {
+		t.Fatalf("viewer revoked: %d", code)
+	}
+
+	if _, body, _ = post(t, c, page+"/rename", url.Values{"name": {"us"}}); !strings.Contains(body, "Another agent is named us.") {
+		t.Fatal("rename onto a taken name")
+	}
+	if _, body, _ = post(t, c, page+"/rename", url.Values{"name": {"eu-1"}}); !strings.Contains(body, "Renamed to eu-1.") {
+		t.Fatal("rename")
+	}
+	if _, body, _ = post(t, c, page+"/delete", nil); !strings.Contains(body, "Move or delete the targets of eu-1 first.") {
+		t.Fatal("deleted an agent with targets")
+	}
+	if _, body, _ = post(t, c, e.srv.URL+"/targets/"+tgt.ID+"/agent", url.Values{"agent": {us.ID}}); !strings.Contains(body, "swarm-eu is collected by us") {
+		t.Fatalf("move: %s", body)
+	}
+	if _, body, _ = post(t, c, page+"/revoke", nil); !strings.Contains(body, "revoked") || !strings.Contains(body, `badge revoked`) {
+		t.Fatalf("revoke: %s", body)
+	}
+	if _, body, _ = post(t, c, page+"/delete", nil); !strings.Contains(body, "Agent eu-1 deleted.") {
+		t.Fatalf("delete: %s", body)
+	}
+	if _, body, _ = post(t, c, e.srv.URL+"/targets/"+tgt.ID+"/delete", nil); !strings.Contains(body, "Target swarm-eu deleted.") {
+		t.Fatalf("delete target: %s", body)
+	}
+	_, page2 := get(t, c, e.srv.URL+"/settings", nil)
+	for _, want := range []string{"agent.rotate_token", "agent.rename", "target.move", "agent.revoke", "agent.delete", "target.delete"} {
+		if !strings.Contains(page2, want) {
+			t.Errorf("audit log misses %s", want)
+		}
+	}
+}

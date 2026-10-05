@@ -158,3 +158,26 @@ func TestParseLifetime(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentCommands(t *testing.T) {
+	ctx := context.Background()
+	dsn := t.TempDir() + "/x.db"
+	var out strings.Builder
+	if err := run(ctx, []string{"agent", "create", "-database", dsn, "-name", "eu"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(ctx, []string{"agent", "rotate", "-database", dsn, "-name", "nope"}, io.Discard); err == nil {
+		t.Fatal("rotated an unknown agent")
+	}
+	out.Reset()
+	if err := run(ctx, []string{"agent", "rotate", "-database", dsn, "-name", "eu"}, &out); err != nil || !strings.Contains(out.String(), "glsh_agent_") {
+		t.Fatalf("rotate: %v %s", err, out.String())
+	}
+	if err := run(ctx, []string{"agent", "revoke", "-database", dsn, "-name", "eu"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := run(ctx, []string{"agent", "list", "-database", dsn}, &out); err != nil || !strings.Contains(out.String(), "revoked") {
+		t.Fatalf("list: %v %s", err, out.String())
+	}
+}

@@ -22,6 +22,7 @@ type Agent struct {
 	LastSeenAt   time.Time
 	StaleSince   time.Time // set while the agent misses heartbeats
 	CreatedAt    time.Time
+	ActiveTokens int // tokens that work; 0 means revoked, 2 means a rotation waits for the agent
 }
 
 // CreateAgent creates an agent together with its token. tokenHash is the SHA-256
@@ -58,7 +59,17 @@ func (s *Store) AgentByTokenHash(ctx context.Context, tokenHash string) (Agent, 
 		if err != nil {
 			return err
 		}
-		_, err = s.exec(ctx, tx, `UPDATE tokens SET last_used_at = ? WHERE id = ?`, s.now(), tokenID)
+		now := s.now()
+		if _, err = s.exec(ctx, tx, `UPDATE tokens SET last_used_at = ? WHERE id = ?`, now, tokenID); err != nil {
+			return err
+		}
+		if a.ActiveTokens < 2 {
+			return nil
+		}
+		// A rotated token is in use: the tokens it replaced stop working.
+		_, err = s.exec(ctx, tx, `UPDATE tokens SET revoked_at = ? WHERE agent_id = ? AND kind = 'agent' AND revoked_at IS NULL
+			AND id <> ? AND created_at < (SELECT created_at FROM tokens WHERE id = ?)`, now, a.ID, tokenID, tokenID)
+		a.ActiveTokens = 1
 		return err
 	})
 	return a, err
@@ -161,7 +172,8 @@ func (s *Store) RevokeAgentTokens(ctx context.Context, sc Scope, agentID string)
 }
 
 const agentColumns = `a.id, a.org_id, a.workspace_id, a.name, a.version, a.hostname, a.platforms,
-	a.registered_at, a.last_seen_at, a.stale_since, a.created_at`
+	a.registered_at, a.last_seen_at, a.stale_since, a.created_at,
+	(SELECT COUNT(*) FROM tokens k WHERE k.agent_id = a.id AND k.kind = 'agent' AND k.revoked_at IS NULL)`
 
 func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 	var (
@@ -170,7 +182,7 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		registered, lastSeen, staleSince sql.NullTime
 	)
 	err := row.Scan(&a.ID, &a.Scope.OrgID, &a.Scope.WorkspaceID, &a.Name, &a.Version, &a.Hostname,
-		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &extra)
+		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &a.ActiveTokens, &extra)
 	if err != nil {
 		return Agent{}, "", notFound(err)
 	}

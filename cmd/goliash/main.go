@@ -68,6 +68,9 @@ const usage = `Usage:
   goliash [serve] [flags]                 run the server
   goliash env create -name NAME [-position N]
   goliash agent create -name NAME         prints the agent token once
+  goliash agent list                      agents with status, version and last contact
+  goliash agent rotate -name NAME         new token; the old one works until the agent uses the new one
+  goliash agent revoke -name NAME         every token of the agent stops working
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
@@ -136,6 +139,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && (cmd == "user" || cmd == "token") && args[0] == "create" {
 			cmd, args = cmd+" create", args[1:]
 		}
+		if len(args) > 0 && cmd == "agent" && (args[0] == "list" || args[0] == "rotate" || args[0] == "revoke") {
+			cmd, args = "agent "+args[0], args[1:]
+		}
 		if len(args) > 0 && cmd == "token" && (args[0] == "list" || args[0] == "revoke") {
 			cmd, args = "token "+args[0], args[1:]
 		}
@@ -197,6 +203,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return loginLink(ctx, args, out)
 	case "token create":
 		return tokenCreate(ctx, args, out)
+	case "agent list":
+		return agentList(ctx, args, out)
+	case "agent rotate":
+		return agentRotate(ctx, args, out)
+	case "agent revoke":
+		return agentRevoke(ctx, args, out)
 	case "token list":
 		return tokenList(ctx, args, out)
 	case "token revoke":
@@ -477,6 +489,99 @@ func envCreate(ctx context.Context, args []string, out io.Writer) error {
 	}
 	cliAudit(ctx, db, ws, "environment.create", "environment", env.Name)
 	_, _ = fmt.Fprintf(out, "environment %s created (%s)\n", env.Name, env.ID)
+	return nil
+}
+
+// agentByName opens the database and finds an agent for the agent subcommands.
+func agentByName(ctx context.Context, cmd string, args []string) (*store.Store, store.Workspace, store.Agent, error) {
+	fs, dsn := newFlags(cmd)
+	name := fs.String("name", "", "agent name")
+	if err := fs.Parse(args); err != nil {
+		return nil, store.Workspace{}, store.Agent{}, err
+	}
+	if *name == "" {
+		return nil, store.Workspace{}, store.Agent{}, errors.New("-name is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return nil, store.Workspace{}, store.Agent{}, err
+	}
+	a, err := db.GetAgentByName(ctx, ws.Scope(), *name)
+	if errors.Is(err, store.ErrNotFound) {
+		_ = db.Close()
+		return nil, store.Workspace{}, store.Agent{}, fmt.Errorf("no agent %s in workspace %s", *name, ws.Slug)
+	}
+	if err != nil {
+		_ = db.Close()
+		return nil, store.Workspace{}, store.Agent{}, err
+	}
+	return db, ws, a, nil
+}
+
+func agentList(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("agent list")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	agents, err := db.ListAgents(ctx, ws.Scope())
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "NAME\tSTATUS\tVERSION\tHOST\tLAST SEEN")
+	for _, a := range agents {
+		status := "online"
+		switch {
+		case a.ActiveTokens == 0:
+			status = "revoked"
+		case a.LastSeenAt.IsZero():
+			status = "never"
+		case !a.StaleSince.IsZero():
+			status = "stale"
+		}
+		if a.ActiveTokens > 1 {
+			status += " (rotation pending)"
+		}
+		seen := "never"
+		if !a.LastSeenAt.IsZero() {
+			seen = a.LastSeenAt.UTC().Format(time.DateTime)
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", a.Name, status, a.Version, a.Hostname, seen)
+	}
+	return tw.Flush()
+}
+
+func agentRotate(ctx context.Context, args []string, out io.Writer) error {
+	db, ws, a, err := agentByName(ctx, "agent rotate", args)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	token, hash := tokens.New(tokens.Agent)
+	if err := db.AddAgentToken(ctx, ws.Scope(), a.ID, hash); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "agent.rotate_token", "agent", a.Name)
+	_, _ = fmt.Fprintf(out, "New token for %s (shown once). The old token works until the agent first uses this one:\n%s\n", a.Name, token)
+	return nil
+}
+
+func agentRevoke(ctx context.Context, args []string, out io.Writer) error {
+	db, ws, a, err := agentByName(ctx, "agent revoke", args)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.RevokeAgentTokens(ctx, ws.Scope(), a.ID); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "agent.revoke", "agent", a.Name)
+	_, _ = fmt.Fprintf(out, "every token of %s revoked; goliash agent rotate gives it a new one\n", a.Name)
 	return nil
 }
 

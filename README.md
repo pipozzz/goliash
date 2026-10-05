@@ -131,7 +131,7 @@ and updates live over server-sent events.
 | Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image |
 | Delivery | versions waiting for the next environment with the releases they bring; deploys and lead times per environment; a printable monthly report per workspace |
 | History | every event, filterable by service, environment and type |
-| Agents | agents and targets with collector health; add agents (token shown once), environments and targets |
+| Agents | agents and targets with collector health; add agents with install commands, rotate or revoke tokens, rename and delete agents, move or delete targets |
 | Notifications | channels (with a test button) and rules |
 | Users | invite people, change roles, sign-in links, API tokens (admins) |
 

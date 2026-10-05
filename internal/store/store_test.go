@@ -845,3 +845,102 @@ func TestAPITokens(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentAdministration(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		sc := ws.Scope()
+		a, err := s.CreateAgent(ctx, sc, "eu", "old")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := s.CreateAgent(ctx, sc, "us", "us-token")
+		env, _ := s.CreateEnvironment(ctx, sc, "prod", 30)
+		tgt, _ := s.CreateTarget(ctx, Target{Scope: sc, EnvironmentID: env.ID, AgentID: a.ID, Platform: "kubernetes", Name: "k8s"})
+
+		// Rotation: both tokens work until the new one is used.
+		if _, err := s.AgentByTokenHash(ctx, "old"); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.AddAgentToken(ctx, sc, a.ID, "new1"); err != nil {
+			t.Fatal(err)
+		}
+		// Rotating again before the agent switched replaces the unused new token.
+		if err := s.AddAgentToken(ctx, sc, a.ID, "new2"); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := s.GetAgent(ctx, sc, a.ID); got.ActiveTokens != 2 {
+			t.Fatalf("active tokens during rotation: %d", got.ActiveTokens)
+		}
+		if _, err := s.AgentByTokenHash(ctx, "new1"); !errors.Is(err, ErrNotFound) {
+			t.Fatal("replaced rotation token works")
+		}
+		if _, err := s.AgentByTokenHash(ctx, "old"); err != nil {
+			t.Fatal("old token stopped before the new one was used")
+		}
+		if got, err := s.AgentByTokenHash(ctx, "new2"); err != nil || got.ActiveTokens != 1 {
+			t.Fatalf("new token: %+v %v", got, err)
+		}
+		if _, err := s.AgentByTokenHash(ctx, "old"); !errors.Is(err, ErrNotFound) {
+			t.Fatal("old token works after the new one was used")
+		}
+		if toks, _ := s.AgentTokens(ctx, sc, a.ID); len(toks) != 1 || toks[0].LastUsed.IsZero() {
+			t.Fatalf("tokens %+v", toks)
+		}
+		if _, err := s.AgentByTokenHash(ctx, "us-token"); err != nil {
+			t.Fatal("rotation touched another agent")
+		}
+
+		if err := s.RenameAgent(ctx, sc, a.ID, "us"); !errors.Is(err, ErrExists) {
+			t.Fatalf("rename onto a taken name: %v", err)
+		}
+		if err := s.RenameAgent(ctx, sc, a.ID, "eu-1"); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.DeleteAgent(ctx, sc, a.ID); !errors.Is(err, ErrInUse) {
+			t.Fatalf("deleted an agent with targets: %v", err)
+		}
+		if err := s.SetTargetAgent(ctx, sc, tgt.ID, "nope"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("moved to an unknown agent: %v", err)
+		}
+		if err := s.SetTargetAgent(ctx, sc, tgt.ID, b.ID); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := s.GetTarget(ctx, sc, tgt.ID); got.AgentID != b.ID {
+			t.Fatalf("target agent %q", got.AgentID)
+		}
+		if err := s.DeleteAgent(ctx, sc, a.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.AgentByTokenHash(ctx, "new2"); !errors.Is(err, ErrNotFound) {
+			t.Fatal("deleted agent's token works")
+		}
+		if err := s.SetTargetAgent(ctx, sc, tgt.ID, ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.DeleteTarget(ctx, sc, tgt.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.GetTarget(ctx, sc, tgt.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatal("target not deleted")
+		}
+
+		// Rotating an agent that never connected leaves only the new token.
+		c, _ := s.CreateAgent(ctx, sc, "fresh", "lost")
+		_ = s.AddAgentToken(ctx, sc, c.ID, "replacement")
+		if got, _ := s.GetAgent(ctx, sc, c.ID); got.ActiveTokens != 1 {
+			t.Fatalf("never-connected agent has %d tokens after rotation", got.ActiveTokens)
+		}
+		if _, err := s.AgentByTokenHash(ctx, "lost"); !errors.Is(err, ErrNotFound) {
+			t.Fatal("lost token works")
+		}
+
+		// Revoked agents show no working token.
+		_ = s.RevokeAgentTokens(ctx, sc, b.ID)
+		if got, _ := s.GetAgent(ctx, sc, b.ID); got.ActiveTokens != 0 {
+			t.Fatalf("revoked agent has %d tokens", got.ActiveTokens)
+		}
+	})
+}

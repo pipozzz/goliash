@@ -33,6 +33,23 @@ See [Security](/security/#verify-a-release) for how to verify them.
 | Nomad | [Job](/install/nomad/) | [Job](/install/nomad/#agent) with a list-jobs and read-job ACL token |
 | Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/install/ecs/) with a read-only task role |
 
+## Managing agents
+
+Create an agent on the **Agents** page (or `goliash agent create -name prod-eu`). Its page shows the token once,
+with commands to start the agent on a Docker host, Kubernetes, Nomad or as a binary, and then:
+
+- **Status**: online, stale (missed heartbeats), never connected or revoked, its version (with *update available*
+  when it is older than the server), host, platforms and the targets it collects.
+- **Rotate token** without a gap: the old token keeps working until the agent first connects with the new one, then
+  stops. Rotating an agent that never connected replaces its token at once. CLI: `goliash agent rotate -name N`.
+- **Revoke** every token when one leaked or the machine is gone; the agent stops sending data at once.
+  CLI: `goliash agent revoke -name N`.
+- **Rename** (the token stays) and **delete** an agent once it has no targets.
+- **Move a target** to another agent or to the server, or delete it. The agents pick the change up with their next
+  configuration poll. Deleting a target removes its running versions from the matrix; the history stays.
+
+`goliash agent list` prints every agent with its status, version and last contact.
+
 ## Database
 
 SQLite is the default and suits most installations: one file, backed up by copying it while the server is
