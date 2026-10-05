@@ -45,25 +45,25 @@ There are two ways to collect a target.
 An agent runs next to the orchestrator and sends snapshots to the server over HTTPS. Use it when the server
 cannot reach the orchestrator, or when credentials must stay in that network.
 
-1. In **Settings → Agents and targets**, add the environments you deploy to (for example dev, staging, prod), then **Add an agent**
-   and copy its token. The token is shown once.
-2. Add a target for the agent: its platform, environment and settings.
-3. Run the agent where it can reach the orchestrator:
+1. Open **Connect** (on the matrix of a new installation, or **Settings → Agents and targets → Connect a cluster or
+   host**) and pick what to watch: Kubernetes, a Docker host, Swarm, Nomad, ECS or Compose files.
+2. Fill in one form: the name, the environment (pick one or name a new one), **a new agent**, and the platform's
+   settings as plain fields.
+3. Run the command the next page shows where the agent can reach the orchestrator: Helm for Kubernetes, a compose
+   file for Docker, a stack for Swarm, a job for Nomad, a Terraform module for ECS. The token is already in it and
+   shown only once.
+4. Keep the page open: it shows when the agent connects and what its first report found, then takes you to the
+   matrix or the inbox.
 
-```sh
-docker run -d --name goliash-agent -v goliash-agent:/data \
-  -e GOLIASH_SERVER_URL=https://goliash.example.com \
-  -e GOLIASH_AGENT_TOKEN=glsh_agent_… \
-  ghcr.io/pipozzz/goliash-agent:latest
-```
-
-Ready-made manifests for each platform are under [Install](/install/).
+The manifests behind those commands are under [Install](/install/).
 
 </TabItem>
 <TabItem label="Without an agent">
 
-The server can collect targets itself, with the same read-only collectors. Create a target and pick **the
-server itself** instead of an agent. For example, to watch the Docker host the quickstart runs on:
+The server can collect targets itself, with the same read-only collectors: in **Connect**, pick **This server**
+instead of an agent. Compose files from Git need nothing else. To watch the Docker host the quickstart runs on,
+start its read-only socket proxy and connect a Docker host with the address `tcp://socket-proxy:2375`, or from the
+command line:
 
 ```sh
 docker compose --profile watch-host up -d --build      # adds a read-only docker-socket-proxy

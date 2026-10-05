@@ -320,3 +320,23 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .swatch.c0 { background: var(--accent); } .swatch.c1 { background: var(--info); } .swatch.c2 { background: var(--ok); }
 .swatch.c3 { background: var(--warn); } .swatch.c4 { background: var(--bad); } .swatch.c5 { background: #0e8a9c; }
 @media (prefers-color-scheme: dark) { .chart .seg-label { fill: #0e1117; } }
+
+/* Connect */
+.platforms { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.platform { display: flex; flex-direction: column; gap: 6px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
+.platform:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); text-decoration: none; }
+.platform strong { font-size: 16px; }
+.platform span { color: var(--muted); font-size: 13px; }
+.connect-form { max-width: 860px; }
+.choice { align-items: flex-start; font-weight: 400; }
+.choice input { margin-top: 3px; }
+.inline-field { margin-left: 26px; max-width: 320px; }
+.install-cmd { margin: 0; padding: 12px 14px; background: var(--surface-2); border-radius: 6px; white-space: pre-wrap; word-break: break-all; font-size: 12.5px; }
+.connect-status { padding: 6px 18px; }
+.connect-status .actions { padding: 0 0 14px 42px; }
+.settings-record > summary { cursor: pointer; }
+.error-text { color: var(--bad); }
+details.advanced { margin-top: 4px; }
+details.advanced > summary { color: var(--muted); font-weight: 500; padding: 6px 0; }
+details.advanced[open] > summary { margin-bottom: 10px; }
+.connect-status .steps li.done strong { text-decoration: none; color: var(--ink); }
