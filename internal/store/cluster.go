@@ -23,8 +23,8 @@ import (
 // leaderLock is the advisory lock key: "goliash" in ASCII, as a bigint.
 const leaderLock int64 = 0x676f6c69617368
 
-// Leadership timing; variables so tests can shorten them.
-var (
+// Leadership timing.
+const (
 	leaderRetry     = 15 * time.Second // how often a follower tries to become leader
 	leaderHeartbeat = 10 * time.Second // how often the leader checks its lock connection
 )
@@ -35,10 +35,14 @@ type Leader struct {
 	store  *Store
 	log    *slog.Logger
 	leader atomic.Bool
+
+	retry, heartbeat time.Duration
 }
 
 // NewLeader prepares leader election.
-func (s *Store) NewLeader(log *slog.Logger) *Leader { return &Leader{store: s, log: log} }
+func (s *Store) NewLeader(log *slog.Logger) *Leader {
+	return &Leader{store: s, log: log, retry: leaderRetry, heartbeat: leaderHeartbeat}
+}
 
 // IsLeader reports whether this server runs the background work now.
 func (l *Leader) IsLeader() bool { return l.leader.Load() }
@@ -63,7 +67,7 @@ func (l *Leader) Run(ctx context.Context, work func(ctx context.Context)) {
 		}
 		select {
 		case <-ctx.Done():
-		case <-time.After(leaderRetry):
+		case <-time.After(l.retry):
 		}
 	}
 }
@@ -90,7 +94,7 @@ func (l *Leader) lead(ctx context.Context, work func(ctx context.Context)) (held
 		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, leaderLock)
 	}()
 	work(wctx)
-	tick := time.NewTicker(leaderHeartbeat)
+	tick := time.NewTicker(l.heartbeat)
 	defer tick.Stop()
 	for {
 		select {
