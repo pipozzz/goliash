@@ -12,7 +12,7 @@ func TestAgentTokenShape(t *testing.T) {
 	good := "glsh_agent_" + strings.Repeat("a", 36)
 	for in, want := range map[string]string{
 		good:                      "",
-		"  " + good + "\n":       "",
+		"  " + good + "\n":        "",
 		`"` + good + `"`:          "",
 		"'" + good + "'":          "",
 		"glsh_api_" + "x":         "API or CI token",
