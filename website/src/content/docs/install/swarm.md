@@ -1,5 +1,6 @@
 ---
 title: Docker Swarm
+description: 'Deploy Goliash on Docker Swarm with a stack file and watch services through a read-only socket proxy.'
 ---
 
 ## Server

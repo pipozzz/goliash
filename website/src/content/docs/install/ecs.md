@@ -1,5 +1,6 @@
 ---
 title: Amazon ECS
+description: 'Watch Amazon ECS clusters and private ECR repositories with the Goliash agent and a read-only IAM task role.'
 ---
 
 ## Agent

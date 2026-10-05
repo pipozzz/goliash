@@ -1,5 +1,6 @@
 ---
 title: Install
+description: 'Pick how to run the Goliash server and agents: Kubernetes, Docker, Swarm, Nomad or ECS, with SQLite or PostgreSQL.'
 ---
 
 Goliash is two programs:

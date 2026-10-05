@@ -1,5 +1,6 @@
 ---
 title: AI assistants (MCP)
+description: 'Ask Claude, Cursor and other AI assistants what runs where through the Goliash MCP server.'
 ---
 
 Goliash speaks the [Model Context Protocol](https://modelcontextprotocol.io), so an AI assistant such as Claude or

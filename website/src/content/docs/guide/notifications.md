@@ -1,5 +1,6 @@
 ---
 title: Notifications
+description: 'Send new releases, drift and stale agents to Slack, Discord, Telegram, ntfy, Grafana, webhooks or e-mail, instantly or as digests.'
 ---
 
 Notifications have two parts: **channels** (where messages go) and **rules** (which events go there, and how

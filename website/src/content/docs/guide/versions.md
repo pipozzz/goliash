@@ -1,5 +1,6 @@
 ---
 title: Versions and drift
+description: 'Version policies, upstream release checks, release notes, end-of-life dates and the kinds of drift Goliash reports.'
 ---
 
 ## Where upstream versions come from

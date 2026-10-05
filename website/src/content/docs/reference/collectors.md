@@ -1,5 +1,6 @@
 ---
 title: Collectors
+description: 'What each collector reads from Kubernetes, ECS, Nomad, Swarm, Docker and Compose, and the permissions it needs.'
 ---
 
 Collectors only read. They run in the agent, or in the server for targets without an agent.

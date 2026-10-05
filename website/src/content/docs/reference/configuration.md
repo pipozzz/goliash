@@ -1,5 +1,6 @@
 ---
 title: Configuration
+description: 'Environment variables for the Goliash server: database, public URL, e-mail, OIDC, passwords, registries and more.'
 ---
 
 Settings come from environment variables; most have a matching flag.

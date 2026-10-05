@@ -1,5 +1,6 @@
 ---
 title: Teams and workspaces
+description: 'Sign in with passwords, links or OIDC, roles per workspace, API tokens and sessions, and one workspace per team or client.'
 ---
 
 ## Signing in
@@ -13,6 +14,21 @@ title: Teams and workspaces
   `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID` and `GOLIASH_OIDC_CLIENT_SECRET`, and register the redirect URI
   `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
   viewers on first sign-in; others need an invitation.
+
+## Locked out?
+
+The images have no shell, but the `goliash` binary in them prints a sign-in link or sets a password. Run it next to
+the server, on the same database:
+
+```sh
+docker exec goliash goliash login-link -email you@example.com          # Docker: one-time sign-in link
+echo 'a long new password' | docker exec -i goliash goliash user password -email you@example.com
+kubectl -n goliash exec deploy/goliash -- goliash login-link -email you@example.com
+nomad alloc exec -task goliash <alloc-id> goliash login-link -email you@example.com
+```
+
+With an empty database (a container recreated without its volume) the first `login-link` creates you as the owner.
+Keep `/data` on a volume: it holds the database and `goliash.key`.
 
 ## Sessions
 

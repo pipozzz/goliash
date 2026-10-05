@@ -1,5 +1,6 @@
 ---
 title: Docker and Compose
+description: 'Run the Goliash server with Docker Compose and watch Docker hosts and Compose stacks through a read-only socket proxy.'
 ---
 
 ## Server

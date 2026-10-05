@@ -1,5 +1,6 @@
 ---
 title: Kubernetes
+description: 'Install Goliash and its agent on Kubernetes with signed Helm charts and a read-only ClusterRole.'
 ---
 
 The charts are published with every release as signed OCI artifacts in GHCR:

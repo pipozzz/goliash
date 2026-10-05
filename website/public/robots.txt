@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://goliash.dev/sitemap-index.xml
