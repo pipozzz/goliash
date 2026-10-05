@@ -6,11 +6,13 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"syscall"
 	"time"
 )
 
@@ -52,16 +54,36 @@ func (c *Client) Get(ctx context.Context, path string, v any) error {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("docker API: %w", err)
+		return fmt.Errorf("docker API: %w%s", err, hint(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		var msg struct{ Message string }
+		detail := ""
 		if json.Unmarshal(body, &msg) == nil && msg.Message != "" {
-			return fmt.Errorf("docker API GET %s: %d %s", path, resp.StatusCode, msg.Message)
+			detail = " " + msg.Message
 		}
-		return fmt.Errorf("docker API GET %s: %d", path, resp.StatusCode)
+		if resp.StatusCode == http.StatusForbidden {
+			detail += " (the socket proxy forbids it: allow CONTAINERS=1 and IMAGES=1, for Swarm also SERVICES=1, TASKS=1 and NODES=1)"
+		}
+		return fmt.Errorf("docker API GET %s: %d%s", path, resp.StatusCode, detail)
 	}
 	return json.NewDecoder(resp.Body).Decode(v)
+}
+
+// hint says what usually causes a connection error, for the collector status that
+// people read in the UI.
+func hint(err error) string {
+	var dns *net.DNSError
+	switch {
+	case errors.As(err, &dns):
+		return fmt.Sprintf(" (the name %q does not resolve where the collector runs: docker_host must name the socket proxy "+
+			"as the agent sees it, on the same Docker network; the agent's compose file calls it socket-proxy)", dns.Name)
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return " (nothing listens there: is the socket proxy running, and is the port right?)"
+	case errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EACCES):
+		return " (the Docker socket is missing or not readable: mount it into the agent, or use a socket proxy)"
+	}
+	return ""
 }
