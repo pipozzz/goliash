@@ -71,9 +71,16 @@ type agentHandlerFunc func(w http.ResponseWriter, r *http.Request, a store.Agent
 // bytes as sent), validates the request against the spec, and calls next.
 func (h *AgentHandler) authed(maxBody int64, next agentHandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		auth := r.Header.Get("Authorization")
+		if auth == "" {
+			writeProblem(w, http.StatusUnauthorized, "Unauthorized",
+				"no Authorization header arrived: set the agent token, and check that a proxy in front of the server passes the header on")
+			return
+		}
+		token, ok := strings.CutPrefix(auth, "Bearer ")
 		if !ok || !tokens.Valid(token, tokens.Agent) {
-			writeProblem(w, http.StatusUnauthorized, "Unauthorized", "a valid glsh_agent_ bearer token is required")
+			writeProblem(w, http.StatusUnauthorized, "Unauthorized",
+				"a valid glsh_agent_ bearer token is required; this one is not an agent token or was damaged when copied")
 			return
 		}
 		agent, err := h.store.AgentByTokenHash(r.Context(), tokens.Hash(token))

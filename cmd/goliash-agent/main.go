@@ -95,7 +95,7 @@ func main() {
 // (Docker and Kubernetes secrets).
 func agentToken() (string, error) {
 	if t := os.Getenv("GOLIASH_AGENT_TOKEN"); t != "" {
-		return t, nil
+		return checkToken(cleanToken(t), "GOLIASH_AGENT_TOKEN")
 	}
 	path := os.Getenv("GOLIASH_AGENT_TOKEN_FILE")
 	if path == "" {
@@ -105,7 +105,36 @@ func agentToken() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("agent token file: %w", err)
 	}
-	return strings.TrimSpace(string(b)), nil
+	return checkToken(cleanToken(string(b)), path)
+}
+
+// cleanToken drops what copying and configuration files add around a token:
+// whitespace, line breaks and quotes.
+func cleanToken(t string) string {
+	t = strings.TrimSpace(t)
+	if len(t) >= 2 && (t[0] == '"' || t[0] == '\'') && t[len(t)-1] == t[0] {
+		t = strings.TrimSpace(t[1 : len(t)-1])
+	}
+	return t
+}
+
+// agentTokenLen is the length of glsh_agent_ plus 30 random and 6 checksum characters.
+const agentTokenLen = len("glsh_agent_") + 36
+
+// checkToken explains a token that the server would refuse because of its shape,
+// without printing it.
+func checkToken(t, source string) (string, error) {
+	switch {
+	case strings.HasPrefix(t, "glsh_api_"), strings.HasPrefix(t, "glsh_ci_"):
+		return "", fmt.Errorf("%s holds an API or CI token; the agent needs its own token, glsh_agent_…, shown when the agent is created", source)
+	case !strings.HasPrefix(t, "glsh_agent_"):
+		return "", fmt.Errorf("%s does not start with glsh_agent_; copy the agent token shown when the agent was created or rotated", source)
+	case strings.ContainsAny(t, " \t\r\n\"'"):
+		return "", fmt.Errorf("%s contains spaces or quotes inside the token; copy it again", source)
+	case len(t) != agentTokenLen:
+		return "", fmt.Errorf("%s is %d characters long, an agent token has %d: it was cut or joined when copied", source, len(t), agentTokenLen)
+	}
+	return t, nil
 }
 
 func envOr(key, fallback string) string {
