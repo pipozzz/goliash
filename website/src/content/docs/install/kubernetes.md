@@ -32,6 +32,10 @@ helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --reuse-val
 With SQLite the secret key is otherwise created next to the database on the volume. With PostgreSQL, set it as
 shown.
 
+With PostgreSQL the chart may run several servers: `--set replicaCount=2` (one leads the background work; see
+[Several servers](/install/#several-servers)). Updates then roll one pod at a time and a PodDisruptionBudget keeps
+one running. With SQLite the chart refuses more than one.
+
 ### Watch the cluster the server runs in
 
 To watch only the cluster Goliash runs in, skip the agent. Install the server with `--set collectInCluster=true`,

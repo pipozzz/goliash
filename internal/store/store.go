@@ -19,6 +19,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
 	"github.com/oklog/ulid/v2"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
@@ -107,7 +108,16 @@ func (s *Store) migrations() (*goose.Provider, error) {
 	if s.dialect == Postgres {
 		gooseDialect = goose.DialectPostgres
 	}
-	provider, err := goose.NewProvider(gooseDialect, s.db, dir)
+	var opts []goose.ProviderOption
+	if s.dialect == Postgres {
+		// Several servers may start together on one database: one migrates, the others wait.
+		locker, err := lock.NewPostgresSessionLocker()
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, goose.WithSessionLocker(locker))
+	}
+	provider, err := goose.NewProvider(gooseDialect, s.db, dir, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("migrations: %w", err)
 	}

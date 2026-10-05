@@ -4,8 +4,16 @@ metadata:
   name: {{ include "goliash.fullname" . }}
   labels: {{- include "goliash.labels" . | nindent 4 }}
 spec:
-  replicas: 1   # one server per database; SQLite allows no more
-  strategy: { type: Recreate }
+  {{- $postgres := or .Values.database.url .Values.database.existingSecret }}
+  {{- if and (not $postgres) (gt (int .Values.replicaCount) 1) }}
+  {{- fail "replicaCount above 1 needs PostgreSQL (database.url or database.existingSecret): SQLite allows one server" }}
+  {{- end }}
+  replicas: {{ .Values.replicaCount }}
+  {{- if $postgres }}
+  strategy: { type: RollingUpdate, rollingUpdate: { maxUnavailable: 0, maxSurge: 1 } }
+  {{- else }}
+  strategy: { type: Recreate }   # SQLite on one volume: the old server stops first
+  {{- end }}
   selector:
     matchLabels: {{- include "goliash.selector" . | nindent 6 }}
   template:
