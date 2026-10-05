@@ -40,6 +40,12 @@ variable "owner_email" {
   default     = "admin@example.com"
 }
 
+variable "recovery_email" {
+  description = "Locked out? Set to your e-mail and redeploy: every start logs a one-time sign-in link for you in the task logs. Empty it again afterwards."
+  type        = string
+  default     = ""
+}
+
 variable "environment" {
   description = "Environment the Nomad cluster belongs to in Goliash (e.g. prod or staging)."
   type        = string

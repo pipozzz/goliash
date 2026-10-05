@@ -24,6 +24,7 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 | `port` | `8070` | UI, API and agent endpoint. |
 | `public_url` | `""` | Address people use. Empty = `http://<node-ip>:<port>`. |
 | `owner_email` | `admin@example.com` | First owner; a sign-in link is logged until they sign in. |
+| `recovery_email` | `""` | Locked out? Set it to your e-mail and redeploy: every start logs a one-time sign-in link. Empty it afterwards. |
 | `environment` | `prod` | Environment the Nomad cluster belongs to. |
 | `watch_nomad` | `true` | Watch this Nomad cluster without an agent. |
 | `nomad_address` | `""` | Nomad API. Empty = `http://<node-ip>:4646`. |

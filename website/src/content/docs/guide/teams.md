@@ -28,6 +28,12 @@ nomad alloc exec -task goliash <alloc-id> goliash login-link -email you@example.
 ```
 
 With an empty database (a container recreated without its volume) the first `login-link` creates you as the owner.
+
+**No exec, or a console that wants a shell** (Nomploy, many PaaS): set `GOLIASH_RECOVERY_EMAIL=you@example.com` on
+the server and restart it. Every start then logs a one-time sign-in link for you (the log line starts with
+`recovery:`); open it within 15 minutes, set a password on your account page and remove the variable again. It
+only works for someone who already has an account, or creates you as the owner when nobody has one yet. In the
+Nomad pack the variable is `recovery_email`.
 Keep `/data` on a volume: it holds the database and `goliash.key`.
 
 ## Sessions

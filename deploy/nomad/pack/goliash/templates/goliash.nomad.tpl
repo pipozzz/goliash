@@ -73,6 +73,9 @@ job "[[ var "job_name" . ]]" {
         [[- if ne (var "nomad_token" .) "" ]]
         GOLIASH_CREDENTIAL_NOMAD = "[[ var "nomad_token" . ]]"
         [[- end ]]
+        [[- if ne (var "recovery_email" .) "" ]]
+        GOLIASH_RECOVERY_EMAIL = "[[ var "recovery_email" . ]]"
+        [[- end ]]
       }
 
       # Created on first start only: changes made later in the UI are kept.
