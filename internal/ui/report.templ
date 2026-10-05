@@ -15,7 +15,7 @@ templ ReportPage(v ReportView) {
 				if v.Next != "" {
 					<a href={ templ.URL("/report?month=" + v.Next) }>{ v.NextLabel } →</a>
 				}
-				<button class="secondary" type="button" onclick="window.print()">Print or save as PDF</button>
+				<button class="secondary" type="button" data-print>Print or save as PDF</button>
 			</div>
 		</div>
 		<section class="panel">

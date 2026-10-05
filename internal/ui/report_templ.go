@@ -146,7 +146,7 @@ func ReportPage(v ReportView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button class=\"secondary\" type=\"button\" onclick=\"window.print()\">Print or save as PDF</button></div></div><section class=\"panel\"><div class=\"report-stats\"><div><strong>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<button class=\"secondary\" type=\"button\" data-print>Print or save as PDF</button></div></div><section class=\"panel\"><div class=\"report-stats\"><div><strong>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

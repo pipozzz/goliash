@@ -23,6 +23,9 @@ title: Security
 - Sign-in links are single-use and short-lived. Sessions are HttpOnly cookies, marked Secure when
   `GOLIASH_PUBLIC_URL` uses `https://`. Browsers may not send state-changing requests from other origins.
 - OIDC sign-in uses PKCE, state and nonce.
+- Every response carries a strict Content-Security-Policy (only the server's own scripts, no inline script, no
+  framing), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and, when
+  `GOLIASH_PUBLIC_URL` uses `https://`, `Strict-Transport-Security`.
 
 ## Secrets at rest
 

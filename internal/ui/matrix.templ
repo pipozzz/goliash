@@ -16,7 +16,7 @@ templ MatrixPage(v MatrixView) {
 					<p class="sub">What runs where, the newest release upstream, and where versions drift apart.</p>
 				}
 			</div>
-			if v.At == "" {
+			if v.At == "" && len(v.Grid.Rows) > 0 {
 				<div class="legend">
 					<span class="badge env">behind previous env</span>
 					<span class="badge upstream">upstream newer</span>
@@ -26,34 +26,36 @@ templ MatrixPage(v MatrixView) {
 				</div>
 			}
 		</div>
-		<div class="toolbar">
-			if v.At == "" {
-				<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
-				<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
-				<span class="muted" id="matrix-count" aria-live="polite"></span>
-			}
-			<span class="spacer"></span>
-			if v.Hygiene > 0 {
-				<a href="/hygiene" class="toolbar-link">
-					Image hygiene <span class="count">{ itoa(v.Hygiene) }</span>
-				</a>
-			}
-			<a href={ templ.URL(exportURL(v.At)) } hx-boost="false" class="toolbar-link">Export CSV</a>
-			<details class="menu timetravel" open?={ v.At != "" }>
-				<summary>Time travel</summary>
-				<div class="menu-list">
-					<form class="stack" method="get" action="/">
-						<label>Show the matrix as of (UTC)<input type="datetime-local" name="at" value={ v.At } required/></label>
-						<div class="actions">
-							<button type="submit">Show</button>
-							if v.At != "" {
-								<a href="/" class="button secondary">Back to now</a>
-							}
-						</div>
-					</form>
-				</div>
-			</details>
-		</div>
+		if v.At != "" || len(v.Grid.Rows) > 0 {
+			<div class="toolbar">
+				if v.At == "" && len(v.Grid.Rows) > 0 {
+					<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
+					<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
+					<span class="muted" id="matrix-count" aria-live="polite"></span>
+				}
+				<span class="spacer"></span>
+				if v.Hygiene > 0 {
+					<a href="/hygiene" class="toolbar-link">
+						Image hygiene <span class="count">{ itoa(v.Hygiene) }</span>
+					</a>
+				}
+				<a href={ templ.URL(exportURL(v.At)) } hx-boost="false" class="toolbar-link">Export CSV</a>
+				<details class="menu timetravel" open?={ v.At != "" }>
+					<summary>Time travel</summary>
+					<div class="menu-list">
+						<form class="stack" method="get" action="/">
+							<label>Show the matrix as of (UTC)<input type="datetime-local" name="at" value={ v.At } required/></label>
+							<div class="actions">
+								<button type="submit">Show</button>
+								if v.At != "" {
+									<a href="/" class="button secondary">Back to now</a>
+								}
+							</div>
+						</form>
+					</div>
+				</details>
+			</div>
+		}
 		if v.At != "" {
 			<section class="panel">
 				@MatrixGridView(v.Grid)
@@ -74,18 +76,7 @@ templ MatrixPage(v MatrixView) {
 
 templ MatrixGridView(g MatrixGrid) {
 	if len(g.Rows) == 0 {
-		<div class="empty">
-			if g.Targets == 0 {
-				<p><strong>Nothing collected yet.</strong></p>
-				<p>Add an environment, an agent and a target on the <a href="/agents">Agents</a> page, then start the agent.</p>
-			} else if g.Unmapped > 0 {
-				<p><strong>Workloads arrived, but none is mapped to a service yet.</strong></p>
-				<p><a href="/inbox">Classify { plural(g.Unmapped, "workload", "workloads") } in the inbox</a>, or label them with <code>goliash.service</code>.</p>
-			} else {
-				<p><strong>Waiting for the first snapshot.</strong></p>
-				<p>Targets are configured; the matrix fills in as soon as an agent reports.</p>
-			}
-		</div>
+		@firstRun(g.Steps)
 	} else {
 		<div class="scroll">
 			<table class="matrix">
@@ -170,4 +161,32 @@ templ cellView(c MatrixCell) {
 			}
 		</div>
 	}
+}
+
+templ firstRun(steps []Step) {
+	<div class="first-run">
+		<h2>Get started</h2>
+		<p class="muted">The matrix fills in once a target reports and its workloads belong to services.</p>
+		<ol class="steps">
+			for _, st := range steps {
+				<li class={ templ.KV("done", st.Done) }>
+					<span class="step-mark" aria-hidden="true"></span>
+					<div>
+						<strong>{ st.Title }</strong>
+						if st.Optional {
+							<span class="muted">optional</span>
+						}
+						if st.Done {
+							<span class="sr-only">(done)</span>
+						}
+						<p class="muted">{ st.Text }</p>
+					</div>
+					if !st.Done {
+						<a class="button secondary" href={ templ.URL(st.Href) }>{ st.Action }</a>
+					}
+				</li>
+			}
+		</ol>
+		<p class="hint">Just looking? Run <code>goliash demo</code> on the server to fill this workspace with three weeks of example data.</p>
+	</div>
 }

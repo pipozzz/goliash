@@ -843,3 +843,55 @@ func TestManageConfiguration(t *testing.T) {
 		}
 	}
 }
+
+func TestErrorPagesAndHeaders(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	html := map[string]string{"Accept": "text/html"}
+
+	code, body := get(t, viewer, e.srv.URL+"/no/such/page", html)
+	if code != http.StatusNotFound || !strings.Contains(body, "Page not found") || !strings.Contains(body, "Go to the matrix") {
+		t.Fatalf("404: %d %s", code, body)
+	}
+	if code, body = get(t, viewer, e.srv.URL+"/api/v1/nope", nil); code != http.StatusNotFound || !strings.Contains(body, `"status":404`) {
+		t.Fatalf("API 404: %d %s", code, body)
+	}
+	// A role that is too low gets a page that says so; for htmx parts a short line.
+	if code, body = get(t, viewer, e.srv.URL+"/settings", nil); code != http.StatusForbidden || !strings.Contains(body, "Not allowed") || !strings.Contains(body, "<!doctype html>") && !strings.Contains(body, "<!DOCTYPE html>") {
+		t.Fatalf("403: %d %s", code, body)
+	}
+	if code, body = get(t, viewer, e.srv.URL+"/settings", map[string]string{"HX-Request": "true"}); code != http.StatusForbidden || strings.Contains(body, "<html") {
+		t.Fatalf("htmx 403: %d %s", code, body)
+	}
+	if code, body = get(t, viewer, e.srv.URL+"/settings", map[string]string{"HX-Request": "true", "HX-Boosted": "true"}); code != http.StatusForbidden || !strings.Contains(body, "<html") {
+		t.Fatalf("boosted 403: %d %s", code, body)
+	}
+
+	// No inline handlers: the Content-Security-Policy would block them.
+	admin := e.as(store.RoleAdmin)
+	for _, path := range []string{"/", "/agents", "/report", "/notifications", "/account"} {
+		_, page := get(t, admin, e.srv.URL+path, nil)
+		if regexp.MustCompile(`\son[a-z]+="`).MatchString(page) || strings.Contains(page, "<script>") {
+			t.Errorf("%s has inline script", path)
+		}
+	}
+
+	h := SecurityHeaders(http.NotFoundHandler(), true)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
+	for k, want := range map[string]string{
+		"X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff", "Strict-Transport-Security": "max-age=31536000",
+	} {
+		if got := rec.Header().Get(k); got != want {
+			t.Errorf("%s = %q", k, got)
+		}
+	}
+	if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self';") || !strings.Contains(csp, "frame-ancestors 'none'") {
+		t.Errorf("CSP %q", csp)
+	}
+	rec = httptest.NewRecorder()
+	SecurityHeaders(http.NotFoundHandler(), false).ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
+	if rec.Header().Get("Strict-Transport-Security") != "" {
+		t.Error("HSTS on plain http")
+	}
+}

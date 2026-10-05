@@ -156,7 +156,7 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 							if canAdmin {
 								<form class="inline" method="post" action={ templ.URL("/targets/" + t.ID + "/agent") }>
 									<input type="hidden" name="from" value={ from }/>
-									<select name="agent" aria-label={ "Collector of " + t.Name } onchange="this.form.requestSubmit()">
+									<select name="agent" aria-label={ "Collector of " + t.Name } data-autosubmit>
 										<option value="server" selected?={ t.AgentID == "" }>server</option>
 										for _, a := range moves {
 											<option value={ a.ID } selected?={ a.ID == t.AgentID }>{ a.Name }</option>

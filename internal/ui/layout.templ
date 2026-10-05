@@ -24,6 +24,10 @@ templ head(title string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<meta name="color-scheme" content="light dark"/>
+		<meta name="referrer" content="same-origin"/>
+		<!-- Show error pages (403, 404, 500) instead of ignoring them, so a failed action says why. -->
+		<meta name="htmx-config" content={ htmxConfig }/>
 		<title>{ title } · Goliash</title>
 		<link rel="stylesheet" href={ templ.URL(asset("app.css")) }/>
 		<link rel="icon" type="image/svg+xml" href={ templ.URL(asset("logo.svg")) }/>
@@ -83,7 +87,7 @@ templ Layout(b Base) {
 					<div class="who">
 						if len(b.Workspaces) > 1 {
 							<form method="post" action="/workspace" hx-boost="false" class="switcher">
-								<select name="workspace" aria-label="Workspace" onchange="this.form.requestSubmit()">
+								<select name="workspace" aria-label="Workspace" data-autosubmit>
 									for _, w := range b.Workspaces {
 										<option value={ w.ID } selected?={ w.Current }>{ w.Name }</option>
 									}
