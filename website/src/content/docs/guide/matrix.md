@@ -14,6 +14,11 @@ its owner, a version, a target or a badge, so `team-payments end` finds that tea
 release. **Only with drift** hides the rest. The filter is part of the address, so a filtered matrix can be
 bookmarked or shared. **Time travel** shows the matrix as of a past moment; **Export CSV** downloads the inventory.
 
+<img src="/screenshots/mobile.png" width="260" align="right" alt="The matrix on a phone: one card per service with its versions per environment" style="margin: 0 0 1rem 1.5rem; border-radius: 12px; border: 1px solid var(--sl-color-gray-5)" />
+
+On a phone the matrix turns into one card per service, with each environment as a row inside it, so nothing scrolls
+sideways. The same filter and drift switch work there.
+
 Badges in a cell:
 
 | Badge | Meaning |
@@ -27,7 +32,7 @@ During a rollout, both versions show with their replica counts. The matrix updat
 
 ## Looking back, and exporting for audits
 
-Pick a date and time in **As of** above the matrix to see what ran then: "what was in prod on 12 September at
+Open **Time travel** above the matrix and pick a date and time to see what ran then: "what was in prod on 12 September at
 14:00?". Goliash keeps when each version ran for 400 days, so the answer is right even after versions moved on and
 back. Drift and upstream releases describe now, so they are not shown for the past.
 

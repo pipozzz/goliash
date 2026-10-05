@@ -73,7 +73,7 @@ docker compose exec goliash goliash demo                            # optional: 
 docker compose exec goliash goliash login-link -email you@example.com
 ```
 
-Open the printed link. In **Agents**, add environments, an agent (copy its token) and targets, then run the agent
+Open the printed link. In **Settings → Agents and targets**, add environments, an agent (copy its token) and targets, then run the agent
 where it can reach your orchestrator:
 
 ```sh
@@ -126,14 +126,17 @@ and updates live over server-sent events.
 
 | Page | What it is for |
 | --- | --- |
-| Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream; "as of" a past time; CSV export |
-| Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now" |
-| Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image |
+| Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream; filter (`/`) and "only with drift"; time travel to a past moment; CSV export; cards on phones; a first-run checklist when empty |
+| Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now"; delete once it runs nowhere |
+| Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image; the list of mapping rules |
+| Hygiene | moving tags, tags pushed again, untrusted registries and images without a digest, summarised by kind |
 | Delivery | versions waiting for the next environment with the releases they bring; deploys and lead times per environment; a printable monthly report per workspace |
 | History | every event, filterable by service, environment and type |
-| Agents | agents and targets with collector health; add agents with install commands, rotate or revoke tokens, rename and delete agents, move or delete targets |
-| Notifications | channels (with a test button) and rules |
-| Users | invite people, change roles, sign-in links, API tokens (admins) |
+| Settings → Agents and targets | agents and targets with collector health; environments (rename, reorder); edit targets; add agents with install commands, rotate or revoke tokens, rename and delete agents, move or delete targets |
+| Settings → Notifications | channels (test, edit, delete) and rules (pause, delete) |
+| Settings → Users and API tokens | invite people, change roles, sign-in links, sign out, remove passwords, API tokens with roles and expiry, the audit log (admins) |
+| Settings → Workspaces | one workspace per team or client (organization admins) |
+| Account (your avatar) | name, password, and every browser you are signed in on |
 
 ### Sign-in, API and metrics
 
@@ -154,7 +157,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
 - Set `GOLIASH_PUBLIC_URL` to the address people use; with `https://` cookies are marked Secure.
 - **Roles**: viewer reads; member maps services, edits policies and acks; admin manages agents, targets, channels,
   tokens and users; owner can do everything. Viewer, member and admin are per workspace; admin and owner of the
-  organization reach every workspace. Organization admins change roles on the Users page; only owners grant or
+  organization reach every workspace. Organization admins change roles under Settings → Users and API tokens; only owners grant or
   take the owner role, and the last owner cannot be removed.
 - **REST API** (session or `Authorization: Bearer glsh_api_…`): `GET /api/v1/matrix`, `/services`, `/environments`,
   `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`. The OpenAPI
@@ -212,7 +215,7 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 - **Stale data:** a target whose agent stopped sending heartbeats, or without a snapshot for three poll intervals
   (at least 15 minutes), is marked "stale data" in the matrix.
 - **Audit log:** every change to configuration, tokens and roles (UI, API, CLI) and every sign-in is recorded and
-  shown to admins on the Users page.
+  shown to admins under Settings → Users and API tokens.
 
 ### Workspaces (MSPs, teams)
 
