@@ -172,7 +172,7 @@ func (s *Server) updateTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 	if err != nil {
 		return back(w, r, "/agents", "error", "Unknown target.")
 	}
-	self := "/targets/" + t.ID
+	self := "/targets/" + t.ID + "/edit"
 	settings := strings.TrimSpace(r.FormValue("settings"))
 	if settings == "" {
 		settings = "{}"

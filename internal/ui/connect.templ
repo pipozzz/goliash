@@ -178,7 +178,7 @@ templ ConnectDonePage(v ConnectDoneView) {
 		}
 		<details class="panel settings-record">
 			<summary class="panel-head">Settings stored for this target</summary>
-			<div class="panel-body"><pre class="mono">{ v.Settings }</pre><a href={ templ.URL("/targets/" + v.TargetID) }>Edit</a></div>
+			<div class="panel-body"><pre class="mono">{ v.Settings }</pre><a href={ templ.URL("/targets/" + v.TargetID + "/edit") }>Edit</a></div>
 		</details>
 	}
 }
@@ -239,7 +239,8 @@ templ connectStatusView(st ConnectStatus, now time.Time) {
 		</ol>
 		if st.Step >= 2 {
 			<div class="actions">
-				<a class="button" href="/">Open the matrix</a>
+				<a class="button" href={ templ.URL("/targets/" + st.TargetID) }>See what runs there</a>
+				<a class="button secondary" href="/">Open the matrix</a>
 				if st.Unmapped > 0 {
 					<a class="button secondary" href="/inbox">Map workloads in the inbox</a>
 				}

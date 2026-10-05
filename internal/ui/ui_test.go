@@ -794,7 +794,7 @@ func TestManageConfiguration(t *testing.T) {
 	}
 
 	// Targets: edit page and validation.
-	if _, body := get(t, admin, e.srv.URL+"/targets/"+e.tgt.ID, nil); !strings.Contains(body, "Edit target") || !strings.Contains(body, "Poll every") {
+	if _, body := get(t, admin, e.srv.URL+"/targets/"+e.tgt.ID+"/edit", nil); !strings.Contains(body, "Edit target") || !strings.Contains(body, "Poll every") {
 		t.Fatal("target edit page")
 	}
 	if _, body, _ := post(t, admin, e.srv.URL+"/targets/"+e.tgt.ID, url.Values{"environment": {e.prod.ID}, "poll": {"5"}, "settings": {"{}"}}); !strings.Contains(body, "Poll every 30 to 86400 seconds.") {
@@ -1094,5 +1094,33 @@ func TestSetupPageAndLoginHint(t *testing.T) {
 	}
 	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); strings.Contains(body, "Nobody has an account yet") {
 		t.Fatal("hint with accounts")
+	}
+}
+
+func TestTargetPage(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	_, body := get(t, viewer, e.srv.URL+"/targets/"+e.tgt.ID, nil)
+	for _, want := range []string{"k8s-prod", "workloads", "up to date", `class="wl-card`, "worker-v2", "map as worker?", `data-filter=".wl-card"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("target page misses %q", want)
+		}
+	}
+	if strings.Contains(body, `href="/targets/`+e.tgt.ID+`/edit"`) {
+		t.Error("viewer sees Edit")
+	}
+	if _, body = get(t, e.as(store.RoleAdmin), e.srv.URL+"/targets/"+e.tgt.ID, nil); !strings.Contains(body, `href="/targets/`+e.tgt.ID+`/edit"`) {
+		t.Error("admin misses Edit")
+	}
+	if code, _ := get(t, viewer, e.srv.URL+"/targets/nope", map[string]string{"Accept": "text/html"}); code != http.StatusNotFound {
+		t.Errorf("unknown target: %d", code)
+	}
+	for ok, want := range map[[2]int]string{{9, 10}: "good", {5, 10}: "fair", {1, 10}: "poor", {0, 0}: "empty"} {
+		if got := ringClass(ok[0], ok[1]); got != want {
+			t.Errorf("ringClass%v = %s", ok, got)
+		}
+	}
+	if imageRepo("ghcr.io/acme/api:1.2@sha256:abc") != "ghcr.io/acme/api" || imageRepo("localhost:5000/x") != "localhost:5000/x" {
+		t.Error("imageRepo")
 	}
 }

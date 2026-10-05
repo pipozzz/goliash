@@ -1,0 +1,148 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ TargetDetailPage(v TargetDetailView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub">
+					<a href="/agents">Agents and targets</a> /
+					if v.AgentID != "" {
+						<a href={ templ.URL("/agents/" + v.AgentID) }>{ v.Agent }</a> /
+					}
+				</p>
+				<h1>
+					{ v.Name }
+					<span class="badge neutral">{ v.Platform }</span>
+					<span class="badge env-tag">{ v.Env }</span>
+				</h1>
+				<p class="sub">
+					{ "Collected by " + v.Agent + " · last report " }
+					@timeAgo(v.LastSnapshot)
+					if v.Stale {
+						<span class="badge stale">stale data</span>
+					} else if v.Status != "" {
+						<span class={ "badge", v.Status }>{ v.Status }</span>
+					}
+				</p>
+				if v.Error != "" {
+					<p class="error-text">{ v.Error }</p>
+				}
+			</div>
+			if v.CanAdmin {
+				<a class="button secondary" href={ templ.URL("/targets/" + v.ID + "/edit") }>Edit</a>
+			}
+		</div>
+		<section class="panel target-summary">
+			<div class={ "ring", ringClass(v.OK, v.Workloads) } title={ itoa(v.OK) + " of " + itoa(v.Workloads) + " workloads are up to date" }>
+				{{ dash, total := ringDash(share(v.OK, v.Workloads), 46) }}
+				<svg viewBox="0 0 100 100" role="img" aria-label={ percent(v.OK, v.Workloads) + " up to date" }>
+					<circle class="ring-track" cx="50" cy="50" r="46"></circle>
+					if v.OK > 0 {
+						<circle class="ring-value" cx="50" cy="50" r="46" stroke-dasharray={ dash + " " + total } transform="rotate(-90 50 50)"></circle>
+					}
+				</svg>
+				<div class="ring-label"><strong>{ percent(v.OK, v.Workloads) }</strong><span>up to date</span></div>
+			</div>
+			<div class="summary-tiles">
+				<div><strong>{ itoa(v.Workloads) }</strong><span>workloads</span></div>
+				<div><strong>{ itoa(v.Services) }</strong><span>services</span></div>
+				<div class={ templ.KV("warn", v.Drifting > 0) }><strong>{ itoa(v.Drifting) }</strong><span>drifting</span></div>
+				<a href="/inbox" class={ templ.KV("muted-tile", v.Unmapped == 0) }><strong>{ itoa(v.Unmapped) }</strong><span>in the inbox</span></a>
+			</div>
+			<div class="spark" title="Deploys per day, last 30 days">
+				<span class="spark-label">Deploys, 30 days</span>
+				<svg viewBox="0 0 150 40" preserveAspectRatio="none" role="img" aria-label="Deploys per day, last 30 days">
+					for i, n := range v.Deploys {
+						if n > 0 {
+							<rect x={ f(float64(i) * 5) } width="3.6" y={ f(40 - 38*share(n, v.DeployMax)) } height={ f(38 * share(n, v.DeployMax)) }>
+								<title>{ plural(n, "deploy", "deploys") + ", " + itoa(29-i) + " days ago" }</title>
+							</rect>
+						}
+					}
+					<line x1="0" x2="150" y1="39.5" y2="39.5"></line>
+				</svg>
+			</div>
+		</section>
+		if v.Workloads == 0 {
+			<section class="panel"><div class="empty">Nothing reported yet. The first report usually arrives within a minute of the collector starting.</div></section>
+		} else {
+			<div class="toolbar">
+				<input type="search" class="search" data-filter=".wl-card" placeholder="Filter workloads, services, versions" aria-label="Filter workloads" autocomplete="off"/>
+				<span class="legend-dots">
+					<span class="dot ok"></span> up to date
+					<span class="dot warn"></span> behind
+					<span class="dot bad"></span> end of life or disagreeing
+					<span class="dot unmapped"></span> not mapped
+				</span>
+			</div>
+			<div class="wl-board">
+				for _, g := range v.Groups {
+					<section class="wl-group" data-group>
+						<h2 class="wl-group-name">{ g.Name } <span class="count-pill">{ itoa(len(g.Cards)) }</span></h2>
+						for _, c := range g.Cards {
+							@workloadCard(c)
+						}
+					</section>
+				}
+			</div>
+		}
+		if len(v.Changes) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>What changed here</h2><a href="/events">All history →</a></div>
+				@timeline(v.Changes, false)
+			</section>
+		}
+	}
+}
+
+templ workloadCard(c WorkloadCard) {
+	<article class={ "wl-card", c.Health } data-search={ c.Search }>
+		<header>
+			<strong title={ c.Name }>{ c.Name }</strong>
+			<span class="muted">{ c.Kind }</span>
+		</header>
+		<div class="wl-version">
+			<span class="tag">{ c.Tag }</span>
+			if c.Upstream != "" {
+				<span class="wl-arrow" title="A newer acceptable release">→ { c.Upstream }</span>
+			}
+		</div>
+		<div class="wl-image mono" title={ c.Image }>{ c.Image }</div>
+		{{ dots, more := replicaDots(c.Running) }}
+		<div class="wl-replicas" title={ plural(c.Running, "replica running", "replicas running") }>
+			for i := 0; i < dots; i++ {
+				<span class="rep"></span>
+			}
+			if more > 0 {
+				<span class="muted">+{ itoa(more) }</span>
+			}
+			if c.Running == 0 {
+				<span class="muted">0 running</span>
+			}
+		</div>
+		if len(c.Drifts) > 0 {
+			<div class="badges">
+				for _, d := range c.Drifts {
+					if d.Kind != "upstream" || c.Upstream == "" {
+						<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+					}
+				}
+			</div>
+		}
+		<footer>
+			if c.Service != "" {
+				<a href={ templ.URL(c.ServiceURL) }>{ c.Service }</a>
+			} else if c.Suggested != "" {
+				<a href="/inbox">map as { c.Suggested }?</a>
+			} else {
+				<a href="/inbox">not mapped</a>
+			}
+			if len(c.Sidecars) > 0 {
+				<span class="muted" title={ joinLines(c.Sidecars) }>+{ plural(len(c.Sidecars), "sidecar", "sidecars") }</span>
+			}
+		</footer>
+	</article>
+}
