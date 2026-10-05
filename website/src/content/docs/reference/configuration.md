@@ -19,6 +19,10 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
+| `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
+| `GOLIASH_DRAIN` | `-drain` | `0` | On shutdown, answer `/readyz` with 503 this long before closing |
+| `GOLIASH_BACKUP_DIR` | `-backup-dir` | — | SQLite: write a backup here at start and every day |
+| `GOLIASH_BACKUP_KEEP` | `-backup-keep` | `7` | Backups kept in the backup directory |
 | | `-collect` | `true` | Collect targets that have no agent in the server itself |
 | | `-upstream-interval` | `1h` | How often public registries are checked |
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
@@ -103,5 +107,6 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_CREDENTIAL_<NAME>` | | | A credential; see [Collectors](/reference/collectors/#credentials) |
 | `GOLIASH_COMPOSE_DIRS` | | | Comma-separated directories `compose` targets may read files from |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
+| `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
 
 Everything else (targets, intervals, which registries to check) the agent reads from the server.

@@ -199,6 +199,10 @@ func TestMetrics(t *testing.T) {
 		`goliash_deployed_version_info{service="web",environment="prod",version="1.27.2"} 2`,
 		`goliash_deployed_version_info{service="web",environment="staging",version="1.27.3"} 2`,
 		`goliash_outdated{service="web",environment="prod"} 0`,
+		`goliash_build_info{version="dev"} 1`,
+		`goliash_snapshots_pending 0`,
+		`goliash_notifications_queued 0`,
+		`goliash_agents{status="revoked"} 0`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %s\n%s", want, body)
@@ -214,7 +218,7 @@ func TestMetrics(t *testing.T) {
 			family = strings.Fields(line)[2]
 			continue
 		}
-		if !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, family+"{") {
+		if !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, family+"{") && !strings.HasPrefix(line, family+" ") {
 			t.Errorf("sample %q outside its family %s", line, family)
 		}
 	}

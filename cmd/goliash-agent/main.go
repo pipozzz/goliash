@@ -33,6 +33,7 @@ func main() {
 	dataDir := flag.String("data-dir", envOr("GOLIASH_DATA_DIR", "data"), "directory for buffered snapshots (env GOLIASH_DATA_DIR)")
 	debug := flag.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	logFormat := flag.String("log-format", envOr("GOLIASH_LOG_FORMAT", "text"), "text or json (env GOLIASH_LOG_FORMAT)")
 	flag.Parse()
 
 	if *showVersion {
@@ -44,7 +45,17 @@ func main() {
 	if *debug {
 		level = slog.LevelDebug
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	opts := &slog.HandlerOptions{Level: level}
+	var log *slog.Logger
+	switch *logFormat {
+	case "json":
+		log = slog.New(slog.NewJSONHandler(os.Stderr, opts))
+	case "text", "":
+		log = slog.New(slog.NewTextHandler(os.Stderr, opts))
+	default:
+		fmt.Fprintf(os.Stderr, "log format %q: use text or json\n", *logFormat)
+		os.Exit(2)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

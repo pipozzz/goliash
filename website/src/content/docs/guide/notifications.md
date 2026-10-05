@@ -120,6 +120,15 @@ If you alert from Prometheus, scrape `GET /metrics` with an API token instead:
 | `goliash_drift_days` | service, environment, kind | days a drift has been open |
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
+| `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry or no digest |
+| `goliash_build_info` | version | 1 |
+| `goliash_leader` | | 1 on the server that runs the background work |
+| `goliash_snapshots_pending` | | snapshots received and not processed yet |
+| `goliash_notifications_queued`, `goliash_notifications_failing` | | notifications not sent yet, and those that failed at least once |
+| `goliash_agents` | status | agents online, stale, never connected or revoked |
+
+Alerts worth having on Goliash itself: `goliash_agents{status="stale"} > 0`, `goliash_snapshots_pending > 20` for
+ten minutes, `goliash_notifications_failing > 0`, and `sum(goliash_leader) != 1` across servers.
 
 ```yaml
 scrape_configs:
