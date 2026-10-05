@@ -111,12 +111,13 @@ func (a *CloudAuth) google(ctx context.Context) (Credentials, time.Duration, err
 			base = "http://" + h
 		}
 	}
+	//nolint:gosec // the GCE metadata server, or GCE_METADATA_HOST set by the operator
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/computeMetadata/v1/instance/service-accounts/default/token", nil)
 	if err != nil {
 		return Credentials{}, 0, err
 	}
 	req.Header.Set("Metadata-Flavor", "Google")
-	resp, err := a.HTTP.Do(req)
+	resp, err := a.HTTP.Do(req) //nolint:gosec // see above
 	if err != nil {
 		a.mu.Lock()
 		a.noGCP = time.Now()
@@ -183,12 +184,13 @@ func (a *CloudAuth) azure(ctx context.Context, host string) (Credentials, time.D
 }
 
 func (a *CloudAuth) postForm(ctx context.Context, endpoint string, form url.Values, into any) error {
+	//nolint:gosec // Entra ID's login endpoint, or the ACR registry being checked
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := a.HTTP.Do(req)
+	resp, err := a.HTTP.Do(req) //nolint:gosec // see above
 	if err != nil {
 		return err
 	}

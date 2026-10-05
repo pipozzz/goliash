@@ -163,7 +163,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	if errors.Is(err, registry.ErrUnauthorized) {
 		err = fmt.Errorf("%w; give this agent a credential for %s: %s, a docker login, or an image pull secret", err, host, collectors.CredentialEnv(host))
 		if cloudErr != nil {
-			err = fmt.Errorf("%w (%v)", err, cloudErr)
+			err = fmt.Errorf("%w (%w)", err, cloudErr)
 		}
 		return nil, none, err
 	}
