@@ -3,30 +3,27 @@
 #
 # Quickstart: the server with SQLite, on http://localhost:8080.
 #
-#   docker compose up -d --build
-#   docker compose exec goliash goliash demo                         # optional: example data
-#   docker compose exec goliash goliash login-link -email you@example.com
+#   curl -fsSLO https://raw.githubusercontent.com/pipozzz/goliash/main/docker-compose.yml
+#   docker compose up -d
+#   docker compose logs goliash | grep link=     # open it to create your account
+#
+# Then Connect in the web UI adds what to watch. Optional example data:
+#   docker compose exec goliash goliash demo
 #
 # To also watch the containers on this Docker host, start the read-only socket proxy
-# and add a docker target that the server collects itself (no agent needed):
+# (docker compose --profile watch-host up -d) and connect a Docker host collected by
+# this server at tcp://socket-proxy:2375.
 #
-#   docker compose --profile watch-host up -d --build
-#   docker compose exec goliash goliash env create -name prod -position 30
-#   docker compose exec goliash goliash target create -env prod -platform docker -name this-host \
-#     -settings '{"docker":{"docker_host":"tcp://socket-proxy:2375"}}'
-#
-# For other hosts, run an agent there: deploy/docker/goliash-agent.yml.
-# For PostgreSQL, set GOLIASH_DATABASE_URL to a postgres:// URL.
+# GOLIASH_VERSION pins the image (e.g. 1.0.0); GOLIASH_PUBLIC_URL is the address people
+# use. For PostgreSQL, set GOLIASH_DATABASE_URL to a postgres:// URL. To build from a
+# checkout instead: docker build --target server -t ghcr.io/pipozzz/goliash:latest .
 services:
   goliash:
-    build:
-      context: .
-      target: server
-    image: goliash:local
+    image: ghcr.io/pipozzz/goliash:${GOLIASH_VERSION:-latest}
     ports:
       - "8080:8080"
     environment:
-      GOLIASH_PUBLIC_URL: http://localhost:8080
+      GOLIASH_PUBLIC_URL: ${GOLIASH_PUBLIC_URL:-http://localhost:8080}
     volumes:
       - goliash-data:/data
     restart: unless-stopped

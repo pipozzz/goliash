@@ -391,6 +391,18 @@ func serve(ctx context.Context, args []string) error {
 			return fmt.Errorf("bootstrap: %w", err)
 		}
 	}
+	if n, err := db.CountUsers(ctx, ws.OrgID); err == nil && n == 0 {
+		a, err := auth.New(db, log, *publicURL, nil)
+		if err != nil {
+			return err
+		}
+		link, err := a.SetupLink(ctx)
+		if err != nil {
+			return err
+		}
+		log.Warn("nobody has an account yet: open this link to create the first one (it works once, for 24 hours; restart for a new one)",
+			"link", link)
+	}
 	if email := strings.TrimSpace(os.Getenv("GOLIASH_RECOVERY_EMAIL")); email != "" {
 		if err := recoveryLink(ctx, db, ws, email, *publicURL, log); err != nil {
 			return fmt.Errorf("recovery: %w", err)

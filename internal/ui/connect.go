@@ -438,3 +438,14 @@ func reportSummary(st ConnectStatus) string {
 	}
 	return plural(st.Mapped, "belongs", "belong") + " to a service; " + plural(st.Unmapped, "waits", "wait") + " in the inbox."
 }
+
+// setupPage creates the first account with the link from the server log.
+func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if !s.auth.SetupTokenValid(r.Context(), token) {
+		http.Redirect(w, r, "/login?error=setup", http.StatusSeeOther)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	_ = render(w, r, SetupPage(token, r.URL.Query().Get("error")))
+}

@@ -404,3 +404,51 @@ func (s *Store) RevokeAPIToken(ctx context.Context, sc Scope, id string) error {
 		s.now(), sc.WorkspaceID, id)
 	return expectOne(res, err)
 }
+
+// CreateSetupToken stores a one-time link (by hash) that creates the first owner.
+func (s *Store) CreateSetupToken(ctx context.Context, idHash string, ttl time.Duration) error {
+	now := s.now()
+	_, err := s.exec(ctx, s.db, `INSERT INTO setup_tokens (id, expires_at, created_at) VALUES (?, ?, ?)`, idHash, now.Add(ttl), now)
+	return err
+}
+
+// SetupTokenValid reports whether a setup link still works: unused, unexpired, and
+// nobody has an account yet.
+func (s *Store) SetupTokenValid(ctx context.Context, orgID, idHash string) (bool, error) {
+	var n int
+	if err := s.queryRow(ctx, s.db, `SELECT COUNT(*) FROM setup_tokens WHERE id = ? AND used_at IS NULL AND expires_at > ?`,
+		idHash, s.now()).Scan(&n); err != nil || n == 0 {
+		return false, err
+	}
+	users, err := s.CountUsers(ctx, orgID)
+	return users == 0, err
+}
+
+// CreateFirstOwner uses a setup link to create the organization's first person, an
+// owner with a password. It fails (ErrNotFound) when the link is used, expired or
+// someone has an account already.
+func (s *Store) CreateFirstOwner(ctx context.Context, orgID, idHash, email, name, passwordHash string) (User, error) {
+	var u User
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		now := s.now()
+		var n int
+		if err := s.queryRow(ctx, tx, `SELECT COUNT(*) FROM users WHERE org_id = ?`, orgID).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return ErrNotFound
+		}
+		res, err := s.exec(ctx, tx, `UPDATE setup_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?`, now, idHash, now)
+		if err := expectOne(res, err); err != nil {
+			return err
+		}
+		u = User{
+			ID: NewID(), OrgID: orgID, Email: strings.ToLower(strings.TrimSpace(email)), Name: name, Role: RoleOwner, CreatedAt: now,
+			HasPassword: true, PasswordChangedAt: now,
+		}
+		_, err = s.exec(ctx, tx, `INSERT INTO users (id, org_id, email, name, role, created_at, password_hash, password_changed_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, u.ID, u.OrgID, u.Email, u.Name, u.Role, u.CreatedAt, passwordHash, now)
+		return err
+	})
+	return u, err
+}

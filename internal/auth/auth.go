@@ -291,6 +291,7 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 func (a *Auth) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/password", a.passwordLogin)
 	mux.HandleFunc("POST /auth/2fa", a.verifySecondFactor)
+	mux.HandleFunc("POST /auth/setup", a.setup)
 	mux.HandleFunc("POST /auth/magic", a.requestLink)
 	mux.HandleFunc("GET /auth/magic", a.useLink)
 	mux.HandleFunc("GET /auth/oidc/start", a.oidcStart)

@@ -9,7 +9,7 @@ description: 'Deploy Goliash on Docker Swarm with a stack file and watch service
 
 ```sh
 docker stack deploy -c deploy/swarm/goliash-server.yml goliash
-docker exec $(docker ps -qf name=goliash_server) goliash login-link -email you@example.com
+docker service logs goliash_server 2>&1 | grep link=      # the setup link for the first account
 ```
 
 Edit `GOLIASH_PUBLIC_URL` in the file first. For PostgreSQL, set `GOLIASH_DATABASE_URL` and drop the placement

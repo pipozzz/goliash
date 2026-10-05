@@ -1,0 +1,41 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// SetupPage creates the first account.
+templ SetupPage(token, problem string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@head("Create the first account")
+		<body>
+			<div class="login">
+				<div class="card">
+					<span class="brand">
+						@logo()
+						Goliash
+					</span>
+					<div>
+						<h1>Welcome</h1>
+						<p class="muted">Create the first account. It owns this Goliash: it invites the others and sets everything up.</p>
+					</div>
+					if problem != "" {
+						<div class="notice error" role="alert">{ problem }</div>
+					}
+					<form class="stack" method="post" action="/auth/setup">
+						<input type="hidden" name="token" value={ token }/>
+						<label>Your name<input name="name" autocomplete="name" maxlength="100"/></label>
+						<label>E-mail<input type="email" name="email" required autocomplete="username" autofocus/></label>
+						<label>
+							Password
+							<input type="password" name="password" required minlength="12" autocomplete="new-password"/>
+							<span class="hint">At least 12 characters. A few words work well.</span>
+						</label>
+						<label>Repeat it<input type="password" name="confirm" required autocomplete="new-password"/></label>
+						<button type="submit">Create the account</button>
+					</form>
+				</div>
+			</div>
+		</body>
+	</html>
+}

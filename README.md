@@ -71,24 +71,20 @@ Out of scope: deploying or upgrading services (that is CI's or Renovate's job), 
 ## Quickstart
 
 ```sh
-docker compose up -d --build
-docker compose exec goliash goliash demo                            # optional: three weeks of example data
-docker compose exec goliash goliash login-link -email you@example.com
+curl -fsSLO https://raw.githubusercontent.com/pipozzz/goliash/main/docker-compose.yml
+docker compose up -d
+docker compose logs goliash | grep link=        # open it to create your account
+docker compose exec goliash goliash demo        # optional: three weeks of example data
 ```
 
-Open the printed link. In **Settings → Agents and targets**, add environments, an agent (copy its token) and targets, then run the agent
-where it can reach your orchestrator:
-
-```sh
-docker run -d --name goliash-agent -v goliash-agent:/data \
-  -e GOLIASH_SERVER_URL=http://goliash.example.com -e GOLIASH_AGENT_TOKEN=glsh_agent_... \
-  ghcr.io/pipozzz/goliash-agent:latest
-```
+Open the setup link, create your account, then **Connect**: pick Kubernetes, Docker, Swarm, Nomad, ECS or Compose
+files, fill in one form, and run the command it shows where the agent can reach your orchestrator. The page follows
+the agent connecting and its first report.
 
 To watch the Docker host the quickstart runs on, no agent is needed:
 
 ```sh
-docker compose --profile watch-host up -d --build                   # adds a read-only docker-socket-proxy
+docker compose --profile watch-host up -d                           # adds a read-only docker-socket-proxy
 docker compose exec goliash goliash env create -name prod -position 30
 docker compose exec goliash goliash target create -env prod -platform docker -name this-host \
   -settings '{"docker":{"docker_host":"tcp://socket-proxy:2375"}}'
