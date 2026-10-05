@@ -435,6 +435,28 @@ components:
           type: string
           description: Regular expression; only matching tags are reported.
           example: '^\d+\.\d+\.\d+$'
+        resolve:
+          type: array
+          maxItems: 50
+          description: |
+            Images that run under a moving tag ("1", "18-alpine", "latest"): for each running digest, the tags it
+            may be, newest first. The agent reports the first tag whose manifest (or one of whose platform
+            manifests) has that digest.
+          items:
+            $ref: '#/components/schemas/DigestLookup'
+
+    DigestLookup:
+      type: object
+      required: [digest, candidates]
+      properties:
+        digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        candidates:
+          type: array
+          maxItems: 8
+          items:
+            type: string
 
     Snapshot:
       type: object
@@ -556,6 +578,21 @@ components:
         error:
           type: string
           description: Set when the repository could not be read; `tags` is then empty.
+        resolved:
+          type: array
+          description: Answers to `resolve`, one per digest looked up; `tag` is empty when no candidate matched.
+          items:
+            $ref: '#/components/schemas/DigestMatch'
+
+    DigestMatch:
+      type: object
+      required: [digest]
+      properties:
+        digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        tag:
+          type: string
 
     RegistryTag:
       type: object

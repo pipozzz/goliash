@@ -194,6 +194,18 @@ type Container struct {
 	Running int `json:"running"`
 }
 
+// DigestLookup defines model for DigestLookup.
+type DigestLookup struct {
+	Candidates []string `json:"candidates"`
+	Digest     string   `json:"digest"`
+}
+
+// DigestMatch defines model for DigestMatch.
+type DigestMatch struct {
+	Digest string  `json:"digest"`
+	Tag    *string `json:"tag,omitempty"`
+}
+
 // DockerSettings A standalone Docker host. Compose services are grouped by project and service; other containers are
 // reported one by one. Containers that belong to Swarm services are left to the swarm platform.
 type DockerSettings struct {
@@ -304,6 +316,11 @@ type RegistryCheck struct {
 	// Example: registry.example.com/team/payments-api
 	Repository string `json:"repository"`
 
+	// Resolve Images that run under a moving tag ("1", "18-alpine", "latest"): for each running digest, the tags it
+	// may be, newest first. The agent reports the first tag whose manifest (or one of whose platform
+	// manifests) has that digest.
+	Resolve []DigestLookup `json:"resolve,omitempty"`
+
 	// TagFilter Regular expression; only matching tags are reported.
 	//
 	// Example: ^\d+\.\d+\.\d+$
@@ -313,9 +330,12 @@ type RegistryCheck struct {
 // RegistryResult defines model for RegistryResult.
 type RegistryResult struct {
 	// Error Set when the repository could not be read; `tags` is then empty.
-	Error      *string       `json:"error,omitempty"`
-	Repository string        `json:"repository"`
-	Tags       []RegistryTag `json:"tags,omitempty"`
+	Error      *string `json:"error,omitempty"`
+	Repository string  `json:"repository"`
+
+	// Resolved Answers to `resolve`, one per digest looked up; `tag` is empty when no candidate matched.
+	Resolved []DigestMatch `json:"resolved,omitempty"`
+	Tags     []RegistryTag `json:"tags,omitempty"`
 }
 
 // RegistryResults defines model for RegistryResults.

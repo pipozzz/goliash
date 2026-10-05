@@ -592,7 +592,7 @@ func TestListTagsKeychain(t *testing.T) {
 	reg := &pickyRegistry{}
 	a := &Agent{registry: reg}
 	keys := registry.Keychain{"harbor.example.com": {{Username: "a", Password: "wrong"}, {Username: "b", Password: "right"}}}
-	if tags, err := a.listTags(context.Background(), check, keys); err != nil || len(tags) != 1 {
+	if tags, _, err := a.listTags(context.Background(), check, keys); err != nil || len(tags) != 1 {
 		t.Fatalf("%v %v", tags, err)
 	}
 	if strings.Join(reg.tried, ",") != "wrong,right" {
@@ -600,7 +600,7 @@ func TestListTagsKeychain(t *testing.T) {
 	}
 
 	reg.tried = nil
-	_, err := a.listTags(context.Background(), check, registry.Keychain{})
+	_, _, err := a.listTags(context.Background(), check, registry.Keychain{})
 	if err == nil || !strings.Contains(err.Error(), "GOLIASH_CREDENTIAL_HARBOR_EXAMPLE_COM") || strings.Join(reg.tried, ",") != "" {
 		t.Fatalf("anonymous: %v %v", err, reg.tried)
 	}
@@ -608,7 +608,51 @@ func TestListTagsKeychain(t *testing.T) {
 	// A configured credential wins and is the only one tried.
 	t.Setenv("GOLIASH_CREDENTIAL_HARBOR_EXAMPLE_COM", "x:configured")
 	reg.tried = nil
-	if _, err := a.listTags(context.Background(), check, keys); err == nil || strings.Join(reg.tried, ",") != "configured" {
+	if _, _, err := a.listTags(context.Background(), check, keys); err == nil || strings.Join(reg.tried, ",") != "configured" {
 		t.Fatalf("configured: %v %v", err, reg.tried)
+	}
+}
+
+// digestRegistry knows each tag's manifest digest and its platforms' digests.
+type digestRegistry struct {
+	pickyRegistry
+	index     map[string]string   // tag -> index digest
+	platforms map[string][]string // tag -> platform digests
+	gets      int
+}
+
+func (r *digestRegistry) TagDigest(_ context.Context, _, ref string, _ registry.Credentials) (string, error) {
+	return r.index[ref], nil
+}
+
+func (r *digestRegistry) ManifestDigests(_ context.Context, _, ref string, _ registry.Credentials) ([]string, error) {
+	r.gets++
+	return append([]string{r.index[ref]}, r.platforms[ref]...), nil
+}
+
+// The agent answers the server's digest lookups: HEAD first, platform manifests of
+// the newest candidates only when no index matched.
+func TestResolveDigests(t *testing.T) {
+	d := func(c string) string { return "sha256:" + strings.Repeat(c, 64) }
+	reg := &digestRegistry{
+		index:     map[string]string{"2.1.0": d("a"), "2.0.9": d("b")},
+		platforms: map[string][]string{"2.1.0": {d("p")}},
+	}
+	a := &Agent{registry: reg}
+	check := agentproto.RegistryCheck{Repository: "harbor.example.com/shop/api", Resolve: []agentproto.DigestLookup{
+		{Digest: d("b"), Candidates: []string{"2.1.0", "2.0.9"}}, // index digest of 2.0.9
+		{Digest: d("p"), Candidates: []string{"2.1.0", "2.0.9"}}, // a platform of 2.1.0
+		{Digest: d("z"), Candidates: []string{"2.1.0"}},          // nothing
+	}}
+	got := a.resolveDigests(context.Background(), check, registry.Credentials{Password: "right"})
+	if len(got) != 3 || got[0].Tag == nil || *got[0].Tag != "2.0.9" || got[1].Tag == nil || *got[1].Tag != "2.1.0" || got[2].Tag != nil {
+		t.Fatalf("matches %+v", got)
+	}
+	if reg.gets != 2 { // p found on the first GET; z reads its single candidate
+		t.Fatalf("platform manifests read %d times", reg.gets)
+	}
+	ecrCheck := agentproto.RegistryCheck{Repository: "111111111111.dkr.ecr.eu-west-1.amazonaws.com/team/api", Resolve: check.Resolve}
+	if got := a.resolveDigests(context.Background(), ecrCheck, registry.Credentials{}); got != nil {
+		t.Fatalf("ECR resolved through the Distribution API: %+v", got)
 	}
 }

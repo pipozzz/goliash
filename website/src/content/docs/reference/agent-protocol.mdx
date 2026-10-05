@@ -20,4 +20,8 @@ Call order: `register` on start, then `config` every minute (with an ETag), a `s
 (Kubernetes also shortly after changes), a `heartbeat` every minute, and `registry-results` on the registry check
 interval. While the server is unreachable, the agent buffers up to 200 snapshots on disk.
 
+A registry check may carry `resolve`: running digests of images on moving tags, each with the tags it may be. The
+agent compares them (`HEAD` first, platform manifests of the two newest candidates only when needed) and answers in
+`resolved`. Choosing candidates stays on the server; the agent only compares digests. Older agents ignore the field.
+
 <Redoc spec="https://raw.githubusercontent.com/pipozzz/goliash/main/api/agent-v1.yaml" />

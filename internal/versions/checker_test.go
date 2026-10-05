@@ -17,6 +17,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 type fakeTags struct {
@@ -412,5 +413,64 @@ func TestResolveMovingTag(t *testing.T) {
 	lookups := l.tags.lookups
 	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil || l.tags.lookups != lookups {
 		t.Fatalf("looked up a known digest again: %v %d", err, l.tags.lookups-lookups)
+	}
+}
+
+// A moving tag on a private registry: once an agent reports the repository's tags,
+// the server asks the agents to compare the running digest with the candidates, and
+// records their answer.
+func TestMovingTagThroughAgents(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	const repo = "registry.internal.example/team/payments"
+	digest := "sha256:" + strings.Repeat("d", 64)
+	target := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: l.sc, TargetID: target.ID, SnapshotID: store.NewID(), At: time.Now(),
+		Upsert: []store.Instance{{
+			TargetID: target.ID, EnvironmentID: target.EnvironmentID, ServiceID: l.private.ID, WorkloadID: "pay",
+			WorkloadKind: "deployment", WorkloadName: "pay", ContainerName: "app", Image: repo + ":2", Tag: "2",
+			Digest: digest, Running: 1, IsMain: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lookups := func() []agentproto.DigestLookup {
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range checks {
+			if c.Repository == repo {
+				return c.Resolve
+			}
+		}
+		return nil
+	}
+	if got := lookups(); len(got) != 0 {
+		t.Fatalf("lookups before the tags are known: %+v", got)
+	}
+	if err := l.checker.RecordPrivateTags(ctx, l.sc, repo, strings.Fields("2 2.0.9 2.1.0 1.9.0 latest"), ""); err != nil {
+		t.Fatal(err)
+	}
+	got := lookups()
+	if len(got) != 1 || got[0].Digest != digest || strings.Join(got[0].Candidates, " ") != "2.1.0 2.0.9" {
+		t.Fatalf("lookups %+v", got)
+	}
+	if err := l.checker.RecordDigestMatches(ctx, l.sc, repo, map[string]string{digest: "2.1.0"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := lookups(); len(got) != 0 {
+		t.Fatalf("answered lookup still asked: %+v", got)
+	}
+	o, _ := LoadOverview(ctx, l.st, l.sc)
+	for _, r := range o.Matrix.Rows {
+		if r.Service.ID == l.private.ID {
+			for _, v := range r.Cells[2].Versions {
+				if v.Tag == "2" && v.Resolved != "2.1.0" {
+					t.Fatalf("not resolved: %+v", v)
+				}
+			}
+		}
 	}
 }

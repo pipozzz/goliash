@@ -46,6 +46,11 @@ persistence:
   size: 256Mi
   storageClass: ""
 
+# Extra pod labels and annotations, e.g. azure.workload.identity/use: "true" for AKS
+# Workload Identity (Azure Container Registry without a secret).
+podLabels: {}
+podAnnotations: {}
+
 debug: false
 env: {}
 

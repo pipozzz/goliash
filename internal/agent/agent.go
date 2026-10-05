@@ -45,6 +45,15 @@ type Options struct {
 	Registry TagLister
 	// ECR lists tags of Amazon ECR repositories with AWS credentials (default: ecr.New()).
 	ECR ECRLister
+	// Cloud finds credentials for Google and Azure registries from the cloud identity
+	// the agent runs with (default: registry.NewCloudAuth()).
+	Cloud CloudCredentials
+}
+
+// CloudCredentials gives credentials for a registry host from a cloud identity; ok is
+// false for hosts that are no cloud registry.
+type CloudCredentials interface {
+	Credentials(ctx context.Context, host string) (creds registry.Credentials, ok bool, err error)
 }
 
 // ECRLister lists tags of an ECR repository; profile is an AWS shared config profile.
@@ -113,6 +122,9 @@ func New(opts Options) (*Agent, error) {
 	}
 	if opts.ECR == nil {
 		opts.ECR = ecr.New()
+	}
+	if opts.Cloud == nil {
+		opts.Cloud = registry.NewCloudAuth()
 	}
 	return &Agent{
 		opts:              opts,

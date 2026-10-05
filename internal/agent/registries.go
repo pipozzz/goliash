@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -62,7 +63,7 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 	keys := a.keychain(ctx)
 	for _, c := range checks {
 		r := agentproto.RegistryResult{Repository: c.Repository, Tags: []agentproto.RegistryTag{}}
-		tags, err := a.listTags(ctx, c, keys)
+		tags, creds, err := a.listTags(ctx, c, keys)
 		if err != nil {
 			msg := err.Error()
 			r.Error = &msg
@@ -79,6 +80,7 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 				r.Tags = append(r.Tags, agentproto.RegistryTag{Name: t})
 			}
 		}
+		r.Resolved = a.resolveDigests(ctx, c, creds)
 		out = append(out, r)
 	}
 	return out
@@ -117,30 +119,99 @@ func (a *Agent) keychain(ctx context.Context) registry.Keychain {
 // use (none: the default chain, e.g. the pod's or task's IAM role), for other
 // registries "user:password" or a token. Without it, the credentials found in keys
 // for the registry host are tried in turn, then anonymous access.
-func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys registry.Keychain) ([]string, error) {
+// It also returns the credentials that worked, for further reads of the repository.
+func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys registry.Keychain) ([]string, registry.Credentials, error) {
+	none := registry.Credentials{}
 	secret := ""
 	if c.CredentialsRef != nil && *c.CredentialsRef != "" {
 		var err error
 		if secret, err = collectors.Credential(*c.CredentialsRef); err != nil && !errors.Is(err, collectors.ErrNoCredential) {
-			return nil, err
+			return nil, none, err
 		}
 	}
 	if _, _, _, ok := ecr.Parse(c.Repository); ok {
-		return a.opts.ECR.ListTags(ctx, c.Repository, strings.TrimSpace(secret))
+		tags, err := a.opts.ECR.ListTags(ctx, c.Repository, strings.TrimSpace(secret))
+		return tags, none, err
 	}
 	if secret != "" {
-		return a.registry.ListTags(ctx, c.Repository, registry.ParseCredentials(secret))
+		creds := registry.ParseCredentials(secret)
+		tags, err := a.registry.ListTags(ctx, c.Repository, creds)
+		return tags, creds, err
 	}
 	host, _, _ := strings.Cut(c.Repository, "/")
 	for _, creds := range keys.Lookup(host) {
 		tags, err := a.registry.ListTags(ctx, c.Repository, creds)
 		if !errors.Is(err, registry.ErrUnauthorized) {
-			return tags, err
+			return tags, creds, err
 		}
 	}
-	tags, err := a.registry.ListTags(ctx, c.Repository, registry.Credentials{})
-	if errors.Is(err, registry.ErrUnauthorized) {
-		return nil, fmt.Errorf("%w; give this agent a credential for %s: %s, a docker login, or an image pull secret", err, host, collectors.CredentialEnv(host))
+	var cloudErr error
+	if a.opts.Cloud != nil {
+		creds, ok, err := a.opts.Cloud.Credentials(ctx, host)
+		switch {
+		case ok && err == nil:
+			tags, err := a.registry.ListTags(ctx, c.Repository, creds)
+			if !errors.Is(err, registry.ErrUnauthorized) {
+				return tags, creds, err
+			}
+			cloudErr = fmt.Errorf("the cloud identity was refused: %w", err)
+		case ok:
+			cloudErr = err
+		}
 	}
-	return tags, err
+	tags, err := a.registry.ListTags(ctx, c.Repository, none)
+	if errors.Is(err, registry.ErrUnauthorized) {
+		err = fmt.Errorf("%w; give this agent a credential for %s: %s, a docker login, or an image pull secret", err, host, collectors.CredentialEnv(host))
+		if cloudErr != nil {
+			err = fmt.Errorf("%w (%w)", err, cloudErr)
+		}
+		return nil, none, err
+	}
+	return tags, none, err
+}
+
+// DigestReader reads the digests behind a tag; registry.Client in production.
+type DigestReader interface {
+	TagDigest(ctx context.Context, repository, reference string, creds registry.Credentials) (string, error)
+	ManifestDigests(ctx context.Context, repository, reference string, creds registry.Credentials) ([]string, error)
+}
+
+// platformLookups bounds the candidates whose platform manifests are read (GET) when
+// no manifest digest matched with HEAD.
+const platformLookups = 2
+
+// resolveDigests answers the server's lookups: which candidate tag each running
+// digest is. HEAD requests come first (Docker Hub does not count them as pulls); the
+// platform manifests of the newest candidates are read only when none matched.
+func (a *Agent) resolveDigests(ctx context.Context, c agentproto.RegistryCheck, creds registry.Credentials) []agentproto.DigestMatch {
+	reader, ok := a.registry.(DigestReader)
+	if !ok || len(c.Resolve) == 0 {
+		return nil
+	}
+	if _, _, _, isECR := ecr.Parse(c.Repository); isECR {
+		return nil
+	}
+	out := make([]agentproto.DigestMatch, 0, len(c.Resolve))
+	for _, l := range c.Resolve {
+		m := agentproto.DigestMatch{Digest: l.Digest}
+		for _, cand := range l.Candidates {
+			if d, err := reader.TagDigest(ctx, c.Repository, cand, creds); err == nil && d == l.Digest {
+				m.Tag = &cand
+				break
+			}
+		}
+		for _, cand := range l.Candidates[:min(len(l.Candidates), platformLookups)] {
+			if m.Tag != nil {
+				break
+			}
+			if ds, err := reader.ManifestDigests(ctx, c.Repository, cand, creds); err == nil && slices.Contains(ds, l.Digest) {
+				m.Tag = &cand
+			}
+		}
+		if ctx.Err() != nil {
+			return out
+		}
+		out = append(out, m)
+	}
+	return out
 }

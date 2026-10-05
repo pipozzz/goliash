@@ -11,6 +11,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // A moving tag ("1", "18-alpine", "latest") points at whatever release its
@@ -33,6 +34,9 @@ const (
 	// digest is a platform's rather than the index's.
 	movingLookups         = 8
 	movingPlatformLookups = 2
+	// movingAgentWait is how long a lookup asked of the agents stays in their
+	// configuration without an answer.
+	movingAgentWait = 7 * 24 * time.Hour
 	// movingRetry is how long a digest no tag matched waits before it is tried again.
 	movingRetry = 24 * time.Hour
 )
@@ -175,4 +179,73 @@ func applyResolutions(m *Matrix, byDigest map[string]string) {
 			fill(m.Rows[ri].Parts[pi].Cells)
 		}
 	}
+}
+
+// queueMoving asks the agents, which can read private repo, to look up the exact
+// versions behind moving tags that run from it, now that its tags are known.
+func (c *Checker) queueMoving(ctx context.Context, sc store.Scope, st workspaceState, repo string, tags []string) {
+	known, err := c.store.TagResolutions(ctx, sc)
+	if err != nil {
+		c.log.WarnContext(ctx, "tag resolutions", "err", err)
+		return
+	}
+	done := map[string]bool{}
+	for _, r := range known {
+		if r.Repo == repo && (r.Version != "" || c.now().Sub(r.CheckedAt) < movingRetry) {
+			done[r.Digest] = true
+		}
+	}
+	for _, i := range st.instances {
+		if !i.IsMain || i.ServiceID == "" || i.Digest == "" || done[i.Digest] || !IsMoving(i.Tag) ||
+			ParseImage(i.Image).Repo() != repo {
+			continue
+		}
+		done[i.Digest] = true
+		var err error
+		if cands := movingCandidates(i.Tag, tags, movingLookups); len(cands) > 0 {
+			err = c.store.SetTagLookup(ctx, sc, repo, i.Digest, cands)
+		} else {
+			err = c.store.SetTagResolution(ctx, sc, repo, i.Digest, "")
+		}
+		if err != nil {
+			c.log.WarnContext(ctx, "record tag lookup", "repo", repo, "err", err)
+			return
+		}
+	}
+}
+
+// RecordDigestMatches records what the agents found the running digests of private
+// repo to be: digest -> tag, "" when no candidate matched.
+func (c *Checker) RecordDigestMatches(ctx context.Context, sc store.Scope, repo string, matches map[string]string) error {
+	for digest, tag := range matches {
+		if err := c.store.SetTagResolution(ctx, sc, repo, digest, tag); err != nil {
+			return err
+		}
+		if tag != "" {
+			c.log.InfoContext(ctx, "moving tag resolved by an agent", "repo", repo, "version", tag)
+		}
+	}
+	return nil
+}
+
+// pendingLookups returns, per repository, the digest lookups waiting for an agent.
+func (c *Checker) pendingLookups(ctx context.Context, sc store.Scope) (map[string][]agentproto.DigestLookup, error) {
+	known, err := c.store.TagResolutions(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]agentproto.DigestLookup{}
+	for _, r := range known {
+		if r.Version != "" || len(r.Candidates) == 0 || c.now().Sub(r.CheckedAt) > movingAgentWait {
+			continue
+		}
+		out[r.Repo] = append(out[r.Repo], agentproto.DigestLookup{Digest: r.Digest, Candidates: r.Candidates})
+	}
+	for repo := range out {
+		sort.Slice(out[repo], func(i, j int) bool { return out[repo][i].Digest < out[repo][j].Digest })
+		if len(out[repo]) > 50 {
+			out[repo] = out[repo][:50]
+		}
+	}
+	return out, nil
 }

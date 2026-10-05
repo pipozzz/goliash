@@ -724,6 +724,10 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 	if err != nil {
 		return nil, err
 	}
+	pending, err := c.pendingLookups(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
 	seen := map[string]bool{}
 	var out []agentproto.RegistryCheck
 	for id, ref := range st.refs {
@@ -732,7 +736,7 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 		}
 		seen[ref.Repo] = true
 		host, _, _ := strings.Cut(ref.Repo, "/")
-		check := agentproto.RegistryCheck{Repository: ref.Repo, CredentialsRef: &host}
+		check := agentproto.RegistryCheck{Repository: ref.Repo, CredentialsRef: &host, Resolve: pending[ref.Repo]}
 		if p, _, err := PolicyFor(st.byID[id], ref.Repo); err == nil && p.TagFilter != "" {
 			filter := p.TagFilter
 			check.TagFilter = &filter
@@ -749,6 +753,9 @@ func (c *Checker) RecordPrivateTags(ctx context.Context, sc store.Scope, repo st
 	st, err := c.load(ctx, sc)
 	if err != nil {
 		return err
+	}
+	if checkErr == "" {
+		c.queueMoving(ctx, sc, st, repo, tags)
 	}
 	for id, ref := range st.refs {
 		if ref.Repo != repo {
