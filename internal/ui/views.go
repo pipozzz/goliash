@@ -543,6 +543,8 @@ type AuditView struct {
 type SettingsView struct {
 	Base
 	CanGrantOwner bool
+	Require2FA    bool
+	SelfHas2FA    bool
 	Audit         []AuditView
 	Users         []UserView
 	Tokens        []TokenView

@@ -506,7 +506,8 @@ func serve(ctx context.Context, args []string) error {
 		Addr: *listen,
 		// Browsers may not send state-changing requests from other origins (CSRF);
 		// agents and API clients send no Origin and are unaffected.
-		Handler:           ui.SecurityHeaders(http.NewCrossOriginProtection().Handler(mux), strings.HasPrefix(*publicURL, "https://")),
+		Handler: ui.SecurityHeaders(ui.LimitBodies(http.NewCrossOriginProtection().Handler(mux), 1<<20, "/agent/"),
+			strings.HasPrefix(*publicURL, "https://")),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,
 		IdleTimeout:       2 * time.Minute,
@@ -1075,6 +1076,8 @@ func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL s
 		return nil, err
 	}
 	a.SetPasswordLogin(os.Getenv("GOLIASH_PASSWORD_LOGIN") != "false")
+	a.SetSessionTTL(envDuration("GOLIASH_SESSION_TTL", 30*24*time.Hour))
+	db.SetSessionIdle(envDuration("GOLIASH_SESSION_IDLE", 14*24*time.Hour))
 	a.SetTrustProxy(os.Getenv("GOLIASH_TRUST_PROXY") == "true")
 	if issuer := os.Getenv("GOLIASH_OIDC_ISSUER"); issuer != "" {
 		o, err := auth.NewOIDC(ctx, auth.OIDCConfig{

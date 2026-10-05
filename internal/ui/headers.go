@@ -3,7 +3,10 @@
 
 package ui
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 // contentSecurityPolicy allows only this server's own scripts (no inline ones, so an
 // injected <script> or onclick does nothing), its own connections, and no framing.
@@ -11,6 +14,17 @@ import "net/http"
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
 	"img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; " +
 	"form-action 'self'; frame-ancestors 'none'"
+
+// LimitBodies caps request bodies at max bytes, except under exempt (agent snapshots,
+// which have their own larger limit). Forms, the REST API and MCP need far less.
+func LimitBodies(next http.Handler, maxBytes int64, exempt string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil && !strings.HasPrefix(r.URL.Path, exempt) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // SecurityHeaders sets the headers every response gets. hsts adds
 // Strict-Transport-Security, for servers whose public URL is https.

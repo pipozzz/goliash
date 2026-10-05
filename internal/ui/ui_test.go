@@ -999,3 +999,52 @@ func TestTwoFactorSetup(t *testing.T) {
 		t.Fatal("still on after reset")
 	}
 }
+
+func TestRequireTwoFactorAndBodyLimit(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	owner := e.as(store.RoleOwner)
+	member := e.as(store.RoleMember)
+
+	// The owner must have 2FA before requiring it.
+	if _, body, _ := post(t, owner, e.srv.URL+"/settings/require-2fa", url.Values{"require": {"true"}}); !strings.Contains(body, "Set up two-factor sign-in for yourself first") {
+		t.Fatal("required without the owner's own 2FA")
+	}
+	o, _ := e.st.GetUserByEmail(ctx, e.ws.OrgID, "owner@example.com")
+	_ = e.st.StartTOTP(ctx, o.ID, auth.NewTOTPSecret())
+	_ = e.st.EnableTOTP(ctx, o.ID, 0, nil)
+	if _, body, _ := post(t, owner, e.srv.URL+"/settings/require-2fa", url.Values{"require": {"true"}}); !strings.Contains(body, "Two-factor sign-in is now required.") {
+		t.Fatal("require")
+	}
+	post(t, member, e.srv.URL+"/settings/require-2fa", url.Values{"require": {"false"}})
+	if on, _ := e.st.RequireTwoFactor(ctx, e.ws.OrgID); !on {
+		t.Fatal("member changed the policy")
+	}
+
+	// A member without 2FA lands on the account page whatever they open, and may set it up.
+	_, body := get(t, member, e.srv.URL+"/", nil)
+	if !strings.Contains(body, "requires two-factor sign-in") || !strings.Contains(body, "Your account") {
+		t.Fatalf("member not sent to set up 2FA: %s", body[:min(len(body), 300)])
+	}
+	if _, body, _ = post(t, member, e.srv.URL+"/account/2fa/setup", nil); !strings.Contains(body, "Turn on") {
+		t.Fatal("setup blocked")
+	}
+	// The owner, with 2FA, works normally.
+	if _, body = get(t, owner, e.srv.URL+"/", nil); strings.Contains(body, "requires two-factor sign-in") {
+		t.Fatal("owner with 2FA redirected")
+	}
+
+	// Request bodies are capped (agent snapshots excepted, they have their own limit).
+	h := LimitBodies(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := io.ReadAll(r.Body); err != nil {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		}
+	}), 10, "/agent/")
+	for path, want := range map[string]int{"/settings": http.StatusRequestEntityTooLarge, "/agent/v1/snapshot": http.StatusOK} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(strings.Repeat("x", 100))))
+		if rec.Code != want {
+			t.Errorf("%s: %d", path, rec.Code)
+		}
+	}
+}

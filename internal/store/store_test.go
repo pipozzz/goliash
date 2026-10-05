@@ -616,7 +616,7 @@ func TestHousekeep(t *testing.T) {
 		if n, _ := s.CountSnapshots(ctx); n != 4 {
 			t.Fatalf("%d snapshots left, want 2 newest processed + 2 unprocessed", n)
 		}
-		if _, err := s.SessionUser(ctx, "valid"); err != nil {
+		if _, _, err := s.SessionUser(ctx, "valid"); err != nil {
 			t.Fatal("valid session removed")
 		}
 		if again, _ := s.Housekeep(ctx, 2); again.Snapshots != 0 {
@@ -770,7 +770,7 @@ func TestPasswordsAndSessions(t *testing.T) {
 		if list, _ = s.ListSessions(ctx, u.ID); len(list) != 1 || list[0].ID != "one" {
 			t.Fatalf("sessions after password change %+v", list)
 		}
-		if su, err := s.SessionUser(ctx, "one"); err != nil || !su.HasPassword {
+		if su, method, err := s.SessionUser(ctx, "one"); err != nil || !su.HasPassword || method != "link" {
 			t.Fatalf("session user %+v %v", su, err)
 		}
 
@@ -1158,6 +1158,41 @@ func TestTOTPState(t *testing.T) {
 		}
 		if _, _, _, err := s.PeekLoginToken(ctx, "mfa", TokenSecondFactor); !errors.Is(err, ErrNotFound) {
 			t.Fatal("used token still pending")
+		}
+	})
+}
+
+func TestSessionIdleAndRequire2FA(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		u, _ := s.CreateUser(ctx, ws.OrgID, "a@example.com", "", RoleViewer)
+		start := time.Now()
+		s.now = func() time.Time { return start }
+		_ = s.CreateSession(ctx, "idle", u.ID, 30*24*time.Hour, Session{Method: "password"})
+		_ = s.CreateSession(ctx, "busy", u.ID, 30*24*time.Hour, Session{Method: "oidc"})
+		s.SetSessionIdle(14 * 24 * time.Hour)
+
+		s.now = func() time.Time { return start.Add(10 * 24 * time.Hour) }
+		if _, m, err := s.SessionUser(ctx, "busy"); err != nil || m != "oidc" { // used: last seen moves
+			t.Fatalf("busy session: %v", err)
+		}
+		s.now = func() time.Time { return start.Add(20 * 24 * time.Hour) }
+		if _, _, err := s.SessionUser(ctx, "idle"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("idle session still works: %v", err)
+		}
+		if _, _, err := s.SessionUser(ctx, "busy"); err != nil {
+			t.Fatalf("recently used session ended: %v", err)
+		}
+
+		if on, err := s.RequireTwoFactor(ctx, ws.OrgID); err != nil || on {
+			t.Fatalf("default %v %v", on, err)
+		}
+		if err := s.SetRequireTwoFactor(ctx, ws.OrgID, true); err != nil {
+			t.Fatal(err)
+		}
+		if on, _ := s.RequireTwoFactor(ctx, ws.OrgID); !on {
+			t.Fatal("not required")
 		}
 	})
 }

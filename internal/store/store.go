@@ -45,6 +45,8 @@ type Store struct {
 	dialect Dialect
 	now     func() time.Time
 	aead    cipher.AEAD // encrypts secrets at rest; nil without a secret key
+
+	sessionIdle time.Duration // sessions unused this long stop working; 0: never
 }
 
 // Open connects to the database named by dsn and applies pending migrations.

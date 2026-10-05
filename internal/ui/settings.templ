@@ -305,6 +305,33 @@ templ SettingsPage(v SettingsView) {
 				<p class="hint">Inviting someone who already has an account gives them access to this workspace too. Without e-mail, send them the sign-in link shown after inviting.</p>
 			</div>
 		</section>
+		if v.CanGrantOwner {
+			<section class="panel">
+				<div class="panel-head">
+					<h2>Two-factor sign-in</h2>
+					if v.Require2FA {
+						<span class="badge ok">required</span>
+					} else {
+						<span class="badge neutral">optional</span>
+					}
+				</div>
+				<div class="panel-body stack">
+					<p class="muted">When required, everyone who signs in with a password or a link sets up an authenticator app before they can do anything else. Single sign-on is left to the identity provider.</p>
+					<form method="post" action="/settings/require-2fa">
+						if v.Require2FA {
+							<input type="hidden" name="require" value="false"/>
+							<button type="submit" class="secondary">Make it optional</button>
+						} else {
+							<input type="hidden" name="require" value="true"/>
+							<button type="submit" disabled?={ !v.SelfHas2FA }>Require it for everyone</button>
+							if !v.SelfHas2FA {
+								<span class="hint">Set it up for yourself first, on <a href="/account">your account page</a>.</span>
+							}
+						}
+					</form>
+				</div>
+			</section>
+		}
 		<section class="panel">
 			<div class="panel-head"><h2>API tokens</h2><span class="muted">{ "for " + v.Workspace }</span></div>
 			if len(v.Tokens) > 0 {

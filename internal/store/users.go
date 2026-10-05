@@ -182,19 +182,46 @@ func (s *Store) CreateSession(ctx context.Context, idHash, userID string, ttl ti
 	})
 }
 
-// SessionUser returns the user of an unexpired session and records that the
-// session is in use (at most once a minute).
-func (s *Store) SessionUser(ctx context.Context, idHash string) (User, error) {
+// SetSessionIdle makes sessions unused for longer than idle stop working (0: never).
+func (s *Store) SetSessionIdle(idle time.Duration) { s.sessionIdle = idle }
+
+// SessionUser returns the user and sign-in method of an unexpired session that was
+// used within the idle timeout, and records that the session is in use (at most once
+// a minute).
+func (s *Store) SessionUser(ctx context.Context, idHash string) (User, string, error) {
 	now := s.now()
-	u, err := scanUser(s.queryRow(ctx, s.db, `SELECT u.id, u.org_id, u.email, u.name, u.role, u.created_at, u.last_login_at,
-		u.password_hash <> '', u.password_changed_at, u.totp_enabled_at IS NOT NULL
-		FROM sessions x JOIN users u ON u.id = x.user_id WHERE x.id = ? AND x.expires_at > ?`, idHash, now))
-	if err != nil {
-		return User{}, err
+	idleCutoff := time.Time{}
+	if s.sessionIdle > 0 {
+		idleCutoff = now.Add(-s.sessionIdle)
 	}
-	_, err = s.exec(ctx, s.db, `UPDATE sessions SET last_seen_at = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)`,
+	var method string
+	row := s.queryRow(ctx, s.db, `SELECT u.id, u.org_id, u.email, u.name, u.role, u.created_at, u.last_login_at,
+		u.password_hash <> '', u.password_changed_at, u.totp_enabled_at IS NOT NULL, x.method
+		FROM sessions x JOIN users u ON u.id = x.user_id
+		WHERE x.id = ? AND x.expires_at > ? AND COALESCE(x.last_seen_at, x.created_at) > ?`, idHash, now, idleCutoff)
+	var u User
+	var last, changed sql.NullTime
+	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed,
+		&u.TOTPEnabled, &method); err != nil {
+		return User{}, "", notFound(err)
+	}
+	u.CreatedAt, u.LastLoginAt, u.PasswordChangedAt = u.CreatedAt.UTC(), timeOrZero(last), timeOrZero(changed)
+	_, err := s.exec(ctx, s.db, `UPDATE sessions SET last_seen_at = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)`,
 		now, idHash, now.Add(-time.Minute))
-	return u, err
+	return u, method, err
+}
+
+// RequireTwoFactor reports whether an organization requires two-factor sign-in.
+func (s *Store) RequireTwoFactor(ctx context.Context, orgID string) (bool, error) {
+	var on bool
+	err := s.queryRow(ctx, s.db, `SELECT require_2fa FROM organizations WHERE id = ?`, orgID).Scan(&on)
+	return on, notFound(err)
+}
+
+// SetRequireTwoFactor turns the organization's two-factor requirement on or off.
+func (s *Store) SetRequireTwoFactor(ctx context.Context, orgID string, on bool) error {
+	res, err := s.exec(ctx, s.db, `UPDATE organizations SET require_2fa = ? WHERE id = ?`, on, orgID)
+	return expectOne(res, err)
 }
 
 // ListSessions returns a user's unexpired sessions, most recently used first.

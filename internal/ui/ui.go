@@ -155,6 +155,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/2fa/codes", s.page(v, s.newRecoveryCodes))
 	mux.Handle("POST /account/2fa/disable", s.page(v, s.disableTwoFactor))
 	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
+	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
 	mux.Handle("POST /account/name", s.page(v, s.saveName))
 	mux.Handle("POST /account/password", s.page(v, s.changePassword))
 	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
@@ -187,6 +188,10 @@ func (s *Server) page(role string, h handler) http.Handler {
 				return
 			}
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if s.needsTwoFactor(r, p) {
+			_ = back(w, r, "/account", "error", "Your organization requires two-factor sign-in. Set it up to continue.")
 			return
 		}
 		if !p.Can(role) {
@@ -1357,7 +1362,10 @@ func accessLabel(u store.User, wsRole string) string {
 }
 
 func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsView, error) {
-	v := SettingsView{Base: s.base(ctx, p, "settings", "Users"), CanGrantOwner: p.User.Role == store.RoleOwner}
+	v := SettingsView{Base: s.base(ctx, p, "settings", "Users"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled}
+	if req, err := s.store.RequireTwoFactor(ctx, p.User.OrgID); err == nil {
+		v.Require2FA = req
+	}
 	users, err := s.store.ListUsers(ctx, p.User.OrgID)
 	if err != nil {
 		return v, err
