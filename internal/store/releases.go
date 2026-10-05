@@ -238,11 +238,14 @@ func (s *Store) DriftsBetween(ctx context.Context, sc Scope, from, to time.Time)
 type TagResolution struct {
 	Repo, Digest, Version string // Version is empty when no tag matched
 	CheckedAt             time.Time
+	// Candidates are the tags an agent is asked to compare with the digest, while
+	// the lookup waits for its answer.
+	Candidates []string
 }
 
 // TagResolutions returns the workspace's resolved moving tags.
 func (s *Store) TagResolutions(ctx context.Context, sc Scope) ([]TagResolution, error) {
-	rows, err := s.query(ctx, s.db, `SELECT repo, digest, version, checked_at FROM tag_resolutions
+	rows, err := s.query(ctx, s.db, `SELECT repo, digest, version, checked_at, candidates FROM tag_resolutions
 		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -251,10 +254,14 @@ func (s *Store) TagResolutions(ctx context.Context, sc Scope) ([]TagResolution, 
 	var out []TagResolution
 	for rows.Next() {
 		var r TagResolution
-		if err := rows.Scan(&r.Repo, &r.Digest, &r.Version, &r.CheckedAt); err != nil {
+		var cands string
+		if err := rows.Scan(&r.Repo, &r.Digest, &r.Version, &r.CheckedAt, &cands); err != nil {
 			return nil, err
 		}
 		r.CheckedAt = r.CheckedAt.UTC()
+		if cands != "" {
+			_ = json.Unmarshal([]byte(cands), &r.Candidates)
+		}
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -262,9 +269,23 @@ func (s *Store) TagResolutions(ctx context.Context, sc Scope) ([]TagResolution, 
 
 // SetTagResolution records what digest of repo is (version "": nothing matched yet).
 func (s *Store) SetTagResolution(ctx context.Context, sc Scope, repo, digest, version string) error {
-	_, err := s.exec(ctx, s.db, `INSERT INTO tag_resolutions (org_id, workspace_id, repo, digest, version, checked_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET version = excluded.version, checked_at = excluded.checked_at`,
-		sc.OrgID, sc.WorkspaceID, repo, digest, version, s.now())
+	return s.setTagResolution(ctx, sc, repo, digest, version, "")
+}
+
+// SetTagLookup asks the agents to compare digest of repo with candidates.
+func (s *Store) SetTagLookup(ctx context.Context, sc Scope, repo, digest string, candidates []string) error {
+	b, err := json.Marshal(candidates)
+	if err != nil {
+		return err
+	}
+	return s.setTagResolution(ctx, sc, repo, digest, "", string(b))
+}
+
+func (s *Store) setTagResolution(ctx context.Context, sc Scope, repo, digest, version, candidates string) error {
+	_, err := s.exec(ctx, s.db, `INSERT INTO tag_resolutions (org_id, workspace_id, repo, digest, version, checked_at, candidates)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET version = excluded.version, checked_at = excluded.checked_at,
+			candidates = excluded.candidates`,
+		sc.OrgID, sc.WorkspaceID, repo, digest, version, s.now(), candidates)
 	return err
 }

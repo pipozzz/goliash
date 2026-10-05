@@ -29,8 +29,8 @@ are compared with that exact version: `1 = 1.27.3` is behind `28.0.0`, not "1 be
 Each digest is looked up once (a digest never changes); a digest no tag matches is tried again a day later. The
 lookups use `HEAD` requests, which Docker Hub does not count against its pull limit, and read full manifests only
 for the two newest candidates when the runtime recorded a platform's digest instead of the index's. This needs the
-digest the image runs with: Kubernetes, Docker, Swarm and Nomad report it; Compose files from Git do not. Images on
-private registries are not looked up yet.
+digest the image runs with: Kubernetes, Docker, Swarm and Nomad report it; Compose files from Git do not. For
+images on private registries the agents do the lookup with their credentials, after their next registry check.
 
 ## Version policy
 

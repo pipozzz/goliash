@@ -1268,5 +1268,25 @@ func TestTagResolutions(t *testing.T) {
 		if err != nil || len(got) != 1 || got[0].Version != "1.27.3" || got[0].CheckedAt.IsZero() {
 			t.Fatalf("%+v %v", got, err)
 		}
+		if err := s.SetTagLookup(ctx, sc, "registry.example.com/app", "sha256:b", []string{"2.1.0", "2.0.9"}); err != nil {
+			t.Fatal(err)
+		}
+		got, _ = s.TagResolutions(ctx, sc)
+		var pending TagResolution
+		for _, r := range got {
+			if r.Digest == "sha256:b" {
+				pending = r
+			}
+		}
+		if pending.Version != "" || len(pending.Candidates) != 2 || pending.Candidates[0] != "2.1.0" {
+			t.Fatalf("pending lookup %+v", pending)
+		}
+		_ = s.SetTagResolution(ctx, sc, "registry.example.com/app", "sha256:b", "2.1.0")
+		got, _ = s.TagResolutions(ctx, sc)
+		for _, r := range got {
+			if r.Digest == "sha256:b" && (r.Version != "2.1.0" || len(r.Candidates) != 0) {
+				t.Fatalf("answered lookup %+v", r)
+			}
+		}
 	})
 }

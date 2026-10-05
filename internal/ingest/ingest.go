@@ -43,6 +43,7 @@ type Service struct {
 type Upstreams interface {
 	PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error)
 	RecordPrivateTags(ctx context.Context, sc store.Scope, repo string, tags []string, checkErr string) error
+	RecordDigestMatches(ctx context.Context, sc store.Scope, repo string, matches map[string]string) error
 }
 
 // SetUpstreams connects the version checker. It must be called before serving.
@@ -196,6 +197,19 @@ func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentp
 		checkErr := ""
 		if r.Error != nil {
 			checkErr = *r.Error
+		}
+		// Exact versions behind moving tags first: they are the reference tags compare with.
+		if len(r.Resolved) > 0 {
+			matches := map[string]string{}
+			for _, m := range r.Resolved {
+				matches[m.Digest] = ""
+				if m.Tag != nil {
+					matches[m.Digest] = *m.Tag
+				}
+			}
+			if err := s.upstreams.RecordDigestMatches(ctx, a.Scope, r.Repository, matches); err != nil {
+				return err
+			}
 		}
 		if err := s.upstreams.RecordPrivateTags(ctx, a.Scope, r.Repository, tags, checkErr); err != nil {
 			return err
