@@ -218,7 +218,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 	sort.Strings(ids)
 	for _, id := range ids {
 		ref := st.refs[id]
-		if ref.Repo == "" || !IsPublicRegistry(ref.Repo) {
+		if ref.Repo == "" || !serverChecks(st.byID[id], ref.Repo) {
 			continue
 		}
 		if onlyNew {
@@ -228,6 +228,9 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 		}
 		tags, err := c.listTags(ctx, ref.Repo)
 		if err != nil {
+			if c.handOver(ctx, sc, st.byID[id], ref.Repo, err) {
+				continue
+			}
 			c.log.WarnContext(ctx, "upstream check failed", "service", st.byID[id].Name, "repo", ref.Repo, "err", err)
 			_ = c.store.RecordUpstreamCheck(ctx, sc, id, err.Error())
 			continue
@@ -611,6 +614,10 @@ func overlap(a, b []string) bool {
 	return false
 }
 
+// ErrNeedsCredentials means a public registry refused a repository anonymously; the
+// agents check it with their credentials from now on.
+var ErrNeedsCredentials = errors.New("needs credentials; the agents check it with theirs")
+
 // ErrNoUpstream means a service has no image repository to check.
 var ErrNoUpstream = errors.New("no upstream repository")
 
@@ -627,13 +634,22 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	if !IsPublicRegistry(ref.Repo) {
 		return fmt.Errorf("%s is private; the agent checks it", ref.Repo)
 	}
+	// A repository on a public registry is tried anonymously again, in case it was
+	// made public.
 	c.mu.Lock()
 	delete(c.cache, ref.Repo)
 	c.mu.Unlock()
+	svc := st.byID[serviceID]
 	tags, err := c.listTags(ctx, ref.Repo)
 	if err != nil {
+		if c.handOver(ctx, sc, svc, ref.Repo, err) {
+			return fmt.Errorf("%s: %w", ref.Repo, ErrNeedsCredentials)
+		}
 		_ = c.store.RecordUpstreamCheck(ctx, sc, serviceID, err.Error())
 		return err
+	}
+	if svc.PrivateUpstream != "" {
+		_ = c.store.SetPrivateUpstream(ctx, sc, serviceID, "")
 	}
 	evs, err := c.recordTags(ctx, sc, st.byID[serviceID], ref.Repo, tags, ref.Tag)
 	if err != nil {
@@ -641,6 +657,35 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	}
 	c.emit(sc, evs)
 	return c.EvaluateDrift(ctx, sc)
+}
+
+// serverChecks reports whether the server checks repo, svc's upstream, itself: it is
+// on a public registry and the registry has not refused it anonymously.
+func serverChecks(svc store.Service, repo string) bool {
+	return IsPublicRegistry(repo) && svc.PrivateUpstream != repo
+}
+
+// handOver leaves repo to the agents when a public registry refused it anonymously
+// (a private repository on GHCR or Docker Hub, say) and reports whether it did.
+func (c *Checker) handOver(ctx context.Context, sc store.Scope, svc store.Service, repo string, err error) bool {
+	if !errors.Is(err, registry.ErrUnauthorized) {
+		return false
+	}
+	if svc.PrivateUpstream != repo {
+		if err := c.store.SetPrivateUpstream(ctx, sc, svc.ID, repo); err != nil {
+			c.log.WarnContext(ctx, "record private upstream", "service", svc.Name, "err", err)
+			return false
+		}
+		c.log.InfoContext(ctx, "upstream needs credentials; the agents check it", "service", svc.Name, "repo", repo)
+	}
+	_ = c.store.RecordUpstreamCheck(ctx, sc, svc.ID, "")
+	return true
+}
+
+// CheckedByAgent reports whether the agents, not the server, check repo, svc's
+// upstream: it is on a private registry, or a public one refused it anonymously.
+func CheckedByAgent(svc store.Service, repo string) bool {
+	return repo != "" && !serverChecks(svc, repo)
 }
 
 // PrivateRepositories lists upstream repositories the server cannot check itself,
@@ -654,7 +699,7 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 	seen := map[string]bool{}
 	var out []agentproto.RegistryCheck
 	for id, ref := range st.refs {
-		if ref.Repo == "" || IsPublicRegistry(ref.Repo) || seen[ref.Repo] {
+		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo) || seen[ref.Repo] {
 			continue
 		}
 		seen[ref.Repo] = true

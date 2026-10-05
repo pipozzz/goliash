@@ -20,6 +20,12 @@ token:
 # file in /etc/goliash-agent/credentials (a target's credentials_ref names the key).
 credentialsSecret: ""
 
+# Credentials for private image registries, used to check them for new versions:
+registry:
+  # A kubernetes.io/dockerconfigjson secret (an existing image pull secret) in the
+  # agent's namespace, mounted as the agent's Docker config. Needs no extra RBAC.
+  dockerConfigSecret: ""
+
 serviceAccount:
   # E.g. eks.amazonaws.com/role-arn for an IAM role (IRSA) with ecr:ListImages, so the
   # agent can check private ECR repositories.
@@ -29,6 +35,10 @@ rbac:
   # A ClusterRole with get, list and watch on Deployments, ReplicaSets, StatefulSets,
   # DaemonSets, CronJobs, Jobs and Pods. Nothing else.
   create: true
+  # Also get Secrets, to read the image pull secrets that running pods reference and
+  # check private registries with them. Only those secrets are read, and only by
+  # name, but Kubernetes RBAC cannot narrow get to them: it grants get on every secret.
+  readPullSecrets: false
 
 # Buffered snapshots survive restarts only with a persistent volume.
 persistence:

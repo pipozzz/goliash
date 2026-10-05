@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -568,5 +569,46 @@ func TestAgentChecksECR(t *testing.T) {
 	}
 	if len(reg.creds) != 0 {
 		t.Fatalf("ECR went to the Distribution API: %v", reg.creds)
+	}
+}
+
+// pickyRegistry lets in only one password.
+type pickyRegistry struct{ tried []string }
+
+func (r *pickyRegistry) ListTags(_ context.Context, _ string, creds registry.Credentials) ([]string, error) {
+	r.tried = append(r.tried, creds.Password)
+	if creds.Password == "right" {
+		return []string{"1.0.0"}, nil
+	}
+	return nil, fmt.Errorf("%w (401)", registry.ErrUnauthorized)
+}
+
+// Without a configured credential, the agent tries what it found itself (Docker
+// config, pull secrets) for the host in turn, then anonymous access.
+func TestListTagsKeychain(t *testing.T) {
+	t.Setenv("GOLIASH_CREDENTIALS_DIR", t.TempDir())
+	ref := "harbor.example.com"
+	check := agentproto.RegistryCheck{Repository: "harbor.example.com/shop/api", CredentialsRef: &ref}
+	reg := &pickyRegistry{}
+	a := &Agent{registry: reg}
+	keys := registry.Keychain{"harbor.example.com": {{Username: "a", Password: "wrong"}, {Username: "b", Password: "right"}}}
+	if tags, err := a.listTags(context.Background(), check, keys); err != nil || len(tags) != 1 {
+		t.Fatalf("%v %v", tags, err)
+	}
+	if strings.Join(reg.tried, ",") != "wrong,right" {
+		t.Fatalf("tried %v", reg.tried)
+	}
+
+	reg.tried = nil
+	_, err := a.listTags(context.Background(), check, registry.Keychain{})
+	if err == nil || !strings.Contains(err.Error(), "GOLIASH_CREDENTIAL_HARBOR_EXAMPLE_COM") || strings.Join(reg.tried, ",") != "" {
+		t.Fatalf("anonymous: %v %v", err, reg.tried)
+	}
+
+	// A configured credential wins and is the only one tried.
+	t.Setenv("GOLIASH_CREDENTIAL_HARBOR_EXAMPLE_COM", "x:configured")
+	reg.tried = nil
+	if _, err := a.listTags(context.Background(), check, keys); err == nil || strings.Join(reg.tried, ",") != "configured" {
+		t.Fatalf("configured: %v %v", err, reg.tried)
 	}
 }

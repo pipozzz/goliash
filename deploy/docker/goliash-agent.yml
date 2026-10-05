@@ -31,8 +31,11 @@ services:
     environment:
       GOLIASH_SERVER_URL: ${GOLIASH_SERVER_URL:?set GOLIASH_SERVER_URL}
       GOLIASH_AGENT_TOKEN: ${GOLIASH_AGENT_TOKEN:?set GOLIASH_AGENT_TOKEN}
+      # Check private registries with this host's `docker login` (and the volume below).
+      # DOCKER_CONFIG: /etc/goliash-agent/docker
     volumes:
       - agent-data:/data
+      # - /root/.docker/config.json:/etc/goliash-agent/docker/config.json:ro
     depends_on: [socket-proxy]
     restart: unless-stopped
 

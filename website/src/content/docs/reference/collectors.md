@@ -40,11 +40,26 @@ The server never sends secrets, only a `credentials_ref` name. The agent resolve
 
 ## Private registries
 
-Images from registries other than the public ones are checked by the agents. For each repository the credential is
-looked up under the registry host's name, for example `GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM`:
+Images from registries other than the public ones are checked by the agents. So are private repositories on public
+registries (GHCR, Docker Hub, Quay, …): when a registry refuses the server's anonymous check, the repository is
+handed to the agents. **Check upstream now** on the service page tries anonymously again, in case it became public.
 
-- **Distribution API registries** (Harbor, GitLab, Artifactory, Nexus, a private Docker Hub repository, …):
-  `user:password`, or a token. Without a credential the agent tries anonymously.
+For each repository the agent looks for credentials for the registry host, in this order:
+
+1. the credential named after the host, for example `GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM` or the file
+   `registry.example.com` in the credentials directory;
+2. its Docker config: `$DOCKER_CONFIG/config.json`, else `~/.docker/config.json`, as `docker login` writes it.
+   Entries kept by a credential helper (`credsStore`, `credHelpers`, as Docker Desktop does) hold no secret and are
+   skipped;
+3. on Kubernetes, with `GOLIASH_READ_PULL_SECRETS=true` (Helm: `rbac.readPullSecrets`), the image pull secrets that
+   running pods of its targets reference. It needs `get` on secrets;
+4. anonymous access.
+
+When a host has several credentials (two pull secrets for different Harbor projects), each is tried in turn.
+Credentials never leave the agent.
+
+- **Distribution API registries** (Harbor, GitLab, Artifactory, Nexus, GHCR, Docker Hub, …): `user:password`, or a
+  token.
 - **Amazon ECR** (`<account>.dkr.ecr.<region>.amazonaws.com`): the agent uses the ECR API with its AWS credentials
   and needs IAM `ecr:ListImages`. The default chain is used: IRSA, an ECS task role, an instance profile or the
   environment. A credential, if set, names an AWS profile.

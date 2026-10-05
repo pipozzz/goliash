@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -19,15 +20,19 @@ import (
 )
 
 type fakeTags struct {
-	mu    sync.Mutex
-	tags  map[string][]string
-	calls map[string]int
+	mu     sync.Mutex
+	tags   map[string][]string
+	calls  map[string]int
+	denied map[string]bool // anonymous access refused
 }
 
 func (f *fakeTags) ListTags(_ context.Context, repo string, _ registry.Credentials) ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls[repo]++
+	if f.denied[repo] {
+		return nil, fmt.Errorf("%w: token endpoint answered 403", registry.ErrUnauthorized)
+	}
 	return f.tags[repo], nil
 }
 
@@ -266,5 +271,58 @@ func TestShortDriftIsNotAnnounced(t *testing.T) {
 	}
 	if _, err := ParsePolicy([]byte(`{"drift_alert_after":{"weird":"1h"}}`)); err == nil {
 		t.Fatal("unknown kind accepted")
+	}
+}
+
+// A private repository on a public registry: the server's anonymous check is refused,
+// so the agents get it, until "check now" finds it public again.
+func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"})
+	const nginx = "docker.io/library/nginx"
+	l.tags.denied = map[string]bool{nginx: true}
+	repos := func() string {
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, c := range checks {
+			out = append(out, c.Repository+"@"+*c.CredentialsRef)
+		}
+		return strings.Join(out, " ")
+	}
+
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	if got := repos(); got != "docker.io/library/nginx@docker.io registry.internal.example/team/payments@registry.internal.example" {
+		t.Fatalf("handed to agents: %s", got)
+	}
+	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+	if _, msg, _ := l.st.UpstreamStatus(ctx, l.sc, l.svc.ID); msg != "" || !CheckedByAgent(svc, nginx) {
+		t.Fatalf("status %q, checked by agent %v", msg, CheckedByAgent(svc, nginx))
+	}
+	calls := l.tags.calls[nginx]
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil || l.tags.calls[nginx] != calls {
+		t.Fatalf("server kept checking: %v %d", err, l.tags.calls[nginx]-calls)
+	}
+	if err := l.checker.RecordPrivateTags(ctx, l.sc, nginx, []string{"1.27.2", "1.28.0"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if rels, _ := l.st.ListReleases(ctx, l.sc, l.svc.ID); len(rels) != 2 {
+		t.Fatalf("agent's tags not recorded: %+v", rels)
+	}
+
+	if err := l.checker.CheckService(ctx, l.sc, l.svc.ID); err == nil || !strings.Contains(err.Error(), "needs credentials") {
+		t.Fatalf("check now while private: %v", err)
+	}
+	l.tags.denied = nil
+	if err := l.checker.CheckService(ctx, l.sc, l.svc.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := repos(); strings.Contains(got, nginx) {
+		t.Fatalf("still handed to agents after it turned public: %s", got)
 	}
 }

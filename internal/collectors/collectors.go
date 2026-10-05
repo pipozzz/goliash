@@ -6,6 +6,7 @@ package collectors
 import (
 	"context"
 
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
@@ -31,6 +32,13 @@ type Collector interface {
 // every observed change.
 type Watcher interface {
 	Watch(ctx context.Context, changed func()) error
+}
+
+// KeychainSource is implemented by collectors that know registry credentials of
+// their target (Kubernetes image pull secrets). The agent uses them to check private
+// registries when no credential is configured for the registry host.
+type KeychainSource interface {
+	RegistryKeychain(ctx context.Context) (registry.Keychain, error)
 }
 
 // Factory builds a collector for a target from its configuration. Credentials are

@@ -48,7 +48,9 @@ func New(_ context.Context, t agentproto.Target) (collectors.Collector, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newCollector(cs, settings), nil
+	c := newCollector(cs, settings)
+	c.readSecrets = ReadPullSecrets()
+	return c, nil
 }
 
 func restConfig(s agentproto.KubernetesSettings) (*rest.Config, error) {
@@ -75,6 +77,7 @@ func restConfig(s agentproto.KubernetesSettings) (*rest.Config, error) {
 // their running pods actually use. It keeps informer caches (list + watch), so it
 // needs only get, list and watch permissions.
 type Collector struct {
+	cs       k8sclient.Interface
 	factory  informers.SharedInformerFactory
 	include  map[string]bool
 	exclude  map[string]bool
@@ -84,6 +87,10 @@ type Collector struct {
 	started   bool
 	synced    chan struct{}
 	watchErrs map[string]watchErr
+
+	// Image pull secrets, read only when GOLIASH_READ_PULL_SECRETS allows it.
+	readSecrets bool
+	secrets     pullSecretCache
 }
 
 // watchErr is the latest list/watch failure of one resource. The reflector retries
@@ -100,6 +107,7 @@ var _ collectors.Watcher = (*Collector)(nil)
 func newCollector(cs k8sclient.Interface, s agentproto.KubernetesSettings) *Collector {
 	f := informers.NewSharedInformerFactory(cs, 0)
 	c := &Collector{
+		cs:      cs,
 		factory: f,
 		include: set(s.IncludeNamespaces),
 		exclude: set(s.ExcludeNamespaces),

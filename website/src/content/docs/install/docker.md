@@ -52,6 +52,21 @@ docker compose -f deploy/docker/goliash-agent.yml up -d
 
 Create a `docker` target for the agent with `{"docker":{"docker_host":"tcp://socket-proxy:2375"}}`.
 
+To check private registries with the host's `docker login`, mount its Docker config into the agent (read-only) and
+point `DOCKER_CONFIG` at it:
+
+```yaml
+services:
+  agent:
+    environment:
+      DOCKER_CONFIG: /etc/goliash-agent/docker
+    volumes:
+      - /root/.docker/config.json:/etc/goliash-agent/docker/config.json:ro
+```
+
+Docker Desktop keeps logins in a credential helper instead; there, give the agent a credential per registry host
+(see [Private registries](/reference/collectors/#private-registries)).
+
 ## Track only some Compose projects
 
 To watch one stack instead of the whole host, list its Compose projects:

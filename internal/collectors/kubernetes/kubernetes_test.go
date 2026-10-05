@@ -321,3 +321,43 @@ func TestDigest(t *testing.T) {
 		}
 	}
 }
+
+func TestRegistryKeychain(t *testing.T) {
+	cfg := []byte(`{"auths":{"harbor.example.com":{"username":"robot","password":"pw"}}}`)
+	used := runningPod("shop", "api-1", "ReplicaSet", "rs", "app=harbor.example.com/shop/api:1.0@@"+digestA)
+	used.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: "harbor"}, {Name: "gone"}}
+	other := runningPod("ops", "x-1", "ReplicaSet", "rs2", "app=nginx:1@@"+digestB)
+	other.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{Name: "unused"}}
+	cs := fake.NewSimpleClientset(used, other,
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "shop", Name: "harbor"}, Type: corev1.SecretTypeDockerConfigJson,
+			Data: map[string][]byte{corev1.DockerConfigJsonKey: cfg},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "ops", Name: "unused"}, Type: corev1.SecretTypeDockerConfigJson,
+			Data: map[string][]byte{corev1.DockerConfigJsonKey: []byte(`{"auths":{"other.example.com":{"auth":"eDp5"}}}`)},
+		},
+	)
+	c := newCollector(cs, agentproto.KubernetesSettings{IncludeNamespaces: []string{"shop"}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = c.Watch(ctx, func() {}) }()
+	if _, err := c.Collect(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if k, err := c.RegistryKeychain(ctx); err != nil || len(k) != 0 {
+		t.Fatalf("read without permission: %v %v", k, err)
+	}
+	c.readSecrets = true
+	k, err := c.RegistryKeychain(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := k.Lookup("harbor.example.com"); len(got) != 1 || got[0].Username != "robot" {
+		t.Fatalf("harbor: %+v", k)
+	}
+	if len(k.Lookup("other.example.com")) != 0 {
+		t.Fatal("read a secret of an unselected namespace")
+	}
+}
