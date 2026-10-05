@@ -88,9 +88,13 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	}
 
 	serviceIDs := map[string]string{}
+	appLabel, err := s.store.WorkspaceAppLabel(ctx, sc.WorkspaceID)
+	if err != nil {
+		return err
+	}
 	changes, err := diff(diffInput{
 		Target: target, Snapshot: payload, Existing: existing, Mapper: mapper, EnvByName: envByName,
-		Baseline: !hasBase,
+		Baseline: !hasBase, AppLabel: appLabel,
 		ServiceID: func(name string) (string, error) {
 			if id, ok := serviceIDs[name]; ok {
 				return id, nil

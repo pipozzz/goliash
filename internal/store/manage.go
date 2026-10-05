@@ -110,3 +110,17 @@ func (s *Store) RenameWorkspace(ctx context.Context, orgID, id, name string) err
 	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET name = ? WHERE org_id = ? AND id = ?`, name, orgID, id)
 	return expectOne(res, err)
 }
+
+// WorkspaceAppLabel is the label key a workspace reads applications from first; empty
+// for the standard ones only.
+func (s *Store) WorkspaceAppLabel(ctx context.Context, workspaceID string) (string, error) {
+	var key string
+	err := s.queryRow(ctx, s.db, `SELECT app_label FROM workspaces WHERE id = ?`, workspaceID).Scan(&key)
+	return key, notFound(err)
+}
+
+// SetWorkspaceAppLabel sets that label key.
+func (s *Store) SetWorkspaceAppLabel(ctx context.Context, orgID, workspaceID, key string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET app_label = ? WHERE org_id = ? AND id = ?`, key, orgID, workspaceID)
+	return expectOne(res, err)
+}

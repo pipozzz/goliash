@@ -548,6 +548,7 @@ type SettingsView struct {
 	CanGrantOwner bool
 	Require2FA    bool
 	SelfHas2FA    bool
+	AppLabel      string // the workspace's own application label key
 	Audit         []AuditView
 	Users         []UserView
 	Tokens        []TokenView

@@ -333,6 +333,20 @@ templ SettingsPage(v SettingsView) {
 			</section>
 		}
 		<section class="panel">
+			<div class="panel-head"><h2>Applications</h2><span class="muted">how the target page groups workloads</span></div>
+			<div class="panel-body stack">
+				<p class="muted">A workload's application comes from its labels: goliash.app or app.kubernetes.io/part-of, then the Helm release, the Compose project or the Swarm stack, else its namespace. Name your own label to have it checked first.</p>
+				<form class="inline" method="post" action="/settings/app-label">
+					<label>
+						Label key
+						<input name="key" value={ v.AppLabel } placeholder="example.com/app" spellcheck="false" autocomplete="off"/>
+					</label>
+					<button type="submit" class="secondary">Save</button>
+				</form>
+				<p class="hint">Applies from each target's next snapshot. Leave it empty for the well-known labels only.</p>
+			</div>
+		</section>
+		<section class="panel">
 			<div class="panel-head"><h2>API tokens</h2><span class="muted">{ "for " + v.Workspace }</span></div>
 			if len(v.Tokens) > 0 {
 				<div class="scroll">

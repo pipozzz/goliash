@@ -265,7 +265,14 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 	}
 	w := agentproto.Workload{
 		ID: t.name + "/" + service, Kind: kind, Namespace: &ns, Name: service, DesiredReplicas: &replicas,
-		Labels:     map[string]string{"app.kubernetes.io/name": service},
+		Labels: map[string]string{
+			"app.kubernetes.io/name": service,
+			// Applications span namespaces: the shop's cache lives in "data" with the database.
+			"app.kubernetes.io/part-of": map[string]string{
+				"checkout": "webshop", "payments-api": "webshop", "redis": "webshop",
+				"keycloak": "identity", "postgres": "identity", "traefik": "edge", "grafana": "monitoring",
+			}[service],
+		},
 		Containers: []agentproto.Container{{Name: service, Image: images[service] + ":" + tag, Running: replicas}},
 	}
 	if service == "payments-api" && t.platform == "kubernetes" {

@@ -34,11 +34,27 @@ During a rollout, both versions show with their replica counts. The matrix updat
 
 Click a target's name under **Settings → Agents and targets** to see what runs on that cluster or host: a ring
 with the share of workloads that are up to date, counts of services, drift and workloads waiting in the inbox,
-deploys per day over thirty days, and every workload as a card, one column per namespace or project. A card shows
+deploys per day over thirty days, and every workload as a card, one column per application. A card shows
 the version (and a newer acceptable one), the image, a dot per running replica, drift badges and its service;
 its colour says how current it is (green up to date, amber behind, red end of life or targets disagreeing, grey not
 mapped), and problems come first. The filter above the cards matches names, services, versions and badges. Below,
 **What changed here** lists the latest deploys on this target.
+
+**Group by** arranges the columns, and the choice stays in the link:
+
+| Group by | Columns |
+|---|---|
+| Application (default) | What the workload belongs to, from its labels (below). |
+| Namespace | The Kubernetes or Nomad namespace, the Compose project or the Swarm stack. |
+| Team | The owner of the workload's service; unmapped workloads and services without an owner go under *no owner*. |
+| Status | Needs attention, behind, not mapped, up to date. |
+
+A workload's application is the first of these labels it has: the workspace's own label key (set under
+**Settings → Users → Applications**, for example `example.com/app`), `goliash.app`, `app.kubernetes.io/part-of`,
+`app.kubernetes.io/instance` (the Helm release), `release`, `com.docker.compose.project` and
+`com.docker.stack.namespace`. Without any of them, its namespace stands in. The column caption says where the
+name came from, so a column captioned *namespace, no app label* is a hint to label those workloads. A new label
+key applies from each target's next snapshot.
 
 ## Looking back, and exporting for audits
 

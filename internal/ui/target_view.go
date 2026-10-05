@@ -17,7 +17,7 @@ import (
 )
 
 // The target page shows one cluster or host: every workload as a card, coloured by
-// how current it is, grouped by namespace, with the target's health and recent
+// how current it is, grouped by application (or namespace, team or status), with the target's health and recent
 // changes on top.
 
 // TargetDetailView is one target's page.
@@ -32,20 +32,33 @@ type TargetDetailView struct {
 
 	Workloads, Services, OK, Drifting, Unmapped int
 	Groups                                      []WorkloadGroup
-	Deploys                                     []int // per day, oldest first
+	GroupBy                                     string // app, namespace, team or status
+	Deploys                                     []int  // per day, oldest first
 	DeployMax                                   int
 	Changes                                     []EventView
 }
 
-// WorkloadGroup is the workloads of one namespace or project.
+// WorkloadGroup is one column of the target page.
 type WorkloadGroup struct {
-	Name  string
-	Cards []WorkloadCard
+	Name    string
+	Caption string // where the grouping came from, e.g. the label key
+	Cards   []WorkloadCard
+}
+
+// groupModes are the ways to arrange the target page, application first.
+var groupModes = []struct{ Key, Label string }{
+	{"app", "Application"}, {"namespace", "Namespace"}, {"team", "Team"}, {"status", "Status"},
+}
+
+var statusColumns = []struct{ key, label string }{
+	{"bad", "Needs attention"}, {"warn", "Behind"}, {"unmapped", "Not mapped"}, {"ok", "Up to date"},
 }
 
 // WorkloadCard is one workload on the target page.
 type WorkloadCard struct {
 	Name, Kind, Namespace string
+	App, AppSource, Owner string
+	ShowNamespace         bool   // when the columns are not namespaces
 	Service, ServiceURL   string // empty while unmapped
 	Suggested             string
 	Image, Tag            string
@@ -131,7 +144,7 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 			w.side = append(w.side, in.ContainerName+" "+in.Tag)
 		}
 	}
-	groups := map[string][]WorkloadCard{}
+	var cards []WorkloadCard
 	services := map[string]bool{}
 	for _, id := range order {
 		w := byWorkload[id]
@@ -144,7 +157,7 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 			Running: w.running, Sidecars: w.side, Suggested: in.SuggestedService,
 		}
 		if svc, ok := o.Services[in.ServiceID]; ok && in.ServiceID != "" {
-			c.Service, c.ServiceURL = svc.Name, serviceURL(svc.Name)
+			c.Service, c.ServiceURL, c.Owner = svc.Name, serviceURL(svc.Name), svc.Owner
 			services[svc.ID] = true
 			for _, d := range o.DriftsAt(svc.ID, t.EnvironmentID) {
 				c.Drifts = append(c.Drifts, driftBadge(d))
@@ -169,31 +182,20 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 			words = append(words, d.Label)
 		}
 		c.Search = strings.ToLower(strings.Join(words, " "))
-		groups[c.Namespace] = append(groups[c.Namespace], c)
+		c.App, c.AppSource = in.App, in.AppSource
+		cards = append(cards, c)
 		v.Workloads++
 	}
 	v.Services = len(services)
-	names := make([]string, 0, len(groups))
-	for n := range groups {
-		names = append(names, n)
+	v.GroupBy = r.URL.Query().Get("group")
+	known := false
+	for _, m := range groupModes {
+		known = known || m.Key == v.GroupBy
 	}
-	sort.Strings(names)
-	for _, n := range names {
-		cards := groups[n]
-		// Problems first, then by name: what needs attention is on top.
-		rank := map[string]int{"bad": 0, "warn": 1, "unmapped": 2, "ok": 3}
-		sort.SliceStable(cards, func(i, j int) bool {
-			if rank[cards[i].Health] != rank[cards[j].Health] {
-				return rank[cards[i].Health] < rank[cards[j].Health]
-			}
-			return cards[i].Name < cards[j].Name
-		})
-		label := n
-		if label == "" {
-			label = "workloads"
-		}
-		v.Groups = append(v.Groups, WorkloadGroup{Name: label, Cards: cards})
+	if !known {
+		v.GroupBy = "app"
 	}
+	v.Groups = groupCards(cards, v.GroupBy)
 
 	// Deploys per day over 30 days, and the latest changes.
 	now := time.Now()
@@ -279,4 +281,100 @@ func ringClass(ok, total int) string {
 		return "fair"
 	}
 	return "poor"
+}
+
+// groupCards arranges workload cards in columns: by application (from labels, else
+// the namespace), namespace, team (the service's owner) or status. Within a column,
+// problems come first.
+func groupCards(cards []WorkloadCard, by string) []WorkloadGroup {
+	rank := map[string]int{"bad": 0, "warn": 1, "unmapped": 2, "ok": 3}
+	byKey := map[string][]WorkloadCard{}
+	sources := map[string]map[string]bool{}
+	for _, c := range cards {
+		c.ShowNamespace = by != "namespace" && c.Namespace != ""
+		var key string
+		switch by {
+		case "namespace":
+			key = c.Namespace
+		case "team":
+			key = c.Owner
+			if key == "" {
+				key = "no owner"
+			}
+		case "status":
+			key = c.Health
+		default:
+			key = c.App
+			if sources[key] == nil {
+				sources[key] = map[string]bool{}
+			}
+			sources[key][c.AppSource] = true
+		}
+		if key == "" {
+			key = "other"
+		}
+		byKey[key] = append(byKey[key], c)
+	}
+	var keys []string
+	if by == "status" {
+		for _, sc := range statusColumns {
+			if len(byKey[sc.key]) > 0 {
+				keys = append(keys, sc.key)
+			}
+		}
+	} else {
+		for k := range byKey {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if (keys[i] == "other" || keys[i] == "no owner") != (keys[j] == "other" || keys[j] == "no owner") {
+				return keys[j] == "other" || keys[j] == "no owner"
+			}
+			return keys[i] < keys[j]
+		})
+	}
+	out := make([]WorkloadGroup, 0, len(keys))
+	for _, k := range keys {
+		cs := byKey[k]
+		sort.SliceStable(cs, func(i, j int) bool {
+			if rank[cs[i].Health] != rank[cs[j].Health] {
+				return rank[cs[i].Health] < rank[cs[j].Health]
+			}
+			return cs[i].Name < cs[j].Name
+		})
+		g := WorkloadGroup{Name: k, Cards: cs}
+		if by == "status" {
+			for _, sc := range statusColumns {
+				if sc.key == k {
+					g.Name = sc.label
+				}
+			}
+		}
+		if by == "app" && len(sources[k]) == 1 {
+			for src := range sources[k] {
+				g.Caption = appSourceLabel(src)
+			}
+		}
+		out = append(out, g)
+	}
+	return out
+}
+
+// appSourceLabel says where an application's name came from, briefly.
+func appSourceLabel(src string) string {
+	switch src {
+	case "app.kubernetes.io/part-of":
+		return "part-of label"
+	case "app.kubernetes.io/instance", "release":
+		return "Helm release"
+	case "com.docker.compose.project":
+		return "Compose project"
+	case "com.docker.stack.namespace":
+		return "Swarm stack"
+	case "namespace":
+		return "namespace, no app label"
+	case "":
+		return ""
+	}
+	return src + " label"
 }
