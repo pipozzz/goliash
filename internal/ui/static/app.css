@@ -250,3 +250,28 @@ tr.paused td { color: var(--muted); }
 .env-edit input[name="name"] { min-width: 0; width: 12ch; }
 .env-edit input[name="position"] { width: 6ch; }
 textarea.mono { font-family: var(--mono); font-size: 12.5px; }
+
+/* First-run checklist on an empty matrix. */
+.first-run { padding: 28px clamp(16px, 4vw, 40px); display: flex; flex-direction: column; gap: 10px; }
+.steps { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: step; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 28px 1fr auto; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.steps li:first-child { border-top: 0; }
+.steps li p { margin-top: 2px; }
+.step-mark { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font: 600 12px/1 var(--sans); color: var(--muted); }
+.step-mark::before { content: counter(step); }
+.steps li.done .step-mark { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.steps li.done .step-mark::before { content: "✓"; }
+.steps li.done strong { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 720px) { .steps li { grid-template-columns: 28px 1fr; } .steps li .button { grid-column: 2; justify-self: start; } }
+
+/* Summary tiles that double as filters (hygiene). */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
+.tile:hover { border-color: var(--accent); text-decoration: none; }
+.tile strong { font-size: 22px; line-height: 1.1; }
+.tile span { font-weight: 600; }
+.tile small { color: var(--muted); font-size: 12px; }
+.tile.warn strong { color: var(--warn); }
+.tile.zero { opacity: 0.65; }
+.tile.current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }

@@ -583,7 +583,7 @@ func targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, from
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\" onchange=\"this.form.requestSubmit()\"><option value=\"server\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\" data-autosubmit><option value=\"server\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

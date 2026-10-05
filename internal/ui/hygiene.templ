@@ -17,8 +17,25 @@ templ HygienePage(v HygieneView) {
 				<p class="sub">Images that make "what runs" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, and images without a known digest.</p>
 			</div>
 		</div>
+		if v.Total > 0 {
+			<nav class="tiles" aria-label="Kinds of findings">
+				<a href="/hygiene" class={ "tile", templ.KV("current", v.Kind == "") }>
+					<strong>{ itoa(v.Total) }</strong>
+					<span>All findings</span>
+				</a>
+				for _, k := range v.Kinds {
+					<a href={ templ.URL("/hygiene?kind=" + k.Kind) } class={ "tile", templ.KV("current", v.Kind == k.Kind), templ.KV("warn", k.Warn && k.Count > 0), templ.KV("zero", k.Count == 0) }>
+						<strong>{ itoa(k.Count) }</strong>
+						<span>{ k.Label }</span>
+						<small>{ k.Help }</small>
+					</a>
+				}
+			</nav>
+		}
 		<section class="panel">
-			if len(v.Findings) == 0 {
+			if len(v.Findings) == 0 && v.Total > 0 {
+				<div class="empty">None of this kind. <a href="/hygiene">Show all findings</a></div>
+			} else if len(v.Findings) == 0 {
 				<div class="empty">Nothing found: every image has a version tag and a known digest.</div>
 			} else {
 				<div class="scroll">

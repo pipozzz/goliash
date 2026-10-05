@@ -69,6 +69,17 @@ type MatrixGrid struct {
 	Targets  int
 	Agents   int
 	Updated  time.Time
+	Steps    []Step // first-run checklist, while the matrix is empty
+}
+
+// Step is one item of the first-run checklist.
+type Step struct {
+	Title    string
+	Text     string
+	Href     string
+	Action   string
+	Done     bool
+	Optional bool
 }
 
 // EnvHeader is a matrix column.
@@ -590,6 +601,17 @@ func boolStr(b bool) string {
 	return "false"
 }
 
+// htmxConfig makes htmx swap error responses too: they carry an explanation.
+const htmxConfig = `{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":true,"error":false}]}`
+
+// ErrorView is an error page.
+type ErrorView struct {
+	Status   int
+	Title    string
+	Message  string
+	SignedIn bool
+}
+
 // isSettings reports whether a page belongs under the Settings menu.
 func isSettings(page string) bool {
 	switch page {
@@ -706,4 +728,16 @@ func attention(kind string, d versions.DriftDetail) (label, text string) {
 type HygieneView struct {
 	Base
 	Findings []versions.Finding
+	Kinds    []HygieneKind
+	Kind     string // the kind shown; empty for all
+	Total    int
+}
+
+// HygieneKind is one kind of finding with its count, for the summary.
+type HygieneKind struct {
+	Kind  string
+	Label string
+	Help  string
+	Count int
+	Warn  bool
 }

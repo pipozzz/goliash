@@ -105,6 +105,15 @@
     if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); }
   });
 
+  // Selects that act at once (role, workspace, collector) and the print button. The
+  // Content-Security-Policy allows no inline handlers, so they live here.
+  document.addEventListener("change", function (e) {
+    if (e.target.matches("select[data-autosubmit]") && e.target.form) e.target.form.requestSubmit();
+  });
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("[data-print]")) window.print();
+  });
+
   // Copy buttons for one-time secrets.
   document.addEventListener("click", function (e) {
     const btn = e.target.closest("[data-copy]");

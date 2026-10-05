@@ -224,7 +224,7 @@ templ SettingsPage(v SettingsView) {
 									{ u.Access }
 								} else {
 									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
-										<select name="role" aria-label="Role" onchange="this.form.requestSubmit()">
+										<select name="role" aria-label="Role" data-autosubmit>
 											for _, r := range workspaceRoles() {
 												<option value={ r } selected?={ !u.OrgWide && (r == u.Role || (r == "none" && u.Role == "")) }>{ roleLabel(r) }</option>
 											}

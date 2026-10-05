@@ -94,6 +94,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		files.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("GET /login", s.login)
+	mux.HandleFunc("/", s.notFound)
 
 	v, m, a := store.RoleViewer, store.RoleMember, store.RoleAdmin
 	mux.Handle("GET /{$}", s.page(v, s.matrix))
@@ -165,7 +166,7 @@ func (s *Server) page(role string, h handler) http.Handler {
 			return
 		}
 		if ok && p.Via == "session" && p.Scope.WorkspaceID == "" {
-			http.Error(w, "You have no access to any workspace yet. Ask an admin to invite you to one.", http.StatusForbidden)
+			s.problem(w, r, http.StatusForbidden, "No workspace yet", "You have no access to any workspace yet. Ask an admin to invite you to one.", true)
 			return
 		}
 		if !ok || p.Via != "session" {
@@ -178,7 +179,7 @@ func (s *Server) page(role string, h handler) http.Handler {
 			return
 		}
 		if !p.Can(role) {
-			http.Error(w, "Your role ("+p.Role+") does not allow this. Ask an admin.", http.StatusForbidden)
+			s.problem(w, r, http.StatusForbidden, "Not allowed", "Your role ("+p.Role+") does not allow this. Ask an admin of this workspace.", true)
 			return
 		}
 		if err := h(w, r, p); err != nil {
@@ -189,7 +190,34 @@ func (s *Server) page(role string, h handler) http.Handler {
 
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	s.log.ErrorContext(r.Context(), "ui request failed", "path", r.URL.Path, "err", err)
-	http.Error(w, "Something went wrong. The error is in the server log.", http.StatusInternalServerError)
+	s.problem(w, r, http.StatusInternalServerError, "Something went wrong", "The request failed. The error is in the server log; try again in a moment.", true)
+}
+
+// problem answers with an error page. Parts of a page that htmx loads get a short
+// line instead, so a failed refresh does not put a whole page into a panel.
+func (s *Server) problem(w http.ResponseWriter, r *http.Request, status int, title, msg string, signedIn bool) {
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Boosted") != "true" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(status)
+		_ = errorLine(msg).Render(r.Context(), w)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_ = ErrorPage(ErrorView{Status: status, Title: title, Message: msg, SignedIn: signedIn}).Render(r.Context(), w)
+}
+
+// notFound answers paths nothing else serves: a page for people, JSON for API clients.
+func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/agent/") || !strings.Contains(r.Header.Get("Accept"), "text/html") {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"title":"Not Found","status":404}`))
+		return
+	}
+	_, signedIn, _ := s.auth.Authenticate(r)
+	s.problem(w, r, http.StatusNotFound, "Page not found", "Nothing lives at this address. It may have moved, or the thing it showed was deleted.", signedIn)
 }
 
 func (s *Server) base(ctx context.Context, p auth.Principal, page, title string) Base {
@@ -281,7 +309,39 @@ func (s *Server) overview(ctx context.Context, sc store.Scope) (MatrixGrid, erro
 	if err != nil {
 		return MatrixGrid{}, err
 	}
-	return buildGrid(o, len(agents)), nil
+	g := buildGrid(o, len(agents))
+	if len(g.Rows) == 0 {
+		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
+			return g, err
+		}
+	}
+	return g, nil
+}
+
+// firstSteps is the checklist an empty matrix shows, ticked off as the workspace fills.
+func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) ([]Step, error) {
+	envs, err := s.store.ListEnvironments(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	chans, err := s.store.ListChannels(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	users, err := s.store.CountUsers(ctx, sc.OrgID)
+	if err != nil {
+		return nil, err
+	}
+	data := g.Unmapped > 0 || len(g.Rows) > 0
+	steps := []Step{
+		{Title: "Create your environments", Text: "In promotion order, for example dev, staging and prod.", Href: "/agents", Action: "Add environments", Done: len(envs) > 0},
+		{Title: "Add a target", Text: "A Kubernetes cluster, an ECS or Nomad region, a Swarm or Docker host, or Compose files, read through an agent or by the server itself.", Href: "/agents", Action: "Add a target", Done: g.Targets > 0},
+		{Title: "Get the first snapshot", Text: "Start the agent with its token. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
+		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, or map their images once in the inbox; new workloads follow.", Href: "/inbox", Action: "Open the inbox", Done: len(g.Rows) > 0},
+		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: len(chans) > 0, Optional: true},
+		{Title: "Invite your team", Text: "Viewers read, members map services and acknowledge, admins configure.", Href: "/settings", Action: "Invite people", Done: users > 1, Optional: true},
+	}
+	return steps, nil
 }
 
 func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -665,7 +725,31 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	return render(w, r, HygienePage(HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Findings: findings}))
+	v := HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Total: len(findings)}
+	v.Kinds = []HygieneKind{
+		{Kind: "moving-tag", Label: "Moving tags", Help: "latest, stable and the like: the version cannot be known", Warn: true},
+		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},
+		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},
+		{Kind: "unpinned", Label: "No digest known", Help: "the tag could be pushed again unnoticed"},
+	}
+	known := false
+	for i := range v.Kinds {
+		for _, f := range findings {
+			if f.Kind == v.Kinds[i].Kind {
+				v.Kinds[i].Count++
+			}
+		}
+		known = known || v.Kinds[i].Kind == v.Kind
+	}
+	if !known {
+		v.Kind = ""
+	}
+	for _, f := range findings {
+		if v.Kind == "" || f.Kind == v.Kind {
+			v.Findings = append(v.Findings, f)
+		}
+	}
+	return render(w, r, HygienePage(v))
 }
 
 // sinceOptions are the history page's "changed in the last …" periods.
@@ -1556,7 +1640,7 @@ var workspaceSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 func (s *Server) workspaces(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	if !p.OrgWide() {
-		http.Error(w, "Only organization owners and admins manage workspaces.", http.StatusForbidden)
+		s.problem(w, r, http.StatusForbidden, "Not allowed", "Only organization owners and admins manage workspaces.", true)
 		return nil
 	}
 	v := WorkspacesView{Base: withFlash(s.base(ctx, p, "workspaces", "Workspaces"), r)}
@@ -1580,7 +1664,7 @@ func (s *Server) workspaces(w http.ResponseWriter, r *http.Request, p auth.Princ
 func (s *Server) createWorkspace(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	if !p.OrgWide() {
-		http.Error(w, "Only organization owners and admins manage workspaces.", http.StatusForbidden)
+		s.problem(w, r, http.StatusForbidden, "Not allowed", "Only organization owners and admins manage workspaces.", true)
 		return nil
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
