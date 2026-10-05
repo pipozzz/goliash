@@ -8,6 +8,11 @@ The matrix has one row per **service** and one column per **environment**, in pr
 prod). Each cell shows the versions running there, with replicas and the targets they run on. The last column shows
 the newest upstream version the service's policy accepts.
 
+**Filter** the matrix by typing above it (press <kbd>/</kbd> to jump there): every word must appear in the service,
+its owner, a version, a target or a badge, so `team-payments end` finds that team's services on an end-of-life
+release. **Only with drift** hides the rest. The filter is part of the address, so a filtered matrix can be
+bookmarked or shared. **Time travel** shows the matrix as of a past moment; **Export CSV** downloads the inventory.
+
 Badges in a cell:
 
 | Badge | Meaning |

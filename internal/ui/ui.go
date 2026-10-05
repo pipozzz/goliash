@@ -656,7 +656,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	return render(w, r, HygienePage(HygieneView{Base: s.base(r.Context(), p, "matrix", "Image hygiene"), Findings: findings}))
+	return render(w, r, HygienePage(HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Findings: findings}))
 }
 
 // sinceOptions are the history page's "changed in the last …" periods.
