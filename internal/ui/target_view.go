@@ -195,7 +195,7 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 		v.Workloads++
 	}
 	v.Services = len(services)
-	v.GroupBy = r.URL.Query().Get("group")
+	v.GroupBy = s.grouping(w, r, targetGroupCookie)
 	known := false
 	for _, m := range groupModes {
 		known = known || m.Key == v.GroupBy

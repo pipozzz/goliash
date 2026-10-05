@@ -381,10 +381,10 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		if err != nil {
 			return err
 		}
-		v.Grid, v.At = buildGrid(o, 0, r.URL.Query().Get("group")), at.UTC().Format("2006-01-02T15:04")
+		v.Grid, v.At = buildGrid(o, 0, s.grouping(w, r, matrixGroupCookie)), at.UTC().Format("2006-01-02T15:04")
 		return render(w, r, MatrixPage(v))
 	}
-	g, err := s.overview(r.Context(), p.Scope, r.URL.Query().Get("group"))
+	g, err := s.overview(r.Context(), p.Scope, s.grouping(w, r, matrixGroupCookie))
 	if err != nil {
 		return err
 	}
@@ -1704,6 +1704,30 @@ func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, "/settings", "notice", "Token "+t.Name+" revoked. It stops working now.")
 	}
 	return back(w, r, "/settings", "error", "That token is already revoked.")
+}
+
+// Cookies that remember how this browser last grouped the matrix and target pages.
+const (
+	matrixGroupCookie = "goliash_matrix_group"
+	targetGroupCookie = "goliash_target_group"
+)
+
+// grouping returns the grouping a page asks for: the link's ?group=, remembered in
+// cookie for the next visit, else the remembered one. Unknown values fall back later.
+func (s *Server) grouping(w http.ResponseWriter, r *http.Request, cookie string) string {
+	if g := r.URL.Query().Get("group"); g != "" {
+		if len(g) <= 16 {
+			http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
+				Name: cookie, Value: g, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
+				Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
+			})
+		}
+		return g
+	}
+	if c, err := r.Cookie(cookie); err == nil {
+		return c.Value
+	}
+	return ""
 }
 
 // switchWorkspace remembers the workspace this browser works in.

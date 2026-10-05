@@ -1208,6 +1208,15 @@ func TestMatrixGrouping(t *testing.T) {
 	if _, body = get(t, viewer, e.srv.URL+"/ui/matrix?group=team", nil); !strings.Contains(body, `class="group-head"`) {
 		t.Error("live grid not grouped")
 	}
+	// The last choice is remembered for this browser.
+	get(t, viewer, e.srv.URL+"/?group=status", nil)
+	if _, body = get(t, viewer, e.srv.URL+"/", nil); !strings.Contains(body, `aria-current="page">Status</a>`) {
+		t.Error("grouping not remembered")
+	}
+	get(t, viewer, e.srv.URL+"/targets/"+e.tgt.ID+"?group=team", nil)
+	if _, body = get(t, viewer, e.srv.URL+"/targets/"+e.tgt.ID, nil); !strings.Contains(body, `aria-current="page">Team</a>`) {
+		t.Error("target grouping not remembered")
+	}
 
 	rows := []MatrixRow{
 		{Service: "api", Owner: "payments", App: "webshop", AppSource: "app.kubernetes.io/part-of", Health: "ok"},
