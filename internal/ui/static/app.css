@@ -397,8 +397,39 @@ details.advanced[open] > summary { margin-bottom: 10px; }
   .spark { width: 100%; }
 }
 .segmented { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.segmented .muted { padding: 0 8px 0 6px; font-size: 12.5px; }
+.segmented .muted { padding: 0 8px 0 6px; font-size: 12.5px; white-space: nowrap; }
+.segmented a { white-space: nowrap; }
 .segmented a { padding: 5px 10px; border-radius: 6px; color: var(--muted); font-weight: 500; font-size: 13px; }
 .segmented a:hover { color: var(--ink); text-decoration: none; background: var(--surface-2); }
 .segmented a.on { background: var(--accent-soft); color: var(--accent); }
 .wl-group-name small { display: block; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--faint); font-size: 11px; margin-top: 2px; }
+
+/* Matrix groups: a heading row per application, team or status, with its health. */
+table.matrix tbody.mgroup.filtered { display: none; }
+table.matrix tr.group-head th {
+  position: static; background: var(--surface-2); padding: 9px 16px; text-align: left;
+  border-top: 1px solid var(--line); text-transform: none; letter-spacing: 0; color: var(--ink);
+}
+table.matrix tbody.mgroup:first-of-type tr.group-head th { border-top: 0; }
+.group-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; left: 16px; width: max-content; max-width: calc(100vw - 64px); }
+.group-name { font-weight: 650; font-size: 13.5px; }
+.group-line small { color: var(--faint); font-weight: 400; font-size: 12px; }
+.group-health { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 500; font-size: 12px; margin-left: 6px; }
+.group-health svg { border-radius: 3px; overflow: hidden; display: block; }
+.hb-bg { fill: var(--line); }
+.hb-ok { fill: var(--ok); }
+.hb-warn { fill: var(--warn); }
+.hb-bad { fill: var(--bad); }
+/* The service cell carries the row's health as an edge, like the workload cards. */
+table.matrix tr[data-health="warn"] td.svc { box-shadow: inset 3px 0 0 var(--warn), 1px 0 0 var(--line); }
+table.matrix tr[data-health="bad"] td.svc { box-shadow: inset 3px 0 0 var(--bad), 1px 0 0 var(--line); }
+@media (max-width: 720px) {
+  table.matrix tr.group-head { padding: 0; }
+  table.matrix tr.group-head th { display: block; padding: 10px 16px; }
+  .group-line { position: static; max-width: none; width: auto; row-gap: 6px; }
+  .group-health { margin-left: 0; }
+  .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  table.matrix tr[data-health="warn"] { box-shadow: inset 3px 0 0 var(--warn); }
+  table.matrix tr[data-health="bad"] { box-shadow: inset 3px 0 0 var(--bad); }
+  table.matrix tr[data-health] td.svc { box-shadow: none; }
+}

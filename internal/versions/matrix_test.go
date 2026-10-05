@@ -68,3 +68,19 @@ func TestStaleTarget(t *testing.T) {
 		t.Fatal("a target that never reported is not stale, just empty")
 	}
 }
+
+func TestCommonApp(t *testing.T) {
+	for _, c := range []struct {
+		counts      map[[2]string]int
+		app, source string
+	}{
+		{nil, "", ""},
+		{map[[2]string]int{{"shop-prod", "namespace"}: 5, {"webshop", "app.kubernetes.io/part-of"}: 1}, "webshop", "app.kubernetes.io/part-of"},
+		{map[[2]string]int{{"b", "release"}: 2, {"a", "release"}: 2, {"c", "release"}: 1}, "a", "release"},
+		{map[[2]string]int{{"shop-dev", "namespace"}: 1, {"shop-prod", "namespace"}: 3}, "shop-prod", "namespace"},
+	} {
+		if app, src := commonApp(c.counts); app != c.app || src != c.source {
+			t.Errorf("commonApp(%v) = %s/%s, want %s/%s", c.counts, app, src, c.app, c.source)
+		}
+	}
+}

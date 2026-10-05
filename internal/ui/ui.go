@@ -327,7 +327,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 // ---- matrix ----
 
-func (s *Server) overview(ctx context.Context, sc store.Scope) (MatrixGrid, error) {
+func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (MatrixGrid, error) {
 	o, err := versions.LoadOverview(ctx, s.store, sc)
 	if err != nil {
 		return MatrixGrid{}, err
@@ -336,7 +336,7 @@ func (s *Server) overview(ctx context.Context, sc store.Scope) (MatrixGrid, erro
 	if err != nil {
 		return MatrixGrid{}, err
 	}
-	g := buildGrid(o, len(agents))
+	g := buildGrid(o, len(agents), groupBy)
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
 			return g, err
@@ -381,10 +381,10 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		if err != nil {
 			return err
 		}
-		v.Grid, v.At = buildGrid(o, 0), at.UTC().Format("2006-01-02T15:04")
+		v.Grid, v.At = buildGrid(o, 0, r.URL.Query().Get("group")), at.UTC().Format("2006-01-02T15:04")
 		return render(w, r, MatrixPage(v))
 	}
-	g, err := s.overview(r.Context(), p.Scope)
+	g, err := s.overview(r.Context(), p.Scope, r.URL.Query().Get("group"))
 	if err != nil {
 		return err
 	}
@@ -400,7 +400,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 }
 
 func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	g, err := s.overview(r.Context(), p.Scope)
+	g, err := s.overview(r.Context(), p.Scope, r.URL.Query().Get("group"))
 	if err != nil {
 		return err
 	}

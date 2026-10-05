@@ -20,6 +20,9 @@ type Matrix struct {
 type Row struct {
 	Service store.Service
 	Cells   []Cell // one per environment, same order as Matrix.Environments
+	// App is the application the service's workloads belong to (the most common one,
+	// a label before the namespace fallback), and AppSource where its name came from.
+	App, AppSource string
 }
 
 // Cell is what runs of one service in one environment. More than one version means
@@ -77,6 +80,7 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 	cells := map[cellKey]map[string]*RunningVersion{}
 	declaredCells := map[cellKey]map[string]*RunningVersion{}
 	unmapped := map[string]bool{}
+	apps := map[string]map[[2]string]int{} // service -> {app, source} -> workloads
 	for _, i := range active {
 		if !i.IsMain {
 			continue
@@ -84,6 +88,12 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		if i.ServiceID == "" {
 			unmapped[i.TargetID+"/"+i.WorkloadID] = true
 			continue
+		}
+		if i.App != "" {
+			if apps[i.ServiceID] == nil {
+				apps[i.ServiceID] = map[[2]string]int{}
+			}
+			apps[i.ServiceID][[2]string{i.App, i.AppSource}]++
 		}
 		ei, ok := envIndex[i.EnvironmentID]
 		if !ok {
@@ -112,6 +122,7 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 
 	for _, svc := range services {
 		row := Row{Service: svc, Cells: make([]Cell, len(envs))}
+		row.App, row.AppSource = commonApp(apps[svc.ID])
 		present := false
 		for ei := range envs {
 			cell := &row.Cells[ei]
@@ -129,6 +140,25 @@ func BuildMatrix(services []store.Service, envs []store.Environment, targets []s
 		}
 	}
 	return m
+}
+
+// commonApp picks a service's application: the one most of its workloads name by a
+// label, else the most common namespace; ties go to the first name alphabetically.
+func commonApp(counts map[[2]string]int) (app, source string) {
+	best, bestLabel := 0, false
+	for k, n := range counts {
+		label := k[1] != "namespace"
+		switch {
+		case label != bestLabel:
+			if !label {
+				continue
+			}
+		case n < best, n == best && k[0] >= app:
+			continue
+		}
+		app, source, best, bestLabel = k[0], k[1], n, label
+	}
+	return app, source
 }
 
 func sortedVersions(byTag map[string]*RunningVersion) []RunningVersion {

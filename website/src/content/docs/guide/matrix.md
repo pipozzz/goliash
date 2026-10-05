@@ -30,6 +30,12 @@ Badges in a cell:
 
 During a rollout, both versions show with their replica counts. The matrix updates live as snapshots arrive.
 
+**Group by** above the matrix puts services under headings: **Application** (default), **Team** (the service's
+owner) or **Status** (needs attention, behind, up to date), or **None** for one list. A service's application is the
+one most of its workloads belong to (see below how it is found). Each heading shows how many of its services are up
+to date, as a bar, and the filter hides headings with nothing left under them. The choice stays in the link, also
+while looking back with time travel.
+
 ## One target at a glance
 
 Click a target's name under **Settings → Agents and targets** to see what runs on that cluster or host: a ring

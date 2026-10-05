@@ -1193,3 +1193,56 @@ func TestAppLabelSetting(t *testing.T) {
 		t.Error("member changed the key")
 	}
 }
+
+func TestMatrixGrouping(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	_, body := get(t, viewer, e.srv.URL+"/", nil)
+	if !strings.Contains(body, `aria-current="page">Application</a>`) || !strings.Contains(body, `hx-get="/ui/matrix?group=app"`) {
+		t.Error("application is not the default grouping, or the live reload forgets it")
+	}
+	_, body = get(t, viewer, e.srv.URL+"/?group=none", nil)
+	if strings.Contains(body, `class="group-head"`) || !strings.Contains(body, `name="group" value="none"`) {
+		t.Error("none still groups, or time travel forgets the grouping")
+	}
+	if _, body = get(t, viewer, e.srv.URL+"/ui/matrix?group=team", nil); !strings.Contains(body, `class="group-head"`) {
+		t.Error("live grid not grouped")
+	}
+
+	rows := []MatrixRow{
+		{Service: "api", Owner: "payments", App: "webshop", AppSource: "app.kubernetes.io/part-of", Health: "ok"},
+		{Service: "db", App: "webshop", AppSource: "app.kubernetes.io/part-of", Health: "bad"},
+		{Service: "cron", Owner: "sre", Health: "warn"},
+	}
+	names := func(gs []MatrixGroup) string {
+		var out []string
+		for _, g := range gs {
+			var rs []string
+			for _, r := range g.Rows {
+				rs = append(rs, r.Service)
+			}
+			out = append(out, g.Name+":"+strings.Join(rs, ","))
+		}
+		return strings.Join(out, " ")
+	}
+	for by, want := range map[string]string{
+		"app":    "webshop:api,db other:cron",
+		"team":   "payments:api sre:cron no owner:db",
+		"status": "Needs attention:db Behind:cron Up to date:api",
+		"none":   ":api,db,cron",
+	} {
+		if got := names(groupRows(rows, by)); got != want {
+			t.Errorf("group by %s = %q, want %q", by, got, want)
+		}
+	}
+	g := groupRows(rows, "app")[0]
+	if g.OK != 1 || g.Bad != 1 || g.Caption != "part-of label" {
+		t.Errorf("webshop group %+v", g)
+	}
+	if ok, warn, bad := g.healthBar(100); ok != 50 || warn != 0 || bad != 50 {
+		t.Errorf("bar %v %v %v", ok, warn, bad)
+	}
+	if matrixGroupBy("bogus") != "app" || matrixURL("team", "2026-10-01T10:00") != "/?at=2026-10-01T10%3A00&group=team" {
+		t.Error("matrixGroupBy or matrixURL")
+	}
+}
