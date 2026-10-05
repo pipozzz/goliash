@@ -7,8 +7,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"net/url"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
