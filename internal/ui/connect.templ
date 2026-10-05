@@ -1,0 +1,250 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import "time"
+
+templ ConnectPage(v ConnectView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/agents">Agents and targets</a> /</p>
+				<h1>Connect</h1>
+				<p class="sub">What do you want to watch? One form sets up the environment, the agent and the target.</p>
+			</div>
+		</div>
+		<div class="platforms">
+			for _, pl := range v.Platforms {
+				<a class="platform" href={ templ.URL("/connect/" + pl.Key) }>
+					<strong>{ pl.Title }</strong>
+					<span>{ pl.Summary }</span>
+				</a>
+			}
+		</div>
+	}
+}
+
+func formVal(f map[string][]string, key, fallback string) string {
+	if vs := f[key]; len(vs) > 0 {
+		return vs[0]
+	}
+	return fallback
+}
+
+templ ConnectFormPage(v ConnectFormView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/connect">Connect</a> /</p>
+				<h1>{ v.Platform.Title }</h1>
+				<p class="sub">{ v.Platform.Summary }</p>
+			</div>
+		</div>
+		<form class="stack connect-form" method="post" action={ templ.URL("/connect/" + v.Platform.Key) }>
+			<section class="panel">
+				<div class="panel-head"><h2>1. Where it belongs</h2></div>
+				<div class="panel-body stack">
+					<div class="row">
+						<label>
+							Name
+							<input name="name" required maxlength="100" value={ formVal(v.Form, "name", "") } placeholder={ "prod-" + v.Platform.Key } autofocus/>
+							<span class="hint">How this { v.Platform.Title } shows in Goliash.</span>
+						</label>
+						if len(v.Envs) > 0 {
+							<label>
+								Environment
+								<select name="env">
+									for _, e := range v.Envs {
+										<option value={ e.ID } selected?={ formVal(v.Form, "env", "") == e.ID }>{ e.Name }</option>
+									}
+								</select>
+							</label>
+						}
+						<label>
+							if len(v.Envs) > 0 {
+								Or a new environment
+							} else {
+								Environment
+							}
+							<input name="new_env" maxlength="60" value={ formVal(v.Form, "new_env", "") } placeholder="staging" required?={ len(v.Envs) == 0 }/>
+							<span class="hint">New environments go after the others in promotion order; reorder them later.</span>
+						</label>
+					</div>
+				</div>
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>2. Who collects it</h2></div>
+				<div class="panel-body stack">
+					{{ by := formVal(v.Form, "by", defaultBy(v.Platform)) }}
+					<label class="check choice">
+						<input type="radio" name="by" value="new" checked?={ by == "new" }/>
+						<span><strong>A new agent</strong> <span class="muted">runs next to it and only reads; you get the command to start it.</span></span>
+					</label>
+					<label class="inline-field">Agent name<input name="agent_name" maxlength="100" value={ formVal(v.Form, "agent_name", "") } placeholder="same as the target"/></label>
+					for _, a := range v.Agents {
+						<label class="check choice">
+							<input type="radio" name="by" value={ a.ID } checked?={ by == a.ID }/>
+							<span><strong>Agent { a.Name }</strong> <span class="muted">already running</span></span>
+						</label>
+					}
+					<label class="check choice">
+						<input type="radio" name="by" value="server" checked?={ by == "server" }/>
+						<span>
+							<strong>This server</strong>
+							<span class="muted">
+								if v.Platform.ServerHint != "" {
+									{ v.Platform.ServerHint }
+								} else {
+									only when the server can reach it directly.
+								}
+							</span>
+						</span>
+					</label>
+				</div>
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>3. { v.Platform.Title } settings</h2></div>
+				<div class="panel-body stack">
+					switch v.Platform.Key {
+						case "kubernetes":
+							<div class="row">
+								<label>Only these namespaces<input name="include" value={ formVal(v.Form, "include", "") } placeholder="all"/><span class="hint">Comma-separated; empty means every namespace.</span></label>
+								<label>Skip these namespaces<input name="exclude" value={ formVal(v.Form, "exclude", "kube-system") }/></label>
+							</div>
+							<label>Kubeconfig context<input name="context" value={ formVal(v.Form, "context", "") } placeholder="in-cluster"/><span class="hint">Empty: the agent uses the cluster it runs in.</span></label>
+						case "docker":
+							<label>Docker API<input name="docker_host" required value={ formVal(v.Form, "docker_host", "tcp://socket-proxy:2375") }/><span class="hint">The agent's compose file starts a read-only socket proxy at tcp://socket-proxy:2375.</span></label>
+							<label>Only these Compose projects<input name="projects" value={ formVal(v.Form, "projects", "") } placeholder="all containers"/></label>
+						case "swarm":
+							<label>Docker API of a manager<input name="docker_host" required value={ formVal(v.Form, "docker_host", "tcp://socket-proxy:2375") }/><span class="hint">The agent's stack starts a read-only socket proxy on a manager at tcp://socket-proxy:2375.</span></label>
+						case "nomad":
+							<label>Nomad address<input name="address" required value={ formVal(v.Form, "address", "http://nomad.service.consul:4646") }/></label>
+							<div class="row">
+								<label>Region<input name="region" value={ formVal(v.Form, "region", "") } placeholder="default"/></label>
+								<label>Namespaces<input name="namespaces" value={ formVal(v.Form, "namespaces", "") } placeholder="every readable namespace"/></label>
+							</div>
+							<label class="check"><input type="checkbox" name="acl" checked?={ formVal(v.Form, "acl", "on") == "on" }/> ACLs are on: the agent sends a token with <code>list-jobs</code> and <code>read-job</code></label>
+						case "ecs":
+							<div class="row">
+								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
+								<label>Clusters<input name="clusters" value={ formVal(v.Form, "clusters", "") } placeholder="every cluster in the region"/></label>
+							</div>
+							<p class="hint">The agent's task role needs only ecs:List*, ecs:Describe* and ecr:ListImages; the Terraform module sets that up.</p>
+						case "compose":
+							<label>
+								Compose files
+								<textarea name="files" rows="3" required class="mono" placeholder="https://raw.githubusercontent.com/acme/infra/main/shop/compose.yaml">{ formVal(v.Form, "files", "") }</textarea>
+								<span class="hint">One per line: URLs (the server or an agent fetches them), or paths on an agent's disk. Later files override earlier ones.</span>
+							</label>
+							<div class="row">
+								<label>Project name<input name="project" value={ formVal(v.Form, "project", "") } placeholder="from the file"/></label>
+								<label class="check"><input type="checkbox" name="private" checked?={ formVal(v.Form, "private", "") == "on" }/> The URLs need a token (GOLIASH_CREDENTIAL_COMPOSE where they are fetched)</label>
+							</div>
+					}
+				</div>
+			</section>
+			<div class="actions"><button type="submit">Connect</button><a class="button secondary" href="/connect">Back</a></div>
+		</form>
+	}
+}
+
+templ ConnectDonePage(v ConnectDoneView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/connect">Connect</a> /</p>
+				<h1>{ v.Target } <span class="badge neutral">{ v.Platform.Title }</span></h1>
+				<p class="sub">In { v.Env }, collected by { connectBy(v) }.</p>
+			</div>
+		</div>
+		@connectStatusView(v.Status, time.Now())
+		if v.NewToken != "" {
+			{{ title, cmd := installCommand(v.Platform.Key, v.ServerURL, v.NewToken, v.Files) }}
+			<section class="panel">
+				<div class="panel-head"><h2>{ title }</h2><span class="muted">the token is in it and shown only now</span></div>
+				<div class="panel-body stack">
+					<pre class="mono install-cmd" id="install-main">{ cmd }</pre>
+					<div class="actions">
+						<button type="button" class="secondary" data-copy="install-main">Copy</button>
+						<a href={ templ.URL("/agents/" + v.AgentID) }>Other ways to start agent { v.AgentName }</a>
+					</div>
+				</div>
+			</section>
+		} else if !v.ByServer {
+			<section class="panel">
+				<div class="panel-body">Agent <a href={ templ.URL("/agents/" + v.AgentID) }>{ v.AgentName }</a> picks the new target up within a minute; nothing to install.</div>
+			</section>
+		}
+		<details class="panel settings-record">
+			<summary class="panel-head">Settings stored for this target</summary>
+			<div class="panel-body"><pre class="mono">{ v.Settings }</pre><a href={ templ.URL("/targets/" + v.TargetID) }>Edit</a></div>
+		</details>
+	}
+}
+
+func connectBy(v ConnectDoneView) string {
+	if v.ByServer {
+		return "this server"
+	}
+	return "agent " + v.AgentName
+}
+
+func defaultBy(p PlatformInfo) string {
+	if p.AgentFirst {
+		return "new"
+	}
+	return "server"
+}
+
+// connectStatusView polls itself until the first report is in.
+templ connectStatusView(st ConnectStatus, now time.Time) {
+	<section
+		class="panel connect-status"
+		id="connect-status"
+		if st.Step < 2 {
+			hx-get={ "/connect/status/" + st.TargetID }
+			hx-trigger="every 3s"
+			hx-swap="outerHTML"
+		}
+		aria-live="polite"
+	>
+		<ol class="steps">
+			<li class={ templ.KV("done", st.Step >= 1) }>
+				<span class="step-mark" aria-hidden="true"></span>
+				<div>
+					if st.Step >= 1 {
+						<strong>{ capitalise(st.Agent) } is connected</strong>
+					} else {
+						<strong>Waiting for { st.Agent } to connect…</strong>
+						<p class="muted">Start it with the command below; this page updates by itself.</p>
+					}
+				</div>
+			</li>
+			<li class={ templ.KV("done", st.Step >= 2) }>
+				<span class="step-mark" aria-hidden="true"></span>
+				<div>
+					if st.Step >= 2 {
+						<strong>First report: { plural(st.Workloads, "workload", "workloads") }</strong>
+						<p class="muted">{ reportSummary(st) }</p>
+					} else if st.Problem != "" {
+						<strong>The collector reports a problem</strong>
+						<p class="error-text">{ st.Problem }</p>
+					} else {
+						<strong>Waiting for the first report…</strong>
+						<p class="muted">Usually within a minute of connecting.</p>
+					}
+				</div>
+			</li>
+		</ol>
+		if st.Step >= 2 {
+			<div class="actions">
+				<a class="button" href="/">Open the matrix</a>
+				if st.Unmapped > 0 {
+					<a class="button secondary" href="/inbox">Map workloads in the inbox</a>
+				}
+				<a class="button secondary" href="/connect">Connect another</a>
+			</div>
+		}
+	</section>
+}

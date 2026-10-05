@@ -116,6 +116,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /agents", s.page(v, s.agents))
 	mux.Handle("POST /agents", s.page(a, s.createAgent))
 	mux.Handle("GET /agents/{id}", s.page(v, s.agent))
+	mux.Handle("GET /connect", s.page(a, s.connect))
+	mux.Handle("GET /connect/{platform}", s.page(a, s.connectForm))
+	mux.Handle("POST /connect/{platform}", s.page(a, s.connectCreate))
+	mux.Handle("GET /connect/status/{id}", s.page(v, s.connectProgress))
 	mux.Handle("POST /agents/{id}/rotate", s.page(a, s.rotateAgent))
 	mux.Handle("POST /agents/{id}/revoke", s.page(a, s.revokeAgent))
 	mux.Handle("POST /agents/{id}/rename", s.page(a, s.renameAgent))
@@ -352,9 +356,8 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 	}
 	data := g.Unmapped > 0 || len(g.Rows) > 0
 	steps := []Step{
-		{Title: "Create your environments", Text: "In promotion order, for example dev, staging and prod.", Href: "/agents", Action: "Add environments", Done: len(envs) > 0},
-		{Title: "Add a target", Text: "A Kubernetes cluster, an ECS or Nomad region, a Swarm or Docker host, or Compose files, read through an agent or by the server itself.", Href: "/agents", Action: "Add a target", Done: g.Targets > 0},
-		{Title: "Get the first snapshot", Text: "Start the agent with its token. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
+		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS or Compose files: one form creates the environment, the agent and the target, and gives you the command to start the agent.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
+		{Title: "Get the first report", Text: "Start the agent with the command Connect shows. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
 		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, or map their images once in the inbox; new workloads follow.", Href: "/inbox", Action: "Open the inbox", Done: len(g.Rows) > 0},
 		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: len(chans) > 0, Optional: true},
 		{Title: "Invite your team", Text: "Viewers read, members map services and acknowledge, admins configure.", Href: "/settings", Action: "Invite people", Done: users > 1, Optional: true},
