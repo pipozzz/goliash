@@ -174,10 +174,21 @@ func hashOf(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// LoginLink creates a single-use sign-in URL for a user, valid for 15 minutes.
+// LoginLink creates a single-use sign-in URL for a user, valid for 15 minutes. People
+// with two-factor sign-in still enter a code after it.
 func (a *Auth) LoginLink(ctx context.Context, u store.User) (string, error) {
+	return a.link(ctx, u, store.TokenLink)
+}
+
+// RecoveryLink is a LoginLink that skips the second factor, for GOLIASH_RECOVERY_EMAIL:
+// whoever sets the server's environment and reads its logs controls it anyway.
+func (a *Auth) RecoveryLink(ctx context.Context, u store.User) (string, error) {
+	return a.link(ctx, u, store.TokenRecovery)
+}
+
+func (a *Auth) link(ctx context.Context, u store.User, purpose string) (string, error) {
 	raw, hash := randomToken()
-	if err := a.store.CreateLoginToken(ctx, hash, u.ID, loginTokenTTL); err != nil {
+	if err := a.store.CreateLoginToken(ctx, hash, u.ID, loginTokenTTL, purpose, ""); err != nil {
 		return "", err
 	}
 	return a.publicURL.String() + "/auth/magic?token=" + url.QueryEscape(raw), nil
@@ -270,6 +281,7 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 //	POST /auth/logout
 func (a *Auth) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/password", a.passwordLogin)
+	mux.HandleFunc("POST /auth/2fa", a.verifySecondFactor)
 	mux.HandleFunc("POST /auth/magic", a.requestLink)
 	mux.HandleFunc("GET /auth/magic", a.useLink)
 	mux.HandleFunc("GET /auth/oidc/start", a.oidcStart)
@@ -305,9 +317,21 @@ func (a *Auth) requestLink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
-	u, err := a.store.ConsumeLoginToken(r.Context(), hashOf(r.URL.Query().Get("token")))
+	u, purpose, err := a.store.ConsumeLoginToken(r.Context(), hashOf(r.URL.Query().Get("token")), store.TokenLink, store.TokenRecovery)
 	if err != nil {
 		http.Redirect(w, r, "/login?error=link", http.StatusSeeOther)
+		return
+	}
+	if purpose == store.TokenRecovery {
+		if err := a.startSession(w, r, u, "recovery"); err != nil {
+			http.Error(w, "could not sign in", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/account", http.StatusSeeOther)
+		return
+	}
+	if u.TOTPEnabled {
+		a.secondFactor(w, r, u, "link")
 		return
 	}
 	if err := a.startSession(w, r, u, "link"); err != nil {
@@ -347,6 +371,10 @@ func (a *Auth) passwordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.byEmail.reset(email)
+	if u.TOTPEnabled {
+		a.secondFactor(w, r, u, "password")
+		return
+	}
 	if err := a.startSession(w, r, u, "password"); err != nil {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
 		return

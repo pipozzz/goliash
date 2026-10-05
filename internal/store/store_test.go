@@ -1094,3 +1094,70 @@ func TestQueuesAndBackup(t *testing.T) {
 		}
 	})
 }
+
+func TestTOTPState(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		u, _ := s.CreateUser(ctx, ws.OrgID, "a@example.com", "", RoleViewer)
+		if err := s.StartTOTP(ctx, u.ID, "JBSWY3DPEHPK3PXP"); err != nil {
+			t.Fatal(err)
+		}
+		tt, err := s.UserTOTP(ctx, u.ID)
+		if err != nil || tt.Secret != "JBSWY3DPEHPK3PXP" || tt.Enabled {
+			t.Fatalf("pending %+v %v", tt, err)
+		}
+		if got, _ := s.GetUser(ctx, u.ID); got.TOTPEnabled {
+			t.Fatal("enabled before confirming")
+		}
+		if err := s.EnableTOTP(ctx, u.ID, 100, []string{"h1", "h2"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.StartTOTP(ctx, u.ID, "OTHER"); !errors.Is(err, ErrExists) {
+			t.Fatalf("restarted while on: %v", err)
+		}
+		if got, _ := s.GetUser(ctx, u.ID); !got.TOTPEnabled {
+			t.Fatal("not enabled")
+		}
+		if ok, _ := s.UseTOTPStep(ctx, u.ID, 100); ok {
+			t.Fatal("confirming step reused")
+		}
+		if ok, _ := s.UseTOTPStep(ctx, u.ID, 101); !ok {
+			t.Fatal("next step refused")
+		}
+		if ok, _ := s.UseRecoveryCode(ctx, u.ID, "h1"); !ok {
+			t.Fatal("recovery code refused")
+		}
+		if ok, _ := s.UseRecoveryCode(ctx, u.ID, "h1"); ok {
+			t.Fatal("recovery code reused")
+		}
+		if tt, _ = s.UserTOTP(ctx, u.ID); tt.Codes != 1 {
+			t.Fatalf("codes left %d", tt.Codes)
+		}
+		_ = s.ReplaceRecoveryCodes(ctx, u.ID, []string{"h3"})
+		if ok, _ := s.UseRecoveryCode(ctx, u.ID, "h2"); ok {
+			t.Fatal("replaced code works")
+		}
+		if err := s.DisableTOTP(ctx, u.ID); err != nil {
+			t.Fatal(err)
+		}
+		if tt, _ = s.UserTOTP(ctx, u.ID); tt.Enabled || tt.Secret != "" || tt.Codes != 0 {
+			t.Fatalf("after disable %+v", tt)
+		}
+
+		// Sign-in tokens only work for their purpose.
+		_ = s.CreateLoginToken(ctx, "mfa", u.ID, time.Minute, TokenSecondFactor, "password")
+		if _, _, err := s.ConsumeLoginToken(ctx, "mfa", TokenLink, TokenRecovery); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("second-factor token used as a link: %v", err)
+		}
+		if got, purpose, method, err := s.PeekLoginToken(ctx, "mfa", TokenSecondFactor); err != nil || got.ID != u.ID || purpose != TokenSecondFactor || method != "password" {
+			t.Fatalf("peek %v %s %s %v", got.ID, purpose, method, err)
+		}
+		if _, purpose, err := s.ConsumeLoginToken(ctx, "mfa", TokenSecondFactor); err != nil || purpose != TokenSecondFactor {
+			t.Fatal(err)
+		}
+		if _, _, _, err := s.PeekLoginToken(ctx, "mfa", TokenSecondFactor); !errors.Is(err, ErrNotFound) {
+			t.Fatal("used token still pending")
+		}
+	})
+}

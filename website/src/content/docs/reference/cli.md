@@ -31,6 +31,7 @@ Usage:
   goliash user grant -email E -role viewer|member|admin|none   access to the -workspace
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
   goliash user password -email E [-remove]   set a password (asked for, or one line on stdin)
+  goliash user 2fa -email E -reset        turn two-factor sign-in off (lost phone, no recovery codes)
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
   goliash token create -name N [-role viewer|member] [-expires 90d]   API token for /api/v1, /metrics and /mcp (shown once)
   goliash token list

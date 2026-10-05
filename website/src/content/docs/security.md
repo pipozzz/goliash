@@ -21,6 +21,8 @@ description: 'How Goliash stays read-only, protects tokens, sessions and secrets
   configuration.
 - Passwords are hashed with argon2id (19 MiB, 2 passes) and must have at least 12 characters. Failed sign-ins are
   limited per address and per client, answer the same whether or not the account exists, and take the same time.
+- Two-factor sign-in with TOTP codes (RFC 6238) is available to everyone and also guards sign-in links; codes
+  cannot be replayed, recovery codes are single-use and stored hashed, the secret is encrypted at rest.
 - Sign-in links are single-use and short-lived. Sessions are HttpOnly cookies, marked Secure when
   `GOLIASH_PUBLIC_URL` uses `https://`. Browsers may not send state-changing requests from other origins.
 - OIDC sign-in uses PKCE, state and nonce.

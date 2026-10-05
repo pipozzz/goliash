@@ -151,6 +151,8 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
 - **Passwords** (argon2id, at least 12 characters): everyone sets one on their account page, or an admin runs
   `goliash user password`. Repeated failures pause sign-in for an address for 15 minutes. Turn passwords off with
   `GOLIASH_PASSWORD_LOGIN=false` when everyone uses OIDC. The account page also lists where you are signed in.
+- **Two-factor sign-in** (TOTP from any authenticator app, recovery codes) on the account page; it also guards
+  sign-in links. Admins reset it for someone who lost their phone.
 - **Magic links** are e-mailed when SMTP is configured (`GOLIASH_SMTP_*`); `goliash login-link` works without it.
 - **OIDC**: `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID`, `GOLIASH_OIDC_CLIENT_SECRET`, optional `GOLIASH_OIDC_NAME`
   and `GOLIASH_OIDC_DOMAINS` (people from these e-mail domains are created as viewers on first sign-in; others

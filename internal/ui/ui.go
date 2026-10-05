@@ -94,6 +94,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		files.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("GET /login", s.login)
+	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
 	mux.HandleFunc("/", s.notFound)
 
 	v, m, a := store.RoleViewer, store.RoleMember, store.RoleAdmin
@@ -148,6 +149,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /settings/users/{id}/sign-out", s.page(a, s.signOutUser))
 	mux.Handle("POST /settings/users/{id}/password/delete", s.page(a, s.removePassword))
 	mux.Handle("GET /account", s.page(v, s.account))
+	mux.Handle("POST /account/2fa/setup", s.page(v, s.startTwoFactor))
+	mux.Handle("GET /account/2fa", s.page(v, s.twoFactorSetup))
+	mux.Handle("POST /account/2fa/enable", s.page(v, s.enableTwoFactor))
+	mux.Handle("POST /account/2fa/codes", s.page(v, s.newRecoveryCodes))
+	mux.Handle("POST /account/2fa/disable", s.page(v, s.disableTwoFactor))
+	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
 	mux.Handle("POST /account/name", s.page(v, s.saveName))
 	mux.Handle("POST /account/password", s.page(v, s.changePassword))
 	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
@@ -294,6 +301,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		v.Error = "That e-mail and password do not match an account."
 	case "throttled":
 		v.Error = "Too many attempts. Wait 15 minutes, or sign in with a link."
+	case "expired":
+		v.Error = "The sign-in step expired or was already used. Start again."
 	case "link":
 		v.Error = "That sign-in link is used or expired. Ask for a new one."
 	case "oidc":
@@ -1366,7 +1375,7 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 		v.Users = append(v.Users, UserView{
 			ID: u.ID, Email: u.Email, Role: roles[u.ID], Access: accessLabel(u, roles[u.ID]), OrgWide: store.OrgWide(u.Role),
 			OrgRole:   orgRoleOf(u),
-			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID, HasPassword: u.HasPassword,
+			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID, HasPassword: u.HasPassword, TOTP: u.TOTPEnabled,
 		})
 	}
 	toks, err := s.store.ListAPITokens(ctx, p.Scope)

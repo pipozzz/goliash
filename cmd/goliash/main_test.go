@@ -277,3 +277,25 @@ func TestLogFormat(t *testing.T) {
 		t.Error("xml accepted")
 	}
 }
+
+func TestUserTwoFactorReset(t *testing.T) {
+	ctx := context.Background()
+	dsn := t.TempDir() + "/x.db"
+	_ = run(ctx, []string{"login-link", "-database", dsn, "-email", "ana@example.com"}, io.Discard)
+	db, ws, _ := openDefault(ctx, dsn)
+	u, _ := db.GetUserByEmail(ctx, ws.OrgID, "ana@example.com")
+	_ = db.StartTOTP(ctx, u.ID, auth.NewTOTPSecret())
+	_ = db.EnableTOTP(ctx, u.ID, 0, nil)
+	_ = db.Close()
+	if err := run(ctx, []string{"user", "2fa", "-database", dsn, "-email", "ana@example.com"}, io.Discard); err == nil {
+		t.Fatal("reset without -reset")
+	}
+	if err := run(ctx, []string{"user", "2fa", "-database", dsn, "-email", "ana@example.com", "-reset"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	db, _, _ = openDefault(ctx, dsn)
+	defer func() { _ = db.Close() }()
+	if got, _ := db.GetUser(ctx, u.ID); got.TOTPEnabled {
+		t.Fatal("2FA still on")
+	}
+}

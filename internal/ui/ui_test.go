@@ -949,3 +949,53 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 		t.Fatal("member renamed a workspace")
 	}
 }
+
+func TestTwoFactorSetup(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	c := e.as(store.RoleMember)
+	u, _ := e.st.GetUserByEmail(ctx, e.ws.OrgID, "member@example.com")
+
+	if _, body := get(t, c, e.srv.URL+"/account", nil); !strings.Contains(body, "Two-factor sign-in") || !strings.Contains(body, "Set up") {
+		t.Fatal("account page lacks 2FA")
+	}
+	_, body, _ := post(t, c, e.srv.URL+"/account/2fa/setup", nil)
+	if !strings.Contains(body, `src="data:image/png;base64,`) || !strings.Contains(body, "Turn on") {
+		t.Fatalf("setup page: %s", body)
+	}
+	tt, _ := e.st.UserTOTP(ctx, u.ID)
+	if _, body, _ = post(t, c, e.srv.URL+"/account/2fa/enable", url.Values{"code": {"000000"}}); !strings.Contains(body, "did not work") {
+		t.Fatal("wrong code enabled 2FA")
+	}
+	code, _ := auth.TOTPCode(tt.Secret, time.Now())
+	_, body, hdr := post(t, c, e.srv.URL+"/account/2fa/enable", url.Values{"code": {code}})
+	codes := regexp.MustCompile(`[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}`).FindAllString(body, -1)
+	if !strings.Contains(body, "Your recovery codes") || len(codes) != 10 || hdr.Get("Cache-Control") != "no-store" {
+		t.Fatalf("codes page (%d codes): %s", len(codes), body)
+	}
+	if _, body = get(t, c, e.srv.URL+"/account", nil); !strings.Contains(body, "10 recovery codes are left") || strings.Contains(body, tt.Secret) {
+		t.Fatal("account page after enabling")
+	}
+
+	// Turning off needs a code; a recovery code does.
+	if _, body, _ = post(t, c, e.srv.URL+"/account/2fa/disable", url.Values{"code": {"nope"}}); !strings.Contains(body, "did not work") {
+		t.Fatal("turned off without a code")
+	}
+	if _, body, _ = post(t, c, e.srv.URL+"/account/2fa/disable", url.Values{"code": {codes[0]}}); !strings.Contains(body, "Two-factor sign-in is off.") {
+		t.Fatalf("disable with a recovery code: %s", body)
+	}
+
+	// Admins reset someone's 2FA.
+	_ = e.st.StartTOTP(ctx, u.ID, auth.NewTOTPSecret())
+	_ = e.st.EnableTOTP(ctx, u.ID, 0, nil)
+	admin := e.as(store.RoleAdmin)
+	if _, body = get(t, admin, e.srv.URL+"/settings", nil); !strings.Contains(body, "Reset 2FA") {
+		t.Fatal("no reset on the users page")
+	}
+	if _, body, _ = post(t, admin, e.srv.URL+"/settings/users/"+u.ID+"/2fa/delete", nil); !strings.Contains(body, "Two-factor sign-in of member@example.com is off") {
+		t.Fatalf("reset: %s", body)
+	}
+	if got, _ := e.st.GetUser(ctx, u.ID); got.TOTPEnabled {
+		t.Fatal("still on after reset")
+	}
+}

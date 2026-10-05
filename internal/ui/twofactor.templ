@@ -1,0 +1,128 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// SecondFactorPage asks for the code after a password or a sign-in link.
+templ SecondFactorPage(v SecondFactorView) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@head("Two-factor sign-in")
+		<body>
+			<div class="login">
+				<div class="card">
+					<span class="brand">
+						@logo()
+						Goliash
+					</span>
+					<div>
+						<h1>Enter your code</h1>
+						<p class="muted">{ v.Email }</p>
+					</div>
+					if v.Error != "" {
+						<div class="notice error" role="alert">{ v.Error }</div>
+					}
+					if v.Recovery {
+						<form class="stack" method="post" action="/auth/2fa">
+							<label>
+								Recovery code
+								<input name="recovery" required autocomplete="off" autofocus spellcheck="false" placeholder="xxxx-xxxx-xxxx"/>
+								<span class="hint">Each recovery code works once.</span>
+							</label>
+							<button type="submit">Sign in</button>
+						</form>
+						<a href="/login/2fa">Use the app instead</a>
+					} else {
+						<form class="stack" method="post" action="/auth/2fa">
+							<label>
+								Code from your authenticator app
+								<input name="code" required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" autocomplete="one-time-code" autofocus/>
+							</label>
+							<button type="submit">Sign in</button>
+						</form>
+						<a href="/login/2fa?use=recovery">Lost your phone? Use a recovery code</a>
+					}
+					<a href="/login" class="muted">Start over</a>
+				</div>
+			</div>
+		</body>
+	</html>
+}
+
+// twoFactorPanel is the account page's two-factor section.
+templ twoFactorPanel(v AccountView) {
+	<section class="panel">
+		<div class="panel-head">
+			<h2>Two-factor sign-in</h2>
+			if v.TOTP.Enabled {
+				<span class="badge ok">on</span>
+			} else {
+				<span class="badge neutral">off</span>
+			}
+		</div>
+		<div class="panel-body stack">
+			if v.TOTP.Enabled {
+				<p>After your password or a sign-in link, Goliash asks for a code from your authenticator app. { plural(v.TOTP.Codes, "recovery code is", "recovery codes are") } left.</p>
+				<div class="grid-2">
+					<form class="stack" method="post" action="/account/2fa/codes">
+						<label>Code from your app<input name="code" required inputmode="numeric" maxlength="7" autocomplete="one-time-code"/></label>
+						<div><button type="submit" class="secondary">New recovery codes</button></div>
+					</form>
+					<form class="stack" method="post" action="/account/2fa/disable" hx-confirm="Turn two-factor sign-in off?">
+						<label>Code from your app, or a recovery code<input name="code" required autocomplete="off"/></label>
+						<div><button type="submit" class="danger">Turn off</button></div>
+					</form>
+				</div>
+			} else {
+				<p class="muted">Ask for a code from an authenticator app (1Password, Bitwarden, Google Authenticator, Authy…) after your password or a sign-in link. Single sign-on leaves this to your identity provider.</p>
+				<form method="post" action="/account/2fa/setup">
+					<button type="submit">Set up</button>
+				</form>
+			}
+		</div>
+	</section>
+}
+
+// TwoFactorSetupPage shows the QR code and asks for the first code.
+templ TwoFactorSetupPage(v TwoFactorSetupView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/account">Your account</a> /</p>
+				<h1>Set up two-factor sign-in</h1>
+			</div>
+		</div>
+		if len(v.Codes) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Your recovery codes</h2></div>
+				<div class="panel-body stack">
+					<p>Two-factor sign-in is on. Keep these codes somewhere safe, apart from your phone: each lets you in once if you lose it. They are shown only now.</p>
+					<pre class="mono codes" id="recovery-codes">
+						for _, c := range v.Codes {
+							{ c + "\n" }
+						}
+					</pre>
+					<div class="actions">
+						<button type="button" class="secondary" data-copy="recovery-codes">Copy</button>
+						<a class="button" href="/account">Done</a>
+					</div>
+				</div>
+			</section>
+		} else {
+			<section class="panel">
+				<div class="panel-body setup-2fa">
+					<img src={ v.QR } width="200" height="200" alt="QR code for your authenticator app"/>
+					<div class="stack">
+						<p><strong>1.</strong> Scan the code with your authenticator app, or enter the key by hand:</p>
+						<code class="mono key">{ v.Secret }</code>
+						<p><strong>2.</strong> Enter the code the app shows:</p>
+						<form class="inline" method="post" action="/account/2fa/enable">
+							<input name="code" required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" autocomplete="one-time-code" autofocus aria-label="Code"/>
+							<button type="submit">Turn on</button>
+						</form>
+					</div>
+				</div>
+			</section>
+		}
+	}
+}

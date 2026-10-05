@@ -189,7 +189,7 @@ func recoveryLink(ctx context.Context, db *store.Store, ws store.Workspace, emai
 	if err != nil {
 		return err
 	}
-	link, err := a.LoginLink(ctx, u)
+	link, err := a.RecoveryLink(ctx, u)
 	if err != nil {
 		return err
 	}

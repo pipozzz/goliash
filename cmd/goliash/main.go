@@ -95,6 +95,7 @@ const usage = `Usage:
   goliash user grant -email E -role viewer|member|admin|none   access to the -workspace
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
   goliash user password -email E [-remove]   set a password (asked for, or one line on stdin)
+  goliash user 2fa -email E -reset        turn two-factor sign-in off (lost phone, no recovery codes)
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
   goliash token create -name N [-role viewer|member] [-expires 90d]   API token for /api/v1, /metrics and /mcp (shown once)
   goliash token list
@@ -147,7 +148,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && cmd == "token" && (args[0] == "list" || args[0] == "revoke") {
 			cmd, args = "token "+args[0], args[1:]
 		}
-		if len(args) > 0 && ((cmd == "user" && (args[0] == "grant" || args[0] == "password")) || (cmd == "workspace" && (args[0] == "create" || args[0] == "list"))) {
+		if len(args) > 0 && ((cmd == "user" && (args[0] == "grant" || args[0] == "password" || args[0] == "2fa")) || (cmd == "workspace" && (args[0] == "create" || args[0] == "list"))) {
 			cmd, args = cmd+" "+args[0], args[1:]
 		}
 	}
@@ -193,6 +194,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return ackCmd(ctx, args, out)
 	case "user create":
 		return userCreate(ctx, args, out)
+	case "user 2fa":
+		return userTwoFactor(ctx, args, out)
 	case "user password":
 		return userPassword(ctx, args, os.Stdin, out)
 	case "user grant":
@@ -1212,6 +1215,40 @@ func workspaceList(ctx context.Context, args []string, out io.Writer) error {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\n", w.Slug, w.Name, c.Targets, c.Services, c.Members)
 	}
 	return tw.Flush()
+}
+
+// userTwoFactor turns someone's two-factor sign-in off and signs them out everywhere.
+func userTwoFactor(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("user 2fa")
+	email := fs.String("email", "", "e-mail address of the user")
+	reset := fs.Bool("reset", false, "turn two-factor sign-in off")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *email == "" || !*reset {
+		return errors.New("-email and -reset are required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	u, err := db.GetUserByEmail(ctx, ws.OrgID, *email)
+	if errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("no user %s", *email)
+	}
+	if err != nil {
+		return err
+	}
+	if err := db.DisableTOTP(ctx, u.ID); err != nil {
+		return err
+	}
+	if _, err := db.DeleteUserSessions(ctx, u.ID, ""); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "user.2fa_reset", "user", u.Email)
+	_, _ = fmt.Fprintf(out, "two-factor sign-in of %s is off; every device signed out\n", u.Email)
+	return nil
 }
 
 // userPassword sets or removes a user's password and signs them out everywhere.

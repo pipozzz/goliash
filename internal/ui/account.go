@@ -23,6 +23,7 @@ type AccountView struct {
 	NeedCurrent      bool
 	MinLength        int
 	Sessions         []SessionView
+	TOTP             store.TOTP
 }
 
 // SessionView is one signed-in browser.
@@ -71,6 +72,10 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 		PasswordsEnabled: s.auth.PasswordsEnabled(), MinLength: auth.MinPasswordLength,
 		NeedCurrent: p.User.HasPassword && !mayResetPassword(cur, time.Now()),
 	}
+	if v.TOTP, err = s.store.UserTOTP(r.Context(), p.User.ID); err != nil {
+		return err
+	}
+	v.TOTP.Secret = "" // never rendered
 	for _, x := range all {
 		v.Sessions = append(v.Sessions, SessionView{
 			ID: x.ID, Device: device(x.UserAgent), IP: x.IP, Method: methodLabel(x.Method),
@@ -178,7 +183,12 @@ func (s *Server) removePassword(w http.ResponseWriter, r *http.Request, p auth.P
 }
 
 func methodLabel(m string) string {
+	if first, second, ok := strings.Cut(m, "+"); ok {
+		return methodLabel(first) + " + " + map[string]string{"totp": "app code", "recovery code": "recovery code"}[second]
+	}
 	switch m {
+	case "recovery":
+		return "recovery link"
 	case "password":
 		return "password"
 	case "link":

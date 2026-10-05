@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 )
@@ -44,6 +45,7 @@ type User struct {
 	CreatedAt   time.Time
 	LastLoginAt time.Time
 	HasPassword bool
+	TOTPEnabled bool // two-factor sign-in is on
 	// PasswordChangedAt is zero when the user has never set a password.
 	PasswordChangedAt time.Time
 }
@@ -113,12 +115,13 @@ func (s *Store) DeleteUser(ctx context.Context, orgID, userID string) error {
 	return expectOne(res, err)
 }
 
-const userColumns = `id, org_id, email, name, role, created_at, last_login_at, password_hash <> '', password_changed_at`
+const userColumns = `id, org_id, email, name, role, created_at, last_login_at, password_hash <> '', password_changed_at,
+	totp_enabled_at IS NOT NULL`
 
 func scanUser(row scanner) (User, error) {
 	var u User
 	var last, changed sql.NullTime
-	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed); err != nil {
+	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed, &u.TOTPEnabled); err != nil {
 		return User{}, notFound(err)
 	}
 	u.CreatedAt, u.LastLoginAt, u.PasswordChangedAt = u.CreatedAt.UTC(), timeOrZero(last), timeOrZero(changed)
@@ -184,7 +187,7 @@ func (s *Store) CreateSession(ctx context.Context, idHash, userID string, ttl ti
 func (s *Store) SessionUser(ctx context.Context, idHash string) (User, error) {
 	now := s.now()
 	u, err := scanUser(s.queryRow(ctx, s.db, `SELECT u.id, u.org_id, u.email, u.name, u.role, u.created_at, u.last_login_at,
-		u.password_hash <> '', u.password_changed_at
+		u.password_hash <> '', u.password_changed_at, u.totp_enabled_at IS NOT NULL
 		FROM sessions x JOIN users u ON u.id = x.user_id WHERE x.id = ? AND x.expires_at > ?`, idHash, now))
 	if err != nil {
 		return User{}, err
@@ -240,18 +243,50 @@ func (s *Store) DeleteUserSessions(ctx context.Context, userID, keep string) (in
 	return int(n), nil
 }
 
-// CreateLoginToken stores a single-use sign-in token under its hash.
-func (s *Store) CreateLoginToken(ctx context.Context, idHash, userID string, ttl time.Duration) error {
+// Purposes of sign-in tokens.
+const (
+	TokenLink         = "link"          // a sign-in link, e-mailed or printed
+	TokenSecondFactor = "second-factor" // first factor passed; waiting for the code
+	TokenRecovery     = "recovery"      // GOLIASH_RECOVERY_EMAIL: skips the second factor
+)
+
+// CreateLoginToken stores a single-use sign-in token under its hash. method records
+// how the first factor was passed, for second-factor tokens.
+func (s *Store) CreateLoginToken(ctx context.Context, idHash, userID string, ttl time.Duration, purpose, method string) error {
 	now := s.now()
-	_, err := s.exec(ctx, s.db, `INSERT INTO login_tokens (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`,
-		idHash, userID, now.Add(ttl), now)
+	_, err := s.exec(ctx, s.db, `INSERT INTO login_tokens (id, user_id, expires_at, created_at, purpose, method) VALUES (?, ?, ?, ?, ?, ?)`,
+		idHash, userID, now.Add(ttl), now, purpose, method)
 	return err
 }
 
-// ConsumeLoginToken marks a sign-in token used and returns its user. A token works once.
-func (s *Store) ConsumeLoginToken(ctx context.Context, idHash string) (User, error) {
+// PeekLoginToken returns the user and method of an unused, unexpired token of one of
+// purposes, without using it up.
+func (s *Store) PeekLoginToken(ctx context.Context, idHash string, purposes ...string) (User, string, string, error) {
+	var userID, purpose, method string
+	err := s.queryRow(ctx, s.db, `SELECT user_id, purpose, method FROM login_tokens WHERE id = ? AND used_at IS NULL AND expires_at > ?`,
+		idHash, s.now()).Scan(&userID, &purpose, &method)
+	if err != nil {
+		return User{}, "", "", notFound(err)
+	}
+	if !slices.Contains(purposes, purpose) {
+		return User{}, "", "", ErrNotFound
+	}
+	u, err := s.GetUser(ctx, userID)
+	return u, purpose, method, err
+}
+
+// ConsumeLoginToken marks a sign-in token of one of purposes used and returns its
+// user and purpose. A token works once.
+func (s *Store) ConsumeLoginToken(ctx context.Context, idHash string, purposes ...string) (User, string, error) {
 	var u User
+	var purpose string
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		if err := s.queryRow(ctx, tx, `SELECT purpose FROM login_tokens WHERE id = ?`, idHash).Scan(&purpose); err != nil {
+			return notFound(err)
+		}
+		if !slices.Contains(purposes, purpose) {
+			return ErrNotFound
+		}
 		res, err := s.exec(ctx, tx, `UPDATE login_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?`,
 			s.now(), idHash, s.now())
 		if err := expectOne(res, err); err != nil {
@@ -264,7 +299,7 @@ func (s *Store) ConsumeLoginToken(ctx context.Context, idHash string) (User, err
 		u, err = scanUser(s.queryRow(ctx, tx, `SELECT `+userColumns+` FROM users WHERE id = ?`, userID))
 		return err
 	})
-	return u, err
+	return u, purpose, err
 }
 
 // APIToken is a workspace API token (glsh_api_…); only its hash is stored.

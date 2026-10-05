@@ -516,6 +516,7 @@ type UserView struct {
 	LastLogin   time.Time
 	IsSelf      bool
 	HasPassword bool
+	TOTP        bool
 }
 
 // TokenView is one API token on the Users page.
