@@ -30,6 +30,24 @@ templ head(title string) {
 	</head>
 }
 
+templ menuLink(b Base, page, href, label string) {
+	<a
+		href={ templ.URL(href) }
+		class="menu-item"
+		role="menuitem"
+		if b.Page == page {
+			aria-current="page"
+		}
+	>{ label }</a>
+}
+
+templ gear() {
+	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<circle cx="12" cy="12" r="3"></circle>
+		<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+	</svg>
+}
+
 templ navLink(b Base, page, href, label string) {
 	<a
 		href={ templ.URL(href) }
@@ -60,14 +78,7 @@ templ Layout(b Base) {
 						@navLink(b, "inbox", "/inbox", "Inbox")
 						@navLink(b, "promotions", "/delivery", "Delivery")
 						@navLink(b, "events", "/events", "History")
-						@navLink(b, "agents", "/agents", "Agents")
-						@navLink(b, "notifications", "/notifications", "Notifications")
-						if b.CanAdmin {
-							@navLink(b, "settings", "/settings", "Users")
-						}
-						if b.OrgAdmin {
-							@navLink(b, "workspaces", "/workspaces", "Workspaces")
-						}
+						@navLink(b, "hygiene", "/hygiene", "Hygiene")
 					</nav>
 					<div class="who">
 						if len(b.Workspaces) > 1 {
@@ -82,10 +93,38 @@ templ Layout(b Base) {
 						} else if b.Workspace != "" {
 							<span class="ws-name">{ b.Workspace }</span>
 						}
-						<a href="/account" title={ "Your account · " + b.Role } class={ "who-link", templ.KV("active", b.Page == "account") }>{ b.Email }</a>
-						<form method="post" action="/auth/logout" hx-boost="false">
-							<button class="secondary" type="submit">Sign out</button>
-						</form>
+						<details class="menu">
+							<summary class={ templ.KV("current", isSettings(b.Page)) }>
+								@gear()
+								<span class="menu-label">Settings</span>
+							</summary>
+							<div class="menu-list" role="menu">
+								@menuLink(b, "agents", "/agents", "Agents and targets")
+								@menuLink(b, "notifications", "/notifications", "Notifications")
+								if b.CanAdmin {
+									@menuLink(b, "settings", "/settings", "Users and API tokens")
+								}
+								if b.OrgAdmin {
+									@menuLink(b, "workspaces", "/workspaces", "Workspaces")
+								}
+							</div>
+						</details>
+						<details class="menu">
+							<summary class={ templ.KV("current", b.Page == "account") } title={ b.Email + " · " + b.Role }>
+								<span class="avatar" aria-hidden="true">{ initial(b.Email) }</span>
+								<span class="menu-label who-email">{ b.Email }</span>
+							</summary>
+							<div class="menu-list" role="menu">
+								<div class="menu-head">
+									<strong>{ b.Email }</strong>
+									<span class="muted">{ b.Role }</span>
+								</div>
+								@menuLink(b, "account", "/account", "Your account")
+								<form method="post" action="/auth/logout" hx-boost="false">
+									<button class="menu-item" type="submit" role="menuitem">Sign out</button>
+								</form>
+							</div>
+						</details>
 					</div>
 				</div>
 			</header>

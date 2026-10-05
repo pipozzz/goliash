@@ -517,6 +517,47 @@ func short(t time.Time) string {
 
 func itoa(n int) string { return fmt.Sprint(n) }
 
+// rowSearch is what the matrix filter matches a row against: service, owner, versions and targets.
+func rowSearch(r MatrixRow) string {
+	parts := []string{r.Service, r.Owner, r.Latest}
+	for _, c := range r.Cells {
+		for _, v := range c.Versions {
+			parts = append(parts, v.Tag, v.Targets)
+		}
+		for _, d := range c.Drifts {
+			parts = append(parts, d.Label)
+		}
+	}
+	return strings.ToLower(strings.Join(parts, " "))
+}
+
+// rowDrift is "1" when any environment of the row has drift, for "Only with drift".
+func rowDrift(r MatrixRow) string {
+	for _, c := range r.Cells {
+		if len(c.Drifts) > 0 {
+			return "1"
+		}
+	}
+	return ""
+}
+
+// isSettings reports whether a page belongs under the Settings menu.
+func isSettings(page string) bool {
+	switch page {
+	case "agents", "notifications", "settings", "workspaces":
+		return true
+	}
+	return false
+}
+
+// initial is the first letter of an e-mail address, for the account button.
+func initial(email string) string {
+	for _, r := range email {
+		return strings.ToUpper(string(r))
+	}
+	return "?"
+}
+
 func plural(n int, one, many string) string {
 	if n == 1 {
 		return "1 " + one

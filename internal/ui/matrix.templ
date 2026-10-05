@@ -15,17 +15,6 @@ templ MatrixPage(v MatrixView) {
 				} else {
 					<p class="sub">What runs where, the newest release upstream, and where versions drift apart.</p>
 				}
-				<form class="inline asof" method="get" action="/">
-					<label>As of (UTC)<input type="datetime-local" name="at" value={ v.At }/></label>
-					<button class="secondary" type="submit">Go back</button>
-					<a href={ templ.URL(exportURL(v.At)) } hx-boost="false">Export CSV</a>
-					<a href="/hygiene">
-						Image hygiene
-						if v.Hygiene > 0 {
-							<span class="count">{ itoa(v.Hygiene) }</span>
-						}
-					</a>
-				</form>
 			</div>
 			if v.At == "" {
 				<div class="legend">
@@ -36,6 +25,34 @@ templ MatrixPage(v MatrixView) {
 					<span class="live off" data-live>Connecting…</span>
 				</div>
 			}
+		</div>
+		<div class="toolbar">
+			if v.At == "" {
+				<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
+				<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
+				<span class="muted" id="matrix-count" aria-live="polite"></span>
+			}
+			<span class="spacer"></span>
+			if v.Hygiene > 0 {
+				<a href="/hygiene" class="toolbar-link">
+					Image hygiene <span class="count">{ itoa(v.Hygiene) }</span>
+				</a>
+			}
+			<a href={ templ.URL(exportURL(v.At)) } hx-boost="false" class="toolbar-link">Export CSV</a>
+			<details class="menu timetravel" open?={ v.At != "" }>
+				<summary>Time travel</summary>
+				<div class="menu-list">
+					<form class="stack" method="get" action="/">
+						<label>Show the matrix as of (UTC)<input type="datetime-local" name="at" value={ v.At } required/></label>
+						<div class="actions">
+							<button type="submit">Show</button>
+							if v.At != "" {
+								<a href="/" class="button secondary">Back to now</a>
+							}
+						</div>
+					</form>
+				</div>
+			</details>
 		</div>
 		if v.At != "" {
 			<section class="panel">
@@ -86,7 +103,7 @@ templ MatrixGridView(g MatrixGrid) {
 				</thead>
 				<tbody>
 					for _, r := range g.Rows {
-						<tr>
+						<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) }>
 							<td class="svc">
 								<a href={ templ.URL(r.URL) }>{ r.Service }</a>
 								if r.Owner != "" {
