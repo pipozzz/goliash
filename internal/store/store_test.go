@@ -1060,3 +1060,37 @@ func TestChannelServiceWorkspaceEdits(t *testing.T) {
 		}
 	})
 }
+
+func TestQueuesAndBackup(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		_, _ = s.InsertSnapshot(ctx, Snapshot{ID: NewID(), Scope: f.ws.Scope(), TargetID: f.tgt.ID, CollectedAt: time.Now(), Payload: json.RawMessage(`{}`)})
+		q, err := s.Queues(ctx, f.ws.Scope())
+		if err != nil || q.PendingSnapshots != 1 || q.QueuedNotifications != 0 {
+			t.Fatalf("queues %+v %v", q, err)
+		}
+		path := t.TempDir() + "/copy.db"
+		err = s.Backup(ctx, path)
+		if s.Dialect() == Postgres {
+			if !errors.Is(err, ErrBackupUnsupported) {
+				t.Fatalf("postgres backup: %v", err)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Backup(ctx, path); !errors.Is(err, os.ErrExist) {
+			t.Fatalf("overwrote a backup: %v", err)
+		}
+		copyStore, err := Open(ctx, "sqlite://"+path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = copyStore.Close() }()
+		if q, _ := copyStore.Queues(ctx, f.ws.Scope()); q.PendingSnapshots != 1 {
+			t.Fatalf("backup lacks the snapshot: %+v", q)
+		}
+	})
+}

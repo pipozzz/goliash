@@ -5,10 +5,12 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -218,5 +220,60 @@ func TestRecoveryLink(t *testing.T) {
 	_ = db.CreateSession(ctx, "h", u.ID, time.Hour, store.Session{})
 	if err := recoveryLink(ctx, db, ws, "ANA@example.com", "https://goliash.example.com", log); err != nil || !strings.Contains(logs.String(), "magic?token=") {
 		t.Fatalf("existing person: %v %s", err, logs.String())
+	}
+}
+
+func TestBackupCommandAndPruning(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	dsn := dir + "/goliash.db"
+	if err := run(ctx, []string{"env", "create", "-database", dsn, "-name", "prod"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	key := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	_ = os.WriteFile(dir+"/goliash.key", []byte(key), 0o600)
+	t.Setenv("GOLIASH_SECRET_KEY", "")
+	t.Setenv("GOLIASH_SECRET_KEY_FILE", "")
+	var out strings.Builder
+	if err := run(ctx, []string{"backup", "-database", dsn, "-out", dir + "/backups"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	path := strings.TrimSpace(strings.TrimPrefix(out.String(), "backup written to "))
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("no backup at %q", path)
+	}
+	if b, err := os.ReadFile(strings.TrimSuffix(path, ".db") + ".key"); err != nil || string(b) != key {
+		t.Fatalf("key not copied: %v", err)
+	}
+	// The backup is a working database.
+	var envs strings.Builder
+	if err := run(ctx, []string{"matrix", "-database", path}, &envs); err != nil {
+		t.Fatal(err)
+	}
+
+	db, _, _ := openDefault(ctx, dsn)
+	defer func() { _ = db.Close() }()
+	for i := range 4 {
+		if _, err := backupTo(ctx, db, dsn, dir+"/daily", time.Date(2026, 10, 1+i, 3, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := pruneBackups(dir+"/daily", 2); err != nil {
+		t.Fatal(err)
+	}
+	left, _ := filepath.Glob(dir + "/daily/goliash-*")
+	if len(left) != 4 || !strings.Contains(strings.Join(left, " "), "20261004") || strings.Contains(strings.Join(left, " "), "20261001") {
+		t.Fatalf("kept %v (want the newest two .db with their .key)", left)
+	}
+}
+
+func TestLogFormat(t *testing.T) {
+	for _, f := range []string{"", "text", "json"} {
+		if _, err := newLogger(f, slog.LevelInfo); err != nil {
+			t.Errorf("%q: %v", f, err)
+		}
+	}
+	if _, err := newLogger("xml", slog.LevelInfo); err == nil {
+		t.Error("xml accepted")
 	}
 }

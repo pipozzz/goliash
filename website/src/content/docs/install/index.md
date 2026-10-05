@@ -53,9 +53,28 @@ with commands to start the agent on a Docker host, Kubernetes, Nomad or as a bin
 
 ## Database
 
-SQLite is the default and suits most installations: one file, backed up by copying it while the server is
-stopped or with `sqlite3 goliash.db ".backup copy.db"`. For PostgreSQL, set `GOLIASH_DATABASE_URL` to a
+SQLite is the default and suits most installations: one file. For PostgreSQL, set `GOLIASH_DATABASE_URL` to a
 `postgres://` URL. Migrations run on start for both.
+
+### Backups
+
+**SQLite** backs up while the server runs: `goliash backup -out /backups` writes a consistent copy
+(`goliash-<time>.db`) and, when the secret key is the file next to the database, `goliash-<time>.key` beside it. Or
+let the server do it: `GOLIASH_BACKUP_DIR=/data/backups` writes one at start and every day after, keeping
+`GOLIASH_BACKUP_KEEP` (default 7). Put the directory on other storage, or copy it off the machine.
+
+To restore, stop the server, put the copy in place as `goliash.db` and its key as `goliash.key` (or keep
+`GOLIASH_SECRET_KEY`), and start it.
+
+**PostgreSQL** is backed up with its own tools: `pg_dump -Fc "$GOLIASH_DATABASE_URL" > goliash.dump`, or your
+provider's snapshots. Keep `GOLIASH_SECRET_KEY` with them.
+
+### Logs and health
+
+`GOLIASH_LOG_FORMAT=json` writes one JSON object per line for Loki or Elasticsearch (the agent too). `/healthz`
+says whether the server runs and reaches its database (liveness); `/readyz` also answers 503 while it shuts down,
+so load balancers stop sending first: set `GOLIASH_DRAIN=5s` to wait that long before closing connections (the Helm
+chart does). `/metrics` includes the server's own health; see [metrics](/guide/notifications/#metrics-instead-of-messages).
 
 ### Several servers
 

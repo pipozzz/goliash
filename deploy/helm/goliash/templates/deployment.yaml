@@ -43,6 +43,9 @@ spec:
           env:
             - { name: GOLIASH_LISTEN, value: ":8080" }
             - { name: GOLIASH_PUBLIC_URL, value: {{ .Values.publicURL | quote }} }
+            - { name: GOLIASH_LOG_FORMAT, value: {{ .Values.logFormat | quote }} }
+            # On shutdown, fail readiness first so the Service stops sending before connections close.
+            - { name: GOLIASH_DRAIN, value: "5s" }
             {{- if .Values.database.existingSecret }}
             - name: GOLIASH_DATABASE_URL
               valueFrom:
@@ -60,7 +63,7 @@ spec:
             - secretRef: { name: {{ . }} }
           {{- end }}
           readinessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /readyz, port: http }
             periodSeconds: 10
           livenessProbe:
             httpGet: { path: /healthz, port: http }

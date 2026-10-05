@@ -34,6 +34,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -99,6 +100,7 @@ const usage = `Usage:
   goliash token list
   goliash token revoke -name N
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
+  goliash backup -out DIR                 SQLite: a consistent copy of the database (and goliash.key) while the server runs
   goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
@@ -215,6 +217,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return tokenRevoke(ctx, args, out)
 	case "demo":
 		return demoCmd(ctx, args, out)
+	case "backup":
+		return backupCmd(ctx, args, out)
 	case "healthcheck":
 		return healthcheck(ctx)
 	case "version", "-version", "--version":
@@ -348,6 +352,11 @@ func serve(ctx context.Context, args []string) error {
 	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
 	debug := fs.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
+	logFormat := fs.String("log-format", envOr("GOLIASH_LOG_FORMAT", "text"), "text or json (env GOLIASH_LOG_FORMAT)")
+	drain := fs.Duration("drain", envDuration("GOLIASH_DRAIN", 0),
+		"on shutdown, answer /readyz with 503 this long before closing, so load balancers stop sending (env GOLIASH_DRAIN)")
+	backupDir := fs.String("backup-dir", os.Getenv("GOLIASH_BACKUP_DIR"), "SQLite: write a backup here every day (env GOLIASH_BACKUP_DIR)")
+	backupKeep := fs.Int("backup-keep", envInt("GOLIASH_BACKUP_KEEP", 7), "backups kept in -backup-dir (env GOLIASH_BACKUP_KEEP)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -360,7 +369,11 @@ func serve(ctx context.Context, args []string) error {
 	if *debug {
 		level = slog.LevelDebug
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	log, err := newLogger(*logFormat, level)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(log)
 
 	db, ws, err := openDefault(ctx, *dsn)
 	if err != nil {
@@ -415,7 +428,10 @@ func serve(ctx context.Context, args []string) error {
 	mux := http.NewServeMux()
 	agents.Register(mux)
 	authn.Routes(mux)
-	api.NewPublicHandler(db, authn, log).Register(mux)
+	leader := db.NewLeader(log)
+	public := api.NewPublicHandler(db, authn, log)
+	public.SetLeader(leader.IsLeader)
+	public.Register(mux)
 	ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "",
@@ -428,11 +444,26 @@ func serve(ctx context.Context, args []string) error {
 		}
 		_, _ = w.Write([]byte("ok\n"))
 	})
+	// Readiness: whether to send this server requests. It says no while shutting
+	// down, so load balancers move traffic away before connections close.
+	var draining atomic.Bool
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		if draining.Load() {
+			http.Error(w, "shutting down", http.StatusServiceUnavailable)
+			return
+		}
+		pctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := db.Ping(pctx); err != nil {
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte("ok\n"))
+	})
 
 	// Every server serves the UI, the API and agents; one, the leader, runs the
 	// background work. With PostgreSQL several servers may share the database: changes
 	// and new snapshots reach the others through LISTEN/NOTIFY.
-	leader := db.NewLeader(log)
 	if db.Clustered() {
 		hub.SetRelay(func(ws string) error { return db.Notify(context.WithoutCancel(ctx), channelChanged, ws) })
 		svc.OnArrive(func() { _ = db.Notify(context.WithoutCancel(ctx), channelSnapshot, "") })
@@ -453,6 +484,9 @@ func serve(ctx context.Context, args []string) error {
 		go svc.RunProcessor(lctx, 10*time.Second)
 		go checker.Run(lctx, *upstreamEvery, time.Minute)
 		go housekeeping(lctx, db, log, *keepSnapshots)
+		if *backupDir != "" {
+			go backups(lctx, db, *dsn, *backupDir, *backupKeep, log)
+		}
 		if *collect {
 			go ingest.NewServerCollectors(svc, db, map[agentproto.Platform]collectors.Factory{
 				agentproto.Kubernetes: kubernetes.New,
@@ -487,6 +521,11 @@ func serve(ctx context.Context, args []string) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
+	}
+	draining.Store(true)
+	if *drain > 0 {
+		log.Info("draining before shutdown", "for", *drain)
+		time.Sleep(*drain)
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -1875,4 +1914,114 @@ func mcpCmd(ctx context.Context, args []string) error {
 		return errors.New("set GOLIASH_TOKEN (goliash token create -name mcp) or -token")
 	}
 	return mcpserver.NewServer(&mcpserver.Client{BaseURL: *server, Token: *token}).Run(ctx, &mcp.StdioTransport{})
+}
+
+// newLogger logs as text (people) or JSON (log collectors such as Loki or Elasticsearch).
+func newLogger(format string, level slog.Level) (*slog.Logger, error) {
+	opts := &slog.HandlerOptions{Level: level}
+	switch format {
+	case "", "text":
+		return slog.New(slog.NewTextHandler(os.Stderr, opts)), nil
+	case "json":
+		return slog.New(slog.NewJSONHandler(os.Stderr, opts)), nil
+	}
+	return nil, fmt.Errorf("log format %q: use text or json", format)
+}
+
+func envInt(key string, fallback int) int {
+	if n, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return n
+	}
+	return fallback
+}
+
+func envDuration(key string, fallback time.Duration) time.Duration {
+	if d, err := time.ParseDuration(os.Getenv(key)); err == nil {
+		return d
+	}
+	return fallback
+}
+
+// backupTo writes goliash-<time>.db into dir and copies the secret key file next to
+// it, so channel secrets can be read after a restore. It returns the backup's path.
+func backupTo(ctx context.Context, db *store.Store, dsn, dir string, now time.Time) (string, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // the operator names the backup directory
+		return "", err
+	}
+	path := filepath.Join(dir, "goliash-"+now.UTC().Format("20060102T150405Z")+".db")
+	if err := db.Backup(ctx, path); err != nil {
+		return "", err
+	}
+	if os.Getenv("GOLIASH_SECRET_KEY") == "" && os.Getenv("GOLIASH_SECRET_KEY_FILE") == "" {
+		key := filepath.Join(filepath.Dir(strings.TrimPrefix(dsn, "sqlite://")), "goliash.key")
+		if b, err := os.ReadFile(key); err == nil { //nolint:gosec // next to the operator's database
+			if err := os.WriteFile(strings.TrimSuffix(path, ".db")+".key", b, 0o600); err != nil { //nolint:gosec // inside the backup directory
+				return path, err
+			}
+		}
+	}
+	return path, nil
+}
+
+// pruneBackups keeps the newest keep backups in dir.
+func pruneBackups(dir string, keep int) error {
+	matches, err := filepath.Glob(filepath.Join(dir, "goliash-*.db"))
+	if err != nil || len(matches) <= keep {
+		return err
+	}
+	sort.Strings(matches) // names sort by time
+	for _, old := range matches[:len(matches)-keep] {
+		if err := os.Remove(old); err != nil { //nolint:gosec // a backup this server wrote
+			return err
+		}
+		_ = os.Remove(strings.TrimSuffix(old, ".db") + ".key") //nolint:gosec // its key, beside it
+	}
+	return nil
+}
+
+// backups writes a SQLite backup at start and every day after, keeping keep of them.
+func backups(ctx context.Context, db *store.Store, dsn, dir string, keep int, log *slog.Logger) {
+	if db.Dialect() != store.SQLite {
+		log.Warn("GOLIASH_BACKUP_DIR is for SQLite; back PostgreSQL up with pg_dump")
+		return
+	}
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		if path, err := backupTo(ctx, db, dsn, dir, time.Now()); err != nil && ctx.Err() == nil {
+			log.Error("backup failed", "dir", dir, "err", err)
+		} else if err == nil {
+			log.Info("backup written", "path", path)
+			if err := pruneBackups(dir, keep); err != nil {
+				log.Error("removing old backups failed", "err", err)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func backupCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("backup")
+	dir := fs.String("out", ".", "directory for the backup")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, _, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	path, err := backupTo(ctx, db, *dsn, *dir, time.Now())
+	if errors.Is(err, store.ErrBackupUnsupported) {
+		return errors.New("PostgreSQL: use pg_dump, e.g. pg_dump -Fc \"$GOLIASH_DATABASE_URL\" > goliash.dump")
+	}
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "backup written to %s\n", path)
+	return nil
 }

@@ -34,6 +34,7 @@ persistence:
 envFromSecret: ""
 env: {}              # extra plain environment variables
 keepSnapshots: 20
+logFormat: text      # json for log collectors (Loki, Elasticsearch)
 
 # Let the server collect the cluster it runs in, without an agent: creates a service
 # account with a read-only ClusterRole (get, list, watch on workloads and pods). Then add

@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -18,14 +19,19 @@ import (
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
+	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
 
 // PublicHandler serves the REST API under /api/v1 and Prometheus metrics.
 type PublicHandler struct {
-	store *store.Store
-	auth  *auth.Auth
-	log   *slog.Logger
+	store    *store.Store
+	auth     *auth.Auth
+	log      *slog.Logger
+	isLeader func() bool
 }
+
+// SetLeader reports, in /metrics, whether this server runs the background work.
+func (h *PublicHandler) SetLeader(isLeader func() bool) { h.isLeader = isLeader }
 
 // NewPublicHandler returns the public API handler.
 func NewPublicHandler(st *store.Store, a *auth.Auth, log *slog.Logger) *PublicHandler {
@@ -657,6 +663,7 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}
+	h.serverMetrics(r.Context(), &b, p.Scope)
 	b.WriteString("# HELP goliash_drift_days How long a drift has been open, in days.\n")
 	b.WriteString("# TYPE goliash_drift_days gauge\n")
 	for _, l := range days {
@@ -664,4 +671,46 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// serverMetrics describes this server and the workspace's work in flight: what to
+// alert on when Goliash itself is unwell.
+func (h *PublicHandler) serverMetrics(ctx context.Context, b *strings.Builder, sc store.Scope) {
+	b.WriteString("# HELP goliash_build_info The running server's version.\n# TYPE goliash_build_info gauge\n")
+	fmt.Fprintf(b, "goliash_build_info{version=%q} 1\n", buildinfo.Version)
+	if h.isLeader != nil {
+		leader := 0
+		if h.isLeader() {
+			leader = 1
+		}
+		b.WriteString("# HELP goliash_leader 1 when this server runs the background work (one server per database).\n# TYPE goliash_leader gauge\n")
+		fmt.Fprintf(b, "goliash_leader %d\n", leader)
+	}
+	if q, err := h.store.Queues(ctx, sc); err == nil {
+		b.WriteString("# HELP goliash_snapshots_pending Snapshots received and not processed yet.\n# TYPE goliash_snapshots_pending gauge\n")
+		fmt.Fprintf(b, "goliash_snapshots_pending %d\n", q.PendingSnapshots)
+		b.WriteString("# HELP goliash_notifications_queued Notifications not sent yet (due, or waiting for a digest).\n# TYPE goliash_notifications_queued gauge\n")
+		fmt.Fprintf(b, "goliash_notifications_queued %d\n", q.QueuedNotifications)
+		b.WriteString("# HELP goliash_notifications_failing Notifications not sent that failed at least once.\n# TYPE goliash_notifications_failing gauge\n")
+		fmt.Fprintf(b, "goliash_notifications_failing %d\n", q.FailingNotifications)
+	}
+	if agents, err := h.store.ListAgents(ctx, sc); err == nil {
+		counts := map[string]int{"online": 0, "stale": 0, "never": 0, "revoked": 0}
+		for _, a := range agents {
+			switch {
+			case a.ActiveTokens == 0:
+				counts["revoked"]++
+			case a.LastSeenAt.IsZero():
+				counts["never"]++
+			case !a.StaleSince.IsZero():
+				counts["stale"]++
+			default:
+				counts["online"]++
+			}
+		}
+		b.WriteString("# HELP goliash_agents Agents by status.\n# TYPE goliash_agents gauge\n")
+		for _, st := range []string{"online", "stale", "never", "revoked"} {
+			fmt.Fprintf(b, "goliash_agents{status=%q} %d\n", st, counts[st])
+		}
+	}
 }
