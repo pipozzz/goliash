@@ -41,9 +41,12 @@ func TestLeaderElectionAndNotify(t *testing.T) {
 		t.Skip("GOLIASH_TEST_POSTGRES_DSN not set")
 	}
 	s := openPostgresSchema(t, dsn)
-	defer func(r, h time.Duration) { leaderRetry, leaderHeartbeat = r, h }(leaderRetry, leaderHeartbeat)
-	leaderRetry, leaderHeartbeat = 100*time.Millisecond, 100*time.Millisecond
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	fast := func() *Leader {
+		l := s.NewLeader(log)
+		l.retry, l.heartbeat = 100*time.Millisecond, 100*time.Millisecond
+		return l
+	}
 
 	// Two servers compete; exactly one runs the work.
 	var running atomic.Int32
@@ -53,11 +56,12 @@ func TestLeaderElectionAndNotify(t *testing.T) {
 	}
 	ctxA, stopA := context.WithCancel(context.Background())
 	ctxB, stopB := context.WithCancel(context.Background())
-	defer stopB()
-	a, b := s.NewLeader(log), s.NewLeader(log)
-	go a.Run(ctxA, work)
+	a, b := fast(), fast()
+	doneA, doneB := make(chan struct{}), make(chan struct{})
+	defer func() { stopA(); stopB(); <-doneA; <-doneB }() // no goroutine outlives the test
+	go func() { a.Run(ctxA, work); close(doneA) }()
 	waitFor(t, func() bool { return a.IsLeader() })
-	go b.Run(ctxB, work)
+	go func() { b.Run(ctxB, work); close(doneB) }()
 	time.Sleep(500 * time.Millisecond)
 	if b.IsLeader() || running.Load() != 1 {
 		t.Fatalf("two leaders: a=%v b=%v running=%d", a.IsLeader(), b.IsLeader(), running.Load())
