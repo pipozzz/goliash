@@ -1,0 +1,108 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// Chart geometry: a 640 × 150 drawing area in a viewBox that scales with the page.
+const (
+	chartW    = 640.0
+	chartH    = 150.0
+	chartLeft = 36.0
+	chartBot  = 22.0
+)
+
+templ legend(series []Series) {
+	<ul class="legend-list">
+		for _, s := range series {
+			<li><span class={ "swatch", s.Class }></span>{ s.Name }</li>
+		}
+	</ul>
+}
+
+templ yGrid(maxV int) {
+	for i := 0; i <= 4; i++ {
+		<line class="grid" x1={ f(chartLeft) } x2={ f(chartW) } y1={ f(yAt(maxV*i/4, maxV)) } y2={ f(yAt(maxV*i/4, maxV)) }></line>
+		<text class="axis" x={ f(chartLeft - 6) } y={ f(yAt(maxV*i/4, maxV) + 4) } text-anchor="end">{ itoa(maxV * i / 4) }</text>
+	}
+}
+
+// stackedBars draws a BarChart.
+templ stackedBars(c BarChart, label string) {
+	<figure class="chart">
+		<svg viewBox={ "0 0 " + f(chartW) + " " + f(chartH+chartBot) } role="img" aria-label={ label }>
+			@yGrid(c.Max)
+			for i, l := range c.Labels {
+				{{ x, w := barX(i, len(c.Labels)) }}
+				{{ base := 0 }}
+				for _, s := range c.Series {
+					if s.Values[i] > 0 {
+						<rect class={ "bar", s.Class } x={ f(x) } width={ f(w) } y={ f(yAt(base+s.Values[i], c.Max)) } height={ f(yAt(base, c.Max) - yAt(base+s.Values[i], c.Max)) }>
+							<title>{ s.Name + ", week of " + l + ": " + itoa(s.Values[i]) }</title>
+						</rect>
+					}
+					{{ base += s.Values[i] }}
+				}
+				if i%2 == 0 || len(c.Labels) <= 8 {
+					<text class="axis" x={ f(x + w/2) } y={ f(chartH + 16) } text-anchor="middle">{ l }</text>
+				}
+			}
+		</svg>
+		@legend(c.Series)
+	</figure>
+}
+
+// lines draws a LineChart.
+templ lines(c LineChart, label string) {
+	<figure class="chart">
+		<svg viewBox={ "0 0 " + f(chartW) + " " + f(chartH+chartBot) } role="img" aria-label={ label }>
+			@yGrid(c.Max)
+			for _, s := range c.Series {
+				if anyNonZero(s.Values) {
+					<polyline class={ "line", s.Class } points={ polyline(s.Values, c.Max) }>
+						<title>{ s.Name }</title>
+					</polyline>
+					{{ lx, ly := lastPoint(s.Values, c.Max) }}
+					<circle class={ "dot", s.Class } cx={ f(lx) } cy={ f(ly) } r="3.5">
+						<title>{ s.Name + " now: " + itoa(s.Values[len(s.Values)-1]) }</title>
+					</circle>
+				}
+			}
+			for i, l := range c.Labels {
+				if (i%7 == 0 && i < len(c.Labels)-4) || i == len(c.Labels)-1 {
+					<text class="axis" x={ f(pointX(i, len(c.Labels))) } y={ f(chartH + 16) } text-anchor="middle">{ l }</text>
+				}
+			}
+		</svg>
+		@legend(nonZeroSeries(c.Series))
+	</figure>
+}
+
+// versionChart draws which version ran where and when.
+templ versionChart(t Timeline) {
+	{{ laneH := 30.0 }}
+	{{ labelW := 150.0 }}
+	{{ h := laneH*float64(len(t.Lanes)) + 22 }}
+	<figure class="chart">
+		<svg viewBox={ "0 0 " + f(chartW) + " " + f(h) } role="img" aria-label="Versions per environment over time">
+			for i, tk := range t.Ticks {
+				{{ x := labelW + tk.At*(chartW-labelW) }}
+				<line class="grid" x1={ f(x) } x2={ f(x) } y1="0" y2={ f(h - 18) }></line>
+				<text class="axis" x={ f(x) } y={ f(h - 4) } text-anchor={ tickAnchor(i, len(t.Ticks)) }>{ tk.Label }</text>
+			}
+			for li, lane := range t.Lanes {
+				{{ y := float64(li) * laneH }}
+				<text class="lane" x="0" y={ f(y + laneH/2 + 4) }>{ lane.Env }</text>
+				for _, sg := range lane.Segments {
+					{{ x := labelW + sg.Start*(chartW-labelW) }}
+					{{ w := max((sg.End-sg.Start)*(chartW-labelW), 2) }}
+					<rect class={ "seg", sg.Class } x={ f(x) } y={ f(y + 4) } width={ f(w) } height={ f(laneH - 8) } rx="4">
+						<title>{ sg.Title }</title>
+					</rect>
+					if w > float64(len(sg.Version))*7+10 {
+						<text class="seg-label" x={ f(x + 6) } y={ f(y + laneH/2 + 4) }>{ sg.Version }</text>
+					}
+				}
+			}
+		</svg>
+	</figure>
+}

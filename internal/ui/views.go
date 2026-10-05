@@ -278,6 +278,7 @@ type ServiceView struct {
 	// and why (policy, catalog or image label).
 	NotesGitHub, NotesGitLab, NotesChangelog, NotesFrom string
 	Events                                              []EventView
+	Versions                                            Timeline
 	Acks                                                []AckView
 	Runs                                                bool // some environment runs the service
 }
@@ -325,6 +326,8 @@ type PromotionView struct {
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
 type PromotionsView struct {
 	Base
+	Deploys    BarChart
+	Drift      LineChart
 	Promotions []PromotionView
 	EnvNames   []string // delivery table columns
 	LeadNames  []string // "dev → staging", …

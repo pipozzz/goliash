@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"sort"
 	"strings"
@@ -206,7 +207,32 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	if err := checker.CheckUpstreams(ctx, sc); err != nil {
 		return err
 	}
-	return checker.EvaluateDrift(ctx, sc)
+	if err := checker.EvaluateDrift(ctx, sc); err != nil {
+		return err
+	}
+	return backdateDrift(ctx, st, sc)
+}
+
+// backdateDrift spreads the example drift over the three demo weeks, as if it had
+// opened over time, so charts and "open since" look like a real installation.
+func backdateDrift(ctx context.Context, st *store.Store, sc store.Scope) error {
+	drifts, err := st.OpenDrifts(ctx, sc)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, d := range drifts {
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(d.ServiceID + d.EnvironmentID + d.Kind))
+		days := 1 + int(h.Sum32()%19)
+		if d.Kind == "eol" {
+			days = 20
+		}
+		if err := st.SetDriftSince(ctx, sc, d.ID, now.Add(-time.Duration(days)*24*time.Hour)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func stateOn(t demoTarget, day int) map[string]string {

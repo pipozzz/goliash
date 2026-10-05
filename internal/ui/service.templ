@@ -41,6 +41,12 @@ templ ServicePage(v ServiceView) {
 		if v.LatestAny != "" && v.LatestAny != v.Latest {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
 		}
+		if len(v.Versions.Lanes) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Versions over time</h2><span class="muted">last 30 days; hover for dates</span></div>
+				@versionChart(v.Versions)
+			</section>
+		}
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Running</h2></div>
