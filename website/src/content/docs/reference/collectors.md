@@ -53,7 +53,13 @@ For each repository the agent looks for credentials for the registry host, in th
    skipped;
 3. on Kubernetes, with `GOLIASH_READ_PULL_SECRETS=true` (Helm: `rbac.readPullSecrets`), the image pull secrets that
    running pods of its targets reference. It needs `get` on secrets;
-4. anonymous access.
+4. for **Google Artifact Registry** (`*-docker.pkg.dev`) and **Container Registry** (`gcr.io`), the service account
+   the agent runs as, from the metadata server: GKE Workload Identity or a Compute Engine service account with
+   `roles/artifactregistry.reader`;
+5. for **Azure Container Registry** (`*.azurecr.io`), AKS Workload Identity: the federated token the pod gets
+   (`AZURE_FEDERATED_TOKEN_FILE`, `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`) is exchanged for an ACR token. The identity
+   needs the `AcrPull` role;
+6. anonymous access.
 
 When a host has several credentials (two pull secrets for different Harbor projects), each is tried in turn.
 Credentials never leave the agent.

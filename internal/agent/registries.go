@@ -145,9 +145,27 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 			return tags, creds, err
 		}
 	}
+	var cloudErr error
+	if a.opts.Cloud != nil {
+		creds, ok, err := a.opts.Cloud.Credentials(ctx, host)
+		switch {
+		case ok && err == nil:
+			tags, err := a.registry.ListTags(ctx, c.Repository, creds)
+			if !errors.Is(err, registry.ErrUnauthorized) {
+				return tags, creds, err
+			}
+			cloudErr = fmt.Errorf("the cloud identity was refused: %w", err)
+		case ok:
+			cloudErr = err
+		}
+	}
 	tags, err := a.registry.ListTags(ctx, c.Repository, none)
 	if errors.Is(err, registry.ErrUnauthorized) {
-		return nil, none, fmt.Errorf("%w; give this agent a credential for %s: %s, a docker login, or an image pull secret", err, host, collectors.CredentialEnv(host))
+		err = fmt.Errorf("%w; give this agent a credential for %s: %s, a docker login, or an image pull secret", err, host, collectors.CredentialEnv(host))
+		if cloudErr != nil {
+			err = fmt.Errorf("%w (%v)", err, cloudErr)
+		}
+		return nil, none, err
 	}
 	return tags, none, err
 }

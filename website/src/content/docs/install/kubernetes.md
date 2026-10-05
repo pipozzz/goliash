@@ -80,6 +80,12 @@ Or give credentials one by one: put them in a secret and name it in `credentials
 in `/etc/goliash-agent/credentials`. The key is the registry host, for example `registry.example.com` with
 `user:password` or a token. These come first.
 
+On GKE and AKS, the agent can use its pod's cloud identity for Google Artifact Registry and Azure Container
+Registry, with no secret: bind its service account to a Google service account with
+`roles/artifactregistry.reader` (Workload Identity), or to an Azure managed identity with `AcrPull` (label the pod
+`azure.workload.identity/use: "true"` through `podLabels`, and annotate the service account with
+`azure.workload.identity/client-id`).
+
 For Amazon ECR on EKS, give the agent an IAM role with `ecr:ListImages` through IRSA:
 
 ```sh
