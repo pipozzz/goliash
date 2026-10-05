@@ -69,6 +69,13 @@ To restore, stop the server, put the copy in place as `goliash.db` and its key a
 **PostgreSQL** is backed up with its own tools: `pg_dump -Fc "$GOLIASH_DATABASE_URL" > goliash.dump`, or your
 provider's snapshots. Keep `GOLIASH_SECRET_KEY` with them.
 
+### Upgrades
+
+Replace the image or binary and start it: migrations run on start, under a lock when several servers share
+PostgreSQL. Take a backup first. Every change is tested by upgrading a database written by the first release and by
+the latest release, on SQLite and PostgreSQL, and checking that its services, history and encrypted channel secrets
+survive (`scripts/upgrade-test.sh`). Downgrades are not supported: restore the backup instead.
+
 ### Logs and health
 
 `GOLIASH_LOG_FORMAT=json` writes one JSON object per line for Loki or Elasticsearch (the agent too). `/healthz`

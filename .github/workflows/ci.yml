@@ -56,6 +56,37 @@ jobs:
           git diff --exit-code
       - run: go test -race -coverprofile=coverage.out ./...
 
+  # A database filled by an older release must migrate and keep its data: from the
+  # first release and from the latest one, on SQLite and PostgreSQL.
+  upgrade:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: goliash
+          POSTGRES_PASSWORD: goliash
+          POSTGRES_DB: goliash
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U goliash" --health-interval 2s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Upgrade from the first and the latest release
+        run: |
+          latest=$(git describe --tags --abbrev=0 --match 'v*' | sed 's/^v//')
+          for from in 0.1.0 "$latest"; do
+            scripts/upgrade-test.sh "$from"
+            db="up_${from//./_}"
+            PGPASSWORD=goliash psql -h localhost -U goliash -d goliash -c "CREATE DATABASE $db"
+            scripts/upgrade-test.sh "$from" "postgres://goliash:goliash@localhost:5432/$db?sslmode=disable"
+          done
+
   docker:
     runs-on: ubuntu-latest
     steps:
