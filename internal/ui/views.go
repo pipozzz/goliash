@@ -372,8 +372,10 @@ type InboxView struct {
 
 // AgentView is one agent row.
 type AgentView struct {
+	ID        string
 	Name      string
-	Status    string // online, stale, never
+	Status    string // online, stale, never, revoked
+	Outdated  bool   // older than the server
 	Version   string
 	Hostname  string
 	Platforms string
@@ -382,6 +384,8 @@ type AgentView struct {
 
 // TargetView is one target row.
 type TargetView struct {
+	ID           string
+	AgentID      string // empty when the server collects it
 	Name         string
 	Platform     string
 	Env          string
@@ -398,9 +402,29 @@ type AgentsView struct {
 	Targets    []TargetView
 	EnvNames   []string
 	AgentNames []string
-	NewToken   string
-	NewAgent   string
 	ServerURL  string
+	Moves      []AgentOption
+}
+
+// AgentOption is an agent a target can move to.
+type AgentOption struct {
+	ID   string
+	Name string
+}
+
+// AgentPageView is one agent with its token and targets.
+type AgentPageView struct {
+	Base
+	Agent         AgentView
+	Registered    time.Time
+	Created       time.Time
+	Tokens        []store.AgentToken
+	Targets       []TargetView
+	Moves         []AgentOption
+	NewToken      string
+	Rotated       bool
+	ServerURL     string
+	ServerVersion string
 }
 
 // ChannelView is one notification channel.

@@ -11,15 +11,6 @@ templ AgentsPage(v AgentsView) {
 				<p class="sub">Agents run in your network and read orchestrators read-only. Each target belongs to one environment.</p>
 			</div>
 		</div>
-		if v.NewToken != "" {
-			@secret("Token for "+v.NewAgent+":", v.NewToken)
-			<section class="panel">
-				<div class="panel-head"><h2>Start the agent</h2></div>
-				<div class="panel-body">
-					<pre class="mono" style="margin:0;white-space:pre-wrap">{ "GOLIASH_SERVER_URL=" + v.ServerURL + " GOLIASH_AGENT_TOKEN=<token> goliash-agent -data-dir /var/lib/goliash-agent" }</pre>
-				</div>
-			</section>
-		}
 		<section class="panel">
 			<div class="panel-head"><h2>Agents</h2></div>
 			if len(v.Agents) == 0 {
@@ -31,9 +22,14 @@ templ AgentsPage(v AgentsView) {
 						<tbody>
 							for _, a := range v.Agents {
 								<tr>
-									<td><strong>{ a.Name }</strong></td>
+									<td><a href={ templ.URL("/agents/" + a.ID) }><strong>{ a.Name }</strong></a></td>
 									<td><span class={ "badge", a.Status }>{ a.Status }</span></td>
-									<td class="mono">{ orDash(a.Version) }</td>
+									<td class="mono">
+										{ orDash(a.Version) }
+										if a.Outdated {
+											<span class="badge outdated">update available</span>
+										}
+									</td>
 									<td class="mono">{ orDash(a.Hostname) }</td>
 									<td>{ orDash(a.Platforms) }</td>
 									<td>@timeAgo(a.LastSeen)</td>
@@ -49,32 +45,7 @@ templ AgentsPage(v AgentsView) {
 			if len(v.Targets) == 0 {
 				<div class="empty">No targets yet.</div>
 			} else {
-				<div class="scroll">
-					<table>
-						<thead><tr><th>Target</th><th>Platform</th><th>Environment</th><th>Collected by</th><th>Collector</th><th>Last snapshot</th></tr></thead>
-						<tbody>
-							for _, t := range v.Targets {
-								<tr>
-									<td><strong>{ t.Name }</strong></td>
-									<td>{ t.Platform }</td>
-									<td>{ t.Env }</td>
-									<td>{ t.Agent }</td>
-									<td>
-										if t.Status == "" {
-											<span class="badge neutral">no report yet</span>
-										} else {
-											<span class={ "badge", t.Status }>{ t.Status }</span>
-										}
-										if t.Error != "" {
-											<div class="targets">{ t.Error }</div>
-										}
-									</td>
-									<td>@timeAgo(t.LastSnapshot)</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
+				@targetsTable(v.Targets, v.Moves, v.CanAdmin, "/agents")
 			}
 		</section>
 		if v.CanAdmin {

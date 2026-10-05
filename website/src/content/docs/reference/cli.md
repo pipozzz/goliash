@@ -10,6 +10,9 @@ Usage:
   goliash [serve] [flags]                 run the server
   goliash env create -name NAME [-position N]
   goliash agent create -name NAME         prints the agent token once
+  goliash agent list                      agents with status, version and last contact
+  goliash agent rotate -name NAME         new token; the old one works until the agent uses the new one
+  goliash agent revoke -name NAME         every token of the agent stops working
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-limit N]

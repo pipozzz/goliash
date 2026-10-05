@@ -1,0 +1,230 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ AgentPage(v AgentPageView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/agents">Agents</a> /</p>
+				<h1>
+					{ v.Agent.Name }
+					<span class={ "badge", v.Agent.Status }>{ v.Agent.Status }</span>
+					if v.Agent.Outdated {
+						<span class="badge outdated" title={ "This server runs " + v.ServerVersion }>update available</span>
+					}
+				</h1>
+			</div>
+		</div>
+		if v.NewToken != "" {
+			@secret("Token for "+v.Agent.Name+":", v.NewToken)
+			@installAgent(v.ServerURL, v.NewToken, v.Rotated)
+		}
+		<div class="grid-2">
+			<section class="panel">
+				<div class="panel-head"><h2>Agent</h2></div>
+				<dl class="kv">
+					<dt>Version</dt>
+					<dd class="mono">
+						{ orDash(v.Agent.Version) }
+						if v.Agent.Outdated {
+							<span class="muted">· server { v.ServerVersion }</span>
+						}
+					</dd>
+					<dt>Host</dt>
+					<dd class="mono">{ orDash(v.Agent.Hostname) }</dd>
+					<dt>Platforms</dt>
+					<dd>{ orDash(v.Agent.Platforms) }</dd>
+					<dt>Last seen</dt>
+					<dd>@timeAgo(v.Agent.LastSeen)</dd>
+					<dt>Connected first</dt>
+					<dd>@timeAgo(v.Registered)</dd>
+					<dt>Created</dt>
+					<dd>@timeAgo(v.Created)</dd>
+				</dl>
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>Token</h2></div>
+				<div class="panel-body stack">
+					if len(v.Tokens) == 0 {
+						<p>Revoked: the agent cannot send data. Rotate to give it a new token.</p>
+					}
+					for i, t := range v.Tokens {
+						<p>
+							if len(v.Tokens) > 1 && i == len(v.Tokens)-1 {
+								<strong>New token</strong>, created{ " " }
+								@timeAgo(t.CreatedAt)
+								{ " · waiting for the agent to use it; the old token works until then." }
+							} else {
+								<strong>
+									if len(v.Tokens) > 1 {
+										Old token
+									} else {
+										Token
+									}
+								</strong>
+								{ " created " }
+								@timeAgo(t.CreatedAt)
+								{ " · last used " }
+								@timeAgo(t.LastUsed)
+							}
+						</p>
+					}
+					if v.CanAdmin {
+						<div class="actions">
+							<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/rotate") }>
+								<button type="submit" class="secondary">Rotate token</button>
+							</form>
+							if len(v.Tokens) > 0 {
+								<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/revoke") } hx-confirm="Revoke every token of this agent? It stops sending data at once.">
+									<button type="submit" class="danger">Revoke</button>
+								</form>
+							}
+						</div>
+						<p class="hint">Rotating keeps the agent working: give it the new token and restart it. The old token stops working the first time the new one is used. Revoke when a token leaked or the agent is gone.</p>
+					}
+				</div>
+			</section>
+		</div>
+		<section class="panel">
+			<div class="panel-head"><h2>Targets</h2><span class="muted">what this agent collects</span></div>
+			if len(v.Targets) == 0 {
+				<div class="empty">
+					No targets yet.
+					if v.CanAdmin {
+						Add one on the <a href="/agents">Agents</a> page.
+					}
+				</div>
+			} else {
+				@targetsTable(v.Targets, v.Moves, v.CanAdmin, "/agents/"+v.Agent.ID)
+			}
+		</section>
+		if v.CanAdmin {
+			<div class="grid-2">
+				<section class="panel">
+					<div class="panel-head"><h2>Rename</h2></div>
+					<div class="panel-body">
+						<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/rename") }>
+							<label>Name<input name="name" required value={ v.Agent.Name } maxlength="100"/></label>
+							<button type="submit" class="secondary">Rename</button>
+						</form>
+						<p class="hint">The agent keeps its token.</p>
+					</div>
+				</section>
+				<section class="panel">
+					<div class="panel-head"><h2>Delete</h2></div>
+					<div class="panel-body">
+						if len(v.Targets) > 0 {
+							<p class="muted">Move or delete its targets first.</p>
+						} else {
+							<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/delete") } hx-confirm="Delete this agent and its tokens?">
+								<button type="submit" class="danger">Delete agent</button>
+							</form>
+						}
+					</div>
+				</section>
+			</div>
+		}
+	}
+}
+
+// targetsTable lists targets; admins move them to another collector or delete them.
+templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, from string) {
+	<div class="scroll">
+		<table>
+			<thead>
+				<tr><th>Target</th><th>Platform</th><th>Environment</th><th>Collected by</th><th>Collector</th><th>Last snapshot</th>
+					if canAdmin {
+						<th></th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				for _, t := range targets {
+					<tr>
+						<td><strong>{ t.Name }</strong></td>
+						<td>{ t.Platform }</td>
+						<td>{ t.Env }</td>
+						<td>
+							if canAdmin {
+								<form class="inline" method="post" action={ templ.URL("/targets/" + t.ID + "/agent") }>
+									<input type="hidden" name="from" value={ from }/>
+									<select name="agent" aria-label={ "Collector of " + t.Name } onchange="this.form.requestSubmit()">
+										<option value="server" selected?={ t.AgentID == "" }>server</option>
+										for _, a := range moves {
+											<option value={ a.ID } selected?={ a.ID == t.AgentID }>{ a.Name }</option>
+										}
+									</select>
+									<noscript><button type="submit" class="secondary">Move</button></noscript>
+								</form>
+							} else if t.AgentID != "" {
+								<a href={ templ.URL("/agents/" + t.AgentID) }>{ t.Agent }</a>
+							} else {
+								server
+							}
+						</td>
+						<td>
+							if t.Status == "" {
+								<span class="badge neutral">no report yet</span>
+							} else {
+								<span class={ "badge", t.Status }>{ t.Status }</span>
+							}
+							if t.Error != "" {
+								<div class="targets">{ t.Error }</div>
+							}
+						</td>
+						<td>@timeAgo(t.LastSnapshot)</td>
+						if canAdmin {
+							<td class="num">
+								<form class="inline" method="post" action={ templ.URL("/targets/" + t.ID + "/delete?from=" + from) } hx-confirm={ "Delete target " + t.Name + "? Its running versions leave the matrix; the history stays." }>
+									<button class="link" type="submit" style="color:var(--bad)">Delete</button>
+								</form>
+							</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// installAgent shows how to start the agent with its token on each platform.
+templ installAgent(serverURL, token string, rotated bool) {
+	<section class="panel">
+		<div class="panel-head">
+			<h2>
+				if rotated {
+					Give the agent its new token
+				} else {
+					Start the agent
+				}
+			</h2>
+		</div>
+		<div class="panel-body stack">
+			if rotated {
+				<p>Set <code>GOLIASH_AGENT_TOKEN</code> to the new token where the agent runs and restart it, for example:</p>
+			}
+			<details class="install" open>
+				<summary>Docker host</summary>
+				<pre class="mono" id="install-docker">{ "curl -fsSLO https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/docker/goliash-agent.yml\nGOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n  docker compose -f goliash-agent.yml up -d" }</pre>
+				<button type="button" class="secondary" data-copy="install-docker">Copy</button>
+			</details>
+			<details class="install">
+				<summary>Kubernetes (Helm)</summary>
+				<pre class="mono" id="install-k8s">{ "kubectl create namespace goliash\nkubectl -n goliash create secret generic goliash-agent-token --from-literal=token=" + token + " \\\n  --dry-run=client -o yaml | kubectl apply -f -\nhelm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash \\\n  --set serverURL=" + serverURL + " --set token.existingSecret=goliash-agent-token" }</pre>
+				<button type="button" class="secondary" data-copy="install-k8s">Copy</button>
+			</details>
+			<details class="install">
+				<summary>Nomad</summary>
+				<pre class="mono" id="install-nomad">{ "nomad var put -force nomad/jobs/goliash-agent token=" + token + " nomad_token=<Nomad ACL token>\n# deploy/nomad/goliash-agent.nomad.hcl, with GOLIASH_SERVER_URL=" + serverURL + "\nnomad job run goliash-agent.nomad.hcl" }</pre>
+				<button type="button" class="secondary" data-copy="install-nomad">Copy</button>
+			</details>
+			<details class="install">
+				<summary>Binary</summary>
+				<pre class="mono" id="install-binary">{ "GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n  goliash-agent -data-dir /var/lib/goliash-agent" }</pre>
+				<button type="button" class="secondary" data-copy="install-binary">Copy</button>
+			</details>
+		</div>
+	</section>
+}

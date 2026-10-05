@@ -113,6 +113,13 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
 	mux.Handle("GET /agents", s.page(v, s.agents))
 	mux.Handle("POST /agents", s.page(a, s.createAgent))
+	mux.Handle("GET /agents/{id}", s.page(v, s.agent))
+	mux.Handle("POST /agents/{id}/rotate", s.page(a, s.rotateAgent))
+	mux.Handle("POST /agents/{id}/revoke", s.page(a, s.revokeAgent))
+	mux.Handle("POST /agents/{id}/rename", s.page(a, s.renameAgent))
+	mux.Handle("POST /agents/{id}/delete", s.page(a, s.deleteAgent))
+	mux.Handle("POST /targets/{id}/agent", s.page(a, s.moveTarget))
+	mux.Handle("POST /targets/{id}/delete", s.page(a, s.deleteTarget))
 	mux.Handle("POST /environments", s.page(a, s.createEnvironment))
 	mux.Handle("POST /targets", s.page(a, s.createTarget))
 	mux.Handle("GET /notifications", s.page(v, s.notifications))
@@ -879,18 +886,8 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	for _, a := range agents {
 		agentName[a.ID] = a.Name
 		v.AgentNames = append(v.AgentNames, a.Name)
-		status := "online"
-		switch {
-		case a.LastSeenAt.IsZero():
-			status = "never"
-		case !a.StaleSince.IsZero():
-			status = "stale"
-		}
-		av := AgentView{
-			Name: a.Name, Status: status, Version: a.Version, Hostname: a.Hostname, LastSeen: a.LastSeenAt,
-			Platforms: strings.Join(a.Platforms, ", "),
-		}
-		v.Agents = append(v.Agents, av)
+		v.Agents = append(v.Agents, agentView(a))
+		v.Moves = append(v.Moves, AgentOption{ID: a.ID, Name: a.Name})
 	}
 	envs, err := s.store.ListEnvironments(ctx, p.Scope)
 	if err != nil {
@@ -915,6 +912,7 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 			by = "server"
 		}
 		tv := TargetView{
+			ID: t.ID, AgentID: t.AgentID,
 			Name: t.Name, Platform: t.Platform, Env: envName[t.EnvironmentID], Agent: by,
 			Status: t.CollectorStatus, Error: t.CollectorError, LastSnapshot: t.LastSnapshotAt,
 		}
@@ -943,18 +941,12 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, "/agents", "error", "Agent names use letters, digits, dots, dashes and underscores.")
 	}
 	token, hash := tokens.New(tokens.Agent)
-	if _, err := s.store.CreateAgent(ctx, p.Scope, name, hash); err != nil {
+	a, err := s.store.CreateAgent(ctx, p.Scope, name, hash)
+	if err != nil {
 		return back(w, r, "/agents", "error", "Could not create the agent; is the name taken?")
 	}
-	v, err := s.agentsView(ctx, p)
-	if err != nil {
-		return err
-	}
 	s.audit(ctx, p, "agent.create", "agent", name)
-	v.NewToken, v.NewAgent = token, name
-	v.Notice = "Agent " + name + " created. Copy its token now."
-	w.Header().Set("Cache-Control", "no-store")
-	return render(w, r, AgentsPage(v))
+	return s.showAgent(w, r, p, a.ID, token, false, "Agent "+name+" created. Copy its token now.")
 }
 
 func (s *Server) createEnvironment(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
