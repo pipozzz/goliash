@@ -26,6 +26,7 @@ Usage:
   goliash workspace list
   goliash user grant -email E -role viewer|member|admin|none   access to the -workspace
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
+  goliash user password -email E [-remove]   set a password (asked for, or one line on stdin)
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
   goliash token create -name N            API token for /api/v1 and /metrics (shown once)
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]

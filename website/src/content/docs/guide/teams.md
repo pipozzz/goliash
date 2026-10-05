@@ -4,12 +4,21 @@ title: Teams and workspaces
 
 ## Signing in
 
+- **Passwords.** Everyone may set a password on their account page (click your e-mail in the top bar), or an admin
+  runs `goliash user password -email you@example.com`. Forgot it? Sign in with a link and set a new one: for 15
+  minutes after a link or single sign-on, the current password is not asked for.
 - **Magic links.** `goliash login-link -email you@example.com` prints a one-time link. The first person becomes the
   owner. With SMTP configured, people request links by e-mail on the sign-in page.
 - **OIDC.** Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …). Set
   `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID` and `GOLIASH_OIDC_CLIENT_SECRET`, and register the redirect URI
   `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
   viewers on first sign-in; others need an invitation.
+
+## Sessions
+
+The account page lists every browser you are signed in on, with its address and when it was last used; sign any of
+them out, or all but this one. Changing your password signs out the others. On the Users page admins sign a person
+out everywhere or remove their password (when it leaked: they sign in with a link and choose a new one).
 
 ## Roles
 

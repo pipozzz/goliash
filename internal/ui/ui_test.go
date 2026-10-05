@@ -22,6 +22,7 @@ import (
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -567,5 +568,88 @@ func TestOrganizationRoles(t *testing.T) {
 	// Now ownerID is the only owner; nobody else can demote or remove them.
 	if _, body, _ := post(t, admin, e.srv.URL+"/settings/users/"+ownerID+"/delete", nil); !strings.Contains(body, "Only owners") {
 		t.Fatal("admin removed the owner")
+	}
+}
+
+func TestAccountPasswordAndSessions(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viaLink := e.as(store.RoleViewer) // signed in with a link just now
+	other := e.as(store.RoleMember)
+
+	_, body := get(t, viaLink, e.srv.URL+"/account", nil)
+	if !strings.Contains(body, "Set a password") || strings.Contains(body, `name="current"`) || !strings.Contains(body, "this device") {
+		t.Fatalf("account page: %s", body)
+	}
+
+	// Right after a link sign-in, a password is set without the current one.
+	_, body, _ = post(t, viaLink, e.srv.URL+"/account/password", url.Values{"password": {"short"}, "confirm": {"short"}})
+	if !strings.Contains(body, "Choose another password: use at least 12 characters.") {
+		t.Fatalf("weak password: %s", body)
+	}
+	_, body, _ = post(t, viaLink, e.srv.URL+"/account/password", url.Values{"password": {"correct horse staple"}, "confirm": {"correct horse stapler"}})
+	if !strings.Contains(body, "The two passwords differ.") {
+		t.Fatalf("mismatch: %s", body)
+	}
+	_, body, _ = post(t, viaLink, e.srv.URL+"/account/password", url.Values{"password": {"correct horse staple"}, "confirm": {"correct horse staple"}})
+	if !strings.Contains(body, "Password saved.") {
+		t.Fatalf("set: %s", body)
+	}
+
+	// Signing in with the password; that session must prove the current password.
+	jar, _ := cookiejar.New(nil)
+	pw := &http.Client{Jar: jar}
+	if _, body, _ := post(t, pw, e.srv.URL+"/auth/password", url.Values{"email": {"viewer@example.com"}, "password": {"correct horse staple"}}); strings.Contains(body, "Sign in") && !strings.Contains(body, "Sign out") {
+		t.Fatalf("password sign-in: %s", body)
+	}
+	_, body = get(t, pw, e.srv.URL+"/account", nil)
+	if !strings.Contains(body, `name="current"`) || !strings.Contains(body, "Change password") || !strings.Contains(body, "Sign out other devices") {
+		t.Fatalf("account after password sign-in: %s", body)
+	}
+	_, body, _ = post(t, pw, e.srv.URL+"/account/password", url.Values{"current": {"guess"}, "password": {"another long secret"}, "confirm": {"another long secret"}})
+	if !strings.Contains(body, "The current password is wrong.") {
+		t.Fatalf("wrong current: %s", body)
+	}
+	_, body, _ = post(t, pw, e.srv.URL+"/account/password", url.Values{
+		"current": {"correct horse staple"}, "password": {"another long secret"}, "confirm": {"another long secret"},
+	})
+	if !strings.Contains(body, "Password saved.") {
+		t.Fatalf("change: %s", body)
+	}
+	// The change signed out the link session, not this one, and not other people.
+	if _, b := get(t, viaLink, e.srv.URL+"/account", nil); strings.Contains(b, "Your account") {
+		t.Fatal("other device still signed in after a password change")
+	}
+	if _, b := get(t, other, e.srv.URL+"/account", nil); !strings.Contains(b, "Your account") {
+		t.Fatal("someone else was signed out")
+	}
+
+	// Names, and API tokens have no account.
+	_, body, _ = post(t, pw, e.srv.URL+"/account/name", url.Values{"name": {"Viktor"}})
+	if !strings.Contains(body, `value="Viktor"`) {
+		t.Fatalf("name: %s", body)
+	}
+	raw, hash := tokens.New(tokens.API)
+	if _, err := e.st.CreateAPIToken(ctx, e.ws.Scope(), "t", hash); err != nil {
+		t.Fatal(err)
+	}
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if code, _ := get(t, noFollow, e.srv.URL+"/account", map[string]string{"Authorization": "Bearer " + raw}); code != http.StatusSeeOther {
+		t.Fatal("API token opened the account page")
+	}
+
+	// Admins see who has a password and can take it away.
+	admin := e.as(store.RoleAdmin)
+	_, body = get(t, admin, e.srv.URL+"/settings", nil)
+	if !strings.Contains(body, "Remove password") {
+		t.Fatalf("users page: %s", body)
+	}
+	u, _ := e.st.GetUserByEmail(ctx, e.ws.OrgID, "viewer@example.com")
+	_, body, _ = post(t, admin, e.srv.URL+"/settings/users/"+u.ID+"/password/delete", nil)
+	if !strings.Contains(body, "Password of viewer@example.com removed") {
+		t.Fatalf("remove: %s", body)
+	}
+	if _, b := get(t, pw, e.srv.URL+"/account", nil); strings.Contains(b, "Your account") {
+		t.Fatal("still signed in after the admin removed the password")
 	}
 }

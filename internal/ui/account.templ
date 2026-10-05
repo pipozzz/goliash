@@ -1,0 +1,108 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ AccountPage(v AccountView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Your account</h1>
+				<p class="sub">{ v.Email } · { v.Role }</p>
+			</div>
+		</div>
+		<div class="grid-2">
+			<section class="panel">
+				<div class="panel-head"><h2>Profile</h2></div>
+				<div class="panel-body">
+					<form class="stack" method="post" action="/account/name">
+						<label>Name<input name="name" value={ v.Name } maxlength="100" autocomplete="name"/></label>
+						<label>E-mail<input value={ v.Email } disabled/></label>
+						<div><button type="submit">Save</button></div>
+					</form>
+				</div>
+			</section>
+			<section class="panel">
+				<div class="panel-head">
+					<h2>Password</h2>
+					if v.HasPassword {
+						<span class="muted">
+							changed{ " " }
+							@timeAgo(v.PasswordChanged)
+						</span>
+					}
+				</div>
+				<div class="panel-body">
+					if !v.PasswordsEnabled {
+						<p class="muted">Password sign-in is turned off on this server.</p>
+					} else {
+						<form class="stack" method="post" action="/account/password">
+							<input type="email" name="username" value={ v.Email } autocomplete="username" hidden/>
+							if v.NeedCurrent {
+								<label>Current password<input type="password" name="current" required autocomplete="current-password"/></label>
+							}
+							<label>
+								New password
+								<input type="password" name="password" required minlength={ itoa(v.MinLength) } maxlength="256" autocomplete="new-password"/>
+								<span class="hint">At least { itoa(v.MinLength) } characters. A passphrase of a few words works well.</span>
+							</label>
+							<label>Repeat it<input type="password" name="confirm" required autocomplete="new-password"/></label>
+							<div>
+								<button type="submit">
+									if v.HasPassword {
+										Change password
+									} else {
+										Set a password
+									}
+								</button>
+							</div>
+						</form>
+						if v.HasPassword {
+							<p class="hint">Changing it signs out your other devices.</p>
+						} else {
+							<p class="hint">You sign in with a link or single sign-on now. A password lets you sign in without them.</p>
+						}
+					}
+				</div>
+			</section>
+		</div>
+		<section class="panel">
+			<div class="panel-head">
+				<h2>Where you are signed in</h2>
+				if len(v.Sessions) > 1 {
+					<form class="inline" method="post" action="/account/sessions/others" hx-confirm="Sign out every other device?">
+						<button class="secondary" type="submit">Sign out other devices</button>
+					</form>
+				}
+			</div>
+			<div class="scroll">
+				<table>
+					<thead><tr><th>Device</th><th>Address</th><th>Signed in</th><th>With</th><th>Last active</th><th></th></tr></thead>
+					<tbody>
+						for _, x := range v.Sessions {
+							<tr>
+								<td>
+									<strong>{ x.Device }</strong>
+									if x.Current {
+										<span class="badge ok">this device</span>
+									}
+								</td>
+								<td class="mono">{ orDash(x.IP) }</td>
+								<td>@timeAgo(x.CreatedAt)</td>
+								<td>{ orDash(x.Method) }</td>
+								<td>@timeAgo(x.LastSeen)</td>
+								<td class="num">
+									if !x.Current {
+										<form class="inline" method="post" action={ templ.URL("/account/sessions/" + x.ID + "/delete") }>
+											<button class="link" type="submit" style="color:var(--bad)">Sign out</button>
+										</form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
+}

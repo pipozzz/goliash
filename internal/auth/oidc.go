@@ -89,7 +89,7 @@ func (a *Auth) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?error=oidc", http.StatusSeeOther)
 		return
 	}
-	if err := a.startSession(w, r, u); err != nil {
+	if err := a.startSession(w, r, u, "oidc"); err != nil {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
 		return
 	}

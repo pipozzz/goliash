@@ -1,7 +1,7 @@
 // Copyright 2026 The Goliash Authors
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package auth signs people in (magic links, OIDC), keeps browser sessions and
+// Package auth signs people in (passwords, magic links, OIDC), keeps browser sessions and
 // authenticates API tokens. Every request resolves to a Principal.
 package auth
 
@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -80,6 +81,11 @@ type Auth struct {
 	publicURL *url.URL
 	mail      MailFunc
 	oidc      *OIDC
+
+	passwords  bool
+	trustProxy bool
+	byClient   *limiter // failed password sign-ins per client address
+	byEmail    *limiter // failed password sign-ins per e-mail
 }
 
 // New returns an Auth. publicURL is where people reach the server (for links and
@@ -89,7 +95,48 @@ func New(st *store.Store, log *slog.Logger, publicURL string, mail MailFunc) (*A
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return nil, fmt.Errorf("public URL %q must be absolute, e.g. https://goliash.example.com", publicURL)
 	}
-	return &Auth{store: st, log: log, publicURL: u, mail: mail}, nil
+	return &Auth{
+		store: st, log: log, publicURL: u, mail: mail, passwords: true,
+		byClient: newLimiter(30, 15*time.Minute), byEmail: newLimiter(8, 15*time.Minute),
+	}, nil
+}
+
+// SetPasswordLogin turns password sign-in on (the default) or off, e.g. when
+// everyone signs in through OIDC.
+func (a *Auth) SetPasswordLogin(on bool) { a.passwords = on }
+
+// PasswordsEnabled reports whether people may sign in with a password.
+func (a *Auth) PasswordsEnabled() bool { return a.passwords }
+
+// SetTrustProxy makes the client address come from X-Forwarded-For, for servers
+// behind a reverse proxy. Without a proxy, a client could fake the header.
+func (a *Auth) SetTrustProxy(on bool) { a.trustProxy = on }
+
+// ClientIP is the address a request came from: the last X-Forwarded-For entry
+// (added by the proxy) when proxies are trusted, else the connection's address.
+func (a *Auth) ClientIP(r *http.Request) string {
+	if a.trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.Split(xff, ",")
+			if ip := strings.TrimSpace(parts[len(parts)-1]); ip != "" {
+				return ip
+			}
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// SessionID returns the stored ID (a hash) of the request's session, or "".
+func SessionID(r *http.Request) string {
+	c, err := r.Cookie(sessionCookie)
+	if err != nil || c.Value == "" {
+		return ""
+	}
+	return hashOf(c.Value)
 }
 
 // SetOIDC enables OIDC sign-in.
@@ -186,17 +233,24 @@ func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 }
 
 // startSession signs a user in on this browser.
-func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User) error {
+func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User, method string) error {
 	raw, hash := randomToken()
-	if err := a.store.CreateSession(r.Context(), hash, u.ID, sessionTTL); err != nil {
+	ua := r.UserAgent()
+	if len(ua) > 300 {
+		ua = ua[:300]
+	}
+	x := store.Session{Method: method, UserAgent: ua, IP: a.ClientIP(r)}
+	if err := a.store.CreateSession(r.Context(), hash, u.ID, sessionTTL, x); err != nil {
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme; plain http is for local use
 		Name: sessionCookie, Value: raw, Path: "/", HttpOnly: true, Secure: a.publicURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode, MaxAge: int(sessionTTL / time.Second),
 	})
-	a.log.InfoContext(r.Context(), "signed in", "user", u.Email)
-	if err := a.store.Audit(r.Context(), store.AuditEntry{OrgID: u.OrgID, Actor: u.Email, Action: "user.sign_in"}); err != nil {
+	a.log.InfoContext(r.Context(), "signed in", "user", u.Email, "method", method)
+	if err := a.store.Audit(r.Context(), store.AuditEntry{
+		OrgID: u.OrgID, Actor: u.Email, Action: "user.sign_in", Details: map[string]string{"method": method, "ip": x.IP},
+	}); err != nil {
 		a.log.ErrorContext(r.Context(), "audit log write failed", "err", err)
 	}
 	return nil
@@ -204,11 +258,13 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 
 // Routes adds the sign-in endpoints to mux:
 //
+//	POST /auth/password   sign in with e-mail and password
 //	POST /auth/magic      e-mail a sign-in link (form field "email")
 //	GET  /auth/magic      sign in with a link
 //	GET  /auth/oidc/start, /auth/oidc/callback
 //	POST /auth/logout
 func (a *Auth) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /auth/password", a.passwordLogin)
 	mux.HandleFunc("POST /auth/magic", a.requestLink)
 	mux.HandleFunc("GET /auth/magic", a.useLink)
 	mux.HandleFunc("GET /auth/oidc/start", a.oidcStart)
@@ -249,11 +305,66 @@ func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?error=link", http.StatusSeeOther)
 		return
 	}
-	if err := a.startSession(w, r, u); err != nil {
+	if err := a.startSession(w, r, u, "link"); err != nil {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// passwordLogin signs in with e-mail and password. Every failure answers the same
+// and takes as long, so the form does not reveal who has an account or a password.
+// Too many failures for an address or a client pause sign-in for 15 minutes.
+func (a *Auth) passwordLogin(w http.ResponseWriter, r *http.Request) {
+	if !a.passwords {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	password := r.FormValue("password")
+	ip := a.ClientIP(r)
+	if a.byClient.blocked(ip) || a.byEmail.blocked(email) {
+		a.log.WarnContext(r.Context(), "password sign-in throttled", "email", email, "ip", ip)
+		http.Redirect(w, r, "/login?error=throttled", http.StatusSeeOther)
+		return
+	}
+	u, hash := a.passwordOf(r.Context(), email)
+	ok := VerifyPassword(password, hash)
+	if hash == "" {
+		VerifyPassword(password, dummyHash)
+		ok = false
+	}
+	if !ok {
+		a.byClient.fail(ip)
+		a.byEmail.fail(email)
+		a.log.WarnContext(r.Context(), "password sign-in failed", "email", email, "ip", ip)
+		http.Redirect(w, r, "/login?error=password", http.StatusSeeOther)
+		return
+	}
+	a.byEmail.reset(email)
+	if err := a.startSession(w, r, u, "password"); err != nil {
+		http.Error(w, "could not sign in", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// passwordOf finds a user by e-mail and their password hash; hash is empty when
+// there is no such user or they have no password.
+func (a *Auth) passwordOf(ctx context.Context, email string) (store.User, string) {
+	ws, err := a.store.ListWorkspaces(ctx)
+	if err != nil || len(ws) == 0 || email == "" {
+		return store.User{}, ""
+	}
+	u, err := a.store.GetUserByEmail(ctx, ws[0].OrgID, email)
+	if err != nil {
+		return store.User{}, ""
+	}
+	hash, err := a.store.UserPasswordHash(ctx, u.ID)
+	if err != nil {
+		return store.User{}, ""
+	}
+	return u, hash
 }
 
 func (a *Auth) logout(w http.ResponseWriter, r *http.Request) {

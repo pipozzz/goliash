@@ -429,14 +429,15 @@ type NotificationsView struct {
 
 // UserView is one user row.
 type UserView struct {
-	ID        string
-	Email     string
-	Role      string // role in the current workspace; empty for organization-wide users or no access
-	Access    string
-	OrgWide   bool
-	OrgRole   string // owner or admin for organization-wide users
-	LastLogin time.Time
-	IsSelf    bool
+	ID          string
+	Email       string
+	Role        string // role in the current workspace; empty for organization-wide users or no access
+	Access      string
+	OrgWide     bool
+	OrgRole     string // owner or admin for organization-wide users
+	LastLogin   time.Time
+	IsSelf      bool
+	HasPassword bool
 }
 
 // AuditView is one audit log line.
@@ -459,10 +460,11 @@ type SettingsView struct {
 
 // LoginView is the sign-in page.
 type LoginView struct {
-	Sent  bool
-	Error string
-	OIDC  string // provider name; empty when OIDC is off
-	Mail  bool
+	Sent     bool
+	Error    string
+	OIDC     string // provider name; empty when OIDC is off
+	Mail     bool
+	Password bool
 }
 
 // relTime formats a time for <time datetime>.

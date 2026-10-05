@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -38,8 +39,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/pipozzz/goliash/internal/mcpserver"
+	"golang.org/x/term"
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
@@ -53,6 +53,7 @@ import (
 	"github.com/pipozzz/goliash/internal/demo"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
+	"github.com/pipozzz/goliash/internal/mcpserver"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
@@ -89,6 +90,7 @@ const usage = `Usage:
   goliash workspace list
   goliash user grant -email E -role viewer|member|admin|none   access to the -workspace
   goliash user create -email E [-role owner|admin|member|viewer] [-name N]
+  goliash user password -email E [-remove]   set a password (asked for, or one line on stdin)
   goliash login-link -email E             one-time sign-in link (creates the first user as owner)
   goliash token create -name N            API token for /api/v1 and /metrics (shown once)
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
@@ -132,7 +134,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && (cmd == "user" || cmd == "token") && args[0] == "create" {
 			cmd, args = cmd+" create", args[1:]
 		}
-		if len(args) > 0 && ((cmd == "user" && args[0] == "grant") || (cmd == "workspace" && (args[0] == "create" || args[0] == "list"))) {
+		if len(args) > 0 && ((cmd == "user" && (args[0] == "grant" || args[0] == "password")) || (cmd == "workspace" && (args[0] == "create" || args[0] == "list"))) {
 			cmd, args = cmd+" "+args[0], args[1:]
 		}
 	}
@@ -178,6 +180,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return ackCmd(ctx, args, out)
 	case "user create":
 		return userCreate(ctx, args, out)
+	case "user password":
+		return userPassword(ctx, args, os.Stdin, out)
 	case "user grant":
 		return userGrant(ctx, args, out)
 	case "workspace create":
@@ -889,6 +893,8 @@ func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL s
 	if err != nil {
 		return nil, err
 	}
+	a.SetPasswordLogin(os.Getenv("GOLIASH_PASSWORD_LOGIN") != "false")
+	a.SetTrustProxy(os.Getenv("GOLIASH_TRUST_PROXY") == "true")
 	if issuer := os.Getenv("GOLIASH_OIDC_ISSUER"); issuer != "" {
 		o, err := auth.NewOIDC(ctx, auth.OIDCConfig{
 			Issuer: issuer, ClientID: os.Getenv("GOLIASH_OIDC_CLIENT_ID"), ClientSecret: os.Getenv("GOLIASH_OIDC_CLIENT_SECRET"),
@@ -1028,6 +1034,79 @@ func workspaceList(ctx context.Context, args []string, out io.Writer) error {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%d\t%d\n", w.Slug, w.Name, c.Targets, c.Services, c.Members)
 	}
 	return tw.Flush()
+}
+
+// userPassword sets or removes a user's password and signs them out everywhere.
+// It asks for the password on a terminal, else reads one line from stdin.
+func userPassword(ctx context.Context, args []string, in *os.File, out io.Writer) error {
+	fs, dsn := newFlags("user password")
+	email := fs.String("email", "", "e-mail address of the user")
+	remove := fs.Bool("remove", false, "remove the password (they sign in with a link or single sign-on)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *email == "" {
+		return errors.New("-email is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	u, err := db.GetUserByEmail(ctx, ws.OrgID, *email)
+	if errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("no user %s; create one with goliash user create", *email)
+	}
+	if err != nil {
+		return err
+	}
+	if *remove {
+		if err := db.SetUserPassword(ctx, u.ID, "", ""); err != nil {
+			return err
+		}
+		cliAudit(ctx, db, ws, "user.password_remove", "user", u.Email)
+		_, _ = fmt.Fprintf(out, "password of %s removed; every device signed out\n", u.Email)
+		return nil
+	}
+	password, err := readPassword(in, out)
+	if err != nil {
+		return err
+	}
+	if err := auth.CheckPassword(password, u.Email); err != nil {
+		return err
+	}
+	if err := db.SetUserPassword(ctx, u.ID, auth.HashPassword(password), ""); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "user.password_set", "user", u.Email)
+	_, _ = fmt.Fprintf(out, "password of %s set; every device signed out\n", u.Email)
+	return nil
+}
+
+func readPassword(in *os.File, out io.Writer) (string, error) {
+	if !term.IsTerminal(int(in.Fd())) { //nolint:gosec // a file descriptor fits in int
+		line, err := bufio.NewReader(in).ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return "", err
+		}
+		return strings.TrimRight(line, "\r\n"), nil
+	}
+	_, _ = fmt.Fprint(out, "New password: ")
+	first, err := term.ReadPassword(int(in.Fd())) //nolint:gosec // a file descriptor fits in int
+	_, _ = fmt.Fprintln(out)
+	if err != nil {
+		return "", err
+	}
+	_, _ = fmt.Fprint(out, "Repeat it: ")
+	second, err := term.ReadPassword(int(in.Fd())) //nolint:gosec // a file descriptor fits in int
+	_, _ = fmt.Fprintln(out)
+	if err != nil {
+		return "", err
+	}
+	if string(first) != string(second) {
+		return "", errors.New("the two passwords differ")
+	}
+	return string(first), nil
 }
 
 func loginLink(ctx context.Context, args []string, out io.Writer) error {

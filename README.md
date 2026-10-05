@@ -140,9 +140,13 @@ and updates live over server-sent events.
 ```sh
 bin/goliash login-link -email you@example.com      # first user becomes owner; prints a one-time link
 bin/goliash user create -email dev@example.com -role member
+bin/goliash user password -email you@example.com    # optional: sign in with a password too
 bin/goliash token create -name prometheus           # glsh_api_… for /api/v1 and /metrics
 ```
 
+- **Passwords** (argon2id, at least 12 characters): everyone sets one on their account page, or an admin runs
+  `goliash user password`. Repeated failures pause sign-in for an address for 15 minutes. Turn passwords off with
+  `GOLIASH_PASSWORD_LOGIN=false` when everyone uses OIDC. The account page also lists where you are signed in.
 - **Magic links** are e-mailed when SMTP is configured (`GOLIASH_SMTP_*`); `goliash login-link` works without it.
 - **OIDC**: `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID`, `GOLIASH_OIDC_CLIENT_SECRET`, optional `GOLIASH_OIDC_NAME`
   and `GOLIASH_OIDC_DOMAINS` (people from these e-mail domains are created as viewers on first sign-in; others
