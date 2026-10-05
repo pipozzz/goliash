@@ -297,3 +297,26 @@ textarea.mono { font-family: var(--mono); font-size: 12.5px; }
 .setup-2fa img { border-radius: 8px; background: #fff; padding: 8px; border: 1px solid var(--line); image-rendering: pixelated; }
 .setup-2fa .key { font-size: 15px; letter-spacing: 0.04em; padding: 8px 10px; background: var(--surface-2); border-radius: 6px; display: inline-block; word-break: break-all; }
 pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface-2); border-radius: 8px; font-size: 15px; line-height: 1.9; white-space: pre; }
+
+/* Charts (server-drawn SVG). Colours follow the theme. */
+.chart { margin: 0; padding: 14px 16px 12px; overflow-x: auto; }
+.chart svg { width: 100%; min-width: 520px; max-height: 260px; height: auto; display: block; overflow: visible; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .axis { fill: var(--faint); font: 11px var(--sans); }
+.chart .lane { fill: var(--muted); font: 600 11px var(--sans); }
+.chart .seg-label { fill: #fff; font: 600 11px var(--mono); pointer-events: none; }
+.chart .bar:hover, .chart .seg:hover { opacity: 0.8; }
+.chart .line { fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.chart .c0 { fill: var(--accent); stroke: var(--accent); }
+.chart .c1 { fill: var(--info); stroke: var(--info); }
+.chart .c2 { fill: var(--ok); stroke: var(--ok); }
+.chart .c3 { fill: var(--warn); stroke: var(--warn); }
+.chart .c4 { fill: var(--bad); stroke: var(--bad); }
+.chart .c5 { fill: #0e8a9c; stroke: #0e8a9c; }
+.chart .line.c0, .chart .line.c1, .chart .line.c2, .chart .line.c3, .chart .line.c4, .chart .line.c5 { fill: none; }
+.legend-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 0; padding: 0 0 0 36px; font-size: 12.5px; color: var(--muted); }
+.legend-list li { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.swatch.c0 { background: var(--accent); } .swatch.c1 { background: var(--info); } .swatch.c2 { background: var(--ok); }
+.swatch.c3 { background: var(--warn); } .swatch.c4 { background: var(--bad); } .swatch.c5 { background: #0e8a9c; }
+@media (prefers-color-scheme: dark) { .chart .seg-label { fill: #0e1117; } }

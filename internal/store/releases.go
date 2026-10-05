@@ -179,6 +179,12 @@ func (s *Store) MarkDriftNotified(ctx context.Context, sc Scope, id string, at t
 	return err
 }
 
+// SetDriftSince moves when a drift opened (example data).
+func (s *Store) SetDriftSince(ctx context.Context, sc Scope, id string, since time.Time) error {
+	res, err := s.exec(ctx, s.db, `UPDATE drifts SET since = ? WHERE workspace_id = ? AND id = ?`, since.UTC(), sc.WorkspaceID, id)
+	return expectOne(res, err)
+}
+
 // ResolveDrift closes a drift.
 func (s *Store) ResolveDrift(ctx context.Context, sc Scope, id string) error {
 	_, err := s.exec(ctx, s.db, `UPDATE drifts SET resolved_at = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
@@ -201,6 +207,28 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 		}
 		w.CreatedAt = w.CreatedAt.UTC()
 		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// DriftsBetween returns the drifts that were open at some moment between from and to.
+func (s *Store) DriftsBetween(ctx context.Context, sc Scope, from, to time.Time) ([]Drift, error) {
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, since, resolved_at FROM drifts
+		WHERE org_id = ? AND workspace_id = ? AND since < ? AND (resolved_at IS NULL OR resolved_at > ?) ORDER BY since, id`,
+		sc.OrgID, sc.WorkspaceID, to.UTC(), from.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Drift
+	for rows.Next() {
+		d := Drift{Scope: sc}
+		var resolved sql.NullTime
+		if err := rows.Scan(&d.ID, &d.ServiceID, &d.EnvironmentID, &d.Kind, &d.Since, &resolved); err != nil {
+			return nil, err
+		}
+		d.Since, d.ResolvedAt = d.Since.UTC(), timeOrZero(resolved)
+		out = append(out, d)
 	}
 	return out, rows.Err()
 }

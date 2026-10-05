@@ -13,6 +13,18 @@ templ PromotionsPage(v PromotionsView) {
 			</div>
 		</div>
 		<section class="panel">
+			<div class="panel-head"><h2>Deploys per week</h2><span class="muted">versions that arrived, by environment, last 12 weeks</span></div>
+			@stackedBars(v.Deploys, "Deploys per week by environment, last 12 weeks")
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>Open drift</h2><span class="muted">per day and kind, last 30 days</span></div>
+			if len(nonZeroSeries(v.Drift.Series)) == 0 {
+				<div class="empty">No drift in the last 30 days.</div>
+			} else {
+				@lines(v.Drift, "Open drift per day by kind, last 30 days")
+			}
+		</section>
+		<section class="panel">
 			<div class="panel-head"><h2>Waiting for promotion</h2></div>
 			if len(v.Promotions) == 0 {
 				<div class="empty">Nothing waits: every environment runs what the one before it runs.</div>

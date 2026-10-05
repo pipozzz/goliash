@@ -105,6 +105,12 @@ When the drift ends, a `drift_resolved` event follows.
 
 ## Promotions and delivery
 
+The **Delivery** page opens with two charts: versions that arrived per week and environment over the last twelve
+weeks, and how much drift was open each day of the last thirty, by kind. Every service page shows **Versions over
+time**: which version ran in each environment (one lane per target where an environment has several) over the last
+thirty days; hover a bar for its dates. The charts are drawn on the server, follow the light or dark theme and need
+no script.
+
 ![The Delivery page: versions waiting for promotion with the releases they bring, and versions per environment with lead times over the last 30 days](../../../assets/delivery.png)
 
 The **Delivery** page lists every version that runs in one environment and waits for the next, longest waiting

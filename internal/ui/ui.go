@@ -515,6 +515,19 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.Releases = append(v.Releases, ReleaseView{Version: parsed[i].rel.Version, Published: parsed[i].rel.PublishedAt, URL: parsed[i].rel.ChangelogURL})
 	}
 
+	if deploys, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{
+		ServiceID: svc.ID, Types: []string{"deployed", "version_changed", "removed"}, Limit: 2000,
+	}); err == nil {
+		envs, eerr := s.store.ListEnvironments(ctx, p.Scope)
+		tgts, terr := s.store.ListTargets(ctx, p.Scope)
+		if eerr == nil && terr == nil {
+			names := map[string]string{}
+			for _, t := range tgts {
+				names[t.ID] = t.Name
+			}
+			v.Versions = versionTimeline(deploys, envs, names, time.Now(), 30*24*time.Hour)
+		}
+	}
 	evs, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{ServiceID: svc.ID, Limit: 25})
 	if err != nil {
 		return err
@@ -817,6 +830,9 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 			pv.Releases = append(pv.Releases, ReleaseView{Version: rel.Version, Published: rel.PublishedAt, URL: rel.ChangelogURL})
 		}
 		v.Promotions = append(v.Promotions, pv)
+	}
+	if err := s.deliveryCharts(r, p, &v); err != nil {
+		return err
 	}
 	return render(w, r, PromotionsPage(v))
 }

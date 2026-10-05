@@ -1048,3 +1048,24 @@ func TestRequireTwoFactorAndBodyLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestChartsOnPages(t *testing.T) {
+	e := newUIEnv(t)
+	c := e.as(store.RoleViewer)
+	_, body := get(t, c, e.srv.URL+"/delivery", nil)
+	if !strings.Contains(body, "Deploys per week") || !strings.Contains(body, `<svg viewBox="0 0 640.0`) {
+		t.Fatal("delivery charts missing")
+	}
+	svc := e.serviceOf("evil")
+	s, _ := e.st.GetServiceByName(context.Background(), e.ws.Scope(), svc)
+	if err := e.st.InsertEvent(context.Background(), e.ws.Scope(), store.Event{
+		ID: store.NewID(), Type: "deployed", ServiceID: s.ID, EnvironmentID: e.prod.ID, TargetID: e.tgt.ID,
+		ToVersion: "1.27.2", At: time.Now().Add(-48 * time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, body = get(t, c, e.srv.URL+"/services/"+url.PathEscape(svc), nil)
+	if !strings.Contains(body, "Versions over time") || !strings.Contains(body, "1.27.2 in prod from") {
+		t.Fatal("service timeline missing")
+	}
+}
