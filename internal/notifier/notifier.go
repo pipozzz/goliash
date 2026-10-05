@@ -24,6 +24,7 @@ const maxAttempts = 6
 type Item struct {
 	Type        string    `json:"type"` // an event type, or agent_stale
 	Service     string    `json:"service,omitempty"`
+	App         string    `json:"app,omitempty"` // a drift within one application of a shared service
 	Owner       string    `json:"owner,omitempty"`
 	Environment string    `json:"environment,omitempty"`
 	Target      string    `json:"target,omitempty"`
@@ -140,7 +141,7 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			continue
 		}
 		item := Item{
-			Type: e.Type, Service: svc.Name, Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
+			Type: e.Type, Service: svc.Name, App: e.App, Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
 			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, At: e.At,
 		}
 		item.Text = Describe(item)
@@ -412,6 +413,9 @@ func (n *Notifier) SendTest(ctx context.Context, ch store.Channel, workspace str
 // Describe writes the one-line text people read about an item.
 func Describe(it Item) string {
 	where := it.Service
+	if it.App != "" {
+		where += " (" + it.App + ")"
+	}
 	if it.Environment != "" {
 		where += " @ " + it.Environment
 	}

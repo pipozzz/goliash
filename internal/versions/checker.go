@@ -383,6 +383,7 @@ type DriftDetail struct {
 type WantedDrift struct {
 	Service, Env, Kind string
 	Detail             DriftDetail
+	App                string // the application, when the service splits by application
 }
 
 // EvaluateDrift opens drifts the current state shows and resolves those it no longer
@@ -419,16 +420,16 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 	if err != nil {
 		return err
 	}
-	key := func(service, env, kind string) string { return service + "|" + env + "|" + kind }
+	key := func(service, app, env, kind string) string { return service + "|" + app + "|" + env + "|" + kind }
 	openByKey := map[string]store.Drift{}
 	for _, d := range open {
-		openByKey[key(d.ServiceID, d.EnvironmentID, d.Kind)] = d
+		openByKey[key(d.ServiceID, d.App, d.EnvironmentID, d.Kind)] = d
 	}
 	var evs []store.Event
 	now := c.now()
 	seen := map[string]bool{}
 	for _, w := range wanted {
-		k := key(w.Service, w.Env, w.Kind)
+		k := key(w.Service, w.App, w.Env, w.Kind)
 		seen[k] = true
 		detail, _ := json.Marshal(w.Detail)
 		d, ok := openByKey[k]
@@ -441,7 +442,7 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		} else {
 			var err error
 			if d, err = c.store.OpenDrift(ctx, store.Drift{
-				Scope: sc, ServiceID: w.Service, EnvironmentID: w.Env,
+				Scope: sc, ServiceID: w.Service, App: w.App, EnvironmentID: w.Env,
 				Kind: w.Kind, Detail: detail, Since: now,
 			}); err != nil {
 				return err
@@ -453,7 +454,7 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 				return err
 			}
 			evs = append(evs, store.Event{
-				Type: "drift_detected", ServiceID: w.Service, EnvironmentID: w.Env,
+				Type: "drift_detected", ServiceID: w.Service, App: w.App, EnvironmentID: w.Env,
 				FromVersion: w.Detail.Running, ToVersion: w.Detail.Other, Note: w.Kind, Source: "poll", At: now,
 			})
 		}
@@ -471,7 +472,7 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		var detail DriftDetail
 		_ = json.Unmarshal(d.Detail, &detail)
 		evs = append(evs, store.Event{
-			Type: "drift_resolved", ServiceID: d.ServiceID, EnvironmentID: d.EnvironmentID,
+			Type: "drift_resolved", ServiceID: d.ServiceID, App: d.App, EnvironmentID: d.EnvironmentID,
 			FromVersion: detail.Running, Note: d.Kind, Source: "poll", At: now,
 		})
 	}
@@ -519,41 +520,52 @@ func (c *Checker) eolCycles(ctx context.Context, st workspaceState, policies map
 func Drifts(m Matrix, upstreams map[string]Upstream, policies map[string]Policy) []WantedDrift {
 	var out []WantedDrift
 	for _, row := range m.Rows {
-		svc := row.Service.ID
-		prevEnv := -1
-		for ei, cell := range row.Cells {
-			if cell.Empty() {
-				continue
-			}
-			env := m.Environments[ei].ID
-			primary := cell.Primary().Tag
+		for _, part := range row.Units() {
+			out = append(out, partDrifts(m, row.Service.ID, part, upstreams, policies)...)
+		}
+	}
+	return out
+}
 
-			if prevEnv >= 0 {
-				lower := row.Cells[prevEnv].Primary().Tag
-				a, okA := ParseVersion(primary)
-				b, okB := ParseVersion(lower)
-				if okA && okB && a.Compare(b) < 0 {
-					out = append(out, WantedDrift{svc, env, "env", DriftDetail{
-						Running: primary, Other: lower, OtherIn: m.Environments[prevEnv].Name, Jump: a.JumpTo(b),
-					}})
-				}
-			}
-			prevEnv = ei
+// partDrifts lists the drifts of one service within one application (or all of it).
+func partDrifts(m Matrix, svc string, part Part, upstreams map[string]Upstream, policies map[string]Policy) []WantedDrift {
+	var out []WantedDrift
+	add := func(env, kind string, d DriftDetail) {
+		out = append(out, WantedDrift{Service: svc, Env: env, Kind: kind, Detail: d, App: part.App})
+	}
+	prevEnv := -1
+	for ei, cell := range part.Cells {
+		if cell.Empty() {
+			continue
+		}
+		env := m.Environments[ei].ID
+		primary := cell.Primary().Tag
 
-			if up, ok := upstreams[svc]; ok {
-				if jump, lag := Lagging(primary, up, policies[svc]); lag {
-					out = append(out, WantedDrift{svc, env, "upstream", DriftDetail{Running: primary, Other: up.Latest.Raw, Jump: jump}})
-				}
+		if prevEnv >= 0 {
+			lower := part.Cells[prevEnv].Primary().Tag
+			a, okA := ParseVersion(primary)
+			b, okB := ParseVersion(lower)
+			if okA && okB && a.Compare(b) < 0 {
+				add(env, "env", DriftDetail{
+					Running: primary, Other: lower, OtherIn: m.Environments[prevEnv].Name, Jump: a.JumpTo(b),
+				})
 			}
+		}
+		prevEnv = ei
 
-			if targets, ok := inconsistent(cell); ok {
-				out = append(out, WantedDrift{svc, env, "inconsistent", DriftDetail{Running: primary, Targets: targets}})
+		if up, ok := upstreams[svc]; ok {
+			if jump, lag := Lagging(primary, up, policies[svc]); lag {
+				add(env, "upstream", DriftDetail{Running: primary, Other: up.Latest.Raw, Jump: jump})
 			}
+		}
 
-			// What runs differs from what the Compose files in Git declare.
-			if !cell.FromDeclared && len(cell.Declared) > 0 && !hasTag(cell.Declared, primary) {
-				out = append(out, WantedDrift{svc, env, "declared", DriftDetail{Running: primary, Other: cell.Declared[0].Tag}})
-			}
+		if targets, ok := inconsistent(cell); ok {
+			add(env, "inconsistent", DriftDetail{Running: primary, Targets: targets})
+		}
+
+		// What runs differs from what the Compose files in Git declare.
+		if !cell.FromDeclared && len(cell.Declared) > 0 && !hasTag(cell.Declared, primary) {
+			add(env, "declared", DriftDetail{Running: primary, Other: cell.Declared[0].Tag})
 		}
 	}
 	return out

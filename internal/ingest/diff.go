@@ -74,7 +74,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			if w.Namespace != nil {
 				inst.Namespace = *w.Namespace
 			}
-			inst.App, inst.AppSource = workloadApp(w.Labels, in.AppLabel, inst.Namespace)
+			inst.App, inst.AppSource = workloadApp(w.Labels, in.AppLabel, inst.Namespace, string(w.Kind), w.Name)
 			if d.EnvName != "" {
 				if id, ok := in.EnvByName[d.EnvName]; ok {
 					inst.EnvironmentID = id

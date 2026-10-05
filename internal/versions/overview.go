@@ -26,6 +26,8 @@ type Overview struct {
 	Stale map[string]time.Time
 	// ReleaseURL maps service ID + "|" + version to its release notes link.
 	ReleaseURL map[string]string
+	// SplitApps lists services whose versions are compared per application.
+	SplitApps map[string]bool
 }
 
 // StaleTarget reports whether a target's data is out of date: its agent stopped
@@ -42,8 +44,19 @@ func StaleTarget(t store.Target, agentStale bool, now time.Time) bool {
 	return agentStale || now.Sub(t.LastSnapshotAt) > limit
 }
 
-// DriftsAt returns the open drifts of a service in an environment.
+// DriftsAt returns the open drifts of a service in an environment, in every
+// application when it splits by application.
 func (o Overview) DriftsAt(serviceID, envID string) []store.Drift {
+	return o.Drifts[serviceID+"|"+envID]
+}
+
+// DriftsIn returns the open drifts of a service within one application in an
+// environment. A service that does not split by application drifts as a whole, so
+// any app gets all its drifts.
+func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
+	if o.SplitApps[serviceID] {
+		return o.Drifts[serviceID+"|"+app+"|"+envID]
+	}
 	return o.Drifts[serviceID+"|"+envID]
 }
 
@@ -84,6 +97,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		return o, err
 	}
 	o.Matrix = BuildMatrix(services, envs, o.Targets, active)
+	o.SplitApps = splitApps(o.Matrix)
 	o.Refs = References(o.Matrix, active)
 	for _, s := range services {
 		o.Services[s.ID] = s
@@ -120,6 +134,20 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	for _, d := range drifts {
 		k := d.ServiceID + "|" + d.EnvironmentID
 		o.Drifts[k] = append(o.Drifts[k], d)
+		if d.App != "" {
+			k = d.ServiceID + "|" + d.App + "|" + d.EnvironmentID
+			o.Drifts[k] = append(o.Drifts[k], d)
+		}
 	}
 	return o, nil
+}
+
+func splitApps(m Matrix) map[string]bool {
+	out := map[string]bool{}
+	for _, r := range m.Rows {
+		if len(r.Parts) > 0 {
+			out[r.Service.ID] = true
+		}
+	}
+	return out
 }

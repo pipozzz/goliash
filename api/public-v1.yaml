@@ -422,6 +422,11 @@ components:
       properties:
         service: { type: string }
         environment: { type: string }
+        app:
+          type: string
+          description: |
+            The application, when the service is used by several and its versions are compared within each
+            (one postgres image, many databases). Absent when the service drifts as a whole.
         kind:
           type: string
           enum: [env, upstream, inconsistent, declared, eol]
@@ -492,6 +497,7 @@ components:
           example: version_changed
           description: deployed, version_changed, removed, new_release, drift_detected, drift_resolved or agent_stale.
         service: { type: string }
+        app: { type: string, description: "The application of a drift event, when the service is compared per application." }
         environment: { type: string }
         target: { type: string }
         from: { type: string }

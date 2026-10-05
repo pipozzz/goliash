@@ -127,6 +127,9 @@ templ MatrixGridView(g MatrixGrid) {
 						<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) } data-health={ r.Health }>
 							<td class="svc">
 								<a href={ templ.URL(r.URL) }>{ r.Service }</a>
+								if r.Split && g.GroupBy != "app" {
+									<span class="part" title="Used by several applications: versions are compared within each">{ "in " + orOther(r.App) }</span>
+								}
 								if r.Owner != "" {
 									<span class="owner">{ r.Owner }</span>
 								}

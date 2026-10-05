@@ -20,8 +20,9 @@ var appLabels = []string{
 
 // workloadApp names the application of a workload and says where the name came
 // from: custom (a workspace's own label key, tried first), one of appLabels, or the
-// namespace when no label names it.
-func workloadApp(labels map[string]string, custom, namespace string) (app, source string) {
+// namespace when no label names it. A Nomad job is an application of its own, so
+// without a label its name stands in, not the (usually shared) namespace.
+func workloadApp(labels map[string]string, custom, namespace, kind, name string) (app, source string) {
 	if custom != "" {
 		if v := strings.TrimSpace(labels[custom]); v != "" {
 			return v, custom
@@ -31,6 +32,9 @@ func workloadApp(labels map[string]string, custom, namespace string) (app, sourc
 		if v := strings.TrimSpace(labels[k]); v != "" {
 			return v, k
 		}
+	}
+	if kind == "nomad_job" && name != "" {
+		return name, "nomad job"
 	}
 	if namespace != "" {
 		return namespace, "namespace"

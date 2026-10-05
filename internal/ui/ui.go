@@ -497,7 +497,11 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			}
 		}
 		for _, d := range o.DriftsAt(svc.ID, e.ID) {
-			se.Drifts = append(se.Drifts, driftBadge(d))
+			b := driftBadge(d)
+			if d.App != "" {
+				b.Label = d.App + ": " + b.Label
+			}
+			se.Drifts = append(se.Drifts, b)
 		}
 		v.Envs = append(v.Envs, se)
 		if len(se.Versions) > 0 {

@@ -433,3 +433,4 @@ table.matrix tr[data-health="bad"] td.svc { box-shadow: inset 3px 0 0 var(--bad)
   table.matrix tr[data-health="bad"] { box-shadow: inset 3px 0 0 var(--bad); }
   table.matrix tr[data-health] td.svc { box-shadow: none; }
 }
+.matrix td.svc .part { display: block; font-size: 12px; color: var(--info); font-weight: 500; }

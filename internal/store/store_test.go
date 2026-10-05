@@ -1216,3 +1216,39 @@ func TestWorkspaceAppLabel(t *testing.T) {
 		}
 	})
 }
+
+// One drift per application of a shared service; the events say which application.
+func TestDriftPerApplication(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		svc, _ := s.EnsureService(ctx, sc, "postgres")
+		for _, app := range []string{"", "auth", "chat"} {
+			if _, err := s.OpenDrift(ctx, Drift{Scope: sc, ServiceID: svc.ID, App: app, EnvironmentID: f.env.ID, Kind: "env"}); err != nil {
+				t.Fatalf("open for %q: %v", app, err)
+			}
+		}
+		if _, err := s.OpenDrift(ctx, Drift{Scope: sc, ServiceID: svc.ID, App: "auth", EnvironmentID: f.env.ID, Kind: "env"}); err == nil {
+			t.Fatal("second open drift for the same application")
+		}
+		open, err := s.OpenDrifts(ctx, sc)
+		if err != nil || len(open) != 3 {
+			t.Fatalf("open %+v %v", open, err)
+		}
+		apps := map[string]bool{}
+		for _, d := range open {
+			apps[d.App] = true
+		}
+		if !apps["auth"] || !apps["chat"] || !apps[""] {
+			t.Fatalf("apps %v", apps)
+		}
+		if err := s.InsertEvent(ctx, sc, Event{Type: "drift_detected", ServiceID: svc.ID, App: "chat", EnvironmentID: f.env.ID, Note: "env", At: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		evs, err := s.ListEvents(ctx, sc, EventFilter{Types: []string{"drift_detected"}})
+		if err != nil || len(evs) != 1 || evs[0].App != "chat" {
+			t.Fatalf("events %+v %v", evs, err)
+		}
+	})
+}

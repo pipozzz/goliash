@@ -114,6 +114,7 @@ type Drift struct {
 	ID            string
 	Scope         Scope
 	ServiceID     string
+	App           string // the application, when the service drifts per application
 	EnvironmentID string
 	Kind          string // env, upstream or inconsistent
 	Detail        json.RawMessage
@@ -127,7 +128,7 @@ var DriftKinds = []string{"env", "upstream", "inconsistent", "declared", "eol"}
 
 // OpenDrifts returns the workspace's unresolved drifts.
 func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, detail, since, notified_at FROM drifts
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, app, environment_id, kind, detail, since, notified_at FROM drifts
 		WHERE org_id = ? AND workspace_id = ? AND resolved_at IS NULL ORDER BY since, id`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -138,7 +139,7 @@ func (s *Store) OpenDrifts(ctx context.Context, sc Scope) ([]Drift, error) {
 		d := Drift{Scope: sc}
 		var detail string
 		var notified sql.NullTime
-		if err := rows.Scan(&d.ID, &d.ServiceID, &d.EnvironmentID, &d.Kind, &detail, &d.Since, &notified); err != nil {
+		if err := rows.Scan(&d.ID, &d.ServiceID, &d.App, &d.EnvironmentID, &d.Kind, &detail, &d.Since, &notified); err != nil {
 			return nil, err
 		}
 		d.Detail, d.Since, d.NotifiedAt = json.RawMessage(detail), d.Since.UTC(), timeOrZero(notified)
@@ -159,8 +160,8 @@ func (s *Store) OpenDrift(ctx context.Context, d Drift) (Drift, error) {
 	if len(d.Detail) == 0 {
 		d.Detail = json.RawMessage(`{}`)
 	}
-	_, err := s.exec(ctx, s.db, `INSERT INTO drifts (id, org_id, workspace_id, service_id, environment_id, kind, detail, since)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, d.ID, d.Scope.OrgID, d.Scope.WorkspaceID, d.ServiceID, d.EnvironmentID, d.Kind,
+	_, err := s.exec(ctx, s.db, `INSERT INTO drifts (id, org_id, workspace_id, service_id, app, environment_id, kind, detail, since)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, d.ID, d.Scope.OrgID, d.Scope.WorkspaceID, d.ServiceID, d.App, d.EnvironmentID, d.Kind,
 		string(d.Detail), d.Since.UTC())
 	return d, err
 }
@@ -213,7 +214,7 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 
 // DriftsBetween returns the drifts that were open at some moment between from and to.
 func (s *Store) DriftsBetween(ctx context.Context, sc Scope, from, to time.Time) ([]Drift, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, since, resolved_at FROM drifts
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, app, environment_id, kind, since, resolved_at FROM drifts
 		WHERE org_id = ? AND workspace_id = ? AND since < ? AND (resolved_at IS NULL OR resolved_at > ?) ORDER BY since, id`,
 		sc.OrgID, sc.WorkspaceID, to.UTC(), from.UTC())
 	if err != nil {
@@ -224,7 +225,7 @@ func (s *Store) DriftsBetween(ctx context.Context, sc Scope, from, to time.Time)
 	for rows.Next() {
 		d := Drift{Scope: sc}
 		var resolved sql.NullTime
-		if err := rows.Scan(&d.ID, &d.ServiceID, &d.EnvironmentID, &d.Kind, &d.Since, &resolved); err != nil {
+		if err := rows.Scan(&d.ID, &d.ServiceID, &d.App, &d.EnvironmentID, &d.Kind, &d.Since, &resolved); err != nil {
 			return nil, err
 		}
 		d.Since, d.ResolvedAt = d.Since.UTC(), timeOrZero(resolved)
