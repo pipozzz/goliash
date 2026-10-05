@@ -26,7 +26,7 @@ import (
 
 const (
 	sessionCookie = "goliash_session"
-	sessionTTL    = 30 * 24 * time.Hour
+	sessionTTL    = 30 * 24 * time.Hour // default; GOLIASH_SESSION_TTL
 	loginTokenTTL = 15 * time.Minute
 )
 
@@ -38,6 +38,7 @@ type Principal struct {
 	Via   string // session or token
 
 	TokenName string // the API token's name (tokens only)
+	Method    string // how the session signed in: password, link, oidc, … (sessions only)
 
 	Workspace  store.Workspace // the workspace the request works in (sessions only)
 	Workspaces []store.Access  // every workspace the user may open (sessions only)
@@ -88,6 +89,7 @@ type Auth struct {
 	oidc      *OIDC
 
 	passwords  bool
+	sessionTTL time.Duration
 	trustProxy bool
 	byClient   *limiter // failed password sign-ins per client address
 	byEmail    *limiter // failed password sign-ins per e-mail
@@ -101,9 +103,16 @@ func New(st *store.Store, log *slog.Logger, publicURL string, mail MailFunc) (*A
 		return nil, fmt.Errorf("public URL %q must be absolute, e.g. https://goliash.example.com", publicURL)
 	}
 	return &Auth{
-		store: st, log: log, publicURL: u, mail: mail, passwords: true,
+		store: st, log: log, publicURL: u, mail: mail, passwords: true, sessionTTL: sessionTTL,
 		byClient: newLimiter(30, 15*time.Minute), byEmail: newLimiter(8, 15*time.Minute),
 	}, nil
+}
+
+// SetSessionTTL sets how long a session lasts at most, however much it is used.
+func (a *Auth) SetSessionTTL(d time.Duration) {
+	if d > 0 {
+		a.sessionTTL = d
+	}
 }
 
 // SetPasswordLogin turns password sign-in on (the default) or off, e.g. when
@@ -231,7 +240,7 @@ func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 	if err != nil || c.Value == "" {
 		return Principal{}, false, nil
 	}
-	u, err := a.store.SessionUser(r.Context(), hashOf(c.Value))
+	u, method, err := a.store.SessionUser(r.Context(), hashOf(c.Value))
 	if errors.Is(err, store.ErrNotFound) {
 		return Principal{}, false, nil
 	}
@@ -243,7 +252,7 @@ func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 		return Principal{}, false, err
 	}
 	return Principal{
-		User: u, Scope: cur.Workspace.Scope(), Role: cur.Role, Via: "session",
+		User: u, Scope: cur.Workspace.Scope(), Role: cur.Role, Via: "session", Method: method,
 		Workspace: cur.Workspace, Workspaces: all,
 	}, true, nil
 }
@@ -256,12 +265,12 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 		ua = ua[:300]
 	}
 	x := store.Session{Method: method, UserAgent: ua, IP: a.ClientIP(r)}
-	if err := a.store.CreateSession(r.Context(), hash, u.ID, sessionTTL, x); err != nil {
+	if err := a.store.CreateSession(r.Context(), hash, u.ID, a.sessionTTL, x); err != nil {
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme; plain http is for local use
 		Name: sessionCookie, Value: raw, Path: "/", HttpOnly: true, Secure: a.publicURL.Scheme == "https",
-		SameSite: http.SameSiteLaxMode, MaxAge: int(sessionTTL / time.Second),
+		SameSite: http.SameSiteLaxMode, MaxAge: int(a.sessionTTL / time.Second),
 	})
 	a.log.InfoContext(r.Context(), "signed in", "user", u.Email, "method", method)
 	if err := a.store.Audit(r.Context(), store.AuditEntry{

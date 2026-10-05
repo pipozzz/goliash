@@ -29,6 +29,9 @@ get in. Single sign-on (OIDC) leaves this to the identity provider.
 
 The secret is encrypted with the server's secret key, like channel secrets; recovery codes are stored as hashes.
 
+An owner can **require** two-factor sign-in for the organization (Users page): everyone who signs in with a password
+or a link then sets up an app before anything else. Owners turn it on only once they use it themselves.
+
 ## Locked out?
 
 The images have no shell, but the `goliash` binary in them prints a sign-in link or sets a password. Run it next to
@@ -51,6 +54,9 @@ Nomad pack the variable is `recovery_email`.
 Keep `/data` on a volume: it holds the database and `goliash.key`.
 
 ## Sessions
+
+A session ends after 30 days (`GOLIASH_SESSION_TTL`) or after 14 days without use (`GOLIASH_SESSION_IDLE`),
+whichever comes first.
 
 The account page lists every browser you are signed in on, with its address and when it was last used; sign any of
 them out, or all but this one. Changing your password signs out the others. On **Settings → Users and API tokens** admins sign a person
