@@ -15,6 +15,20 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
   viewers on first sign-in; others need an invitation.
 
+## Two-factor sign-in
+
+On their account page, anyone can turn on codes from an authenticator app (1Password, Bitwarden, Google
+Authenticator, Authy…): scan the QR code, enter the first code, and keep the ten **recovery codes** shown once. From
+then on Goliash asks for a code after the password **and** after a sign-in link, so an e-mailed link alone does not
+get in. Single sign-on (OIDC) leaves this to the identity provider.
+
+- A code works once; a little clock drift is fine. Five wrong codes end the attempt for a while.
+- Lost the phone: sign in with a recovery code, then set up again or make new codes on the account page.
+- No recovery codes either: an admin chooses **Reset 2FA** on the Users page, or the operator runs
+  `goliash user 2fa -email you@example.com -reset`. The `GOLIASH_RECOVERY_EMAIL` link (below) also skips the code.
+
+The secret is encrypted with the server's secret key, like channel secrets; recovery codes are stored as hashes.
+
 ## Locked out?
 
 The images have no shell, but the `goliash` binary in them prints a sign-in link or sets a password. Run it next to

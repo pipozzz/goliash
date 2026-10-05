@@ -291,3 +291,9 @@ textarea.mono { font-family: var(--mono); font-size: 12.5px; }
   table.matrix tr.no-match td::before { content: none; }
   .scroll:has(> table.matrix) { overflow: visible; }
 }
+
+/* Two-factor setup */
+.setup-2fa { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+.setup-2fa img { border-radius: 8px; background: #fff; padding: 8px; border: 1px solid var(--line); image-rendering: pixelated; }
+.setup-2fa .key { font-size: 15px; letter-spacing: 0.04em; padding: 8px 10px; background: var(--surface-2); border-radius: 6px; display: inline-block; word-break: break-all; }
+pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface-2); border-radius: 8px; font-size: 15px; line-height: 1.9; white-space: pre; }

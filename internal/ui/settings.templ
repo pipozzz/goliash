@@ -215,7 +215,7 @@ templ SettingsPage(v SettingsView) {
 		<section class="panel">
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
 			<table>
-				<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>Last sign-in</th><th></th></tr></thead>
+				<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead>
 				<tbody>
 					for _, u := range v.Users {
 						<tr>
@@ -246,6 +246,13 @@ templ SettingsPage(v SettingsView) {
 									<span class="badge neutral">none</span>
 								}
 							</td>
+							<td>
+								if u.TOTP {
+									<span class="badge ok">on</span>
+								} else {
+									<span class="badge neutral">off</span>
+								}
+							</td>
 							<td>@timeAgo(u.LastLogin)</td>
 							<td class="num">
 								if !u.IsSelf && (!u.OrgWide || v.OrgAdmin) {
@@ -255,6 +262,11 @@ templ SettingsPage(v SettingsView) {
 									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/sign-out") } hx-confirm="Sign this person out on every device?">
 										<button class="link" type="submit">Sign out</button>
 									</form>
+									if u.TOTP {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/2fa/delete") } hx-confirm="Turn off this person's two-factor sign-in and sign them out everywhere?">
+											<button class="link" type="submit">Reset 2FA</button>
+										</form>
+									}
 									if u.HasPassword {
 										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/password/delete") } hx-confirm="Remove this person's password and sign them out everywhere?">
 											<button class="link" type="submit">Remove password</button>

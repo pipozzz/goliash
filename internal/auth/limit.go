@@ -30,6 +30,13 @@ func (l *limiter) blocked(key string) bool {
 	return len(l.recent(key)) >= l.max
 }
 
+// recentCount is how many failures key has in the window.
+func (l *limiter) recentCount(key string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.recent(key))
+}
+
 // fail records a failure for key.
 func (l *limiter) fail(key string) {
 	l.mu.Lock()
