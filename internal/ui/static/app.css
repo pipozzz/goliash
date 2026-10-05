@@ -241,3 +241,12 @@ tr.filtered { display: none; }
 table.matrix th:first-child, table.matrix td.svc { position: sticky; left: 0; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--line); }
 table.matrix thead th:first-child { background: var(--surface-2); }
 td.svc a, td > strong:first-child, td > a > strong { white-space: nowrap; }
+
+.row-actions { display: inline-flex; gap: 12px; align-items: center; justify-content: flex-end; white-space: nowrap; }
+.row-actions form { margin: 0; }
+button.danger-link, a.danger-link { color: var(--bad); }
+tr.paused td { color: var(--muted); }
+.env-edit { gap: 8px; flex-wrap: nowrap; }
+.env-edit input[name="name"] { min-width: 0; width: 12ch; }
+.env-edit input[name="position"] { width: 6ch; }
+textarea.mono { font-family: var(--mono); font-size: 12.5px; }

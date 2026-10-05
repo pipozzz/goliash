@@ -121,7 +121,7 @@ func (n *Notifier) Handle(sc store.Scope, events []store.Event) {
 }
 
 func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Event) error {
-	rules, err := n.store.ListRules(ctx, sc)
+	rules, err := n.store.ActiveRules(ctx, sc)
 	if err != nil || len(rules) == 0 {
 		return err
 	}
@@ -167,7 +167,7 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 func (n *Notifier) AgentStale(a store.Agent) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	rules, err := n.store.ListRules(ctx, a.Scope)
+	rules, err := n.store.ActiveRules(ctx, a.Scope)
 	if err != nil {
 		n.log.Error("queueing notifications failed", "err", err)
 		return

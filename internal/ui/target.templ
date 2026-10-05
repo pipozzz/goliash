@@ -1,0 +1,51 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ TargetPage(v TargetEditView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub">
+					<a href="/agents">Agents</a> /
+					if v.AgentID != "" {
+						<a href={ templ.URL("/agents/" + v.AgentID) }>{ v.Agent }</a> /
+					}
+				</p>
+				<h1>{ v.Name } <span class="badge neutral">{ v.Platform }</span></h1>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-head"><h2>Edit target</h2></div>
+			<div class="panel-body">
+				<form class="stack" method="post" action={ templ.URL("/targets/" + v.ID) }>
+					<div class="row">
+						<label>
+							Environment
+							<select name="environment">
+								for _, e := range v.Envs {
+									<option value={ e.ID } selected?={ e.ID == v.EnvID }>{ e.Name }</option>
+								}
+							</select>
+						</label>
+						<label>
+							Poll every (seconds)
+							<input name="poll" value={ itoa(v.Poll) } inputmode="numeric" required/>
+							<span class="hint">30 to 86400. Kubernetes targets also watch for changes between polls.</span>
+						</label>
+					</div>
+					<label>
+						Settings (JSON)
+						<textarea name="settings" rows="8" class="mono" spellcheck="false">{ v.Settings }</textarea>
+						<span class="hint">The platform settings sent to the collector, e.g. <code>{ `{"swarm":{"docker_host":"tcp://proxy:2375"}}` }</code>. Credentials go in a credentials reference, never here.</span>
+					</label>
+					<div class="actions">
+						<button type="submit">Save</button>
+						<a class="button secondary" href={ templ.URL(targetBack(v.AgentID)) }>Cancel</a>
+					</div>
+				</form>
+			</div>
+		</section>
+	}
+}

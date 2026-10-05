@@ -126,6 +126,15 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /notifications/channels", s.page(a, s.createChannel))
 	mux.Handle("POST /notifications/channels/{id}/test", s.page(a, s.testChannel))
 	mux.Handle("POST /notifications/rules", s.page(m, s.createRule))
+	mux.Handle("POST /notifications/channels/{id}/delete", s.page(a, s.deleteChannel))
+	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
+	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
+	mux.Handle("POST /environments/{id}", s.page(a, s.updateEnvironment))
+	mux.Handle("POST /environments/{id}/delete", s.page(a, s.deleteEnvironment))
+	mux.Handle("GET /targets/{id}", s.page(a, s.editTarget))
+	mux.Handle("POST /targets/{id}", s.page(a, s.updateTarget))
+	mux.Handle("POST /inbox/rules/{id}/delete", s.page(m, s.deleteMappingRule))
+	mux.Handle("POST /services/{name}/acks/{id}/delete", s.page(m, s.deleteAck))
 	mux.Handle("GET /settings", s.page(a, s.settings))
 	mux.Handle("POST /settings/users", s.page(a, s.inviteUser))
 	mux.Handle("POST /settings/users/{id}/role", s.page(a, s.setRole))
@@ -439,7 +448,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if a.ServiceID != svc.ID {
 			continue
 		}
-		av := AckView{Kind: a.Kind, Env: o.Envs[a.EnvironmentID].Name, By: a.CreatedBy, Created: a.CreatedAt}
+		av := AckView{ID: a.ID, Kind: a.Kind, Env: o.Envs[a.EnvironmentID].Name, By: a.CreatedBy, Created: a.CreatedAt}
 		switch {
 		case a.UntilVersion != "" && !a.UntilAt.IsZero():
 			av.Until = a.UntilVersion + " or " + a.UntilAt.Format("2006-01-02")
@@ -767,8 +776,20 @@ func (s *Server) inbox(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		return err
 	}
 	v := InboxView{Base: withFlash(s.base(ctx, p, "inbox", "Inbox"), r), Groups: groupInbox(items)}
+	svcName := map[string]string{}
 	for _, svc := range svcs {
 		v.Services = append(v.Services, svc.Name)
+		svcName[svc.ID] = svc.Name
+	}
+	rules, err := s.store.ListMappingRules(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	labels := map[string]string{"image_repo": "image", "workload_name": "workload name", "label": "label", "ignore": "ignore"}
+	for _, rule := range rules {
+		v.Rules = append(v.Rules, MappingRuleView{
+			ID: rule.ID, Match: labels[rule.MatchType], Pattern: rule.Pattern, Service: svcName[rule.ServiceID], Created: rule.CreatedAt,
+		})
 	}
 	return render(w, r, InboxPage(v))
 }
@@ -901,6 +922,13 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	targets, err := s.store.ListTargets(ctx, p.Scope)
 	if err != nil {
 		return v, err
+	}
+	perEnv := map[string]int{}
+	for _, t := range targets {
+		perEnv[t.EnvironmentID]++
+	}
+	for _, e := range envs {
+		v.Envs = append(v.Envs, EnvView{ID: e.ID, Name: e.Name, Position: e.Position, Targets: perEnv[e.ID]})
 	}
 	agentStale := map[string]bool{}
 	for _, a := range agents {
@@ -1050,7 +1078,15 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if f.MinJump != "" {
 			parts = append(parts, "releases from "+string(f.MinJump))
 		}
-		events := strings.Join(rule.EventTypes, ", ")
+		names := make([]string, 0, len(rule.EventTypes))
+		for _, t := range rule.EventTypes {
+			if l, ok := ruleEventLabels[t]; ok {
+				names = append(names, l)
+			} else {
+				names = append(names, t)
+			}
+		}
+		events := strings.Join(names, ", ")
 		if events == "" {
 			events = "everything"
 		}
@@ -1058,7 +1094,10 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if mode != "instant" && f.DigestHour != nil {
 			mode += fmt.Sprintf(" at %02d:00 UTC", *f.DigestHour)
 		}
-		v.Rules = append(v.Rules, RuleView{Channel: chName[rule.ChannelID], Events: events, Mode: mode, Filter: orDash(strings.Join(parts, "; "))})
+		v.Rules = append(v.Rules, RuleView{
+			ID: rule.ID, Paused: rule.Paused, Channel: chName[rule.ChannelID], Events: events, Mode: mode,
+			Filter: orDash(strings.Join(parts, "; ")),
+		})
 	}
 	return render(w, r, NotificationsPage(v))
 }

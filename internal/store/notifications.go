@@ -82,6 +82,7 @@ type Rule struct {
 	EventTypes []string        // empty: every type
 	Filter     json.RawMessage // services, owners, environments, min_jump, digest_hour
 	Mode       string          // instant, daily or weekly
+	Paused     bool            // a paused rule queues nothing
 	CreatedAt  time.Time
 }
 
@@ -106,7 +107,7 @@ func (s *Store) CreateRule(ctx context.Context, r Rule) (Rule, error) {
 
 // ListRules returns the workspace's notification rules.
 func (s *Store) ListRules(ctx context.Context, sc Scope) ([]Rule, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, channel_id, event_types, filter, mode, created_at FROM notification_rules
+	rows, err := s.query(ctx, s.db, `SELECT id, channel_id, event_types, filter, mode, paused, created_at FROM notification_rules
 		WHERE org_id = ? AND workspace_id = ? ORDER BY created_at, id`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -116,7 +117,7 @@ func (s *Store) ListRules(ctx context.Context, sc Scope) ([]Rule, error) {
 	for rows.Next() {
 		r := Rule{Scope: sc}
 		var types, filter string
-		if err := rows.Scan(&r.ID, &r.ChannelID, &types, &filter, &r.Mode, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.ChannelID, &types, &filter, &r.Mode, &r.Paused, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(types), &r.EventTypes); err != nil {
@@ -250,4 +251,19 @@ func (s *Store) MarkFailed(ctx context.Context, ids []string, msg string, retryA
 		}
 		return nil
 	})
+}
+
+// ActiveRules returns the rules that are not paused.
+func (s *Store) ActiveRules(ctx context.Context, sc Scope) ([]Rule, error) {
+	all, err := s.ListRules(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, r := range all {
+		if !r.Paused {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }

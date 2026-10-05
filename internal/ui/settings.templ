@@ -15,7 +15,10 @@ templ NotificationsPage(v NotificationsView) {
 			<section class="panel">
 				<div class="panel-head"><h2>Channels</h2></div>
 				if len(v.Channels) == 0 {
-					<div class="empty">No channels yet.</div>
+					<div class="empty">
+						<p><strong>No channels yet.</strong></p>
+						<p>A channel is where notifications go: Slack, Discord, Telegram, ntfy, Grafana annotations, a webhook or e-mail.</p>
+					</div>
 				} else {
 					<table>
 						<thead><tr><th>Name</th><th>Type</th><th>Where</th><th></th></tr></thead>
@@ -27,9 +30,14 @@ templ NotificationsPage(v NotificationsView) {
 									<td class="mono muted">{ c.Detail }</td>
 									<td class="num">
 										if v.CanAdmin {
-											<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/test") }>
-												<button class="link" type="submit">Send test</button>
-											</form>
+											<div class="row-actions">
+												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/test") }>
+													<button class="link" type="submit">Send test</button>
+												</form>
+												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/delete") } hx-confirm={ "Delete channel " + c.Name + " and its rules?" }>
+													<button class="link danger-link" type="submit">Delete</button>
+												</form>
+											</div>
 										}
 									</td>
 								</tr>
@@ -81,17 +89,58 @@ templ NotificationsPage(v NotificationsView) {
 			<section class="panel">
 				<div class="panel-head"><h2>Rules</h2></div>
 				if len(v.Rules) == 0 {
-					<div class="empty">No rules yet: nothing is sent.</div>
+					<div class="empty">
+						<p><strong>No rules yet: nothing is sent.</strong></p>
+						if len(v.Channels) == 0 {
+							<p>Add a channel first, then a rule that picks the events to send there.</p>
+						} else {
+							<p>Add a rule below to pick which events go to a channel, right away or as a digest.</p>
+						}
+					</div>
 				} else {
 					<table>
-						<thead><tr><th>Events</th><th>Filter</th><th>Mode</th><th>Channel</th></tr></thead>
+						<thead>
+							<tr>
+								<th>Events</th>
+								<th>Filter</th>
+								<th>Mode</th>
+								<th>Channel</th>
+								if v.CanMember {
+									<th></th>
+								}
+							</tr>
+						</thead>
 						<tbody>
 							for _, r := range v.Rules {
-								<tr>
-									<td>{ r.Events }</td>
+								<tr class={ templ.KV("paused", r.Paused) }>
+									<td>
+										{ r.Events }
+										if r.Paused {
+											<span class="badge neutral">paused</span>
+										}
+									</td>
 									<td class="muted">{ r.Filter }</td>
 									<td>{ r.Mode }</td>
 									<td>{ r.Channel }</td>
+									if v.CanMember {
+										<td class="num">
+											<div class="row-actions">
+												<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/pause") }>
+													<input type="hidden" name="paused" value={ boolStr(!r.Paused) }/>
+													<button class="link" type="submit">
+														if r.Paused {
+															Resume
+														} else {
+															Pause
+														}
+													</button>
+												</form>
+												<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/delete") } hx-confirm="Delete this rule?">
+													<button class="link danger-link" type="submit">Delete</button>
+												</form>
+											</div>
+										</td>
+									}
 								</tr>
 							}
 						</tbody>
