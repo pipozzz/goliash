@@ -1727,9 +1727,14 @@ func (s *Server) createWorkspace(w http.ResponseWriter, r *http.Request, p auth.
 
 // Hub fans out "something changed" to open browser streams, per workspace.
 type Hub struct {
-	mu   sync.Mutex
-	subs map[string]map[chan struct{}]bool
+	mu    sync.Mutex
+	subs  map[string]map[chan struct{}]bool
+	relay func(workspaceID string) error
 }
+
+// SetRelay sends changes through relay (to every server, this one included, which
+// then calls PublishLocal) instead of only to this server's browsers.
+func (h *Hub) SetRelay(relay func(workspaceID string) error) { h.relay = relay }
 
 // NewHub returns an empty hub.
 func NewHub() *Hub { return &Hub{subs: map[string]map[chan struct{}]bool{}} }
@@ -1752,6 +1757,14 @@ func (h *Hub) Subscribe(workspaceID string) (<-chan struct{}, func()) {
 
 // Publish tells the workspace's streams that data changed. It never blocks.
 func (h *Hub) Publish(workspaceID string) {
+	if h.relay != nil && h.relay(workspaceID) == nil {
+		return
+	}
+	h.PublishLocal(workspaceID)
+}
+
+// PublishLocal tells this server's browsers of a workspace that something changed.
+func (h *Hub) PublishLocal(workspaceID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for ch := range h.subs[workspaceID] {

@@ -57,6 +57,18 @@ SQLite is the default and suits most installations: one file, backed up by copyi
 stopped or with `sqlite3 goliash.db ".backup copy.db"`. For PostgreSQL, set `GOLIASH_DATABASE_URL` to a
 `postgres://` URL. Migrations run on start for both.
 
+### Several servers
+
+With PostgreSQL, run as many servers as you like behind one address (the Helm chart's `replicaCount`). They all serve
+the UI, the API and agents; one of them, the **leader**, also runs the background work: processing snapshots,
+checking upstreams, sending notifications and housekeeping. The leader holds a PostgreSQL advisory lock; when it
+stops or loses its database connection, another server takes over within seconds. New snapshots and live updates
+reach every server through `LISTEN`/`NOTIFY`, so a browser on any server sees changes at once. Migrations run under
+a lock, so servers may start together.
+
+Give every server the same `GOLIASH_SECRET_KEY` and `GOLIASH_PUBLIC_URL`. Limits on failed password sign-ins are
+counted per server. SQLite allows one server.
+
 The server keeps processed snapshots for the newest 20 per target (`-keep-snapshots`); history lives in events, so
 the database stays small.
 

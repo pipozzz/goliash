@@ -429,21 +429,41 @@ func serve(ctx context.Context, args []string) error {
 		_, _ = w.Write([]byte("ok\n"))
 	})
 
-	go svc.WatchStale(ctx, time.Minute, notify.AgentStale)
-	go notify.Run(ctx, 15*time.Second)
-	go svc.RunProcessor(ctx, 10*time.Second)
-	go checker.Run(ctx, *upstreamEvery, time.Minute)
-	go housekeeping(ctx, db, log, *keepSnapshots)
-	if *collect {
-		go ingest.NewServerCollectors(svc, db, map[agentproto.Platform]collectors.Factory{
-			agentproto.Kubernetes: kubernetes.New,
-			agentproto.Ecs:        ecs.New,
-			agentproto.Nomad:      nomad.New,
-			agentproto.Swarm:      swarm.New,
-			agentproto.Docker:     docker.New,
-			agentproto.Compose:    compose.NewRemote, // URLs only: no reading the server's files
-		}, log).Run(ctx, time.Minute)
+	// Every server serves the UI, the API and agents; one, the leader, runs the
+	// background work. With PostgreSQL several servers may share the database: changes
+	// and new snapshots reach the others through LISTEN/NOTIFY.
+	leader := db.NewLeader(log)
+	if db.Clustered() {
+		hub.SetRelay(func(ws string) error { return db.Notify(context.WithoutCancel(ctx), channelChanged, ws) })
+		svc.OnArrive(func() { _ = db.Notify(context.WithoutCancel(ctx), channelSnapshot, "") })
+		go db.Listen(ctx, []string{channelChanged, channelSnapshot}, log, func(channel, payload string) {
+			switch channel {
+			case channelChanged:
+				hub.PublishLocal(payload)
+			case channelSnapshot:
+				if leader.IsLeader() {
+					svc.Wake()
+				}
+			}
+		})
 	}
+	go leader.Run(ctx, func(lctx context.Context) {
+		go svc.WatchStale(lctx, time.Minute, notify.AgentStale)
+		go notify.Run(lctx, 15*time.Second)
+		go svc.RunProcessor(lctx, 10*time.Second)
+		go checker.Run(lctx, *upstreamEvery, time.Minute)
+		go housekeeping(lctx, db, log, *keepSnapshots)
+		if *collect {
+			go ingest.NewServerCollectors(svc, db, map[agentproto.Platform]collectors.Factory{
+				agentproto.Kubernetes: kubernetes.New,
+				agentproto.Ecs:        ecs.New,
+				agentproto.Nomad:      nomad.New,
+				agentproto.Swarm:      swarm.New,
+				agentproto.Docker:     docker.New,
+				agentproto.Compose:    compose.NewRemote, // URLs only: no reading the server's files
+			}, log).Run(lctx, time.Minute)
+		}
+	})
 
 	srv := &http.Server{
 		Addr: *listen,
@@ -1409,6 +1429,12 @@ func tokenRevoke(ctx context.Context, args []string, out io.Writer) error {
 }
 
 // housekeeping deletes data nothing reads any more, hourly.
+// Notification channels between servers sharing a PostgreSQL database.
+const (
+	channelChanged  = "goliash_changed"  // payload: workspace ID; browsers reload parts
+	channelSnapshot = "goliash_snapshot" // a snapshot arrived; the leader processes it
+)
+
 func housekeeping(ctx context.Context, db *store.Store, log *slog.Logger, keep int) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()

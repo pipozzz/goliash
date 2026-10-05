@@ -30,10 +30,7 @@ func (s *Service) LocalSnapshot(ctx context.Context, t store.Target, snap agentp
 		ID: snap.SnapshotID, Scope: t.Scope, TargetID: t.ID, CollectedAt: snap.CollectedAt, Complete: snap.Complete, Payload: raw,
 	})
 	if inserted {
-		select {
-		case s.pending <- struct{}{}:
-		default:
-		}
+		s.arrived()
 	}
 	return inserted, err
 }

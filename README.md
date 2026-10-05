@@ -43,7 +43,8 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 - **Built for teams and MSPs.** Workspaces per client, roles, magic-link and OIDC sign-in, audit log, REST API and
   Prometheus metrics.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
-  in your network. One binary each, SQLite or PostgreSQL, Helm/Nomad/Swarm/ECS manifests included.
+  in your network. One binary each, SQLite or PostgreSQL (several servers for high availability), Helm/Nomad/Swarm/ECS
+  manifests included.
 
 Out of scope: deploying or upgrading services (that is CI's or Renovate's job), CVE scanning, library versions in code.
 

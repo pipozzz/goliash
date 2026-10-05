@@ -17,6 +17,11 @@ database:
   existingSecret: ""
   existingSecretKey: database-url
 
+# Servers. With PostgreSQL more than one may run: they all serve the UI, the API and
+# agents, and one of them (chosen through the database) runs the background work. With
+# SQLite there is exactly one. Several servers share GOLIASH_SECRET_KEY through envFromSecret.
+replicaCount: 1
+
 persistence:
   enabled: true      # holds the SQLite database; not needed with PostgreSQL
   size: 1Gi

@@ -33,6 +33,7 @@ type Service struct {
 	store     *store.Store
 	log       *slog.Logger
 	pending   chan struct{} // wakes the processor after a snapshot arrives
+	onArrive  func()
 	onEvents  func(store.Scope, []store.Event)
 	upstreams Upstreams
 }
@@ -143,10 +144,7 @@ func (s *Service) Snapshot(ctx context.Context, a store.Agent, snap agentproto.S
 		return false, err
 	}
 	if inserted {
-		select {
-		case s.pending <- struct{}{}:
-		default:
-		}
+		s.arrived()
 	}
 	s.log.DebugContext(ctx, "snapshot received", "agent_id", a.ID, "target", t.Name, "snapshot_id", snap.SnapshotID,
 		"workloads", len(snap.Workloads), "complete", snap.Complete, "duplicate", !inserted)
@@ -204,6 +202,26 @@ func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentp
 		}
 	}
 	return nil
+}
+
+// Wake makes the processor look for new snapshots now, e.g. when another server
+// received one.
+func (s *Service) Wake() {
+	select {
+	case s.pending <- struct{}{}:
+	default:
+	}
+}
+
+// OnArrive registers a callback for every new snapshot, e.g. to tell the server that
+// processes them when it is another one.
+func (s *Service) OnArrive(fn func()) { s.onArrive = fn }
+
+func (s *Service) arrived() {
+	s.Wake()
+	if s.onArrive != nil {
+		s.onArrive()
+	}
 }
 
 // WatchStale marks agents without a heartbeat for StaleAfter as stale, checking every

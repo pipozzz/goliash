@@ -1,0 +1,12 @@
+{{- if gt (int .Values.replicaCount) 1 }}
+# Keep one server running while nodes are drained.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "goliash.fullname" . }}
+  labels: {{- include "goliash.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- include "goliash.selector" . | nindent 6 }}
+{{- end }}
