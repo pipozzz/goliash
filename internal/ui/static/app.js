@@ -144,6 +144,108 @@
     );
   });
 
+  // Chart hover, SigNoz-style: a crosshair at the nearest point and a tooltip with
+  // every series' value there. The server puts what it needs in data-chart.
+  const chartData = new WeakMap();
+  let hoveredChart = null;
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function svgEl(tag, attrs) {
+    const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function leaveChart() {
+    if (!hoveredChart) return;
+    hoveredChart.classList.remove("hovering");
+    hoveredChart.querySelectorAll(".bar.active").forEach(function (b) { b.classList.remove("active"); });
+    hoveredChart.querySelectorAll(".hover-dot").forEach(function (d) { d.remove(); });
+    hoveredChart = null;
+  }
+  function hoverChart(fig, e) {
+    let d = chartData.get(fig);
+    if (!d) {
+      try { d = JSON.parse(fig.getAttribute("data-chart")); } catch (err) { return; }
+      chartData.set(fig, d);
+    }
+    if (!d.xs || !d.xs.length || !d.series || !d.series.length) return;
+    const svg = fig.querySelector("svg");
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const x = pt.matrixTransform(ctm.inverse()).x;
+    let i = 0;
+    for (let k = 1; k < d.xs.length; k++) if (Math.abs(d.xs[k] - x) < Math.abs(d.xs[i] - x)) i = k;
+    if (hoveredChart !== fig) { leaveChart(); hoveredChart = fig; }
+    if (fig.dataset.hoverIndex === String(i) && fig.classList.contains("hovering")) { placeTip(fig, svg, d, i, e); return; }
+    fig.dataset.hoverIndex = String(i);
+    fig.classList.add("hovering");
+
+    const cx = d.xs[i];
+    if (d.bars) {
+      const slot = d.xs.length > 1 ? d.xs[1] - d.xs[0] : 40;
+      const band = svg.querySelector(".cross-band");
+      if (band) { band.setAttribute("x", cx - slot / 2); band.setAttribute("width", slot); }
+      svg.querySelectorAll(".bar").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-i") === String(i)); });
+    } else {
+      const cross = svg.querySelector(".cross");
+      if (cross) { cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); }
+      svg.querySelectorAll(".hover-dot").forEach(function (h) { h.remove(); });
+      d.series.forEach(function (s) {
+        if (s.ys) svg.appendChild(svgEl("circle", { class: "hover-dot " + s.cls, cx: cx, cy: s.ys[i], r: 4.5 }));
+      });
+    }
+
+    let tip = fig.querySelector(".chart-tip");
+    if (!tip) { tip = el("div", "chart-tip"); tip.setAttribute("aria-hidden", "true"); fig.appendChild(tip); }
+    tip.replaceChildren();
+    tip.appendChild(el("div", "tip-head", (d.bars ? "Week of " : "") + d.labels[i]));
+    const rows = d.series.map(function (s) { return { s: s, v: s.values[i] || 0 }; })
+      .sort(function (a, b) { return b.v - a.v; });
+    let total = 0;
+    rows.forEach(function (r) {
+      total += r.v;
+      const row = el("div", "tip-row");
+      row.appendChild(el("span", "swatch " + r.s.cls));
+      row.appendChild(el("span", "tip-name", r.s.name));
+      row.appendChild(el("span", "tip-val", String(r.v)));
+      tip.appendChild(row);
+    });
+    if (d.bars && rows.length > 1) {
+      const row = el("div", "tip-row tip-total");
+      row.appendChild(el("span", "tip-name", "Total"));
+      row.appendChild(el("span", "tip-val", String(total)));
+      tip.appendChild(row);
+    }
+    placeTip(fig, svg, d, i, e);
+  }
+  function placeTip(fig, svg, d, i, e) {
+    const tip = fig.querySelector(".chart-tip");
+    if (!tip) return;
+    const ctm = svg.getScreenCTM();
+    const pt = svg.createSVGPoint();
+    pt.x = d.xs[i]; pt.y = 0;
+    const sx = pt.matrixTransform(ctm).x;
+    const fr = fig.getBoundingClientRect();
+    let left = sx - fr.left + fig.scrollLeft + 16;
+    if (left + tip.offsetWidth > fig.clientWidth + fig.scrollLeft - 4) left = sx - fr.left + fig.scrollLeft - tip.offsetWidth - 16;
+    let top = e.clientY - fr.top - tip.offsetHeight / 2;
+    top = Math.max(4, Math.min(top, fig.clientHeight - tip.offsetHeight - 4));
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+  }
+  document.addEventListener("pointermove", function (e) {
+    const fig = e.target.closest && e.target.closest("figure[data-chart]");
+    if (fig && e.target.closest("svg")) hoverChart(fig, e);
+    else leaveChart();
+  });
+  document.addEventListener("pointerleave", leaveChart);
+
   // ---- every page load ----
 
   function init() {

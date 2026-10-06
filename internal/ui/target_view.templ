@@ -39,9 +39,15 @@ templ TargetDetailPage(v TargetDetailView) {
 			<div class={ "ring", ringClass(v.OK, v.Workloads) } title={ itoa(v.OK) + " of " + itoa(v.Workloads) + " workloads are up to date" }>
 				{{ dash, total := ringDash(share(v.OK, v.Workloads), 46) }}
 				<svg viewBox="0 0 100 100" role="img" aria-label={ percent(v.OK, v.Workloads) + " up to date" }>
+					<defs>
+						<linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1">
+							<stop offset="0%" class="ring-from"></stop>
+							<stop offset="100%" class="ring-to"></stop>
+						</linearGradient>
+					</defs>
 					<circle class="ring-track" cx="50" cy="50" r="46"></circle>
 					if v.OK > 0 {
-						<circle class="ring-value" cx="50" cy="50" r="46" stroke-dasharray={ dash + " " + total } transform="rotate(-90 50 50)"></circle>
+						<circle class="ring-value" stroke="url(#ring-g)" cx="50" cy="50" r="46" stroke-dasharray={ dash + " " + total } transform="rotate(-90 50 50)"></circle>
 					}
 				</svg>
 				<div class="ring-label"><strong>{ percent(v.OK, v.Workloads) }</strong><span>up to date</span></div>
@@ -54,15 +60,26 @@ templ TargetDetailPage(v TargetDetailView) {
 			</div>
 			<div class="spark" title="Deploys per day, last 30 days">
 				<span class="spark-label">Deploys, 30 days</span>
+				{{ line, area := sparkPaths(v.Deploys, v.DeployMax, 150, 40) }}
 				<svg viewBox="0 0 150 40" preserveAspectRatio="none" role="img" aria-label="Deploys per day, last 30 days">
+					<defs>
+						<linearGradient id="spark-g" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="0%" class="st-c0" stop-opacity="0.38"></stop>
+							<stop offset="100%" class="st-c0" stop-opacity="0"></stop>
+						</linearGradient>
+					</defs>
+					<line x1="0" x2="150" y1="39.5" y2="39.5"></line>
+					if area != "" {
+						<path class="spark-area" fill="url(#spark-g)" d={ area }></path>
+						<path class="spark-line" d={ line } vector-effect="non-scaling-stroke"></path>
+					}
 					for i, n := range v.Deploys {
 						if n > 0 {
-							<rect x={ f(float64(i) * 5) } width="3.6" y={ f(40 - 38*share(n, v.DeployMax)) } height={ f(38 * share(n, v.DeployMax)) }>
+							<rect class="spark-hit" x={ f(float64(i)*5 - 2.5) } width="5" y="0" height="40">
 								<title>{ plural(n, "deploy", "deploys") + ", " + itoa(29-i) + " days ago" }</title>
 							</rect>
 						}
 					}
-					<line x1="0" x2="150" y1="39.5" y2="39.5"></line>
 				</svg>
 			</div>
 		</section>

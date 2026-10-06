@@ -4,10 +4,13 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -127,12 +130,13 @@ func deploysPerWeek(events []store.Event, envs []store.Environment, now time.Tim
 	return c
 }
 
-var driftKinds = []struct{ kind, label string }{
-	{"env", "behind previous env"},
-	{"upstream", "behind upstream"},
-	{"eol", "end of life"},
-	{"inconsistent", "targets disagree"},
-	{"declared", "differs from Git"},
+// driftKinds are the lines of the drift chart, coloured like their badges.
+var driftKinds = []struct{ kind, label, class string }{
+	{"env", "behind previous env", "c3"},
+	{"upstream", "behind upstream", "c1"},
+	{"eol", "end of life", "c4"},
+	{"inconsistent", "targets disagree", "c5"},
+	{"declared", "differs from Git", "c2"},
 }
 
 // openDriftPerDay counts drifts open at the end of each day, per kind, oldest first.
@@ -143,8 +147,8 @@ func openDriftPerDay(drifts []store.Drift, now time.Time, days int) LineChart {
 		c.Labels = append(c.Labels, end.AddDate(0, 0, d-days).Format("Jan 2"))
 	}
 	top := 0
-	for k, dk := range driftKinds {
-		s := Series{Name: dk.label, Class: colour(k), Values: make([]int, days)}
+	for _, dk := range driftKinds {
+		s := Series{Name: dk.label, Class: dk.class, Values: make([]int, days)}
 		for d := range days {
 			at := end.AddDate(0, 0, d-days+1)
 			if at.After(now) {
@@ -237,6 +241,149 @@ func buildLane(evs []store.Event, name string, from, now time.Time, window time.
 	return lane, len(lane.Segments) > 0
 }
 
+// smoothPath is an SVG path through the points of values that bends smoothly
+// without overshooting (monotone cubic interpolation, Fritsch–Carlson), so a curve
+// never dips below zero or above a peak that the data does not have.
+func smoothPath(values []int, top int) string {
+	n := len(values)
+	if n == 0 {
+		return ""
+	}
+	xs, ys := make([]float64, n), make([]float64, n)
+	for i, v := range values {
+		xs[i], ys[i] = pointX(i, n), yAt(v, top)
+	}
+	if n == 1 {
+		return "M" + f(xs[0]) + "," + f(ys[0])
+	}
+	// Slopes of the segments, then tangents at the points.
+	d := make([]float64, n-1)
+	for i := range n - 1 {
+		d[i] = (ys[i+1] - ys[i]) / (xs[i+1] - xs[i])
+	}
+	m := make([]float64, n)
+	m[0], m[n-1] = d[0], d[n-2]
+	for i := 1; i < n-1; i++ {
+		if d[i-1]*d[i] <= 0 {
+			m[i] = 0 // a peak or a valley stays flat
+		} else {
+			m[i] = (d[i-1] + d[i]) / 2
+		}
+	}
+	for i := range n - 1 {
+		if d[i] == 0 {
+			m[i], m[i+1] = 0, 0
+			continue
+		}
+		a, b := m[i]/d[i], m[i+1]/d[i]
+		if h := a*a + b*b; h > 9 {
+			t := 3 / math.Sqrt(h)
+			m[i], m[i+1] = t*a*d[i], t*b*d[i]
+		}
+	}
+	var sb strings.Builder
+	sb.WriteString("M" + f(xs[0]) + "," + f(ys[0]))
+	for i := range n - 1 {
+		dx := (xs[i+1] - xs[i]) / 3
+		sb.WriteString(" C" + f(xs[i]+dx) + "," + f(ys[i]+m[i]*dx) + " " + f(xs[i+1]-dx) + "," + f(ys[i+1]-m[i+1]*dx) +
+			" " + f(xs[i+1]) + "," + f(ys[i+1]))
+	}
+	return sb.String()
+}
+
+// areaPath closes smoothPath down to the x axis, for the gradient under a line.
+func areaPath(values []int, top int) string {
+	if len(values) == 0 {
+		return ""
+	}
+	n := len(values)
+	return smoothPath(values, top) + " L" + f(pointX(n-1, n)) + "," + f(chartH) + " L" + f(pointX(0, n)) + "," + f(chartH) + " Z"
+}
+
+// chartID is a stable id prefix for one chart's gradients, from its label.
+func chartID(label string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(label))
+	return fmt.Sprintf("ch%x", h.Sum32())
+}
+
+// hoverData is what app.js needs to draw the crosshair and the tooltip: the x of each
+// point (in viewBox units), its label, and every series' values and y coordinates.
+func hoverData(labels []string, series []Series, top int, bars bool) string {
+	type hs struct {
+		Name   string    `json:"name"`
+		Class  string    `json:"cls"`
+		Values []int     `json:"values"`
+		Ys     []float64 `json:"ys,omitempty"`
+	}
+	out := struct {
+		W      float64   `json:"w"`
+		Labels []string  `json:"labels"`
+		Xs     []float64 `json:"xs"`
+		Series []hs      `json:"series"`
+		Bars   bool      `json:"bars,omitempty"`
+	}{W: chartW, Labels: labels, Bars: bars}
+	for i := range labels {
+		if bars {
+			x, w := barX(i, len(labels))
+			out.Xs = append(out.Xs, math.Round((x+w/2)*10)/10)
+		} else {
+			out.Xs = append(out.Xs, math.Round(pointX(i, len(labels))*10)/10)
+		}
+	}
+	for _, s := range series {
+		if !anyNonZero(s.Values) {
+			continue
+		}
+		h := hs{Name: s.Name, Class: s.Class, Values: s.Values}
+		if !bars {
+			for _, v := range s.Values {
+				h.Ys = append(h.Ys, math.Round(yAt(v, top)*10)/10)
+			}
+		}
+		out.Series = append(out.Series, h)
+	}
+	b, _ := json.Marshal(out)
+	return string(b)
+}
+
+func sum(values []int) int {
+	t := 0
+	for _, v := range values {
+		t += v
+	}
+	return t
+}
+
+func last(values []int) int {
+	if len(values) == 0 {
+		return 0
+	}
+	return values[len(values)-1]
+}
+
+// sparkPaths are the line and the filled area of a sparkline in a w × h box.
+func sparkPaths(values []int, top int, w, h float64) (line, area string) {
+	n := len(values)
+	if n < 2 || top == 0 {
+		return "", ""
+	}
+	pt := func(i int) (float64, float64) {
+		return float64(i) / float64(n-1) * w, h - 2 - float64(values[i])/float64(top)*(h-6)
+	}
+	var sb strings.Builder
+	x0, y0 := pt(0)
+	sb.WriteString("M" + f(x0) + "," + f(y0))
+	for i := 1; i < n; i++ {
+		px, py := pt(i - 1)
+		x, y := pt(i)
+		mx := (px + x) / 2
+		sb.WriteString(" C" + f(mx) + "," + f(py) + " " + f(mx) + "," + f(y) + " " + f(x) + "," + f(y))
+	}
+	line = sb.String()
+	return line, line + " L" + f(w) + "," + f(h) + " L0," + f(h) + " Z"
+}
+
 // f formats an SVG coordinate.
 func f(v float64) string { return fmt.Sprintf("%.1f", v) }
 
@@ -259,17 +406,6 @@ func pointX(i, n int) float64 {
 		return chartLeft
 	}
 	return chartLeft + 8 + float64(i)/float64(n-1)*(chartW-chartLeft-16)
-}
-
-func polyline(values []int, top int) string {
-	out := ""
-	for i, v := range values {
-		if i > 0 {
-			out += " "
-		}
-		out += f(pointX(i, len(values))) + "," + f(yAt(v, top))
-	}
-	return out
 }
 
 func lastPoint(values []int, top int) (float64, float64) {
