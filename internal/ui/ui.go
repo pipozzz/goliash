@@ -145,6 +145,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/delete", s.page(a, s.deleteService))
 	mux.Handle("POST /workspaces/{id}/rename", s.page(a, s.renameWorkspace))
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
+	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
 	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
 	mux.Handle("POST /environments/{id}", s.page(a, s.updateEnvironment))
 	mux.Handle("POST /environments/{id}/delete", s.page(a, s.deleteEnvironment))
@@ -1262,6 +1263,7 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		}
 		v.Rules = append(v.Rules, RuleView{
 			ID: rule.ID, Paused: rule.Paused, Channel: chName[rule.ChannelID], Events: events, Mode: mode,
+			Plan:   slices.Contains(rule.EventTypes, notifier.EventUpdatesPlan),
 			Filter: orDash(strings.Join(parts, "; ")),
 		})
 	}
@@ -1365,6 +1367,23 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, "/notifications", "notice", "Test sent to "+c.Name+".")
 	}
 	return back(w, r, "/notifications", "error", "Unknown channel.")
+}
+
+// sendPlanNow sends a rule's upgrade plan at once, to check it without waiting.
+func (s *Server) sendPlanNow(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	n, err := s.notify.SendPlanNow(r.Context(), p.Scope, r.PathValue("id"))
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return back(w, r, "/notifications", "error", "That rule is gone.")
+	case errors.Is(err, notifier.ErrNotAPlanRule):
+		return back(w, r, "/notifications", "error", "That rule does not send the upgrade plan.")
+	case err != nil:
+		return back(w, r, "/notifications", "error", "Sending the plan failed: "+err.Error())
+	case n == 0:
+		return back(w, r, "/notifications", "notice", "Nothing to upgrade for this rule's filters, so nothing was sent.")
+	}
+	s.audit(r.Context(), p, "rule.plan_now", "rule", r.PathValue("id"), "updates", itoa(n))
+	return back(w, r, "/notifications", "notice", "Upgrade plan sent: "+plural(n, "update", "updates")+".")
 }
 
 func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

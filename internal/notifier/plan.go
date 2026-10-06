@@ -6,6 +6,8 @@ package notifier
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -98,14 +100,10 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 			if u.Acked {
 				continue
 			}
-			it := Item{
-				Type: "update", Service: u.Service.Name, App: u.App, Owner: u.Service.Owner, Environment: u.Environment.Name,
-				From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
-			}
+			it := planItem(u, now)
 			if !matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
 				continue
 			}
-			it.Text = Describe(it)
 			payload, err := json.Marshal(it)
 			if err != nil {
 				return err
@@ -119,4 +117,65 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 		}
 	}
 	return nil
+}
+
+// ErrNotAPlanRule means a rule does not send the upgrade plan.
+var ErrNotAPlanRule = errors.New("this rule does not send the upgrade plan")
+
+// SendPlanNow sends a rule's upgrade plan at once, to check a channel and its filters
+// without waiting for Monday. It returns how many updates the plan had; nothing is
+// sent when there are none. Scheduled plans are not affected.
+func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID string) (int, error) {
+	targets, err := n.ruleTargets(ctx, sc)
+	if err != nil {
+		return 0, err
+	}
+	rt, ok := targets[ruleID]
+	if !ok {
+		return 0, store.ErrNotFound
+	}
+	if !contains(rt.rule.EventTypes, EventUpdatesPlan) {
+		return 0, ErrNotAPlanRule
+	}
+	var f Filter
+	_ = json.Unmarshal(rt.rule.Filter, &f)
+	o, err := versions.LoadOverview(ctx, n.store, sc)
+	if err != nil {
+		return 0, err
+	}
+	acks, err := n.store.ListAcks(ctx, sc)
+	if err != nil {
+		return 0, err
+	}
+	now := n.now()
+	msg := Message{Workspace: rt.workspace, Digest: true}
+	for _, u := range versions.Updates(o, acks, now) {
+		if u.Acked {
+			continue
+		}
+		it := planItem(u, now)
+		if matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
+			msg.Items = append(msg.Items, it)
+		}
+	}
+	if len(msg.Items) == 0 {
+		return 0, nil
+	}
+	sender, ok := n.senders[rt.channel.Type]
+	if !ok {
+		return 0, fmt.Errorf("no sender for channel type %q", rt.channel.Type)
+	}
+	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return len(msg.Items), sender.Send(sendCtx, rt.channel, msg)
+}
+
+// planItem is one update as a notification item.
+func planItem(u versions.Update, now time.Time) Item {
+	it := Item{
+		Type: "update", Service: u.Service.Name, App: u.App, Owner: u.Service.Owner, Environment: u.Environment.Name,
+		From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
+	}
+	it.Text = Describe(it)
+	return it
 }
