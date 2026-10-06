@@ -1316,8 +1316,10 @@ func TestUpdatesPutOff(t *testing.T) {
 	envs, _ := e.st.ListEnvironments(ctx, e.ws.Scope())
 	prod := envs[len(envs)-1]
 	pg, _ := e.st.EnsureService(ctx, e.ws.Scope(), "postgres")
-	if _, err := e.st.OpenDrift(ctx, store.Drift{Scope: e.ws.Scope(), ServiceID: pg.ID, EnvironmentID: prod.ID, Kind: "upstream",
-		Detail: json.RawMessage(`{"running":"15.6","other":"16.4","jump":"major"}`)}); err != nil {
+	if _, err := e.st.OpenDrift(ctx, store.Drift{
+		Scope: e.ws.Scope(), ServiceID: pg.ID, EnvironmentID: prod.ID, Kind: "upstream",
+		Detail: json.RawMessage(`{"running":"15.6","other":"16.4","jump":"major"}`),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, body := get(t, e.as(store.RoleViewer), e.srv.URL+"/updates", nil); strings.Contains(body, "Put off") {
