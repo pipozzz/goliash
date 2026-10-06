@@ -124,3 +124,58 @@ func (s *Store) SetWorkspaceAppLabel(ctx context.Context, orgID, workspaceID, ke
 	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET app_label = ? WHERE org_id = ? AND id = ?`, key, orgID, workspaceID)
 	return expectOne(res, err)
 }
+
+// RenameService gives a service a new name. It refuses (ErrExists) when another
+// service has it: MergeService joins them.
+func (s *Store) RenameService(ctx context.Context, sc Scope, id, name string) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		var n int
+		if err := s.queryRow(ctx, tx, `SELECT COUNT(*) FROM services WHERE workspace_id = ? AND name = ? AND id <> ?`,
+			sc.WorkspaceID, name, id).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return ErrExists
+		}
+		res, err := s.exec(ctx, tx, `UPDATE services SET name = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`, name, sc.OrgID, sc.WorkspaceID, id)
+		return expectOne(res, err)
+	})
+}
+
+// MergeService joins service from into service into: its workloads, history, mapping
+// rules, acknowledgements, releases and drift move over, then from is deleted. into
+// keeps its own name, owner and policy. Open drift that into already has is dropped;
+// the rest moves, keeping when it opened and whether it was announced.
+func (s *Store) MergeService(ctx context.Context, sc Scope, from, into string) error {
+	if from == into {
+		return nil
+	}
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		for _, q := range []string{
+			`UPDATE instances SET service_id = ? WHERE workspace_id = ? AND service_id = ?`,
+			`UPDATE events SET service_id = ? WHERE workspace_id = ? AND service_id = ?`,
+			`UPDATE mapping_rules SET service_id = ? WHERE workspace_id = ? AND service_id = ?`,
+			`UPDATE acks SET service_id = ? WHERE workspace_id = ? AND service_id = ?`,
+		} {
+			if _, err := s.exec(ctx, tx, q, into, sc.WorkspaceID, from); err != nil {
+				return err
+			}
+		}
+		// Releases: into's own stay; versions only from knew move over.
+		if _, err := s.exec(ctx, tx, `UPDATE releases SET service_id = ? WHERE service_id = ?
+			AND version NOT IN (SELECT version FROM releases WHERE service_id = ?)`, into, from, into); err != nil {
+			return err
+		}
+		// Open drift into already has wins; the rest, and resolved drift, moves.
+		if _, err := s.exec(ctx, tx, `DELETE FROM drifts WHERE service_id = ? AND resolved_at IS NULL AND EXISTS (
+			SELECT 1 FROM drifts o WHERE o.service_id = ? AND o.resolved_at IS NULL AND o.app = drifts.app
+			AND o.environment_id = drifts.environment_id AND o.kind = drifts.kind)`, from, into); err != nil {
+			return err
+		}
+		if _, err := s.exec(ctx, tx, `UPDATE drifts SET service_id = ? WHERE service_id = ?`, into, from); err != nil {
+			return err
+		}
+		res, err := s.exec(ctx, tx, `DELETE FROM services WHERE org_id = ? AND workspace_id = ? AND id = ?`, sc.OrgID, sc.WorkspaceID, from)
+		return expectOne(res, err)
+	})
+}

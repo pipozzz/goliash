@@ -28,6 +28,7 @@ Usage:
                         [-services a,b] [-owners x] [-apps webshop] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash badges reset                    invalidate every badge address handed out
+  goliash service rename -name NAME -to NAME [-merge]   rename a service, or join it with the one named
   goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)
   goliash team rename -from NAME -to NAME   rename a team on all its services
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]

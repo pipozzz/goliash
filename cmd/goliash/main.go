@@ -92,6 +92,7 @@ const usage = `Usage:
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
   goliash badges reset                    invalidate every badge address handed out
+  goliash service rename -name NAME -to NAME [-merge]   rename a service, or join it with the one named
   goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)
   goliash team rename -from NAME -to NAME   rename a team on all its services
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
@@ -138,8 +139,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && args[0] == "create" && (cmd == "env" || cmd == "agent" || cmd == "target" || cmd == "rule") {
 			cmd, args = cmd+" create", args[1:]
 		}
-		if len(args) > 0 && args[0] == "set" && cmd == "service" {
-			cmd, args = "service set", args[1:]
+		if len(args) > 0 && (args[0] == "set" || args[0] == "rename") && cmd == "service" {
+			cmd, args = "service "+args[0], args[1:]
 		}
 		if len(args) > 0 && cmd == "channel" && (args[0] == "create" || args[0] == "test") {
 			cmd, args = "channel "+args[0], args[1:]
@@ -198,6 +199,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return checkCmd(ctx, args, out)
 	case "service set":
 		return serviceSet(ctx, args, out)
+	case "service rename":
+		return serviceRename(ctx, args, out)
 	case "channel create":
 		return channelCreate(ctx, args, out)
 	case "channel test":
@@ -2149,6 +2152,51 @@ func backups(ctx context.Context, db *store.Store, dsn, dir string, keep int, lo
 		case <-ticker.C:
 		}
 	}
+}
+
+// serviceRename renames a service, or merges it into the one with the new name.
+func serviceRename(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("service rename")
+	name := fs.String("name", "", "the service's name")
+	to := fs.String("to", "", "its new name")
+	merge := fs.Bool("merge", false, "if a service has that name, merge into it")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" || *to == "" {
+		return errors.New("-name and -to are required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	svc, err := db.GetServiceByName(ctx, ws.Scope(), *name)
+	if err != nil {
+		return fmt.Errorf("service %q: %w", *name, err)
+	}
+	err = db.RenameService(ctx, ws.Scope(), svc.ID, *to)
+	if errors.Is(err, store.ErrExists) && *merge {
+		into, err := db.GetServiceByName(ctx, ws.Scope(), *to)
+		if err != nil {
+			return err
+		}
+		if err := db.MergeService(ctx, ws.Scope(), svc.ID, into.ID); err != nil {
+			return err
+		}
+		cliAudit(ctx, db, ws, "service.merge", "service", *name, "into", *to)
+		_, _ = fmt.Fprintf(out, "service %s merged into %s\n", *name, *to)
+		return nil
+	}
+	if errors.Is(err, store.ErrExists) {
+		return fmt.Errorf("a service named %s exists; add -merge to join %s with it", *to, *name)
+	}
+	if err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "service.rename", "service", *name, "to", *to)
+	_, _ = fmt.Fprintf(out, "service %s is %s now\n", *name, *to)
+	return nil
 }
 
 // appRename shows an application under another name; naming an existing one merges.
