@@ -324,3 +324,28 @@ func (s *Store) RetryDelivery(ctx context.Context, sc Scope, id string) (bool, e
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }
+
+// UpdateRule changes a rule's channel, events, filter and mode; whether it is paused
+// stays. Notifications it queued already keep their delivery.
+func (s *Store) UpdateRule(ctx context.Context, r Rule) error {
+	if r.EventTypes == nil {
+		r.EventTypes = []string{}
+	}
+	if len(r.Filter) == 0 {
+		r.Filter = json.RawMessage(`{}`)
+	}
+	types, err := json.Marshal(r.EventTypes)
+	if err != nil {
+		return err
+	}
+	res, err := s.exec(ctx, s.db, `UPDATE notification_rules SET channel_id = ?, event_types = ?, filter = ?, mode = ?
+		WHERE org_id = ? AND workspace_id = ? AND id = ?`, r.ChannelID, string(types), string(r.Filter), r.Mode,
+		r.Scope.OrgID, r.Scope.WorkspaceID, r.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

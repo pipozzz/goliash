@@ -90,14 +90,16 @@ goliash notify create -channel oncall -events drift_detected -envs prod -mode in
 | Mode | Delivery |
 | --- | --- |
 | `instant` | Within seconds. Items arriving together are sent as one message. |
-| `daily` | A digest every day at `digest_hour` (UTC, default 8). |
-| `weekly` | A digest every Monday at `digest_hour`. |
+| `daily` | A digest every day at the digest hour (**Digest at**, UTC, default 08:00). |
+| `weekly` | A digest every Monday at the digest hour. |
 
-Admins **edit** a channel (secrets are never shown again; an empty field keeps the stored value). Members **pause** a rule (it queues nothing until resumed) or delete it on the Notifications page; admins delete a
-channel together with its rules.
+Admins **edit** a channel (secrets are never shown again; an empty field keeps the stored value). Members **edit** a
+rule (its channel, events, mode, digest hour and filters), **pause** it (it queues nothing until resumed) or delete
+it on the Notifications page; admins delete a channel together with its rules. An edit applies to what comes next:
+notifications already queued keep their channel and time.
 
-A release is announced once per service and version. Failed deliveries are retried with backoff, from one minute up
-to an hour between attempts. Acknowledged releases and drift are not sent; see
+A release is announced once per service and version. Failed deliveries are retried with backoff, after 1, 2, 4, 8 and
+16 minutes, then given up; see [Recent deliveries](#recent-deliveries). Acknowledged releases and drift are not sent; see
 [Acknowledging](/guide/versions/#acknowledging).
 
 ## Recent deliveries

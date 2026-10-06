@@ -157,6 +157,7 @@ templ NotificationsPage(v NotificationsView) {
 														}
 													</button>
 												</form>
+												<a href={ templ.URL("/notifications/rules/" + r.ID) }>Edit</a>
 												<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/delete") } hx-confirm="Delete this rule?">
 													<button class="link danger-link" type="submit">Delete</button>
 												</form>
@@ -173,46 +174,7 @@ templ NotificationsPage(v NotificationsView) {
 						<details>
 							<summary>Add a rule</summary>
 							<form class="stack" method="post" action="/notifications/rules">
-								<div class="row">
-									<label>
-										Channel
-										<select name="channel">
-											for _, c := range v.Channels {
-												<option value={ c.Name }>{ c.Name }</option>
-											}
-										</select>
-									</label>
-									<label>
-										Mode
-										<select name="mode">
-											<option value="instant">right away</option>
-											<option value="daily">daily digest</option>
-											<option value="weekly">weekly digest</option>
-										</select>
-									</label>
-									<label>
-										Releases from
-										<select name="min_jump">
-											<option value="">any</option>
-											<option value="minor">minor</option>
-											<option value="major">major</option>
-										</select>
-									</label>
-								</div>
-								<fieldset style="border:0;padding:0;margin:0;display:flex;gap:14px;flex-wrap:wrap">
-									<label class="check"><input type="checkbox" name="events" value="new_release" checked/> new releases</label>
-									<label class="check"><input type="checkbox" name="events" value="drift_detected" checked/> drift</label>
-									<label class="check"><input type="checkbox" name="events" value="drift_resolved"/> drift resolved</label>
-									<label class="check"><input type="checkbox" name="events" value="version_changed"/> deploys</label>
-									<label class="check"><input type="checkbox" name="events" value="removed"/> removals</label>
-									<label class="check"><input type="checkbox" name="events" value="agent_stale" checked/> stale agents</label>
-									<label class="check" title="The Updates list, what to upgrade first, at the digest time: daily, or on Mondays"><input type="checkbox" name="events" value="updates_plan"/> upgrade plan</label>
-								</fieldset>
-								<div class="row">
-									<label>Services<input name="services" placeholder="all"/></label>
-									<label>Owners<input name="owners" placeholder="all"/></label>
-									<label>Environments<input name="envs" placeholder="all"/></label>
-								</div>
+								@ruleFields(v.Channels, NewRuleForm())
 								<div><button type="submit">Add rule</button></div>
 							</form>
 						</details>
@@ -487,6 +449,83 @@ templ SettingsPage(v SettingsView) {
 					</table>
 				</div>
 			}
+		</section>
+	}
+}
+
+// ruleEvents are the event kinds a rule can pick, with their labels.
+var ruleEvents = [][2]string{
+	{"new_release", "new releases"}, {"drift_detected", "drift"}, {"drift_resolved", "drift resolved"},
+	{"version_changed", "deploys"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"updates_plan", "upgrade plan"},
+}
+
+// ruleFields are the fields of the add and edit rule forms.
+templ ruleFields(channels []ChannelView, f RuleForm) {
+	<div class="row">
+		<label>
+			Channel
+			<select name="channel">
+				for _, c := range channels {
+					<option value={ c.Name } selected?={ c.Name == f.Channel }>{ c.Name }</option>
+				}
+			</select>
+		</label>
+		<label>
+			Mode
+			<select name="mode">
+				<option value="instant" selected?={ f.Mode == "instant" }>right away</option>
+				<option value="daily" selected?={ f.Mode == "daily" }>daily digest</option>
+				<option value="weekly" selected?={ f.Mode == "weekly" }>weekly digest (Mondays)</option>
+			</select>
+		</label>
+		<label>
+			Digest at
+			<select name="digest_hour">
+				for h := 0; h < 24; h++ {
+					<option value={ itoa(h) } selected?={ h == f.DigestHour }>{ twoDigits(h) }:00 UTC</option>
+				}
+			</select>
+		</label>
+		<label>
+			Releases from
+			<select name="min_jump">
+				<option value="" selected?={ f.MinJump == "" }>any</option>
+				<option value="minor" selected?={ f.MinJump == "minor" }>minor</option>
+				<option value="major" selected?={ f.MinJump == "major" }>major</option>
+			</select>
+		</label>
+	</div>
+	<fieldset style="border:0;padding:0;margin:0;display:flex;gap:14px;flex-wrap:wrap">
+		for _, e := range ruleEvents {
+			<label class="check" title={ eventTitle(e[0]) }><input type="checkbox" name="events" value={ e[0] } checked?={ hasString(f.Events, e[0]) }/> { e[1] }</label>
+		}
+	</fieldset>
+	<div class="row">
+		<label>Services<input name="services" value={ f.Services } placeholder="all"/></label>
+		<label>Owners<input name="owners" value={ f.Owners } placeholder="all"/></label>
+		<label>Environments<input name="envs" value={ f.Envs } placeholder="all"/></label>
+	</div>
+}
+
+templ RulePage(v RuleEditView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/notifications">Notifications</a> /</p>
+				<h1>Edit rule</h1>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-body">
+				<form class="stack" method="post" action={ templ.URL("/notifications/rules/" + v.ID) }>
+					@ruleFields(v.Channels, v.Form)
+					<p class="hint">Notifications already queued keep their channel and time; the change applies to what comes next.</p>
+					<div class="actions">
+						<button type="submit">Save</button>
+						<a class="button secondary" href="/notifications">Cancel</a>
+					</div>
+				</form>
+			</div>
 		</section>
 	}
 }
