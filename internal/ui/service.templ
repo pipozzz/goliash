@@ -213,6 +213,12 @@ templ ServicePage(v ServiceView) {
 								<label>
 									Owner
 									<input name="owner" value={ v.Owner } placeholder="team-payments"/>
+									switch v.OwnerSource {
+										case "label":
+											<span class="hint">From its workloads' team label; changing it here takes over from the label.</span>
+										case "app":
+											<span class="hint">From its application's team; changing it here takes over.</span>
+									}
 								</label>
 								<label>
 									Application

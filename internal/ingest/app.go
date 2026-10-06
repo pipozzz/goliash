@@ -62,3 +62,16 @@ func withoutGeneratedSuffix(name string) string {
 	}
 	return strings.Join(parts[:len(parts)-1], "-")
 }
+
+// teamLabels name the team that owns a workload, most specific first.
+var teamLabels = []string{"goliash.team", "team", "owner", "app.kubernetes.io/team"}
+
+// workloadTeam is the team a workload's labels name, if any.
+func workloadTeam(labels map[string]string) string {
+	for _, k := range teamLabels {
+		if v := strings.TrimSpace(labels[k]); v != "" {
+			return v
+		}
+	}
+	return ""
+}

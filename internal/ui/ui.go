@@ -492,7 +492,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, App: svc.App, Kind: svc.Kind, Upstream: svc.Upstream}
+	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, OwnerSource: svc.OwnerSource, App: svc.App, Kind: svc.Kind, Upstream: svc.Upstream}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
 	v.Private = versions.CheckedByAgent(svc, ref.Repo)

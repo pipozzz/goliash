@@ -72,13 +72,15 @@ func (s *Store) SetServiceApp(ctx context.Context, sc Scope, id, app string) err
 	return expectOne(res, err)
 }
 
-// SetOwners gives every listed service the owner (a team); it returns how many changed.
-func (s *Store) SetOwners(ctx context.Context, sc Scope, serviceIDs []string, owner string) (int, error) {
+// SetOwners gives every listed service the owner (a team), as set by source: "" for
+// people, "label" or "app" for Goliash; it returns how many changed.
+func (s *Store) SetOwners(ctx context.Context, sc Scope, serviceIDs []string, owner, source string) (int, error) {
 	n := 0
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
 		for _, id := range serviceIDs {
-			res, err := s.exec(ctx, tx, `UPDATE services SET owner = ? WHERE org_id = ? AND workspace_id = ? AND id = ? AND owner <> ?`,
-				strings.TrimSpace(owner), sc.OrgID, sc.WorkspaceID, id, strings.TrimSpace(owner))
+			res, err := s.exec(ctx, tx, `UPDATE services SET owner = ?, owner_source = ? WHERE org_id = ? AND workspace_id = ? AND id = ?
+				AND (owner <> ? OR owner_source <> ?)`,
+				strings.TrimSpace(owner), source, sc.OrgID, sc.WorkspaceID, id, strings.TrimSpace(owner), source)
 			if err != nil {
 				return err
 			}

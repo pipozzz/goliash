@@ -3,7 +3,10 @@
 
 package ingest
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestWorkloadApp(t *testing.T) {
 	for _, c := range []struct {
@@ -48,5 +51,21 @@ func TestWithoutGeneratedSuffix(t *testing.T) {
 	}
 	if app, _ := workloadApp(map[string]string{"app.kubernetes.io/part-of": "shop-web-abc123"}, "", "", "", ""); app != "shop-web-abc123" {
 		t.Error("an explicit label lost its suffix")
+	}
+}
+
+func TestWorkloadTeam(t *testing.T) {
+	for labels, want := range map[string]string{
+		"goliash.team=payments,team=x": "payments", "team=checkout": "checkout", "owner=sre": "sre",
+		"app.kubernetes.io/team=platform": "platform", "app=web": "",
+	} {
+		m := map[string]string{}
+		for _, kv := range strings.Split(labels, ",") {
+			k, v, _ := strings.Cut(kv, "=")
+			m[k] = v
+		}
+		if got := workloadTeam(m); got != want {
+			t.Errorf("%s: %q, want %q", labels, got, want)
+		}
 	}
 }

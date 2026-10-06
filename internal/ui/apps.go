@@ -200,7 +200,7 @@ func (s *Server) appTeam(w http.ResponseWriter, r *http.Request, p auth.Principa
 		s.audit(ctx, p, "app.team", "app", app, "team", "")
 		return back(w, r, "/apps", "notice", "New services in "+app+" no longer get a team; the services keep theirs.")
 	}
-	n, err := s.store.SetOwners(ctx, p.Scope, ids, team)
+	n, err := s.store.SetOwners(ctx, p.Scope, ids, team, "app")
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func (s *Server) assignTeam(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if len(ids) == 0 {
 		return back(w, r, "/teams", "error", "Pick the services first.")
 	}
-	n, err := s.store.SetOwners(ctx, p.Scope, ids, team)
+	n, err := s.store.SetOwners(ctx, p.Scope, ids, team, "")
 	if err != nil {
 		return err
 	}

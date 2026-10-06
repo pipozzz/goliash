@@ -422,6 +422,7 @@ type ServiceView struct {
 	Base
 	Name           string
 	Owner          string
+	OwnerSource    string // "" set by people, "label" or "app" when Goliash set it
 	App            string // placed in this application by hand; empty: from its labels
 	Kind           string
 	Upstream       string

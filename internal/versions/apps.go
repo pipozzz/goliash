@@ -162,45 +162,78 @@ func FamilyOf(app string, apps []string) string {
 	return app
 }
 
-// FillOwners gives services without an owner the team of their application, when
-// their applications agree on one. It returns the services it gave a team.
+// FillOwners gives services the team Goliash can tell for them, without overriding
+// people: a service's owner set by hand stays; otherwise the team its workloads'
+// labels name (goliash.team, team, owner) wins, else its application's team. Owners
+// Goliash set follow later changes of the labels or the application's team. A
+// service whose labels or applications disagree is left alone. It returns what it set.
 func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string, error) {
-	teams, err := st.AppTeams(ctx, sc)
-	if err != nil || len(teams) == 0 {
-		return nil, err
-	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
-	apps, err := ServiceApps(ctx, st, sc)
+	active, err := st.ListActiveInstances(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
+	labelTeams := map[string]map[string]bool{}
+	for _, in := range active {
+		if in.Team != "" && in.ServiceID != "" {
+			if labelTeams[in.ServiceID] == nil {
+				labelTeams[in.ServiceID] = map[string]bool{}
+			}
+			labelTeams[in.ServiceID][in.Team] = true
+		}
+	}
+	teams, err := st.AppTeams(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	var apps map[string][]string
+	if len(teams) > 0 {
+		if apps, err = ServiceApps(ctx, st, sc); err != nil {
+			return nil, err
+		}
+	}
 	var named []string
 	for _, svc := range services {
-		if svc.Owner != "" {
+		if svc.Owner != "" && svc.OwnerSource == "" {
+			continue // set by people
+		}
+		team, source := "", ""
+		switch lt := labelTeams[svc.ID]; {
+		case len(lt) == 1:
+			for t := range lt {
+				team, source = t, "label"
+			}
+		case len(lt) > 1:
+			continue // its workloads name different teams: leave it to people
+		default:
+			team, source = agreedTeam(apps[svc.ID], teams), "app"
+		}
+		if team == "" || (team == svc.Owner && source == svc.OwnerSource) {
 			continue
 		}
-		team := ""
-		for _, a := range apps[svc.ID] {
-			t := teams[a]
-			if t == "" {
-				continue
-			}
-			if team != "" && t != team {
-				team = "" // its applications disagree: leave it to people
-				break
-			}
-			team = t
-		}
-		if team == "" {
-			continue
-		}
-		if _, err := st.SetOwners(ctx, sc, []string{svc.ID}, team); err != nil {
+		if _, err := st.SetOwners(ctx, sc, []string{svc.ID}, team, source); err != nil {
 			return named, err
 		}
-		named = append(named, svc.Name+" → "+team)
+		named = append(named, svc.Name+" → "+team+" ("+source+")")
 	}
 	return named, nil
+}
+
+// agreedTeam is the team of a service's applications when they agree on one.
+func agreedTeam(apps []string, teams map[string]string) string {
+	team := ""
+	for _, a := range apps {
+		t := teams[a]
+		if t == "" {
+			continue
+		}
+		if team != "" && t != team {
+			return ""
+		}
+		team = t
+	}
+	return team
 }
