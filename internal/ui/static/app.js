@@ -320,11 +320,24 @@
     }
     return score - text.length / 100;
   }
+  // The last few picks, per browser; storage may be off (private windows), then none.
+  const recentKey = "goliash.palette.recent";
+  function paletteRecent() {
+    try { const r = JSON.parse(localStorage.getItem(recentKey) || "[]"); return Array.isArray(r) ? r.slice(0, 5) : []; } catch (_) { return []; }
+  }
+  function paletteRemember(url) {
+    try { localStorage.setItem(recentKey, JSON.stringify([url].concat(paletteRecent().filter(function (u) { return u !== url; })).slice(0, 5))); } catch (_) { /* storage off */ }
+  }
   function paletteRender() {
     const q = palette.input.value.trim().toLowerCase();
     let items = paletteData || [];
-    if (q) {
-      items = items.map(function (e) { return { e: e, s: Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2) }; })
+    const recent = paletteRecent();
+    if (!q) {
+      // Nothing typed: the places picked last come first.
+      const first = recent.map(function (u) { return items.find(function (e) { return e.url === u; }); }).filter(Boolean);
+      items = first.concat(items.filter(function (e) { return first.indexOf(e) < 0; }));
+    } else {
+      items = items.map(function (e) { return { e: e, s: Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2) + (recent.indexOf(e.url) >= 0 ? 1 : 0) }; })
         .filter(function (x) { return x.s >= 0; })
         .sort(function (a, b) { return b.s - a.s; })
         .map(function (x) { return x.e; });
@@ -344,9 +357,9 @@
       text.appendChild(el("span", "palette-label", e.label));
       if (e.sub) text.appendChild(el("span", "palette-sub", e.sub));
       li.appendChild(text);
-      li.appendChild(el("span", "palette-kind", e.kind));
+      li.appendChild(el("span", "palette-kind", !q && recent.indexOf(e.url) >= 0 ? "recent" : e.kind));
       li.addEventListener("mousemove", function () { paletteSelect(i); });
-      li.addEventListener("click", function () { paletteGo(e.url); });
+      li.addEventListener("click", function () { paletteRemember(e.url); paletteGo(e.url); });
       palette.list.appendChild(li);
     });
     paletteSelect(0);
@@ -400,7 +413,7 @@
         else if (e.key === "Enter") {
           e.preventDefault();
           const on = list.querySelector(".palette-item.on");
-          if (on) paletteGo(on.dataset.url);
+          if (on) { paletteRemember(on.dataset.url); paletteGo(on.dataset.url); }
         } else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); paletteClose(); }
       });
       palette = { back: back, input: input, list: list, sel: 0 };
