@@ -619,7 +619,18 @@ func (s *Server) ack(w http.ResponseWriter, r *http.Request, p auth.Principal) e
 	if err != nil {
 		return back(w, r, "/", "error", "Unknown service")
 	}
+	// The Updates page puts items off from its own list and comes back to it.
+	if ret := r.FormValue("return"); ret == "/updates" || strings.HasPrefix(ret, "/updates?") {
+		path = ret
+	}
 	a := store.Ack{Scope: p.Scope, ServiceID: svc.ID, Kind: r.FormValue("kind"), UntilVersion: strings.TrimSpace(r.FormValue("until_version")), CreatedBy: p.Name()}
+	if name := r.FormValue("environment"); name != "" {
+		env, err := s.store.GetEnvironmentByName(ctx, p.Scope, name)
+		if err != nil {
+			return back(w, r, path, "error", "Unknown environment.")
+		}
+		a.EnvironmentID = env.ID
+	}
 	if a.Kind != "release" && a.Kind != "drift" {
 		return back(w, r, path, "error", "Choose releases or drift.")
 	}
