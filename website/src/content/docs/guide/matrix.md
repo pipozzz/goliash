@@ -56,11 +56,12 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 
 ![Service tiles: applications as cells of a navy board, coloured by how current they are, each with a strip of its state per environment](../../../assets/tiles.png)
 
-- **Each cell** shows its services as dots, its most urgent upgrade, how many services are up to date, and a strip with
+- **Each cell** shows its services as a small logo, one cell per service in its colour, its most urgent upgrade, how many services are up to date, and a strip with
   one square per environment in its state there. Applications with four services or more take a double cell once a
   board has six or more.
-- **Open a cell** for the same board for that application, one cell per service. *All applications* at the top leads
-  back. Open a service for its versions per environment, the newest release with its notes, its drift and a link to
+- **Open a cell** and its board is laid over the global one like a card, one cell per service; the global board stays
+  behind, dimmed, with the application marked, and its cells open the other applications directly. × or Escape lays
+  the card down again. Open a service for its versions per environment, the newest release with its notes, its drift and a link to
   its page; Escape closes it.
 - **Env** colours the board for one environment. **Side by side** draws one board per environment with every
   application in the same place, so you can see at a glance where prod lags behind staging.

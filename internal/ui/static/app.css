@@ -588,7 +588,7 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .board-cell.s-behind { background: color-mix(in srgb, var(--logo-cell) 55%, var(--logo-bg)); color: #eef1ff; }
 .board-cell.s-unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); color: #c9d2ff; }
 .board-cell.s-attention { background: var(--logo-warm); color: #3b2300; box-shadow: 0 0 34px rgb(255 179 71 / 0.45); }
-.board-name { font-weight: 750; font-size: clamp(12px, 1.35vw, 17px); line-height: 1.15; overflow-wrap: anywhere; }
+.board-name { font-weight: 750; font-size: clamp(12px, 1.35vw, 17px); line-height: 1.15; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-sub { font-size: clamp(10px, 0.95vw, 12px); font-weight: 600; opacity: 0.8; }
 .board-foot { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .board-headline { font: 600 11px/1.3 var(--mono); opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
