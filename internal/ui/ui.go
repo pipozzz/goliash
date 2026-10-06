@@ -117,6 +117,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /updates", s.page(v, s.updates))
 	mux.Handle("GET /tiles", s.page(v, s.tiles))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
+	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
