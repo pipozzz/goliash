@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +42,9 @@ type UpdateItem struct {
 	EOLPassed                            bool
 	Since                                time.Time
 	Level                                int
-	LevelLabel, LevelClass               string
+	LevelClass                           string
+	LevelLabel                           string
+	Skip                                 string // the version after Target: "skip this version" holds until a newer one
 }
 
 var levelClasses = []string{"eol", "eol", "inconsistent", "upstream", "env", "neutral"}
@@ -57,7 +60,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		return err
 	}
 	q := r.URL.Query()
-	v := UpdatesView{Base: s.base(ctx, p, "updates", "Updates"), Team: q.Get("team"), Env: q.Get("env"), Level: -1}
+	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1}
 	if l := q.Get("level"); l != "" {
 		for i := range versions.UrgencyLabels {
 			if itoa(i) == l {
@@ -82,7 +85,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Service: u.Service.Name, ServiceURL: serviceURL(u.Service.Name), App: u.App, Owner: u.Service.Owner,
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency,
-			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency],
+			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 		}
 		if u.Acked {
 			v.Acked = append(v.Acked, it)
@@ -133,6 +136,30 @@ func updateMarkdown(it UpdateItem) string {
 		b.WriteString(" — " + it.TargetURL)
 	}
 	return b.String() + "\n"
+}
+
+// nextVersion is the smallest version after v, its last number plus one ("26.8.0" ->
+// "26.8.1"): an acknowledgement until it holds while nothing newer than v is out.
+func nextVersion(v string) string {
+	if _, ok := versions.ParseVersion(v); !ok {
+		return ""
+	}
+	end := strings.IndexFunc(v, func(r rune) bool { return r == '-' || r == '+' || r == '_' })
+	if end < 0 {
+		end = len(v)
+	}
+	start := end
+	for start > 0 && v[start-1] >= '0' && v[start-1] <= '9' {
+		start--
+	}
+	if start == end {
+		return ""
+	}
+	n, err := strconv.Atoi(v[start:end])
+	if err != nil {
+		return ""
+	}
+	return v[:start] + strconv.Itoa(n+1) + v[end:]
 }
 
 // updatesURL keeps the page's filters, changing one.

@@ -1304,3 +1304,45 @@ func TestUpdatesPage(t *testing.T) {
 		t.Error("team filter ignored")
 	}
 }
+
+func TestUpdatesPutOff(t *testing.T) {
+	for in, want := range map[string]string{"26.8.0": "26.8.1", "v3.7.13": "v3.7.14", "16-alpine": "17-alpine", "1.2.3-rc.1": "1.2.4-rc.1", "latest": "", "": ""} {
+		if got := nextVersion(in); got != want {
+			t.Errorf("nextVersion(%q) = %q, want %q", in, got, want)
+		}
+	}
+	e := newUIEnv(t)
+	ctx := context.Background()
+	envs, _ := e.st.ListEnvironments(ctx, e.ws.Scope())
+	prod := envs[len(envs)-1]
+	pg, _ := e.st.EnsureService(ctx, e.ws.Scope(), "postgres")
+	if _, err := e.st.OpenDrift(ctx, store.Drift{
+		Scope: e.ws.Scope(), ServiceID: pg.ID, EnvironmentID: prod.ID, Kind: "upstream",
+		Detail: json.RawMessage(`{"running":"15.6","other":"16.4","jump":"major"}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := get(t, e.as(store.RoleViewer), e.srv.URL+"/updates", nil); strings.Contains(body, "Put off") {
+		t.Error("a viewer can put updates off")
+	}
+	member := e.as(store.RoleMember)
+	_, body := get(t, member, e.srv.URL+"/updates", nil)
+	if !strings.Contains(body, "Skip 16.4") || !strings.Contains(body, `name="until_version" value="16.5"`) {
+		t.Fatal("put off menu missing")
+	}
+	_, body, _ = post(t, member, e.srv.URL+"/services/postgres/ack", url.Values{
+		"kind": {"drift"}, "environment": {prod.Name}, "until_version": {"16.5"}, "return": {"/updates"},
+	})
+	if !strings.Contains(body, "Acknowledged") || !strings.Contains(body, "Acknowledged</h2>") {
+		t.Fatalf("not back on updates with the item put off: %s", body[:min(len(body), 400)])
+	}
+	acks, _ := e.st.ListAcks(ctx, e.ws.Scope())
+	if len(acks) != 1 || acks[0].EnvironmentID != prod.ID || acks[0].UntilVersion != "16.5" {
+		t.Fatalf("acks %+v", acks)
+	}
+	// Only the Updates page is a place to come back to.
+	_, body, _ = post(t, member, e.srv.URL+"/services/postgres/ack", url.Values{"kind": {"drift"}, "for": {"1h"}, "return": {"https://evil.example"}})
+	if !strings.Contains(body, "postgres") || strings.Contains(body, "Acknowledged</h2>") {
+		t.Error("return to an outside page")
+	}
+}
