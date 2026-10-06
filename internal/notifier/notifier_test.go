@@ -324,7 +324,8 @@ func TestEmail(t *testing.T) {
 	e.emit(release(e.svc, "1.5.0", "1.6.0", "minor"))
 	select {
 	case mail := <-got:
-		if !strings.Contains(mail, "To: oncall@example.com") || !strings.Contains(mail, "Subject: payments-api: new release 1.6.0") {
+		if !strings.Contains(mail, "To: oncall@example.com") || !strings.Contains(mail, "Subject: payments-api: new release 1.6.0") ||
+			!strings.Contains(mail, "multipart/alternative") || !strings.Contains(mail, "text/html") {
 			t.Fatalf("mail %s", mail)
 		}
 	case <-time.After(5 * time.Second):

@@ -41,6 +41,7 @@ type Message struct {
 	Workspace string `json:"workspace"`
 	Digest    bool   `json:"digest"`
 	Items     []Item `json:"items"`
+	Link      string `json:"link,omitempty"` // Goliash's public URL, for buttons back to it
 }
 
 // Title is a one-line summary of the message.
@@ -84,7 +85,11 @@ type Notifier struct {
 	log     *slog.Logger
 	senders map[string]Sender
 	now     func() time.Time
+	link    string // public URL, without a trailing slash
 }
+
+// SetPublicURL lets messages link back to Goliash (buttons, item links).
+func (n *Notifier) SetPublicURL(u string) { n.link = strings.TrimSuffix(u, "/") }
 
 // New returns a notifier with the given senders by channel type.
 func New(st *store.Store, log *slog.Logger, senders map[string]Sender) *Notifier {
@@ -386,7 +391,7 @@ func (n *Notifier) ruleTargets(ctx context.Context, sc store.Scope) (map[string]
 
 func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.QueueItem) {
 	ids := make([]string, len(batch))
-	msg := Message{Workspace: rt.workspace, Digest: rt.rule.Mode != "instant" || len(batch) > 1}
+	msg := Message{Workspace: rt.workspace, Digest: rt.rule.Mode != "instant" || len(batch) > 1, Link: n.link}
 	attempts := 0
 	for i, it := range batch {
 		ids[i] = it.ID
@@ -428,7 +433,7 @@ func (n *Notifier) SendTest(ctx context.Context, ch store.Channel, workspace str
 		return fmt.Errorf("no sender for channel type %q", ch.Type)
 	}
 	item := Item{Type: "test", At: n.now(), Text: "Goliash test notification for channel " + ch.Name}
-	return sender.Send(ctx, ch, Message{Workspace: workspace, Items: []Item{item}})
+	return sender.Send(ctx, ch, Message{Workspace: workspace, Items: []Item{item}, Link: n.link})
 }
 
 // Describe writes the one-line text people read about an item.

@@ -60,12 +60,19 @@ func TestDiscord(t *testing.T) {
 		Mentions struct {
 			Parse []string `json:"parse"`
 		} `json:"allowed_mentions"`
+		Embeds []struct {
+			Title  string `json:"title"`
+			Color  int    `json:"color"`
+			Fields []struct {
+				Value string `json:"value"`
+			} `json:"fields"`
+		} `json:"embeds"`
 	}
 	if err := json.Unmarshal([]byte(got.body), &p); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(p.Content, "**Goliash: 2 updates in Default**\n• web: new release") ||
-		!strings.Contains(p.Content, "[release notes](<https://github.com/nginx/nginx/releases/tag/release-1.28.0>)") || p.Mentions.Parse == nil {
+	if p.Content != "**Goliash: 2 updates in Default**" || len(p.Embeds) != 2 || p.Embeds[0].Title != "✨ web" || p.Embeds[1].Color == 0 ||
+		!strings.Contains(got.body, "[open](https://github.com/nginx/nginx/releases/tag/release-1.28.0)") || p.Mentions.Parse == nil {
 		t.Fatalf("payload %s", got.body)
 	}
 }

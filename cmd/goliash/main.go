@@ -419,6 +419,7 @@ func serve(ctx context.Context, args []string) error {
 	versions.SetAllowedRegistries(splitList(os.Getenv("GOLIASH_ALLOWED_REGISTRIES")))
 	svc.SetUpstreams(checker)
 	notify := notifier.New(db, log, notifier.DefaultSenders(&http.Client{Timeout: 30 * time.Second}, smtpFromEnv()))
+	notify.SetPublicURL(*publicURL)
 	hub := ui.NewHub()
 	svc.OnEvents(func(sc store.Scope, evs []store.Event) {
 		hub.Publish(sc.WorkspaceID)
