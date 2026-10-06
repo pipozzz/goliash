@@ -1340,7 +1340,7 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 	}
 	cfg = map[string]any{}
 	switch typ {
-	case "slack", "webhook", "discord", "ntfy":
+	case "slack", "webhook", "discord", "ntfy", "teams", "gchat":
 		u, ok := httpURL(field("url", "url"))
 		if !ok {
 			return nil, "Enter the full URL, starting with https://."

@@ -23,7 +23,7 @@ type Channel struct {
 }
 
 // ChannelTypes are the notification channel types the server can send to.
-var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email", "grafana", "push"}
+var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email", "grafana", "push", "teams", "gchat"}
 
 // CreateChannel adds a channel.
 func (s *Store) CreateChannel(ctx context.Context, c Channel) (Channel, error) {

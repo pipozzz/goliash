@@ -20,7 +20,7 @@ templ NotificationsPage(v NotificationsView) {
 				if len(v.Channels) == 0 {
 					<div class="empty">
 						<p><strong>No channels yet.</strong></p>
-						<p>A channel is where notifications go: Slack, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail or browsers (web push).</p>
+						<p>A channel is where notifications go: Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail or browsers (web push).</p>
 					</div>
 				} else {
 					<table>
@@ -67,6 +67,8 @@ templ NotificationsPage(v NotificationsView) {
 										<select name="type" data-channel-type>
 											<option value="slack">Slack (incoming webhook)</option>
 											<option value="discord">Discord (channel webhook)</option>
+											<option value="teams">Microsoft Teams (Workflows webhook)</option>
+											<option value="gchat">Google Chat (space webhook)</option>
 											<option value="telegram">Telegram (bot)</option>
 											<option value="ntfy">ntfy</option>
 											<option value="grafana">Grafana annotations</option>
@@ -76,7 +78,7 @@ templ NotificationsPage(v NotificationsView) {
 										</select>
 									</label>
 								</div>
-								<label data-for="slack discord webhook ntfy grafana">URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">Slack, Discord and webhook URLs, Grafana's address, or an ntfy topic such as https://ntfy.sh/my-goliash.</span></label>
+								<label data-for="slack discord teams gchat webhook ntfy grafana">URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">The webhook URL (Slack, Discord, a Teams workflow, a Google Chat space), Grafana's address, or an ntfy topic such as https://ntfy.sh/my-goliash.</span></label>
 								<label data-for="webhook">Signing secret<input name="secret" autocomplete="off"/><span class="hint">Webhook only: bodies are signed with HMAC-SHA256.</span></label>
 								<div class="row" data-for="telegram ntfy grafana">
 									<label>Token<input name="token" autocomplete="off"/><span class="hint">Telegram bot token, a Grafana service account token, or an ntfy access token (optional).</span></label>

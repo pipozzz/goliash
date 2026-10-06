@@ -50,7 +50,7 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
-- **Notifications with less noise.** Slack, Discord, Telegram, ntfy, webhooks (signed), e-mail and Grafana annotations, instant or as daily/weekly digests, with
+- **Notifications with less noise.** Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, webhooks (signed), e-mail, browser push and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze, and a scheduled upgrade plan.
 - **Ask your AI assistant.** A built-in MCP server: "what runs in prod?", "what should we upgrade first?", "what
   changed in the last two hours?", answered from live data.

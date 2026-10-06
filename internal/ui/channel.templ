@@ -17,7 +17,7 @@ templ ChannelPage(v ChannelEditView) {
 				<form class="stack" method="post" action={ templ.URL("/notifications/channels/" + v.ID) } autocomplete="off">
 					<label>Name<input name="name" value={ v.Name } required maxlength="100"/></label>
 					switch v.Type {
-						case "slack", "discord", "webhook", "ntfy", "grafana":
+						case "slack", "discord", "webhook", "ntfy", "grafana", "teams", "gchat":
 							<label>
 								URL
 								<input name="url" type="url" placeholder={ v.URLHint }/>

@@ -1,6 +1,6 @@
 ---
 title: Notifications
-description: 'Send new releases, drift and stale agents to Slack, Discord, Telegram, ntfy, Grafana, webhooks or e-mail, instantly or as digests.'
+description: 'Send new releases, drift and stale agents to Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana, webhooks, e-mail or browsers, instantly or as digests.'
 ---
 
 Notifications have two parts: **channels** (where messages go) and **rules** (which events go there, and how
@@ -10,7 +10,9 @@ often). Both are managed on the Notifications page or with the CLI.
 
 | Type | Settings |
 | --- | --- |
-| Slack | An incoming webhook URL. |
+| Slack | An incoming webhook URL. Mattermost and Rocket.Chat incoming webhooks take the same messages. |
+| Microsoft Teams | The URL of a Teams workflow: in the channel, **Workflows** → *Post to a channel when a webhook request is received*. |
+| Google Chat | A space's webhook URL: in the space, **Apps & integrations** → **Webhooks**. |
 | Discord | A channel webhook URL (Channel settings → Integrations → Webhooks). |
 | Telegram | A bot token from @BotFather and the chat ID the bot posts to. |
 | ntfy | A topic URL on ntfy.sh or your own server, e.g. `https://ntfy.sh/my-goliash`, and an optional access token. |
@@ -23,6 +25,8 @@ often). Both are managed on the Notifications page or with the CLI.
 goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
 goliash channel create -type webhook -name ci -url https://example.com/goliash -secret s3cret
 goliash channel create -type discord -name releases -url https://discord.com/api/webhooks/…
+goliash channel create -type teams -name platform -url https://prod-00.westeurope.logic.azure.com/workflows/…
+goliash channel create -type gchat -name sre -url "https://chat.googleapis.com/v1/spaces/…/messages?key=…&token=…"
 goliash channel create -type telegram -name team -token 123456:ABC… -chat-id -1001234567890
 goliash channel create -type ntfy -name phone -url https://ntfy.sh/my-goliash
 goliash channel create -type email -name oncall -to oncall@example.com
@@ -72,6 +76,10 @@ each item opens the matrix filtered to its service, and a button opens Goliash (
 - **Slack** gets Block Kit: a header and a count by kind for digests, one section per item with the versions
   (`1.5.0` → `1.6.0`), a *Release notes* button, and *Open in Goliash* at the end; up to 20 items, then a count.
 - **Discord** gets one coloured embed per item (up to ten; longer digests stay a list).
+- **Microsoft Teams** gets an Adaptive Card: the title and count, one container per item in the kind's colour
+  (attention, warning, good) with the versions, target and team, a *Release notes* button, and *Open in Goliash*.
+- **Google Chat** gets a card with the logo in its header, one line per item with its kind, the versions in colour and
+  a button (release notes, or the service in Goliash), and *Open in Goliash* at the bottom.
 - **E-mail** is HTML with a plain-text alternative, in the logo's colours, readable in any mail client.
 - **Web push** shows the kind's emoji and the service as the title, and the change as the text.
 

@@ -39,6 +39,8 @@ func DefaultSenders(hc *http.Client, smtpCfg SMTPConfig) map[string]Sender {
 		"telegram": Telegram{HTTP: hc},
 		"ntfy":     Ntfy{HTTP: hc},
 		"grafana":  Grafana{HTTP: hc},
+		"teams":    Teams{HTTP: hc},
+		"gchat":    GoogleChat{HTTP: hc},
 	}
 }
 
