@@ -148,7 +148,7 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 		return 0, err
 	}
 	now := n.now()
-	msg := Message{Workspace: rt.workspace, Digest: true}
+	msg := Message{Workspace: rt.workspace, Digest: true, Link: n.link}
 	for _, u := range versions.Updates(o, acks, now) {
 		if u.Acked {
 			continue

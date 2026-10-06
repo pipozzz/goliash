@@ -13,8 +13,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
+	"mime/quotedprintable"
 	"net/http"
 	"net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -78,6 +82,7 @@ func (s Slack) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	if err != nil {
 		return err
 	}
+	// text is the fallback for notifications and clients without blocks.
 	var b strings.Builder
 	if msg.Digest || len(msg.Items) > 1 {
 		b.WriteString("*" + msg.Title() + "*\n")
@@ -87,7 +92,7 @@ func (s Slack) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	} else if len(msg.Items) == 1 {
 		b.WriteString(slackLine(msg.Items[0]))
 	}
-	body, _ := json.Marshal(map[string]any{"text": strings.TrimSpace(b.String()), "mrkdwn": true})
+	body, _ := json.Marshal(map[string]any{"text": truncate(strings.TrimSpace(b.String()), 3000), "mrkdwn": true, "blocks": slackBlocks(msg)})
 	return post(ctx, s.HTTP, url, body, nil)
 }
 
@@ -136,7 +141,8 @@ type SMTPConfig struct {
 	From     string
 }
 
-// Email sends plain-text mail through SMTP (STARTTLS when the server offers it).
+// Email sends mail through SMTP (STARTTLS when the server offers it): HTML with a
+// plain-text alternative.
 type Email struct{ Config SMTPConfig }
 
 // Send implements Sender.
@@ -148,12 +154,24 @@ func (e Email) Send(ctx context.Context, ch store.Channel, msg Message) error {
 			fmt.Fprintf(&body, "  %s\r\n", it.URL)
 		}
 	}
+	if u := openLink(msg); u != "" {
+		fmt.Fprintf(&body, "\r\nOpen in Goliash: %s\r\n", u)
+	}
 	body.WriteString("\r\n-- \r\nGoliash\r\n")
-	return e.SendPlain(ctx, ch, msg.Title(), body.String())
+	page, err := emailHTML(msg)
+	if err != nil {
+		return err
+	}
+	return e.send(ctx, ch, msg.Title(), body.String(), page)
 }
 
 // SendPlain sends a plain-text e-mail to the channel's recipients.
-func (e Email) SendPlain(_ context.Context, ch store.Channel, subject, text string) error {
+func (e Email) SendPlain(ctx context.Context, ch store.Channel, subject, text string) error {
+	return e.send(ctx, ch, subject, text, "")
+}
+
+// send mails text, and page as its HTML alternative when given.
+func (e Email) send(_ context.Context, ch store.Channel, subject, text, page string) error {
 	if e.Config.Addr == "" || e.Config.From == "" {
 		return ErrNoSMTP
 	}
@@ -169,9 +187,29 @@ func (e Email) SendPlain(_ context.Context, ch store.Channel, subject, text stri
 		}
 	}
 	var body strings.Builder
-	fmt.Fprintf(&body, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n",
-		e.Config.From, strings.Join(cfg.To, ", "), strings.NewReplacer("\r", " ", "\n", " ").Replace(subject))
-	body.WriteString(text)
+	fmt.Fprintf(&body, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMIME-Version: 1.0\r\n",
+		e.Config.From, strings.Join(cfg.To, ", "), mime.QEncoding.Encode("utf-8", strings.NewReplacer("\r", " ", "\n", " ").Replace(subject)),
+		time.Now().Format(time.RFC1123Z))
+	if page == "" {
+		body.WriteString("Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n")
+		body.WriteString(quoted(text))
+	} else {
+		mw := multipart.NewWriter(&body)
+		fmt.Fprintf(&body, "Content-Type: multipart/alternative; boundary=%s\r\n\r\n", mw.Boundary())
+		for _, part := range []struct{ typ, content string }{{"text/plain", text}, {"text/html", page}} {
+			w, err := mw.CreatePart(textproto.MIMEHeader{
+				"Content-Type":              {part.typ + "; charset=utf-8"},
+				"Content-Transfer-Encoding": {"quoted-printable"},
+			})
+			if err != nil {
+				return err
+			}
+			_, _ = io.WriteString(w, quoted(part.content))
+		}
+		if err := mw.Close(); err != nil {
+			return err
+		}
+	}
 
 	var auth smtp.Auth
 	if e.Config.Username != "" {
@@ -179,4 +217,13 @@ func (e Email) SendPlain(_ context.Context, ch store.Channel, subject, text stri
 		auth = smtp.PlainAuth("", e.Config.Username, e.Config.Password, host)
 	}
 	return smtp.SendMail(e.Config.Addr, auth, e.Config.From, cfg.To, []byte(body.String()))
+}
+
+// quoted encodes s as quoted-printable, which keeps lines short and non-ASCII safe.
+func quoted(s string) string {
+	var b strings.Builder
+	w := quotedprintable.NewWriter(&b)
+	_, _ = io.WriteString(w, s)
+	_ = w.Close()
+	return b.String()
 }

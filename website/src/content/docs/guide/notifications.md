@@ -30,6 +30,19 @@ goliash channel test -name ops
 
 Channel URLs and secrets are encrypted at rest and never shown in full in the UI.
 
+## How messages look
+
+Every item carries its kind, as an emoji and a colour: a new release ✨, drift ⚠️, an end of life ⛔, a resolved
+drift ✅, an update ⬆️ coloured by urgency, a silent agent 🔌. With `GOLIASH_PUBLIC_URL` set, messages link back:
+each item opens the matrix filtered to its service, and a button opens Goliash (the Updates page for an upgrade plan).
+
+- **Slack** gets Block Kit: a header and a count by kind for digests, one section per item with the versions
+  (`1.5.0` → `1.6.0`), a *Release notes* button, and *Open in Goliash* at the end; up to 20 items, then a count.
+- **Discord** gets one coloured embed per item (up to ten; longer digests stay a list).
+- **E-mail** is HTML with a plain-text alternative, in the logo's colours, readable in any mail client.
+
+![A digest e-mail: a navy header with the count by kind, one card per item with a coloured edge, the versions and a button back to Goliash](../../../assets/notify-email.png)
+
 ## Rules
 
 A rule sends some event types to a channel, optionally only for some services, owners or environments, or only for
@@ -95,6 +108,7 @@ curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/
 {
   "workspace": "Default",
   "digest": false,
+  "link": "https://goliash.example.com",
   "items": [{
     "type": "new_release",
     "service": "payments-api",
@@ -109,7 +123,7 @@ curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/
 }
 ```
 
-`environment`, `target` and `url` are present when they apply. With a secret, the request carries
+`environment`, `target` and `url` are present when they apply; `link` is the server's public URL. With a secret, the request carries
 `X-Goliash-Timestamp` and `X-Goliash-Signature: sha256=<hex>`, where the hex is
 `HMAC-SHA256(secret, timestamp + "." + body)`. Check the signature and reject old timestamps:
 

@@ -54,10 +54,19 @@ func (d Discord) Send(ctx context.Context, ch store.Channel, msg Message) error 
 	if title != "" {
 		text = "**" + title + "**\n" + strings.Join(prefix(body, "• "), "\n")
 	}
-	payload, _ := json.Marshal(map[string]any{
+	m := map[string]any{
 		"username": "Goliash", "content": truncate(text, 2000),
 		"allowed_mentions": map[string]any{"parse": []string{}}, // never ping @everyone from a release name
-	})
+	}
+	// Up to ten items go as coloured embeds, one each, under the digest's title;
+	// longer digests stay a list.
+	if len(msg.Items) <= 10 {
+		m["content"], m["embeds"] = "", discordEmbeds(msg)
+		if title != "" {
+			m["content"] = "**" + title + "**"
+		}
+	}
+	payload, _ := json.Marshal(m)
 	return post(ctx, d.HTTP, u, payload, nil)
 }
 
