@@ -97,6 +97,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		files.ServeHTTP(w, r)
 	}))
+	mux.HandleFunc("GET /sw.js", s.serviceWorker)
+	mux.HandleFunc("GET /manifest.webmanifest", s.manifest)
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
 	mux.HandleFunc("GET /setup", s.setupPage)
@@ -140,6 +142,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /notifications", s.page(v, s.notifications))
 	mux.Handle("POST /notifications/channels", s.page(a, s.createChannel))
 	mux.Handle("POST /notifications/channels/{id}/test", s.page(a, s.testChannel))
+	mux.Handle("POST /notifications/channels/{id}/push", s.page(v, s.pushSubscribe))
+	mux.Handle("POST /notifications/channels/{id}/push/delete", s.page(v, s.pushUnsubscribe))
+	mux.Handle("POST /ui/push/status", s.page(v, s.pushStatus))
 	mux.Handle("POST /notifications/rules", s.page(m, s.createRule))
 	mux.Handle("POST /notifications/channels/{id}/delete", s.page(a, s.deleteChannel))
 	mux.Handle("GET /notifications/channels/{id}", s.page(a, s.editChannel))
@@ -1207,6 +1212,10 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 	if err != nil {
 		return err
 	}
+	pushAll, pushMine, err := s.store.PushCounts(ctx, p.Scope, p.User.ID)
+	if err != nil {
+		return err
+	}
 	chName := map[string]string{}
 	for _, c := range chans {
 		chName[c.ID] = c.Name
@@ -1225,7 +1234,13 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 				detail = u.Host // never show the full webhook URL: it is a secret
 			}
 		}
-		v.Channels = append(v.Channels, ChannelView{ID: c.ID, Name: c.Name, Type: c.Type, Detail: detail})
+		cv := ChannelView{ID: c.ID, Name: c.Name, Type: c.Type, Detail: detail}
+		if c.Type == "push" {
+			cv.Browsers, cv.Mine = pushAll[c.ID], pushMine[c.ID]
+			cv.Detail = plural(cv.Browsers, "browser", "browsers")
+			v.PushKey = s.pushKey(r)
+		}
+		v.Channels = append(v.Channels, cv)
 	}
 	rules, err := s.store.ListRules(ctx, p.Scope)
 	if err != nil {
@@ -1340,6 +1355,8 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter the bot token and the chat ID."
 		}
 		cfg["bot_token"], cfg["chat_id"] = token, chat
+	case "push":
+		// Nothing to set: browsers subscribe from the Notifications page.
 	case "email":
 		var to []string
 		for _, a := range strings.Split(r.FormValue("to"), ",") {

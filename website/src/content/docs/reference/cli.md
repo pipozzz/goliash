@@ -21,7 +21,7 @@ Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|webhook|email -name NAME [-url URL] [-secret S] [-to a@b,c@d]
+  goliash channel create -type slack|webhook|email|push -name NAME [-url URL] [-secret S] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]

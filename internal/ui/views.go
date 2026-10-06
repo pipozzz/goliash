@@ -645,10 +645,12 @@ type AgentPageView struct {
 
 // ChannelView is one notification channel.
 type ChannelView struct {
-	ID     string
-	Name   string
-	Type   string
-	Detail string
+	ID       string
+	Name     string
+	Type     string
+	Detail   string
+	Browsers int // web push: subscribed browsers, and the person's own
+	Mine     int
 }
 
 // RuleView is one notification rule.
@@ -668,6 +670,7 @@ type NotificationsView struct {
 	Channels []ChannelView
 	Rules    []RuleView
 	SMTP     bool
+	PushKey  string // the VAPID public key, when there is a push channel
 }
 
 // UserView is one user row.

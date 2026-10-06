@@ -58,6 +58,12 @@ targets:
 
 Unknown fields are rejected, so a typo stops the server instead of being ignored.
 
+### Web push
+
+| Variable | Meaning |
+| --- | --- |
+| `GOLIASH_PUSH_SUBJECT` | Who sends, for push services: an `https://` URL or a `mailto:` address. Default: `GOLIASH_PUBLIC_URL` when it is https |
+
 ### E-mail
 
 | Variable | Meaning |

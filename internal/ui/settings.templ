@@ -14,10 +14,13 @@ templ NotificationsPage(v NotificationsView) {
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Channels</h2></div>
+				if v.PushKey != "" {
+					<div class="push-note" data-push-key={ v.PushKey } hidden></div>
+				}
 				if len(v.Channels) == 0 {
 					<div class="empty">
 						<p><strong>No channels yet.</strong></p>
-						<p>A channel is where notifications go: Slack, Discord, Telegram, ntfy, Grafana annotations, a webhook or e-mail.</p>
+						<p>A channel is where notifications go: Slack, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail or browsers (web push).</p>
 					</div>
 				} else {
 					<table>
@@ -29,6 +32,12 @@ templ NotificationsPage(v NotificationsView) {
 									<td>{ c.Type }</td>
 									<td class="mono muted">{ c.Detail }</td>
 									<td class="num">
+										if c.Type == "push" {
+											<div class="row-actions push-actions">
+												<button class="link" type="button" data-push="subscribe" data-channel={ c.ID } hidden>Notify this browser</button>
+												<button class="link" type="button" data-push="unsubscribe" data-channel={ c.ID } hidden>Stop on this browser</button>
+											</div>
+										}
 										if v.CanAdmin {
 											<div class="row-actions">
 												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/test") }>
@@ -63,6 +72,7 @@ templ NotificationsPage(v NotificationsView) {
 											<option value="grafana">Grafana annotations</option>
 											<option value="webhook">Webhook</option>
 											<option value="email">E-mail</option>
+											<option value="push">Web push (browsers)</option>
 										</select>
 									</label>
 								</div>
@@ -76,6 +86,7 @@ templ NotificationsPage(v NotificationsView) {
 									Recipients<input name="to" placeholder="oncall@example.com, ops@example.com"/>
 									<span class="hint">Comma-separated.</span>
 								</label>
+								<p class="hint" data-for="push">Nothing to set up here: after adding the channel, press <strong>Notify this browser</strong> next to it in each browser that should get its notifications (on phones, add Goliash to the home screen first).</p>
 								<details class="smtp" data-for="email" open?={ !v.SMTP }>
 									<summary>
 										if v.SMTP {
