@@ -25,7 +25,7 @@ templ NotificationsPage(v NotificationsView) {
 				} else {
 					<div class="scroll">
 						<table>
-							<thead><tr><th>Name</th><th>Type</th><th>Where</th><th></th></tr></thead>
+							<thead><tr><th>Name</th><th>Type</th><th>Where</th><th><span class="sr-only">Actions</span></th></tr></thead>
 							<tbody>
 								for _, c := range v.Channels {
 									<tr>
@@ -128,7 +128,7 @@ templ NotificationsPage(v NotificationsView) {
 									<th>Mode</th>
 									<th>Channel</th>
 									if v.CanMember {
-										<th></th>
+										<th><span class="sr-only">Actions</span></th>
 									}
 								</tr>
 							</thead>
@@ -193,7 +193,7 @@ templ NotificationsPage(v NotificationsView) {
 				<div class="panel-head"><h2>Recent deliveries</h2><span class="muted">the last { itoa(len(v.Deliveries)) }, newest first</span></div>
 				<div class="scroll">
 					<table class="deliveries">
-						<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th></th></tr></thead>
+						<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
 						<tbody>
 							for _, d := range v.Deliveries {
 								<tr>
@@ -244,7 +244,7 @@ templ SettingsPage(v SettingsView) {
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
 			<div class="scroll">
 				<table>
-					<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead>
+					<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th><span class="sr-only">Actions</span></th></tr></thead>
 					<tbody>
 						for _, u := range v.Users {
 							<tr>
@@ -381,7 +381,7 @@ templ SettingsPage(v SettingsView) {
 			if len(v.Tokens) > 0 {
 				<div class="scroll">
 					<table>
-						<thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+						<thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th>Expires</th><th><span class="sr-only">Actions</span></th></tr></thead>
 						<tbody>
 							for _, t := range v.Tokens {
 								<tr>

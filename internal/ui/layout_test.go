@@ -29,3 +29,15 @@ func TestTablesScrollOnPhones(t *testing.T) {
 		}
 	}
 }
+
+// Header cells name their column, if only for screen readers (an actions column says
+// so in a .sr-only span).
+func TestNoEmptyHeaderCells(t *testing.T) {
+	files, _ := filepath.Glob("*.templ")
+	for _, f := range files {
+		b, _ := os.ReadFile(f)
+		if strings.Contains(string(b), "<th></th>") {
+			t.Errorf("%s: an empty <th>", f)
+		}
+	}
+}

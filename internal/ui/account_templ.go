@@ -232,7 +232,7 @@ func AccountPage(v AccountView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div><div class=\"scroll\"><table><thead><tr><th>Device</th><th>Address</th><th>Signed in</th><th>With</th><th>Last active</th><th></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div><div class=\"scroll\"><table><thead><tr><th>Device</th><th>Address</th><th>Signed in</th><th>With</th><th>Last active</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

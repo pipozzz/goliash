@@ -45,7 +45,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Workspaces</h1><p class=\"sub\">Each workspace keeps its own agents, targets, services, history and people, e.g. one per client.</p></div></div><section class=\"panel\"><div class=\"scroll\"><table><thead><tr><th>Workspace</th><th>Slug</th><th class=\"num\">Targets</th><th class=\"num\">Services</th><th class=\"num\">Members</th><th></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Workspaces</h1><p class=\"sub\">Each workspace keeps its own agents, targets, services, history and people, e.g. one per client.</p></div></div><section class=\"panel\"><div class=\"scroll\"><table><thead><tr><th>Workspace</th><th>Slug</th><th class=\"num\">Targets</th><th class=\"num\">Services</th><th class=\"num\">Members</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

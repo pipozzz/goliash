@@ -243,7 +243,7 @@ func AgentsPage(v AgentsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if len(v.Envs) > 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"scroll\"><table class=\"envs\"><thead><tr><th>Name</th><th>Order</th><th>Targets</th><th></th></tr></thead> <tbody>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"scroll\"><table class=\"envs\"><thead><tr><th>Name</th><th>Order</th><th>Targets</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
