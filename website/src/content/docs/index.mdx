@@ -23,8 +23,11 @@ hero:
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
 import matrix from '../../assets/matrix.png';
+import updates from '../../assets/updates.png';
+import delivery from '../../assets/delivery.png';
+import target from '../../assets/target.png';
 
-<Image src={matrix} alt="The Goliash matrix: services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
+<Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
 
 Goliash watches what actually runs and tells you when a new release ships or when environments drift apart:
 staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
@@ -32,11 +35,22 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
 <CardGrid stagger>
   <Card title="One matrix for every orchestrator" icon="seti:docker">
     Kubernetes, Amazon ECS, Nomad, Docker Swarm, Docker hosts and plain Compose files side by side, per
-    environment, with replicas and rollouts in progress.
+    environment, with replicas and rollouts in progress. Grouped by application, team or status.
+  </Card>
+  <Card title="Applications, not just containers" icon="puzzle">
+    Workloads are grouped by the application they belong to, from Kubernetes, Helm and Compose labels or Nomad jobs.
+    Projects deployed with Dokploy or Nomploy come together under one name. A database image shared by several apps
+    is compared within each app, so different apps on different versions are not drift.
   </Card>
   <Card title="Upstream awareness" icon="rocket">
-    Tags from Docker Hub, GHCR, Quay, ECR and private registries, compared with semver policies. Release dates and
-    notes from GitHub, found through a built-in catalog or the image's own source label.
+    Tags from Docker Hub, GHCR, Quay, ECR, Google Artifact Registry, Azure ACR and private registries, compared
+    with semver policies. Moving tags resolved by digest: `1` is shown as `1 = 1.27.3`. Release dates and notes from
+    GitHub, found through a built-in catalog or the image's own source label.
+  </Card>
+  <Card title="Know what to upgrade first" icon="approve-check">
+    The Updates page lists every upgrade with its target version, most urgent first: end of life, then major, minor
+    and patch, production first. Put items off, copy the list as a checklist, or get it every Monday as an upgrade
+    plan in Slack or e-mail.
   </Card>
   <Card title="Drift that matters" icon="warning">
     An environment behind the one before it, a version behind upstream, a release cycle at its end of life, a
@@ -46,8 +60,8 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
     Every deploy, rollout, retag and removal, read from the runtime itself, not from pipelines.
   </Card>
   <Card title="Notifications with less noise" icon="comment-alt">
-    Slack, Discord, Telegram, ntfy, signed webhooks and e-mail, instant or as daily or weekly digests, with
-    acknowledgements.
+    Slack, Discord, Telegram, ntfy, signed webhooks, Grafana annotations and e-mail, instant or as daily or weekly
+    digests, with acknowledgements and a scheduled upgrade plan per team.
   </Card>
   <Card title="Ask your AI assistant" icon="star">
     An MCP server built in: Claude, Cursor and others answer "what runs in prod?" or "what changed in the last two
@@ -57,6 +71,22 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
     Collectors only read; the agent only connects out. One binary each, SQLite or PostgreSQL, signed releases.
   </Card>
 </CardGrid>
+
+## See it
+
+<Image src={updates} alt="The Updates page: tiles counting end-of-life, major and minor upgrades, and a list of services with the running version, the version to move to, why, and a Put off menu" class="screenshot" />
+
+**Updates** turns drift into a to-do list: what runs, what to move to (with release notes) and why, the most
+urgent first.
+
+<Image src={target} alt="A target page: a ring with the share of up-to-date workloads, deploys over 30 days, and workload cards grouped by application, coloured by how current they are" class="screenshot" />
+
+**Every target at a glance**: the share of workloads that are current, deploys over time, and every workload as a
+card, grouped by application.
+
+<Image src={delivery} alt="Delivery charts: deploys per week as stacked bars by environment, and open drift per day as smooth lines over gradient areas" class="screenshot" />
+
+**Delivery**: deploys per week, open drift per day, and what waits to be promoted.
 
 ## How it works
 

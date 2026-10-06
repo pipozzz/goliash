@@ -703,7 +703,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if canAck {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<td class=\"row-actions\"><details class=\"menu put-off\"><summary>Put off</summary><div class=\"menu-list\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<td class=\"update-actions\"><details class=\"menu put-off\"><summary>Put off</summary><div class=\"menu-list\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

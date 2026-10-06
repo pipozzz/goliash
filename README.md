@@ -33,15 +33,24 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 ## Features
 
 - **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, Nomad, Docker Swarm and plain Docker/Compose hosts, side by side, per
-  environment — with replicas, targets and rollouts in progress.
-- **Upstream awareness.** Tags from Docker Hub, GHCR, Quay, registry.k8s.io and private registries, compared with
-  per-service semver policies (track minor only, pin a major, ignore `-alpine` noise). A built-in catalog of popular
-  images, release dates and release-notes links from GitHub.
+  environment — with replicas, targets and rollouts in progress, grouped by application, team or status.
+- **Applications, not just containers.** Workloads grouped by application from Kubernetes, Helm and Compose labels or
+  Nomad jobs; Dokploy and Nomploy projects come together under one name. A database image shared by several apps is
+  compared within each app.
+- **Upstream awareness.** Tags from Docker Hub, GHCR, Quay, registry.k8s.io, ECR, Google Artifact Registry, Azure ACR
+  and private registries (credentials from the agent's environment, `docker login`, pull secrets or the pod's cloud
+  identity), compared with per-service semver policies (track minor only, pin a major, ignore `-alpine` noise).
+  Moving tags resolved by digest (`1 = 1.27.3`). A built-in catalog of popular images, release dates and
+  release-notes links from GitHub.
+- **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
+  production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
 - **Notifications with less noise.** Slack, Discord, Telegram, ntfy, webhooks (signed), e-mail and Grafana annotations, instant or as daily/weekly digests, with
-  dedup and ack/snooze.
+  dedup and ack/snooze, and a scheduled upgrade plan.
+- **Ask your AI assistant.** A built-in MCP server: "what runs in prod?", "what should we upgrade first?", "what
+  changed in the last two hours?", answered from live data.
 - **Built for teams and MSPs.** Workspaces per client, roles, magic-link and OIDC sign-in, audit log, REST API and
   Prometheus metrics.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
