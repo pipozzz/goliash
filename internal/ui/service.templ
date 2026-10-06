@@ -291,6 +291,21 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 		}
+		if v.CanMember {
+			<section class="panel">
+				<div class="panel-head"><h2>Rename</h2></div>
+				<div class="panel-body">
+					<form class="stack" method="post" action={ templ.URL("/services/" + v.Name + "/rename") }>
+						<div class="row">
+							<label>New name<input name="to" value={ v.Name } required maxlength="100"/></label>
+						</div>
+						<label class="check"><input type="checkbox" name="merge" value="1"/> If a service has that name, merge into it</label>
+						<p class="hint">A shared image first mapped under one project's name (cefiro-redis) is better called after the image (redis). Merging moves this service's workloads, history, mapping rules and acknowledgements to the other one and deletes this one.</p>
+						<div><button class="secondary" type="submit">Rename</button></div>
+					</form>
+				</div>
+			</section>
+		}
 		if v.CanAdmin && !v.Runs {
 			<section class="panel">
 				<div class="panel-head"><h2>Delete service</h2></div>

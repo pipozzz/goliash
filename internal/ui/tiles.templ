@@ -91,6 +91,12 @@ templ TilesPage(v TilesView) {
 // application drilled into marked; the card in front has its services.
 templ stack(v TilesView) {
 	{{ back := tilesHref(v, "") }}
+	{{ up := back }}
+	if v.Part != "" {
+		{{ family := v }}
+		{{ family.Part = "" }}
+		{{ up = tilesHref(family, v.App) }}
+	}
 	<div class="tile-stack">
 		<nav class="stack-back" aria-label={ "All " + groupWord(v.GroupBy) } style={ "--count:" + itoa(len(v.Parent)) }>
 			<a class="stack-back-label" href={ templ.URL(back) } hx-swap="innerHTML transition:true">‹ { "All " + groupWord(v.GroupBy) }</a>
@@ -102,16 +108,23 @@ templ stack(v TilesView) {
 					@miniLogo(v.AppItem.Dots)
 				}
 				<div class="stack-title">
-					<h2>{ v.App }</h2>
+					if v.Part != "" {
+						<h2><a class="stack-up" href={ templ.URL(up) } hx-swap="innerHTML transition:true">{ v.App }</a> <span class="muted">›</span> { v.PartName }</h2>
+					} else {
+						<h2>{ v.App }</h2>
+					}
 					<span class="muted">
 						{ itoa(v.AppItem.OK) } of { itoa(v.AppItem.Total) } up to date
-						if v.AppNote != "" {
+						if v.Parts {
+							{ " · " + plural(len(v.Items), "part", "parts") }
+						}
+						if v.AppNote != "" && v.Part == "" && !v.Parts {
 							{ " · " + v.AppNote }
 						}
 					</span>
 				</div>
 				@envStrip(v.AppItem.Envs)
-				<a class="stack-close" href={ templ.URL(back) } hx-swap="innerHTML transition:true" aria-label="Close" title="Back to all (Escape)">×</a>
+				<a class="stack-close" href={ templ.URL(up) } hx-swap="innerHTML transition:true" aria-label="Close" title="Back (Escape)">×</a>
 			</header>
 			if len(v.Items) == 0 {
 				<div class="empty">Nothing runs here in this environment.</div>

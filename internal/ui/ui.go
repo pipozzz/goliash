@@ -161,6 +161,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /notifications/channels/{id}", s.page(a, s.editChannel))
 	mux.Handle("POST /notifications/channels/{id}", s.page(a, s.updateChannel))
 	mux.Handle("POST /services/{name}/delete", s.page(a, s.deleteService))
+	mux.Handle("POST /services/{name}/rename", s.page(m, s.renameService))
 	mux.Handle("POST /workspaces/{id}/rename", s.page(a, s.renameWorkspace))
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
 	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
@@ -2128,4 +2129,44 @@ func (s *Server) setAppLabel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, "/settings", "notice", "Applications come from the well-known labels again, from each target's next snapshot.")
 	}
 	return back(w, r, "/settings", "notice", "Applications come from the "+key+" label first, from each target's next snapshot.")
+}
+
+// renameService renames a service, or merges it into the service that has the name
+// when asked to (a postgres image first mapped as "cefiro-db" becomes "postgres").
+func (s *Server) renameService(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	svc, err := s.store.GetServiceByName(ctx, p.Scope, r.PathValue("name"))
+	if err != nil {
+		return back(w, r, "/", "error", "Unknown service.")
+	}
+	path := serviceURL(svc.Name)
+	to := strings.TrimSpace(r.FormValue("to"))
+	if !serviceName.MatchString(to) {
+		return back(w, r, path, "error", "Service names use letters, digits, dots, dashes and underscores.")
+	}
+	if to == svc.Name {
+		return back(w, r, path, "notice", "That is its name already.")
+	}
+	err = s.store.RenameService(ctx, p.Scope, svc.ID, to)
+	switch {
+	case errors.Is(err, store.ErrExists):
+		if r.FormValue("merge") != "1" {
+			return back(w, r, path, "error", "A service named "+to+" exists. Tick “merge into it” to join "+svc.Name+" with it.")
+		}
+		into, err := s.store.GetServiceByName(ctx, p.Scope, to)
+		if err != nil {
+			return err
+		}
+		if err := s.store.MergeService(ctx, p.Scope, svc.ID, into.ID); err != nil {
+			return err
+		}
+		s.audit(ctx, p, "service.merge", "service", svc.Name, "into", to)
+		s.reevaluate(r, p)
+		return back(w, r, serviceURL(to), "notice", svc.Name+" was merged into "+to+": its workloads, history, rules and acknowledgements are "+to+"'s now. Notification rules naming "+svc.Name+" need the new name.")
+	case err != nil:
+		return err
+	}
+	s.audit(ctx, p, "service.rename", "service", svc.Name, "to", to)
+	s.reevaluate(r, p)
+	return back(w, r, serviceURL(to), "notice", svc.Name+" is "+to+" now. Notification rules naming "+svc.Name+" need the new name.")
 }

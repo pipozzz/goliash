@@ -46,23 +46,28 @@ func worse(a, b string) string {
 // TilesView is the tiles page.
 type TilesView struct {
 	Base
-	GroupBy    string
-	Env        string // "" for every environment, an environment's name, or "side" for one board per environment
-	Envs       []string
-	App        string // the application (team, status) drilled into; empty on the global board
-	AppNote    string
-	Items      []BoardItem
-	Parent     []BoardItem // drilled in: the global board, drawn behind as the way back and across
-	AppItem    BoardItem   // drilled in: the application's own cell
-	ParentCols int
-	Boards     []EnvBoard // Env == "side": one board per environment, same cells in the same places
-	Panels     []TileCell // the services' details (drilled in)
-	Counts     TileCounts
-	Cols       int
-	Rows       int // how many rows of cells the board has, for TV mode to fit the screen
-	TV         bool
-	Cycle      int // TV mode: seconds before the next environment; 0 stays put
-	Updated    string
+	GroupBy string
+	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
+	Envs    []string
+	App     string // the application (team, status) drilled into; empty on the global board
+	AppNote string
+	// Part is the part of App drilled into: an application made of several (Dokploy
+	// and Nomploy deploy each service of a project as "<project>-<service>"). PartName
+	// is how it is shown, without the project.
+	Part, PartName string
+	Parts          bool // the items are App's parts, not its services
+	Items          []BoardItem
+	Parent         []BoardItem // drilled in: the global board, drawn behind as the way back and across
+	AppItem        BoardItem   // drilled in: the application's own cell
+	ParentCols     int
+	Boards         []EnvBoard // Env == "side": one board per environment, same cells in the same places
+	Panels         []TileCell // the services' details (drilled in)
+	Counts         TileCounts
+	Cols           int
+	Rows           int // how many rows of cells the board has, for TV mode to fit the screen
+	TV             bool
+	Cycle          int // TV mode: seconds before the next environment; 0 stays put
+	Updated        string
 }
 
 // EnvBoard is one environment's board when they are drawn side by side.
@@ -219,6 +224,22 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 				rows, v.AppNote = grp.Rows, grp.Caption
 			}
 		}
+		// An application made of several parts shows its parts first, like the project it
+		// was deployed as; a part shows its services.
+		parts := map[string][]MatrixRow{}
+		for _, row := range rows {
+			parts[row.App] = append(parts[row.App], row)
+		}
+		v.Part = q.Get("part")
+		if v.GroupBy != "app" || len(parts) < 2 {
+			v.Part = ""
+		} else if _, ok := parts[v.Part]; ok {
+			rows, v.PartName = parts[v.Part], partName(v.App, v.Part)
+		} else {
+			v.Part, v.Parts = "", true
+			v.Items, v.Counts = partItems(v, parts, g.Envs, env)
+			rows = nil
+		}
 		for _, row := range rows {
 			c, running, runEnv := service(row, g.Envs, env)
 			if c.State == stNone {
@@ -250,6 +271,21 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 			apps[i].Span = 1
 			if apps[i].Current {
 				v.AppItem = apps[i]
+			}
+		}
+		if v.Part != "" { // the card is the part's: its own state, cells and environments
+			var own []MatrixRow
+			for _, grp := range groups {
+				for _, row := range grp.Rows {
+					if grp.Name == v.App && row.App == v.Part {
+						own = append(own, row)
+					}
+				}
+			}
+			if part, _ := appItems(TilesView{GroupBy: v.GroupBy}, []MatrixGroup{{Name: v.PartName, Rows: own}}, g.Envs, env); len(part) == 1 {
+				front := v.AppItem.VTFront
+				v.AppItem = part[0]
+				v.AppItem.VTFront = front
 			}
 		}
 		v.Parent, v.ParentCols = apps, boardColumns(len(apps))
@@ -298,6 +334,9 @@ func tilesHref(v TilesView, app string) string {
 	}
 	if app != "" {
 		q.Set("app", app)
+		if app == v.App && v.Part != "" {
+			q.Set("part", v.Part)
+		}
 	}
 	if v.TV {
 		q.Set("tv", "1")
@@ -564,4 +603,39 @@ func cycleLabel(env string) string {
 		return "side by side"
 	}
 	return env
+}
+
+// partName is how a part of an application is shown: without the project's name
+// ("velin-lawrio" in velin is lawrio).
+func partName(app, part string) string {
+	for _, sep := range []string{"-", "_", "."} {
+		if rest, ok := strings.CutPrefix(part, app+sep); ok && rest != "" {
+			return rest
+		}
+	}
+	return part
+}
+
+// partItems are the cells of an application's parts, each opening its services.
+func partItems(v TilesView, parts map[string][]MatrixRow, envs []EnvHeader, env string) ([]BoardItem, TileCounts) {
+	names := make([]string, 0, len(parts))
+	for name := range parts {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool { return partName(v.App, names[i]) < partName(v.App, names[j]) })
+	groups := make([]MatrixGroup, len(names))
+	for i, name := range names {
+		groups[i] = MatrixGroup{Name: name, Rows: parts[name]}
+	}
+	items, counts := appItems(TilesView{GroupBy: v.GroupBy, TV: v.TV}, groups, envs, env)
+	for i := range items {
+		member := items[i].Name
+		in := v
+		in.Part = member
+		items[i].Href = tilesHref(in, v.App)
+		items[i].Key = slug("part-" + member)
+		items[i].Name = partName(v.App, member)
+		items[i].Caption, items[i].VT, items[i].VTFront = "", "", ""
+	}
+	return items, counts
 }
