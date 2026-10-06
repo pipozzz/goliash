@@ -17,6 +17,11 @@ templ NotificationsPage(v NotificationsView) {
 				if v.PushKey != "" {
 					<div class="push-note" data-push-key={ v.PushKey } hidden></div>
 				}
+				if v.PushWarning {
+					<p class="push-note bad">
+						iPhones, iPads and Safari get no web push from this server: Apple's push service needs to know who sends, an https address. Set <code>GOLIASH_PUBLIC_URL</code> to the https address people open Goliash at (or <code>GOLIASH_PUSH_SUBJECT</code> to <code>mailto:you@example.com</code>) and restart. Chrome, Edge and Firefox work already.
+					</p>
+				}
 				if len(v.Channels) == 0 {
 					<div class="empty">
 						<p><strong>No channels yet.</strong></p>

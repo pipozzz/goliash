@@ -104,13 +104,12 @@ func (p WebPush) Send(ctx context.Context, ch store.Channel, msg Message) error 
 			urgent = true
 		}
 	}
-	var failed []string
-	sent := 0
+	var rep PushReport
 	for _, s := range subs {
 		var sub webpush.Subscription
 		sub.Endpoint = s.Endpoint
 		if err := json.Unmarshal([]byte(s.Keys), &sub.Keys); err != nil {
-			failed = append(failed, err.Error())
+			rep.Failed = append(rep.Failed, s.Label+": "+err.Error())
 			continue
 		}
 		err := webpush.Send(ctx, p.HTTP, keys, p.Subject, sub, webpush.Message{Payload: body, TTL: 24 * time.Hour, Urgent: urgent})
@@ -118,16 +117,41 @@ func (p WebPush) Send(ctx context.Context, ch store.Channel, msg Message) error 
 		case errors.Is(err, webpush.ErrGone):
 			// The browser unsubscribed or the subscription expired.
 			_, _ = p.Store.DeletePushSubscription(ctx, ch.Scope, ch.ID, s.Endpoint, "")
+			rep.Gone = append(rep.Gone, s.Label)
 		case err != nil:
-			failed = append(failed, s.Label+": "+err.Error())
+			rep.Failed = append(rep.Failed, s.Label+": "+err.Error())
 		default:
-			sent++
+			rep.Sent = append(rep.Sent, s.Label)
 		}
 	}
-	// Retry only when no browser got it; one failing browser must not repeat the
-	// message to all the others.
-	if sent == 0 && len(failed) > 0 {
-		return errors.New(strings.Join(failed, "; "))
+	if len(rep.Failed) == 0 && len(rep.Gone) == 0 {
+		return nil
 	}
-	return nil
+	return &rep
 }
+
+// PushReport says which browsers got a push and which did not, and why, when not all
+// did. Deliveries count as sent when one browser got it (retrying would repeat it to
+// the others); a test shows the whole report.
+type PushReport struct {
+	Sent   []string // browsers that got it
+	Failed []string // "browser: why"
+	Gone   []string // browsers whose subscription had ended; forgotten
+}
+
+func (r *PushReport) Error() string {
+	var parts []string
+	if len(r.Sent) > 0 {
+		parts = append(parts, "sent to "+strings.Join(r.Sent, ", "))
+	}
+	if len(r.Failed) > 0 {
+		parts = append(parts, "not delivered to "+strings.Join(r.Failed, "; "))
+	}
+	if len(r.Gone) > 0 {
+		parts = append(parts, strings.Join(r.Gone, ", ")+" had unsubscribed and was removed; press Notify this browser there again")
+	}
+	return strings.Join(parts, "; ")
+}
+
+// Delivered reports whether some browser got the push.
+func (r *PushReport) Delivered() bool { return len(r.Sent) > 0 }

@@ -56,14 +56,15 @@ func asset(name string) string { return "/static/" + name + "?v=" + assetVersion
 
 // Server renders the web UI.
 type Server struct {
-	store     *store.Store
-	auth      *auth.Auth
-	checker   *versions.Checker
-	notify    *notifier.Notifier
-	hub       *Hub
-	log       *slog.Logger
-	publicURL string
-	smtp      bool
+	store       *store.Store
+	auth        *auth.Auth
+	checker     *versions.Checker
+	notify      *notifier.Notifier
+	hub         *Hub
+	log         *slog.Logger
+	publicURL   string
+	smtp        bool
+	pushSubject string
 
 	favMu    sync.Mutex
 	favicons map[string]cachedFavicon // per workspace
@@ -79,13 +80,16 @@ type Options struct {
 	Log       *slog.Logger
 	PublicURL string
 	SMTP      bool // whether e-mail is configured
+	// PushSubject is who web pushes come from; empty when the server has no https
+	// address or mail sender to give, and Apple's push service refuses them.
+	PushSubject string
 }
 
 // New returns the UI server.
 func New(o Options) *Server {
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP,
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject,
 	}
 }
 
@@ -1261,6 +1265,7 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 			cv.Browsers, cv.Mine = pushAll[c.ID], pushMine[c.ID]
 			cv.Detail = plural(cv.Browsers, "browser", "browsers")
 			v.PushKey = s.pushKey(r)
+			v.PushWarning = s.pushSubject == ""
 		}
 		v.Channels = append(v.Channels, cv)
 	}
@@ -1459,7 +1464,10 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		if c.ID != r.PathValue("id") {
 			continue
 		}
-		if err := s.notify.SendTest(r.Context(), c, "Goliash"); err != nil {
+		var report *notifier.PushReport
+		if err := s.notify.SendTest(r.Context(), c, "Goliash"); errors.As(err, &report) {
+			return back(w, r, "/notifications", "error", "Test to "+c.Name+": "+report.Error()+".")
+		} else if err != nil {
 			return back(w, r, "/notifications", "error", "Test to "+c.Name+" failed: "+err.Error())
 		}
 		return back(w, r, "/notifications", "notice", "Test sent to "+c.Name+".")

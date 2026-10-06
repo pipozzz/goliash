@@ -204,7 +204,11 @@ func vapid(keys Keys, endpoint, subject string, now time.Time) (string, error) {
 		return "", err
 	}
 	header := b64.EncodeToString([]byte(`{"typ":"JWT","alg":"ES256"}`))
-	claims, _ := json.Marshal(map[string]any{"aud": u.Scheme + "://" + u.Host, "exp": now.Add(12 * time.Hour).Unix(), "sub": subject})
+	c := map[string]any{"aud": u.Scheme + "://" + u.Host, "exp": now.Add(12 * time.Hour).Unix()}
+	if subject != "" { // Google and Mozilla take none; Apple needs an https URL or a mailto:
+		c["sub"] = subject
+	}
+	claims, _ := json.Marshal(c)
 	signing := header + "." + b64.EncodeToString(claims)
 	digest := sha256.Sum256([]byte(signing))
 	r, s, err := ecdsa.Sign(rand.Reader, priv, digest[:])
