@@ -279,6 +279,30 @@
     if (icon && icon.getAttribute("href").indexOf("/ui/favicon.svg") === 0) icon.setAttribute("href", "/ui/favicon.svg?t=" + Date.now());
   });
 
+  // Arrow keys move between the cells of a tiles board, to the nearest cell in that
+  // direction (cells differ in size, so by geometry, not by index). Enter opens one.
+  document.addEventListener("keydown", function (e) {
+    const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    const d = dirs[e.key];
+    const from = d && e.target.closest && e.target.closest(".logo-board .board-cell");
+    if (!from || e.altKey || e.metaKey || e.ctrlKey) return;
+    const board = from.closest(".logo-board");
+    const r = from.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let best = null, bestScore = Infinity;
+    board.querySelectorAll(".board-cell").forEach(function (c) {
+      if (c === from) return;
+      const b = c.getBoundingClientRect();
+      const dx = b.left + b.width / 2 - cx, dy = b.top + b.height / 2 - cy;
+      const along = dx * d[0] + dy * d[1];
+      if (along <= 1) return; // not in that direction
+      const across = Math.abs(dx * d[1]) + Math.abs(dy * d[0]);
+      const score = along + across * 2;
+      if (score < bestScore) { best = c; bestScore = score; }
+    });
+    if (best) { e.preventDefault(); best.focus(); }
+  });
+
   // ---- every page load ----
 
   function init() {

@@ -682,7 +682,7 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .stack-title .muted { font-size: 13px; }
 .stack-close { font-size: 26px; line-height: 1; color: var(--muted); padding: 2px 10px 6px; border-radius: 10px; }
 .stack-close:hover { background: var(--surface-2); text-decoration: none; }
-.stack-front .logo-board { max-width: none; }
+.stack-front .logo-board:not(.compact) { max-width: calc(var(--cols) * 235px + 90px); }
 .stack-front > .tile-legend { justify-content: center; margin-top: 14px; }
 ::view-transition-group(*) { animation-duration: 0.32s; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
 @media (prefers-color-scheme: dark) { .stack-front { background: #121827; border-color: #222b40; } }
