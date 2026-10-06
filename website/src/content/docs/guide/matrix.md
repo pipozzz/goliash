@@ -52,7 +52,8 @@ work out of the box, and a Nomad job counts as an application of its own.
 
 **Ctrl+K** (⌘K on a Mac), or **Search** in the header, jumps to any service, application, target or page: type a
 few letters in order (`pgv` finds *cefiro-pgvector*), move with the arrow keys and press Enter. Services and
-applications carry their state's colour.
+applications carry their state's colour. With nothing typed, the last five places you picked come first, marked *recent* (kept in this
+browser only).
 
 **?** lists every keyboard shortcut. **g** followed by a letter goes straight to a page: **g m** the matrix, **g t**
 tiles, **g u** updates, **g i** the inbox, **g d** delivery, **g h** history, **g n** notifications.
