@@ -17,6 +17,7 @@ often). Both are managed on the Notifications page or with the CLI.
 | Grafana | Grafana's URL and a service account token with `annotations:write`; every item becomes an annotation. |
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients, and optionally the channel's own mail server (see below). |
+| Web push | Nothing: each person adds their browsers from the Notifications page (see below). |
 
 ```sh
 goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
@@ -44,6 +45,24 @@ GOLIASH_CHANNEL_SMTP_PASSWORD=… goliash channel create -type email -name oncal
   -smtp-addr smtp.example.com:587 -smtp-from goliash@example.com -smtp-username goliash
 ```
 
+### Web push
+
+A **Web push** channel sends to browsers: desktop notifications in Chrome, Edge, Firefox and Safari, and on phones.
+Add the channel, then press **Notify this browser** next to it in every browser that should get its notifications
+(the browser asks for permission once); **Stop on this browser** takes it off again. Anyone with access to the
+workspace can add their own browsers; the channel shows how many are on it. Rules pick the events as for any other
+channel, so a channel for releases and another for end-of-life drift each go only where they were added.
+
+A notification shows the item's kind, service and change, and opens Goliash on that service when clicked; digests
+show the first lines. Browsers that unsubscribed or expired are forgotten at the next message.
+
+- Goliash needs HTTPS (or `localhost`) for browsers to allow push; `GOLIASH_PUBLIC_URL` should be that address.
+- On iPhone and iPad (iOS 16.4 or later), add Goliash to the home screen first (Share → Add to Home Screen), then
+  open it from there and press **Notify this browser**.
+- Messages are encrypted for each browser (RFC 8291) and signed with a key pair the server makes on first use and
+  keeps with the other secrets (encrypted at rest with `GOLIASH_SECRET_KEY`). The server sends only to the push
+  services of browsers (Google, Mozilla, Apple, Microsoft).
+
 ## How messages look
 
 Every item carries its kind, as an emoji and a colour: a new release ✨, drift ⚠️, an end of life ⛔, a resolved
@@ -54,6 +73,7 @@ each item opens the matrix filtered to its service, and a button opens Goliash (
   (`1.5.0` → `1.6.0`), a *Release notes* button, and *Open in Goliash* at the end; up to 20 items, then a count.
 - **Discord** gets one coloured embed per item (up to ten; longer digests stay a list).
 - **E-mail** is HTML with a plain-text alternative, in the logo's colours, readable in any mail client.
+- **Web push** shows the kind's emoji and the service as the title, and the change as the text.
 
 ![A digest e-mail: a navy header with the count by kind, one card per item with a coloured edge, the versions and a button back to Goliash](../../../assets/notify-email.png)
 

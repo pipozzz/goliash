@@ -499,6 +499,78 @@
   }
   document.addEventListener("change", function (e) { if (e.target.matches("select[data-channel-type]")) channelFields(); });
 
+  // Web push: "Notify this browser" next to a push channel. The browser holds one push
+  // subscription (with the server's key), added to each push channel the person picks.
+  function pushNote(text, bad) {
+    const note = document.querySelector("[data-push-key]");
+    if (!note) return;
+    note.textContent = text;
+    note.className = "push-note " + (bad ? "bad" : "good");
+    note.hidden = !text;
+  }
+  function pushPost(url, body) {
+    return fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || "failed"); return d; }); });
+  }
+  function pushKeyBytes(b64) {
+    const s = atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64.length + 3) % 4));
+    return Uint8Array.from(s, function (c) { return c.charCodeAt(0); });
+  }
+  function pushSupported() {
+    return window.isSecureContext && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  }
+  async function pushSetup() {
+    const buttons = document.querySelectorAll("[data-push]");
+    if (!buttons.length) return;
+    if (window.Notification && Notification.permission === "denied") {
+      pushNote("Notifications are blocked for this site; allow them in the browser's site settings to get push notifications here.", true);
+    }
+    if (!pushSupported()) {
+      pushNote("This browser cannot get push notifications here: it needs HTTPS (or localhost), and on iPhone Goliash added to the home screen.", true);
+      return;
+    }
+    let on = [];
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) on = (await pushPost("/ui/push/status", { endpoint: sub.endpoint })).channels;
+    } catch (_) { /* treat as not subscribed */ }
+    buttons.forEach(function (b) {
+      const subscribed = on.indexOf(b.getAttribute("data-channel")) >= 0;
+      b.hidden = (b.getAttribute("data-push") === "subscribe") === subscribed;
+    });
+  }
+  async function pushToggle(b) {
+    const channel = b.getAttribute("data-channel");
+    const key = document.querySelector("[data-push-key]").getAttribute("data-push-key");
+    b.disabled = true;
+    pushNote("Asking this browser…", false);
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (b.getAttribute("data-push") === "subscribe") {
+        if (await Notification.requestPermission() !== "granted") throw new Error("Notifications are blocked for this site; allow them in the browser's site settings.");
+        const want = pushKeyBytes(key);
+        const have = sub && sub.options.applicationServerKey && new Uint8Array(sub.options.applicationServerKey);
+        if (sub && (!have || have.length !== want.length || have.some(function (x, i) { return x !== want[i]; }))) { await sub.unsubscribe(); sub = null; }
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
+        pushNote((await pushPost("/notifications/channels/" + channel + "/push", sub.toJSON())).notice, false);
+      } else if (sub) {
+        pushNote((await pushPost("/notifications/channels/" + channel + "/push/delete", { endpoint: sub.endpoint })).notice, false);
+      }
+    } catch (err) {
+      pushNote("This browser could not subscribe: " + (err.message || String(err)), true);
+    } finally {
+      b.disabled = false;
+      pushSetup();
+    }
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("button[data-push]");
+    if (b) { e.preventDefault(); pushToggle(b); }
+  });
+
   // ---- every page load ----
 
   // TV mode cycling: after its seconds, follow the next environment's link.
@@ -511,6 +583,7 @@
   }
 
   function init() {
+    pushSetup();
     channelFields();
     cycle();
     refreshTimes();

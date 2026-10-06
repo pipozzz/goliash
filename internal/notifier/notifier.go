@@ -411,6 +411,9 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 		sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		err = sender.Send(sendCtx, rt.channel, msg)
 		cancel()
+		if errors.Is(err, ErrNoBrowsers) {
+			err = nil // nobody to tell; not worth retrying
+		}
 	}
 	if err == nil {
 		if err := n.store.MarkSent(ctx, ids); err != nil {
