@@ -52,8 +52,10 @@ func TestPromotionsPerApp(t *testing.T) {
 	prod, _ := st.CreateEnvironment(ctx, sc, "prod", 30)
 	pg, _ := st.EnsureService(ctx, sc, "postgres")
 	for _, app := range []string{"webshop", "identity"} {
-		if _, err := st.OpenDrift(ctx, store.Drift{Scope: sc, ServiceID: pg.ID, App: app, EnvironmentID: prod.ID, Kind: "env",
-			Detail: json.RawMessage(`{"running":"15.6","other":"15.7","other_in":"staging"}`)}); err != nil {
+		if _, err := st.OpenDrift(ctx, store.Drift{
+			Scope: sc, ServiceID: pg.ID, App: app, EnvironmentID: prod.ID, Kind: "env",
+			Detail: json.RawMessage(`{"running":"15.6","other":"15.7","other_in":"staging"}`),
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}

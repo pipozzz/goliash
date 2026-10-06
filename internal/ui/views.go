@@ -478,8 +478,8 @@ type AckView struct {
 // PromotionView is a version waiting to be promoted.
 type PromotionView struct {
 	Service, App, From, To, Version, Running string
-	Since                               time.Time
-	Releases                            []ReleaseView
+	Since                                    time.Time
+	Releases                                 []ReleaseView
 }
 
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
