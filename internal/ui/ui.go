@@ -63,6 +63,9 @@ type Server struct {
 	log       *slog.Logger
 	publicURL string
 	smtp      bool
+
+	favMu    sync.Mutex
+	favicons map[string]cachedFavicon // per workspace
 }
 
 // Options wire the UI to the rest of the server.
@@ -1829,9 +1832,10 @@ func (s *Server) createWorkspace(w http.ResponseWriter, r *http.Request, p auth.
 
 // Hub fans out "something changed" to open browser streams, per workspace.
 type Hub struct {
-	mu    sync.Mutex
-	subs  map[string]map[chan struct{}]bool
-	relay func(workspaceID string) error
+	mu       sync.Mutex
+	subs     map[string]map[chan struct{}]bool
+	versions map[string]uint64 // per workspace, counts the changes this server heard of
+	relay    func(workspaceID string) error
 }
 
 // SetRelay sends changes through relay (to every server, this one included, which
@@ -1839,7 +1843,17 @@ type Hub struct {
 func (h *Hub) SetRelay(relay func(workspaceID string) error) { h.relay = relay }
 
 // NewHub returns an empty hub.
-func NewHub() *Hub { return &Hub{subs: map[string]map[chan struct{}]bool{}} }
+func NewHub() *Hub {
+	return &Hub{subs: map[string]map[chan struct{}]bool{}, versions: map[string]uint64{}}
+}
+
+// Version is how many changes of the workspace this server heard of: what is
+// computed from its data stays valid while it does not move.
+func (h *Hub) Version(workspaceID string) uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.versions[workspaceID]
+}
 
 // Subscribe returns a channel that receives a value after changes in the workspace.
 func (h *Hub) Subscribe(workspaceID string) (<-chan struct{}, func()) {
@@ -1869,6 +1883,7 @@ func (h *Hub) Publish(workspaceID string) {
 func (h *Hub) PublishLocal(workspaceID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.versions[workspaceID]++
 	for ch := range h.subs[workspaceID] {
 		select {
 		case ch <- struct{}{}:
