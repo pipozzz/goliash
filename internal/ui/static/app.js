@@ -362,6 +362,7 @@
   }
   function paletteGo(url) {
     paletteClose();
+    if (url === "#shortcuts") { shortcutsOpen(); return; }
     // A link clicked like any other: hx-boost swaps the page, sets the title and history.
     const a = document.createElement("a");
     a.href = url;
@@ -427,6 +428,53 @@
   });
   document.body.addEventListener("goliash:changed", function () { paletteData = null; });
   document.body.addEventListener("htmx:beforeSwap", function (e) { if (e.detail.target === document.body) paletteClose(); });
+
+  // Keyboard shortcuts: "?" lists them; "g" then a letter goes to a page, as on GitHub.
+  const goKeys = { m: ["/?view=table", "Matrix"], t: ["/tiles", "Tiles"], u: ["/updates", "Updates"], i: ["/inbox", "Inbox"], d: ["/delivery", "Delivery"], h: ["/events", "History"], n: ["/notifications", "Notifications"] };
+  let shortcuts = null;
+  let goPending = 0;
+  function shortcutsOpen() {
+    if (!shortcuts) {
+      const back = el("div", "palette-backdrop");
+      const box = el("div", "palette shortcuts");
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-label", "Keyboard shortcuts");
+      box.tabIndex = -1;
+      box.appendChild(el("h2", "shortcuts-title", "Keyboard shortcuts"));
+      const dl = el("dl", "shortcuts-list");
+      const rows = [
+        [[/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl", "K"], "Jump to a service, an application, a target or a page"],
+        [["/"], "Filter the matrix"],
+        [["←", "↑", "→", "↓"], "Move between tiles; Enter opens one"],
+        [["Esc"], "Close a panel, a card or a menu"],
+        [["?"], "This list"],
+      ];
+      Object.keys(goKeys).forEach(function (k) { rows.push([["g", k], "Go to " + goKeys[k][1]]); });
+      rows.forEach(function (r) {
+        const dt = el("dt");
+        r[0].forEach(function (k) { dt.appendChild(el("kbd", null, k)); });
+        dl.appendChild(dt);
+        dl.appendChild(el("dd", null, r[1]));
+      });
+      box.appendChild(dl);
+      box.appendChild(el("div", "palette-hint", "Esc to close"));
+      back.appendChild(box);
+      back.addEventListener("mousedown", function (e) { if (e.target === back) shortcutsClose(); });
+      shortcuts = { back: back, box: box };
+    }
+    document.body.appendChild(shortcuts.back);
+    shortcuts.box.focus();
+  }
+  function shortcutsClose() { if (shortcuts && shortcuts.back.isConnected) { shortcuts.back.remove(); return true; } return false; }
+  document.addEventListener("keydown", function (e) {
+    const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
+    if (e.key === "Escape" && shortcutsClose()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (typing || e.ctrlKey || e.metaKey || e.altKey || !document.querySelector("[data-palette]")) return;
+    if (e.key === "?") { e.preventDefault(); if (!shortcutsClose()) shortcutsOpen(); return; }
+    if (goPending && Date.now() - goPending < 1500 && goKeys[e.key]) { goPending = 0; e.preventDefault(); shortcutsClose(); paletteGo(goKeys[e.key][0]); return; }
+    goPending = e.key === "g" ? Date.now() : 0;
+  }, true);
+  document.body.addEventListener("htmx:beforeSwap", function (e) { if (e.detail.target === document.body) shortcutsClose(); });
 
   // ---- every page load ----
 

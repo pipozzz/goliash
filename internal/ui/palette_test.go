@@ -40,4 +40,7 @@ func TestPalette(t *testing.T) {
 	if _, body = get(t, e.as(store.RoleAdmin), e.srv.URL+"/ui/palette.json", nil); !strings.Contains(body, "Users and API tokens") {
 		t.Error("an admin misses the admin page")
 	}
+	if !strings.Contains(body, `"url":"#shortcuts"`) || !strings.Contains(body, "tv=1") {
+		t.Error("palette misses the shortcuts list or TV mode")
+	}
 }
