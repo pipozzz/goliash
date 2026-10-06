@@ -5,6 +5,7 @@ package ui
 
 import (
 	"compress/gzip"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +37,7 @@ func TestCompress(t *testing.T) {
 	}))
 	get := func(path, accept string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
 		if accept != "" {
 			req.Header.Set("Accept-Encoding", accept)
 		}
