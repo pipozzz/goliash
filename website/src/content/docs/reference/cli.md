@@ -19,7 +19,7 @@ Usage:
   goliash events [-service NAME] [-limit N]
   goliash drift                           open drifts
   goliash check [-service NAME]           check upstream registries now
-  goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
+  goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
   goliash channel create -type slack|webhook|email|push -name NAME [-url URL] [-secret S] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
@@ -28,6 +28,8 @@ Usage:
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash badges reset                    invalidate every badge address handed out
+  goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)
+  goliash team rename -from NAME -to NAME   rename a team on all its services
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
   goliash workspace create -name N -slug S [-envs]   a workspace per client or team
   goliash workspace list

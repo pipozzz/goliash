@@ -124,6 +124,8 @@ templ Layout(b Base) {
 									<span class="menu-label">Settings</span>
 								</summary>
 								<div class="menu-list" role="menu">
+									@menuLink(b, "apps", "/apps", "Applications")
+									@menuLink(b, "teams", "/teams", "Teams")
 									@menuLink(b, "agents", "/agents", "Agents and targets")
 									@menuLink(b, "notifications", "/notifications", "Notifications")
 									if b.CanAdmin {

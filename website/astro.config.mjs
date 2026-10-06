@@ -68,7 +68,7 @@ export default defineConfig({
         },
         {
           label: 'Guide',
-          items: [{ slug: 'guide/matrix' }, { slug: 'guide/versions' }, { slug: 'guide/notifications' }, { slug: 'guide/teams' }],
+          items: [{ slug: 'guide/matrix' }, { slug: 'guide/apps' }, { slug: 'guide/versions' }, { slug: 'guide/notifications' }, { slug: 'guide/teams' }],
         },
         {
           label: 'Reference',

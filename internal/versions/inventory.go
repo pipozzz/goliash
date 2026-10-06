@@ -30,6 +30,9 @@ func OverviewAt(ctx context.Context, st *store.Store, sc store.Scope, at time.Ti
 	if err != nil {
 		return Overview{}, err
 	}
+	if instances, err = namedInstances(ctx, st, sc, instances, services); err != nil {
+		return Overview{}, err
+	}
 	o := Overview{
 		Matrix: BuildMatrix(services, envs, targets, instances), Targets: targets,
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{},

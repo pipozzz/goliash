@@ -4,8 +4,11 @@
 package versions
 
 import (
+	"context"
 	"sort"
 	"strings"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 // AppName is an application as stored with a workload, and where the name came from.
@@ -60,4 +63,49 @@ func AppFamilies(apps []AppName) map[string]AppFamily {
 		}
 	}
 	return out
+}
+
+// App sources set by people rather than found in labels: a service placed in an
+// application by hand, and an application renamed or merged.
+const (
+	SourcePinned  = "set by hand"
+	SourceRenamed = "renamed"
+)
+
+// NameApps applies what people decided about applications to instances: a service
+// placed in one by hand goes there, and a renamed or merged application takes its
+// new name. Both are explicit, so neither is merged into a family afterwards.
+func NameApps(instances []store.Instance, services []store.Service, names map[string]string) {
+	pinned := map[string]string{}
+	for _, s := range services {
+		if s.App != "" {
+			pinned[s.ID] = s.App
+		}
+	}
+	if len(pinned) == 0 && len(names) == 0 {
+		return
+	}
+	for i := range instances {
+		in := &instances[i]
+		if a := pinned[in.ServiceID]; a != "" {
+			if to, ok := names[a]; ok {
+				a = to // a renamed application keeps the services placed in it
+			}
+			in.App, in.AppSource = a, SourcePinned
+			continue
+		}
+		if to, ok := names[in.App]; ok && in.App != "" {
+			in.App, in.AppSource = to, SourceRenamed
+		}
+	}
+}
+
+// namedInstances lists instances with people's application names applied.
+func namedInstances(ctx context.Context, st *store.Store, sc store.Scope, instances []store.Instance, services []store.Service) ([]store.Instance, error) {
+	names, err := st.AppNames(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	NameApps(instances, services, names)
+	return instances, nil
 }

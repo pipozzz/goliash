@@ -1,0 +1,179 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ AppsPage(v AppsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Applications</h1>
+				<p class="sub">
+					Found in workload labels (<code>app.kubernetes.io/part-of</code>, <code>goliash.app</code>, Helm, Compose, Nomad) or, without them, the namespace. Rename one, merge several into one, or give an application's services a team.
+				</p>
+			</div>
+			<a class="button secondary" href="/teams">Teams</a>
+		</div>
+		@nameLists(v.Names, v.Teams)
+		if len(v.Apps) == 0 {
+			<section class="panel">
+				<div class="empty">
+					<p><strong>No applications yet.</strong></p>
+					<p>Label workloads with <code>app.kubernetes.io/part-of</code> or <code>goliash.app</code>, or place a service in one on its page.</p>
+				</div>
+			</section>
+		}
+		<div class="app-list">
+			for _, a := range v.Apps {
+				<section class={ "panel app-card s-" + a.State }>
+					<div class="panel-head">
+						<h2><a href={ templ.URL(a.Tiles) }>{ a.Name }</a></h2>
+						<span class="muted">
+							{ itoa(a.OK) } of { plural(len(a.Services), "service", "services") } up to date
+						</span>
+					</div>
+					<div class="panel-body app-body">
+						<div class="app-meta">
+							if len(a.From) > 0 {
+								<span class="muted">From</span>
+								for _, m := range a.From {
+									<span class="app-from">
+										<code>{ m.Name }</code>
+										if v.CanMember {
+											<form method="post" action="/apps/rename" class="inline">
+												<input type="hidden" name="app" value={ m.Name }/>
+												<button class="link" type="submit" title={ "Show " + m.Name + " under its own name again" }>split out</button>
+											</form>
+										}
+									</span>
+								}
+							} else if a.Source != "" {
+								<span class="muted">Name from the { a.Source }</span>
+							}
+							if len(a.Teams) > 0 {
+								<span class="muted">· Team</span>
+								for _, t := range a.Teams {
+									<a class="badge neutral" href="/teams">{ t }</a>
+								}
+							} else {
+								<span class="muted">· no team</span>
+							}
+						</div>
+						<ul class="app-services">
+							for _, svc := range a.Services {
+								<li>
+									<span class={ "tcell " + svc.State } title={ tileLabel(svc.State) }></span>
+									<a href={ templ.URL(svc.URL) }>{ svc.Name }</a>
+									if svc.Pinned {
+										<span class="muted" title="Placed in this application by hand, on the service page">· set by hand</span>
+									}
+									if svc.Owner != "" {
+										<span class="muted">· { svc.Owner }</span>
+									}
+								</li>
+							}
+						</ul>
+						if v.CanMember {
+							<div class="app-actions">
+								<form method="post" action="/apps/rename" class="inline">
+									<input type="hidden" name="app" value={ a.Name }/>
+									<input name="to" list="app-names" placeholder={ "rename or merge into…" } aria-label={ "New name for " + a.Name } required/>
+									<button class="secondary" type="submit">Rename</button>
+								</form>
+								<form method="post" action="/apps/team" class="inline">
+									<input type="hidden" name="app" value={ a.Name }/>
+									<input name="team" list="team-names" placeholder="team for all its services" aria-label={ "Team for " + a.Name }/>
+									<button class="secondary" type="submit">Set team</button>
+								</form>
+							</div>
+						}
+					</div>
+				</section>
+			}
+		</div>
+	}
+}
+
+templ TeamsPage(v TeamsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Teams</h1>
+				<p class="sub">A service's team is its owner. Teams filter the matrix, tiles, updates, upgrade plans and notification rules.</p>
+			</div>
+			<a class="button secondary" href="/apps">Applications</a>
+		</div>
+		@nameLists(v.AppNames, teamNames(v.Teams))
+		<div class="app-list">
+			for _, t := range v.Teams {
+				<section class={ "panel app-card s-" + t.State }>
+					<div class="panel-head">
+						<h2><a href={ templ.URL("/tiles?group=team&app=" + t.Name) }>{ t.Name }</a></h2>
+						<span class="muted">{ itoa(t.OK) } of { plural(len(t.Services), "service", "services") } up to date</span>
+					</div>
+					<div class="panel-body app-body">
+						if len(t.Apps) > 0 {
+							<p class="app-meta"><span class="muted">Applications</span> { joinComma(t.Apps) }</p>
+						}
+						<ul class="app-services">
+							for _, svc := range t.Services {
+								<li><span class={ "tcell " + svc.State } title={ tileLabel(svc.State) }></span> <a href={ templ.URL(svc.URL) }>{ svc.Name }</a></li>
+							}
+						</ul>
+						if v.CanMember {
+							<div class="app-actions">
+								<form method="post" action="/teams/rename" class="inline">
+									<input type="hidden" name="team" value={ t.Name }/>
+									<input name="to" list="team-names" placeholder="new name" aria-label={ "New name for " + t.Name } required/>
+									<button class="secondary" type="submit">Rename</button>
+								</form>
+							</div>
+						}
+					</div>
+				</section>
+			}
+		</div>
+		if len(v.Unowned) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Without a team</h2><span class="muted">{ plural(len(v.Unowned), "service", "services") }</span></div>
+				<div class="panel-body">
+					<form method="post" action="/teams/assign" class="stack">
+						<ul class="app-services pick">
+							for _, svc := range v.Unowned {
+								<li>
+									<label class="check">
+										if v.CanMember {
+											<input type="checkbox" name="service" value={ svc.Name }/>
+										}
+										<span class={ "tcell " + svc.State } title={ tileLabel(svc.State) }></span>
+										{ svc.Name }
+									</label>
+								</li>
+							}
+						</ul>
+						if v.CanMember {
+							<div class="app-actions">
+								<input name="team" list="team-names" placeholder="team" aria-label="Team for the picked services" required/>
+								<button type="submit">Give them this team</button>
+							</div>
+						}
+					</form>
+				</div>
+			</section>
+		}
+	}
+}
+
+// nameLists are suggestions for application and team fields.
+templ nameLists(apps, teams []string) {
+	<datalist id="app-names">
+		for _, a := range apps {
+			<option value={ a }></option>
+		}
+	</datalist>
+	<datalist id="team-names">
+		for _, t := range teams {
+			<option value={ t }></option>
+		}
+	</datalist>
+}

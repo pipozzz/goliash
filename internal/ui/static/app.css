@@ -780,3 +780,22 @@ details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 /* Links inside running text are underlined, not told apart by colour alone. */
 p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
 @media (prefers-color-scheme: dark) { .delivery-status.failed { color: #ff6b6f; } }
+
+/* Applications and teams. */
+.app-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); gap: 16px; align-items: start; margin-bottom: 22px; }
+.app-card { border-top: 4px solid var(--line); }
+.app-card.s-current { border-top-color: var(--logo-cell); }
+.app-card.s-behind { border-top-color: color-mix(in srgb, var(--logo-cell) 45%, var(--logo-bg)); }
+.app-card.s-attention { border-top-color: var(--logo-warm); }
+.app-body { display: flex; flex-direction: column; gap: 10px; }
+.app-meta { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.app-from { display: inline-flex; gap: 6px; align-items: center; }
+.app-services { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.app-services li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.app-services .tcell { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.app-services.pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.app-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.app-actions form.inline { display: flex; gap: 6px; flex: 1 1 260px; margin: 0; }
+.app-actions input { flex: 1; min-width: 0; }
+.app-from form.inline, .app-meta form.inline { display: inline; margin: 0; }
+.app-meta .badge { font-size: 11.5px; }

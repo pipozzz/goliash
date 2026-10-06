@@ -215,6 +215,11 @@ templ ServicePage(v ServiceView) {
 									<input name="owner" value={ v.Owner } placeholder="team-payments"/>
 								</label>
 								<label>
+									Application
+									<input name="app" value={ v.App } placeholder="from its labels"/>
+									<span class="hint">Set it to place the service in one application whatever its labels say.</span>
+								</label>
+								<label>
 									Kind
 									<select name="kind">
 										<option value="own" selected?={ v.Kind != "third_party" }>own</option>

@@ -374,6 +374,10 @@ func groupCards(cards []WorkloadCard, by string) []WorkloadGroup {
 // appSourceLabel says where an application's name came from, briefly.
 func appSourceLabel(src string) string {
 	switch src {
+	case versions.SourcePinned:
+		return "set by hand"
+	case versions.SourceRenamed:
+		return "renamed"
 	case "app.kubernetes.io/part-of":
 		return "part-of label"
 	case "app.kubernetes.io/instance", "release":
