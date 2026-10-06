@@ -27,6 +27,9 @@ Each target has the settings object of its platform:
 {"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 
+Nomad: each job is a workload. A periodic or parameterized job is one workload (a cron job) that counts its
+running runs, rather than a new workload for every `backup/periodic-…` or `export/dispatch-…` run.
+
 Empty lists mean everything. `docker_host` takes `tcp://`, `https://` or `unix:///var/run/docker.sock`. The poll
 interval is at least 30 seconds and defaults to 300; Kubernetes also sends a snapshot shortly after a change.
 
