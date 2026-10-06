@@ -43,19 +43,22 @@ func worse(a, b string) string {
 // TilesView is the tiles page.
 type TilesView struct {
 	Base
-	GroupBy string
-	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
-	Envs    []string
-	App     string // the application (team, status) drilled into; empty on the global board
-	AppNote string
-	Items   []BoardItem
-	Boards  []EnvBoard // Env == "side": one board per environment, same cells in the same places
-	Panels  []TileCell // the services' details (drilled in)
-	Counts  TileCounts
-	Cols    int
-	Rows    int // how many rows of cells the board has, for TV mode to fit the screen
-	TV      bool
-	Updated string
+	GroupBy    string
+	Env        string // "" for every environment, an environment's name, or "side" for one board per environment
+	Envs       []string
+	App        string // the application (team, status) drilled into; empty on the global board
+	AppNote    string
+	Items      []BoardItem
+	Parent     []BoardItem // drilled in: the global board, drawn behind as the way back and across
+	AppItem    BoardItem   // drilled in: the application's own cell
+	ParentCols int
+	Boards     []EnvBoard // Env == "side": one board per environment, same cells in the same places
+	Panels     []TileCell // the services' details (drilled in)
+	Counts     TileCounts
+	Cols       int
+	Rows       int // how many rows of cells the board has, for TV mode to fit the screen
+	TV         bool
+	Updated    string
 }
 
 // EnvBoard is one environment's board when they are drawn side by side.
@@ -90,7 +93,10 @@ type BoardItem struct {
 	Dots                     []string  // its services' states (applications only)
 	Headline                 string    // its most urgent upgrade
 	OK, Total                int
-	Span                     int // 2 for a big application: a 2×2 cell
+	Span                     int    // 2 for a big application: a 2×2 cell
+	Current                  bool   // the application drilled into, on the board behind
+	VT                       string // its view-transition name, so the cell grows into its card
+	VTFront                  string
 }
 
 // TileEnv is a cell's state in one environment.
@@ -228,54 +234,18 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 			v.Items = append(v.Items, it)
 			v.Panels = append(v.Panels, c)
 		}
+	}
+	apps, appCounts := appItems(v, groups, g.Envs, env)
+	if v.App == "" {
+		v.Items, v.Counts = apps, appCounts
 	} else {
-		for _, grp := range groups {
-			it := BoardItem{Key: slug("app-" + grp.Name), Name: grp.Name, Caption: grp.Caption, State: stNone, Span: 1}
-			it.Href = tilesHref(v, grp.Name)
-			envStates := make([]string, len(g.Envs))
-			for i := range envStates {
-				envStates[i] = stNone
+		for i := range apps {
+			apps[i].Span = 1
+			if apps[i].Current {
+				v.AppItem = apps[i]
 			}
-			var worst TileCell
-			worstRunning := ""
-			worst.State = stNone
-			for _, row := range grp.Rows {
-				c, running, _ := service(row, g.Envs, env)
-				for i, e := range c.Envs {
-					envStates[i] = worse(envStates[i], e.State)
-				}
-				if c.State == stNone {
-					continue
-				}
-				it.Total++
-				if c.State == stCurrent {
-					it.OK++
-				}
-				it.Dots = append(it.Dots, c.State)
-				it.State = worse(it.State, c.State)
-				if stateRank[c.State] < stateRank[worst.State] {
-					worst, worstRunning = c, running
-				}
-				v.Counts.add(c.State)
-			}
-			if it.Total == 0 {
-				continue
-			}
-			sort.Slice(it.Dots, func(a, b int) bool { return stateRank[it.Dots[a]] < stateRank[it.Dots[b]] })
-			for i, st := range envStates {
-				it.Envs = append(it.Envs, TileEnv{Env: g.Envs[i].Name, State: st, Title: g.Envs[i].Name + ": " + tileLabel(st)})
-			}
-			if worst.State == stAttention || worst.State == stBehind {
-				it.Headline = worst.Service + " " + worstRunning
-				if worst.Latest != "" {
-					it.Headline += " → " + worst.Latest
-				}
-			}
-			if it.Total >= 4 && !v.TV {
-				it.Span = 2
-			}
-			v.Items = append(v.Items, it)
 		}
+		v.Parent, v.ParentCols = apps, boardColumns(len(apps))
 	}
 	if len(v.Items) < 6 { // a few applications: big cells would leave the board half empty
 		for i := range v.Items {
@@ -473,4 +443,64 @@ func tileGroup(by string) string {
 		return "app"
 	}
 	return by
+}
+
+// appItems are the global board's cells: one per application (team, status) with
+// its services' states in env (every environment when empty).
+func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) ([]BoardItem, TileCounts) {
+	var items []BoardItem
+	var counts TileCounts
+	for _, grp := range groups {
+		it := BoardItem{Key: slug("app-" + grp.Name), Name: grp.Name, Caption: grp.Caption, State: stNone, Span: 1}
+		it.Href = tilesHref(v, grp.Name)
+		it.Current = grp.Name == v.App
+		if v.App == "" {
+			it.VT = "tile-" + it.Key // on the global board: grows into the card it opens
+		}
+		it.VTFront = "tile-" + it.Key
+		envStates := make([]string, len(envs))
+		for i := range envStates {
+			envStates[i] = stNone
+		}
+		var worst TileCell
+		worstRunning := ""
+		worst.State = stNone
+		for _, row := range grp.Rows {
+			c, running, _ := service(row, envs, env)
+			for i, e := range c.Envs {
+				envStates[i] = worse(envStates[i], e.State)
+			}
+			if c.State == stNone {
+				continue
+			}
+			it.Total++
+			if c.State == stCurrent {
+				it.OK++
+			}
+			it.Dots = append(it.Dots, c.State)
+			it.State = worse(it.State, c.State)
+			if stateRank[c.State] < stateRank[worst.State] {
+				worst, worstRunning = c, running
+			}
+			counts.add(c.State)
+		}
+		if it.Total == 0 {
+			continue
+		}
+		sort.Slice(it.Dots, func(a, b int) bool { return stateRank[it.Dots[a]] < stateRank[it.Dots[b]] })
+		for i, st := range envStates {
+			it.Envs = append(it.Envs, TileEnv{Env: envs[i].Name, State: st, Title: envs[i].Name + ": " + tileLabel(st)})
+		}
+		if worst.State == stAttention || worst.State == stBehind {
+			it.Headline = worst.Service + " " + worstRunning
+			if worst.Latest != "" {
+				it.Headline += " → " + worst.Latest
+			}
+		}
+		if it.Total >= 4 && !v.TV {
+			it.Span = 2
+		}
+		items = append(items, it)
+	}
+	return items, counts
 }

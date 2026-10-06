@@ -20,19 +20,8 @@ templ TilesPage(v TilesView) {
 		} else {
 			<div class="head">
 				<div>
-					if v.App != "" {
-						<nav class="crumbs" aria-label="Breadcrumb">
-							<a href={ templ.URL(tilesHref(v, "")) }>{ "All " + groupWord(v.GroupBy) }</a>
-							<span aria-hidden="true">›</span>
-						</nav>
-						<h1>{ v.App }</h1>
-						if v.AppNote != "" {
-							<p class="sub">{ v.AppNote }</p>
-						}
-					} else {
-						<h1>Service tiles</h1>
-						<p class="sub">Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.</p>
-					}
+					<h1>Service tiles</h1>
+					<p class="sub">Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.</p>
 				</div>
 			</div>
 			<div class="toolbar tiles-toolbar">
@@ -67,9 +56,14 @@ templ TilesPage(v TilesView) {
 			hx-trigger="goliash:changed from:body, every 60s"
 			hx-select=".tiles-live"
 			hx-swap="outerHTML"
+			hx-disinherit="*"
 		>
-			@tileLegend(v.Counts)
-			if len(v.Items) == 0 {
+			if v.App == "" || v.Env == "side" {
+				@tileLegend(v.Counts)
+			}
+			if v.App != "" && v.Env != "side" {
+				@stack(v)
+			} else if len(v.Items) == 0 {
 				<section class="panel"><div class="empty">Nothing runs here yet.</div></section>
 			} else if v.Env == "side" {
 				<div class="env-boards">
@@ -93,13 +87,57 @@ templ TilesPage(v TilesView) {
 	}
 }
 
+// stack draws an application's board as a card laid over the global one: the global
+// board stays behind, dimmed, its cells still links to the other applications, the
+// application drilled into marked; the card in front has its services.
+templ stack(v TilesView) {
+	{{ back := tilesHref(v, "") }}
+	<div class="tile-stack">
+		<nav class="stack-back" aria-label={ "All " + groupWord(v.GroupBy) } style={ "--count:" + itoa(len(v.Parent)) }>
+			<a class="stack-back-label" href={ templ.URL(back) } hx-swap="innerHTML transition:true">‹ { "All " + groupWord(v.GroupBy) }</a>
+			@board(v.Parent, v.ParentCols, true)
+		</nav>
+		<section class={ "stack-front", "s-" + v.AppItem.State } style={ "view-transition-name:" + v.AppItem.VTFront } aria-label={ v.App }>
+			<header class="stack-head">
+				if len(v.AppItem.Dots) > 0 {
+					@miniLogo(v.AppItem.Dots)
+				}
+				<div class="stack-title">
+					<h2>{ v.App }</h2>
+					<span class="muted">
+						{ itoa(v.AppItem.OK) } of { itoa(v.AppItem.Total) } up to date
+						if v.AppNote != "" {
+							{ " · " + v.AppNote }
+						}
+					</span>
+				</div>
+				@envStrip(v.AppItem.Envs)
+				<a class="stack-close" href={ templ.URL(back) } hx-swap="innerHTML transition:true" aria-label="Close" title="Back to all (Escape)">×</a>
+			</header>
+			if len(v.Items) == 0 {
+				<div class="empty">Nothing runs here in this environment.</div>
+			} else {
+				@board(v.Items, v.Cols, false)
+			}
+			@tileLegend(v.Counts)
+		</section>
+	</div>
+}
+
 // board is the logo, enlarged: a navy rounded square of cells.
 templ board(items []BoardItem, cols int, compact bool) {
 	<section class={ "logo-board", templ.KV("compact", compact) } style={ "--cols:" + itoa(cols) }>
 		for _, it := range items {
 			<a
-				class={ "board-cell", "s-" + it.State, templ.KV("big", it.Span == 2) }
+				class={ "board-cell", "s-" + it.State, templ.KV("big", it.Span == 2), templ.KV("current", it.Current) }
 				href={ templ.URL(it.Href) }
+				hx-swap="innerHTML transition:true"
+				if it.VT != "" {
+					style={ "view-transition-name:" + it.VT }
+				}
+				if it.Current {
+					aria-current="true"
+				}
 				data-key={ it.Key }
 				data-state={ it.State }
 				title={ it.Name + ": " + tileLabel(it.State) }
@@ -113,11 +151,7 @@ templ board(items []BoardItem, cols int, compact bool) {
 				</span>
 				if !compact {
 					if len(it.Dots) > 0 {
-						<span class="board-dots" aria-hidden="true">
-							for _, d := range it.Dots {
-								<span class={ "dot", d }></span>
-							}
-						</span>
+						@miniLogo(it.Dots)
 					}
 					<span class="board-foot">
 						if it.Headline != "" {
@@ -133,6 +167,20 @@ templ board(items []BoardItem, cols int, compact bool) {
 			</a>
 		}
 	</section>
+}
+
+// miniLogo draws an application's services the way the logo draws its cells: a navy
+// rounded square holding one rounded cell per service, in a square grid.
+templ miniLogo(states []string) {
+	{{ side := tileGridSize(len(states)) }}
+	<span class="mini-logo" style={ "--side:" + itoa(side) } aria-hidden="true">
+		for _, st := range states {
+			<span class={ "mcell", st }></span>
+		}
+		for i := len(states); i < side*side; i++ {
+			<span class="mcell void"></span>
+		}
+	</span>
 }
 
 // envStrip is one small square per environment, in its state there.
