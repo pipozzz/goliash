@@ -22,7 +22,7 @@ const MaxAttempts = 6
 
 // Item is one thing to tell people about.
 type Item struct {
-	Type        string    `json:"type"` // an event type, or agent_stale
+	Type        string    `json:"type"` // an event type, agent_stale or agent_back
 	Service     string    `json:"service,omitempty"`
 	App         string    `json:"app,omitempty"` // a drift within one application of a shared service
 	Owner       string    `json:"owner,omitempty"`
@@ -246,6 +246,40 @@ func (n *Notifier) AgentStale(a store.Agent) {
 	}
 }
 
+// AgentBack notifies that a stale agent sends heartbeats again; a.LastSeenAt is its
+// heartbeat before it went silent. Rules that send stale agents get it, so the alarm
+// is followed by the all clear.
+func (n *Notifier) AgentBack(a store.Agent) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rules, err := n.store.ActiveRules(ctx, a.Scope)
+	if err != nil {
+		n.log.Error("queueing notifications failed", "err", err)
+		return
+	}
+	now := n.now()
+	last := a.LastSeenAt // the heartbeat before it went silent
+	if last.IsZero() {
+		last = a.StaleSince
+	}
+	item := Item{Type: "agent_back", Target: a.Name, At: now, Note: outFor(now.Sub(last))}
+	item.Text = Describe(item)
+	if err := n.enqueue(ctx, a.Scope, rules, item, "agent_back|"+a.ID+"|"+a.StaleSince.Format(time.RFC3339)); err != nil {
+		n.log.Error("queueing notifications failed", "err", err)
+	}
+}
+
+// outFor says how long an agent was missing: "12 min", "3 h", "2 days".
+func outFor(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%d min", max(1, int(d.Minutes())))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d h", int(d.Hours()))
+	}
+	return fmt.Sprintf("%d days", int(d.Hours()/24))
+}
+
 func (n *Notifier) enqueue(ctx context.Context, sc store.Scope, rules []store.Rule, item Item, dedup string) error {
 	payload, err := json.Marshal(item)
 	if err != nil {
@@ -274,6 +308,9 @@ func (n *Notifier) enqueue(ctx context.Context, sc store.Scope, rules []store.Ru
 }
 
 func matches(r store.Rule, f Filter, it Item) bool {
+	if it.Type == "agent_back" { // the all clear goes where the alarm went
+		return len(r.EventTypes) == 0 || contains(r.EventTypes, "agent_stale")
+	}
 	if len(r.EventTypes) > 0 && !contains(r.EventTypes, it.Type) {
 		return false
 	}
@@ -541,6 +578,8 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s%s (%s)", where, orDash(it.From), to, it.Note)
 	case "agent_stale":
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
+	case "agent_back":
+		return fmt.Sprintf("agent %s is back after about %s; its targets report again", it.Target, it.Note)
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s: %s %s %s", where, it.Type, it.From, it.To))
 }

@@ -233,8 +233,8 @@ func TestStaleAgents(t *testing.T) {
 
 		clock := time.Date(2026, 10, 2, 8, 0, 0, 0, time.UTC)
 		s.now = func() time.Time { return clock }
-		if wasStale, err := s.TouchAgent(ctx, f.ws.Scope(), f.agnt.ID); err != nil || wasStale {
-			t.Fatalf("touch: wasStale=%v err=%v", wasStale, err)
+		if since, err := s.TouchAgent(ctx, f.ws.Scope(), f.agnt.ID); err != nil || !since.IsZero() {
+			t.Fatalf("touch: staleSince=%v err=%v", since, err)
 		}
 
 		clock = clock.Add(11 * time.Minute)
@@ -249,8 +249,8 @@ func TestStaleAgents(t *testing.T) {
 			t.Fatalf("stale agent reported twice: %+v %v", again, err)
 		}
 
-		if wasStale, err := s.TouchAgent(ctx, f.ws.Scope(), f.agnt.ID); err != nil || !wasStale {
-			t.Fatalf("touch after stale: wasStale=%v err=%v", wasStale, err)
+		if since, err := s.TouchAgent(ctx, f.ws.Scope(), f.agnt.ID); err != nil || !since.Equal(clock) {
+			t.Fatalf("touch after stale: staleSince=%v err=%v", since, err)
 		}
 		got, err := s.GetAgent(ctx, f.ws.Scope(), f.agnt.ID)
 		if err != nil || !got.StaleSince.IsZero() || !got.LastSeenAt.Equal(clock) {

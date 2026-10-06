@@ -504,6 +504,7 @@ func serve(ctx context.Context, args []string) error {
 		})
 	}
 	go leader.Run(ctx, func(lctx context.Context) {
+		svc.OnAgentBack(notify.AgentBack)
 		go svc.WatchStale(lctx, time.Minute, notify.AgentStale)
 		go notify.Run(lctx, 15*time.Second)
 		go svc.RunProcessor(lctx, 10*time.Second)

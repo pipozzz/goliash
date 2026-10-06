@@ -43,6 +43,8 @@ func kindOf(it Item) kind {
 		return kind{"⬆️", urgencyColour(it.Note), "Update · " + it.Note}
 	case "agent_stale":
 		return kind{"🔌", "#e5484d", "Agent silent"}
+	case "agent_back":
+		return kind{"✅", "#30a46c", "Agent back"}
 	}
 	return kind{"👋", "#1b2a6b", "Goliash"}
 }

@@ -111,19 +111,21 @@ func (s *Store) RegisterAgent(ctx context.Context, sc Scope, id, version, hostna
 }
 
 // TouchAgent records that the agent was seen now (heartbeat) and clears its stale mark.
-// It reports whether the agent had been marked stale.
-func (s *Store) TouchAgent(ctx context.Context, sc Scope, id string) (wasStale bool, err error) {
+// It reports since when the agent had been marked stale, or zero when it was not.
+func (s *Store) TouchAgent(ctx context.Context, sc Scope, id string) (staleSince time.Time, err error) {
 	err = s.inTx(ctx, func(tx *sql.Tx) error {
-		var staleSince sql.NullTime
+		var since sql.NullTime
 		if err := s.queryRow(ctx, tx, `SELECT stale_since FROM agents
-			WHERE org_id = ? AND workspace_id = ? AND id = ?`, sc.OrgID, sc.WorkspaceID, id).Scan(&staleSince); err != nil {
+			WHERE org_id = ? AND workspace_id = ? AND id = ?`, sc.OrgID, sc.WorkspaceID, id).Scan(&since); err != nil {
 			return notFound(err)
 		}
-		wasStale = staleSince.Valid
+		if since.Valid {
+			staleSince = since.Time.UTC()
+		}
 		_, err := s.exec(ctx, tx, `UPDATE agents SET last_seen_at = ?, stale_since = NULL WHERE id = ?`, s.now(), id)
 		return err
 	})
-	return wasStale, err
+	return staleSince, err
 }
 
 // MarkStaleAgents marks agents last seen before cutoff as stale and returns those

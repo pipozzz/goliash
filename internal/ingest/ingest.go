@@ -30,6 +30,7 @@ var ErrUnknownTarget = errors.New("target is not assigned to this agent")
 
 // Service handles what agents send. It is safe for concurrent use.
 type Service struct {
+	onBack    func(store.Agent)
 	store     *store.Store
 	log       *slog.Logger
 	pending   chan struct{} // wakes the processor after a snapshot arrives
@@ -48,6 +49,10 @@ type Upstreams interface {
 
 // SetUpstreams connects the version checker. It must be called before serving.
 func (s *Service) SetUpstreams(u Upstreams) { s.upstreams = u }
+
+// OnAgentBack calls f when an agent marked stale sends a heartbeat again; the agent's
+// LastSeenAt is its heartbeat before it went silent, StaleSince when it was marked.
+func (s *Service) OnAgentBack(f func(store.Agent)) { s.onBack = f }
 
 // New returns a Service backed by st.
 func New(st *store.Store, log *slog.Logger) *Service {
@@ -155,12 +160,16 @@ func (s *Service) Snapshot(ctx context.Context, a store.Agent, snap agentproto.S
 // Heartbeat records that the agent is alive and stores collector health per target.
 // Statuses for targets not assigned to the agent are ignored.
 func (s *Service) Heartbeat(ctx context.Context, a store.Agent, hb agentproto.Heartbeat) (agentproto.HeartbeatResponse, error) {
-	wasStale, err := s.store.TouchAgent(ctx, a.Scope, a.ID)
+	staleSince, err := s.store.TouchAgent(ctx, a.Scope, a.ID)
 	if err != nil {
 		return agentproto.HeartbeatResponse{}, err
 	}
-	if wasStale {
-		s.log.InfoContext(ctx, "agent is back", "agent", a.Name, "agent_id", a.ID)
+	if !staleSince.IsZero() {
+		s.log.InfoContext(ctx, "agent is back", "agent", a.Name, "agent_id", a.ID, "stale_since", staleSince)
+		if s.onBack != nil {
+			a.StaleSince = staleSince
+			s.onBack(a)
+		}
 	}
 	for _, c := range hb.Collectors {
 		lastError := ""

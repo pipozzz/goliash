@@ -239,3 +239,32 @@ func TestSidecarChangesAreQuiet(t *testing.T) {
 		t.Fatalf("sidecar upgrade produced events: %s", describe(evs))
 	}
 }
+
+// A stale agent's next heartbeat reports it back, with its heartbeat before the gap.
+func TestAgentBack(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	sc := w.ws.Scope()
+	var back []store.Agent
+	w.svc.OnAgentBack(func(a store.Agent) { back = append(back, a) })
+
+	if _, err := w.svc.Heartbeat(ctx, w.agent, agentproto.Heartbeat{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(back) != 0 {
+		t.Fatal("a live agent reported back")
+	}
+	if _, err := w.st.MarkStaleAgents(ctx, time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := w.st.GetAgent(ctx, sc, w.agent.ID) // as the API loads it for the next request
+	if _, err := w.svc.Heartbeat(ctx, before, agentproto.Heartbeat{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(back) != 1 || back[0].StaleSince.IsZero() || back[0].LastSeenAt.IsZero() {
+		t.Fatalf("back %+v", back)
+	}
+	if _, err := w.svc.Heartbeat(ctx, before, agentproto.Heartbeat{}); err != nil || len(back) != 1 {
+		t.Fatal("reported back twice")
+	}
+}

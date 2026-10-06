@@ -265,6 +265,19 @@ func TestAgentStale(t *testing.T) {
 	if slack.count() != 1 || !strings.Contains(slack.last(), "agent eu-cluster has not sent a heartbeat") {
 		t.Fatalf("stale agent: %d", slack.count())
 	}
+
+	// Back 30 minutes later: the all clear goes where the alarm went, and only there.
+	releases := newSink(t)
+	e.rule(e.channel("slack", "releases", map[string]any{"url": releases.srv.URL}), "instant", []string{"new_release"}, Filter{})
+	e.clock = e.clock.Add(30 * time.Minute)
+	e.n.AgentBack(store.Agent{ID: "a1", Name: "eu-cluster", Scope: e.sc, StaleSince: e.clock.Add(-30 * time.Minute), LastSeenAt: e.clock.Add(-40 * time.Minute)})
+	_ = e.n.DeliverDue(context.Background())
+	if slack.count() != 2 || !strings.Contains(slack.last(), "agent eu-cluster is back after about 40 min") {
+		t.Fatalf("agent back: %d %s", slack.count(), slack.last())
+	}
+	if releases.count() != 0 {
+		t.Fatal("the all clear went to a rule without stale agents")
+	}
 }
 
 // fakeSMTP accepts one message and records it.

@@ -92,6 +92,9 @@ each item opens the matrix filtered to its service, and a button opens Goliash (
 A rule sends some event types to a channel, optionally only for some services, owners or environments, or only for
 releases of at least a given size.
 
+A rule that sends **stale agents** (an agent silent for 10 minutes) also sends the all clear when the agent is back:
+✅ *agent eu-cluster is back after about 25 min; its targets report again*.
+
 ```sh
 goliash notify create -channel ops -events new_release,drift_detected,agent_stale -mode daily -min-jump minor
 goliash notify create -channel oncall -events drift_detected -envs prod -mode instant
