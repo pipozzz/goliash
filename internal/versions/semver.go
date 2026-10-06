@@ -29,7 +29,7 @@ type Version struct {
 
 var (
 	versionRe = regexp.MustCompile(`^[vV]?(\d+(?:\.\d+){0,3})(?:[-_+](.+))?$`)
-	preRe     = regexp.MustCompile(`^(?i)(alpha|beta|rc|pre|preview|dev|snapshot|canary|nightly|next|m)[.]?\d*$`)
+	preRe     = regexp.MustCompile(`^(?i)(alpha|beta|rc|pre|preview|dev|snapshot|canary|nightly|next|m|testing|test|unstable|experimental|insiders)[.]?\d*$`)
 )
 
 // ParseVersion reads a tag as a version. ok is false for tags such as "latest",
@@ -333,10 +333,25 @@ func Candidates(tags []string, running string, p Policy) []Version {
 				continue
 			}
 		}
+		if filter == nil && !curOK && v.Variant != WordFlavour(running) {
+			continue // "alpine" is compared with 8.2.1-alpine, "latest" with plain releases
+		}
 		out = append(out, v)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Compare(out[j]) > 0 })
 	return out
+}
+
+// genericTags name a line of plain releases rather than a flavour.
+var genericTags = map[string]bool{"latest": true, "stable": true, "main": true, "mainline": true, "release": true, "lts": true, "": true}
+
+// WordFlavour is the flavour a tag that is no version stands for: "alpine" for
+// "alpine" (the newest 8.2.1-alpine), none for "latest" or "stable".
+func WordFlavour(tag string) string {
+	if genericTags[strings.ToLower(tag)] {
+		return ""
+	}
+	return tag
 }
 
 // Latest finds the newest acceptable versions among tags for a running tag.
