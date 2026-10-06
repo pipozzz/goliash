@@ -488,18 +488,6 @@ func faviconSVG(c TileCounts) string {
 	return b.String()
 }
 
-// cellLabel is what a screen reader says for a board cell.
-func cellLabel(it BoardItem) string {
-	s := it.Name + ", " + tileLabel(it.State)
-	if it.Total > 1 {
-		s += ", " + itoa(it.OK) + " of " + itoa(it.Total) + " services up to date"
-	}
-	if it.Headline != "" {
-		s += ", " + it.Headline
-	}
-	return s
-}
-
 // tileGroup is the tiles' grouping for a matrix grouping: tiles always group.
 func tileGroup(by string) string {
 	if by == "none" {

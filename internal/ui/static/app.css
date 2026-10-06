@@ -8,7 +8,7 @@
   --surface-2: #f8f9fb;
   --ink: #161b26;
   --muted: #5d6677;
-  --faint: #8a93a3;
+  --faint: #687184; /* 4.5:1 on white and on --bg, for small text */
   --line: #e1e4ea;
   --accent: #3157d5;      /* links, primary actions */
   --accent-soft: #e8edfc;
@@ -29,7 +29,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e1117; --surface: #161b24; --surface-2: #1b212c; --ink: #e6e9ef; --muted: #9aa3b4; --faint: #6d7688;
+    --bg: #0e1117; --surface: #161b24; --surface-2: #1b212c; --ink: #e6e9ef; --muted: #9aa3b4; --faint: #8b94a7;
     --line: #2a3140; --accent: #8aa4ff; --accent-soft: #1f2a4a; --ok: #6fcf9c; --ok-soft: #14291e;
     --warn: #f0b45e; --warn-soft: #2d2213; --bad: #f08a96; --bad-soft: #301920; --info: #b2a6ff; --info-soft: #241f42;
     --c0: #6f8dff; --c1: #b07dff; --c2: #34d1bd; --c3: #ffb444; --c4: #ff6b82; --c5: #4cc8f5;
@@ -277,7 +277,9 @@ textarea.mono { font-family: var(--mono); font-size: 12.5px; }
 .tile span { font-weight: 600; }
 .tile small { color: var(--muted); font-size: 12px; }
 .tile.warn strong { color: var(--warn); }
-.tile.zero { opacity: 0.65; }
+/* Empty tiles step back by colour, not opacity, so their text stays readable. */
+.tile.zero { background: transparent; }
+.tile.zero strong, .tile.zero span { color: var(--muted); }
 .tile.current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
 
 /* On phones the matrix becomes one card per service, environments listed inside it. */
@@ -396,7 +398,8 @@ details.advanced[open] > summary { margin-bottom: 10px; }
 .summary-tiles span { font-size: 12px; color: var(--muted); }
 .summary-tiles .warn strong { color: var(--warn); }
 .summary-tiles a:hover { text-decoration: none; box-shadow: inset 0 0 0 1px var(--accent); }
-.summary-tiles .muted-tile { opacity: .7; }
+.summary-tiles .muted-tile { background: transparent; }
+.summary-tiles .muted-tile strong { color: var(--muted); }
 .spark { display: flex; flex-direction: column; gap: 6px; }
 .spark-label { font-size: 12px; color: var(--muted); }
 .spark svg { width: 100%; height: 44px; }
@@ -586,7 +589,8 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 }
 .board-cell:hover, .board-cell:focus-visible { transform: translateY(-3px) scale(1.03); text-decoration: none; filter: brightness(1.06); }
 .board-cell.s-current { background: var(--logo-cell); color: var(--logo-bg); }
-.board-cell.s-behind { background: color-mix(in srgb, var(--logo-cell) 55%, var(--logo-bg)); color: #eef1ff; }
+.board-cell.s-behind { background: color-mix(in srgb, var(--logo-cell) 45%, var(--logo-bg)); color: #eef1ff; }
+.board-cell.s-behind .board-sub, .board-cell.s-behind .board-headline { opacity: 1; }
 .board-cell.s-unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); color: #c9d2ff; }
 .board-cell.s-attention { background: var(--logo-warm); color: #3b2300; box-shadow: 0 0 34px rgb(255 179 71 / 0.45); }
 .board-name { font-weight: 750; font-size: clamp(12px, 1.35vw, 17px); line-height: 1.15; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -609,7 +613,7 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .env-sq.unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); }
 .env-sq.attention { background: var(--logo-warm); }
 .env-sq.none { background: transparent; box-shadow: inset 0 0 0 1px rgb(138 164 255 / 0.35); }
-.board-cell.s-none { background: rgb(255 255 255 / 0.04); color: rgb(201 210 255 / 0.4); box-shadow: inset 0 0 0 1px rgb(138 164 255 / 0.12); }
+.board-cell.s-none { background: rgb(255 255 255 / 0.04); color: #9aa6d6; box-shadow: inset 0 0 0 1px rgb(138 164 255 / 0.12); }
 /* Boards side by side: one small logo per environment. */
 .env-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 26px; align-items: start; }
 .env-board h2 { text-align: center; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
@@ -629,7 +633,9 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 body.kiosk main { max-width: none; padding: 18px 28px; }
 .tv-head { display: flex; align-items: center; gap: 12px; font-size: 18px; margin-bottom: 18px; }
 .tv-head svg { width: 34px; height: 34px; }
-.tv-exit { font-size: 13px; opacity: 0.6; }
+.tv-title { font-size: inherit; font-weight: 700; margin: 0; }
+.tv-exit { font-size: 13px; color: var(--muted); }
+.tv-exit:hover { color: var(--accent); }
 body.kiosk .logo-board:not(.compact) { max-width: min(100%, calc((100vh - 150px) * var(--cols) / var(--rows, 3))); }
 body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px; }
 /* Tiles: focus, and small screens (names and env strips only). */
@@ -660,11 +666,10 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 /* Drilled in: the application's board is a card laid over the global board, which
    stays behind, dimmed and clickable, as the way back and across. */
 .tile-stack { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); align-items: start; }
-.stack-back {
-  position: relative; margin-top: 34px; padding: 14px 40px 14px 0; opacity: 0.62; transition: opacity 0.2s ease;
-  filter: saturate(0.85);
-}
-.stack-back:hover, .stack-back:focus-within { opacity: 1; filter: none; }
+.stack-back { position: relative; margin-top: 34px; padding: 14px 40px 14px 0; }
+/* The board behind is dimmed, its label is not (it must stay readable). */
+.stack-back > .logo-board { opacity: 0.78; transition: opacity 0.2s ease; filter: saturate(0.85); }
+.stack-back:hover > .logo-board, .stack-back:focus-within > .logo-board { opacity: 1; filter: none; }
 .stack-back-label { display: inline-block; margin: 0 0 8px 4px; font-weight: 600; font-size: 13px; }
 .stack-back .logo-board.compact { transform: rotate(-1.5deg); transform-origin: top left; }
 .stack-back .board-cell.current { outline: 3px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 7px rgb(255 255 255 / 0.25); z-index: 1; }
@@ -756,7 +761,7 @@ details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 .delivery-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
 .delivery-status.sent::before { background: #30a46c; }
 .delivery-status.retrying::before { background: #ffb347; }
-.delivery-status.failed { color: #e5484d; }
+.delivery-status.failed { color: #c9373c; }
 .delivery-status.failed::before { background: #e5484d; }
 .delivery-status.waiting::before { background: #8aa4ff; }
 .delivery-error { font-size: 11.5px; color: var(--muted); margin-top: 3px; max-width: 360px; overflow-wrap: anywhere; }
@@ -771,3 +776,7 @@ details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 .embed-badges p { margin: 0 0 4px; }
 .badge-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .badge-row img { display: block; }
+
+/* Links inside running text are underlined, not told apart by colour alone. */
+p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+@media (prefers-color-scheme: dark) { .delivery-status.failed { color: #ff6b6f; } }

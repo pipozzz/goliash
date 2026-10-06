@@ -8,7 +8,7 @@ templ TilesPage(v TilesView) {
 		if v.TV {
 			<div class="tv-head">
 				@logo()
-				<strong>{ v.Workspace }</strong>
+				<h1 class="tv-title">{ v.Workspace }</h1>
 				if v.App != "" {
 					<span class="muted">› { v.App }</span>
 				}
@@ -158,10 +158,9 @@ templ board(items []BoardItem, cols int, compact bool) {
 				data-key={ it.Key }
 				data-state={ it.State }
 				title={ it.Name + ": " + tileLabel(it.State) }
-				aria-label={ cellLabel(it) }
 			>
 				<span class="board-top">
-					<span class="board-name">{ shortName(it.Name) }</span>
+					<span class="board-name">{ shortName(it.Name) }<span class="sr-only">, { tileLabel(it.State) }</span></span>
 					if !compact {
 						@envStrip(it.Envs)
 					}

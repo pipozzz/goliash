@@ -490,7 +490,7 @@ func targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, from
 			return templ_7745c5c3_Err
 		}
 		if canAdmin {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<th></th>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<th><span class=\"sr-only\">Actions</span></th>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
