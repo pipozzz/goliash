@@ -4,8 +4,9 @@
 package ingest
 
 import (
-	"regexp"
 	"strings"
+
+	"github.com/pipozzz/goliash/internal/mapping"
 )
 
 // appLabels are the labels that name the application a workload belongs to, most
@@ -48,20 +49,9 @@ func workloadApp(labels map[string]string, custom, namespace, kind, name string)
 	return "", ""
 }
 
-var generatedSuffix = regexp.MustCompile(`^[a-z0-9]{6}$`)
-
-// withoutGeneratedSuffix drops the random suffix platforms such as Dokploy and
-// Nomploy add to the names they generate, "<project>-<service>-<6 random>"
-// (cefiro-db-wruzyw -> cefiro-db), so an application keeps one name across
-// redeploys and its parts can be told apart from other projects. Names with fewer
-// than three parts are left alone: "code-server" has no suffix to drop.
-func withoutGeneratedSuffix(name string) string {
-	parts := strings.Split(name, "-")
-	if len(parts) < 3 || !generatedSuffix.MatchString(parts[len(parts)-1]) {
-		return name
-	}
-	return strings.Join(parts[:len(parts)-1], "-")
-}
+// withoutGeneratedSuffix drops the random suffix platforms add to the names they
+// generate (see mapping.StableName).
+func withoutGeneratedSuffix(name string) string { return mapping.StableName(name) }
 
 // teamLabels name the team that owns a workload, most specific first.
 var teamLabels = []string{"goliash.team", "team", "owner", "app.kubernetes.io/team"}

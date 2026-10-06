@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -26,6 +27,7 @@ type AppFamily struct {
 // label someone chose: only those are merged. An explicit label stays as it is.
 var derivedSources = map[string]bool{
 	"nomad job": true, "namespace": true, "com.docker.compose.project": true, "com.docker.stack.namespace": true,
+	SourceWorkload: true,
 }
 
 // AppFamilies maps each application to its family. Applications from generated
@@ -82,6 +84,7 @@ func NameApps(instances []store.Instance, services []store.Service, names map[st
 			pinned[s.ID] = s.App
 		}
 	}
+	splitByWorkload(instances)
 	if len(pinned) == 0 && len(names) == 0 {
 		return
 	}
@@ -236,4 +239,50 @@ func agreedTeam(apps []string, teams map[string]string) string {
 		team = t
 	}
 	return team
+}
+
+// SourceWorkload marks an application named after the workload: several different
+// workloads (databases of different projects, say) run one service's image with
+// nothing else telling them apart.
+const SourceWorkload = "workload name"
+
+// splitByWorkload tells apart workloads of one service that nothing else does: when a
+// service runs under two or more workload names (generated suffixes aside) within an
+// application that only comes from a namespace, or none, each workload name becomes
+// its application. So goliash-db and cefiro-db, both postgres, are compared each on
+// its own instead of as one inconsistent service. Labels and people's choices win.
+func splitByWorkload(instances []store.Instance) {
+	weak := func(in store.Instance) bool { return in.App == "" || in.AppSource == "namespace" }
+	names := map[string]map[string]bool{} // service|app -> stable workload names
+	for _, in := range instances {
+		if in.ServiceID == "" || !weak(in) {
+			continue
+		}
+		k := in.ServiceID + "|" + in.App
+		if names[k] == nil {
+			names[k] = map[string]bool{}
+		}
+		names[k][StableName(in.WorkloadName)] = true
+	}
+	for i := range instances {
+		in := &instances[i]
+		if in.ServiceID == "" || !weak(*in) || len(names[in.ServiceID+"|"+in.App]) < 2 {
+			continue
+		}
+		in.App, in.AppSource = StableName(in.WorkloadName), SourceWorkload
+	}
+}
+
+var generatedSuffix = regexp.MustCompile(`^[a-z0-9]{6}$`)
+
+// StableName drops the random suffix platforms such as Nomad, Dokploy and Nomploy add
+// to the names they generate, "<project>-<service>-<6 random>" (cefiro-db-wruzyw ->
+// cefiro-db), so a workload keeps one name across redeploys. Names with fewer than
+// three parts are left alone: "code-server" has no suffix to drop.
+func StableName(name string) string {
+	parts := strings.Split(name, "-")
+	if len(parts) < 3 || !generatedSuffix.MatchString(parts[len(parts)-1]) {
+		return name
+	}
+	return strings.Join(parts[:len(parts)-1], "-")
 }

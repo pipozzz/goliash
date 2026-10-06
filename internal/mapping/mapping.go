@@ -160,3 +160,17 @@ func isSidecar(container string) bool {
 	}
 	return false
 }
+
+// StableName drops the random suffix platforms add to generated names (see
+// versions.StableName).
+func StableName(name string) string { return versions.StableName(name) }
+
+// ImagePattern is the rule pattern matching exactly one image repository (not, say,
+// postgres-exporter for postgres).
+func ImagePattern(repo string) string { return "^" + regexp.QuoteMeta(repo) + "$" }
+
+// WorkloadPattern is the rule pattern matching a workload by its stable name, with or
+// without the suffix a platform generates on each deploy.
+func WorkloadPattern(name string) string {
+	return "^" + regexp.QuoteMeta(StableName(name)) + "(-[a-z0-9]{6})?$"
+}

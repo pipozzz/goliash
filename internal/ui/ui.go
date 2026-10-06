@@ -1051,16 +1051,16 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil {
 		return err
 	}
-	rule := store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: regexp.QuoteMeta(repo), ServiceID: svc.ID}
+	rule := store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: mapping.ImagePattern(repo), ServiceID: svc.ID}
 	if onlyWorkload {
-		rule = store.MappingRule{Scope: p.Scope, Priority: 50, MatchType: "workload_name", Pattern: regexp.QuoteMeta(workloadName), ServiceID: svc.ID}
+		rule = store.MappingRule{Scope: p.Scope, Priority: 50, MatchType: "workload_name", Pattern: mapping.WorkloadPattern(workloadName), ServiceID: svc.ID}
 	}
 	if _, err := s.store.CreateMappingRule(ctx, rule); err != nil {
 		return err
 	}
 	mapped := 0
 	for _, it := range items {
-		if it.Repo != repo || (onlyWorkload && it.Workload != workloadName) {
+		if it.Repo != repo || (onlyWorkload && mapping.StableName(it.Workload) != mapping.StableName(workloadName)) {
 			continue
 		}
 		if err := s.store.MapInstances(ctx, p.Scope, it.TargetID, it.WorkloadID, svc.ID); err != nil {
@@ -1075,7 +1075,7 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 	s.audit(ctx, p, "mapping.create", "service", svc.Name, rule.MatchType, rule.Pattern)
 	msg := fmt.Sprintf("Mapped %s to %s. New workloads running %s map to it by themselves.", plural(mapped, "workload", "workloads"), svc.Name, repo)
 	if onlyWorkload {
-		msg = fmt.Sprintf("Mapped %s to %s. Workloads named %s keep mapping to it.", workloadName, svc.Name, workloadName)
+		msg = fmt.Sprintf("Mapped %s to %s. Workloads named %s keep mapping to it, also after a redeploy renames them.", workloadName, svc.Name, mapping.StableName(workloadName))
 	}
 	return back(w, r, "/inbox", "notice", msg)
 }
@@ -1087,7 +1087,7 @@ func (s *Server) inboxIgnore(w http.ResponseWriter, r *http.Request, p auth.Prin
 	}
 	if _, err := s.store.CreateMappingRule(r.Context(), store.MappingRule{
 		Scope: p.Scope, Priority: 0, MatchType: "ignore",
-		Pattern: regexp.QuoteMeta(repo),
+		Pattern: mapping.ImagePattern(repo),
 	}); err != nil {
 		return err
 	}
