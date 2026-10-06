@@ -77,7 +77,8 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 ![One board per environment, side by side: dev, staging and prod with the same applications in the same places](../../../assets/tiles-envs.png)
 
 - The board follows changes live, and a cell whose state changed pulses. **TV mode** hides the header and fills the
-  screen, for a wall display.
+  screen, for a wall display; **Cycle environments** there shows every environment in turn, then all of them side by
+  side, 30 seconds each (`?tv=1&cycle=60` for another pace).
 - The browser tab's icon is the logo coloured by the workspace: as many of its nine cells as needed turn warm or dim,
   so a pinned tab tells you when something needs attention.
 - The view you used last is remembered: `/` opens the tiles until you choose **Table** again.

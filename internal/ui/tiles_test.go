@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -131,5 +132,30 @@ func TestFaviconCached(t *testing.T) {
 	}
 	if v := e.hub.Version(e.ws.ID); v != 1 {
 		t.Errorf("hub version %d", v)
+	}
+}
+
+func TestTVCycle(t *testing.T) {
+	v := TilesView{GroupBy: "app", Envs: []string{"dev", "prod"}, TV: true, Cycle: 30}
+	var got []string
+	for range 5 {
+		next := nextCycle(v)
+		u, _ := url.Parse(next)
+		v.Env = u.Query().Get("env")
+		got = append(got, "["+v.Env+"]")
+		if u.Query().Get("cycle") != "30" || u.Query().Get("tv") != "1" {
+			t.Fatalf("next %s drops TV or cycling", next)
+		}
+	}
+	if strings.Join(got, "") != "[dev][prod][side][][dev]" {
+		t.Errorf("cycle %v", got)
+	}
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	if _, body := get(t, viewer, e.srv.URL+"/tiles?tv=1&cycle=5", nil); !strings.Contains(body, `data-cycle="10"`) || !strings.Contains(body, "Stop cycling") {
+		t.Error("cycling page misses its next link (at least 10 s)")
+	}
+	if _, body := get(t, viewer, e.srv.URL+"/tiles?cycle=30", nil); strings.Contains(body, "data-cycle") {
+		t.Error("cycling outside TV mode")
 	}
 }
