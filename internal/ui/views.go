@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
-	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
