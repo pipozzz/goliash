@@ -126,3 +126,21 @@ func TestRulePatterns(t *testing.T) {
 		}
 	}
 }
+
+// The "db" of one project maps to its own service; "db" in another project does not.
+func TestAppWorkloadRule(t *testing.T) {
+	m, errs := New([]store.MappingRule{{MatchType: "app_workload", Pattern: AppWorkloadPattern("velin-lawrio", "lawrio-db"), ServiceID: "lawrio-db"}})
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	pg := versions.ParseImage("postgres:17")
+	if d := m.Map(Workload{Name: "lawrio-db", App: "velin-lawrio"}, "db", pg); d.ServiceID != "lawrio-db" {
+		t.Errorf("lawrio's db: %+v", d)
+	}
+	if d := m.Map(Workload{Name: "lawrio-db-x8k2pq", App: "velin-lawrio"}, "db", pg); d.ServiceID != "lawrio-db" {
+		t.Errorf("lawrio's db after a redeploy: %+v", d)
+	}
+	if d := m.Map(Workload{Name: "lawrio-db", App: "velin-portal"}, "db", pg); d.ServiceID != "" {
+		t.Errorf("portal's db mapped to lawrio's: %+v", d)
+	}
+}

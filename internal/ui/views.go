@@ -546,6 +546,11 @@ type InboxItem struct {
 	Image      string
 	Repo       string
 	Suggested  string
+	App        string // its application, when a Compose project, Nomad job or label names it
+	// OwnName is the service name "Map only this workload" suggests: its name, or with
+	// its application when other applications have a workload of the same name.
+	OwnName string
+	InApp   bool // map it within its application (several "db" in several projects)
 }
 
 // InboxGroup is the unmapped workloads that run one image repository.

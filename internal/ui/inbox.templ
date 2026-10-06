@@ -148,6 +148,9 @@ templ inboxWorkloads(v InboxView, g InboxGroup) {
 
 templ inboxWorkload(it InboxItem) {
 	<strong>{ it.Workload }</strong>
+	if it.App != "" {
+		<span class="muted">in { it.App }</span>
+	}
 	<div class="targets">{ it.Kind }{ nsSuffix(it.Namespace) } · { it.Target } · { it.Env }</div>
 }
 
@@ -158,7 +161,10 @@ templ mapOnly(g InboxGroup, it InboxItem) {
 		<input type="hidden" name="repo" value={ g.Repo }/>
 		<input type="hidden" name="only" value="workload"/>
 		<input type="hidden" name="workload_name" value={ it.Workload }/>
-		<input name="service" list="services" value={ stableName(it.Workload) } required aria-label={ "Service for " + it.Workload } size="12"/>
+		if it.InApp {
+			<input type="hidden" name="app" value={ it.App }/>
+		}
+		<input name="service" list="services" value={ it.OwnName } required aria-label={ "Service for " + it.Workload } size="14"/>
 		<button class="secondary" type="submit" title={ "A service of its own for " + stableName(it.Workload) + ", whatever image it runs; other workloads running " + g.Repo + " stay apart" }>Map only this workload</button>
 	</form>
 }

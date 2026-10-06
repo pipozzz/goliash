@@ -47,7 +47,12 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 	observedWorkloads := map[string]bool{}
 	for _, w := range in.Snapshot.Workloads {
 		observedWorkloads[w.ID] = true
-		mw := mapping.Workload{Name: w.Name, Labels: w.Labels}
+		ns := ""
+		if w.Namespace != nil {
+			ns = *w.Namespace
+		}
+		app, appSource := workloadApp(w.Labels, in.AppLabel, ns, string(w.Kind), w.Name)
+		mw := mapping.Workload{Name: w.Name, Labels: w.Labels, App: app}
 
 		type row struct {
 			inst     store.Instance
@@ -74,7 +79,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			if w.Namespace != nil {
 				inst.Namespace = *w.Namespace
 			}
-			inst.App, inst.AppSource = workloadApp(w.Labels, in.AppLabel, inst.Namespace, string(w.Kind), w.Name)
+			inst.App, inst.AppSource = app, appSource
 			inst.Team = workloadTeam(w.Labels)
 			if d.EnvName != "" {
 				if id, ok := in.EnvByName[d.EnvName]; ok {

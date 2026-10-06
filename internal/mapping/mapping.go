@@ -31,6 +31,7 @@ var knownSidecars = []string{
 type Workload struct {
 	Name   string
 	Labels map[string]string
+	App    string // its application (from labels, a Compose project, a Nomad job or the namespace)
 }
 
 // Decision is how one container of a workload is classified.
@@ -105,6 +106,8 @@ func (m *Mapper) Map(w Workload, container string, image versions.ImageRef) Deci
 			match = r.re.MatchString(image.Repo())
 		case "workload_name":
 			match = r.re.MatchString(w.Name)
+		case "app_workload": // "<application>/<workload>": one "db" among many
+			match = w.App != "" && r.re.MatchString(w.App+"/"+w.Name)
 		case "label":
 			v, ok := w.Labels[r.labelKey]
 			match = ok && r.re.MatchString(v)
@@ -168,6 +171,12 @@ func StableName(name string) string { return versions.StableName(name) }
 // ImagePattern is the rule pattern matching exactly one image repository (not, say,
 // postgres-exporter for postgres).
 func ImagePattern(repo string) string { return "^" + regexp.QuoteMeta(repo) + "$" }
+
+// AppWorkloadPattern is the rule pattern matching a workload by its stable name within
+// one application, for app_workload rules: the "db" of velin-lawrio, not every "db".
+func AppWorkloadPattern(app, name string) string {
+	return "^" + regexp.QuoteMeta(app) + "/" + regexp.QuoteMeta(StableName(name)) + "(-[a-z0-9]{6})?$"
+}
 
 // WorkloadPattern is the rule pattern matching a workload by its stable name, with or
 // without the suffix a platform generates on each deploy.
