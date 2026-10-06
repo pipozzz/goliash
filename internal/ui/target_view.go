@@ -378,6 +378,8 @@ func appSourceLabel(src string) string {
 		return "set by hand"
 	case versions.SourceRenamed:
 		return "renamed"
+	case versions.SourceWorkload:
+		return "workload name"
 	case "app.kubernetes.io/part-of":
 		return "part-of label"
 	case "app.kubernetes.io/instance", "release":

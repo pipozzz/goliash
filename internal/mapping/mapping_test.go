@@ -4,6 +4,7 @@
 package mapping
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -101,6 +102,27 @@ func TestMainContainer(t *testing.T) {
 	for _, c := range cases {
 		if got := MainContainer(c.w, c.containers, c.service); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestRulePatterns(t *testing.T) {
+	img := regexp.MustCompile(ImagePattern("docker.io/library/postgres"))
+	if !img.MatchString("docker.io/library/postgres") || img.MatchString("docker.io/library/postgres-exporter") || img.MatchString("ghcr.io/x/docker.io/library/postgres") {
+		t.Error("image pattern is not exact")
+	}
+	wl := regexp.MustCompile(WorkloadPattern("goliash-db-qm1ia8"))
+	for name, want := range map[string]bool{
+		"goliash-db": true, "goliash-db-qm1ia8": true, "goliash-db-x8k2pq": true, // redeploys
+		"goliash-db-backups": false, "my-goliash-db": false, "goliash-db-x8k2pq-1": false,
+	} {
+		if got := wl.MatchString(name); got != want {
+			t.Errorf("%s: %v, want %v", name, got, want)
+		}
+	}
+	for in, want := range map[string]string{"cefiro-db-wruzyw": "cefiro-db", "code-server": "code-server", "goliash-db": "goliash-db", "a-b-UPPER1": "a-b-UPPER1"} {
+		if got := StableName(in); got != want {
+			t.Errorf("StableName(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

@@ -6,6 +6,8 @@ package versions
 import (
 	"strings"
 	"testing"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 func TestAppFamilies(t *testing.T) {
@@ -34,5 +36,22 @@ func TestAppFamilies(t *testing.T) {
 	}
 	if len(fams["gitea"].Members) != 0 {
 		t.Error("a lone app has members")
+	}
+}
+
+// Different workloads running one image with nothing else telling them apart become
+// applications of their own; replicas of one workload and labelled ones stay as they are.
+func TestSplitByWorkload(t *testing.T) {
+	in := []store.Instance{
+		{ServiceID: "pg", WorkloadName: "goliash-db-qm1ia8", App: "default", AppSource: "namespace"},
+		{ServiceID: "pg", WorkloadName: "cefiro-db-wruzyw", App: "default", AppSource: "namespace"},
+		{ServiceID: "pg", WorkloadName: "shop-db", App: "webshop", AppSource: "app.kubernetes.io/part-of"},
+		{ServiceID: "redis", WorkloadName: "redis", App: "default", AppSource: "namespace"},
+		{ServiceID: "redis", WorkloadName: "redis", App: "default", AppSource: "namespace"}, // a replica elsewhere
+	}
+	NameApps(in, nil, nil)
+	got := []string{in[0].App, in[1].App, in[2].App, in[3].App}
+	if strings.Join(got, ",") != "goliash-db,cefiro-db,webshop,default" || in[0].AppSource != SourceWorkload {
+		t.Fatalf("apps %v (%s)", got, in[0].AppSource)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
@@ -1015,3 +1016,5 @@ func eventTitle(kind string) string {
 	}
 	return ""
 }
+
+func stableName(name string) string { return mapping.StableName(name) }

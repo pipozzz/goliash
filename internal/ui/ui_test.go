@@ -199,7 +199,7 @@ func TestMemberMapsInboxAndEditsPolicy(t *testing.T) {
 		t.Fatalf("map result: %s", body)
 	}
 	rules, _ := e.st.ListMappingRules(ctx, e.ws.Scope())
-	if len(rules) != 1 || rules[0].Pattern != `ghcr\.io/acme/worker` || rules[0].MatchType != "image_repo" {
+	if len(rules) != 1 || rules[0].Pattern != `^ghcr\.io/acme/worker$` || rules[0].MatchType != "image_repo" {
 		t.Fatalf("rule %+v", rules)
 	}
 	if _, body := get(t, c, e.srv.URL+"/", nil); !strings.Contains(body, `href="/services/worker"`) {
