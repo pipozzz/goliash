@@ -118,3 +118,9 @@ func (s *Store) ServerSecret(ctx context.Context, name string, generate func() (
 	}
 	return s.open("server:"+name, stored)
 }
+
+// DeleteServerSecret forgets a server secret; the next use makes a new one.
+func (s *Store) DeleteServerSecret(ctx context.Context, name string) error {
+	_, err := s.exec(ctx, s.db, `DELETE FROM server_secrets WHERE name = ?`, name)
+	return err
+}

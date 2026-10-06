@@ -27,6 +27,7 @@ Usage:
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
+  goliash badges reset                    invalidate every badge address handed out
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
   goliash workspace create -name N -slug S [-envs]   a workspace per client or team
   goliash workspace list

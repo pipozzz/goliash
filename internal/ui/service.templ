@@ -258,6 +258,28 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 		</div>
+		if len(v.Badges) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Badges</h2><span class="muted">to embed in a README or a wiki</span></div>
+				<div class="panel-body embed-badges">
+					<p class="muted">Each badge shows the version and its state, updated within minutes. Its address is signed: it works without signing in, for this service and environment only.</p>
+					for i, b := range v.Badges {
+						<div class="badge-row">
+							<img src={ b.URL } alt={ "badge " + v.Name + " " + b.Env } height="20"/>
+							<span class="muted">
+								if b.Env == "" {
+									every environment
+								} else {
+									{ b.Env }
+								}
+							</span>
+							<button type="button" class="link" data-copy={ "badge-md-" + itoa(i) }>Copy markdown</button>
+							<pre id={ "badge-md-" + itoa(i) } hidden>{ b.Markdown }</pre>
+						</div>
+					}
+				</div>
+			</section>
+		}
 		if v.CanAdmin && !v.Runs {
 			<section class="panel">
 				<div class="panel-head"><h2>Delete service</h2></div>

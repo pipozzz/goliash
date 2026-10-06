@@ -98,6 +98,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		files.ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("GET /sw.js", s.serviceWorker)
+	mux.HandleFunc("GET /badge/{ws}/{file}", s.badge)
 	mux.HandleFunc("GET /manifest.webmanifest", s.manifest)
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
@@ -595,6 +596,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 		av.Active = a.UntilAt.IsZero() || time.Now().Before(a.UntilAt)
 		v.Acks = append(v.Acks, av)
+	}
+	if v.CanMember {
+		v.Badges = s.serviceBadges(r.Context(), p.Scope, v.Name, v.Envs)
 	}
 	return render(w, r, ServicePage(v))
 }

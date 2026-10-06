@@ -442,6 +442,14 @@ type ServiceView struct {
 	Versions                                            Timeline
 	Acks                                                []AckView
 	Runs                                                bool // some environment runs the service
+	Badges                                              []BadgeView
+}
+
+// BadgeView is one badge of a service, with the markdown that embeds it.
+type BadgeView struct {
+	Env      string // empty: every environment
+	URL      string
+	Markdown string
 }
 
 // ReleaseView is one upstream release on a service page.
