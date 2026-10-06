@@ -1369,3 +1369,24 @@ func TestMatrixGroupsGeneratedApps(t *testing.T) {
 		t.Errorf("captions %q %q", gs[0].Caption, gs[1].Caption)
 	}
 }
+
+func TestSendPlanNowButton(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	ch, err := e.st.CreateChannel(ctx, store.Channel{Scope: e.ws.Scope(), Type: "webhook", Name: "plan", Config: json.RawMessage(`{"url":"http://127.0.0.1:1/hook"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.CreateRule(ctx, store.Rule{Scope: e.ws.Scope(), ChannelID: ch.ID, EventTypes: []string{"updates_plan"}, Filter: json.RawMessage(`{}`), Mode: "weekly"}); err != nil {
+		t.Fatal(err)
+	}
+	member := e.as(store.RoleMember)
+	_, body := get(t, member, e.srv.URL+"/notifications", nil)
+	if !strings.Contains(body, "Send plan now") {
+		t.Fatal("no Send plan now on a plan rule")
+	}
+	rules, _ := e.st.ListRules(ctx, e.ws.Scope())
+	if _, body, _ = post(t, member, e.srv.URL+"/notifications/rules/"+rules[0].ID+"/plan", nil); !strings.Contains(body, "Nothing to upgrade") && !strings.Contains(body, "Sending the plan failed") {
+		t.Fatalf("plan now: %s", body[:min(len(body), 400)])
+	}
+}

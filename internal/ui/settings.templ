@@ -126,6 +126,11 @@ templ NotificationsPage(v NotificationsView) {
 									if v.CanMember {
 										<td class="num">
 											<div class="row-actions">
+												if r.Plan {
+													<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/plan") }>
+														<button class="link" type="submit" title="Send the upgrade plan now, to check the channel and the filters">Send plan now</button>
+													</form>
+												}
 												<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/pause") }>
 													<input type="hidden" name="paused" value={ boolStr(!r.Paused) }/>
 													<button class="link" type="submit">

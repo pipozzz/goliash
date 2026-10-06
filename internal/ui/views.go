@@ -655,6 +655,7 @@ type ChannelView struct {
 type RuleView struct {
 	ID      string
 	Paused  bool
+	Plan    bool // it sends the upgrade plan
 	Channel string
 	Events  string
 	Mode    string

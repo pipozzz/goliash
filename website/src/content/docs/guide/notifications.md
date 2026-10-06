@@ -64,6 +64,9 @@ are left out, and the rule's services, owners and environments apply, so each te
 goliash notify create -channel team-payments -events updates_plan -owners team-payments -mode weekly
 ```
 
+**Send plan now** on the rule sends its plan at once, to check the channel and the filters without waiting for
+Monday; the scheduled plans are not affected.
+
 ## Deploys on your dashboards
 
 A Grafana channel turns events into annotations, so a deploy shows up on the graphs it may have changed:

@@ -429,3 +429,38 @@ func TestLastPlanTime(t *testing.T) {
 		t.Errorf("daily before the hour %v", got)
 	}
 }
+
+func TestSendPlanNow(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "plan", map[string]any{"url": slack.srv.URL}), "weekly", []string{EventUpdatesPlan}, Filter{})
+	e.rule(e.channel("slack", "other", map[string]any{"url": slack.srv.URL}), "instant", []string{"new_release"}, Filter{})
+	rules, _ := e.st.ListRules(ctx, e.sc)
+	var planRule, otherRule string
+	for _, r := range rules {
+		if contains(r.EventTypes, EventUpdatesPlan) {
+			planRule = r.ID
+		} else {
+			otherRule = r.ID
+		}
+	}
+	if n, err := e.n.SendPlanNow(ctx, e.sc, planRule); n != 0 || err != nil || slack.count() != 0 {
+		t.Fatalf("empty plan: %d %v, sent %d", n, err, slack.count())
+	}
+	if _, err := e.st.OpenDrift(ctx, store.Drift{
+		Scope: e.sc, ServiceID: e.db.ID, EnvironmentID: e.prod.ID, Kind: "upstream",
+		Detail: json.RawMessage(`{"running":"15.6","other":"16.4","jump":"major"}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.n.SendPlanNow(ctx, e.sc, planRule); n != 1 || err != nil || slack.count() != 1 || !strings.Contains(slack.last(), "15.6 → 16.4") {
+		t.Fatalf("plan: %d %v %s", n, err, slack.last())
+	}
+	if _, err := e.n.SendPlanNow(ctx, e.sc, otherRule); !errors.Is(err, ErrNotAPlanRule) {
+		t.Errorf("not a plan rule: %v", err)
+	}
+	if _, err := e.n.SendPlanNow(ctx, e.sc, "nope"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("unknown rule: %v", err)
+	}
+}
