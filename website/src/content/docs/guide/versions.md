@@ -127,9 +127,14 @@ life, upstream or environment drift. Each line shows what runs, the version to m
 why. They are ordered by urgency (end of life passed, end of life soon, major, minor, behind the previous
 environment, patch), production first, then by how long they have been open. The tiles filter by urgency, and the
 selects by team and environment. **Copy as checklist** copies the list as markdown checkboxes for a ticket or a
-planning board. Updates an acknowledgement puts off are kept apart under *Acknowledged*.
+planning board. **Put off** on a line skips that version (until a newer release is out) or puts it off for a week or
+30 days; it is an [acknowledgement](#acknowledging) for that service and environment, so its notifications go quiet
+too. Updates put off are kept apart under *Acknowledged*.
 
-The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with.
+The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with. A notification rule
+with the upgrade plan sends it every week; see [Upgrade plan](/guide/notifications/#upgrade-plan).
+
+![The Updates page: tiles counting end-of-life, major and minor upgrades, and a list of services with the running version, the version to move to, why, and a Put off menu](../../../assets/updates.png)
 
 ## Promotions and delivery
 

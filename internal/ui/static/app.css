@@ -515,7 +515,7 @@ details.acked > summary::-webkit-details-marker { display: none; }
 details.acked:not([open]) > summary { border-bottom: 0; }
 details.acked table { opacity: 0.75; }
 /* Put off, per update: a small menu; the table's scroll box lets it out while open. */
-table.updates td.row-actions { width: 1%; white-space: nowrap; text-align: right; }
+table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: right; vertical-align: middle; }
 .put-off > summary { font-size: 12.5px; padding: 4px 9px; border: 1px solid var(--line); }
 .put-off .menu-list { min-width: 240px; }
 .put-off .menu-list form:first-child { border-top: 0; margin-top: 0; padding-top: 0; }

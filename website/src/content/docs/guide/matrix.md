@@ -58,6 +58,8 @@ its colour says how current it is (green up to date, amber behind, red end of li
 mapped), and problems come first. The filter above the cards matches names, services, versions and badges. Below,
 **What changed here** lists the latest deploys on this target.
 
+![A target page: a ring with the share of up-to-date workloads, deploys over 30 days, and workload cards grouped by application](../../../assets/target.png)
+
 **Group by** arranges the columns, and the choice stays in the link:
 
 | Group by | Columns |
