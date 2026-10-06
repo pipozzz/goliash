@@ -13,6 +13,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/store"
 )
+
 // Four projects each run a workload named "db" on postgres: each maps to a service of
 // its own, named with its project.
 func TestInboxSameNameInSeveralApps(t *testing.T) {
