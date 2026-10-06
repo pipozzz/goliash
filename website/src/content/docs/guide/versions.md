@@ -32,6 +32,24 @@ for the two newest candidates when the runtime recorded a platform's digest inst
 digest the image runs with: Kubernetes, Docker, Swarm and Nomad report it; Compose files from Git do not. For
 images on private registries the agents do the lookup with their credentials, after their next registry check.
 
+## Badges
+
+A service's page offers badges for a README, a wiki or a status page: the running version and its state, in the
+state's colour, for one environment or for all of them.
+
+![Four badges: checkout in staging 2.4.0 up to date in green, checkout in prod 2.3.1 behind in amber, keycloak in prod 24.0.5 needing attention in red, and keycloak's version in every environment](../../../assets/badges.png)
+
+**Copy markdown** next to a badge gives a link that opens the service in Goliash:
+
+```markdown
+[![checkout in prod](https://goliash.example.com/badge/…/checkout.svg?env=prod&sig=…)](https://goliash.example.com/services/checkout)
+```
+
+Badges load without signing in, so GitHub and wikis can show them; they refresh within five minutes. Each address is
+signed for its service and environment, so nobody can make one up for another service. Members and up see the badge
+addresses. `goliash badges reset` makes a new signing key: every badge handed out stops loading, and the service pages
+offer new ones.
+
 ## Version policy
 
 A policy decides which tags count as versions and which differences are worth an alert. Set it on the service

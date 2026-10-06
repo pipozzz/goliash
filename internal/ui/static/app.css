@@ -765,3 +765,9 @@ details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 /* Notifications: channels, rules and deliveries one under another; their tables need the width. */
 .notif-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .notif-panels table td.num { white-space: nowrap; }
+
+/* Badges on the service page. */
+.embed-badges { display: flex; flex-direction: column; gap: 10px; }
+.embed-badges p { margin: 0 0 4px; }
+.badge-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.badge-row img { display: block; }

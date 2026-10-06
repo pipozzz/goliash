@@ -89,6 +89,7 @@ const usage = `Usage:
                          [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
+  goliash badges reset                    invalidate every badge address handed out
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
@@ -147,6 +148,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		if len(args) > 0 && cmd == "agent" && (args[0] == "list" || args[0] == "rotate" || args[0] == "revoke") {
 			cmd, args = "agent "+args[0], args[1:]
+		}
+		if len(args) > 0 && cmd == "badges" && args[0] == "reset" {
+			cmd, args = "badges reset", args[1:]
 		}
 		if len(args) > 0 && cmd == "token" && (args[0] == "list" || args[0] == "revoke") {
 			cmd, args = "token "+args[0], args[1:]
@@ -225,6 +229,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return demoCmd(ctx, args, out)
 	case "backup":
 		return backupCmd(ctx, args, out)
+	case "badges reset":
+		return badgesReset(ctx, args, out)
 	case "healthcheck":
 		return healthcheck(ctx)
 	case "version", "-version", "--version":
@@ -2106,6 +2112,25 @@ func backups(ctx context.Context, db *store.Store, dsn, dir string, keep int, lo
 		case <-ticker.C:
 		}
 	}
+}
+
+// badgesReset makes a new badge key: every badge address handed out stops working.
+func badgesReset(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("badges reset")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.DeleteServerSecret(ctx, "badges"); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "badges.reset", "server", "badges")
+	_, _ = fmt.Fprintln(out, "badge key reset: badges already shared no longer load; copy new ones from the service pages")
+	return nil
 }
 
 func backupCmd(ctx context.Context, args []string, out io.Writer) error {
