@@ -1,0 +1,140 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ TilesPage(v TilesView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Service tiles</h1>
+				<p class="sub">Every application as a tile, every service as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention.</p>
+			</div>
+		</div>
+		<div class="toolbar">
+			<nav class="segmented" aria-label="View">
+				<span class="muted">View</span>
+				<a href={ templ.URL(matrixURL(v.GroupBy, "")) }>Table</a>
+				<a href={ templ.URL(tilesURL(v.GroupBy)) } class="on" aria-current="page">Tiles</a>
+			</nav>
+			<nav class="segmented" aria-label="Group by">
+				<span class="muted">Group by</span>
+				for _, m := range []struct{ Key, Label string }{{"app", "Application"}, {"team", "Team"}, {"status", "Status"}} {
+					if v.GroupBy == m.Key {
+						<a href={ templ.URL(tilesURL(m.Key)) } class="on" aria-current="page">{ m.Label }</a>
+					} else {
+						<a href={ templ.URL(tilesURL(m.Key)) }>{ m.Label }</a>
+					}
+				}
+			</nav>
+			<nav class="segmented" aria-label="Style">
+				<span class="muted">Style</span>
+				<a href={ templ.URL(tilesStyleURL(v, "board")) } class={ templ.KV("on", v.Style == "board") }>Board</a>
+				<a href={ templ.URL(tilesStyleURL(v, "icons")) } class={ templ.KV("on", v.Style == "icons") }>Icons</a>
+			</nav>
+			<span class="spacer"></span>
+			<ul class="tile-legend">
+				<li><span class="tcell current"></span>up to date <strong>{ itoa(v.Counts.Current) }</strong></li>
+				<li><span class="tcell behind"></span>behind <strong>{ itoa(v.Counts.Behind) }</strong></li>
+				<li><span class="tcell attention"></span>needs attention <strong>{ itoa(v.Counts.Attention) }</strong></li>
+				<li><span class="tcell unknown"></span>unknown <strong>{ itoa(v.Counts.Unknown) }</strong></li>
+			</ul>
+		</div>
+		if v.Style == "board" {
+			<section class="logo-board" aria-label="Applications" style={ "--cols:" + itoa(boardColumns(len(v.Tiles))) }>
+				for _, t := range v.Tiles {
+					<a class={ "board-cell", "s-" + t.State } href={ templ.SafeURL("#" + t.ID) } title={ t.Name + ": " + tileLabel(t.State) }>
+						<span class="board-name">{ shortName(t.Name) }</span>
+						<span class="board-dots" aria-hidden="true">
+							for _, c := range t.Cells {
+								<span class={ "dot", c.State }></span>
+							}
+						</span>
+						<span class="board-foot">
+							if t.Headline != "" {
+								<span class="board-headline">{ t.Headline }</span>
+							}
+							<span class="board-sub">{ itoa(t.OK) } / { itoa(t.Total) } up to date</span>
+						</span>
+					</a>
+				}
+			</section>
+		} else {
+		<section class="tile-board" aria-label="Applications">
+			for _, t := range v.Tiles {
+				<a class={ "tile-app", "s-" + t.State } href={ templ.SafeURL("#" + t.ID) } title={ t.Name + ": " + itoa(t.OK) + " of " + itoa(t.Total) + " up to date" }>
+					@tileIcon(t, "")
+					<span class="tile-name">{ shortName(t.Name) }</span>
+					<span class="tile-sub">{ itoa(t.OK) } / { itoa(t.Total) } up to date</span>
+				</a>
+			}
+		</section>
+		}
+		for _, t := range v.Tiles {
+			<aside class="tile-panel" id={ t.ID } aria-label={ t.Name }>
+				<a class="tile-panel-backdrop" href="#" aria-label="Close"></a>
+				<div class="tile-panel-body">
+					<header>
+						@tileIcon(t, "small")
+						<div>
+							<h2>{ t.Name }</h2>
+							if t.Caption != "" {
+								<small>{ t.Caption }</small>
+							}
+							<div class={ "tile-state", "s-" + t.State }>{ tileLabel(t.State) } · { itoa(t.OK) } of { itoa(t.Total) } up to date</div>
+						</div>
+						<a class="tile-close" href="#" aria-label="Close">×</a>
+					</header>
+					<ul class="tile-services">
+						for _, c := range t.Cells {
+							<li>
+								<span class={ "tcell", c.State } title={ tileLabel(c.State) }></span>
+								<div>
+									<a href={ templ.URL(c.URL) }><strong>{ c.Service }</strong></a>
+									if c.Owner != "" {
+										<span class="muted">{ " · " + c.Owner }</span>
+									}
+									<div class="tile-ver">
+										if c.Env != "" {
+											<span class="muted">{ c.Env }</span>
+										}
+										<span class="tag">{ orDash(c.Running) }</span>
+										if c.Latest != "" && c.State != "current" {
+											<span class="arrow">→</span>
+											<span class="tag latest">{ c.Latest }</span>
+										}
+									</div>
+									if len(c.Badges) > 0 {
+										<div class="badges">
+											for _, b := range c.Badges {
+												<span class={ "badge", b.Kind } title={ b.Title }>{ b.Label }</span>
+											}
+										</div>
+									}
+								</div>
+							</li>
+						}
+					</ul>
+					<footer>
+						<a href={ templ.URL(matrixURL("app", "")) }>Open the matrix</a>
+						<a href="/updates">What to upgrade</a>
+					</footer>
+				</div>
+			</aside>
+		}
+	}
+}
+
+// tileIcon draws an application like the logo: a navy rounded square with one cell
+// per service in a square grid.
+templ tileIcon(t Tile, size string) {
+	{{ side := tileGridSize(len(t.Cells)) }}
+	<span class={ "tile-icon", size } style={ "--side:" + itoa(side) } aria-hidden="true">
+		for _, c := range t.Cells {
+			<span class={ "tcell", c.State }></span>
+		}
+		for i := len(t.Cells); i < side*side; i++ {
+			<span class="tcell void"></span>
+		}
+	</span>
+}
