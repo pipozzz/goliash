@@ -435,3 +435,23 @@ table.matrix tr[data-health="bad"] td.svc { box-shadow: inset 3px 0 0 var(--bad)
 }
 .matrix td.svc .part { display: block; font-size: 12px; color: var(--info); font-weight: 500; }
 .resolved { font: 500 12px var(--mono); color: var(--muted); margin-left: 4px; white-space: nowrap; }
+
+/* Updates: a to-do list of upgrades, coloured by urgency. */
+.tile.u-eol strong { color: var(--bad); }
+.tile.u-inconsistent strong { color: var(--bad); }
+.tile.u-upstream strong { color: var(--info); }
+.tile.u-env strong { color: var(--warn); }
+table.updates td.svc { white-space: nowrap; }
+table.updates td.svc a { font-weight: 600; color: var(--ink); }
+table.updates td.svc .part { display: block; font-size: 12px; color: var(--info); font-weight: 500; }
+table.updates td.svc .owner { display: block; font-size: 12px; color: var(--faint); }
+table.updates tr[data-level="eol"] td.svc { box-shadow: inset 3px 0 0 var(--bad); }
+table.updates tr[data-level="inconsistent"] td.svc { box-shadow: inset 3px 0 0 var(--bad); }
+table.updates tr[data-level="upstream"] td.svc { box-shadow: inset 3px 0 0 var(--info); }
+table.updates tr[data-level="env"] td.svc { box-shadow: inset 3px 0 0 var(--warn); }
+table.updates .upgrade { white-space: nowrap; }
+table.updates .upgrade .arrow { color: var(--faint); margin: 0 6px; }
+details.acked > summary { cursor: pointer; list-style: none; }
+details.acked > summary::-webkit-details-marker { display: none; }
+details.acked:not([open]) > summary { border-bottom: 0; }
+details.acked table { opacity: 0.75; }

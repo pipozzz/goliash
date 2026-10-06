@@ -86,6 +86,11 @@ type (
 		Environment string `json:"environment,omitempty"`
 		Service     string `json:"service,omitempty"`
 	}
+	updatesIn struct {
+		Owner       string `json:"owner,omitempty" jsonschema:"only services of this team (owner)"`
+		Environment string `json:"environment,omitempty"`
+		Urgency     string `json:"urgency,omitempty" jsonschema:"only this urgency: end of life, end of life soon, major, minor, behind previous env or patch"`
+	}
 	changesIn struct {
 		Since       string `json:"since,omitempty" jsonschema:"how far back, e.g. 2h, 30m or 7d; default 24h"`
 		Environment string `json:"environment,omitempty"`
@@ -199,6 +204,20 @@ func NewServer(c *Client) *mcp.Server {
 				return nil, Result{}, err
 			}
 			return nil, Result{Data: filter(data, map[string]string{"kind": in.Kind, "environment": in.Environment, "service": in.Service})}, nil
+		})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "updates", Annotations: readOnly,
+		Description: "What to upgrade, most urgent first: per service (and application) and environment, the running " +
+			"version, the version to move to with its release notes, and why (end of life, a major or minor jump, behind " +
+			"the previous environment). Acknowledged items are marked. Use it to plan upgrades.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in updatesIn) (*mcp.CallToolResult, Result, error) {
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/updates", nil, nil)
+			if err != nil {
+				return nil, Result{}, err
+			}
+			return nil, Result{Data: filter(data, map[string]string{"owner": in.Owner, "environment": in.Environment, "urgency": in.Urgency})}, nil
 		})
 
 	mcp.AddTool(s, &mcp.Tool{

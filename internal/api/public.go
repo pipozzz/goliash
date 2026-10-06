@@ -50,6 +50,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
+	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -508,6 +509,44 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 		})
 	}
 	cw.Flush()
+}
+
+func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	acks, err := h.store.ListAcks(ctx, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiUpdate struct {
+		Service      string    `json:"service"`
+		Owner        string    `json:"owner,omitempty"`
+		App          string    `json:"app,omitempty"`
+		Environment  string    `json:"environment"`
+		Running      string    `json:"running"`
+		Target       string    `json:"target,omitempty"`
+		ReleaseNotes string    `json:"release_notes,omitempty"`
+		Jump         string    `json:"jump,omitempty"`
+		Behind       string    `json:"behind,omitempty"`
+		EOL          string    `json:"eol,omitempty"`
+		Urgency      string    `json:"urgency"`
+		Since        time.Time `json:"since"`
+		Acknowledged bool      `json:"acknowledged"`
+	}
+	out := []apiUpdate{}
+	for _, u := range versions.Updates(o, acks, time.Now()) {
+		out = append(out, apiUpdate{
+			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
+			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
+			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *PublicHandler) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principal) {
