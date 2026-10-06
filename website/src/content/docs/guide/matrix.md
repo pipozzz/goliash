@@ -54,6 +54,9 @@ work out of the box, and a Nomad job counts as an application of its own.
 few letters in order (`pgv` finds *cefiro-pgvector*), move with the arrow keys and press Enter. Services and
 applications carry their state's colour.
 
+**?** lists every keyboard shortcut. **g** followed by a letter goes straight to a page: **g m** the matrix, **g t**
+tiles, **g u** updates, **g i** the inbox, **g d** delivery, **g h** history, **g n** notifications.
+
 ## Tiles
 
 **View → Tiles** draws the matrix the way the logo does: a navy board of rounded cells, one per application (or team,

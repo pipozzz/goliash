@@ -74,6 +74,8 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 		{"Connect", "add a cluster or host", "/connect"},
 		{"Notifications", "channels and rules", "/notifications"},
 		{"Your account", "password, two-factor sign-in", "/account"},
+		{"TV mode", "tiles for a wall display", "/tiles?group=app&tv=1"},
+		{"Keyboard shortcuts", "press ? anywhere", "#shortcuts"},
 	} {
 		out = append(out, PaletteEntry{Kind: "page", Label: pg.label, Sub: pg.sub, URL: pg.url})
 	}
