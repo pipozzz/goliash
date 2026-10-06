@@ -31,6 +31,8 @@ func deliveryView(d store.Delivery, now time.Time) DeliveryView {
 		v.Status, v.Label, v.Retry = "failed", "gave up after "+itoa(d.Attempts)+" attempts", true
 	case d.Attempts > 0:
 		v.Status, v.Label, v.Retry = "retrying", "attempt "+itoa(d.Attempts)+" failed; next "+until(d.DueAt, now), true
+	case d.DueAt.After(now.Add(time.Minute)) && d.RuleMode == "instant":
+		v.Status, v.Label, v.Retry = "waiting", "held for quiet hours, out "+until(d.DueAt, now), true
 	case d.DueAt.After(now.Add(time.Minute)):
 		v.Status, v.Label, v.Retry = "waiting", "in the digest "+until(d.DueAt, now), true
 	default:

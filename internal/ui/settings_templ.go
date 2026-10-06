@@ -45,7 +45,7 @@ func NotificationsPage(v NotificationsView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Notifications</h1><p class=\"sub\">Rules send events to channels, right away or as a daily or weekly digest.</p></div></div><div class=\"grid-2\"><section class=\"panel\"><div class=\"panel-head\"><h2>Channels</h2></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Notifications</h1><p class=\"sub\">Rules send events to channels, right away or as a daily or weekly digest.</p></div></div><div class=\"notif-panels\"><section class=\"panel\"><div class=\"panel-head\"><h2>Channels</h2></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
