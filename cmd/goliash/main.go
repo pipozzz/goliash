@@ -38,6 +38,7 @@ import (
 	"syscall"
 	"text/tabwriter"
 	"time"
+	_ "time/tzdata" // rules' time zones, also in images without /usr/share/zoneinfo
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/term"
@@ -90,6 +91,7 @@ const usage = `Usage:
   goliash channel test -name NAME
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
+                        [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
   goliash workspace create -name N -slug S [-envs]   a workspace per client or team
   goliash workspace list
@@ -1748,7 +1750,9 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	owners := fs.String("owners", "", "only services of these owners")
 	envs := fs.String("envs", "", "only these environments")
 	minJump := fs.String("min-jump", "", "new releases: smallest jump to report (patch, minor, major)")
-	digestHour := fs.Int("digest-hour", 8, "UTC hour digests go out")
+	digestHour := fs.Int("digest-hour", 8, "hour digests go out, in -timezone")
+	timezone := fs.String("timezone", "", "IANA time zone for -digest-hour and -quiet, e.g. Europe/Bratislava (default UTC)")
+	quiet := fs.String("quiet", "", "instant rules: hold notifications in these hours and send them together after, e.g. 22-7")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1766,7 +1770,21 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	}
 	f := notifier.Filter{
 		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs),
-		MinJump: versions.Jump(*minJump), DigestHour: digestHour,
+		MinJump: versions.Jump(*minJump), DigestHour: digestHour, Timezone: *timezone,
+	}
+	if *timezone != "" {
+		if _, err := time.LoadLocation(*timezone); err != nil {
+			return fmt.Errorf("-timezone: %w", err)
+		}
+	}
+	if *quiet != "" {
+		a, b, ok := strings.Cut(*quiet, "-")
+		from, errA := strconv.Atoi(strings.TrimSpace(a))
+		to, errB := strconv.Atoi(strings.TrimSpace(b))
+		if !ok || errA != nil || errB != nil || from < 0 || from > 23 || to < 0 || to > 23 || from == to {
+			return errors.New("-quiet takes two hours, such as 22-7")
+		}
+		f.QuietFrom, f.QuietTo = &from, &to
 	}
 	raw, _ := json.Marshal(f)
 	r, err := db.CreateRule(ctx, store.Rule{Scope: ws.Scope(), ChannelID: ch.ID, EventTypes: splitList(*events), Filter: raw, Mode: *mode})

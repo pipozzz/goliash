@@ -77,6 +77,54 @@ type Filter struct {
 	Environments []string      `json:"environments,omitempty"`
 	MinJump      versions.Jump `json:"min_jump,omitempty"` // for new_release: smallest version jump to report
 	DigestHour   *int          `json:"digest_hour,omitempty"`
+	Timezone     string        `json:"timezone,omitempty"`   // IANA name for the digest hour and quiet hours; UTC when empty
+	QuietFrom    *int          `json:"quiet_from,omitempty"` // instant rules hold notifications from this hour…
+	QuietTo      *int          `json:"quiet_to,omitempty"`   // …to this one, then send them together
+}
+
+// Location is the rule's time zone.
+func (f Filter) Location() *time.Location {
+	if f.Timezone != "" {
+		if loc, err := time.LoadLocation(f.Timezone); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
+}
+
+func (f Filter) digestHour() int {
+	if f.DigestHour != nil && *f.DigestHour >= 0 && *f.DigestHour < 24 {
+		return *f.DigestHour
+	}
+	return 8
+}
+
+// Quiet reports whether the rule has quiet hours.
+func (f Filter) Quiet() bool {
+	return f.QuietFrom != nil && f.QuietTo != nil && *f.QuietFrom != *f.QuietTo &&
+		*f.QuietFrom >= 0 && *f.QuietFrom < 24 && *f.QuietTo >= 0 && *f.QuietTo < 24
+}
+
+// quietUntil is when the quiet hours around now end, or now outside them.
+func quietUntil(f Filter, now time.Time) time.Time {
+	if !f.Quiet() {
+		return now
+	}
+	loc := f.Location()
+	local := now.In(loc)
+	h, from, to := local.Hour(), *f.QuietFrom, *f.QuietTo
+	in := h >= from && h < to
+	if from > to { // over midnight, 22–7
+		in = h >= from || h < to
+	}
+	if !in {
+		return now
+	}
+	end := time.Date(local.Year(), local.Month(), local.Day(), to, 0, 0, 0, loc)
+	if !end.After(now) {
+		end = end.AddDate(0, 0, 1)
+	}
+	return end.UTC()
 }
 
 // Notifier routes events to channels according to rules, acks and digests.
@@ -283,24 +331,22 @@ func acked(e store.Event, acks []store.Ack, now time.Time) bool {
 
 // dueAt is when an item for a rule should go out: now, or the next digest.
 func dueAt(mode string, f Filter, now time.Time) time.Time {
-	hour := 8
-	if f.DigestHour != nil && *f.DigestHour >= 0 && *f.DigestHour < 24 {
-		hour = *f.DigestHour
-	}
-	next := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, time.UTC)
+	loc := f.Location()
+	local := now.In(loc)
+	next := time.Date(local.Year(), local.Month(), local.Day(), f.digestHour(), 0, 0, 0, loc)
 	switch mode {
 	case "daily":
 		if !next.After(now) {
 			next = next.AddDate(0, 0, 1)
 		}
-		return next
+		return next.UTC()
 	case "weekly":
 		for next.Weekday() != time.Monday || !next.After(now) {
 			next = next.AddDate(0, 0, 1)
 		}
-		return next
+		return next.UTC()
 	}
-	return now
+	return quietUntil(f, now)
 }
 
 // Run delivers due notifications every interval until ctx ends, and queues the

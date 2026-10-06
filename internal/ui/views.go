@@ -674,11 +674,14 @@ type RuleForm struct {
 	Owners     string
 	Envs       string
 	DigestHour int
+	Timezone   string // empty: UTC
+	QuietFrom  int    // -1: no quiet hours
+	QuietTo    int
 }
 
 // NewRuleForm is the add form's defaults.
 func NewRuleForm() RuleForm {
-	return RuleForm{Mode: "instant", Events: []string{"new_release", "drift_detected", "agent_stale"}, DigestHour: 8}
+	return RuleForm{Mode: "instant", Events: []string{"new_release", "drift_detected", "agent_stale"}, DigestHour: 8, QuietFrom: -1, QuietTo: -1}
 }
 
 // RuleEditView is the page that edits one rule.

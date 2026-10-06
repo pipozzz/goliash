@@ -480,3 +480,35 @@ func TestSendPlanNow(t *testing.T) {
 		t.Errorf("unknown rule: %v", err)
 	}
 }
+
+func TestQuietHoursAndTimezone(t *testing.T) {
+	hour := func(h int) *int { return &h }
+	prague := Filter{Timezone: "Europe/Prague", DigestHour: hour(8), QuietFrom: hour(22), QuietTo: hour(7)}
+	// 6 October 2026 is CEST, UTC+2.
+	at := func(h, m int) time.Time { return time.Date(2026, 10, 6, h, m, 0, 0, time.UTC) }
+	for _, c := range []struct {
+		mode string
+		now  time.Time
+		want time.Time
+	}{
+		{"instant", at(12, 0), at(12, 0)},                                     // 14:00 in Prague: send now
+		{"instant", at(20, 30), time.Date(2026, 10, 7, 5, 0, 0, 0, time.UTC)}, // 22:30: held until 07:00
+		{"instant", at(3, 0), at(5, 0)},                                       // 05:00: held until 07:00 that morning
+		{"daily", at(5, 0), at(6, 0)},                                         // the digest at 08:00 Prague
+		{"weekly", at(12, 0), time.Date(2026, 10, 12, 6, 0, 0, 0, time.UTC)},  // next Monday 08:00 Prague
+	} {
+		if got := dueAt(c.mode, prague, c.now); !got.Equal(c.want) {
+			t.Errorf("%s at %s: due %s, want %s", c.mode, c.now, got, c.want)
+		}
+	}
+	day := Filter{QuietFrom: hour(9), QuietTo: hour(17)} // UTC, within one day
+	if got := dueAt("instant", day, at(10, 0)); !got.Equal(at(17, 0)) {
+		t.Errorf("daytime quiet: %s", got)
+	}
+	if got := dueAt("instant", Filter{QuietFrom: hour(3), QuietTo: hour(3)}, at(3, 30)); !got.Equal(at(3, 30)) {
+		t.Errorf("empty quiet window held: %s", got)
+	}
+	if got := lastPlanTime("daily", prague, at(5, 0)); !got.Equal(time.Date(2026, 10, 5, 6, 0, 0, 0, time.UTC)) {
+		t.Errorf("plan time in Prague: %s", got)
+	}
+}
