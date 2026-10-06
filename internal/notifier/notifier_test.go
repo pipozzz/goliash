@@ -525,3 +525,29 @@ func TestQuietHoursAndTimezone(t *testing.T) {
 		t.Errorf("plan time in Prague: %s", got)
 	}
 }
+
+// A rule for an application gets its services' notifications, under the names people
+// gave the applications.
+func TestRuleFilterByApplication(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: tgt.ID, EnvironmentID: e.prod.ID, ServiceID: e.svc.ID, WorkloadID: "pay", WorkloadKind: "deployment", WorkloadName: "pay",
+		ContainerName: "app", Image: "ghcr.io/acme/payments-api:1.5.0", Tag: "1.5.0", Running: 1, IsMain: true,
+		App: "shop-frontend", AppSource: "app.kubernetes.io/part-of",
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.st.RenameApp(ctx, e.sc, "shop-frontend", "webshop")
+	shop, identity := newSink(t), newSink(t)
+	e.rule(e.channel("slack", "shop", map[string]any{"url": shop.srv.URL}), "instant", nil, Filter{Apps: []string{"webshop"}})
+	e.rule(e.channel("slack", "identity", map[string]any{"url": identity.srv.URL}), "instant", nil, Filter{Apps: []string{"identity"}})
+	e.emit(release(e.svc, "1.5.0", "1.6.0", "minor"))
+	if shop.count() != 1 || identity.count() != 0 {
+		t.Fatalf("webshop rule %d, identity rule %d; want 1 and 0", shop.count(), identity.count())
+	}
+}

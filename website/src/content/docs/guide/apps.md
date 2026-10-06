@@ -58,3 +58,9 @@ goliash team rename -from team-shop -to commerce
 ```
 
 Renaming a team does not change notification rules that filter by the old name: update their *Owners* filter too.
+
+## Notifications per application or team
+
+A notification rule can be limited to applications (*Applications* in the rule form, `-apps` with
+`goliash notify create`) or teams (*Owners*, `-owners`): one channel per team or product, each getting only its own
+releases, drift and upgrade plan.

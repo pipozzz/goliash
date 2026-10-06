@@ -26,6 +26,7 @@ type Item struct {
 	Service     string    `json:"service,omitempty"`
 	App         string    `json:"app,omitempty"` // a drift within one application of a shared service
 	Owner       string    `json:"owner,omitempty"`
+	Apps        []string  `json:"apps,omitempty"` // the applications the service runs in, for rules filtering by application
 	Environment string    `json:"environment,omitempty"`
 	Target      string    `json:"target,omitempty"`
 	From        string    `json:"from,omitempty"`
@@ -75,6 +76,7 @@ type Filter struct {
 	Services     []string      `json:"services,omitempty"`
 	Owners       []string      `json:"owners,omitempty"`
 	Environments []string      `json:"environments,omitempty"`
+	Apps         []string      `json:"apps,omitempty"`     // applications, as the matrix shows them
 	MinJump      versions.Jump `json:"min_jump,omitempty"` // for new_release: smallest version jump to report
 	DigestHour   *int          `json:"digest_hour,omitempty"`
 	Timezone     string        `json:"timezone,omitempty"`   // IANA name for the digest hour and quiet hours; UTC when empty
@@ -149,6 +151,7 @@ type names struct {
 	services map[string]store.Service
 	envs     map[string]string
 	targets  map[string]string
+	apps     map[string][]string // service ID -> its applications
 }
 
 func (n *Notifier) loadNames(ctx context.Context, sc store.Scope) (names, error) {
@@ -174,7 +177,19 @@ func (n *Notifier) loadNames(ctx context.Context, sc store.Scope) (names, error)
 	for _, t := range targets {
 		nm.targets[t.ID] = t.Name
 	}
+	if nm.apps, err = versions.ServiceApps(ctx, n.store, sc); err != nil {
+		return nm, err
+	}
 	return nm, nil
+}
+
+// itemApps are the applications an item is about: the one its drift is in, else every
+// application its service runs in.
+func itemApps(app string, serviceApps []string) []string {
+	if app != "" {
+		return []string{versions.FamilyOf(app, serviceApps)}
+	}
+	return serviceApps
 }
 
 // Handle queues notifications for events. It is the callback for snapshot
@@ -207,7 +222,7 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			continue
 		}
 		item := Item{
-			Type: e.Type, Service: svc.Name, App: e.App, Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
+			Type: e.Type, Service: svc.Name, App: e.App, Apps: itemApps(e.App, nm.apps[e.ServiceID]), Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
 			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, At: e.At,
 		}
 		item.Text = Describe(item)
@@ -321,6 +336,9 @@ func matches(r store.Rule, f Filter, it Item) bool {
 		return false
 	}
 	if len(f.Owners) > 0 && !contains(f.Owners, it.Owner) {
+		return false
+	}
+	if len(f.Apps) > 0 && !containsAny(f.Apps, it.Apps) {
 		return false
 	}
 	if len(f.Environments) > 0 && it.Environment != "" && !contains(f.Environments, it.Environment) {
@@ -582,6 +600,15 @@ func Describe(it Item) string {
 		return fmt.Sprintf("agent %s is back after about %s; its targets report again", it.Target, it.Note)
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s: %s %s %s", where, it.Type, it.From, it.To))
+}
+
+func containsAny(list, values []string) bool {
+	for _, v := range values {
+		if contains(list, v) {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(list []string, s string) bool {

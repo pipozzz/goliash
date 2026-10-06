@@ -90,6 +90,10 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 		return err
 	}
 	updates := versions.Updates(o, acks, now)
+	apps, err := versions.ServiceApps(ctx, n.store, sc)
+	if err != nil {
+		return err
+	}
 	for _, r := range rules {
 		var f Filter
 		_ = json.Unmarshal(r.Filter, &f)
@@ -98,7 +102,7 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 			if u.Acked {
 				continue
 			}
-			it := planItem(u, now)
+			it := planItem(u, now, apps)
 			if !matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
 				continue
 			}
@@ -146,12 +150,16 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 		return 0, err
 	}
 	now := n.now()
+	apps, err := versions.ServiceApps(ctx, n.store, sc)
+	if err != nil {
+		return 0, err
+	}
 	msg := Message{Workspace: rt.workspace, Digest: true, Link: n.link}
 	for _, u := range versions.Updates(o, acks, now) {
 		if u.Acked {
 			continue
 		}
-		it := planItem(u, now)
+		it := planItem(u, now, apps)
 		if matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
 			msg.Items = append(msg.Items, it)
 		}
@@ -169,9 +177,9 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 }
 
 // planItem is one update as a notification item.
-func planItem(u versions.Update, now time.Time) Item {
+func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 	it := Item{
-		Type: "update", Service: u.Service.Name, App: u.App, Owner: u.Service.Owner, Environment: u.Environment.Name,
+		Type: "update", Service: u.Service.Name, App: u.App, Apps: itemApps(u.App, apps[u.Service.ID]), Owner: u.Service.Owner, Environment: u.Environment.Name,
 		From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
 	}
 	it.Text = Describe(it)

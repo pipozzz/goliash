@@ -93,7 +93,7 @@ const usage = `Usage:
   goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)
   goliash team rename -from NAME -to NAME   rename a team on all its services
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
-                        [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
+                        [-services a,b] [-owners x] [-apps webshop] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
   goliash workspace create -name N -slug S [-envs]   a workspace per client or team
@@ -1771,6 +1771,7 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	mode := fs.String("mode", "instant", "instant, daily or weekly")
 	services := fs.String("services", "", "only these services")
 	owners := fs.String("owners", "", "only services of these owners")
+	apps := fs.String("apps", "", "only services in these applications")
 	envs := fs.String("envs", "", "only these environments")
 	minJump := fs.String("min-jump", "", "new releases: smallest jump to report (patch, minor, major)")
 	digestHour := fs.Int("digest-hour", 8, "hour digests go out, in -timezone")
@@ -1793,7 +1794,7 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	}
 	f := notifier.Filter{
 		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs),
-		MinJump: versions.Jump(*minJump), DigestHour: digestHour, Timezone: *timezone,
+		Apps: splitList(*apps), MinJump: versions.Jump(*minJump), DigestHour: digestHour, Timezone: *timezone,
 	}
 	if *timezone != "" {
 		if _, err := time.LoadLocation(*timezone); err != nil {

@@ -109,3 +109,55 @@ func namedInstances(ctx context.Context, st *store.Store, sc store.Scope, instan
 	NameApps(instances, services, names)
 	return instances, nil
 }
+
+// ServiceApps lists the applications each service runs in, by service ID, as the
+// matrix shows them: renames, merges, services placed by hand and families applied.
+func ServiceApps(ctx context.Context, st *store.Store, sc store.Scope) (map[string][]string, error) {
+	services, err := st.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	active, err := st.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	if active, err = namedInstances(ctx, st, sc, active, services); err != nil {
+		return nil, err
+	}
+	var names []AppName
+	for _, in := range active {
+		if in.App != "" {
+			names = append(names, AppName{App: in.App, Source: in.AppSource})
+		}
+	}
+	fams := AppFamilies(names)
+	seen := map[string]bool{}
+	out := map[string][]string{}
+	for _, in := range active {
+		if in.App == "" || in.ServiceID == "" {
+			continue
+		}
+		name := fams[in.App].Name
+		if name == "" {
+			name = in.App
+		}
+		if k := in.ServiceID + "|" + name; !seen[k] {
+			seen[k] = true
+			out[in.ServiceID] = append(out[in.ServiceID], name)
+		}
+	}
+	for id := range out {
+		sort.Strings(out[id])
+	}
+	return out, nil
+}
+
+// FamilyOf returns the name an application shows under, given its service's applications.
+func FamilyOf(app string, apps []string) string {
+	for _, a := range apps {
+		if a == app || strings.HasPrefix(app, a+"-") {
+			return a
+		}
+	}
+	return app
+}
