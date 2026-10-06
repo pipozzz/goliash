@@ -529,7 +529,7 @@ func serve(ctx context.Context, args []string) error {
 		Addr: *listen,
 		// Browsers may not send state-changing requests from other origins (CSRF);
 		// agents and API clients send no Origin and are unaffected.
-		Handler: ui.SecurityHeaders(ui.LimitBodies(http.NewCrossOriginProtection().Handler(mux), 1<<20, "/agent/"),
+		Handler: ui.SecurityHeaders(ui.Compress(ui.LimitBodies(http.NewCrossOriginProtection().Handler(mux), 1<<20, "/agent/")),
 			strings.HasPrefix(*publicURL, "https://")),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,
