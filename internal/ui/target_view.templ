@@ -109,11 +109,16 @@ templ TargetDetailPage(v TargetDetailView) {
 				for _, g := range v.Groups {
 					<section class="wl-group" data-group>
 						<h2 class="wl-group-name">
-							<span>
-								{ g.Name }
-								if g.Caption != "" {
-									<small>{ g.Caption }</small>
+							<span class="wl-group-title">
+								if v.GroupBy == "app" || v.GroupBy == "team" {
+									<span class={ "app-avatar", "small", versionColour(g.Name) } aria-hidden="true">{ initial(g.Name) }</span>
 								}
+								<span>
+									{ g.Name }
+									if g.Caption != "" {
+										<small>{ g.Caption }</small>
+									}
+								</span>
 							</span>
 							<span class="count-pill">{ itoa(len(g.Cards)) }</span>
 						</h2>

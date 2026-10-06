@@ -70,7 +70,12 @@ mapped), and problems come first. The filter above the cards matches names, serv
 A workload's application is the first of these labels it has: the workspace's own label key (set under
 **Settings → Users → Applications**, for example `example.com/app`), `goliash.app`, `app.kubernetes.io/part-of`,
 `app.kubernetes.io/instance` (the Helm release), `release`, `com.docker.compose.project` and
-`com.docker.stack.namespace`. Without any of them, a Nomad job's name stands in, else its namespace. The column caption says where the
+`com.docker.stack.namespace`. Without any of them, a Nomad job's name stands in, else its namespace.
+
+Platforms such as Dokploy and Nomploy name what they deploy `<project>-<part>-<6 random characters>`. Goliash drops
+the random part (`cefiro-db-wruzyw` is `cefiro-db`), and groups the parts of one project under its name: `cefiro`,
+`cefiro-db` and `cefiro-redis` appear together as **cefiro**, with the parts listed under the heading. Names from
+labels are never changed. The column caption says where the
 name came from, so a column captioned *namespace, no app label* is a hint to label those workloads. A new label
 key applies from each target's next snapshot.
 

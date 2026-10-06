@@ -3,7 +3,10 @@
 
 package ingest
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // appLabels are the labels that name the application a workload belongs to, most
 // specific first: Goliash's own, the Kubernetes recommended labels (part-of groups
@@ -30,14 +33,32 @@ func workloadApp(labels map[string]string, custom, namespace, kind, name string)
 	}
 	for _, k := range appLabels {
 		if v := strings.TrimSpace(labels[k]); v != "" {
+			if k == "com.docker.compose.project" || k == "com.docker.stack.namespace" {
+				v = withoutGeneratedSuffix(v)
+			}
 			return v, k
 		}
 	}
 	if kind == "nomad_job" && name != "" {
-		return name, "nomad job"
+		return withoutGeneratedSuffix(name), "nomad job"
 	}
 	if namespace != "" {
-		return namespace, "namespace"
+		return withoutGeneratedSuffix(namespace), "namespace"
 	}
 	return "", ""
+}
+
+var generatedSuffix = regexp.MustCompile(`^[a-z0-9]{6}$`)
+
+// withoutGeneratedSuffix drops the random suffix platforms such as Dokploy and
+// Nomploy add to the names they generate, "<project>-<service>-<6 random>"
+// (cefiro-db-wruzyw -> cefiro-db), so an application keeps one name across
+// redeploys and its parts can be told apart from other projects. Names with fewer
+// than three parts are left alone: "code-server" has no suffix to drop.
+func withoutGeneratedSuffix(name string) string {
+	parts := strings.Split(name, "-")
+	if len(parts) < 3 || !generatedSuffix.MatchString(parts[len(parts)-1]) {
+		return name
+	}
+	return strings.Join(parts[:len(parts)-1], "-")
 }
