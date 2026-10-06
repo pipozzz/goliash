@@ -354,3 +354,78 @@ func TestPausedRuleSendsNothing(t *testing.T) {
 		t.Fatalf("resumed rule sent %d messages", slack.count())
 	}
 }
+
+// The upgrade plan goes out on Mondays at the digest hour, once, as one message with
+// what the Updates page lists; acknowledged updates and other teams' are left out.
+func TestUpgradePlan(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	hour := 9
+	e.rule(e.channel("slack", "plan", map[string]any{"url": slack.srv.URL}), "weekly", []string{EventUpdatesPlan}, Filter{DigestHour: &hour})
+	other := newSink(t)
+	e.rule(e.channel("slack", "pay", map[string]any{"url": other.srv.URL}), "weekly", []string{EventUpdatesPlan}, Filter{Owners: []string{"team-pay"}})
+	drift := func(svc store.Service, kind, detail string) {
+		if _, err := e.st.OpenDrift(ctx, store.Drift{Scope: e.sc, ServiceID: svc.ID, EnvironmentID: e.prod.ID, Kind: kind, Detail: json.RawMessage(detail)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drift(e.db, "eol", `{"running":"13.4","other":"13","eol":"2025-11-13"}`)
+	drift(e.svc, "upstream", `{"running":"1.5.0","other":"1.7.0","jump":"minor"}`)
+
+	e.clock = time.Date(2026, 10, 5, 8, 30, 0, 0, time.UTC) // Monday, before 9:00
+	if err := e.n.PlanUpdates(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.n.DeliverDue(ctx)
+	if slack.count() != 0 {
+		t.Fatal("plan sent before its hour")
+	}
+	e.clock = time.Date(2026, 10, 5, 9, 5, 0, 0, time.UTC)
+	for range 2 {
+		if err := e.n.PlanUpdates(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	if slack.count() != 1 {
+		t.Fatalf("plan sent %d times", slack.count())
+	}
+	msg := slack.last()
+	for _, want := range []string{"upgrade plan", "postgres @ prod: 13.4", "end of life", "payments-api @ prod: 1.5.0 → 1.7.0 (minor)"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("plan misses %q: %s", want, msg)
+		}
+	}
+	if strings.Index(msg, "postgres") > strings.Index(msg, "payments-api") {
+		t.Error("end of life is not first")
+	}
+	// The team rule is due at the default 8:00, so its plan went out at 8:30, once.
+	if other.count() != 1 || !strings.Contains(other.last(), "payments-api") || strings.Contains(other.last(), "postgres") {
+		t.Fatalf("team plan: %d", other.count())
+	}
+
+	// Next Monday's plan: postgres was acknowledged meanwhile; the team rule only sees its own.
+	if _, err := e.st.CreateAck(ctx, store.Ack{Scope: e.sc, ServiceID: e.db.ID, Kind: "drift", UntilAt: e.clock.AddDate(0, 1, 0)}); err != nil {
+		t.Fatal(err)
+	}
+	e.clock = time.Date(2026, 10, 12, 9, 1, 0, 0, time.UTC)
+	_ = e.n.PlanUpdates(ctx)
+	_ = e.n.DeliverDue(ctx)
+	if slack.count() != 2 || strings.Contains(slack.last(), "postgres") {
+		t.Fatalf("second plan: %d %s", slack.count(), slack.last())
+	}
+	if other.count() != 2 {
+		t.Fatalf("second team plan: %d", other.count())
+	}
+}
+
+func TestLastPlanTime(t *testing.T) {
+	wed := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	if got := lastPlanTime("weekly", Filter{}, wed); got != time.Date(2026, 10, 5, 8, 0, 0, 0, time.UTC) {
+		t.Errorf("weekly %v", got)
+	}
+	if got := lastPlanTime("daily", Filter{}, time.Date(2026, 10, 7, 7, 0, 0, 0, time.UTC)); got != time.Date(2026, 10, 6, 8, 0, 0, 0, time.UTC) {
+		t.Errorf("daily before the hour %v", got)
+	}
+}
