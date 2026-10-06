@@ -49,7 +49,10 @@ page, with `goliash service set`, or through the catalog.
 | `changelog` | A release notes URL template with `{version}`. | none |
 
 Without a `tag_filter`, tags are compared **like with like**: a service running `1.27.2-alpine` is compared with
-other `-alpine` tags with three version parts, so `latest`, `mainline` or `1.27-bookworm` do not count.
+other `-alpine` tags with three version parts, so `latest`, `mainline` or `1.27-bookworm` do not count. A tag that is no
+version names a flavour: `alpine` is compared with the newest `8.2.1-alpine`, `pg18` with `0.8.1-pg18`, while
+`latest` or `stable` are compared with plain releases. Tags such as `-testing`, `-unstable` or `-insiders` count as
+prereleases.
 
 ```sh
 goliash service set -name postgres -track minor -pin-major 15

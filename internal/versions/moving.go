@@ -63,7 +63,7 @@ func movingCandidates(tag string, tags []string, limit int) []string {
 			if v.Variant != base.Variant || len(v.Parts) <= len(base.Parts) || !slices.Equal(v.Parts[:len(base.Parts)], base.Parts) {
 				continue
 			}
-		} else if v.Variant != "" {
+		} else if v.Variant != WordFlavour(tag) {
 			continue
 		}
 		vs = append(vs, v)

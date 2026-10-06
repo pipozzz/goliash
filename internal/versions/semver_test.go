@@ -117,3 +117,29 @@ func TestParsePolicy(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// Tags that are no version name a flavour ("alpine", "pg18") or a line of plain
+// releases ("latest"); "testing" builds are not releases.
+func TestLatestForWordTags(t *testing.T) {
+	for _, c := range []struct {
+		running string
+		tags    string
+		want    string
+	}{
+		{"alpine", "8 8.2.1 8.2.1-alpine 8.2.0-alpine 8.2.1-alpine3.22 alpine latest", "8.2.1-alpine"},
+		{"pg18", "0.8.7-pg13 0.8.7-pg17 0.8.1-pg18 0.8.0-pg18 pg18", "0.8.1-pg18"},
+		{"latest", "4.104.0 4.103.2 v99.0.0-testing 4.104.0-ubuntu latest", "4.104.0"},
+		{"stable", "1.27.2 1.28.0 1.29.0-rc.1 stable mainline", "1.28.0"},
+	} {
+		u := Latest(strings.Fields(c.tags), c.running, Policy{})
+		if !u.HasLatest || u.Latest.Raw != c.want {
+			t.Errorf("%s: latest %q, want %q", c.running, u.Latest.Raw, c.want)
+		}
+	}
+	if v, _ := ParseVersion("v99.0.0-testing"); v.Pre != "testing" {
+		t.Errorf("testing is a prerelease: %+v", v)
+	}
+	if got := strings.Join(movingCandidates("alpine", strings.Fields("8.2.1 8.2.1-alpine 8.2.0-alpine"), 4), " "); got != "8.2.1-alpine 8.2.0-alpine" {
+		t.Errorf("moving alpine candidates %q", got)
+	}
+}
