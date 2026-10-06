@@ -57,12 +57,6 @@ templ TilesPage(v TilesView) {
 					}
 					<a href={ templ.URL(tilesWith(v, "env", "side")) } class={ templ.KV("on", v.Env == "side") } title="One board per environment">Side by side</a>
 				</nav>
-				if v.App == "" && v.Env != "side" {
-					<nav class="segmented" aria-label="Style">
-						<a href={ templ.URL(tilesWith(v, "style", "board")) } class={ templ.KV("on", v.Style == "board") }>Board</a>
-						<a href={ templ.URL(tilesWith(v, "style", "icons")) } class={ templ.KV("on", v.Style == "icons") }>Icons</a>
-					</nav>
-				}
 				<span class="spacer"></span>
 				<a class="toolbar-link" href={ templ.URL(tilesWith(v, "tv", "1")) } title="Full screen, for a wall screen">TV mode</a>
 			</div>
@@ -87,17 +81,6 @@ templ TilesPage(v TilesView) {
 						</section>
 					}
 				</div>
-			} else if v.Style == "icons" && v.App == "" {
-				<section class="tile-board" aria-label="Applications">
-					for _, it := range v.Items {
-						<a class={ "tile-app", "s-" + it.State } href={ templ.URL(it.Href) } data-key={ it.Key } data-state={ it.State } title={ it.Name + ": " + tileLabel(it.State) }>
-							@tileIcon(it.Dots, "")
-							<span class="tile-name">{ shortName(it.Name) }</span>
-							@envStrip(it.Envs)
-							<span class="tile-sub">{ itoa(it.OK) } / { itoa(it.Total) } up to date</span>
-						</a>
-					}
-				</section>
 			} else {
 				<div style={ "--rows:" + itoa(v.Rows) }>
 					@board(v.Items, v.Cols, false)
@@ -120,6 +103,7 @@ templ board(items []BoardItem, cols int, compact bool) {
 				data-key={ it.Key }
 				data-state={ it.State }
 				title={ it.Name + ": " + tileLabel(it.State) }
+				aria-label={ cellLabel(it) }
 			>
 				<span class="board-top">
 					<span class="board-name">{ shortName(it.Name) }</span>
@@ -216,18 +200,4 @@ templ servicePanel(v TilesView, c TileCell) {
 			</footer>
 		</div>
 	</aside>
-}
-
-// tileIcon draws an application like the logo: a navy rounded square with one cell
-// per service in a square grid.
-templ tileIcon(dots []string, size string) {
-	{{ side := tileGridSize(len(dots)) }}
-	<span class={ "tile-icon", size } style={ "--side:" + itoa(side) } aria-hidden="true">
-		for _, d := range dots {
-			<span class={ "tcell", d }></span>
-		}
-		for i := len(dots); i < side*side; i++ {
-			<span class="tcell void"></span>
-		}
-	</span>
 }

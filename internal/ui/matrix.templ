@@ -28,6 +28,13 @@ templ MatrixPage(v MatrixView) {
 		</div>
 		if v.At != "" || len(v.Grid.Rows) > 0 {
 			<div class="toolbar">
+				if len(v.Grid.Rows) > 0 && v.At == "" {
+					<nav class="segmented" aria-label="View">
+						<span class="muted">View</span>
+						<a href={ templ.URL("/?view=table&group=" + v.Grid.GroupBy) } class="on" aria-current="page">Table</a>
+						<a href={ templ.URL("/tiles?group=" + tileGroup(v.Grid.GroupBy)) } title="Every application as a cell, coloured like the logo">Tiles</a>
+					</nav>
+				}
 				if len(v.Grid.Rows) > 0 {
 					<nav class="segmented" aria-label="Group by">
 						<span class="muted">Group by</span>

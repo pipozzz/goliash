@@ -48,6 +48,31 @@ still is. Upstream releases and the version policy stay one per service, and not
 This depends on knowing the application (see below): Compose projects, Helm releases and `app.kubernetes.io/part-of`
 work out of the box, and a Nomad job counts as an application of its own.
 
+## Tiles
+
+**View → Tiles** draws the matrix the way the logo does: a navy board of rounded cells, one per application (or team,
+or status), coloured like the logo's cells. Bright means up to date, dimmer means behind, faint means there is nothing
+to compare with, and warm means it needs attention: end of life, or targets disagreeing.
+
+![Service tiles: applications as cells of a navy board, coloured by how current they are, each with a strip of its state per environment](../../../assets/tiles.png)
+
+- **Each cell** shows its services as dots, its most urgent upgrade, how many services are up to date, and a strip with
+  one square per environment in its state there. Applications with four services or more take a double cell once a
+  board has six or more.
+- **Open a cell** for the same board for that application, one cell per service. *All applications* at the top leads
+  back. Open a service for its versions per environment, the newest release with its notes, its drift and a link to
+  its page; Escape closes it.
+- **Env** colours the board for one environment. **Side by side** draws one board per environment with every
+  application in the same place, so you can see at a glance where prod lags behind staging.
+
+![One board per environment, side by side: dev, staging and prod with the same applications in the same places](../../../assets/tiles-envs.png)
+
+- The board follows changes live, and a cell whose state changed pulses. **TV mode** hides the header and fills the
+  screen, for a wall display.
+- The browser tab's icon is the logo coloured by the workspace: as many of its nine cells as needed turn warm or dim,
+  so a pinned tab tells you when something needs attention.
+- The view you used last is remembered: `/` opens the tiles until you choose **Table** again.
+
 ## One target at a glance
 
 Click a target's name under **Settings → Agents and targets** to see what runs on that cluster or host: a ring

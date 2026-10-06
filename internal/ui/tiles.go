@@ -44,7 +44,6 @@ func worse(a, b string) string {
 type TilesView struct {
 	Base
 	GroupBy string
-	Style   string // board (the logo, enlarged) or icons (an icon per application)
 	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
 	Envs    []string
 	App     string // the application (team, status) drilled into; empty on the global board
@@ -176,13 +175,10 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		return err
 	}
 	v := TilesView{
-		Base: s.base(r.Context(), p, "matrix", "Tiles"), GroupBy: g.GroupBy, Style: "board", Env: q.Get("env"),
+		Base: s.base(r.Context(), p, "matrix", "Tiles"), GroupBy: g.GroupBy, Env: q.Get("env"),
 		App: q.Get("app"), TV: q.Get("tv") == "1", Updated: time.Now().UTC().Format("15:04 UTC"),
 	}
-	v.Base.Kiosk = v.TV
-	if q.Get("style") == "icons" {
-		v.Style = "icons"
-	}
+	v.Kiosk = v.TV
 	if v.GroupBy == "none" {
 		v.GroupBy = "app"
 	}
@@ -275,10 +271,15 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 					it.Headline += " → " + worst.Latest
 				}
 			}
-			if v.Style == "board" && it.Total >= 4 && !v.TV {
+			if it.Total >= 4 && !v.TV {
 				it.Span = 2
 			}
 			v.Items = append(v.Items, it)
+		}
+	}
+	if len(v.Items) < 6 { // a few applications: big cells would leave the board half empty
+		for i := range v.Items {
+			v.Items[i].Span = 1
 		}
 	}
 	units := 0
@@ -315,9 +316,6 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 // tilesHref links to the tiles with the page's choices, drilled into app (or not).
 func tilesHref(v TilesView, app string) string {
 	q := url.Values{"group": {v.GroupBy}}
-	if v.Style != "board" {
-		q.Set("style", v.Style)
-	}
 	if v.Env != "" {
 		q.Set("env", v.Env)
 	}
@@ -335,8 +333,6 @@ func tilesWith(v TilesView, key, value string) string {
 	switch key {
 	case "group":
 		v.GroupBy, v.App = value, ""
-	case "style":
-		v.Style = value
 	case "env":
 		v.Env = value
 	case "tv":
@@ -457,4 +453,24 @@ func faviconSVG(c TileCounts) string {
 	}
 	b.WriteString(`</svg>`)
 	return b.String()
+}
+
+// cellLabel is what a screen reader says for a board cell.
+func cellLabel(it BoardItem) string {
+	s := it.Name + ", " + tileLabel(it.State)
+	if it.Total > 1 {
+		s += ", " + itoa(it.OK) + " of " + itoa(it.Total) + " services up to date"
+	}
+	if it.Headline != "" {
+		s += ", " + it.Headline
+	}
+	return s
+}
+
+// tileGroup is the tiles' grouping for a matrix grouping: tiles always group.
+func tileGroup(by string) string {
+	if by == "none" {
+		return "app"
+	}
+	return by
 }

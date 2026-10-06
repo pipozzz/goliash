@@ -121,7 +121,15 @@
     if (e.key !== "Escape") return;
     if (q && e.target === q && q.value) { q.value = ""; filterMatrix(); return; }
     const open = document.querySelector("details.menu[open]");
-    if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); }
+    if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); return; }
+    // A tile's details panel is open while its id is the URL's fragment.
+    const panel = window.location.hash && document.querySelector(".tile-panel" + CSS.escape(window.location.hash));
+    if (panel) {
+      const key = window.location.hash.slice(1);
+      window.location.hash = "";
+      const cell = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
+      if (cell) cell.focus();
+    }
   });
 
   // Selects that act at once (role, workspace, collector) and the print button. The

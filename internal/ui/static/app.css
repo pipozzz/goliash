@@ -543,27 +543,6 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .tile-legend .tcell { width: 13px; height: 13px; border-radius: 4px; box-shadow: none; }
 .tile-legend .tcell.behind, .tile-legend .tcell.unknown { outline: 1px solid rgb(27 42 107 / 0.25); }
 .tile-legend strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-.tile-board {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 30px 22px;
-  padding: 30px 26px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line);
-}
-.tile-app { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink); text-align: center; border-radius: 14px; padding: 6px; }
-.tile-app:hover { text-decoration: none; }
-.tile-icon {
-  --size: 116px;
-  display: grid; grid-template-columns: repeat(var(--side), 1fr); grid-template-rows: repeat(var(--side), 1fr);
-  gap: calc(var(--size) * 0.07); padding: calc(var(--size) * 0.17);
-  width: var(--size); height: var(--size); border-radius: 26%; background: var(--logo-bg); box-sizing: border-box;
-  box-shadow: 0 6px 18px rgb(27 42 107 / 0.28), inset 0 1px 0 rgb(255 255 255 / 0.08);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-.tile-app:hover .tile-icon, .tile-app:focus-visible .tile-icon { transform: translateY(-4px) scale(1.04); box-shadow: 0 14px 28px rgb(27 42 107 / 0.35); }
-.tile-app.s-attention .tile-icon { box-shadow: 0 6px 18px rgb(27 42 107 / 0.28), 0 0 0 3px rgb(255 179 71 / 0.45); }
-.tile-name { font-weight: 650; font-size: 14px; margin-top: 8px; }
-.tile-sub { font-size: 12px; color: var(--muted); }
-.tile-app.s-attention .tile-sub { color: var(--warn); font-weight: 600; }
-.tile-icon.small { --size: 52px; flex: none; box-shadow: 0 3px 8px rgb(27 42 107 / 0.25); }
-.tile-icon.small .tcell.attention { box-shadow: none; }
 /* The panel opens on :target, no script needed; the backdrop and × link back to "#". */
 .tile-panel { display: none; position: fixed; inset: 0; z-index: 50; }
 .tile-panel:target { display: block; }
@@ -592,14 +571,6 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .tile-ver .latest { color: var(--accent); }
 .tile-services .badges { margin-top: 6px; }
 .tile-panel footer { display: flex; gap: 18px; padding-top: 16px; font-size: 13.5px; }
-@media (prefers-color-scheme: dark) {
-  .tile-board { background: #0b1230; border-color: #1c2547; }
-  .tile-icon { box-shadow: 0 6px 18px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.08); }
-}
-@media (max-width: 720px) {
-  .tile-board { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 20px 10px; padding: 18px 12px; }
-  .tile-icon:not(.small) { --size: 84px; }
-}
 /* Board: the logo enlarged. One navy rounded square; each cell an application. */
 .logo-board {
   display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: clamp(10px, 1.6vw, 20px);
@@ -646,7 +617,6 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .env-sq.unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); }
 .env-sq.attention { background: var(--logo-warm); }
 .env-sq.none { background: transparent; box-shadow: inset 0 0 0 1px rgb(138 164 255 / 0.35); }
-.tile-app .env-strip { margin-top: 2px; }
 .board-cell.s-none { background: rgb(255 255 255 / 0.04); color: rgb(201 210 255 / 0.4); box-shadow: inset 0 0 0 1px rgb(138 164 255 / 0.12); }
 /* Boards side by side: one small logo per environment. */
 .env-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 26px; align-items: start; }
@@ -661,7 +631,7 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
   70% { box-shadow: 0 0 0 16px rgb(255 255 255 / 0); }
   100% { box-shadow: 0 0 0 0 rgb(255 255 255 / 0); }
 }
-.board-cell.changed, .tile-app.changed .tile-icon { animation: cell-pulse 1.2s ease-out 2; }
+.board-cell.changed { animation: cell-pulse 1.2s ease-out 2; }
 .tcell.big { width: 44px; height: 44px; flex: none; border-radius: 12px; }
 /* TV mode: no header, the board fills the screen. */
 body.kiosk main { max-width: none; padding: 18px 28px; }
@@ -670,3 +640,13 @@ body.kiosk main { max-width: none; padding: 18px 28px; }
 .tv-exit { font-size: 13px; opacity: 0.6; }
 body.kiosk .logo-board:not(.compact) { max-width: min(100%, calc((100vh - 150px) * var(--cols) / var(--rows, 3))); }
 body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px; }
+/* Tiles: focus, and small screens (names and env strips only). */
+.board-cell:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+@media (max-width: 720px) {
+  .logo-board { gap: 8px; padding: 14px; border-radius: 26px; }
+  .board-cell { padding: 11%; border-radius: 20%; }
+  .board-cell .board-dots, .board-cell .board-headline, .board-cell .board-sub { display: none; }
+  .board-cell.big { grid-column: span 1; grid-row: span 1; }
+  .board-top { flex-direction: column; gap: 6px; }
+  .tiles-toolbar .segmented { overflow-x: auto; }
+}
