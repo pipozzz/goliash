@@ -155,31 +155,29 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			<td class="update-actions">
 				<details class="menu put-off">
 					<summary>Put off</summary>
-					<div class="menu-list">
+					// One form, a button per choice: the button's name and value say which.
+					<form class="menu-list" method="post" action={ templ.URL(it.ServiceURL + "/ack") }>
+						<input type="hidden" name="kind" value="drift"/>
+						<input type="hidden" name="environment" value={ it.Env }/>
+						<input type="hidden" name="return" value={ ret }/>
 						if it.Skip != "" {
-							@putOff(it, ret, "until_version", it.Skip, "Skip "+it.Target, "until a release after it is out")
+							@putOff("until_version", it.Skip, "Skip "+it.Target, "until a release after it is out")
 						}
-						@putOff(it, ret, "for", "168h", "For a week", "then it is back")
-						@putOff(it, ret, "for", "720h", "For 30 days", "then it is back")
-					</div>
+						@putOff("for", "168h", "For a week", "then it is back")
+						@putOff("for", "720h", "For 30 days", "then it is back")
+					</form>
 				</details>
 			</td>
 		}
 	</tr>
 }
 
-// putOff acknowledges the drift of one service in one environment from the list.
-templ putOff(it UpdateItem, ret, field, value, label, help string) {
-	<form method="post" action={ templ.URL(it.ServiceURL + "/ack") }>
-		<input type="hidden" name="kind" value="drift"/>
-		<input type="hidden" name="environment" value={ it.Env }/>
-		<input type="hidden" name="return" value={ ret }/>
-		<input type="hidden" name={ field } value={ value }/>
-		<button type="submit" class="menu-item">
-			<strong>{ label }</strong>
-			<small>{ help }</small>
-		</button>
-	</form>
+// putOff is one choice of the put-off menu.
+templ putOff(field, value, label, help string) {
+	<button type="submit" class="menu-item" name={ field } value={ value }>
+		<strong>{ label }</strong>
+		<small>{ help }</small>
+	</button>
 }
 
 func levelParam(v UpdatesView) string {
