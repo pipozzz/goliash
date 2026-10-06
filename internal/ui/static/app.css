@@ -801,3 +801,5 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .app-meta .badge { font-size: 11.5px; }
 
 .map-only { margin-top: 6px; }
+
+.map-all { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }

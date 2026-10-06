@@ -135,6 +135,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
+	mux.Handle("POST /inbox/map-all", s.page(m, s.inboxMapAll))
 	mux.Handle("GET /agents", s.page(v, s.agents))
 	mux.Handle("POST /agents", s.page(a, s.createAgent))
 	mux.Handle("GET /agents/{id}", s.page(v, s.agent))
@@ -2169,4 +2170,57 @@ func (s *Server) renameService(w http.ResponseWriter, r *http.Request, p auth.Pr
 	s.audit(ctx, p, "service.rename", "service", svc.Name, "to", to)
 	s.reevaluate(r, p)
 	return back(w, r, serviceURL(to), "notice", svc.Name+" is "+to+" now. Notification rules naming "+svc.Name+" need the new name.")
+}
+
+// inboxMapAll maps every image in the Inbox to its suggested service at once (each one
+// as Map would: a rule for the image, so the next workloads map by themselves).
+func (s *Server) inboxMapAll(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	repos, names := r.Form["repo"], r.Form["service"]
+	if len(repos) == 0 || len(repos) != len(names) {
+		return back(w, r, "/inbox", "error", "Nothing to map.")
+	}
+	items, err := s.inboxItems(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	images, workloads := 0, 0
+	var skipped []string
+	for i, repo := range repos {
+		name := strings.TrimSpace(names[i])
+		if repo == "" || !serviceName.MatchString(name) {
+			skipped = append(skipped, repo)
+			continue
+		}
+		svc, err := s.store.EnsureService(ctx, p.Scope, name)
+		if err != nil {
+			return err
+		}
+		if _, err := s.store.CreateMappingRule(ctx, store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: mapping.ImagePattern(repo), ServiceID: svc.ID}); err != nil {
+			return err
+		}
+		for _, it := range items {
+			if it.Repo != repo {
+				continue
+			}
+			if err := s.store.MapInstances(ctx, p.Scope, it.TargetID, it.WorkloadID, svc.ID); err != nil {
+				return err
+			}
+			workloads++
+		}
+		images++
+		s.audit(ctx, p, "mapping.create", "service", svc.Name, "image_repo", mapping.ImagePattern(repo))
+	}
+	if s.checker != nil {
+		_ = s.checker.EvaluateDrift(ctx, p.Scope)
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	msg := fmt.Sprintf("Mapped %s (%s). New workloads running them map by themselves.", plural(images, "image", "images"), plural(workloads, "workload", "workloads"))
+	if len(skipped) > 0 {
+		msg += " Skipped, names to check: " + strings.Join(skipped, ", ") + "."
+	}
+	return back(w, r, "/inbox", "notice", msg)
 }
