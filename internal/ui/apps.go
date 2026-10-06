@@ -26,6 +26,7 @@ type AppView struct {
 	Services []AppService
 	Teams    []string
 	State    string // the worst tile state of its services
+	Team     string // its team, which services without one get, now and later
 	OK       int    // services up to date
 	Tiles    string // its card on the tiles board
 }
@@ -78,6 +79,10 @@ func (s *Server) apps(w http.ResponseWriter, r *http.Request, p auth.Principal) 
 		return err
 	}
 	services, err := s.store.ListServices(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	appTeams, err := s.store.AppTeams(ctx, p.Scope)
 	if err != nil {
 		return err
 	}
@@ -139,6 +144,7 @@ func (s *Server) apps(w http.ResponseWriter, r *http.Request, p auth.Principal) 
 		for t := range a.teams {
 			a.v.Teams = append(a.v.Teams, t)
 		}
+		a.v.Team = appTeams[name]
 		sort.Strings(a.v.Teams)
 		v.Apps = append(v.Apps, *a.v)
 		v.Names = append(v.Names, name)
@@ -187,16 +193,20 @@ func (s *Server) appTeam(w http.ResponseWriter, r *http.Request, p auth.Principa
 			ids = append(ids, svc.ID)
 		}
 	}
+	if err := s.store.SetAppTeam(ctx, p.Scope, app, team); err != nil {
+		return err
+	}
+	if team == "" {
+		s.audit(ctx, p, "app.team", "app", app, "team", "")
+		return back(w, r, "/apps", "notice", "New services in "+app+" no longer get a team; the services keep theirs.")
+	}
 	n, err := s.store.SetOwners(ctx, p.Scope, ids, team)
 	if err != nil {
 		return err
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
 	s.audit(ctx, p, "app.team", "app", app, "team", team, "services", itoa(n))
-	if team == "" {
-		return back(w, r, "/apps", "notice", "The services of "+app+" have no team now.")
-	}
-	return back(w, r, "/apps", "notice", plural(n, "service", "services")+" of "+app+" now belong to "+team+".")
+	return back(w, r, "/apps", "notice", plural(n, "service", "services")+" of "+app+" now belong to "+team+"; services that appear in it later get it too.")
 }
 
 func (s *Server) teams(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

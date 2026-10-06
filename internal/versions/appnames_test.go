@@ -83,3 +83,58 @@ func TestRenamedAppsKeepTheirDrift(t *testing.T) {
 		t.Fatalf("after splitting out: %q", got)
 	}
 }
+
+// An application's team goes to services in it without an owner, also ones that
+// appear later; it follows renames; services whose applications disagree keep none.
+func TestFillOwners(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	run := func(svc store.Service, target, app string) {
+		tg := l.targets[target]
+		existing, _ := l.st.ListTargetInstances(ctx, l.sc, tg.ID)
+		ch := store.SnapshotChanges{Scope: l.sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: append(existing, store.Instance{
+			TargetID: tg.ID, EnvironmentID: tg.EnvironmentID, ServiceID: svc.ID, WorkloadID: svc.Name + "-" + app,
+			WorkloadKind: "deployment", WorkloadName: svc.Name, ContainerName: "app", Image: "nginx:1.27.2", Tag: "1.27.2",
+			Running: 1, IsMain: true, App: app, AppSource: "app.kubernetes.io/part-of",
+		})}
+		if err := l.st.ApplySnapshot(ctx, ch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run(l.svc, "prod-a", "shop-frontend")
+	if err := l.st.RenameApp(ctx, l.sc, "shop-frontend", "webshop"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.st.SetAppTeam(ctx, l.sc, "webshop", "team-shop"); err != nil {
+		t.Fatal(err)
+	}
+	// Renaming the application (as shown) takes its team along.
+	if err := l.st.RenameApp(ctx, l.sc, "webshop", "shop"); err != nil {
+		t.Fatal(err)
+	}
+	if teams, _ := l.st.AppTeams(ctx, l.sc); teams["shop"] != "team-shop" || teams["webshop"] != "" {
+		t.Fatalf("app teams after rename %v", teams)
+	}
+	// A service appearing in it gets the team; one also in an application with another
+	// team gets none.
+	cart, _ := l.st.EnsureService(ctx, l.sc, "cart")
+	run(cart, "prod-b", "shop-frontend")
+	both, _ := l.st.EnsureService(ctx, l.sc, "cache")
+	run(both, "prod-a", "shop-frontend")
+	run(both, "prod-b", "identity")
+	_ = l.st.SetAppTeam(ctx, l.sc, "identity", "platform")
+	named, err := FillOwners(ctx, l.st, l.sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := func(s store.Service) string { got, _ := l.st.GetService(ctx, l.sc, s.ID); return got.Owner }
+	if owner(l.svc) != "team-shop" || owner(cart) != "team-shop" || owner(both) != "" {
+		t.Fatalf("owners web=%q cart=%q cache=%q (named %v)", owner(l.svc), owner(cart), owner(both), named)
+	}
+	// An owner set by hand stays.
+	_, _ = l.st.SetOwners(ctx, l.sc, []string{cart.ID}, "someone")
+	_, _ = FillOwners(ctx, l.st, l.sc)
+	if owner(cart) != "someone" {
+		t.Fatal("an owner set by hand was replaced")
+	}
+}

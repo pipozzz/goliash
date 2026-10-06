@@ -48,6 +48,16 @@ func (s *Store) RenameApp(ctx context.Context, sc Scope, name, to string) error 
 		if to == "" || to == name {
 			return nil
 		}
+		// The application's team follows it, unless the one it merges into has a team.
+		if _, err := s.exec(ctx, tx, `DELETE FROM app_teams WHERE org_id = ? AND workspace_id = ? AND app = ?
+			AND EXISTS (SELECT 1 FROM app_teams t WHERE t.workspace_id = app_teams.workspace_id AND t.app = ?)`,
+			sc.OrgID, sc.WorkspaceID, name, to); err != nil {
+			return err
+		}
+		if _, err := s.exec(ctx, tx, `UPDATE app_teams SET app = ? WHERE org_id = ? AND workspace_id = ? AND app = ?`,
+			to, sc.OrgID, sc.WorkspaceID, name); err != nil {
+			return err
+		}
 		_, err := s.exec(ctx, tx, `INSERT INTO app_names (org_id, workspace_id, name, shown_as, created_at) VALUES (?, ?, ?, ?, ?)`,
 			sc.OrgID, sc.WorkspaceID, name, to, s.now())
 		return err
@@ -97,4 +107,38 @@ func (s *Store) SetDriftApp(ctx context.Context, sc Scope, id, app string) error
 	res, err := s.exec(ctx, s.db, `UPDATE drifts SET app = ? WHERE org_id = ? AND workspace_id = ? AND id = ? AND resolved_at IS NULL`,
 		app, sc.OrgID, sc.WorkspaceID, id)
 	return expectOne(res, err)
+}
+
+// AppTeams maps applications to their team, for services in them without an owner.
+func (s *Store) AppTeams(ctx context.Context, sc Scope) (map[string]string, error) {
+	rows, err := s.query(ctx, s.db, `SELECT app, team FROM app_teams WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]string{}
+	for rows.Next() {
+		var app, team string
+		if err := rows.Scan(&app, &team); err != nil {
+			return nil, err
+		}
+		out[app] = team
+	}
+	return out, rows.Err()
+}
+
+// SetAppTeam remembers an application's team; empty forgets it.
+func (s *Store) SetAppTeam(ctx context.Context, sc Scope, app, team string) error {
+	app, team = strings.TrimSpace(app), strings.TrimSpace(team)
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := s.exec(ctx, tx, `DELETE FROM app_teams WHERE org_id = ? AND workspace_id = ? AND app = ?`, sc.OrgID, sc.WorkspaceID, app); err != nil {
+			return err
+		}
+		if team == "" {
+			return nil
+		}
+		_, err := s.exec(ctx, tx, `INSERT INTO app_teams (org_id, workspace_id, app, team, created_at) VALUES (?, ?, ?, ?, ?)`,
+			sc.OrgID, sc.WorkspaceID, app, team, s.now())
+		return err
+	})
 }
