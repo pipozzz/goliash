@@ -588,16 +588,8 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .board-cell.s-behind { background: color-mix(in srgb, var(--logo-cell) 55%, var(--logo-bg)); color: #eef1ff; }
 .board-cell.s-unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); color: #c9d2ff; }
 .board-cell.s-attention { background: var(--logo-warm); color: #3b2300; box-shadow: 0 0 34px rgb(255 179 71 / 0.45); }
-.board-name { font-weight: 750; font-size: clamp(12px, 1.35vw, 17px); line-height: 1.15; overflow-wrap: anywhere; }
+.board-name { font-weight: 750; font-size: clamp(12px, 1.35vw, 17px); line-height: 1.15; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-sub { font-size: clamp(10px, 0.95vw, 12px); font-weight: 600; opacity: 0.8; }
-.board-dots { display: flex; flex-wrap: wrap; gap: 5px; }
-/* Service dots take the cell's text colour: full when current, half when behind,
-   faint when unknown; warm when they need attention (white on a warm cell). */
-.board-dots .dot { width: 11px; height: 11px; border-radius: 3px; background: currentColor; }
-.board-dots .dot.behind { opacity: 0.5; }
-.board-dots .dot.unknown { opacity: 0.22; }
-.board-dots .dot.attention { background: var(--logo-warm); opacity: 1; box-shadow: 0 0 6px rgb(255 179 71 / 0.7); }
-.board-cell.s-attention .board-dots .dot.attention { background: #fff; box-shadow: none; }
 .board-foot { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .board-headline { font: 600 11px/1.3 var(--mono); opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) { .logo-board { grid-template-columns: repeat(min(var(--cols), 3), minmax(0, 1fr)); } }
@@ -609,10 +601,9 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .logo-board { grid-auto-flow: dense; }
 .board-cell.big { grid-column: span 2; grid-row: span 2; padding: 9%; }
 .board-cell.big .board-name { font-size: clamp(15px, 1.9vw, 24px); }
-.board-cell.big .board-dots .dot { width: 14px; height: 14px; }
 .board-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; min-width: 0; }
-.env-strip { display: inline-flex; gap: 3px; flex: none; padding: 3px; border-radius: 6px; background: rgb(27 42 107 / 0.55); }
-.env-sq { width: 9px; height: 9px; border-radius: 2.5px; background: var(--logo-cell); }
+.env-strip { display: inline-flex; gap: 3px; flex: none; padding: 4px; border-radius: 8px; background: var(--logo-bg); box-shadow: 0 2px 6px rgb(15 23 66 / 0.25); }
+.env-sq { width: 9px; height: 9px; border-radius: 26%; background: var(--logo-cell); }
 .env-sq.behind { background: color-mix(in srgb, var(--logo-cell) 55%, var(--logo-bg)); }
 .env-sq.unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); }
 .env-sq.attention { background: var(--logo-warm); }
@@ -645,8 +636,61 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 @media (max-width: 720px) {
   .logo-board { gap: 8px; padding: 14px; border-radius: 26px; }
   .board-cell { padding: 11%; border-radius: 20%; }
-  .board-cell .board-dots, .board-cell .board-headline, .board-cell .board-sub { display: none; }
+  .board-cell .mini-logo, .board-cell .board-headline, .board-cell .board-sub { display: none; }
   .board-cell.big { grid-column: span 1; grid-row: span 1; }
   .board-top { flex-direction: column; gap: 6px; }
   .tiles-toolbar .segmented { overflow-x: auto; }
 }
+/* The services of a board cell, drawn as a small logo: a navy rounded square with a
+   rounded cell per service in the logo's colours (the same on blue and warm cells). */
+.mini-logo {
+  --mini: 46px;
+  display: grid; grid-template-columns: repeat(var(--side), 1fr); grid-template-rows: repeat(var(--side), 1fr);
+  width: var(--mini); height: var(--mini); padding: calc(var(--mini) * 0.16); gap: calc(var(--mini) * 0.07);
+  box-sizing: border-box; border-radius: 26%; background: var(--logo-bg);
+  box-shadow: 0 3px 10px rgb(15 23 66 / 0.3), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+.board-cell.big .mini-logo { --mini: 78px; }
+.mcell { border-radius: 26%; background: var(--logo-cell); min-width: 0; min-height: 0; }
+.mcell.behind { background: color-mix(in srgb, var(--logo-cell) 55%, var(--logo-bg)); }
+.mcell.unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); }
+.mcell.attention { background: var(--logo-warm); box-shadow: 0 0 5px rgb(255 179 71 / 0.6); }
+.mcell.void { background: rgb(255 255 255 / 0.05); }
+/* Drilled in: the application's board is a card laid over the global board, which
+   stays behind, dimmed and clickable, as the way back and across. */
+.tile-stack { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); align-items: start; }
+.stack-back {
+  position: relative; margin-top: 34px; padding: 14px 40px 14px 0; opacity: 0.62; transition: opacity 0.2s ease;
+  filter: saturate(0.85);
+}
+.stack-back:hover, .stack-back:focus-within { opacity: 1; filter: none; }
+.stack-back-label { display: inline-block; margin: 0 0 8px 4px; font-weight: 600; font-size: 13px; }
+.stack-back .logo-board.compact { transform: rotate(-1.5deg); transform-origin: top left; }
+.stack-back .board-cell.current { outline: 3px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 7px rgb(255 255 255 / 0.25); z-index: 1; }
+.stack-front {
+  position: relative; z-index: 1; margin-left: -40px; padding: 18px 20px 16px; border-radius: 30px;
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 30px 70px rgb(15 23 66 / 0.28), 0 6px 18px rgb(15 23 66 / 0.12);
+  animation: stack-in 0.28s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes stack-in { from { transform: translate(-24px, 18px) scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.stack-front.s-attention { box-shadow: 0 30px 70px rgb(15 23 66 / 0.28), 0 0 0 3px rgb(255 179 71 / 0.55); }
+.stack-head { display: flex; align-items: center; gap: 14px; margin: 0 4px 16px; }
+.stack-head .mini-logo { --mini: 52px; }
+.stack-title { flex: 1; min-width: 0; }
+.stack-title h2 { margin: 0; font-size: 22px; }
+.stack-title .muted { font-size: 13px; }
+.stack-close { font-size: 26px; line-height: 1; color: var(--muted); padding: 2px 10px 6px; border-radius: 10px; }
+.stack-close:hover { background: var(--surface-2); text-decoration: none; }
+.stack-front .logo-board { max-width: none; }
+.stack-front > .tile-legend { justify-content: center; margin-top: 14px; }
+::view-transition-group(*) { animation-duration: 0.32s; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+@media (prefers-color-scheme: dark) { .stack-front { background: #121827; border-color: #222b40; } }
+@media (max-width: 900px) {
+  .tile-stack { grid-template-columns: 1fr; }
+  .stack-back { margin: 0 0 -18px; padding: 0 0 26px; opacity: 0.8; overflow-x: auto; }
+  .stack-back .logo-board.compact { transform: none; grid-template-columns: repeat(var(--count, 12), 64px); width: max-content; }
+  .stack-front { margin-left: 0; }
+}
+.stack-back .board-name, .logo-board.compact .board-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; }
+.stack-back .board-name { font-size: 10px; }

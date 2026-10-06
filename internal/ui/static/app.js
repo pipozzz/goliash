@@ -115,7 +115,7 @@
 
   document.addEventListener("keydown", function (e) {
     const q = document.getElementById("matrix-q");
-    const typing = e.target.closest("input, textarea, select, [contenteditable]");
+    const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
     // "/" jumps to the matrix filter, as on GitHub; Escape in the filter clears it.
     if (q && e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); q.focus(); q.select(); return; }
     if (e.key !== "Escape") return;
@@ -129,7 +129,11 @@
       window.location.hash = "";
       const cell = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
       if (cell) cell.focus();
+      return;
     }
+    // Drilled into an application: Escape lays its card down, back to the board.
+    const close = !typing && document.querySelector(".stack-close");
+    if (close) close.click();
   });
 
   // Selects that act at once (role, workspace, collector) and the print button. The
