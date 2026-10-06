@@ -220,6 +220,42 @@ templ NotificationsPage(v NotificationsView) {
 				}
 			</section>
 		</div>
+		if len(v.Deliveries) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Recent deliveries</h2><span class="muted">the last { itoa(len(v.Deliveries)) }, newest first</span></div>
+				<table class="deliveries">
+					<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th></th></tr></thead>
+					<tbody>
+						for _, d := range v.Deliveries {
+							<tr>
+								<td class="muted nowrap">@timeAgo(d.At)</td>
+								<td><strong>{ d.Channel }</strong> <span class="muted">{ d.Type }</span></td>
+								<td class="delivery-text">{ d.Text }</td>
+								<td>
+									<span class={ "delivery-status " + d.Status }>{ d.Label }</span>
+									if d.Error != "" && d.Status != "sent" {
+										<div class="delivery-error mono">{ d.Error }</div>
+									}
+								</td>
+								<td class="num">
+									if d.Retry && v.CanMember {
+										<form method="post" action={ templ.URL("/notifications/deliveries/" + d.ID + "/retry") }>
+											<button class="link" type="submit">
+												if d.Status == "waiting" {
+													Send now
+												} else {
+													Retry now
+												}
+											</button>
+										</form>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</section>
+		}
 	}
 }
 

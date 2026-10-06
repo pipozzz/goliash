@@ -17,8 +17,8 @@ import (
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
-// maxAttempts is how often a delivery is tried before it is given up.
-const maxAttempts = 6
+// MaxAttempts is how often a delivery is tried before it is given up.
+const MaxAttempts = 6
 
 // Item is one thing to tell people about.
 type Item struct {
@@ -329,7 +329,7 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 
 // DeliverDue sends every due item, one message per rule.
 func (n *Notifier) DeliverDue(ctx context.Context) error {
-	items, err := n.store.DueItems(ctx, n.now(), maxAttempts)
+	items, err := n.store.DueItems(ctx, n.now(), MaxAttempts)
 	if err != nil || len(items) == 0 {
 		return err
 	}

@@ -153,6 +153,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /workspaces/{id}/rename", s.page(a, s.renameWorkspace))
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
 	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
+	mux.Handle("POST /notifications/deliveries/{id}/retry", s.page(m, s.retryDelivery))
 	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
 	mux.Handle("POST /environments/{id}", s.page(a, s.updateEnvironment))
 	mux.Handle("POST /environments/{id}/delete", s.page(a, s.deleteEnvironment))
@@ -1283,6 +1284,13 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 			Plan:   slices.Contains(rule.EventTypes, notifier.EventUpdatesPlan),
 			Filter: orDash(strings.Join(parts, "; ")),
 		})
+	}
+	deliveries, err := s.store.RecentDeliveries(ctx, p.Scope, 25)
+	if err != nil {
+		return err
+	}
+	for _, d := range deliveries {
+		v.Deliveries = append(v.Deliveries, deliveryView(d, time.Now().UTC()))
 	}
 	return render(w, r, NotificationsPage(v))
 }

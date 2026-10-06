@@ -100,6 +100,14 @@ A release is announced once per service and version. Failed deliveries are retri
 to an hour between attempts. Acknowledged releases and drift are not sent; see
 [Acknowledging](/guide/versions/#acknowledging).
 
+## Recent deliveries
+
+The bottom of the Notifications page lists the last 25 notifications and how each went: **sent**, waiting **in the
+digest** until its hour, **attempt N failed** with the error and when it is tried next (after 1, 2, 4, 8 and 16 minutes),
+or **gave up after 6 attempts**. **Retry now** sends a failed one at once and says whether it went through; **Send
+now** sends one waiting for its digest. A wrong webhook URL or a revoked Slack hook shows here with what the
+service answered.
+
 ## Upgrade plan
 
 A rule with the event type `updates_plan` (*upgrade plan* in the form) sends the [Updates](/guide/versions/#updates)
