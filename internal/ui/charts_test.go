@@ -4,6 +4,10 @@
 package ui
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,5 +92,60 @@ func TestVersionTimeline(t *testing.T) {
 	}
 	if len(tl.Ticks) != 5 || tl.Ticks[4].Label != "Oct 7" {
 		t.Fatalf("ticks %+v", tl.Ticks)
+	}
+}
+
+// The smooth curve bends without overshooting: every control point stays between
+// the two points it joins, so a curve never dips below zero or above a peak.
+func TestSmoothPathMonotone(t *testing.T) {
+	values := []int{0, 0, 3, 3, 10, 2, 2, 0, 7}
+	top := 12
+	d := smoothPath(values, top)
+	if !strings.HasPrefix(d, "M") || strings.Count(d, "C") != len(values)-1 {
+		t.Fatalf("path %s", d)
+	}
+	segs := strings.Split(strings.TrimPrefix(d, "M"), " C")
+	for i, seg := range segs[1:] {
+		lo, hi := math.Min(yAt(values[i], top), yAt(values[i+1], top)), math.Max(yAt(values[i], top), yAt(values[i+1], top))
+		for _, p := range strings.Fields(seg)[:2] {
+			var x, y float64
+			if _, err := fmt.Sscanf(p, "%f,%f", &x, &y); err != nil {
+				t.Fatal(err)
+			}
+			if y < lo-0.05 || y > hi+0.05 {
+				t.Errorf("segment %d overshoots: control y %.1f outside [%.1f, %.1f]", i, y, lo, hi)
+			}
+		}
+	}
+	if a := areaPath(values, top); !strings.HasSuffix(a, " Z") || !strings.Contains(a, f(chartH)) {
+		t.Errorf("area %s", a)
+	}
+	if smoothPath(nil, 4) != "" || areaPath(nil, 4) != "" {
+		t.Error("empty series draws something")
+	}
+}
+
+func TestHoverData(t *testing.T) {
+	s := hoverData([]string{"Sep 1", "Sep 2"}, []Series{{Name: "prod", Class: "c0", Values: []int{1, 3}}, {Name: "none", Class: "c1", Values: []int{0, 0}}}, 4, false)
+	var d struct {
+		Xs     []float64
+		Labels []string
+		Series []struct {
+			Name string
+			Ys   []float64
+		}
+	}
+	if err := json.Unmarshal([]byte(s), &d); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Xs) != 2 || len(d.Series) != 1 || d.Series[0].Name != "prod" || len(d.Series[0].Ys) != 2 || d.Series[0].Ys[1] >= d.Series[0].Ys[0] {
+		t.Errorf("hover data %s", s)
+	}
+	line, area := sparkPaths([]int{0, 2, 0, 5}, 5, 150, 40)
+	if !strings.HasPrefix(line, "M0.0,") || !strings.HasSuffix(area, " Z") {
+		t.Errorf("spark %q %q", line, area)
+	}
+	if l, _ := sparkPaths([]int{0, 0}, 0, 150, 40); l != "" {
+		t.Error("an empty sparkline draws a line")
 	}
 }

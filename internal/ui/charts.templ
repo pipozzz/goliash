@@ -11,32 +11,61 @@ const (
 	chartBot  = 22.0
 )
 
-templ legend(series []Series) {
+// legend lists the series with their total (bars) or current value (lines).
+templ legend(series []Series, bars bool) {
 	<ul class="legend-list">
 		for _, s := range series {
-			<li><span class={ "swatch", s.Class }></span>{ s.Name }</li>
+			<li>
+				<span class={ "swatch", s.Class }></span>{ s.Name }
+				if bars {
+					<span class="legend-value">{ itoa(sum(s.Values)) }</span>
+				} else {
+					<span class="legend-value">{ itoa(last(s.Values)) }</span>
+				}
+			</li>
 		}
 	</ul>
 }
 
 templ yGrid(maxV int) {
 	for i := 0; i <= 4; i++ {
-		<line class="grid" x1={ f(chartLeft) } x2={ f(chartW) } y1={ f(yAt(maxV*i/4, maxV)) } y2={ f(yAt(maxV*i/4, maxV)) }></line>
-		<text class="axis" x={ f(chartLeft - 6) } y={ f(yAt(maxV*i/4, maxV) + 4) } text-anchor="end">{ itoa(maxV * i / 4) }</text>
+		if i == 0 {
+			<line class="baseline" x1={ f(chartLeft) } x2={ f(chartW) } y1={ f(yAt(0, maxV)) } y2={ f(yAt(0, maxV)) }></line>
+		} else {
+			<line class="grid" x1={ f(chartLeft) } x2={ f(chartW) } y1={ f(yAt(maxV*i/4, maxV)) } y2={ f(yAt(maxV*i/4, maxV)) }></line>
+		}
+		<text class="axis" x={ f(chartLeft - 8) } y={ f(yAt(maxV*i/4, maxV) + 4) } text-anchor="end">{ itoa(maxV * i / 4) }</text>
 	}
 }
 
-// stackedBars draws a BarChart.
+// gradients are one vertical gradient per series colour: strong at the top, fading
+// towards the axis. Their stop colours come from CSS (st-c0 …), so dark mode follows.
+templ gradients(id string, series []Series, top, bottom string) {
+	<defs>
+		for _, s := range series {
+			<linearGradient id={ id + "-" + s.Class } x1="0" y1="0" x2="0" y2="1">
+				<stop offset="0%" class={ "st-" + s.Class } stop-opacity={ top }></stop>
+				<stop offset="100%" class={ "st-" + s.Class } stop-opacity={ bottom }></stop>
+			</linearGradient>
+		}
+	</defs>
+}
+
+// stackedBars draws a BarChart: rounded bars with a gradient, a crosshair and a
+// tooltip on hover (app.js), and native titles without script.
 templ stackedBars(c BarChart, label string) {
-	<figure class="chart">
+	{{ id := chartID(label) }}
+	<figure class="chart" data-chart={ hoverData(c.Labels, c.Series, c.Max, true) }>
 		<svg viewBox={ "0 0 " + f(chartW) + " " + f(chartH+chartBot) } role="img" aria-label={ label }>
+			@gradients(id, c.Series, "1", "0.55")
 			@yGrid(c.Max)
+			<rect class="cross-band" x="0" y="0" width="0" height={ f(chartH) }></rect>
 			for i, l := range c.Labels {
 				{{ x, w := barX(i, len(c.Labels)) }}
 				{{ base := 0 }}
 				for _, s := range c.Series {
 					if s.Values[i] > 0 {
-						<rect class={ "bar", s.Class } x={ f(x) } width={ f(w) } y={ f(yAt(base+s.Values[i], c.Max)) } height={ f(yAt(base, c.Max) - yAt(base+s.Values[i], c.Max)) }>
+						<rect class={ "bar", s.Class } data-i={ itoa(i) } fill={ "url(#" + id + "-" + s.Class + ")" } x={ f(x) } width={ f(w) } y={ f(yAt(base+s.Values[i], c.Max)) } height={ f(max(yAt(base, c.Max)-yAt(base+s.Values[i], c.Max)-1, 1)) } rx="3">
 							<title>{ s.Name + ", week of " + l + ": " + itoa(s.Values[i]) }</title>
 						</rect>
 					}
@@ -47,33 +76,43 @@ templ stackedBars(c BarChart, label string) {
 				}
 			}
 		</svg>
-		@legend(c.Series)
+		@legend(nonZeroSeries(c.Series), true)
 	</figure>
 }
 
-// lines draws a LineChart.
+// lines draws a LineChart as smooth lines over gradient areas, with a crosshair and
+// a tooltip of every series on hover (app.js).
 templ lines(c LineChart, label string) {
-	<figure class="chart">
+	{{ id := chartID(label) }}
+	<figure class="chart" data-chart={ hoverData(c.Labels, c.Series, c.Max, false) }>
 		<svg viewBox={ "0 0 " + f(chartW) + " " + f(chartH+chartBot) } role="img" aria-label={ label }>
+			@gradients(id, nonZeroSeries(c.Series), "0.32", "0")
 			@yGrid(c.Max)
 			for _, s := range c.Series {
 				if anyNonZero(s.Values) {
-					<polyline class={ "line", s.Class } points={ polyline(s.Values, c.Max) }>
+					<path class="area" fill={ "url(#" + id + "-" + s.Class + ")" } d={ areaPath(s.Values, c.Max) }></path>
+				}
+			}
+			for _, s := range c.Series {
+				if anyNonZero(s.Values) {
+					<path class={ "line", s.Class } d={ smoothPath(s.Values, c.Max) }>
 						<title>{ s.Name }</title>
-					</polyline>
+					</path>
 					{{ lx, ly := lastPoint(s.Values, c.Max) }}
+					<circle class={ "halo", s.Class } cx={ f(lx) } cy={ f(ly) } r="7"></circle>
 					<circle class={ "dot", s.Class } cx={ f(lx) } cy={ f(ly) } r="3.5">
-						<title>{ s.Name + " now: " + itoa(s.Values[len(s.Values)-1]) }</title>
+						<title>{ s.Name + " now: " + itoa(last(s.Values)) }</title>
 					</circle>
 				}
 			}
+			<line class="cross" x1="0" x2="0" y1="0" y2={ f(chartH) }></line>
 			for i, l := range c.Labels {
 				if (i%7 == 0 && i < len(c.Labels)-4) || i == len(c.Labels)-1 {
 					<text class="axis" x={ f(pointX(i, len(c.Labels))) } y={ f(chartH + 16) } text-anchor="middle">{ l }</text>
 				}
 			}
 		</svg>
-		@legend(nonZeroSeries(c.Series))
+		@legend(nonZeroSeries(c.Series), false)
 	</figure>
 }
 
@@ -82,8 +121,16 @@ templ versionChart(t Timeline) {
 	{{ laneH := 30.0 }}
 	{{ labelW := 150.0 }}
 	{{ h := laneH*float64(len(t.Lanes)) + 22 }}
-	<figure class="chart">
+	<figure class="chart timeline">
 		<svg viewBox={ "0 0 " + f(chartW) + " " + f(h) } role="img" aria-label="Versions per environment over time">
+			<defs>
+				for _, c := range []string{"c0", "c1", "c2", "c3", "c4", "c5"} {
+					<linearGradient id={ "tl-" + c } x1="0" y1="0" x2="1" y2="0">
+						<stop offset="0%" class={ "st-" + c } stop-opacity="0.95"></stop>
+						<stop offset="100%" class={ "st-" + c } stop-opacity="0.7"></stop>
+					</linearGradient>
+				}
+			</defs>
 			for i, tk := range t.Ticks {
 				{{ x := labelW + tk.At*(chartW-labelW) }}
 				<line class="grid" x1={ f(x) } x2={ f(x) } y1="0" y2={ f(h - 18) }></line>
@@ -95,7 +142,7 @@ templ versionChart(t Timeline) {
 				for _, sg := range lane.Segments {
 					{{ x := labelW + sg.Start*(chartW-labelW) }}
 					{{ w := max((sg.End-sg.Start)*(chartW-labelW), 2) }}
-					<rect class={ "seg", sg.Class } x={ f(x) } y={ f(y + 4) } width={ f(w) } height={ f(laneH - 8) } rx="4">
+					<rect class={ "seg", sg.Class } fill={ "url(#tl-" + sg.Class + ")" } x={ f(x) } y={ f(y + 5) } width={ f(max(w-2, 2)) } height={ f(laneH - 10) } rx="6">
 						<title>{ sg.Title }</title>
 					</rect>
 					if w > float64(len(sg.Version))*7+10 {
