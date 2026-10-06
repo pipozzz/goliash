@@ -246,6 +246,27 @@
   });
   document.addEventListener("pointerleave", leaveChart);
 
+  // Tiles: after a live refresh, cells whose state changed pulse once, and the
+  // favicon (the logo in the workspace's colours) is redrawn.
+  let tileStates = null;
+  document.body.addEventListener("htmx:beforeSwap", function (e) {
+    if (!e.detail.target.classList || !e.detail.target.classList.contains("tiles-live")) return;
+    tileStates = {};
+    e.detail.target.querySelectorAll("[data-key]").forEach(function (c) { tileStates[c.getAttribute("data-key")] = c.getAttribute("data-state"); });
+  });
+  document.body.addEventListener("htmx:afterSettle", function () {
+    if (!tileStates) return;
+    document.querySelectorAll(".tiles-live [data-key]").forEach(function (c) {
+      const was = tileStates[c.getAttribute("data-key")];
+      if (was && was !== c.getAttribute("data-state")) c.classList.add("changed");
+    });
+    tileStates = null;
+  });
+  document.body.addEventListener("goliash:changed", function () {
+    const icon = document.getElementById("favicon");
+    if (icon && icon.getAttribute("href").indexOf("/ui/favicon.svg") === 0) icon.setAttribute("href", "/ui/favicon.svg?t=" + Date.now());
+  });
+
   // ---- every page load ----
 
   function init() {

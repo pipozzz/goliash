@@ -28,6 +28,7 @@ type Base struct {
 	CanMember  bool
 	CanAdmin   bool
 	OrgAdmin   bool // organization owner or admin: manages workspaces
+	Kiosk      bool // a full-screen page without the header (the tiles' TV mode)
 	Workspace  string
 	Workspaces []WorkspaceOption
 }
