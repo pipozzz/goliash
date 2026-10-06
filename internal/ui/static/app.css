@@ -734,3 +734,11 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .shortcuts-list dd { margin: 0; color: var(--muted); font-size: 13.5px; }
 .shortcuts-list kbd { font: 600 12px var(--sans); min-width: 22px; text-align: center; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--bg); color: var(--ink); }
 @media (max-width: 720px) { .palette-open span, .palette-open kbd { display: none; } .palette-backdrop { padding-top: 8vh; } }
+
+/* A channel's own mail server. */
+fieldset.smtp { border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px 16px; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+fieldset.smtp legend { font-weight: 600; padding: 0 6px; }
+fieldset.smtp .hint, details.smtp .hint { margin: 0; }
+details.smtp { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; }
+details.smtp[open] { display: flex; flex-direction: column; gap: 12px; }
+details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }

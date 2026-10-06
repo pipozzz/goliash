@@ -335,6 +335,21 @@ func TestEmail(t *testing.T) {
 	if err := (Email{}).Send(context.Background(), store.Channel{}, Message{}); !errors.Is(err, ErrNoSMTP) {
 		t.Fatalf("unconfigured smtp: %v", err)
 	}
+
+	// A channel's own mail server wins over the server's (here: none).
+	own, got2 := fakeSMTP(t)
+	ch := store.Channel{Name: "own", Config: json.RawMessage(`{"to":["dev@example.com"],"smtp_addr":"` + own + `","smtp_from":"alerts@example.org","smtp_tls":"none"}`)}
+	if err := (Email{}).Send(context.Background(), ch, Message{Workspace: "Default", Items: []Item{{Type: "test", Text: "hello", At: time.Now()}}}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case mail := <-got2:
+		if !strings.Contains(mail, "From: alerts@example.org") {
+			t.Fatalf("own server mail %s", mail)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no mail through the channel's server")
+	}
 }
 
 func TestPausedRuleSendsNothing(t *testing.T) {

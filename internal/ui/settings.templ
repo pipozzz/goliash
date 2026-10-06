@@ -55,7 +55,7 @@ templ NotificationsPage(v NotificationsView) {
 									<label>Name<input name="name" required placeholder="ops"/></label>
 									<label>
 										Type
-										<select name="type">
+										<select name="type" data-channel-type>
 											<option value="slack">Slack (incoming webhook)</option>
 											<option value="discord">Discord (channel webhook)</option>
 											<option value="telegram">Telegram (bot)</option>
@@ -66,21 +66,26 @@ templ NotificationsPage(v NotificationsView) {
 										</select>
 									</label>
 								</div>
-								<label>URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">Slack, Discord and webhook URLs, or an ntfy topic such as https://ntfy.sh/my-goliash.</span></label>
-								<label>Signing secret<input name="secret" autocomplete="off"/><span class="hint">Webhook only: bodies are signed with HMAC-SHA256.</span></label>
-								<div class="row">
+								<label data-for="slack discord webhook ntfy grafana">URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">Slack, Discord and webhook URLs, Grafana's address, or an ntfy topic such as https://ntfy.sh/my-goliash.</span></label>
+								<label data-for="webhook">Signing secret<input name="secret" autocomplete="off"/><span class="hint">Webhook only: bodies are signed with HMAC-SHA256.</span></label>
+								<div class="row" data-for="telegram ntfy grafana">
 									<label>Token<input name="token" autocomplete="off"/><span class="hint">Telegram bot token, a Grafana service account token, or an ntfy access token (optional).</span></label>
-									<label>Chat ID<input name="chat_id" placeholder="-1001234567890"/><span class="hint">Telegram only.</span></label>
+									<label data-for="telegram">Chat ID<input name="chat_id" placeholder="-1001234567890"/><span class="hint">Telegram only.</span></label>
 								</div>
-								<label>
+								<label data-for="email">
 									Recipients<input name="to" placeholder="oncall@example.com, ops@example.com"/>
-									<span class="hint">
-										E-mail only.
-										if !v.SMTP {
-											SMTP is not configured on this server.
-										}
-									</span>
+									<span class="hint">Comma-separated.</span>
 								</label>
+								<details class="smtp" data-for="email" open?={ !v.SMTP }>
+									<summary>
+										if v.SMTP {
+											Own mail server (optional; else the server's relay)
+										} else {
+											Mail server (this server has no relay)
+										}
+									</summary>
+									@smtpFields("", "", "", false, "")
+								</details>
 								<div><button type="submit">Add channel</button></div>
 							</form>
 						</details>

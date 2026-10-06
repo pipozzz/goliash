@@ -254,6 +254,12 @@ type ChannelEditView struct {
 	HasToken  bool
 	ChatID    string
 	To        string
+	SMTP      bool // the server has a mail relay
+	SMTPAddr  string
+	SMTPFrom  string
+	SMTPUser  string
+	SMTPPass  bool
+	SMTPTLS   string
 }
 
 func setHint(set bool) string {
@@ -287,6 +293,8 @@ func (s *Server) editChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 	v := ChannelEditView{
 		Base: withFlash(s.base(r.Context(), p, "notifications", c.Name), r), ID: c.ID, Name: c.Name, Type: c.Type,
 		HasSecret: str("secret") != "", HasToken: str("token") != "" || str("bot_token") != "", ChatID: str("chat_id"),
+		SMTP: s.smtp, SMTPAddr: str("smtp_addr"), SMTPFrom: str("smtp_from"), SMTPUser: str("smtp_username"),
+		SMTPPass: str("smtp_password") != "", SMTPTLS: str("smtp_tls"),
 	}
 	if u, err := url.Parse(str("url")); err == nil && u.Host != "" {
 		v.URLHint = u.Scheme + "://" + u.Host + "/…"

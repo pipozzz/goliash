@@ -1390,3 +1390,40 @@ func TestSendPlanNowButton(t *testing.T) {
 		t.Fatalf("plan now: %s", body[:min(len(body), 400)])
 	}
 }
+
+// An e-mail channel can bring its own mail server; the password stays on the server.
+func TestEmailChannelOwnServer(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleOwner)
+	sc := e.ws.Scope()
+	add := url.Values{"name": {"oncall"}, "type": {"email"}, "to": {"oncall@example.com"}}
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", add); !strings.Contains(body, "no mail relay") {
+		t.Fatal("an e-mail channel without any mail server was added")
+	}
+	add.Set("smtp_addr", "smtp.example.com")
+	add.Set("smtp_from", "goliash@example.com")
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", add); !strings.Contains(body, "host:port") {
+		t.Fatal("a server without a port was accepted")
+	}
+	add.Set("smtp_addr", "smtp.example.com:465")
+	add.Set("smtp_username", "mailer")
+	add.Set("smtp_password", "hunter2pass")
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", add); !strings.Contains(body, "Channel oncall added") {
+		t.Fatalf("add: %s", body)
+	}
+	chans, _ := e.st.ListChannels(ctx, sc)
+	_, body := get(t, admin, e.srv.URL+"/notifications/channels/"+chans[0].ID, nil)
+	if strings.Contains(body, "hunter2pass") || !strings.Contains(body, "smtp.example.com:465") || !strings.Contains(body, "set; leave empty to keep") {
+		t.Fatal("edit page leaks the password or misses the server")
+	}
+	// Saving without a password keeps it; the TLS mode changes.
+	edit := url.Values{"name": {"oncall"}, "to": {"oncall@example.com"}, "smtp_addr": {"smtp.example.com:465"}, "smtp_from": {"goliash@example.com"}, "smtp_username": {"mailer"}, "smtp_tls": {"tls"}}
+	_, _, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+chans[0].ID, edit)
+	chans, _ = e.st.ListChannels(ctx, sc)
+	var cfg map[string]any
+	_ = json.Unmarshal(chans[0].Config, &cfg)
+	if cfg["smtp_password"] != "hunter2pass" || cfg["smtp_tls"] != "tls" {
+		t.Fatalf("edit lost settings: %v", cfg)
+	}
+}

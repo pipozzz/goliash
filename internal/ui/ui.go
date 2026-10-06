@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1281,6 +1282,9 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 	if name == "" {
 		return back(w, r, "/notifications", "error", "Give the channel a name.")
 	}
+	if typ == "email" && !s.smtp && cfg["smtp_addr"] == nil {
+		return back(w, r, "/notifications", "error", "This server has no mail relay: give the channel its own mail server.")
+	}
 	raw, _ := json.Marshal(cfg)
 	if _, err := s.store.CreateChannel(r.Context(), store.Channel{Scope: p.Scope, Type: typ, Name: name, Config: raw}); err != nil {
 		return back(w, r, "/notifications", "error", "Could not add the channel; is the name taken?")
@@ -1346,7 +1350,44 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 		if len(to) == 0 {
 			return nil, "Enter at least one recipient."
 		}
+		for _, a := range to {
+			if !strings.Contains(a, "@") || strings.ContainsAny(a, "\r\n<>") {
+				return nil, a + " is not an e-mail address."
+			}
+		}
 		cfg["to"] = to
+		// The channel's own mail server, optional: the server's GOLIASH_SMTP_* otherwise.
+		if r.FormValue("smtp_clear") != "" {
+			break
+		}
+		addr := field("smtp_addr", "smtp_addr")
+		if addr == "" {
+			break
+		}
+		if _, port, err := net.SplitHostPort(addr); err != nil || port == "" {
+			return nil, "Give the mail server as host:port, such as smtp.example.com:587."
+		}
+		from := field("smtp_from", "smtp_from")
+		if !strings.Contains(from, "@") || strings.ContainsAny(from, "\r\n") {
+			return nil, "Give the address mail comes from, such as goliash@example.com."
+		}
+		cfg["smtp_addr"], cfg["smtp_from"] = addr, from
+		if u := field("smtp_username", "smtp_username"); u != "" {
+			cfg["smtp_username"] = u
+			if pw := field("smtp_password", "smtp_password"); pw != "" {
+				cfg["smtp_password"] = pw
+			}
+		}
+		switch mode := r.FormValue("smtp_tls"); mode {
+		case "tls", "starttls", "none":
+			cfg["smtp_tls"] = mode
+		case "":
+			if v, ok := old["smtp_tls"].(string); ok {
+				cfg["smtp_tls"] = v
+			}
+		default:
+			return nil, "Unknown TLS mode."
+		}
 	default:
 		return nil, "Unknown channel type."
 	}

@@ -506,7 +506,7 @@ func contains(list []string, s string) bool {
 }
 
 // ErrNoSMTP means e-mail was requested without SMTP settings.
-var ErrNoSMTP = errors.New("e-mail is not configured: set GOLIASH_SMTP_ADDR and GOLIASH_SMTP_FROM")
+var ErrNoSMTP = errors.New("e-mail is not configured: give the channel a mail server, or set GOLIASH_SMTP_ADDR and GOLIASH_SMTP_FROM")
 
 func orDash(s string) string {
 	if s == "" {

@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
+	"net"
 	"net/http"
 	"net/smtp"
 	"net/textproto"
@@ -133,12 +135,28 @@ func Sign(secret, timestamp string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// SMTPConfig is the server-wide mail relay.
+// SMTPConfig is a mail relay: the server-wide one, or a channel's own.
 type SMTPConfig struct {
 	Addr     string // host:port
 	Username string
 	Password string
 	From     string
+	TLS      string // "starttls" (when offered; the default), "tls" (implicit, the default on port 465) or "none"
+}
+
+// channelSMTP is a channel's own mail server, when it has one, else the server's.
+func channelSMTP(server SMTPConfig, raw []byte) SMTPConfig {
+	var cfg struct {
+		Addr     string `json:"smtp_addr"`
+		Username string `json:"smtp_username"`
+		Password string `json:"smtp_password"`
+		From     string `json:"smtp_from"`
+		TLS      string `json:"smtp_tls"`
+	}
+	if json.Unmarshal(raw, &cfg) != nil || cfg.Addr == "" {
+		return server
+	}
+	return SMTPConfig{Addr: cfg.Addr, Username: cfg.Username, Password: cfg.Password, From: cfg.From, TLS: cfg.TLS}
 }
 
 // Email sends mail through SMTP (STARTTLS when the server offers it): HTML with a
@@ -171,8 +189,9 @@ func (e Email) SendPlain(ctx context.Context, ch store.Channel, subject, text st
 }
 
 // send mails text, and page as its HTML alternative when given.
-func (e Email) send(_ context.Context, ch store.Channel, subject, text, page string) error {
-	if e.Config.Addr == "" || e.Config.From == "" {
+func (e Email) send(ctx context.Context, ch store.Channel, subject, text, page string) error {
+	conf := channelSMTP(e.Config, ch.Config)
+	if conf.Addr == "" || conf.From == "" {
 		return ErrNoSMTP
 	}
 	var cfg struct {
@@ -181,14 +200,14 @@ func (e Email) send(_ context.Context, ch store.Channel, subject, text, page str
 	if err := json.Unmarshal(ch.Config, &cfg); err != nil || len(cfg.To) == 0 {
 		return fmt.Errorf("channel %s has no recipients", ch.Name)
 	}
-	for _, addr := range append([]string{e.Config.From}, cfg.To...) {
+	for _, addr := range append([]string{conf.From}, cfg.To...) {
 		if strings.ContainsAny(addr, "\r\n") {
 			return errors.New("invalid e-mail address")
 		}
 	}
 	var body strings.Builder
 	fmt.Fprintf(&body, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMIME-Version: 1.0\r\n",
-		e.Config.From, strings.Join(cfg.To, ", "), mime.QEncoding.Encode("utf-8", strings.NewReplacer("\r", " ", "\n", " ").Replace(subject)),
+		conf.From, strings.Join(cfg.To, ", "), mime.QEncoding.Encode("utf-8", strings.NewReplacer("\r", " ", "\n", " ").Replace(subject)),
 		time.Now().Format(time.RFC1123Z))
 	if page == "" {
 		body.WriteString("Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n")
@@ -211,12 +230,79 @@ func (e Email) send(_ context.Context, ch store.Channel, subject, text, page str
 		}
 	}
 
-	var auth smtp.Auth
-	if e.Config.Username != "" {
-		host, _, _ := strings.Cut(e.Config.Addr, ":")
-		auth = smtp.PlainAuth("", e.Config.Username, e.Config.Password, host)
+	return sendMail(ctx, conf, cfg.To, []byte(body.String()))
+}
+
+// sendMail delivers one message: implicit TLS, STARTTLS when the server offers it, or
+// neither; authenticated only over TLS (or to localhost), within the context's deadline.
+func sendMail(ctx context.Context, conf SMTPConfig, to []string, msg []byte) error {
+	host, port, err := net.SplitHostPort(conf.Addr)
+	if err != nil {
+		return fmt.Errorf("mail server %q: give host:port", conf.Addr)
 	}
-	return smtp.SendMail(e.Config.Addr, auth, e.Config.From, cfg.To, []byte(body.String()))
+	mode := conf.TLS
+	if mode == "" {
+		mode = "starttls"
+		if port == "465" {
+			mode = "tls"
+		}
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+	}
+	tlsConf := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
+	var conn net.Conn
+	if mode == "tls" {
+		conn, err = (&tls.Dialer{Config: tlsConf}).DialContext(ctx, "tcp", conf.Addr)
+	} else {
+		conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", conf.Addr) //nolint:gosec // the admin's own mail server
+	}
+	if err != nil {
+		return err
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(dl)
+	}
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		_ = conn.Close()
+		return err
+	}
+	defer func() { _ = c.Close() }()
+	if mode == "starttls" {
+		if ok, _ := c.Extension("STARTTLS"); ok {
+			if err := c.StartTLS(tlsConf); err != nil {
+				return err
+			}
+		}
+	}
+	if conf.Username != "" {
+		// PlainAuth refuses to send the password unencrypted, except to localhost.
+		if err := c.Auth(smtp.PlainAuth("", conf.Username, conf.Password, host)); err != nil {
+			return err
+		}
+	}
+	if err := c.Mail(conf.From); err != nil {
+		return err
+	}
+	for _, addr := range to {
+		if err := c.Rcpt(addr); err != nil {
+			return err
+		}
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(msg); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return c.Quit()
 }
 
 // quoted encodes s as quoted-printable, which keeps lines short and non-ASCII safe.
