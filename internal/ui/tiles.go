@@ -43,20 +43,20 @@ func worse(a, b string) string {
 // TilesView is the tiles page.
 type TilesView struct {
 	Base
-	GroupBy  string
-	Style    string // board (the logo, enlarged) or icons (an icon per application)
-	Env      string // "" for every environment, an environment's name, or "side" for one board per environment
-	Envs     []string
-	App      string // the application (team, status) drilled into; empty on the global board
-	AppNote  string
-	Items    []BoardItem
-	Boards   []EnvBoard // Env == "side": one board per environment, same cells in the same places
-	Panels   []TileCell // the services' details (drilled in)
-	Counts   TileCounts
-	Cols     int
-	Rows     int // how many rows of cells the board has, for TV mode to fit the screen
-	TV       bool
-	Updated  string
+	GroupBy string
+	Style   string // board (the logo, enlarged) or icons (an icon per application)
+	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
+	Envs    []string
+	App     string // the application (team, status) drilled into; empty on the global board
+	AppNote string
+	Items   []BoardItem
+	Boards  []EnvBoard // Env == "side": one board per environment, same cells in the same places
+	Panels  []TileCell // the services' details (drilled in)
+	Counts  TileCounts
+	Cols    int
+	Rows    int // how many rows of cells the board has, for TV mode to fit the screen
+	TV      bool
+	Updated string
 }
 
 // EnvBoard is one environment's board when they are drawn side by side.
@@ -138,8 +138,10 @@ func versionOf(c MatrixCell) string {
 
 // service turns a matrix row into a tile cell, with its state in env (all when empty).
 func service(r MatrixRow, envs []EnvHeader, env string) (TileCell, string, string) {
-	c := TileCell{Key: slug("svc-" + r.Service + "-" + r.App), Service: r.Service, URL: r.URL, Owner: r.Owner, App: r.App,
-		Latest: r.Latest, LatestURL: r.LatestURL, State: stNone}
+	c := TileCell{
+		Key: slug("svc-" + r.Service + "-" + r.App), Service: r.Service, URL: r.URL, Owner: r.Owner, App: r.App,
+		Latest: r.Latest, LatestURL: r.LatestURL, State: stNone,
+	}
 	running, runEnv := "", ""
 	seen := map[string]bool{}
 	for i, cell := range r.Cells {
