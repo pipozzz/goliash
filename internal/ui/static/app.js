@@ -121,7 +121,15 @@
     if (e.key !== "Escape") return;
     if (q && e.target === q && q.value) { q.value = ""; filterMatrix(); return; }
     const open = document.querySelector("details.menu[open]");
-    if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); }
+    if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); return; }
+    // A tile's details panel is open while its id is the URL's fragment.
+    const panel = window.location.hash && document.querySelector(".tile-panel" + CSS.escape(window.location.hash));
+    if (panel) {
+      const key = window.location.hash.slice(1);
+      window.location.hash = "";
+      const cell = document.querySelector('[data-key="' + CSS.escape(key) + '"]');
+      if (cell) cell.focus();
+    }
   });
 
   // Selects that act at once (role, workspace, collector) and the print button. The
@@ -245,6 +253,27 @@
     else leaveChart();
   });
   document.addEventListener("pointerleave", leaveChart);
+
+  // Tiles: after a live refresh, cells whose state changed pulse once, and the
+  // favicon (the logo in the workspace's colours) is redrawn.
+  let tileStates = null;
+  document.body.addEventListener("htmx:beforeSwap", function (e) {
+    if (!e.detail.target.classList || !e.detail.target.classList.contains("tiles-live")) return;
+    tileStates = {};
+    e.detail.target.querySelectorAll("[data-key]").forEach(function (c) { tileStates[c.getAttribute("data-key")] = c.getAttribute("data-state"); });
+  });
+  document.body.addEventListener("htmx:afterSettle", function () {
+    if (!tileStates) return;
+    document.querySelectorAll(".tiles-live [data-key]").forEach(function (c) {
+      const was = tileStates[c.getAttribute("data-key")];
+      if (was && was !== c.getAttribute("data-state")) c.classList.add("changed");
+    });
+    tileStates = null;
+  });
+  document.body.addEventListener("goliash:changed", function () {
+    const icon = document.getElementById("favicon");
+    if (icon && icon.getAttribute("href").indexOf("/ui/favicon.svg") === 0) icon.setAttribute("href", "/ui/favicon.svg?t=" + Date.now());
+  });
 
   // ---- every page load ----
 

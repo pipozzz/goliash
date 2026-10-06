@@ -1,0 +1,203 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ TilesPage(v TilesView) {
+	@Layout(v.Base) {
+		if v.TV {
+			<div class="tv-head">
+				@logo()
+				<strong>{ v.Workspace }</strong>
+				if v.App != "" {
+					<span class="muted">› { v.App }</span>
+				}
+				<span class="spacer"></span>
+				<span class="live off" data-live>Connecting…</span>
+				<span class="muted">updated { v.Updated }</span>
+				<a class="tv-exit" href={ templ.URL(tilesWith(v, "tv", "0")) }>Exit TV</a>
+			</div>
+		} else {
+			<div class="head">
+				<div>
+					if v.App != "" {
+						<nav class="crumbs" aria-label="Breadcrumb">
+							<a href={ templ.URL(tilesHref(v, "")) }>{ "All " + groupWord(v.GroupBy) }</a>
+							<span aria-hidden="true">›</span>
+						</nav>
+						<h1>{ v.App }</h1>
+						if v.AppNote != "" {
+							<p class="sub">{ v.AppNote }</p>
+						}
+					} else {
+						<h1>Service tiles</h1>
+						<p class="sub">Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.</p>
+					}
+				</div>
+			</div>
+			<div class="toolbar tiles-toolbar">
+				<nav class="segmented" aria-label="View">
+					<span class="muted">View</span>
+					<a href={ templ.URL("/?view=table&group=" + v.GroupBy) }>Table</a>
+					<a href={ templ.URL(tilesHref(v, v.App)) } class="on" aria-current="page">Tiles</a>
+				</nav>
+				if v.App == "" {
+					<nav class="segmented" aria-label="Group by">
+						<span class="muted">Group by</span>
+						for _, m := range []struct{ Key, Label string }{{"app", "Application"}, {"team", "Team"}, {"status", "Status"}} {
+							<a href={ templ.URL(tilesWith(v, "group", m.Key)) } class={ templ.KV("on", v.GroupBy == m.Key) }>{ m.Label }</a>
+						}
+					</nav>
+				}
+				<nav class="segmented" aria-label="Environment">
+					<span class="muted">Env</span>
+					<a href={ templ.URL(tilesWith(v, "env", "")) } class={ templ.KV("on", v.Env == "") }>All</a>
+					for _, e := range v.Envs {
+						<a href={ templ.URL(tilesWith(v, "env", e)) } class={ templ.KV("on", v.Env == e) }>{ e }</a>
+					}
+					<a href={ templ.URL(tilesWith(v, "env", "side")) } class={ templ.KV("on", v.Env == "side") } title="One board per environment">Side by side</a>
+				</nav>
+				<span class="spacer"></span>
+				<a class="toolbar-link" href={ templ.URL(tilesWith(v, "tv", "1")) } title="Full screen, for a wall screen">TV mode</a>
+			</div>
+		}
+		<div
+			class="tiles-live"
+			hx-get={ tilesHref(v, v.App) }
+			hx-trigger="goliash:changed from:body, every 60s"
+			hx-select=".tiles-live"
+			hx-swap="outerHTML"
+		>
+			@tileLegend(v.Counts)
+			if len(v.Items) == 0 {
+				<section class="panel"><div class="empty">Nothing runs here yet.</div></section>
+			} else if v.Env == "side" {
+				<div class="env-boards">
+					for _, b := range v.Boards {
+						<section class="env-board">
+							<h2>{ b.Env }</h2>
+							@board(b.Items, v.Cols, true)
+							@tileLegend(b.Counts)
+						</section>
+					}
+				</div>
+			} else {
+				<div style={ "--rows:" + itoa(v.Rows) }>
+					@board(v.Items, v.Cols, false)
+				</div>
+			}
+			for _, c := range v.Panels {
+				@servicePanel(v, c)
+			}
+		</div>
+	}
+}
+
+// board is the logo, enlarged: a navy rounded square of cells.
+templ board(items []BoardItem, cols int, compact bool) {
+	<section class={ "logo-board", templ.KV("compact", compact) } style={ "--cols:" + itoa(cols) }>
+		for _, it := range items {
+			<a
+				class={ "board-cell", "s-" + it.State, templ.KV("big", it.Span == 2) }
+				href={ templ.URL(it.Href) }
+				data-key={ it.Key }
+				data-state={ it.State }
+				title={ it.Name + ": " + tileLabel(it.State) }
+				aria-label={ cellLabel(it) }
+			>
+				<span class="board-top">
+					<span class="board-name">{ shortName(it.Name) }</span>
+					if !compact {
+						@envStrip(it.Envs)
+					}
+				</span>
+				if !compact {
+					if len(it.Dots) > 0 {
+						<span class="board-dots" aria-hidden="true">
+							for _, d := range it.Dots {
+								<span class={ "dot", d }></span>
+							}
+						</span>
+					}
+					<span class="board-foot">
+						if it.Headline != "" {
+							<span class="board-headline">{ it.Headline }</span>
+						}
+						if it.Caption != "" && len(it.Dots) == 0 {
+							<span class="board-sub">{ it.Caption }</span>
+						} else if len(it.Dots) > 0 {
+							<span class="board-sub">{ itoa(it.OK) } / { itoa(it.Total) } up to date</span>
+						}
+					</span>
+				}
+			</a>
+		}
+	</section>
+}
+
+// envStrip is one small square per environment, in its state there.
+templ envStrip(envs []TileEnv) {
+	if len(envs) > 1 {
+		<span class="env-strip">
+			for _, e := range envs {
+				<span class={ "env-sq", e.State } title={ e.Title }></span>
+			}
+		</span>
+	}
+}
+
+templ tileLegend(c TileCounts) {
+	<ul class="tile-legend">
+		<li><span class="tcell current"></span>up to date <strong>{ itoa(c.Current) }</strong></li>
+		<li><span class="tcell behind"></span>behind <strong>{ itoa(c.Behind) }</strong></li>
+		<li><span class="tcell attention"></span>needs attention <strong>{ itoa(c.Attention) }</strong></li>
+		<li><span class="tcell unknown"></span>unknown <strong>{ itoa(c.Unknown) }</strong></li>
+	</ul>
+}
+
+// servicePanel is one service's details, shown when its cell is the URL's target.
+templ servicePanel(v TilesView, c TileCell) {
+	<aside class="tile-panel" id={ c.Key } aria-label={ c.Service }>
+		<a class="tile-panel-backdrop" href="#" aria-label="Close"></a>
+		<div class="tile-panel-body">
+			<header>
+				<span class={ "tcell", "big", c.State }></span>
+				<div>
+					<h2>{ c.Service }</h2>
+					<small>{ v.App }</small>
+					<div class={ "tile-state", "s-" + c.State }>{ tileLabel(c.State) }</div>
+				</div>
+				<a class="tile-close" href="#" aria-label="Close">×</a>
+			</header>
+			<ul class="tile-services">
+				for _, e := range c.Envs {
+					<li>
+						<span class={ "tcell", e.State }></span>
+						<div><strong>{ e.Env }</strong><div class="tile-ver">{ e.Title }</div></div>
+					</li>
+				}
+			</ul>
+			if c.Latest != "" {
+				<p class="tile-ver">
+					Latest upstream
+					if c.LatestURL != "" {
+						<a class="tag latest" href={ templ.URL(c.LatestURL) } target="_blank" rel="noopener noreferrer">{ c.Latest }</a>
+					} else {
+						<span class="tag latest">{ c.Latest }</span>
+					}
+				</p>
+			}
+			if len(c.Badges) > 0 {
+				<div class="badges">
+					for _, b := range c.Badges {
+						<span class={ "badge", b.Kind } title={ b.Title }>{ b.Label }</span>
+					}
+				</div>
+			}
+			<footer>
+				<a href={ templ.URL(c.URL) }>Service page</a>
+				<a href="/updates">What to upgrade</a>
+			</footer>
+		</div>
+	</aside>
+}

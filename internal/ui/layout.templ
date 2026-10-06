@@ -21,6 +21,12 @@ templ logo() {
 }
 
 templ head(title string) {
+	@headIcon(title, asset("logo.svg"))
+}
+
+// headIcon is head with a favicon of its own: signed-in pages use the live one, the
+// logo coloured by the workspace's state.
+templ headIcon(title, icon string) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -30,7 +36,7 @@ templ head(title string) {
 		<meta name="htmx-config" content={ htmxConfig }/>
 		<title>{ title } · Goliash</title>
 		<link rel="stylesheet" href={ templ.URL(asset("app.css")) }/>
-		<link rel="icon" type="image/svg+xml" href={ templ.URL(asset("logo.svg")) }/>
+		<link rel="icon" type="image/svg+xml" href={ templ.URL(icon) } id="favicon"/>
 	</head>
 }
 
@@ -69,8 +75,13 @@ templ navLink(b Base, page, href, label string) {
 templ Layout(b Base) {
 	<!DOCTYPE html>
 	<html lang="en">
-		@head(b.Title)
-		<body hx-boost="true">
+		if b.Email != "" {
+			@headIcon(b.Title, "/ui/favicon.svg")
+		} else {
+			@head(b.Title)
+		}
+		<body hx-boost="true" class={ templ.KV("kiosk", b.Kiosk) }>
+			if !b.Kiosk {
 			<header class="top">
 				<div class="top-inner">
 					<a class="brand" href="/">
@@ -133,6 +144,7 @@ templ Layout(b Base) {
 					</div>
 				</div>
 			</header>
+			}
 			<main>
 				if b.Notice != "" {
 					<div class="notice" role="status">{ b.Notice }</div>

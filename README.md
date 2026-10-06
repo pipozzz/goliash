@@ -42,6 +42,9 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
   identity), compared with per-service semver policies (track minor only, pin a major, ignore `-alpine` noise).
   Moving tags resolved by digest (`1 = 1.27.3`). A built-in catalog of popular images, release dates and
   release-notes links from GitHub.
+- **Tiles.** The matrix drawn like the logo: every application a cell, coloured by how current it is, warm where
+  something needs attention; open a cell for its services, compare environments side by side, or put it on a wall
+  screen. The browser tab's icon shows the workspace's state too.
 - **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
   production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that

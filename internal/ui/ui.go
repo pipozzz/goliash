@@ -112,6 +112,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /report", s.page(v, s.report))
 	mux.Handle("GET /hygiene", s.page(v, s.hygiene))
 	mux.Handle("GET /updates", s.page(v, s.updates))
+	mux.Handle("GET /tiles", s.page(v, s.tiles))
+	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -372,6 +374,18 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 }
 
 func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	// The tiles may be this browser's home view; ?view=table asks for the table.
+	switch view := r.URL.Query().Get("view"); {
+	case view == "table":
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
+			Name: "goliash_view", Value: "table", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
+			Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
+		})
+	case view == "" && r.URL.Query().Get("at") == "":
+		if c, err := r.Cookie("goliash_view"); err == nil && c.Value == "tiles" {
+			return s.tiles(w, r, p)
+		}
+	}
 	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r)}
 	if q := r.URL.Query().Get("at"); q != "" {
 		at, err := api.ParseAt(q)
