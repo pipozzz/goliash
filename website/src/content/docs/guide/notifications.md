@@ -65,6 +65,11 @@ show the first lines. Browsers that unsubscribed or expired are forgotten at the
 - Goliash needs HTTPS (or `localhost`) for browsers to allow push; `GOLIASH_PUBLIC_URL` should be that address.
 - On iPhone and iPad (iOS 16.4 or later), add Goliash to the home screen first (Share → Add to Home Screen), then
   open it from there and press **Notify this browser**.
+- Apple's push service (iPhone, iPad, Safari) only accepts pushes from a server that says who it is: an https
+  `GOLIASH_PUBLIC_URL` (or `GOLIASH_PUSH_SUBJECT=mailto:you@example.com`). Without one the Notifications page says
+  so, and Apple devices get nothing while Chrome, Edge and Firefox do.
+- **Send test** reports every browser: which got it, which did not and what its push service answered (for example
+  `web.push.apple.com answered 403: BadJwtToken`), and which had unsubscribed.
 - Messages are encrypted for each browser (RFC 8291) and signed with a key pair the server makes on first use and
   keeps with the other secrets (encrypted at rest with `GOLIASH_SECRET_KEY`). The server sends only to the push
   services of browsers (Google, Mozilla, Apple, Microsoft).

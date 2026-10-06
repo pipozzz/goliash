@@ -62,7 +62,7 @@ Unknown fields are rejected, so a typo stops the server instead of being ignored
 
 | Variable | Meaning |
 | --- | --- |
-| `GOLIASH_PUSH_SUBJECT` | Who sends, for push services: an `https://` URL or a `mailto:` address. Default: `GOLIASH_PUBLIC_URL` when it is https |
+| `GOLIASH_PUSH_SUBJECT` | Who sends, for push services: an `https://` URL or a `mailto:` address. Default: `GOLIASH_PUBLIC_URL` when it is https, else `GOLIASH_SMTP_FROM`. Apple (iPhone, Safari) needs one |
 
 ### E-mail
 

@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +31,11 @@ func fakePush(t *testing.T, status *int) (*http.Client, func() int) {
 		defer mu.Unlock()
 		if r.Header.Get("Content-Encoding") != "aes128gcm" || r.Header.Get("Authorization") == "" {
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if strings.Contains(r.URL.Path, "refused") { // as Apple answers a token it does not accept
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"reason":"BadJwtToken"}`))
 			return
 		}
 		n++
@@ -86,11 +92,35 @@ func TestWebPush(t *testing.T) {
 	}
 	// The push service says the subscriptions are gone: they are forgotten.
 	status = http.StatusGone
-	if err := e.n.senders["push"].Send(ctx, ch, msg); err != nil {
-		t.Fatal(err)
+	var report *PushReport
+	if err := e.n.senders["push"].Send(ctx, ch, msg); !errors.As(err, &report) || len(report.Gone) != 2 || report.Delivered() {
+		t.Fatalf("gone: %v", err)
 	}
 	if subs, _ := e.st.ListPushSubscriptions(ctx, e.sc, ch.ID); len(subs) != 0 {
 		t.Fatalf("gone subscriptions kept: %d", len(subs))
+	}
+	// One browser gets it, another is refused: the report names both and why; the
+	// delivery counts as sent, so the first does not get it again.
+	status = http.StatusCreated
+	for _, ep := range []string{"https://fcm.googleapis.com/fcm/send/ok", "https://web.push.apple.com/refused"} {
+		label := "Chrome on macOS"
+		if strings.Contains(ep, "apple") {
+			label = "Safari on iOS"
+		}
+		if _, err := e.st.SavePushSubscription(ctx, e.sc, store.PushSubscription{ChannelID: ch.ID, UserID: u.ID, Endpoint: ep, Keys: browserKeys(t), Label: label}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err = e.n.senders["push"].Send(ctx, ch, msg)
+	if !errors.As(err, &report) || !report.Delivered() || !strings.Contains(err.Error(), "sent to Chrome on macOS") ||
+		!strings.Contains(err.Error(), "not delivered to Safari on iOS: webpush: web.push.apple.com answered 403") || !strings.Contains(err.Error(), "BadJwtToken") {
+		t.Fatalf("mixed report: %v", err)
+	}
+	before := count()
+	e.emit(release(e.svc, "1.6.0", "1.7.0", "minor"))
+	_ = e.n.DeliverDue(ctx)
+	if count() != before+1 {
+		t.Fatalf("pushed %d more, want 1 (no retry for the browser that got it)", count()-before)
 	}
 	// The key pair is made once.
 	k1, _ := PushKeys(ctx, e.st)

@@ -515,6 +515,13 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 		if errors.Is(err, ErrNoBrowsers) {
 			err = nil // nobody to tell; not worth retrying
 		}
+		var report *PushReport
+		if errors.As(err, &report) {
+			if report.Delivered() || len(report.Failed) == 0 {
+				n.log.Warn("web push not delivered to every browser", "channel", rt.channel.Name, "report", report.Error())
+				err = nil // at least one browser has it; retrying would repeat it there
+			}
+		}
 	}
 	if err == nil {
 		if err := n.store.MarkSent(ctx, ids); err != nil {

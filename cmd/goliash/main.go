@@ -28,6 +28,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/mail"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -468,7 +470,7 @@ func serve(ctx context.Context, args []string) error {
 	public.Register(mux)
 	ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
-		SMTP: smtpFromEnv().Addr != "",
+		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL),
 	}).Register(mux)
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -1632,13 +1634,30 @@ func cliAudit(ctx context.Context, db *store.Store, ws store.Workspace, action s
 func senders(db *store.Store, publicURL string) map[string]notifier.Sender {
 	hc := &http.Client{Timeout: 30 * time.Second}
 	out := notifier.DefaultSenders(hc, smtpFromEnv())
-	// Push services want to know who sends: an https URL or a mailto: address.
-	subject := envOr("GOLIASH_PUSH_SUBJECT", publicURL)
-	if !strings.HasPrefix(subject, "https://") && !strings.HasPrefix(subject, "mailto:") {
-		subject = "mailto:goliash@localhost"
+	subject := pushSubject(publicURL)
+	if subject == "" {
+		slog.Warn("web push reaches no Apple device (iPhone, iPad, Safari): set GOLIASH_PUBLIC_URL to the server's https address or GOLIASH_PUSH_SUBJECT to mailto:you@example.com")
 	}
 	out["push"] = notifier.WebPush{Store: db, HTTP: hc, Subject: subject}
 	return out
+}
+
+// pushSubject tells push services who sends: GOLIASH_PUSH_SUBJECT, the public URL when
+// it is https, else the mail sender. Apple (Safari, iPhone) refuses anything else, such
+// as a localhost address; "" when there is nothing usable.
+func pushSubject(publicURL string) string {
+	if s := os.Getenv("GOLIASH_PUSH_SUBJECT"); s != "" {
+		return s
+	}
+	if u, err := url.Parse(publicURL); err == nil && u.Scheme == "https" && strings.Contains(u.Hostname(), ".") {
+		return publicURL
+	}
+	if from := smtpFromEnv().From; strings.Contains(from, "@") {
+		if addr, err := mail.ParseAddress(from); err == nil {
+			return "mailto:" + addr.Address
+		}
+	}
+	return ""
 }
 
 func smtpFromEnv() notifier.SMTPConfig {

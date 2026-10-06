@@ -705,11 +705,13 @@ type RuleEditView struct {
 // NotificationsView is the notifications page.
 type NotificationsView struct {
 	Base
-	Channels   []ChannelView
-	Rules      []RuleView
-	SMTP       bool
-	PushKey    string // the VAPID public key, when there is a push channel
-	Deliveries []DeliveryView
+	Channels []ChannelView
+	Rules    []RuleView
+	SMTP     bool
+	PushKey  string // the VAPID public key, when there is a push channel
+	// PushWarning: pushes go out without a sender Apple accepts (no https public URL).
+	PushWarning bool
+	Deliveries  []DeliveryView
 }
 
 // DeliveryView is one recent notification and how its delivery went.
