@@ -48,6 +48,12 @@ still is. Upstream releases and the version policy stay one per service, and not
 This depends on knowing the application (see below): Compose projects, Helm releases and `app.kubernetes.io/part-of`
 work out of the box, and a Nomad job counts as an application of its own.
 
+## Search
+
+**Ctrl+K** (⌘K on a Mac), or **Search** in the header, jumps to any service, application, target or page: type a
+few letters in order (`pgv` finds *cefiro-pgvector*), move with the arrow keys and press Enter. Services and
+applications carry their state's colour.
+
 ## Tiles
 
 **View → Tiles** draws the matrix the way the logo does: a navy board of rounded cells, one per application (or team,

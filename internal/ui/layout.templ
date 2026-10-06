@@ -96,6 +96,11 @@ templ Layout(b Base) {
 						@navLink(b, "events", "/events", "History")
 						@navLink(b, "hygiene", "/hygiene", "Hygiene")
 					</nav>
+					<button type="button" class="palette-open" data-palette aria-keyshortcuts="Control+K Meta+K" title="Search (Ctrl+K)">
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+						<span>Search</span>
+						<kbd>⌘K</kbd>
+					</button>
 					<div class="who">
 						if len(b.Workspaces) > 1 {
 							<form method="post" action="/workspace" hx-boost="false" class="switcher">

@@ -302,6 +302,131 @@
     });
     if (best) { e.preventDefault(); best.focus(); }
   });
+  // The command palette: Ctrl+K (⌘K) or the header's search button. Its entries come
+  // from /ui/palette.json once, again after the workspace changed. Built from DOM
+  // nodes, never markup: names are user input.
+  let paletteData = null;
+  let palette = null;
+  function fuzzy(q, text) {
+    // Every letter of q in order; consecutive letters and word starts score higher.
+    text = text.toLowerCase();
+    let score = 0, ti = 0, prev = -2;
+    for (const ch of q) {
+      const i = text.indexOf(ch, ti);
+      if (i < 0) return -1;
+      score += i === prev + 1 ? 3 : 1;
+      if (i === 0 || " -_./".indexOf(text[i - 1]) >= 0) score += 2;
+      prev = i; ti = i + 1;
+    }
+    return score - text.length / 100;
+  }
+  function paletteRender() {
+    const q = palette.input.value.trim().toLowerCase();
+    let items = paletteData || [];
+    if (q) {
+      items = items.map(function (e) { return { e: e, s: Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2) }; })
+        .filter(function (x) { return x.s >= 0; })
+        .sort(function (a, b) { return b.s - a.s; })
+        .map(function (x) { return x.e; });
+    }
+    items = items.slice(0, 50);
+    palette.list.replaceChildren();
+    if (!paletteData) { palette.list.appendChild(el("li", "palette-empty", "Loading…")); return; }
+    if (!items.length) { palette.list.appendChild(el("li", "palette-empty", "Nothing matches.")); return; }
+    items.forEach(function (e, i) {
+      const li = el("li", "palette-item");
+      li.setAttribute("role", "option");
+      li.dataset.url = e.url;
+      li.id = "palette-opt-" + i;
+      const mark = el("span", "palette-mark " + (e.state ? "tcell " + e.state : "kind-" + e.kind));
+      li.appendChild(mark);
+      const text = el("span", "palette-text");
+      text.appendChild(el("span", "palette-label", e.label));
+      if (e.sub) text.appendChild(el("span", "palette-sub", e.sub));
+      li.appendChild(text);
+      li.appendChild(el("span", "palette-kind", e.kind));
+      li.addEventListener("mousemove", function () { paletteSelect(i); });
+      li.addEventListener("click", function () { paletteGo(e.url); });
+      palette.list.appendChild(li);
+    });
+    paletteSelect(0);
+  }
+  function paletteSelect(i) {
+    const opts = palette.list.querySelectorAll(".palette-item");
+    if (!opts.length) return;
+    i = (i + opts.length) % opts.length;
+    opts.forEach(function (o, j) { o.classList.toggle("on", j === i); o.setAttribute("aria-selected", j === i ? "true" : "false"); });
+    palette.sel = i;
+    palette.input.setAttribute("aria-activedescendant", opts[i].id);
+    opts[i].scrollIntoView({ block: "nearest" });
+  }
+  function paletteGo(url) {
+    paletteClose();
+    // A link clicked like any other: hx-boost swaps the page, sets the title and history.
+    const a = document.createElement("a");
+    a.href = url;
+    a.hidden = true;
+    document.body.appendChild(a);
+    if (window.htmx) htmx.process(a);
+    a.click();
+    a.remove();
+  }
+  function paletteOpen() {
+    if (!palette) {
+      const back = el("div", "palette-backdrop");
+      const box = el("div", "palette");
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-label", "Search");
+      const input = el("input", "palette-input");
+      input.type = "search";
+      input.placeholder = "Jump to a service, an application, a target or a page…";
+      input.setAttribute("role", "combobox");
+      input.setAttribute("aria-controls", "palette-list");
+      input.setAttribute("aria-expanded", "true");
+      input.autocomplete = "off";
+      const list = el("ul", "palette-list");
+      list.id = "palette-list";
+      list.setAttribute("role", "listbox");
+      box.appendChild(input);
+      box.appendChild(list);
+      const hint = el("div", "palette-hint", "↑ ↓ to move · Enter to open · Esc to close");
+      box.appendChild(hint);
+      back.appendChild(box);
+      back.addEventListener("mousedown", function (e) { if (e.target === back) paletteClose(); });
+      input.addEventListener("input", paletteRender);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowDown") { e.preventDefault(); paletteSelect(palette.sel + 1); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); paletteSelect(palette.sel - 1); }
+        else if (e.key === "Enter") {
+          e.preventDefault();
+          const on = list.querySelector(".palette-item.on");
+          if (on) paletteGo(on.dataset.url);
+        } else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); paletteClose(); }
+      });
+      palette = { back: back, input: input, list: list, sel: 0 };
+    }
+    document.body.appendChild(palette.back);
+    palette.input.value = "";
+    palette.input.focus();
+    paletteRender();
+    if (!paletteData) {
+      fetch("/ui/palette.json", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (d) { paletteData = d || []; if (palette.back.isConnected) paletteRender(); });
+    }
+  }
+  function paletteClose() { if (palette && palette.back.isConnected) palette.back.remove(); }
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+      if (!document.querySelector("[data-palette]")) return; // signed out
+      e.preventDefault();
+      if (palette && palette.back.isConnected) paletteClose(); else paletteOpen();
+    }
+  });
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-palette]")) { e.preventDefault(); paletteOpen(); }
+  });
+  document.body.addEventListener("goliash:changed", function () { paletteData = null; });
+  document.body.addEventListener("htmx:beforeSwap", function (e) { if (e.detail.target === document.body) paletteClose(); });
 
   // ---- every page load ----
 
