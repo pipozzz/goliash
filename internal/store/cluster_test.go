@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,6 +85,10 @@ func TestLeaderElectionAndNotify(t *testing.T) {
 	}
 	doneC := make(chan struct{})
 	defer func() { stopC(); <-doneC }()
+	// Thaw c whatever happens, or a failing check leaves it frozen and the deferred
+	// wait above hangs the test until its timeout.
+	var thaw sync.Once
+	defer thaw.Do(func() { close(freeze) })
 	go func() { c.Run(ctxC, work); close(doneC) }()
 	stopB() // hand over from b to c
 	waitFor(t, func() bool { return c.IsLeader() })
@@ -94,10 +99,12 @@ func TestLeaderElectionAndNotify(t *testing.T) {
 	defer func() { stopD(); <-doneD }()
 	go func() { d.Run(ctxD, work); close(doneD) }()
 	waitFor(t, func() bool { return d.IsLeader() })
-	if c.IsLeader() || running.Load() != 1 {
-		t.Fatalf("frozen leader still leads: c=%v d=%v running=%d", c.IsLeader(), d.IsLeader(), running.Load())
+	if c.IsLeader() {
+		t.Fatal("frozen leader still leads")
 	}
-	close(freeze)
+	// c's watchdog stops its work on its own goroutine, a moment after its deadline.
+	waitFor(t, func() bool { return running.Load() == 1 })
+	thaw.Do(func() { close(freeze) })
 	time.Sleep(300 * time.Millisecond)
 	if c.IsLeader() || !d.IsLeader() {
 		t.Fatal("the thawed leader took the lease back")
