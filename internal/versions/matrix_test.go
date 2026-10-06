@@ -4,6 +4,7 @@
 package versions
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -124,5 +125,40 @@ func TestMatrixSplitsByApplication(t *testing.T) {
 	want := []string{"s-pg/chat/prod/env", "s-web//prod/env"}
 	if len(kinds) != len(want) || kinds[0] != want[0] || kinds[1] != want[1] {
 		t.Fatalf("drifts %v, want %v", kinds, want)
+	}
+}
+
+// Drifts of a service split by application are listed once in Drifts (reports,
+// promotions, the API iterate it) and found per application with DriftsIn.
+func TestOverviewDriftsOnce(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, "sqlite://:memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ws, _ := st.EnsureDefaultWorkspace(ctx)
+	sc := ws.Scope()
+	env, _ := st.CreateEnvironment(ctx, sc, "prod", 10)
+	svc, _ := st.EnsureService(ctx, sc, "postgres")
+	for _, app := range []string{"auth", "chat"} {
+		if _, err := st.OpenDrift(ctx, store.Drift{Scope: sc, ServiceID: svc.ID, App: app, EnvironmentID: env.ID, Kind: "env"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	o, err := LoadOverview(ctx, st, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, ds := range o.Drifts {
+		n += len(ds)
+	}
+	if n != 2 {
+		t.Fatalf("%d drifts in Drifts, want each of 2 once", n)
+	}
+	o.SplitApps = map[string]bool{svc.ID: true}
+	if got := o.DriftsIn(svc.ID, "auth", env.ID); len(got) != 1 || got[0].App != "auth" {
+		t.Fatalf("auth drifts %+v", got)
 	}
 }

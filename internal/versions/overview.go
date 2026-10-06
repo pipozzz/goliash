@@ -15,7 +15,8 @@ type Overview struct {
 	Matrix    Matrix
 	Upstreams map[string]Upstream          // service ID -> newest acceptable release
 	Refs      map[string]Reference         // service ID -> upstream repo and reference tag
-	Drifts    map[string][]store.Drift     // service ID + "|" + environment ID -> open drifts
+	Drifts    map[string][]store.Drift     // service ID + "|" + environment ID -> open drifts, each once
+	AppDrifts map[string][]store.Drift     // service ID + "|" + app + "|" + environment ID, for services split by application
 	Policies  map[string]Policy            // service ID -> policy
 	Services  map[string]store.Service     // by ID
 	Envs      map[string]store.Environment // by ID
@@ -57,7 +58,7 @@ func (o Overview) DriftsAt(serviceID, envID string) []store.Drift {
 // any app gets all its drifts.
 func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
 	if o.SplitApps[serviceID] {
-		return o.Drifts[serviceID+"|"+app+"|"+envID]
+		return o.AppDrifts[serviceID+"|"+app+"|"+envID]
 	}
 	return o.Drifts[serviceID+"|"+envID]
 }
@@ -65,7 +66,7 @@ func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
 // LoadOverview reads the matrix, upstream state and open drifts of a workspace.
 func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
 	o := Overview{
-		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
+		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, AppDrifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
 		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{},
 	}
@@ -142,7 +143,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		o.Drifts[k] = append(o.Drifts[k], d)
 		if d.App != "" {
 			k = d.ServiceID + "|" + d.App + "|" + d.EnvironmentID
-			o.Drifts[k] = append(o.Drifts[k], d)
+			o.AppDrifts[k] = append(o.AppDrifts[k], d)
 		}
 	}
 	return o, nil
