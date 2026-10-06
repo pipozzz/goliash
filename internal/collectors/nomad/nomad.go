@@ -55,10 +55,13 @@ type Collector struct {
 }
 
 type jobStub struct {
-	ID        string
-	Namespace string
-	Type      string
-	Status    string
+	ID               string
+	Namespace        string
+	Type             string
+	Status           string
+	ParentID         string // set on each run of a periodic or parameterized job
+	Periodic         bool
+	ParameterizedJob bool
 }
 
 type job struct {
@@ -106,8 +109,19 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	})
 
 	res := collectors.Result{Complete: true, Workloads: []agentproto.Workload{}}
+	// Each run of a periodic or parameterized job is a job of its own
+	// ("backup/periodic-1759740000"); they count as the parent's, one workload that
+	// keeps its name, instead of a new workload per run.
+	children := map[string][]jobStub{}
 	for _, s := range stubs {
-		if s.Status == "dead" {
+		if s.ParentID != "" && s.Status != "dead" {
+			k := s.Namespace + "/" + s.ParentID
+			children[k] = append(children[k], s)
+		}
+	}
+	byID := map[string]int{}
+	for _, s := range stubs {
+		if s.Status == "dead" || s.ParentID != "" {
 			continue
 		}
 		w, err := c.workload(ctx, s)
@@ -118,10 +132,63 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 			continue
 		}
 		if w != nil {
+			if s.Periodic || s.ParameterizedJob {
+				w.Kind, w.DesiredReplicas = agentproto.Cronjob, nil
+			}
+			byID[w.ID] = len(res.Workloads)
 			res.Workloads = append(res.Workloads, *w)
 		}
 	}
+	parents := make([]string, 0, len(children))
+	for k := range children {
+		parents = append(parents, k)
+	}
+	sort.Strings(parents)
+	for _, parent := range parents {
+		for _, s := range children[parent] {
+			run, err := c.workload(ctx, s)
+			if err != nil {
+				res.Complete = false
+				res.Errors = append(res.Errors, fmt.Sprintf("job %s/%s: %v", s.Namespace, s.ID, err))
+				continue
+			}
+			if run == nil {
+				continue
+			}
+			i, ok := byID[parent]
+			if !ok { // the parent was not listed (dead, or another namespace): the run stands for it
+				_, name, _ := strings.Cut(parent, "/")
+				run.ID, run.Name, run.Kind, run.DesiredReplicas = parent, name, agentproto.Cronjob, nil
+				byID[parent] = len(res.Workloads)
+				res.Workloads = append(res.Workloads, *run)
+				continue
+			}
+			res.Workloads[i].Containers = addRunning(res.Workloads[i].Containers, run.Containers)
+		}
+	}
 	return res, nil
+}
+
+// addRunning adds a run's running containers to its parent's: the same container and
+// image counts up, another image (a newer job version) is listed beside it.
+func addRunning(into, run []agentproto.Container) []agentproto.Container {
+	for _, c := range run {
+		if c.Running == 0 {
+			continue
+		}
+		found := false
+		for i := range into {
+			if into[i].Name == c.Name && into[i].Image == c.Image {
+				into[i].Running += c.Running
+				found = true
+				break
+			}
+		}
+		if !found {
+			into = append(into, c)
+		}
+	}
+	return into
 }
 
 func (c *Collector) workload(ctx context.Context, s jobStub) (*agentproto.Workload, error) {

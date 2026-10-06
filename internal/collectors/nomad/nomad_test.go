@@ -144,3 +144,47 @@ func TestListForbiddenWithoutToken(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// Runs of a periodic job count as the job's: one workload, not one per run.
+func TestPeriodicRuns(t *testing.T) {
+	job := `{"Versions":[{"ID":"%s","Namespace":"prod","Version":0,"TaskGroups":[
+		{"Name":"b","Count":1,"Tasks":[{"Name":"dump","Driver":"docker","Config":{"image":"postgres:17"}}]}]}]}`
+	responses := map[string]string{
+		"/v1/jobs": `[
+			{"ID":"backup","Namespace":"prod","Type":"batch","Status":"running","Periodic":true},
+			{"ID":"backup/periodic-1759740000","Namespace":"prod","Type":"batch","Status":"running","ParentID":"backup"},
+			{"ID":"backup/periodic-1759653600","Namespace":"prod","Type":"batch","Status":"dead","ParentID":"backup"},
+			{"ID":"export/dispatch-1759740000-ab12cd34","Namespace":"prod","Type":"batch","Status":"running","ParentID":"export"}
+		]`,
+		"/v1/job/backup/versions":                                 strings.ReplaceAll(job, "%s", "backup"),
+		"/v1/job/backup/allocations":                              `[]`,
+		"/v1/job/backup/periodic-1759740000/versions":             strings.ReplaceAll(job, "%s", "backup/periodic-1759740000"),
+		"/v1/job/backup/periodic-1759740000/allocations":          `[{"TaskGroup":"b","JobVersion":0,"ClientStatus":"running"}]`,
+		"/v1/job/export/dispatch-1759740000-ab12cd34/versions":    strings.ReplaceAll(job, "%s", "export/dispatch-1759740000-ab12cd34"),
+		"/v1/job/export/dispatch-1759740000-ab12cd34/allocations": `[{"TaskGroup":"b","JobVersion":0,"ClientStatus":"running"}]`,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, ok := responses[r.URL.Path]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	c, err := New(context.Background(), agentproto.Target{Nomad: &agentproto.NomadSettings{Address: srv.URL}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.Collect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, w := range res.Workloads {
+		got = append(got, w.ID+":"+string(w.Kind)+":"+strconv.Itoa(w.Containers[0].Running))
+	}
+	if strings.Join(got, " ") != "prod/backup:cronjob:1 prod/export:cronjob:1" || !res.Complete {
+		t.Fatalf("workloads %v (complete %v, errors %v)", got, res.Complete, res.Errors)
+	}
+}
