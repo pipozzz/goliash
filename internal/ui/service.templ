@@ -60,38 +60,40 @@ templ ServicePage(v ServiceView) {
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Running</h2></div>
-				<table>
-					<thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead>
-					<tbody>
-						for _, e := range v.Envs {
-							<tr>
-								<td><strong>{ e.Name }</strong></td>
-								<td>
-									if len(e.Versions) == 0 {
-										<span class="none">not deployed</span>
-									}
-									for _, ver := range e.Versions {
-										<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
-										<div class="targets">{ ver.Targets }</div>
-									}
-								</td>
-								<td>
-									<div class="badges">
-										for _, d := range e.Drifts {
-											<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead>
+						<tbody>
+							for _, e := range v.Envs {
+								<tr>
+									<td><strong>{ e.Name }</strong></td>
+									<td>
+										if len(e.Versions) == 0 {
+											<span class="none">not deployed</span>
 										}
-									</div>
-									if len(e.Drifts) > 0 {
-										<div class="targets">
-											{ "open since " }
-											@timeAgo(e.Drifts[0].Since)
+										for _, ver := range e.Versions {
+											<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
+											<div class="targets">{ ver.Targets }</div>
+										}
+									</td>
+									<td>
+										<div class="badges">
+											for _, d := range e.Drifts {
+												<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+											}
 										</div>
-									}
-								</td>
-							</tr>
-						}
-					</tbody>
-				</table>
+										if len(e.Drifts) > 0 {
+											<div class="targets">
+												{ "open since " }
+												@timeAgo(e.Drifts[0].Since)
+											</div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
 			</section>
 			<section class="panel">
 				<div class="panel-head"><h2>Upstream releases</h2><span class="muted">newest first</span></div>
@@ -99,25 +101,27 @@ templ ServicePage(v ServiceView) {
 					if len(v.Releases) == 0 {
 						<p class="muted">No releases known yet.</p>
 					} else {
-						<table>
-							<tbody>
-								for _, r := range v.Releases {
-									<tr>
-										<td class="mono"><strong>{ r.Version }</strong></td>
-										<td class="muted">
-											if !r.Published.IsZero() {
-												{ r.Published.Format("2006-01-02") }
-											}
-										</td>
-										<td class="num">
-											if r.URL != "" {
-												<a href={ templ.URL(r.URL) } target="_blank" rel="noopener noreferrer">release notes</a>
-											}
-										</td>
-									</tr>
-								}
-							</tbody>
-						</table>
+						<div class="scroll">
+							<table>
+								<tbody>
+									for _, r := range v.Releases {
+										<tr>
+											<td class="mono"><strong>{ r.Version }</strong></td>
+											<td class="muted">
+												if !r.Published.IsZero() {
+													{ r.Published.Format("2006-01-02") }
+												}
+											</td>
+											<td class="num">
+												if r.URL != "" {
+													<a href={ templ.URL(r.URL) } target="_blank" rel="noopener noreferrer">release notes</a>
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
 					}
 					if v.CanMember {
 						<details>
@@ -150,39 +154,41 @@ templ ServicePage(v ServiceView) {
 						</details>
 					}
 					if len(v.Acks) > 0 {
-						<table>
-							<thead>
-								<tr>
-									<th>Quiet</th>
-									<th>Until</th>
-									<th>By</th>
-									if v.CanMember {
-										<th></th>
-									}
-								</tr>
-							</thead>
-							<tbody>
-								for _, a := range v.Acks {
+						<div class="scroll">
+							<table>
+								<thead>
 									<tr>
-										<td>{ a.Kind }{ envSuffix(a.Env) }</td>
-										<td>
-											{ a.Until }
-											if !a.Active {
-												<span class="badge neutral">expired</span>
-											}
-										</td>
-										<td class="muted">{ a.By }</td>
+										<th>Quiet</th>
+										<th>Until</th>
+										<th>By</th>
 										if v.CanMember {
-											<td class="num">
-												<form method="post" action={ templ.URL("/services/" + v.Name + "/acks/" + a.ID + "/delete") }>
-													<button class="link danger-link" type="submit">Remove</button>
-												</form>
-											</td>
+											<th></th>
 										}
 									</tr>
-								}
-							</tbody>
-						</table>
+								</thead>
+								<tbody>
+									for _, a := range v.Acks {
+										<tr>
+											<td>{ a.Kind }{ envSuffix(a.Env) }</td>
+											<td>
+												{ a.Until }
+												if !a.Active {
+													<span class="badge neutral">expired</span>
+												}
+											</td>
+											<td class="muted">{ a.By }</td>
+											if v.CanMember {
+												<td class="num">
+													<form method="post" action={ templ.URL("/services/" + v.Name + "/acks/" + a.ID + "/delete") }>
+														<button class="link danger-link" type="submit">Remove</button>
+													</form>
+												</td>
+											}
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
 					}
 				</div>
 			</section>

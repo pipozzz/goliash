@@ -86,73 +86,73 @@ templ Layout(b Base) {
 		}
 		<body hx-boost="true" class={ templ.KV("kiosk", b.Kiosk) }>
 			if !b.Kiosk {
-			<header class="top">
-				<div class="top-inner">
-					<a class="brand" href="/">
-						@logo()
-						Goliash
-					</a>
-					<nav class="nav" aria-label="Main">
-						@navLink(b, "matrix", "/", "Matrix")
-						@navLink(b, "inbox", "/inbox", "Inbox")
-						@navLink(b, "updates", "/updates", "Updates")
-						@navLink(b, "promotions", "/delivery", "Delivery")
-						@navLink(b, "events", "/events", "History")
-						@navLink(b, "hygiene", "/hygiene", "Hygiene")
-					</nav>
-					<button type="button" class="palette-open" data-palette aria-keyshortcuts="Control+K Meta+K" title="Search (Ctrl+K)">
-						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-						<span>Search</span>
-						<kbd>⌘K</kbd>
-					</button>
-					<div class="who">
-						if len(b.Workspaces) > 1 {
-							<form method="post" action="/workspace" hx-boost="false" class="switcher">
-								<select name="workspace" aria-label="Workspace" data-autosubmit>
-									for _, w := range b.Workspaces {
-										<option value={ w.ID } selected?={ w.Current }>{ w.Name }</option>
-									}
-								</select>
-								<noscript><button type="submit" class="secondary">Open</button></noscript>
-							</form>
-						} else if b.Workspace != "" {
-							<span class="ws-name">{ b.Workspace }</span>
-						}
-						<details class="menu">
-							<summary class={ templ.KV("current", isSettings(b.Page)) }>
-								@gear()
-								<span class="menu-label">Settings</span>
-							</summary>
-							<div class="menu-list" role="menu">
-								@menuLink(b, "agents", "/agents", "Agents and targets")
-								@menuLink(b, "notifications", "/notifications", "Notifications")
-								if b.CanAdmin {
-									@menuLink(b, "settings", "/settings", "Users and API tokens")
-								}
-								if b.OrgAdmin {
-									@menuLink(b, "workspaces", "/workspaces", "Workspaces")
-								}
-							</div>
-						</details>
-						<details class="menu">
-							<summary class={ templ.KV("current", b.Page == "account") } title={ b.Email + " · " + b.Role }>
-								<span class="avatar" aria-hidden="true">{ initial(b.Email) }</span>
-								<span class="menu-label who-email">{ b.Email }</span>
-							</summary>
-							<div class="menu-list" role="menu">
-								<div class="menu-head">
-									<strong>{ b.Email }</strong>
-									<span class="muted">{ b.Role }</span>
-								</div>
-								@menuLink(b, "account", "/account", "Your account")
-								<form method="post" action="/auth/logout" hx-boost="false">
-									<button class="menu-item" type="submit" role="menuitem">Sign out</button>
+				<header class="top">
+					<div class="top-inner">
+						<a class="brand" href="/">
+							@logo()
+							Goliash
+						</a>
+						<nav class="nav" aria-label="Main">
+							@navLink(b, "matrix", "/", "Matrix")
+							@navLink(b, "inbox", "/inbox", "Inbox")
+							@navLink(b, "updates", "/updates", "Updates")
+							@navLink(b, "promotions", "/delivery", "Delivery")
+							@navLink(b, "events", "/events", "History")
+							@navLink(b, "hygiene", "/hygiene", "Hygiene")
+						</nav>
+						<button type="button" class="palette-open" data-palette aria-keyshortcuts="Control+K Meta+K" title="Search (Ctrl+K)">
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+							<span>Search</span>
+							<kbd>⌘K</kbd>
+						</button>
+						<div class="who">
+							if len(b.Workspaces) > 1 {
+								<form method="post" action="/workspace" hx-boost="false" class="switcher">
+									<select name="workspace" aria-label="Workspace" data-autosubmit>
+										for _, w := range b.Workspaces {
+											<option value={ w.ID } selected?={ w.Current }>{ w.Name }</option>
+										}
+									</select>
+									<noscript><button type="submit" class="secondary">Open</button></noscript>
 								</form>
-							</div>
-						</details>
+							} else if b.Workspace != "" {
+								<span class="ws-name">{ b.Workspace }</span>
+							}
+							<details class="menu">
+								<summary class={ templ.KV("current", isSettings(b.Page)) }>
+									@gear()
+									<span class="menu-label">Settings</span>
+								</summary>
+								<div class="menu-list" role="menu">
+									@menuLink(b, "agents", "/agents", "Agents and targets")
+									@menuLink(b, "notifications", "/notifications", "Notifications")
+									if b.CanAdmin {
+										@menuLink(b, "settings", "/settings", "Users and API tokens")
+									}
+									if b.OrgAdmin {
+										@menuLink(b, "workspaces", "/workspaces", "Workspaces")
+									}
+								</div>
+							</details>
+							<details class="menu">
+								<summary class={ templ.KV("current", b.Page == "account") } title={ b.Email + " · " + b.Role }>
+									<span class="avatar" aria-hidden="true">{ initial(b.Email) }</span>
+									<span class="menu-label who-email">{ b.Email }</span>
+								</summary>
+								<div class="menu-list" role="menu">
+									<div class="menu-head">
+										<strong>{ b.Email }</strong>
+										<span class="muted">{ b.Role }</span>
+									</div>
+									@menuLink(b, "account", "/account", "Your account")
+									<form method="post" action="/auth/logout" hx-boost="false">
+										<button class="menu-item" type="submit" role="menuitem">Sign out</button>
+									</form>
+								</div>
+							</details>
+						</div>
 					</div>
-				</div>
-			</header>
+				</header>
 			}
 			<main>
 				if b.Notice != "" {

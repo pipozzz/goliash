@@ -6,6 +6,8 @@ description: 'Send new releases, drift and stale agents to Slack, Microsoft Team
 Notifications have two parts: **channels** (where messages go) and **rules** (which events go there, and how
 often). Both are managed on the Notifications page or with the CLI.
 
+![The Notifications page: channels (e-mail, Microsoft Teams, web push with two browsers, Slack), rules with their time zones and quiet hours, and recent deliveries with one held for quiet hours, one in a digest and one that gave up with the mail server's answer](../../../assets/notifications.png)
+
 ## Channels
 
 | Type | Settings |

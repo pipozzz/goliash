@@ -11,7 +11,7 @@ templ NotificationsPage(v NotificationsView) {
 				<p class="sub">Rules send events to channels, right away or as a daily or weekly digest.</p>
 			</div>
 		</div>
-		<div class="grid-2">
+		<div class="notif-panels">
 			<section class="panel">
 				<div class="panel-head"><h2>Channels</h2></div>
 				if v.PushKey != "" {
@@ -23,37 +23,39 @@ templ NotificationsPage(v NotificationsView) {
 						<p>A channel is where notifications go: Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail or browsers (web push).</p>
 					</div>
 				} else {
-					<table>
-						<thead><tr><th>Name</th><th>Type</th><th>Where</th><th></th></tr></thead>
-						<tbody>
-							for _, c := range v.Channels {
-								<tr>
-									<td><strong>{ c.Name }</strong></td>
-									<td>{ c.Type }</td>
-									<td class="mono muted">{ c.Detail }</td>
-									<td class="num">
-										if c.Type == "push" {
-											<div class="row-actions push-actions">
-												<button class="link" type="button" data-push="subscribe" data-channel={ c.ID } hidden>Notify this browser</button>
-												<button class="link" type="button" data-push="unsubscribe" data-channel={ c.ID } hidden>Stop on this browser</button>
-											</div>
-										}
-										if v.CanAdmin {
-											<div class="row-actions">
-												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/test") }>
-													<button class="link" type="submit">Send test</button>
-												</form>
-												<a href={ templ.URL("/notifications/channels/" + c.ID) }>Edit</a>
-												<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/delete") } hx-confirm={ "Delete channel " + c.Name + " and its rules?" }>
-													<button class="link danger-link" type="submit">Delete</button>
-												</form>
-											</div>
-										}
-									</td>
-								</tr>
-							}
-						</tbody>
-					</table>
+					<div class="scroll">
+						<table>
+							<thead><tr><th>Name</th><th>Type</th><th>Where</th><th></th></tr></thead>
+							<tbody>
+								for _, c := range v.Channels {
+									<tr>
+										<td><strong>{ c.Name }</strong></td>
+										<td>{ c.Type }</td>
+										<td class="mono muted">{ c.Detail }</td>
+										<td class="num">
+											if c.Type == "push" {
+												<div class="row-actions push-actions">
+													<button class="link" type="button" data-push="subscribe" data-channel={ c.ID } hidden>Notify this browser</button>
+													<button class="link" type="button" data-push="unsubscribe" data-channel={ c.ID } hidden>Stop on this browser</button>
+												</div>
+											}
+											if v.CanAdmin {
+												<div class="row-actions">
+													<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/test") }>
+														<button class="link" type="submit">Send test</button>
+													</form>
+													<a href={ templ.URL("/notifications/channels/" + c.ID) }>Edit</a>
+													<form method="post" action={ templ.URL("/notifications/channels/" + c.ID + "/delete") } hx-confirm={ "Delete channel " + c.Name + " and its rules?" }>
+														<button class="link danger-link" type="submit">Delete</button>
+													</form>
+												</div>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
 				}
 				if v.CanAdmin {
 					<div class="panel-body" style="border-top:1px solid var(--line)">
@@ -117,59 +119,61 @@ templ NotificationsPage(v NotificationsView) {
 						}
 					</div>
 				} else {
-					<table>
-						<thead>
-							<tr>
-								<th>Events</th>
-								<th>Filter</th>
-								<th>Mode</th>
-								<th>Channel</th>
-								if v.CanMember {
-									<th></th>
-								}
-							</tr>
-						</thead>
-						<tbody>
-							for _, r := range v.Rules {
-								<tr class={ templ.KV("paused", r.Paused) }>
-									<td>
-										{ r.Events }
-										if r.Paused {
-											<span class="badge neutral">paused</span>
-										}
-									</td>
-									<td class="muted">{ r.Filter }</td>
-									<td>{ r.Mode }</td>
-									<td>{ r.Channel }</td>
+					<div class="scroll">
+						<table>
+							<thead>
+								<tr>
+									<th>Events</th>
+									<th>Filter</th>
+									<th>Mode</th>
+									<th>Channel</th>
 									if v.CanMember {
-										<td class="num">
-											<div class="row-actions">
-												if r.Plan {
-													<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/plan") }>
-														<button class="link" type="submit" title="Send the upgrade plan now, to check the channel and the filters">Send plan now</button>
-													</form>
-												}
-												<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/pause") }>
-													<input type="hidden" name="paused" value={ boolStr(!r.Paused) }/>
-													<button class="link" type="submit">
-														if r.Paused {
-															Resume
-														} else {
-															Pause
-														}
-													</button>
-												</form>
-												<a href={ templ.URL("/notifications/rules/" + r.ID) }>Edit</a>
-												<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/delete") } hx-confirm="Delete this rule?">
-													<button class="link danger-link" type="submit">Delete</button>
-												</form>
-											</div>
-										</td>
+										<th></th>
 									}
 								</tr>
-							}
-						</tbody>
-					</table>
+							</thead>
+							<tbody>
+								for _, r := range v.Rules {
+									<tr class={ templ.KV("paused", r.Paused) }>
+										<td>
+											{ r.Events }
+											if r.Paused {
+												<span class="badge neutral">paused</span>
+											}
+										</td>
+										<td class="muted">{ r.Filter }</td>
+										<td>{ r.Mode }</td>
+										<td>{ r.Channel }</td>
+										if v.CanMember {
+											<td class="num">
+												<div class="row-actions">
+													if r.Plan {
+														<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/plan") }>
+															<button class="link" type="submit" title="Send the upgrade plan now, to check the channel and the filters">Send plan now</button>
+														</form>
+													}
+													<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/pause") }>
+														<input type="hidden" name="paused" value={ boolStr(!r.Paused) }/>
+														<button class="link" type="submit">
+															if r.Paused {
+																Resume
+															} else {
+																Pause
+															}
+														</button>
+													</form>
+													<a href={ templ.URL("/notifications/rules/" + r.ID) }>Edit</a>
+													<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/delete") } hx-confirm="Delete this rule?">
+														<button class="link danger-link" type="submit">Delete</button>
+													</form>
+												</div>
+											</td>
+										}
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
 				}
 				if v.CanMember && len(v.Channels) > 0 {
 					<div class="panel-body" style="border-top:1px solid var(--line)">
@@ -187,37 +191,39 @@ templ NotificationsPage(v NotificationsView) {
 		if len(v.Deliveries) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Recent deliveries</h2><span class="muted">the last { itoa(len(v.Deliveries)) }, newest first</span></div>
-				<table class="deliveries">
-					<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th></th></tr></thead>
-					<tbody>
-						for _, d := range v.Deliveries {
-							<tr>
-								<td class="muted nowrap">@timeAgo(d.At)</td>
-								<td><strong>{ d.Channel }</strong> <span class="muted">{ d.Type }</span></td>
-								<td class="delivery-text">{ d.Text }</td>
-								<td>
-									<span class={ "delivery-status " + d.Status }>{ d.Label }</span>
-									if d.Error != "" && d.Status != "sent" {
-										<div class="delivery-error mono">{ d.Error }</div>
-									}
-								</td>
-								<td class="num">
-									if d.Retry && v.CanMember {
-										<form method="post" action={ templ.URL("/notifications/deliveries/" + d.ID + "/retry") }>
-											<button class="link" type="submit">
-												if d.Status == "waiting" {
-													Send now
-												} else {
-													Retry now
-												}
-											</button>
-										</form>
-									}
-								</td>
-							</tr>
-						}
-					</tbody>
-				</table>
+				<div class="scroll">
+					<table class="deliveries">
+						<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th></th></tr></thead>
+						<tbody>
+							for _, d := range v.Deliveries {
+								<tr>
+									<td class="muted nowrap">@timeAgo(d.At)</td>
+									<td><strong>{ d.Channel }</strong> <span class="muted">{ d.Type }</span></td>
+									<td class="delivery-text">{ d.Text }</td>
+									<td>
+										<span class={ "delivery-status " + d.Status }>{ d.Label }</span>
+										if d.Error != "" && d.Status != "sent" {
+											<div class="delivery-error mono">{ d.Error }</div>
+										}
+									</td>
+									<td class="num">
+										if d.Retry && v.CanMember {
+											<form method="post" action={ templ.URL("/notifications/deliveries/" + d.ID + "/retry") }>
+												<button class="link" type="submit">
+													if d.Status == "waiting" {
+														Send now
+													} else {
+														Retry now
+													}
+												</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
 			</section>
 		}
 	}
@@ -236,75 +242,77 @@ templ SettingsPage(v SettingsView) {
 		}
 		<section class="panel">
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
-			<table>
-				<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead>
-				<tbody>
-					for _, u := range v.Users {
-						<tr>
-							<td><strong>{ u.Email }</strong></td>
-							<td>
-								if u.IsSelf || (u.OrgWide && !v.OrgAdmin) || (u.OrgRole == "owner" && !v.CanGrantOwner) {
-									{ u.Access }
-								} else {
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
-										<select name="role" aria-label="Role" data-autosubmit>
-											for _, r := range workspaceRoles() {
-												<option value={ r } selected?={ !u.OrgWide && (r == u.Role || (r == "none" && u.Role == "")) }>{ roleLabel(r) }</option>
-											}
-											if v.OrgAdmin {
-												<option value="org-admin" selected?={ u.OrgRole == "admin" }>admin of the organization</option>
-											}
-											if v.CanGrantOwner {
-												<option value="owner" selected?={ u.OrgRole == "owner" }>owner of the organization</option>
-											}
-										</select>
-									</form>
-								}
-							</td>
-							<td>
-								if u.HasPassword {
-									<span class="badge ok">set</span>
-								} else {
-									<span class="badge neutral">none</span>
-								}
-							</td>
-							<td>
-								if u.TOTP {
-									<span class="badge ok">on</span>
-								} else {
-									<span class="badge neutral">off</span>
-								}
-							</td>
-							<td>@timeAgo(u.LastLogin)</td>
-							<td class="num">
-								if !u.IsSelf && (!u.OrgWide || v.OrgAdmin) {
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/link") }>
-										<button class="link" type="submit">Sign-in link</button>
-									</form>
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/sign-out") } hx-confirm="Sign this person out on every device?">
-										<button class="link" type="submit">Sign out</button>
-									</form>
-									if u.TOTP {
-										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/2fa/delete") } hx-confirm="Turn off this person's two-factor sign-in and sign them out everywhere?">
-											<button class="link" type="submit">Reset 2FA</button>
+			<div class="scroll">
+				<table>
+					<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead>
+					<tbody>
+						for _, u := range v.Users {
+							<tr>
+								<td><strong>{ u.Email }</strong></td>
+								<td>
+									if u.IsSelf || (u.OrgWide && !v.OrgAdmin) || (u.OrgRole == "owner" && !v.CanGrantOwner) {
+										{ u.Access }
+									} else {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
+											<select name="role" aria-label="Role" data-autosubmit>
+												for _, r := range workspaceRoles() {
+													<option value={ r } selected?={ !u.OrgWide && (r == u.Role || (r == "none" && u.Role == "")) }>{ roleLabel(r) }</option>
+												}
+												if v.OrgAdmin {
+													<option value="org-admin" selected?={ u.OrgRole == "admin" }>admin of the organization</option>
+												}
+												if v.CanGrantOwner {
+													<option value="owner" selected?={ u.OrgRole == "owner" }>owner of the organization</option>
+												}
+											</select>
 										</form>
 									}
+								</td>
+								<td>
 									if u.HasPassword {
-										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/password/delete") } hx-confirm="Remove this person's password and sign them out everywhere?">
-											<button class="link" type="submit">Remove password</button>
+										<span class="badge ok">set</span>
+									} else {
+										<span class="badge neutral">none</span>
+									}
+								</td>
+								<td>
+									if u.TOTP {
+										<span class="badge ok">on</span>
+									} else {
+										<span class="badge neutral">off</span>
+									}
+								</td>
+								<td>@timeAgo(u.LastLogin)</td>
+								<td class="num">
+									if !u.IsSelf && (!u.OrgWide || v.OrgAdmin) {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/link") }>
+											<button class="link" type="submit">Sign-in link</button>
+										</form>
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/sign-out") } hx-confirm="Sign this person out on every device?">
+											<button class="link" type="submit">Sign out</button>
+										</form>
+										if u.TOTP {
+											<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/2fa/delete") } hx-confirm="Turn off this person's two-factor sign-in and sign them out everywhere?">
+												<button class="link" type="submit">Reset 2FA</button>
+											</form>
+										}
+										if u.HasPassword {
+											<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/password/delete") } hx-confirm="Remove this person's password and sign them out everywhere?">
+												<button class="link" type="submit">Remove password</button>
+											</form>
+										}
+									}
+									if !u.IsSelf && v.OrgAdmin {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/delete") } hx-confirm="Remove this person from the organization?">
+											<button class="link" type="submit" style="color:var(--bad)">Remove</button>
 										</form>
 									}
-								}
-								if !u.IsSelf && v.OrgAdmin {
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/delete") } hx-confirm="Remove this person from the organization?">
-										<button class="link" type="submit" style="color:var(--bad)">Remove</button>
-									</form>
-								}
-							</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
 			<div class="panel-body" style="border-top:1px solid var(--line)">
 				<form class="inline" method="post" action="/settings/users">
 					<label>E-mail<input name="email" type="email" required/></label>

@@ -275,6 +275,7 @@ type Delivery struct {
 	ChannelID   string
 	ChannelName string
 	ChannelType string
+	RuleMode    string // instant, daily or weekly
 	Payload     json.RawMessage
 	DueAt       time.Time
 	SentAt      *time.Time
@@ -285,7 +286,7 @@ type Delivery struct {
 
 // RecentDeliveries returns a workspace's latest notifications, sent or not, newest first.
 func (s *Store) RecentDeliveries(ctx context.Context, sc Scope, limit int) ([]Delivery, error) {
-	rows, err := s.query(ctx, s.db, `SELECT q.id, q.rule_id, c.id, c.name, c.type, q.payload, q.due_at, q.sent_at, q.attempts, q.last_error, q.created_at
+	rows, err := s.query(ctx, s.db, `SELECT q.id, q.rule_id, c.id, c.name, c.type, r.mode, q.payload, q.due_at, q.sent_at, q.attempts, q.last_error, q.created_at
 		FROM notification_queue q
 		JOIN notification_rules r ON r.id = q.rule_id
 		JOIN notification_channels c ON c.id = r.channel_id
@@ -300,7 +301,7 @@ func (s *Store) RecentDeliveries(ctx context.Context, sc Scope, limit int) ([]De
 		var d Delivery
 		var payload string
 		var sent sql.NullTime
-		if err := rows.Scan(&d.ID, &d.RuleID, &d.ChannelID, &d.ChannelName, &d.ChannelType, &payload, &d.DueAt, &sent, &d.Attempts, &d.LastError, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.RuleID, &d.ChannelID, &d.ChannelName, &d.ChannelType, &d.RuleMode, &payload, &d.DueAt, &sent, &d.Attempts, &d.LastError, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		d.Payload = json.RawMessage(payload)

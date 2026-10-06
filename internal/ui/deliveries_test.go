@@ -34,11 +34,11 @@ func TestRecentDeliveries(t *testing.T) {
 	}
 	sent := queue("web: new release 2.0.0", time.Now())
 	_ = e.st.MarkSent(ctx, []string{sent})
-	queue("db: new release 17.2", time.Now().Add(20*time.Hour))
+	queue("db: new release 17.2", time.Now().Add(20*time.Hour)) // an instant rule: held for quiet hours
 
 	member := e.as(store.RoleMember)
 	_, page := get(t, member, e.srv.URL+"/notifications", nil)
-	for _, want := range []string{"Recent deliveries", "gave up after 6 attempts", "answered 404: no_team", "Retry now", ">sent<", "in the digest in", "Send now"} {
+	for _, want := range []string{"Recent deliveries", "gave up after 6 attempts", "answered 404: no_team", "Retry now", ">sent<", "held for quiet hours, out in", "Send now"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page misses %q", want)
 		}

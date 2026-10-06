@@ -45,7 +45,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Workspaces</h1><p class=\"sub\">Each workspace keeps its own agents, targets, services, history and people, e.g. one per client.</p></div></div><section class=\"panel\"><table><thead><tr><th>Workspace</th><th>Slug</th><th class=\"num\">Targets</th><th class=\"num\">Services</th><th class=\"num\">Members</th><th></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Workspaces</h1><p class=\"sub\">Each workspace keeps its own agents, targets, services, history and people, e.g. one per client.</p></div></div><section class=\"panel\"><div class=\"scroll\"><table><thead><tr><th>Workspace</th><th>Slug</th><th class=\"num\">Targets</th><th class=\"num\">Services</th><th class=\"num\">Members</th><th></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -57,7 +57,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var3 templ.SafeURL
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/workspaces/" + w.ID + "/rename"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 21, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 22, Col: 106}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -70,7 +70,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(w.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 22, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 23, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -83,7 +83,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue("Name of " + w.Slug)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 22, Col: 102}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 23, Col: 103}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -96,7 +96,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(w.Slug)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 26, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 27, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -109,7 +109,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(w.Targets))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 27, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 28, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -122,7 +122,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(w.Services))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 28, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 29, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -135,7 +135,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(w.Members))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 29, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 30, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -158,7 +158,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(w.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 35, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `workspaces.templ`, Line: 36, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 					if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</tbody></table><div class=\"panel-body\" style=\"border-top:1px solid var(--line)\"><form class=\"inline\" method=\"post\" action=\"/workspaces\"><label>Name<input name=\"name\" required placeholder=\"Client A\"></label> <label>Slug<input name=\"slug\" required placeholder=\"client-a\" pattern=\"[a-z0-9][a-z0-9-]*\"></label> <label class=\"check\"><input type=\"checkbox\" name=\"envs\" value=\"1\" checked> with dev, staging and prod</label> <button type=\"submit\">Create workspace</button></form><p class=\"hint\">Organization owners and admins see every workspace. Invite everyone else into the workspaces they need from its Users page.</p></div></section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</tbody></table></div><div class=\"panel-body\" style=\"border-top:1px solid var(--line)\"><form class=\"inline\" method=\"post\" action=\"/workspaces\"><label>Name<input name=\"name\" required placeholder=\"Client A\"></label> <label>Slug<input name=\"slug\" required placeholder=\"client-a\" pattern=\"[a-z0-9][a-z0-9-]*\"></label> <label class=\"check\"><input type=\"checkbox\" name=\"envs\" value=\"1\" checked> with dev, staging and prod</label> <button type=\"submit\">Create workspace</button></form><p class=\"hint\">Organization owners and admins see every workspace. Invite everyone else into the workspaces they need from its Users page.</p></div></section>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

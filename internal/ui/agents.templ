@@ -65,30 +65,32 @@ templ AgentsPage(v AgentsView) {
 			<section class="panel">
 				<div class="panel-head"><h2>Environments</h2><span class="muted">in promotion order</span></div>
 				if len(v.Envs) > 0 {
-					<table class="envs">
-						<thead><tr><th>Name</th><th>Order</th><th>Targets</th><th></th></tr></thead>
-						<tbody>
-							for _, e := range v.Envs {
-								<tr>
-									<td colspan="2">
-										<form class="inline env-edit" method="post" action={ templ.URL("/environments/" + e.ID) }>
-											<input name="name" value={ e.Name } required aria-label="Name" maxlength="60"/>
-											<input name="position" value={ itoa(e.Position) } inputmode="numeric" aria-label="Order" size="4"/>
-											<button class="secondary" type="submit">Save</button>
-										</form>
-									</td>
-									<td>{ itoa(e.Targets) }</td>
-									<td class="num">
-										if e.Targets == 0 {
-											<form method="post" action={ templ.URL("/environments/" + e.ID + "/delete") } hx-confirm={ "Delete environment " + e.Name + "?" }>
-												<button class="link danger-link" type="submit">Delete</button>
+					<div class="scroll">
+						<table class="envs">
+							<thead><tr><th>Name</th><th>Order</th><th>Targets</th><th></th></tr></thead>
+							<tbody>
+								for _, e := range v.Envs {
+									<tr>
+										<td colspan="2">
+											<form class="inline env-edit" method="post" action={ templ.URL("/environments/" + e.ID) }>
+												<input name="name" value={ e.Name } required aria-label="Name" maxlength="60"/>
+												<input name="position" value={ itoa(e.Position) } inputmode="numeric" aria-label="Order" size="4"/>
+												<button class="secondary" type="submit">Save</button>
 											</form>
-										}
-									</td>
-								</tr>
-							}
-						</tbody>
-					</table>
+										</td>
+										<td>{ itoa(e.Targets) }</td>
+										<td class="num">
+											if e.Targets == 0 {
+												<form method="post" action={ templ.URL("/environments/" + e.ID + "/delete") } hx-confirm={ "Delete environment " + e.Name + "?" }>
+													<button class="link danger-link" type="submit">Delete</button>
+												</form>
+											}
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
 				}
 				<div class="panel-body" style="border-top:1px solid var(--line)">
 					<form class="inline" method="post" action="/environments">
@@ -102,64 +104,64 @@ templ AgentsPage(v AgentsView) {
 			<details class="advanced">
 				<summary>Advanced: add an agent or a target by hand, with JSON settings</summary>
 				<div class="grid-2">
+					<section class="panel">
+						<div class="panel-head"><h2>Add an agent</h2></div>
+						<div class="panel-body">
+							<form class="inline" method="post" action="/agents">
+								<label>Name<input name="name" required placeholder="eu-cluster"/></label>
+								<button type="submit">Create agent</button>
+							</form>
+						</div>
+					</section>
+				</div>
 				<section class="panel">
-					<div class="panel-head"><h2>Add an agent</h2></div>
+					<div class="panel-head"><h2>Add a target</h2></div>
 					<div class="panel-body">
-						<form class="inline" method="post" action="/agents">
-							<label>Name<input name="name" required placeholder="eu-cluster"/></label>
-							<button type="submit">Create agent</button>
-						</form>
+						if len(v.EnvNames) == 0 {
+							<p class="muted">Create an environment first.</p>
+						} else {
+							<form class="stack" method="post" action="/targets">
+								<div class="row">
+									<label>Name<input name="name" required placeholder="prod-eu-1"/></label>
+									<label>
+										Platform
+										<select name="platform">
+											<option value="kubernetes">Kubernetes</option>
+											<option value="ecs">ECS</option>
+											<option value="nomad">Nomad</option>
+											<option value="swarm">Docker Swarm</option>
+											<option value="docker">Docker</option>
+											<option value="compose">Compose files</option>
+										</select>
+									</label>
+									<label>
+										Environment
+										<select name="environment">
+											for _, e := range v.EnvNames {
+												<option value={ e }>{ e }</option>
+											}
+										</select>
+									</label>
+									<label>
+										Agent
+										<select name="agent">
+											for _, a := range v.AgentNames {
+												<option value={ a }>{ a }</option>
+											}
+											<option value="">— the server itself</option>
+										</select>
+									</label>
+								</div>
+								<label>
+									Settings (JSON)
+									<textarea name="settings" rows="2" class="mono" placeholder={ `{"kubernetes":{"exclude_namespaces":["kube-system"]}}` }></textarea>
+									<span class="hint">ECS: { `{"ecs":{"region":"eu-west-1"}}` } · Nomad: { `{"nomad":{"address":"https://nomad:4646"}}` } · Swarm or Docker: { `{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}` }, with "docker" for a standalone host · Compose: { `{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}` }</span>
+								</label>
+								<div><button type="submit">Create target</button></div>
+							</form>
+						}
 					</div>
 				</section>
-				</div>
-			<section class="panel">
-				<div class="panel-head"><h2>Add a target</h2></div>
-				<div class="panel-body">
-					if len(v.EnvNames) == 0 {
-						<p class="muted">Create an environment first.</p>
-					} else {
-						<form class="stack" method="post" action="/targets">
-							<div class="row">
-								<label>Name<input name="name" required placeholder="prod-eu-1"/></label>
-								<label>
-									Platform
-									<select name="platform">
-										<option value="kubernetes">Kubernetes</option>
-										<option value="ecs">ECS</option>
-										<option value="nomad">Nomad</option>
-										<option value="swarm">Docker Swarm</option>
-										<option value="docker">Docker</option>
-										<option value="compose">Compose files</option>
-									</select>
-								</label>
-								<label>
-									Environment
-									<select name="environment">
-										for _, e := range v.EnvNames {
-											<option value={ e }>{ e }</option>
-										}
-									</select>
-								</label>
-								<label>
-									Agent
-									<select name="agent">
-										for _, a := range v.AgentNames {
-											<option value={ a }>{ a }</option>
-										}
-										<option value="">— the server itself</option>
-									</select>
-								</label>
-							</div>
-							<label>
-								Settings (JSON)
-								<textarea name="settings" rows="2" class="mono" placeholder={ `{"kubernetes":{"exclude_namespaces":["kube-system"]}}` }></textarea>
-								<span class="hint">ECS: { `{"ecs":{"region":"eu-west-1"}}` } · Nomad: { `{"nomad":{"address":"https://nomad:4646"}}` } · Swarm or Docker: { `{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}` }, with "docker" for a standalone host · Compose: { `{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}` }</span>
-							</label>
-							<div><button type="submit">Create target</button></div>
-						</form>
-					}
-				</div>
-			</section>
 			</details>
 		}
 	}
