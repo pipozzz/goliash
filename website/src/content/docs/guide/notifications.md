@@ -53,6 +53,17 @@ A release is announced once per service and version. Failed deliveries are retri
 to an hour between attempts. Acknowledged releases and drift are not sent; see
 [Acknowledging](/guide/versions/#acknowledging).
 
+## Upgrade plan
+
+A rule with the event type `updates_plan` (*upgrade plan* in the form) sends the [Updates](/guide/versions/#updates)
+list at its digest time: every day for a daily rule, on Mondays for a weekly (or instant) one. It is one message, most
+urgent first: what runs, the version to move to, why, and the release notes. Updates put off with an acknowledgement
+are left out, and the rule's services, owners and environments apply, so each team can get its own plan:
+
+```sh
+goliash notify create -channel team-payments -events updates_plan -owners team-payments -mode weekly
+```
+
 ## Deploys on your dashboards
 
 A Grafana channel turns events into annotations, so a deploy shows up on the graphs it may have changed:

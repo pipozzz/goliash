@@ -389,6 +389,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
+	"updates_plan": "upgrade plan",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {

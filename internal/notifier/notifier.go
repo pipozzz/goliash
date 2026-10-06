@@ -45,10 +45,23 @@ type Message struct {
 
 // Title is a one-line summary of the message.
 func (m Message) Title() string {
+	if m.plan() {
+		return fmt.Sprintf("Goliash upgrade plan for %s: %d to upgrade", m.Workspace, len(m.Items))
+	}
 	if len(m.Items) == 1 && !m.Digest {
 		return m.Items[0].Text
 	}
 	return fmt.Sprintf("Goliash: %d updates in %s", len(m.Items), m.Workspace)
+}
+
+// plan reports whether the message is an upgrade plan.
+func (m Message) plan() bool {
+	for _, it := range m.Items {
+		if it.Type != "update" {
+			return false
+		}
+	}
+	return len(m.Items) > 0
 }
 
 // Sender delivers a message through one channel type.
@@ -285,11 +298,19 @@ func dueAt(mode string, f Filter, now time.Time) time.Time {
 	return now
 }
 
-// Run delivers due notifications every interval until ctx ends.
+// Run delivers due notifications every interval until ctx ends, and queues the
+// upgrade plans that are due every few minutes.
 func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	var planned time.Time
 	for {
+		if time.Since(planned) >= 5*time.Minute {
+			planned = time.Now()
+			if err := n.PlanUpdates(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("queueing upgrade plans failed", "err", err)
+			}
+		}
 		if err := n.DeliverDue(ctx); err != nil && ctx.Err() == nil {
 			n.log.Error("delivering notifications failed", "err", err)
 		}
@@ -458,6 +479,12 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: drift (%s)", where, it.Note)
 	case "drift_resolved":
 		return fmt.Sprintf("%s: %s drift resolved", where, it.Note)
+	case "update":
+		to := ""
+		if it.To != "" {
+			to = " → " + it.To
+		}
+		return fmt.Sprintf("%s: %s%s (%s)", where, orDash(it.From), to, it.Note)
 	case "agent_stale":
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
 	}
@@ -475,3 +502,10 @@ func contains(list []string, s string) bool {
 
 // ErrNoSMTP means e-mail was requested without SMTP settings.
 var ErrNoSMTP = errors.New("e-mail is not configured: set GOLIASH_SMTP_ADDR and GOLIASH_SMTP_FROM")
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
