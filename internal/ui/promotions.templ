@@ -35,7 +35,12 @@ templ PromotionsPage(v PromotionsView) {
 						<tbody>
 							for _, p := range v.Promotions {
 								<tr>
-									<td><a href={ templ.URL("/services/" + p.Service) }><strong>{ p.Service }</strong></a></td>
+									<td class="svc">
+										<a href={ templ.URL("/services/" + p.Service) }><strong>{ p.Service }</strong></a>
+										if p.App != "" {
+											<span class="part">{ "in " + p.App }</span>
+										}
+									</td>
 									<td>
 										<span class="mono">{ p.Version }</span>
 										<div class="targets">{ p.From } → { p.To } (runs <span class="mono">{ p.Running }</span>)</div>

@@ -16,6 +16,7 @@ import (
 // than the environment after it (an open env drift), with the releases in between.
 type Promotion struct {
 	Service  store.Service
+	App      string            // the application, for a service compared per application
 	From     store.Environment // where the newer version runs
 	To       store.Environment // the environment behind
 	Version  string            // waiting in From
@@ -41,7 +42,7 @@ func Promotions(ctx context.Context, st *store.Store, sc store.Scope, o Overview
 				continue
 			}
 			p := Promotion{
-				Service: o.Services[d.ServiceID], From: envByName[det.OtherIn], To: o.Envs[d.EnvironmentID],
+				Service: o.Services[d.ServiceID], App: d.App, From: envByName[det.OtherIn], To: o.Envs[d.EnvironmentID],
 				Version: det.Other, Running: det.Running, Since: d.Since,
 			}
 			releases, err := st.ListReleases(ctx, sc, d.ServiceID)
@@ -56,7 +57,10 @@ func Promotions(ctx context.Context, st *store.Store, sc store.Scope, o Overview
 		if !out[i].Since.Equal(out[j].Since) {
 			return out[i].Since.Before(out[j].Since)
 		}
-		return out[i].Service.Name < out[j].Service.Name
+		if out[i].Service.Name != out[j].Service.Name {
+			return out[i].Service.Name < out[j].Service.Name
+		}
+		return out[i].App < out[j].App
 	})
 	return out, nil
 }

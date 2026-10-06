@@ -546,6 +546,7 @@ components:
       required: [service, from, to, version, running, since, releases]
       properties:
         service: { type: string }
+        app: { type: string, description: "The application, for a service compared per application." }
         from: { type: string, description: The environment running the newer version. }
         to: { type: string, description: The environment behind. }
         version: { type: string, description: Waiting in `from`. }

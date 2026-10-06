@@ -375,6 +375,7 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 	}
 	type apiPromotion struct {
 		Service  string       `json:"service"`
+		App      string       `json:"app,omitempty"`
 		From     string       `json:"from"`
 		To       string       `json:"to"`
 		Version  string       `json:"version"`
@@ -384,7 +385,7 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 	}
 	out := []apiPromotion{}
 	for _, pr := range list {
-		ap := apiPromotion{Service: pr.Service.Name, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Releases: []apiRelease{}}
+		ap := apiPromotion{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Releases: []apiRelease{}}
 		for _, rel := range pr.Releases {
 			ar := apiRelease{Version: rel.Version, ReleaseNotes: rel.ChangelogURL}
 			if !rel.PublishedAt.IsZero() {
