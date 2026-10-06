@@ -15,6 +15,13 @@ templ TilesPage(v TilesView) {
 				<span class="spacer"></span>
 				<span class="live off" data-live>Connecting…</span>
 				<span class="muted">updated { v.Updated }</span>
+				if v.Cycle > 0 {
+					<span class="muted">{ cycleLabel(v.Env) } · next in { itoa(v.Cycle) } s</span>
+					<a class="tv-exit" href={ templ.URL(tilesWith(v, "cycle", "0")) }>Stop cycling</a>
+					<a hidden data-cycle={ itoa(v.Cycle) } href={ templ.URL(nextCycle(v)) }></a>
+				} else {
+					<a class="tv-exit" href={ templ.URL(tilesWith(v, "cycle", "30")) } title="Show every environment in turn, 30 seconds each">Cycle environments</a>
+				}
 				<a class="tv-exit" href={ templ.URL(tilesWith(v, "tv", "0")) }>Exit TV</a>
 			</div>
 		} else {

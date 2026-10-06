@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,6 +61,7 @@ type TilesView struct {
 	Cols       int
 	Rows       int // how many rows of cells the board has, for TV mode to fit the screen
 	TV         bool
+	Cycle      int // TV mode: seconds before the next environment; 0 stays put
 	Updated    string
 }
 
@@ -187,6 +189,9 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		App: q.Get("app"), TV: q.Get("tv") == "1", Updated: time.Now().UTC().Format("15:04 UTC"),
 	}
 	v.Kiosk = v.TV
+	if c, err := strconv.Atoi(q.Get("cycle")); err == nil && v.TV && c > 0 {
+		v.Cycle = min(max(c, 10), 3600)
+	}
 	if v.GroupBy == "none" {
 		v.GroupBy = "app"
 	}
@@ -297,7 +302,24 @@ func tilesHref(v TilesView, app string) string {
 	if v.TV {
 		q.Set("tv", "1")
 	}
+	if v.Cycle > 0 {
+		q.Set("cycle", strconv.Itoa(v.Cycle))
+	}
 	return "/tiles?" + q.Encode()
+}
+
+// nextCycle is the page a cycling wall screen shows next: every environment, each
+// one, side by side, and round again.
+func nextCycle(v TilesView) string {
+	steps := append(append([]string{""}, v.Envs...), "side")
+	next := steps[0]
+	for i, s := range steps {
+		if s == v.Env {
+			next = steps[(i+1)%len(steps)]
+		}
+	}
+	v.Env = next
+	return tilesHref(v, v.App)
 }
 
 // tilesWith is tilesHref with one choice changed.
@@ -309,6 +331,11 @@ func tilesWith(v TilesView, key, value string) string {
 		v.Env = value
 	case "tv":
 		v.TV = value == "1"
+		if !v.TV {
+			v.Cycle = 0
+		}
+	case "cycle":
+		v.Cycle, _ = strconv.Atoi(value)
 	}
 	return tilesHref(v, v.App)
 }
@@ -539,4 +566,14 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 		items = append(items, it)
 	}
 	return items, counts
+}
+
+func cycleLabel(env string) string {
+	switch env {
+	case "":
+		return "all environments"
+	case "side":
+		return "side by side"
+	}
+	return env
 }

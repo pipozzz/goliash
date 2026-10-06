@@ -305,7 +305,17 @@
 
   // ---- every page load ----
 
+  // TV mode cycling: after its seconds, follow the next environment's link.
+  let cycleTimer = null;
+  function cycle() {
+    clearTimeout(cycleTimer);
+    const next = document.querySelector("a[data-cycle]");
+    if (!next) return;
+    cycleTimer = setTimeout(function () { if (next.isConnected) next.click(); }, Number(next.getAttribute("data-cycle")) * 1000);
+  }
+
   function init() {
+    cycle();
     refreshTimes();
     showLive();
     const q = document.getElementById("matrix-q");
