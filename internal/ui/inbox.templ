@@ -17,6 +17,16 @@ templ InboxPage(v InboxView) {
 			if len(v.Groups) == 0 {
 				<div class="empty">Nothing to classify. Every running workload belongs to a service.</div>
 			} else {
+				if v.CanMember && len(v.Groups) > 1 {
+					<form class="panel-body map-all" method="post" action="/inbox/map-all" hx-confirm={ "Map all " + itoa(len(v.Groups)) + " images to the services suggested next to them?" }>
+						for _, g := range v.Groups {
+							<input type="hidden" name="repo" value={ g.Repo }/>
+							<input type="hidden" name="service" value={ g.Suggested }/>
+						}
+						<span class="muted">{ itoa(len(v.Groups)) } images. Edit a name and press Map on its row first where the suggestion is not right; the rest can go at once.</span>
+						<button type="submit" class="secondary">Map all as suggested</button>
+					</form>
+				}
 				<datalist id="services">
 					for _, s := range v.Services {
 						<option value={ s }></option>
