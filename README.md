@@ -253,7 +253,7 @@ bin/goliash channel create -type webhook -name ci -url https://example.com/golia
 bin/goliash channel create -type discord -name releases -url https://discord.com/api/webhooks/…
 bin/goliash channel create -type telegram -name team -token 123456:ABC… -chat-id -1001234567890
 bin/goliash channel create -type ntfy -name phone -url https://ntfy.sh/my-goliash
-bin/goliash channel create -type email -name oncall -to oncall@example.com   # needs GOLIASH_SMTP_ADDR, GOLIASH_SMTP_FROM
+bin/goliash channel create -type email -name oncall -to oncall@example.com   # GOLIASH_SMTP_* or -smtp-addr/-smtp-from
 bin/goliash channel test -name ops
 bin/goliash notify create -channel ops -events new_release,drift_detected,agent_stale -mode daily -min-jump minor
 bin/goliash ack -service postgres -kind release -until-version 17.0     # "we know about 16, quiet until 17"

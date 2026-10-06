@@ -16,7 +16,7 @@ often). Both are managed on the Notifications page or with the CLI.
 | ntfy | A topic URL on ntfy.sh or your own server, e.g. `https://ntfy.sh/my-goliash`, and an optional access token. |
 | Grafana | Grafana's URL and a service account token with `annotations:write`; every item becomes an annotation. |
 | Webhook | A URL and an optional signing secret. |
-| E-mail | Recipients. Needs SMTP on the server (`GOLIASH_SMTP_ADDR`, `GOLIASH_SMTP_FROM`). |
+| E-mail | Recipients, and optionally the channel's own mail server (see below). |
 
 ```sh
 goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
@@ -29,6 +29,20 @@ goliash channel test -name ops
 ```
 
 Channel URLs and secrets are encrypted at rest and never shown in full in the UI.
+
+### E-mail
+
+Mail goes through the server's relay (`GOLIASH_SMTP_*`, see [Configuration](/reference/configuration/#e-mail)), or
+through the channel's own mail server: open **Own mail server** when adding the channel, or edit it later, and give
+the server as `host:port`, the sender address, and a user name and password if it needs them. Encryption is TLS on port
+465 and STARTTLS elsewhere unless you pick one; *None* is for a relay on the same host or network. The password is
+encrypted with the other channel secrets and never shown again; leave it empty when editing to keep it. **Send test**
+checks the whole path. Without a relay on the server, an e-mail channel needs its own.
+
+```sh
+GOLIASH_CHANNEL_SMTP_PASSWORD=… goliash channel create -type email -name oncall -to oncall@example.com \
+  -smtp-addr smtp.example.com:587 -smtp-from goliash@example.com -smtp-username goliash
+```
 
 ## How messages look
 

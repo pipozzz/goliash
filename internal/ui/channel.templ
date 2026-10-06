@@ -44,6 +44,20 @@ templ ChannelPage(v ChannelEditView) {
 					}
 					if v.Type == "email" {
 						<label>Recipients<input name="to" value={ v.To } required/><span class="hint">Comma-separated.</span></label>
+						<fieldset class="smtp">
+							<legend>Mail server</legend>
+							<p class="hint">
+								if v.SMTP {
+									Optional: without one, mail goes through the server's relay (GOLIASH_SMTP_ADDR).
+								} else {
+									This server has no mail relay, so the channel needs its own.
+								}
+							</p>
+							@smtpFields(v.SMTPAddr, v.SMTPFrom, v.SMTPUser, v.SMTPPass, v.SMTPTLS)
+							if v.SMTPAddr != "" && v.SMTP {
+								<label class="check"><input type="checkbox" name="smtp_clear" value="1"/> Use the server's relay instead</label>
+							}
+						</fieldset>
 					}
 					<div class="actions">
 						<button type="submit">Save</button>
@@ -53,4 +67,29 @@ templ ChannelPage(v ChannelEditView) {
 			</div>
 		</section>
 	}
+}
+
+// smtpFields are a channel's own mail server settings; the password is never shown.
+templ smtpFields(addr, from, user string, hasPass bool, mode string) {
+	<div class="row">
+		<label>Server<input name="smtp_addr" value={ addr } placeholder="smtp.example.com:587"/></label>
+		<label>From<input name="smtp_from" value={ from } placeholder="goliash@example.com"/></label>
+	</div>
+	<p class="hint">Server as host:port. Encryption “Automatic” uses TLS on port 465, STARTTLS elsewhere. The password is encrypted at rest and never shown again.</p>
+	<div class="row">
+		<label>Username<input name="smtp_username" value={ user } autocomplete="off"/></label>
+		<label>
+			Password
+			<input name="smtp_password" type="password" autocomplete="new-password" placeholder={ setHint(hasPass) }/>
+		</label>
+		<label>
+			Encryption
+			<select name="smtp_tls">
+				<option value="" selected?={ mode == "" }>Automatic</option>
+				<option value="starttls" selected?={ mode == "starttls" }>STARTTLS</option>
+				<option value="tls" selected?={ mode == "tls" }>TLS</option>
+				<option value="none" selected?={ mode == "none" }>None (a local relay)</option>
+			</select>
+		</label>
+	</div>
 }

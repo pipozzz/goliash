@@ -489,6 +489,16 @@
   }, true);
   document.body.addEventListener("htmx:beforeSwap", function (e) { if (e.detail.target === document.body) shortcutsClose(); });
 
+  // The add-channel form shows the fields of the chosen type only.
+  function channelFields() {
+    document.querySelectorAll("select[data-channel-type]").forEach(function (sel) {
+      sel.form.querySelectorAll("[data-for]").forEach(function (f) {
+        f.hidden = f.getAttribute("data-for").split(" ").indexOf(sel.value) < 0;
+      });
+    });
+  }
+  document.addEventListener("change", function (e) { if (e.target.matches("select[data-channel-type]")) channelFields(); });
+
   // ---- every page load ----
 
   // TV mode cycling: after its seconds, follow the next environment's link.
@@ -501,6 +511,7 @@
   }
 
   function init() {
+    channelFields();
     cycle();
     refreshTimes();
     showLive();

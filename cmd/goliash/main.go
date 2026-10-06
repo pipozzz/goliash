@@ -86,6 +86,7 @@ const usage = `Usage:
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
   goliash channel create -type slack|discord|telegram|ntfy|grafana|webhook|email -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
+                         [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
@@ -1608,6 +1609,7 @@ func smtpFromEnv() notifier.SMTPConfig {
 		Username: os.Getenv("GOLIASH_SMTP_USERNAME"),
 		Password: os.Getenv("GOLIASH_SMTP_PASSWORD"),
 		From:     os.Getenv("GOLIASH_SMTP_FROM"),
+		TLS:      os.Getenv("GOLIASH_SMTP_TLS"),
 	}
 }
 
@@ -1630,6 +1632,10 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	token := fs.String("token", "", "Telegram bot token, Grafana service account token, or ntfy access token")
 	chatID := fs.String("chat-id", "", "Telegram chat ID")
 	to := fs.String("to", "", "comma-separated e-mail recipients")
+	smtpAddr := fs.String("smtp-addr", "", "the e-mail channel's own mail server, host:port (default: GOLIASH_SMTP_ADDR)")
+	smtpFrom := fs.String("smtp-from", "", "sender address for -smtp-addr")
+	smtpUser := fs.String("smtp-username", "", "user name for -smtp-addr")
+	smtpTLS := fs.String("smtp-tls", "", "starttls, tls or none (default: tls on port 465, else starttls)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1661,6 +1667,19 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("-to is required")
 		}
 		cfg["to"] = splitList(*to)
+		if *smtpAddr != "" {
+			if *smtpFrom == "" {
+				return errors.New("-smtp-from is required with -smtp-addr")
+			}
+			cfg["smtp_addr"], cfg["smtp_from"] = *smtpAddr, *smtpFrom
+			if *smtpUser != "" {
+				// The password comes from the environment, not argv (visible in ps).
+				cfg["smtp_username"], cfg["smtp_password"] = *smtpUser, os.Getenv("GOLIASH_CHANNEL_SMTP_PASSWORD")
+			}
+			if *smtpTLS != "" {
+				cfg["smtp_tls"] = *smtpTLS
+			}
+		}
 	default:
 		return errors.New("-type must be slack, discord, telegram, ntfy, grafana, webhook or email")
 	}

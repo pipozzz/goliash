@@ -62,11 +62,14 @@ Unknown fields are rejected, so a typo stops the server instead of being ignored
 
 | Variable | Meaning |
 | --- | --- |
-| `GOLIASH_SMTP_ADDR` | SMTP relay, `host:port`; STARTTLS is used when offered |
+| `GOLIASH_SMTP_ADDR` | SMTP relay, `host:port` |
 | `GOLIASH_SMTP_FROM` | Sender address |
 | `GOLIASH_SMTP_USERNAME`, `GOLIASH_SMTP_PASSWORD` | Optional authentication |
+| `GOLIASH_SMTP_TLS` | `starttls` (when offered), `tls` (implicit) or `none`; by default TLS on port 465, STARTTLS elsewhere |
 
-With SMTP, sign-in links can be requested by e-mail and e-mail channels work.
+With SMTP, sign-in links can be requested by e-mail and e-mail channels work. Without it, an e-mail channel can
+carry its own mail server (see [Notifications](/guide/notifications/#e-mail)); that one is used for the channel's
+messages only, not for sign-in links.
 
 ### Passwords
 

@@ -29,7 +29,7 @@ persistence:
   accessMode: ReadWriteOnce
 
 # Name of a secret whose keys become environment variables, for example
-# GOLIASH_SMTP_ADDR, GOLIASH_SMTP_FROM, GOLIASH_SMTP_USERNAME, GOLIASH_SMTP_PASSWORD,
+# GOLIASH_SMTP_ADDR, GOLIASH_SMTP_FROM, GOLIASH_SMTP_USERNAME, GOLIASH_SMTP_PASSWORD, GOLIASH_SMTP_TLS,
 # GOLIASH_OIDC_ISSUER, GOLIASH_OIDC_CLIENT_ID, GOLIASH_OIDC_CLIENT_SECRET, GOLIASH_OIDC_DOMAINS.
 envFromSecret: ""
 env: {}              # extra plain environment variables
