@@ -93,7 +93,7 @@ main > *, .grid-2 > * { min-width: 0; } /* wide tables scroll inside their panel
 .empty { color: var(--muted); padding: 28px 16px; text-align: center; }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
-.scroll { overflow-x: auto; }
+.scroll { overflow-x: auto; position: relative; } /* absolute children (menus, screen reader text) stay inside */
 
 /* Tables */
 table { border-collapse: collapse; width: 100%; }
@@ -269,7 +269,8 @@ textarea.mono { font-family: var(--mono); font-size: 12.5px; }
 @media (max-width: 720px) { .steps li { grid-template-columns: 28px 1fr; } .steps li .button { grid-column: 2; justify-self: start; } }
 
 /* Summary tiles that double as filters (hygiene). */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px; margin-bottom: 14px; }
+.tiles > * { min-width: 0; overflow-wrap: anywhere; }
 .tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
 .tile:hover { border-color: var(--accent); text-decoration: none; }
 .tile strong { font-size: 22px; line-height: 1.1; }

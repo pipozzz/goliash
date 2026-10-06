@@ -113,57 +113,57 @@ templ MatrixGridView(g MatrixGrid) {
 					</tr>
 				</thead>
 				for _, grp := range g.Groups {
-				<tbody class={ "mgroup", templ.KV("named", grp.Name != "") }>
-					if grp.Name != "" {
-						<tr class="group-head">
-							<th colspan={ itoa(len(g.Envs) + 2) } scope="rowgroup">
-								<div class="group-line">
-									if g.GroupBy == "app" || g.GroupBy == "team" {
-										<span class={ "app-avatar", versionColour(grp.Name) } aria-hidden="true">{ initial(grp.Name) }</span>
+					<tbody class={ "mgroup", templ.KV("named", grp.Name != "") }>
+						if grp.Name != "" {
+							<tr class="group-head">
+								<th colspan={ itoa(len(g.Envs) + 2) } scope="rowgroup">
+									<div class="group-line">
+										if g.GroupBy == "app" || g.GroupBy == "team" {
+											<span class={ "app-avatar", versionColour(grp.Name) } aria-hidden="true">{ initial(grp.Name) }</span>
+										}
+										<span class="group-name">{ grp.Name }</span>
+										<span class="count-pill">{ itoa(len(grp.Rows)) }</span>
+										if grp.Caption != "" {
+											<small>{ grp.Caption }</small>
+										}
+										if g.GroupBy != "status" {
+											@groupHealth(grp)
+										}
+									</div>
+								</th>
+							</tr>
+						}
+						for _, r := range grp.Rows {
+							<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) } data-health={ r.Health }>
+								<td class="svc">
+									<a href={ templ.URL(r.URL) }>{ r.Service }</a>
+									if r.Split && g.GroupBy != "app" {
+										<span class="part" title="Used by several applications: versions are compared within each">{ "in " + orOther(r.App) }</span>
 									}
-									<span class="group-name">{ grp.Name }</span>
-									<span class="count-pill">{ itoa(len(grp.Rows)) }</span>
-									if grp.Caption != "" {
-										<small>{ grp.Caption }</small>
+									if r.Owner != "" {
+										<span class="owner">{ r.Owner }</span>
 									}
-									if g.GroupBy != "status" {
-										@groupHealth(grp)
-									}
-								</div>
-							</th>
-						</tr>
-					}
-					for _, r := range grp.Rows {
-						<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) } data-health={ r.Health }>
-							<td class="svc">
-								<a href={ templ.URL(r.URL) }>{ r.Service }</a>
-								if r.Split && g.GroupBy != "app" {
-									<span class="part" title="Used by several applications: versions are compared within each">{ "in " + orOther(r.App) }</span>
-								}
-								if r.Owner != "" {
-									<span class="owner">{ r.Owner }</span>
-								}
-							</td>
-							for i, c := range r.Cells {
-								<td data-label={ envLabel(g.Envs, i) }>
-									@cellView(c)
 								</td>
-							}
-							<td class="latest" data-label="Upstream">
-								if r.Latest != "" && r.LatestURL != "" {
-									<a class="tag" href={ templ.URL(r.LatestURL) } target="_blank" rel="noopener noreferrer" title="Release notes">{ r.Latest }</a>
-								} else if r.Latest != "" {
-									<span class="tag">{ r.Latest }</span>
-								} else {
-									<span class="none">—</span>
+								for i, c := range r.Cells {
+									<td data-label={ envLabel(g.Envs, i) }>
+										@cellView(c)
+									</td>
 								}
-								if r.Note != "" {
-									<div class="targets" title={ r.NoteTitle }>{ r.Note }</div>
-								}
-							</td>
-						</tr>
-					}
-				</tbody>
+								<td class="latest" data-label="Upstream">
+									if r.Latest != "" && r.LatestURL != "" {
+										<a class="tag" href={ templ.URL(r.LatestURL) } target="_blank" rel="noopener noreferrer" title="Release notes">{ r.Latest }</a>
+									} else if r.Latest != "" {
+										<span class="tag">{ r.Latest }</span>
+									} else {
+										<span class="none">—</span>
+									}
+									if r.Note != "" {
+										<div class="targets" title={ r.NoteTitle }>{ r.Note }</div>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
 				}
 			</table>
 		</div>

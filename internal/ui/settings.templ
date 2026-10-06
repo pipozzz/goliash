@@ -242,75 +242,77 @@ templ SettingsPage(v SettingsView) {
 		}
 		<section class="panel">
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
-			<table>
-				<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead>
-				<tbody>
-					for _, u := range v.Users {
-						<tr>
-							<td><strong>{ u.Email }</strong></td>
-							<td>
-								if u.IsSelf || (u.OrgWide && !v.OrgAdmin) || (u.OrgRole == "owner" && !v.CanGrantOwner) {
-									{ u.Access }
-								} else {
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
-										<select name="role" aria-label="Role" data-autosubmit>
-											for _, r := range workspaceRoles() {
-												<option value={ r } selected?={ !u.OrgWide && (r == u.Role || (r == "none" && u.Role == "")) }>{ roleLabel(r) }</option>
-											}
-											if v.OrgAdmin {
-												<option value="org-admin" selected?={ u.OrgRole == "admin" }>admin of the organization</option>
-											}
-											if v.CanGrantOwner {
-												<option value="owner" selected?={ u.OrgRole == "owner" }>owner of the organization</option>
-											}
-										</select>
-									</form>
-								}
-							</td>
-							<td>
-								if u.HasPassword {
-									<span class="badge ok">set</span>
-								} else {
-									<span class="badge neutral">none</span>
-								}
-							</td>
-							<td>
-								if u.TOTP {
-									<span class="badge ok">on</span>
-								} else {
-									<span class="badge neutral">off</span>
-								}
-							</td>
-							<td>@timeAgo(u.LastLogin)</td>
-							<td class="num">
-								if !u.IsSelf && (!u.OrgWide || v.OrgAdmin) {
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/link") }>
-										<button class="link" type="submit">Sign-in link</button>
-									</form>
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/sign-out") } hx-confirm="Sign this person out on every device?">
-										<button class="link" type="submit">Sign out</button>
-									</form>
-									if u.TOTP {
-										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/2fa/delete") } hx-confirm="Turn off this person's two-factor sign-in and sign them out everywhere?">
-											<button class="link" type="submit">Reset 2FA</button>
+			<div class="scroll">
+				<table>
+					<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th></th></tr></thead>
+					<tbody>
+						for _, u := range v.Users {
+							<tr>
+								<td><strong>{ u.Email }</strong></td>
+								<td>
+									if u.IsSelf || (u.OrgWide && !v.OrgAdmin) || (u.OrgRole == "owner" && !v.CanGrantOwner) {
+										{ u.Access }
+									} else {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/role") }>
+											<select name="role" aria-label="Role" data-autosubmit>
+												for _, r := range workspaceRoles() {
+													<option value={ r } selected?={ !u.OrgWide && (r == u.Role || (r == "none" && u.Role == "")) }>{ roleLabel(r) }</option>
+												}
+												if v.OrgAdmin {
+													<option value="org-admin" selected?={ u.OrgRole == "admin" }>admin of the organization</option>
+												}
+												if v.CanGrantOwner {
+													<option value="owner" selected?={ u.OrgRole == "owner" }>owner of the organization</option>
+												}
+											</select>
 										</form>
 									}
+								</td>
+								<td>
 									if u.HasPassword {
-										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/password/delete") } hx-confirm="Remove this person's password and sign them out everywhere?">
-											<button class="link" type="submit">Remove password</button>
+										<span class="badge ok">set</span>
+									} else {
+										<span class="badge neutral">none</span>
+									}
+								</td>
+								<td>
+									if u.TOTP {
+										<span class="badge ok">on</span>
+									} else {
+										<span class="badge neutral">off</span>
+									}
+								</td>
+								<td>@timeAgo(u.LastLogin)</td>
+								<td class="num">
+									if !u.IsSelf && (!u.OrgWide || v.OrgAdmin) {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/link") }>
+											<button class="link" type="submit">Sign-in link</button>
+										</form>
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/sign-out") } hx-confirm="Sign this person out on every device?">
+											<button class="link" type="submit">Sign out</button>
+										</form>
+										if u.TOTP {
+											<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/2fa/delete") } hx-confirm="Turn off this person's two-factor sign-in and sign them out everywhere?">
+												<button class="link" type="submit">Reset 2FA</button>
+											</form>
+										}
+										if u.HasPassword {
+											<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/password/delete") } hx-confirm="Remove this person's password and sign them out everywhere?">
+												<button class="link" type="submit">Remove password</button>
+											</form>
+										}
+									}
+									if !u.IsSelf && v.OrgAdmin {
+										<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/delete") } hx-confirm="Remove this person from the organization?">
+											<button class="link" type="submit" style="color:var(--bad)">Remove</button>
 										</form>
 									}
-								}
-								if !u.IsSelf && v.OrgAdmin {
-									<form class="inline" method="post" action={ templ.URL("/settings/users/" + u.ID + "/delete") } hx-confirm="Remove this person from the organization?">
-										<button class="link" type="submit" style="color:var(--bad)">Remove</button>
-									</form>
-								}
-							</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
 			<div class="panel-body" style="border-top:1px solid var(--line)">
 				<form class="inline" method="post" action="/settings/users">
 					<label>E-mail<input name="email" type="email" required/></label>
