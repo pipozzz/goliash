@@ -4,6 +4,8 @@
 package ui
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"math"
 	"net/http"
 	"net/url"
@@ -361,20 +363,54 @@ func groupWord(by string) string {
 // are bright, dim, faint and warm as the services are current, behind, unknown and in
 // need of attention (at least one warm cell when any service needs attention), the
 // warm ones where the logo has its warm cell.
+//
+// Every page asks for it, so it is kept per workspace until the workspace changes
+// (or for faviconTTL, for changes another server's agents brought without a relay),
+// and the browser revalidates it with an ETag.
 func (s *Server) favicon(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	g, err := s.overview(r.Context(), p.Scope, "none")
-	if err != nil {
-		return err
-	}
-	var counts TileCounts
-	for _, row := range g.Rows {
-		c, _, _ := service(row, g.Envs, "")
-		counts.add(c.State)
+	ws := p.Scope.WorkspaceID
+	ver := s.hub.Version(ws)
+	s.favMu.Lock()
+	c, ok := s.favicons[ws]
+	s.favMu.Unlock()
+	if !ok || c.version != ver || time.Since(c.at) > faviconTTL {
+		g, err := s.overview(r.Context(), p.Scope, "none")
+		if err != nil {
+			return err
+		}
+		var counts TileCounts
+		for _, row := range g.Rows {
+			cell, _, _ := service(row, g.Envs, "")
+			counts.add(cell.State)
+		}
+		svg := faviconSVG(counts)
+		sum := sha256.Sum256([]byte(svg))
+		c = cachedFavicon{svg: svg, etag: `"` + hex.EncodeToString(sum[:8]) + `"`, version: ver, at: time.Now()}
+		s.favMu.Lock()
+		if s.favicons == nil {
+			s.favicons = map[string]cachedFavicon{}
+		}
+		s.favicons[ws] = c
+		s.favMu.Unlock()
 	}
 	w.Header().Set("Content-Type", "image/svg+xml")
-	w.Header().Set("Cache-Control", "no-store")
-	_, err = w.Write([]byte(faviconSVG(counts)))
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("ETag", c.etag)
+	if r.Header.Get("If-None-Match") == c.etag {
+		w.WriteHeader(http.StatusNotModified)
+		return nil
+	}
+	_, err := w.Write([]byte(c.svg))
 	return err
+}
+
+// faviconTTL bounds how long a workspace's favicon is reused without a change heard of.
+const faviconTTL = 2 * time.Minute
+
+type cachedFavicon struct {
+	svg, etag string
+	version   uint64
+	at        time.Time
 }
 
 func faviconSVG(c TileCounts) string {

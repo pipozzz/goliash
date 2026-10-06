@@ -58,23 +58,15 @@ templ TilesPage(v TilesView) {
 			hx-swap="outerHTML"
 			hx-disinherit="*"
 		>
-			if v.App == "" || v.Env == "side" {
+			if v.App == "" {
 				@tileLegend(v.Counts)
 			}
-			if v.App != "" && v.Env != "side" {
+			if v.App != "" {
 				@stack(v)
 			} else if len(v.Items) == 0 {
 				<section class="panel"><div class="empty">Nothing runs here yet.</div></section>
 			} else if v.Env == "side" {
-				<div class="env-boards">
-					for _, b := range v.Boards {
-						<section class="env-board">
-							<h2>{ b.Env }</h2>
-							@board(b.Items, v.Cols, true)
-							@tileLegend(b.Counts)
-						</section>
-					}
-				</div>
+				@envBoards(v)
 			} else {
 				<div style={ "--rows:" + itoa(v.Rows) }>
 					@board(v.Items, v.Cols, false)
@@ -116,11 +108,29 @@ templ stack(v TilesView) {
 			</header>
 			if len(v.Items) == 0 {
 				<div class="empty">Nothing runs here in this environment.</div>
+			} else if v.Env == "side" {
+				@envBoards(v)
 			} else {
 				@board(v.Items, v.Cols, false)
 			}
-			@tileLegend(v.Counts)
+			if v.Env != "side" {
+				@tileLegend(v.Counts)
+			}
 		</section>
+	</div>
+}
+
+// envBoards draws one board per environment, side by side, with the same cells in the
+// same places: the global board's applications, or an application's services.
+templ envBoards(v TilesView) {
+	<div class="env-boards">
+		for _, b := range v.Boards {
+			<section class="env-board">
+				<h2>{ b.Env }</h2>
+				@board(b.Items, v.Cols, true)
+				@tileLegend(b.Counts)
+			</section>
+		}
 	</div>
 }
 

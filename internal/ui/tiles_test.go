@@ -74,6 +74,10 @@ func TestTilesPage(t *testing.T) {
 	if _, body = get(t, viewer, e.srv.URL+"/tiles?env=side", nil); !strings.Contains(body, `class="env-boards"`) {
 		t.Error("no boards side by side")
 	}
+	// Side by side inside an application keeps the card over the board.
+	if _, body = get(t, viewer, e.srv.URL+"/tiles?env=side&app=other", nil); !strings.Contains(body, `class="tile-stack"`) || !strings.Contains(body, `class="env-boards"`) {
+		t.Error("side by side drops the card")
+	}
 	if _, body = get(t, viewer, e.srv.URL+"/tiles?tv=1", nil); !strings.Contains(body, `class="kiosk"`) || strings.Contains(body, `<header class="top">`) {
 		t.Error("TV mode keeps the header")
 	}
@@ -85,5 +89,47 @@ func TestTilesPage(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.Header.Get("Content-Type") != "image/svg+xml" || resp.StatusCode != 200 {
 		t.Errorf("favicon %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+}
+
+// The favicon is computed once per workspace change: the browser revalidates it with
+// its ETag, and a change heard of on the hub gives a new one.
+func TestFaviconCached(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	fetch := func(etag string) (int, string) {
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, e.srv.URL+"/ui/favicon.svg", nil)
+		if etag != "" {
+			req.Header.Set("If-None-Match", etag)
+		}
+		resp, err := viewer.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode, resp.Header.Get("ETag")
+	}
+	code, etag := fetch("")
+	if code != http.StatusOK || etag == "" {
+		t.Fatalf("first fetch %d %q", code, etag)
+	}
+	if code, _ := fetch(etag); code != http.StatusNotModified {
+		t.Fatalf("revalidation %d", code)
+	}
+	ctx := context.Background()
+	pg, _ := e.st.EnsureService(ctx, e.ws.Scope(), "postgres")
+	envs, _ := e.st.ListEnvironments(ctx, e.ws.Scope())
+	if _, err := e.st.OpenDrift(ctx, store.Drift{Scope: e.ws.Scope(), ServiceID: pg.ID, EnvironmentID: envs[0].ID, Kind: "eol"}); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := fetch(etag); code != http.StatusNotModified {
+		t.Fatal("recomputed without a change heard of")
+	}
+	e.hub.PublishLocal(e.ws.ID)
+	if code, _ := fetch(etag); code != http.StatusOK && code != http.StatusNotModified {
+		t.Fatalf("after a change %d", code)
+	}
+	if v := e.hub.Version(e.ws.ID); v != 1 {
+		t.Errorf("hub version %d", v)
 	}
 }
