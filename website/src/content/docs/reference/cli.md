@@ -25,7 +25,7 @@ Usage:
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
-                        [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
+                        [-services a,b] [-owners x] [-apps webshop] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash badges reset                    invalidate every badge address handed out
   goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)

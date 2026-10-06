@@ -89,8 +89,10 @@ each item opens the matrix filtered to its service, and a button opens Goliash (
 
 ## Rules
 
-A rule sends some event types to a channel, optionally only for some services, owners or environments, or only for
-releases of at least a given size.
+A rule sends some event types to a channel, optionally only for some services, owners (teams), applications or
+environments, or only for releases of at least a given size. Applications are matched by the names the matrix shows
+(after renames and merges, see [Applications and teams](/guide/apps/)): a rule for `webshop` gets every service
+running in it, and a drift only when it is in that application.
 
 A rule that sends **stale agents** (an agent silent for 10 minutes) also sends the all clear when the agent is back:
 ✅ *agent eu-cluster is back after about 25 min; its targets report again*.

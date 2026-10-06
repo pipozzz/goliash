@@ -682,6 +682,7 @@ type RuleForm struct {
 	Services   string
 	Owners     string
 	Envs       string
+	Apps       string
 	DigestHour int
 	Timezone   string // empty: UTC
 	QuietFrom  int    // -1: no quiet hours

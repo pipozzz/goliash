@@ -1278,6 +1278,9 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if len(f.Owners) > 0 {
 			parts = append(parts, "owners "+strings.Join(f.Owners, ", "))
 		}
+		if len(f.Apps) > 0 {
+			parts = append(parts, "applications "+strings.Join(f.Apps, ", "))
+		}
 		if len(f.Environments) > 0 {
 			parts = append(parts, "in "+strings.Join(f.Environments, ", "))
 		}
@@ -1512,6 +1515,7 @@ func (s *Server) ruleFromForm(r *http.Request, p auth.Principal) (rule store.Rul
 	f := notifier.Filter{
 		Services: split(r.FormValue("services")), Owners: split(r.FormValue("owners")),
 		Environments: split(r.FormValue("envs")), MinJump: versions.Jump(r.FormValue("min_jump")), DigestHour: &hour,
+		Apps: split(r.FormValue("apps")),
 	}
 	if tz := strings.TrimSpace(r.FormValue("timezone")); tz != "" && tz != "UTC" {
 		if _, err := time.LoadLocation(tz); err != nil {
@@ -1594,6 +1598,7 @@ func ruleForm(rule store.Rule) RuleForm {
 	out := RuleForm{
 		Mode: rule.Mode, MinJump: string(f.MinJump), Events: rule.EventTypes, DigestHour: 8,
 		Services: strings.Join(f.Services, ", "), Owners: strings.Join(f.Owners, ", "), Envs: strings.Join(f.Environments, ", "),
+		Apps: strings.Join(f.Apps, ", "),
 	}
 	if f.DigestHour != nil {
 		out.DigestHour = *f.DigestHour
