@@ -39,6 +39,8 @@ func (f *fakeAPI) handler() http.Handler {
 				{"service":"api","cells":[]}],"unmapped":0}`))
 		case "/api/v1/drifts":
 			_, _ = w.Write([]byte(`[{"service":"web","environment":"prod","kind":"env"},{"service":"web","environment":"prod","kind":"eol"}]`))
+		case "/api/v1/updates":
+			_, _ = w.Write([]byte(`[{"service":"web","owner":"shop","environment":"prod","urgency":"major"},{"service":"db","owner":"data","environment":"prod","urgency":"end of life"}]`))
 		case "/api/v1/events":
 			_, _ = w.Write([]byte(`[{"type":"version_changed","service":"web"}]`))
 		case "/api/v1/acks":
@@ -98,7 +100,7 @@ func TestTools(t *testing.T) {
 			t.Errorf("%s must be read-only", tl.Name)
 		}
 	}
-	if len(names) != 9 {
+	if len(names) != 10 {
 		t.Fatalf("tools %v", names)
 	}
 
@@ -110,6 +112,10 @@ func TestTools(t *testing.T) {
 	out, _ = call(t, cs, "drifts", map[string]any{"kind": "eol"})
 	if list := out["data"].([]any); len(list) != 1 {
 		t.Fatalf("drift filter: %v", out)
+	}
+	out, _ = call(t, cs, "updates", map[string]any{"owner": "data"})
+	if list := out["data"].([]any); len(list) != 1 || list[0].(map[string]any)["service"] != "db" {
+		t.Fatalf("updates filter: %v", out)
 	}
 	call(t, cs, "changes", map[string]any{"since": "2h", "environment": "prod"})
 	if q := f.queries["/api/v1/events"]; !strings.Contains(q, "since=2h") || !strings.Contains(q, "environment=prod") {

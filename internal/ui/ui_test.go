@@ -1270,3 +1270,37 @@ func TestResolvedTag(t *testing.T) {
 		t.Error("exact tag shows a resolution")
 	}
 }
+
+func TestUpdatesPage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer := e.as(store.RoleViewer)
+	if _, body := get(t, viewer, e.srv.URL+"/updates", nil); !strings.Contains(body, "Nothing to upgrade") {
+		t.Error("empty updates page")
+	}
+	envs, _ := e.st.ListEnvironments(ctx, e.ws.Scope())
+	pg, _ := e.st.EnsureService(ctx, e.ws.Scope(), "postgres")
+	pg.Owner = "data"
+	_ = e.st.UpdateService(ctx, pg)
+	for _, d := range []store.Drift{
+		{Kind: "eol", Detail: json.RawMessage(`{"running":"15.6","other":"15","eol":"2025-11-13"}`)},
+		{Kind: "upstream", Detail: json.RawMessage(`{"running":"15.6","other":"16.4","jump":"major"}`)},
+	} {
+		d.Scope, d.ServiceID, d.App, d.EnvironmentID = e.ws.Scope(), pg.ID, "auth", envs[len(envs)-1].ID
+		if _, err := e.st.OpenDrift(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, body := get(t, viewer, e.srv.URL+"/updates", nil)
+	for _, want := range []string{
+		"postgres", "in auth", "15.6", "16.4", "end of life since 2025-11-13", `data-copy="updates-md"`,
+		"- [ ] postgres (auth) @ " + envs[len(envs)-1].Name + ": 15.6 → 16.4 (end of life since 2025-11-13, major)", `aria-current="page"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("updates page misses %q", want)
+		}
+	}
+	if _, body = get(t, viewer, e.srv.URL+"/updates?team=shop", nil); strings.Contains(body, "in auth") {
+		t.Error("team filter ignored")
+	}
+}

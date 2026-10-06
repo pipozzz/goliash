@@ -22,6 +22,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `matrix` | What runs where, filtered by service or environment, now or at a past time |
 | `service` | One service: versions per environment, newest upstream release, open drift |
 | `drifts` | What needs attention: env, upstream, inconsistent, declared, eol |
+| `updates` | What to upgrade, most urgent first: running → target version, release notes and why; filter by owner, environment or urgency |
 | `changes` | What changed recently (default: last 24 hours) |
 | `promotions` | What waits for the next environment, with the releases it brings |
 | `delivery` | Deploys per environment and lead times, last 30 days |

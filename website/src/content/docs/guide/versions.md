@@ -117,6 +117,17 @@ marked *declared*.
 
 When the drift ends, a `drift_resolved` event follows.
 
+## Updates
+
+**Updates** is a to-do list of upgrades: one line per service (and application) and environment with open end of
+life, upstream or environment drift. Each line shows what runs, the version to move to, with its release notes, and
+why. They are ordered by urgency (end of life passed, end of life soon, major, minor, behind the previous
+environment, patch), production first, then by how long they have been open. The tiles filter by urgency, and the
+selects by team and environment. **Copy as checklist** copies the list as markdown checkboxes for a ticket or a
+planning board. Updates an acknowledgement puts off are kept apart under *Acknowledged*.
+
+The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with.
+
 ## Promotions and delivery
 
 The **Delivery** page opens with two charts: versions that arrived per week and environment over the last twelve

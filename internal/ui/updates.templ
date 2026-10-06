@@ -1,0 +1,154 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ UpdatesPage(v UpdatesView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Updates</h1>
+				<p class="sub">What to upgrade, and to which version: end of life first, then the biggest jumps, production first.</p>
+			</div>
+		</div>
+		if v.Total > 0 {
+			<nav class="tiles" aria-label="Urgency">
+				<a href={ templ.URL(updatesURL(v, "level", "")) } class={ "tile", templ.KV("current", v.Level < 0) }>
+					<strong>{ itoa(v.Total) }</strong>
+					<span>All updates</span>
+				</a>
+				for _, l := range v.Levels {
+					if l.Count > 0 {
+						<a href={ templ.URL(updatesURL(v, "level", itoa(l.Level))) } class={ "tile", "u-" + l.Class, templ.KV("current", v.Level == l.Level) }>
+							<strong>{ itoa(l.Count) }</strong>
+							<span>{ l.Label }</span>
+						</a>
+					}
+				}
+			</nav>
+		}
+		<div class="toolbar">
+			<form method="get" action="/updates" class="inline">
+				if v.Level >= 0 {
+					<input type="hidden" name="level" value={ itoa(v.Level) }/>
+				}
+				<label>
+					Team
+					<select name="team" data-autosubmit>
+						<option value="">all</option>
+						for _, t := range v.Teams {
+							<option value={ t } selected?={ t == v.Team }>{ t }</option>
+						}
+					</select>
+				</label>
+				<label>
+					Environment
+					<select name="env" data-autosubmit>
+						<option value="">all</option>
+						for _, e := range v.Envs {
+							<option value={ e } selected?={ e == v.Env }>{ e }</option>
+						}
+					</select>
+				</label>
+				<noscript><button type="submit" class="secondary">Filter</button></noscript>
+			</form>
+			<span class="spacer"></span>
+			if len(v.Items) > 0 {
+				<button type="button" class="secondary" data-copy="updates-md" title="A markdown checklist for a ticket or a planning board">Copy as checklist</button>
+				<pre id="updates-md" hidden>{ v.Markdown }</pre>
+			}
+		</div>
+		<section class="panel">
+			if len(v.Items) == 0 {
+				<div class="empty">
+					if v.Total == 0 && len(v.Acked) == 0 {
+						Nothing to upgrade: every service runs a supported, current release.
+					} else {
+						Nothing here with these filters. <a href="/updates">Show all</a>
+					}
+				</div>
+			} else {
+				<div class="scroll">
+					<table class="updates">
+						<thead><tr><th>Service</th><th>Environment</th><th>Upgrade</th><th>Why</th><th>Open for</th></tr></thead>
+						<tbody>
+							for _, it := range v.Items {
+								@updateRow(it)
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		if len(v.Acked) > 0 {
+			<details class="panel acked">
+				<summary class="panel-head"><h2>Acknowledged</h2><span class="muted">{ plural(len(v.Acked), "update", "updates") } put off on purpose</span></summary>
+				<div class="scroll">
+					<table class="updates">
+						<tbody>
+							for _, it := range v.Acked {
+								@updateRow(it)
+							}
+						</tbody>
+					</table>
+				</div>
+			</details>
+		}
+	}
+}
+
+templ updateRow(it UpdateItem) {
+	<tr data-level={ it.LevelClass }>
+		<td class="svc">
+			<a href={ templ.URL(it.ServiceURL) }>{ it.Service }</a>
+			if it.App != "" {
+				<span class="part">{ "in " + it.App }</span>
+			}
+			if it.Owner != "" {
+				<span class="owner">{ it.Owner }</span>
+			}
+		</td>
+		<td data-label="Environment">{ it.Env }</td>
+		<td data-label="Upgrade" class="upgrade">
+			<span class="tag">{ orDash(it.Running) }</span>
+			if it.Target != "" {
+				<span class="arrow">→</span>
+				if it.TargetURL != "" {
+					<a class="tag" href={ templ.URL(it.TargetURL) } target="_blank" rel="noopener noreferrer" title="Release notes">{ it.Target }</a>
+				} else {
+					<span class="tag">{ it.Target }</span>
+				}
+			}
+		</td>
+		<td data-label="Why">
+			<div class="badges">
+				if it.EOL != "" {
+					if it.EOLPassed {
+						<span class="badge eol">{ "end of life since " + it.EOL }</span>
+					} else {
+						<span class="badge eol">{ "end of life " + it.EOL }</span>
+					}
+				}
+				if it.Jump != "" {
+					<span class={ "badge", jumpClass(it.Jump) }>{ it.Jump }</span>
+				}
+				if it.Behind != "" {
+					<span class="badge env">{ "behind " + it.Behind }</span>
+				}
+			</div>
+		</td>
+		<td data-label="Open for">
+			@timeAgo(it.Since)
+		</td>
+	</tr>
+}
+
+func jumpClass(j string) string {
+	switch j {
+	case "major":
+		return "inconsistent"
+	case "minor":
+		return "upstream"
+	}
+	return "neutral"
+}

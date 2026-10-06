@@ -217,6 +217,41 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/updates:
+    get:
+      operationId: getUpdates
+      summary: What to upgrade, most urgent first
+      description: |
+        One item per service (and application, for a service compared per application) and environment with open
+        end-of-life, upstream or environment drift: what runs, the version to move to and why. Ordered by urgency
+        (end of life, end of life soon, major, minor, behind the previous environment, patch), production first.
+        Items an acknowledgement quiets are included with `acknowledged: true`.
+      responses:
+        "200":
+          description: Updates, most urgent first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [service, environment, running, urgency, since, acknowledged]
+                  properties:
+                    service: { type: string }
+                    owner: { type: string }
+                    app: { type: string }
+                    environment: { type: string }
+                    running: { type: string }
+                    target: { type: string, description: "The version to move to." }
+                    release_notes: { type: string, format: uri }
+                    jump: { type: string, enum: [patch, minor, major] }
+                    behind: { type: string, description: "The previous environment it is behind." }
+                    eol: { type: string, format: date }
+                    urgency: { type: string, enum: ["end of life", "end of life soon", major, minor, "behind previous env", patch] }
+                    since: { type: string, format: date-time }
+                    acknowledged: { type: boolean }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
   /api/v1/hygiene:
     get:
       operationId: getHygiene
