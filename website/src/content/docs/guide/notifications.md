@@ -98,8 +98,20 @@ goliash notify create -channel oncall -events drift_detected -envs prod -mode in
 | Mode | Delivery |
 | --- | --- |
 | `instant` | Within seconds. Items arriving together are sent as one message. |
-| `daily` | A digest every day at the digest hour (**Digest at**, UTC, default 08:00). |
+| `daily` | A digest every day at the digest hour (**Digest at**, default 08:00). |
 | `weekly` | A digest every Monday at the digest hour. |
+
+The digest hour is in the rule's **time zone** (any IANA name, such as `Europe/Bratislava`; UTC when empty), so
+08:00 stays 08:00 across daylight saving time.
+
+**Quiet hours** keep right-away rules from waking people: what comes in during them is held and sent together, as one
+message, when they end (22:00–07:00 overnight, or 09:00–17:00 for a channel only read after work). Combine them with a
+web push channel for a phone that buzzes only by day.
+
+```sh
+goliash notify create -channel phones -events drift_detected,agent_stale -timezone Europe/Bratislava -quiet 22-7
+goliash notify create -channel ops -mode daily -digest-hour 9 -timezone America/New_York
+```
 
 Admins **edit** a channel (secrets are never shown again; an empty field keeps the stored value). Members **edit** a
 rule (its channel, events, mode, digest hour and filters), **pause** it (it queues nothing until resumed) or delete

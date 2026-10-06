@@ -1277,9 +1277,16 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if events == "" {
 			events = "everything"
 		}
+		zone := "UTC"
+		if f.Timezone != "" {
+			zone = f.Timezone
+		}
 		mode := rule.Mode
 		if mode != "instant" && f.DigestHour != nil {
-			mode += fmt.Sprintf(" at %02d:00 UTC", *f.DigestHour)
+			mode += fmt.Sprintf(" at %02d:00 %s", *f.DigestHour, zone)
+		}
+		if mode == "instant" && f.Quiet() {
+			mode += fmt.Sprintf(", quiet %02d:00–%02d:00 %s", *f.QuietFrom, *f.QuietTo, zone)
 		}
 		v.Rules = append(v.Rules, RuleView{
 			ID: rule.ID, Paused: rule.Paused, Channel: chName[rule.ChannelID], Events: events, Mode: mode,
@@ -1487,6 +1494,17 @@ func (s *Server) ruleFromForm(r *http.Request, p auth.Principal) (rule store.Rul
 		Services: split(r.FormValue("services")), Owners: split(r.FormValue("owners")),
 		Environments: split(r.FormValue("envs")), MinJump: versions.Jump(r.FormValue("min_jump")), DigestHour: &hour,
 	}
+	if tz := strings.TrimSpace(r.FormValue("timezone")); tz != "" && tz != "UTC" {
+		if _, err := time.LoadLocation(tz); err != nil {
+			return rule, "", "Unknown time zone " + tz + "; use a name such as Europe/Bratislava."
+		}
+		f.Timezone = tz
+	}
+	from, errFrom := strconv.Atoi(r.FormValue("quiet_from"))
+	to, errTo := strconv.Atoi(r.FormValue("quiet_to"))
+	if errFrom == nil && errTo == nil && from >= 0 && from < 24 && to >= 0 && to < 24 && from != to {
+		f.QuietFrom, f.QuietTo = &from, &to
+	}
 	raw, _ := json.Marshal(f)
 	events := r.Form["events"]
 	if len(events) == 0 {
@@ -1560,6 +1578,10 @@ func ruleForm(rule store.Rule) RuleForm {
 	}
 	if f.DigestHour != nil {
 		out.DigestHour = *f.DigestHour
+	}
+	out.Timezone, out.QuietFrom, out.QuietTo = f.Timezone, -1, -1
+	if f.Quiet() {
+		out.QuietFrom, out.QuietTo = *f.QuietFrom, *f.QuietTo
 	}
 	if len(out.Events) == 0 { // every type
 		out.Events = []string{"new_release", "drift_detected", "drift_resolved", "version_changed", "removed", "agent_stale"}

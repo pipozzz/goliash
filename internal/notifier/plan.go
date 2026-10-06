@@ -28,21 +28,19 @@ const planWindow = 6 * time.Hour
 // lastPlanTime is the most recent time a rule's plan was due: its digest hour today
 // (daily) or on Monday (weekly, and instant).
 func lastPlanTime(mode string, f Filter, now time.Time) time.Time {
-	hour := 8
-	if f.DigestHour != nil && *f.DigestHour >= 0 && *f.DigestHour < 24 {
-		hour = *f.DigestHour
-	}
-	t := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, time.UTC)
+	loc := f.Location()
+	local := now.In(loc)
+	t := time.Date(local.Year(), local.Month(), local.Day(), f.digestHour(), 0, 0, 0, loc)
 	if mode == "daily" {
 		if t.After(now) {
 			t = t.AddDate(0, 0, -1)
 		}
-		return t
+		return t.UTC()
 	}
 	for t.Weekday() != time.Monday || t.After(now) {
 		t = t.AddDate(0, 0, -1)
 	}
-	return t
+	return t.UTC()
 }
 
 // PlanUpdates queues the upgrade plan of every rule whose plan is due, once per

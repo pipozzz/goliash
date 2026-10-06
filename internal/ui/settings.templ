@@ -484,7 +484,7 @@ templ ruleFields(channels []ChannelView, f RuleForm) {
 			Digest at
 			<select name="digest_hour">
 				for h := 0; h < 24; h++ {
-					<option value={ itoa(h) } selected?={ h == f.DigestHour }>{ twoDigits(h) }:00 UTC</option>
+					<option value={ itoa(h) } selected?={ h == f.DigestHour }>{ twoDigits(h) }:00</option>
 				}
 			</select>
 		</label>
@@ -502,6 +502,36 @@ templ ruleFields(channels []ChannelView, f RuleForm) {
 			<label class="check" title={ eventTitle(e[0]) }><input type="checkbox" name="events" value={ e[0] } checked?={ hasString(f.Events, e[0]) }/> { e[1] }</label>
 		}
 	</fieldset>
+	<div class="row">
+		<label>
+			Time zone
+			<input name="timezone" value={ f.Timezone } placeholder="UTC" list="timezones" autocomplete="off"/>
+		</label>
+		<label>
+			Quiet from
+			<select name="quiet_from">
+				<option value="-1" selected?={ f.QuietFrom < 0 }>no quiet hours</option>
+				for h := 0; h < 24; h++ {
+					<option value={ itoa(h) } selected?={ h == f.QuietFrom }>{ twoDigits(h) }:00</option>
+				}
+			</select>
+		</label>
+		<label>
+			to
+			<select name="quiet_to">
+				<option value="-1" selected?={ f.QuietTo < 0 }>—</option>
+				for h := 0; h < 24; h++ {
+					<option value={ itoa(h) } selected?={ h == f.QuietTo }>{ twoDigits(h) }:00</option>
+				}
+			</select>
+		</label>
+	</div>
+	<p class="hint">The time zone (such as Europe/Bratislava) sets the digest hour and the quiet hours. Right-away rules hold what comes in the quiet hours and send it together when they end.</p>
+	<datalist id="timezones">
+		for _, z := range commonZones {
+			<option value={ z }></option>
+		}
+	</datalist>
 	<div class="row">
 		<label>Services<input name="services" value={ f.Services } placeholder="all"/></label>
 		<label>Owners<input name="owners" value={ f.Owners } placeholder="all"/></label>
@@ -530,4 +560,15 @@ templ RulePage(v RuleEditView) {
 			</div>
 		</section>
 	}
+}
+
+// commonZones are offered in the rule form's time zone field; any IANA name works.
+var commonZones = []string{
+	"UTC", "Europe/London", "Europe/Dublin", "Europe/Lisbon", "Europe/Paris", "Europe/Berlin", "Europe/Amsterdam",
+	"Europe/Brussels", "Europe/Madrid", "Europe/Rome", "Europe/Vienna", "Europe/Prague", "Europe/Bratislava",
+	"Europe/Warsaw", "Europe/Budapest", "Europe/Zurich", "Europe/Stockholm", "Europe/Oslo", "Europe/Copenhagen",
+	"Europe/Helsinki", "Europe/Athens", "Europe/Bucharest", "Europe/Kyiv", "Europe/Istanbul", "America/New_York",
+	"America/Chicago", "America/Denver", "America/Los_Angeles", "America/Toronto", "America/Sao_Paulo",
+	"America/Mexico_City", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Shanghai", "Asia/Tokyo",
+	"Asia/Seoul", "Australia/Sydney", "Pacific/Auckland", "Africa/Johannesburg",
 }

@@ -47,6 +47,18 @@ func TestEditRule(t *testing.T) {
 	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules/"+id, url.Values{"channel": {"pay"}}); !strings.Contains(body, "at least one kind") {
 		t.Fatal("a rule without events was saved")
 	}
+	// Quiet hours in a time zone.
+	quiet := url.Values{"channel": {"pay"}, "mode": {"instant"}, "events": {"drift_detected"}, "timezone": {"Europe/Prague"}, "quiet_from": {"22"}, "quiet_to": {"7"}}
+	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules/"+id, quiet); !strings.Contains(body, "Rule saved") || !strings.Contains(body, "quiet 22:00–07:00 Europe/Prague") {
+		t.Fatalf("quiet hours: %s", body)
+	}
+	if _, page = get(t, member, e.srv.URL+"/notifications/rules/"+id, nil); !strings.Contains(page, `value="Europe/Prague"`) || !strings.Contains(page, `<option value="22" selected>`) {
+		t.Fatal("edit page lost the quiet hours")
+	}
+	quiet.Set("timezone", "Mars/Olympus")
+	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules/"+id, quiet); !strings.Contains(body, "Unknown time zone") {
+		t.Fatal("a bad time zone was saved")
+	}
 	if code, _ := get(t, e.as(store.RoleViewer), e.srv.URL+"/notifications/rules/"+id, nil); code != 403 {
 		t.Fatalf("viewer may edit: %d", code)
 	}
