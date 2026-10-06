@@ -667,10 +667,25 @@ type RuleView struct {
 // NotificationsView is the notifications page.
 type NotificationsView struct {
 	Base
-	Channels []ChannelView
-	Rules    []RuleView
-	SMTP     bool
-	PushKey  string // the VAPID public key, when there is a push channel
+	Channels   []ChannelView
+	Rules      []RuleView
+	SMTP       bool
+	PushKey    string // the VAPID public key, when there is a push channel
+	Deliveries []DeliveryView
+}
+
+// DeliveryView is one recent notification and how its delivery went.
+type DeliveryView struct {
+	ID      string
+	At      time.Time // sent, or created when not sent yet
+	Channel string
+	Type    string
+	Text    string
+	Count   int    // items in a digest
+	Status  string // sent, waiting, retrying, failed
+	Label   string
+	Error   string
+	Retry   bool // can be retried now
 }
 
 // UserView is one user row.

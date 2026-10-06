@@ -267,3 +267,60 @@ func (s *Store) ActiveRules(ctx context.Context, sc Scope) ([]Rule, error) {
 	}
 	return out, nil
 }
+
+// Delivery is a queued notification with where it goes and how it went.
+type Delivery struct {
+	ID          string
+	RuleID      string
+	ChannelID   string
+	ChannelName string
+	ChannelType string
+	Payload     json.RawMessage
+	DueAt       time.Time
+	SentAt      *time.Time
+	Attempts    int
+	LastError   string
+	CreatedAt   time.Time
+}
+
+// RecentDeliveries returns a workspace's latest notifications, sent or not, newest first.
+func (s *Store) RecentDeliveries(ctx context.Context, sc Scope, limit int) ([]Delivery, error) {
+	rows, err := s.query(ctx, s.db, `SELECT q.id, q.rule_id, c.id, c.name, c.type, q.payload, q.due_at, q.sent_at, q.attempts, q.last_error, q.created_at
+		FROM notification_queue q
+		JOIN notification_rules r ON r.id = q.rule_id
+		JOIN notification_channels c ON c.id = r.channel_id
+		WHERE q.org_id = ? AND q.workspace_id = ?
+		ORDER BY q.created_at DESC, q.id DESC LIMIT ?`, sc.OrgID, sc.WorkspaceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Delivery
+	for rows.Next() {
+		var d Delivery
+		var payload string
+		var sent sql.NullTime
+		if err := rows.Scan(&d.ID, &d.RuleID, &d.ChannelID, &d.ChannelName, &d.ChannelType, &payload, &d.DueAt, &sent, &d.Attempts, &d.LastError, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		d.Payload = json.RawMessage(payload)
+		if sent.Valid {
+			t := sent.Time.UTC()
+			d.SentAt = &t
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// RetryDelivery makes an unsent notification due now with its attempts reset, after
+// it was given up or to skip the wait. It reports whether there was one.
+func (s *Store) RetryDelivery(ctx context.Context, sc Scope, id string) (bool, error) {
+	res, err := s.exec(ctx, s.db, `UPDATE notification_queue SET attempts = 0, due_at = ?
+		WHERE org_id = ? AND workspace_id = ? AND id = ? AND sent_at IS NULL`, s.now(), sc.OrgID, sc.WorkspaceID, id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
