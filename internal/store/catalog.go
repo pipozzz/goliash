@@ -17,6 +17,7 @@ type Service struct {
 	Scope         Scope
 	Name          string
 	Owner         string
+	App           string // the application it is placed in by hand; empty: from its workloads
 	Kind          string // own or third_party
 	Upstream      string // image repository releases are read from
 	VersionPolicy json.RawMessage
@@ -109,14 +110,14 @@ func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 }
 
 const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at,
-	source_url, source_image, source_checked_at, private_upstream`
+	source_url, source_image, source_checked_at, private_upstream, app`
 
 func scanService(row scanner) (Service, error) {
 	var svc Service
 	var policy string
 	var checked sql.NullTime
 	if err := row.Scan(&svc.ID, &svc.Scope.OrgID, &svc.Scope.WorkspaceID, &svc.Name, &svc.Owner, &svc.Kind,
-		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream); err != nil {
+		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App); err != nil {
 		return Service{}, notFound(err)
 	}
 	svc.VersionPolicy, svc.CreatedAt = json.RawMessage(policy), svc.CreatedAt.UTC()

@@ -83,13 +83,15 @@ const usage = `Usage:
   goliash promotions                      versions waiting for the next environment, with their releases
   goliash delivery [-window 720h]         deploys per environment and lead times between environments
   goliash check [-service NAME]           check upstream registries now
-  goliash service set -name NAME [-upstream REPO] [-owner O] [-kind own|third_party]
+  goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
   goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|webhook|email|push -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
   goliash badges reset                    invalidate every badge address handed out
+  goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)
+  goliash team rename -from NAME -to NAME   rename a team on all its services
   goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
                         [-services a,b] [-owners x] [-envs prod] [-min-jump minor] [-digest-hour 8]
                         [-timezone Europe/Bratislava] [-quiet 22-7]
@@ -148,6 +150,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		if len(args) > 0 && cmd == "agent" && (args[0] == "list" || args[0] == "rotate" || args[0] == "revoke") {
 			cmd, args = "agent "+args[0], args[1:]
+		}
+		if len(args) > 0 && (cmd == "app" || cmd == "team") && args[0] == "rename" {
+			cmd, args = cmd+" rename", args[1:]
 		}
 		if len(args) > 0 && cmd == "badges" && args[0] == "reset" {
 			cmd, args = "badges reset", args[1:]
@@ -231,6 +236,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return backupCmd(ctx, args, out)
 	case "badges reset":
 		return badgesReset(ctx, args, out)
+	case "app rename":
+		return appRename(ctx, args, out)
+	case "team rename":
+		return teamRename(ctx, args, out)
 	case "healthcheck":
 		return healthcheck(ctx)
 	case "version", "-version", "--version":
@@ -908,6 +917,7 @@ func serviceSet(ctx context.Context, args []string, out io.Writer) error {
 	name := fs.String("name", "", "service name")
 	upstream := fs.String("upstream", "", "image repository to read releases from, e.g. docker.io/library/postgres")
 	owner := fs.String("owner", "", "owning team or person")
+	app := fs.String("app", "", "place the service in this application whatever its labels say (empty: from its labels)")
 	kind := fs.String("kind", "", "own or third_party")
 	track := fs.String("track", "", "smallest version jump that alerts: patch, minor or major")
 	pinMajor := fs.Int("pin-major", -1, "stay on this major; newer majors are information only (-1: no pin)")
@@ -968,6 +978,12 @@ func serviceSet(ctx context.Context, args []string, out io.Writer) error {
 	svc.VersionPolicy = raw
 	if err := db.UpdateService(ctx, svc); err != nil {
 		return err
+	}
+	if set["app"] {
+		if err := db.SetServiceApp(ctx, ws.Scope(), svc.ID, *app); err != nil {
+			return err
+		}
+		cliAudit(ctx, db, ws, "service.app", "service", svc.Name, "app", *app)
 	}
 	cliAudit(ctx, db, ws, "service.update", "service", svc.Name, "policy", string(raw))
 	_, _ = fmt.Fprintf(out, "service %s updated: upstream=%q policy=%s\n", svc.Name, svc.Upstream, raw)
@@ -2113,6 +2129,59 @@ func backups(ctx context.Context, db *store.Store, dsn, dir string, keep int, lo
 		case <-ticker.C:
 		}
 	}
+}
+
+// appRename shows an application under another name; naming an existing one merges.
+func appRename(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("app rename")
+	from := fs.String("from", "", "the application's name, as its labels give it")
+	to := fs.String("to", "", "the name to show it under (an existing application merges); empty: its own name again")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *from == "" {
+		return errors.New("-from is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.RenameApp(ctx, ws.Scope(), *from, *to); err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "app.rename", "app", *from, "to", *to)
+	if *to == "" {
+		_, _ = fmt.Fprintf(out, "application %s goes by its own name again\n", *from)
+	} else {
+		_, _ = fmt.Fprintf(out, "application %s is shown as %s\n", *from, *to)
+	}
+	return nil
+}
+
+// teamRename renames a team on every service it owns.
+func teamRename(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("team rename")
+	from := fs.String("from", "", "the team's name")
+	to := fs.String("to", "", "its new name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *from == "" || *to == "" {
+		return errors.New("-from and -to are required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	n, err := db.RenameOwner(ctx, ws.Scope(), *from, *to)
+	if err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "team.rename", "team", *from, "to", *to)
+	_, _ = fmt.Fprintf(out, "team %s is %s now on %d services\n", *from, *to, n)
+	return nil
 }
 
 // badgesReset makes a new badge key: every badge address handed out stops working.

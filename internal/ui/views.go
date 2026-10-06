@@ -422,6 +422,7 @@ type ServiceView struct {
 	Base
 	Name           string
 	Owner          string
+	App            string // placed in this application by hand; empty: from its labels
 	Kind           string
 	Upstream       string
 	RefRepo        string
@@ -848,7 +849,7 @@ func envLabel(envs []EnvHeader, i int) string {
 // isSettings reports whether a page belongs under the Settings menu.
 func isSettings(page string) bool {
 	switch page {
-	case "agents", "notifications", "settings", "workspaces":
+	case "agents", "notifications", "settings", "workspaces", "apps", "teams":
 		return true
 	}
 	return false

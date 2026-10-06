@@ -99,6 +99,9 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	if err != nil {
 		return o, err
 	}
+	if active, err = namedInstances(ctx, st, sc, active, services); err != nil {
+		return o, err
+	}
 	o.Matrix = BuildMatrix(services, envs, o.Targets, active)
 	if o.Resolved, err = resolvedDigests(ctx, st, sc); err != nil {
 		return o, err

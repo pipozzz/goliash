@@ -154,6 +154,9 @@ func (c *Checker) load(ctx context.Context, sc store.Scope) (workspaceState, err
 	if st.instances, err = c.store.ListActiveInstances(ctx, sc); err != nil {
 		return st, err
 	}
+	if st.instances, err = namedInstances(ctx, c.store, sc, st.instances, st.services); err != nil {
+		return st, err
+	}
 	st.matrix = BuildMatrix(st.services, envs, targets, st.instances)
 	resolved, err := resolvedDigests(ctx, c.store, sc)
 	if err != nil {
@@ -436,6 +439,24 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 	for _, d := range open {
 		openByKey[key(d.ServiceID, d.App, d.EnvironmentID, d.Kind)] = d
 	}
+	// An application renamed, merged or placed by hand changes drift keys only: an open
+	// drift no longer wanted moves to the wanted one of the same service, environment
+	// and kind, keeping its start and announcement, instead of resolving and reopening.
+	wantedKeys := map[string]bool{}
+	for _, w := range wanted {
+		wantedKeys[key(w.Service, w.App, w.Env, w.Kind)] = true
+	}
+	orphans := map[string][]string{} // service|env|kind -> open drift keys no longer wanted
+	for k, d := range openByKey {
+		if !wantedKeys[k] {
+			sk := d.ServiceID + "|" + d.EnvironmentID + "|" + d.Kind
+			orphans[sk] = append(orphans[sk], k)
+		}
+	}
+	for _, ks := range orphans {
+		sort.Strings(ks)
+	}
+	moved := map[string]bool{} // service|env|kind whose drift moved to another application
 	var evs []store.Event
 	now := c.now()
 	seen := map[string]bool{}
@@ -444,6 +465,17 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		seen[k] = true
 		detail, _ := json.Marshal(w.Detail)
 		d, ok := openByKey[k]
+		if sk := w.Service + "|" + w.Env + "|" + w.Kind; !ok && len(orphans[sk]) > 0 {
+			old := orphans[sk][0]
+			orphans[sk] = orphans[sk][1:]
+			d, ok = openByKey[old], true
+			if err := c.store.SetDriftApp(ctx, sc, d.ID, w.App); err != nil {
+				return err
+			}
+			seen[old] = true
+			moved[sk] = true
+			d.App = w.App
+		}
 		if ok {
 			if string(d.Detail) != string(detail) {
 				if err := c.store.UpdateDriftDetail(ctx, sc, d.ID, detail); err != nil {
@@ -479,6 +511,9 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 		}
 		if d.NotifiedAt.IsZero() {
 			continue // never announced, so nothing to take back
+		}
+		if moved[d.ServiceID+"|"+d.EnvironmentID+"|"+d.Kind] {
+			continue // merged into the drift that moved: it goes on there
 		}
 		var detail DriftDetail
 		_ = json.Unmarshal(d.Detail, &detail)

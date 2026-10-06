@@ -120,6 +120,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /hygiene", s.page(v, s.hygiene))
 	mux.Handle("GET /updates", s.page(v, s.updates))
 	mux.Handle("GET /tiles", s.page(v, s.tiles))
+	mux.Handle("GET /apps", s.page(v, s.apps))
+	mux.Handle("POST /apps/rename", s.page(m, s.renameApp))
+	mux.Handle("POST /apps/team", s.page(m, s.appTeam))
+	mux.Handle("GET /teams", s.page(v, s.teams))
+	mux.Handle("POST /teams/rename", s.page(m, s.renameTeam))
+	mux.Handle("POST /teams/assign", s.page(m, s.assignTeam))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
@@ -482,7 +488,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, Kind: svc.Kind, Upstream: svc.Upstream}
+	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, App: svc.App, Kind: svc.Kind, Upstream: svc.Upstream}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
 	v.Private = versions.CheckedByAgent(svc, ref.Repo)
@@ -634,6 +640,15 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 		strings.TrimSpace(r.FormValue("upstream")), raw
 	if err := s.store.UpdateService(ctx, svc); err != nil {
 		return err
+	}
+	if app := strings.TrimSpace(r.FormValue("app")); app != svc.App {
+		if app != "" && !appName.MatchString(app) {
+			return back(w, r, path, "error", "An application name has letters, digits, spaces, dots, dashes or slashes.")
+		}
+		if err := s.store.SetServiceApp(ctx, p.Scope, svc.ID, app); err != nil {
+			return err
+		}
+		s.audit(ctx, p, "service.app", "service", svc.Name, "app", app)
 	}
 	if s.checker != nil {
 		_ = s.checker.EvaluateDrift(ctx, p.Scope)
