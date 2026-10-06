@@ -28,3 +28,25 @@ func TestWorkloadApp(t *testing.T) {
 		}
 	}
 }
+
+func TestWithoutGeneratedSuffix(t *testing.T) {
+	for in, want := range map[string]string{
+		"cefiro-db-wruzyw":      "cefiro-db",
+		"auth-authentik-ggmijo": "auth-authentik",
+		"goliash-db-qm1ia8":     "goliash-db",
+		"code-server":           "code-server",
+		"gitea":                 "gitea",
+		"my-app-Backup":         "my-app-Backup",
+		"shop-api-v2":           "shop-api-v2",
+	} {
+		if got := withoutGeneratedSuffix(in); got != want {
+			t.Errorf("%s -> %s, want %s", in, got, want)
+		}
+	}
+	if app, src := workloadApp(nil, "", "default", "nomad_job", "cefiro-redis-gxs2nz"); app != "cefiro-redis" || src != "nomad job" {
+		t.Errorf("nomad job %s %s", app, src)
+	}
+	if app, _ := workloadApp(map[string]string{"app.kubernetes.io/part-of": "shop-web-abc123"}, "", "", "", ""); app != "shop-web-abc123" {
+		t.Error("an explicit label lost its suffix")
+	}
+}

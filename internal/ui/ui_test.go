@@ -1346,3 +1346,26 @@ func TestUpdatesPutOff(t *testing.T) {
 		t.Error("return to an outside page")
 	}
 }
+
+// Apps a platform generated as "<project>-<part>" are grouped under their project.
+func TestMatrixGroupsGeneratedApps(t *testing.T) {
+	rows := []MatrixRow{
+		{Service: "cefiro", App: "cefiro-cefiro", AppSource: "nomad job", Health: "ok"},
+		{Service: "cefiro-pgvector", App: "cefiro-db", AppSource: "nomad job", Health: "ok"},
+		{Service: "cefiro-redis", App: "cefiro-redis", AppSource: "nomad job", Health: "ok"},
+		{Service: "goliash", App: "goliash", AppSource: "nomad job", Health: "ok"},
+		{Service: "goliash-postgres", App: "goliash-db", AppSource: "nomad job", Health: "warn"},
+		{Service: "code-server", App: "code-server", AppSource: "nomad job", Health: "ok"},
+	}
+	gs := groupRows(rows, "app")
+	var got []string
+	for _, g := range gs {
+		got = append(got, g.Name+":"+itoa(len(g.Rows)))
+	}
+	if strings.Join(got, " ") != "cefiro:3 code-server:1 goliash:2" {
+		t.Fatalf("groups %v", got)
+	}
+	if gs[0].Caption != "cefiro-cefiro · cefiro-db · cefiro-redis" || gs[1].Caption != "Nomad job" {
+		t.Errorf("captions %q %q", gs[0].Caption, gs[1].Caption)
+	}
+}

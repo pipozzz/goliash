@@ -298,6 +298,11 @@ func groupCards(cards []WorkloadCard, by string) []WorkloadGroup {
 	rank := map[string]int{"bad": 0, "warn": 1, "unmapped": 2, "ok": 3}
 	byKey := map[string][]WorkloadCard{}
 	sources := map[string]map[string]bool{}
+	names := make([]versions.AppName, 0, len(cards))
+	for _, c := range cards {
+		names = append(names, versions.AppName{App: c.App, Source: c.AppSource})
+	}
+	fams := versions.AppFamilies(names)
 	for _, c := range cards {
 		c.ShowNamespace = by != "namespace" && c.Namespace != ""
 		var key string
@@ -312,7 +317,7 @@ func groupCards(cards []WorkloadCard, by string) []WorkloadGroup {
 		case "status":
 			key = c.Health
 		default:
-			key = c.App
+			key = fams[c.App].Name
 			if sources[key] == nil {
 				sources[key] = map[string]bool{}
 			}
@@ -358,10 +363,8 @@ func groupCards(cards []WorkloadCard, by string) []WorkloadGroup {
 				}
 			}
 		}
-		if by == "app" && len(sources[k]) == 1 {
-			for src := range sources[k] {
-				g.Caption = appSourceLabel(src)
-			}
+		if by == "app" {
+			g.Caption = familyCaption(fams, k, sources[k])
 		}
 		out = append(out, g)
 	}

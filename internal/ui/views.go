@@ -113,6 +113,7 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 	}
 	byKey := map[string][]MatrixRow{}
 	sources := map[string]map[string]bool{}
+	fams := rowFamilies(rows)
 	for _, r := range rows {
 		var key string
 		switch by {
@@ -124,7 +125,7 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		case "status":
 			key = r.Health
 		default:
-			key = r.App
+			key = fams[r.App].Name
 			if key == "" {
 				key = "other"
 			}
@@ -174,14 +175,36 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 				}
 			}
 		}
-		if by == "app" && len(sources[k]) == 1 {
-			for src := range sources[k] {
-				g.Caption = appSourceLabel(src)
-			}
+		if by == "app" {
+			g.Caption = familyCaption(fams, k, sources[k])
 		}
 		out = append(out, g)
 	}
 	return out
+}
+
+func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
+	names := make([]versions.AppName, 0, len(rows))
+	for _, r := range rows {
+		names = append(names, versions.AppName{App: r.App, Source: r.AppSource})
+	}
+	return versions.AppFamilies(names)
+}
+
+// familyCaption says where a group's name came from: the applications merged into
+// it, or the one source of its name.
+func familyCaption(fams map[string]versions.AppFamily, name string, sources map[string]bool) string {
+	for _, f := range fams {
+		if f.Name == name && len(f.Members) > 1 {
+			return strings.Join(f.Members, " · ")
+		}
+	}
+	if len(sources) == 1 {
+		for src := range sources {
+			return appSourceLabel(src)
+		}
+	}
+	return ""
 }
 
 // Step is one item of the first-run checklist.
@@ -774,7 +797,8 @@ func isSettings(page string) bool {
 	return false
 }
 
-// initial is the first letter of an e-mail address, for the account button.
+// initial is the first letter of a name: an e-mail address for the account button,
+// an application for its avatar.
 func initial(email string) string {
 	for _, r := range email {
 		return strings.ToUpper(string(r))

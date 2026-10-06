@@ -444,16 +444,35 @@ details.advanced[open] > summary { margin-bottom: 10px; }
 .segmented a.on { background: var(--accent-soft); color: var(--accent); }
 .wl-group-name small { display: block; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--faint); font-size: 11px; margin-top: 2px; }
 
-/* Matrix groups: a heading row per application, team or status, with its health. */
+/* Matrix groups: each application (team, status) is a block of its own: a gap
+   before it, a tinted heading with an avatar, and its rows indented on a guide line. */
 table.matrix tbody.mgroup.filtered { display: none; }
+table.matrix tbody.mgroup.named + tbody.mgroup.named tr.group-head th { border-top: 12px solid var(--bg); }
 table.matrix tr.group-head th {
-  position: static; background: var(--surface-2); padding: 9px 16px; text-align: left;
-  border-top: 1px solid var(--line); text-transform: none; letter-spacing: 0; color: var(--ink);
+  position: static; padding: 11px 16px; text-align: left; text-transform: none; letter-spacing: 0; color: var(--ink);
+  background: linear-gradient(90deg, var(--accent-soft), var(--surface-2) 55%); border-bottom: 1px solid var(--line);
 }
-table.matrix tbody.mgroup:first-of-type tr.group-head th { border-top: 0; }
+table.matrix tbody.mgroup.named:first-of-type tr.group-head th { border-top: 0; }
 .group-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; left: 16px; width: max-content; max-width: calc(100vw - 64px); }
-.group-name { font-weight: 650; font-size: 13.5px; }
+.group-name { font-weight: 700; font-size: 15px; }
 .group-line small { color: var(--faint); font-weight: 400; font-size: 12px; }
+.app-avatar {
+  width: 26px; height: 26px; border-radius: 8px; display: inline-grid; place-items: center; flex: none;
+  color: #fff; font: 700 13px var(--sans); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+.app-avatar.c0 { background: linear-gradient(135deg, var(--c0), var(--c1)); }
+.app-avatar.c1 { background: linear-gradient(135deg, var(--c1), var(--c4)); }
+.app-avatar.c2 { background: linear-gradient(135deg, var(--c2), var(--c5)); }
+.app-avatar.c3 { background: linear-gradient(135deg, var(--c3), var(--c4)); }
+.app-avatar.c4 { background: linear-gradient(135deg, var(--c4), var(--c1)); }
+.app-avatar.c5 { background: linear-gradient(135deg, var(--c5), var(--c0)); }
+/* Rows of a named group: indented, with a guide line from the heading down. */
+table.matrix tbody.mgroup.named td.svc {
+  padding-left: 44px;
+  background-image: linear-gradient(var(--line), var(--line)); background-size: 2px 100%;
+  background-position: 28px 0; background-repeat: no-repeat;
+}
+table.matrix tbody.mgroup.named tr:last-child td.svc { background-size: 2px 50%; }
 .group-health { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 500; font-size: 12px; margin-left: 6px; }
 .group-health svg { border-radius: 3px; overflow: hidden; display: block; }
 .hb-bg { fill: var(--line); }
@@ -503,3 +522,9 @@ table.updates td.row-actions { width: 1%; white-space: nowrap; text-align: right
 .put-off .menu-item strong { display: block; font-weight: 600; }
 .put-off .menu-item small { display: block; color: var(--muted); font-size: 12px; }
 .scroll:has(details.put-off[open]) { overflow: visible; }
+@media (max-width: 720px) {
+  table.matrix tbody.mgroup.named td.svc { padding-left: 0; background-image: none; }
+  table.matrix tbody.mgroup.named + tbody.mgroup.named tr.group-head th { border-top-width: 10px; }
+}
+.wl-group-title { display: inline-flex; align-items: center; gap: 8px; }
+.app-avatar.small { width: 22px; height: 22px; border-radius: 7px; font-size: 11.5px; letter-spacing: 0; }
