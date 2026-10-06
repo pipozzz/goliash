@@ -1,6 +1,6 @@
 ---
 title: Applications and teams
-description: 'Where applications and teams come from, and how to rename, merge and split applications, place a service in one by hand, and give services a team.'
+description: 'Where applications and teams come from, label conventions, how to rename, merge and split applications and give services a team, and a recommended setup.'
 ---
 
 Goliash groups services two ways: by **application** (what a service is part of: a webshop, an identity stack) and by
@@ -51,16 +51,90 @@ goliash app rename -from shop-frontend                # its own name again
 
 ## Teams
 
-A service's team is its **owner**, set on the service page, with `goliash service set -owner`, for all services of
-an application at once (above), or on **Settings → Teams**. That page lists every team with its applications and
-services, renames a team on all its services, and lists services **without a team** to give them one in a few
-clicks.
+A service's team is its **owner**. Goliash takes it from, in this order:
+
+1. **set by people**: on the service page, `goliash service set -owner`, or **Settings → Teams** (assign or
+   rename). It is never overridden;
+2. **the workloads' labels**: `goliash.team`, `team`, `owner` or `app.kubernetes.io/team` (first found). It follows
+   label changes within a minute;
+3. **the application's team** (*Set team* on the Applications page), for services in it without either.
+
+A service whose workloads name different teams, or whose applications have different teams, is left for people.
+The service page says where its owner came from; changing it there takes over from labels for good.
+
+**Settings → Teams** lists every team with its applications and services, renames a team on all its services, and
+lists services **without a team** to give them one in a few clicks.
 
 ```sh
 goliash team rename -from team-shop -to commerce
 ```
 
 Renaming a team does not change notification rules that filter by the old name: update their *Owners* filter too.
+
+## Label conventions
+
+Put the application and the team on the workloads where they are deployed; Goliash then needs no setup per service,
+and new services arrive with both.
+
+| What | Label | Example |
+| --- | --- | --- |
+| Application | `app.kubernetes.io/part-of` (Kubernetes standard) or `goliash.app` | `webshop` |
+| Team | `goliash.team` (or `team`, `owner`, `app.kubernetes.io/team`) | `team-shop` |
+| Service | `app.kubernetes.io/name`, else the workload name | `checkout` |
+
+Kubernetes (Deployment, StatefulSet, … labels):
+
+```yaml
+metadata:
+  labels:
+    app.kubernetes.io/name: checkout
+    app.kubernetes.io/part-of: webshop
+    goliash.team: team-shop
+```
+
+Docker Compose and Swarm (service labels; Compose names the application after the project by itself):
+
+```yaml
+services:
+  checkout:
+    image: ghcr.io/acme/checkout:2.4.0
+    labels:
+      goliash.app: webshop
+      goliash.team: team-shop
+```
+
+Nomad (job `meta`):
+
+```hcl
+job "checkout" {
+  meta {
+    "goliash.app"  = "webshop"
+    "goliash.team" = "team-shop"
+  }
+}
+```
+
+ECS: the same keys as **tags on the ECS service** (`goliash.app`, `goliash.team`). A different label key for
+applications (say `example.com/product`) can be set per workspace on the Users page.
+
+## Recommended setup
+
+1. **Label at the source.** Add `app.kubernetes.io/part-of` (or `goliash.app`) and `goliash.team` to your Helm
+   charts, manifests, Compose files or Nomad jobs. One line per workload, right everywhere and for new services.
+2. **Tidy the applications.** On **Settings → Applications**, rename generated names (namespaces, Dokploy
+   projects) and merge duplicates; place odd services by hand on their page.
+3. **Give every application a team.** *Set team* on each card covers what has no label yet, now and later.
+   Shared infrastructure (databases, ingress, monitoring) usually belongs to `platform`.
+4. **Empty "Without a team".** Check **Settings → Teams** until no service is left without one.
+5. **One name per team.** Lowercase, the same as in Slack or GitHub (`team-shop`, not also `Shop`). Renaming later
+   works, but rules filtering by the old name need updating.
+6. **Route notifications per team.** A channel per team and rules filtered by *Owners*: releases and drift right
+   away (with quiet hours), the upgrade plan weekly on Monday at 09:00 in the team's time zone; end of life and
+   stale agents to platform or on-call.
+7. **One workspace for one company.** Teams share it and filter their view. Use separate workspaces only for
+   tenants that must not see each other (clients, separate organizations).
+8. **Use it as the backlog.** Each team works from **Updates** filtered by its team (copied as a checklist into
+   tickets) and the tiles grouped by team; a TV on the wall can cycle them (`/tiles?group=team&tv=1&cycle=60`).
 
 ## Notifications per application or team
 

@@ -17,6 +17,7 @@ type Service struct {
 	Scope         Scope
 	Name          string
 	Owner         string
+	OwnerSource   string // '' set by people; "label" or "app" when Goliash set it and follows changes
 	App           string // the application it is placed in by hand; empty: from its workloads
 	Kind          string // own or third_party
 	Upstream      string // image repository releases are read from
@@ -103,21 +104,23 @@ func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 	if len(svc.VersionPolicy) == 0 {
 		svc.VersionPolicy = json.RawMessage(`{}`)
 	}
-	res, err := s.exec(ctx, s.db, `UPDATE services SET owner = ?, kind = ?, upstream = ?, version_policy = ?
+	// An owner changed here is set by people: Goliash no longer follows labels for it.
+	res, err := s.exec(ctx, s.db, `UPDATE services SET owner_source = CASE WHEN owner = ? THEN owner_source ELSE '' END,
+		owner = ?, kind = ?, upstream = ?, version_policy = ?
 		WHERE org_id = ? AND workspace_id = ? AND id = ?`,
-		svc.Owner, svc.Kind, svc.Upstream, string(svc.VersionPolicy), svc.Scope.OrgID, svc.Scope.WorkspaceID, svc.ID)
+		svc.Owner, svc.Owner, svc.Kind, svc.Upstream, string(svc.VersionPolicy), svc.Scope.OrgID, svc.Scope.WorkspaceID, svc.ID)
 	return expectOne(res, err)
 }
 
 const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at,
-	source_url, source_image, source_checked_at, private_upstream, app`
+	source_url, source_image, source_checked_at, private_upstream, app, owner_source`
 
 func scanService(row scanner) (Service, error) {
 	var svc Service
 	var policy string
 	var checked sql.NullTime
 	if err := row.Scan(&svc.ID, &svc.Scope.OrgID, &svc.Scope.WorkspaceID, &svc.Name, &svc.Owner, &svc.Kind,
-		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App); err != nil {
+		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App, &svc.OwnerSource); err != nil {
 		return Service{}, notFound(err)
 	}
 	svc.VersionPolicy, svc.CreatedAt = json.RawMessage(policy), svc.CreatedAt.UTC()

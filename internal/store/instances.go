@@ -35,6 +35,7 @@ type Instance struct {
 	RemovedAt        time.Time // zero while present
 	App              string    // the application, from labels or the namespace
 	AppSource        string    // the label App came from, or "namespace"
+	Team             string    // the team its labels name, if any
 }
 
 // Active reports whether the instance was present in the latest snapshot.
@@ -149,7 +150,7 @@ func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([
 		)
 		if err := rows.Scan(&i.ID, &i.Scope.OrgID, &i.Scope.WorkspaceID, &i.TargetID, &env, &svc, &i.SuggestedService,
 			&i.WorkloadID, &i.WorkloadKind, &i.Namespace, &i.WorkloadName, &i.ContainerName, &i.Image, &i.Tag, &i.Digest,
-			&i.Running, &i.IsMain, &i.FirstSeenAt, &i.LastSeenAt, &removed, &i.App, &i.AppSource); err != nil {
+			&i.Running, &i.IsMain, &i.FirstSeenAt, &i.LastSeenAt, &removed, &i.App, &i.AppSource, &i.Team); err != nil {
 			return nil, err
 		}
 		i.EnvironmentID, i.ServiceID, i.RemovedAt = env.String, svc.String, timeOrZero(removed)
@@ -161,7 +162,7 @@ func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([
 
 const instanceColumns = `id, org_id, workspace_id, target_id, environment_id, service_id, suggested_service,
 	workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running, is_main,
-	first_seen_at, last_seen_at, removed_at, app, app_source`
+	first_seen_at, last_seen_at, removed_at, app, app_source, team`
 
 // ApplySnapshot writes the instances, removals and events derived from a snapshot
 // and marks the snapshot processed, in one transaction.
@@ -175,17 +176,17 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 			_, err := s.exec(ctx, tx, `
 				INSERT INTO instances (id, org_id, workspace_id, target_id, environment_id, service_id, suggested_service,
 					workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running,
-					is_main, first_seen_at, last_seen_at, removed_at, app, app_source)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+					is_main, first_seen_at, last_seen_at, removed_at, app, app_source, team)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
 				ON CONFLICT (target_id, workload_id, container_name, image, digest) DO UPDATE SET
 					environment_id = excluded.environment_id, service_id = excluded.service_id,
 					suggested_service = excluded.suggested_service, workload_kind = excluded.workload_kind,
 					namespace = excluded.namespace, workload_name = excluded.workload_name, tag = excluded.tag,
 					running = excluded.running, is_main = excluded.is_main, last_seen_at = excluded.last_seen_at,
-					removed_at = NULL, app = excluded.app, app_source = excluded.app_source`,
+					removed_at = NULL, app = excluded.app, app_source = excluded.app_source, team = excluded.team`,
 				i.ID, ch.Scope.OrgID, ch.Scope.WorkspaceID, ch.TargetID, nullString(i.EnvironmentID), nullString(i.ServiceID),
 				i.SuggestedService, i.WorkloadID, i.WorkloadKind, i.Namespace, i.WorkloadName, i.ContainerName, i.Image,
-				i.Tag, i.Digest, i.Running, i.IsMain, at, at, i.App, i.AppSource)
+				i.Tag, i.Digest, i.Running, i.IsMain, at, at, i.App, i.AppSource, i.Team)
 			if err != nil {
 				return err
 			}

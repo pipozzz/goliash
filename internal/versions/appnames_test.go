@@ -132,9 +132,63 @@ func TestFillOwners(t *testing.T) {
 		t.Fatalf("owners web=%q cart=%q cache=%q (named %v)", owner(l.svc), owner(cart), owner(both), named)
 	}
 	// An owner set by hand stays.
-	_, _ = l.st.SetOwners(ctx, l.sc, []string{cart.ID}, "someone")
+	_, _ = l.st.SetOwners(ctx, l.sc, []string{cart.ID}, "someone", "")
 	_, _ = FillOwners(ctx, l.st, l.sc)
 	if owner(cart) != "someone" {
 		t.Fatal("an owner set by hand was replaced")
+	}
+}
+
+// A team named in the workloads' labels beats the application's team and follows the
+// labels; an owner set by people stays.
+func TestOwnersFromLabels(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	deploy := func(team string) {
+		tg := l.targets["prod-a"]
+		existing, _ := l.st.ListTargetInstances(ctx, l.sc, tg.ID)
+		var keep []store.Instance
+		for _, i := range existing {
+			if i.WorkloadID != "web" {
+				keep = append(keep, i)
+			}
+		}
+		ch := store.SnapshotChanges{Scope: l.sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: append(keep, store.Instance{
+			TargetID: tg.ID, EnvironmentID: tg.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "web",
+			WorkloadKind: "deployment", WorkloadName: "web", ContainerName: "app", Image: "nginx:1.27.2", Tag: "1.27.2",
+			Running: 1, IsMain: true, App: "webshop", AppSource: "app.kubernetes.io/part-of", Team: team,
+		})}
+		if err := l.st.ApplySnapshot(ctx, ch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	owner := func() (string, string) {
+		s, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+		return s.Owner, s.OwnerSource
+	}
+	_ = l.st.SetAppTeam(ctx, l.sc, "webshop", "team-shop")
+	deploy("")
+	_, _ = FillOwners(ctx, l.st, l.sc)
+	if o, src := owner(); o != "team-shop" || src != "app" {
+		t.Fatalf("from the application: %q %q", o, src)
+	}
+	deploy("payments")
+	_, _ = FillOwners(ctx, l.st, l.sc)
+	if o, src := owner(); o != "payments" || src != "label" {
+		t.Fatalf("from the label: %q %q", o, src)
+	}
+	deploy("checkout")
+	_, _ = FillOwners(ctx, l.st, l.sc)
+	if o, _ := owner(); o != "checkout" {
+		t.Fatalf("label change not followed: %q", o)
+	}
+	// People set it on the service page: Goliash leaves it alone from then on.
+	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+	svc.Owner = "sre"
+	_ = l.st.UpdateService(ctx, svc)
+	deploy("someone-else")
+	_, _ = FillOwners(ctx, l.st, l.sc)
+	if o, src := owner(); o != "sre" || src != "" {
+		t.Fatalf("an owner set by people was replaced: %q %q", o, src)
 	}
 }
