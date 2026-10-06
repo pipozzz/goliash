@@ -762,5 +762,5 @@ details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 .nowrap { white-space: nowrap; }
 
 /* Notifications: channels, rules and deliveries one under another; their tables need the width. */
-.notif-panels { display: grid; gap: 22px; }
+.notif-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
 .notif-panels table td.num { white-space: nowrap; }
