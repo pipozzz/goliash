@@ -61,7 +61,9 @@ to compare with, and warm means it needs attention: end of life, or targets disa
   board has six or more.
 - **Open a cell** and its board is laid over the global one like a card, one cell per service; the global board stays
   behind, dimmed, with the application marked, and its cells open the other applications directly. × or Escape lays
-  the card down again. Open a service for its versions per environment, the newest release with its notes, its drift and a link to
+  the card down again. Arrow keys move between cells, Enter opens one.
+
+![An application's card laid over the global board: webshop's services as cells, the board behind dimmed with webshop marked](../../../assets/tiles-card.png) Open a service for its versions per environment, the newest release with its notes, its drift and a link to
   its page; Escape closes it.
 - **Env** colours the board for one environment. **Side by side** draws one board per environment with every
   application in the same place, so you can see at a glance where prod lags behind staging.
