@@ -74,6 +74,10 @@ func TestTilesPage(t *testing.T) {
 	if _, body = get(t, viewer, e.srv.URL+"/tiles?env=side", nil); !strings.Contains(body, `class="env-boards"`) {
 		t.Error("no boards side by side")
 	}
+	// Side by side inside an application keeps the card over the board.
+	if _, body = get(t, viewer, e.srv.URL+"/tiles?env=side&app=other", nil); !strings.Contains(body, `class="tile-stack"`) || !strings.Contains(body, `class="env-boards"`) {
+		t.Error("side by side drops the card")
+	}
 	if _, body = get(t, viewer, e.srv.URL+"/tiles?tv=1", nil); !strings.Contains(body, `class="kiosk"`) || strings.Contains(body, `<header class="top">`) {
 		t.Error("TV mode keeps the header")
 	}

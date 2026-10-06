@@ -694,3 +694,6 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 }
 .stack-back .board-name, .logo-board.compact .board-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; }
 .stack-back .board-name { font-size: 10px; }
+/* Side by side inside an application's card: the environments of its services. */
+.stack-front .env-boards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; }
+.stack-front .env-board .logo-board.compact { padding: 14px; border-radius: 24px; }
