@@ -664,6 +664,31 @@ type RuleView struct {
 	Filter  string
 }
 
+// RuleForm is the add or edit form of a notification rule.
+type RuleForm struct {
+	Channel    string
+	Mode       string
+	MinJump    string
+	Events     []string
+	Services   string
+	Owners     string
+	Envs       string
+	DigestHour int
+}
+
+// NewRuleForm is the add form's defaults.
+func NewRuleForm() RuleForm {
+	return RuleForm{Mode: "instant", Events: []string{"new_release", "drift_detected", "agent_stale"}, DigestHour: 8}
+}
+
+// RuleEditView is the page that edits one rule.
+type RuleEditView struct {
+	Base
+	ID       string
+	Form     RuleForm
+	Channels []ChannelView
+}
+
 // NotificationsView is the notifications page.
 type NotificationsView struct {
 	Base
@@ -954,4 +979,23 @@ func orOther(app string) string {
 		return "other"
 	}
 	return app
+}
+
+func twoDigits(n int) string { return fmt.Sprintf("%02d", n) }
+
+func hasString(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// eventTitle explains an event kind in the rule form.
+func eventTitle(kind string) string {
+	if kind == "updates_plan" {
+		return "The Updates list, what to upgrade first, at the digest time: daily, or on Mondays"
+	}
+	return ""
 }

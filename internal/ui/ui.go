@@ -155,6 +155,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
 	mux.Handle("POST /notifications/deliveries/{id}/retry", s.page(m, s.retryDelivery))
 	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
+	mux.Handle("GET /notifications/rules/{id}", s.page(m, s.editRule))
+	mux.Handle("POST /notifications/rules/{id}", s.page(m, s.updateRule))
 	mux.Handle("POST /environments/{id}", s.page(a, s.updateEnvironment))
 	mux.Handle("POST /environments/{id}/delete", s.page(a, s.deleteEnvironment))
 	mux.Handle("GET /targets/{id}", s.page(v, s.targetView))
@@ -1453,14 +1455,16 @@ func (s *Server) sendPlanNow(w http.ResponseWriter, r *http.Request, p auth.Prin
 	return back(w, r, "/notifications", "notice", "Upgrade plan sent: "+plural(n, "update", "updates")+".")
 }
 
-func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+// ruleFromForm reads a rule's settings from the add or edit form. problem is a message
+// for the person when something is off.
+func (s *Server) ruleFromForm(r *http.Request, p auth.Principal) (rule store.Rule, channel, problem string) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
-		return err
+		return rule, "", "The form did not arrive whole."
 	}
 	ch, err := s.store.GetChannelByName(ctx, p.Scope, r.FormValue("channel"))
 	if err != nil {
-		return back(w, r, "/notifications", "error", "Unknown channel.")
+		return rule, "", "Unknown channel."
 	}
 	mode := r.FormValue("mode")
 	if mode != "daily" && mode != "weekly" {
@@ -1475,17 +1479,92 @@ func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		return out
 	}
-	hour := 8
+	hour, err := strconv.Atoi(r.FormValue("digest_hour"))
+	if err != nil || hour < 0 || hour > 23 {
+		hour = 8
+	}
 	f := notifier.Filter{
 		Services: split(r.FormValue("services")), Owners: split(r.FormValue("owners")),
 		Environments: split(r.FormValue("envs")), MinJump: versions.Jump(r.FormValue("min_jump")), DigestHour: &hour,
 	}
 	raw, _ := json.Marshal(f)
-	if _, err := s.store.CreateRule(ctx, store.Rule{Scope: p.Scope, ChannelID: ch.ID, EventTypes: r.Form["events"], Filter: raw, Mode: mode}); err != nil {
+	events := r.Form["events"]
+	if len(events) == 0 {
+		return rule, "", "Pick at least one kind of event."
+	}
+	return store.Rule{Scope: p.Scope, ChannelID: ch.ID, EventTypes: events, Filter: raw, Mode: mode}, ch.Name, ""
+}
+
+func (s *Server) createRule(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	rule, channel, problem := s.ruleFromForm(r, p)
+	if problem != "" {
+		return back(w, r, "/notifications", "error", problem)
+	}
+	if _, err := s.store.CreateRule(r.Context(), rule); err != nil {
 		return err
 	}
-	s.audit(ctx, p, "notification_rule.create", "channel", ch.Name, "mode", mode, "events", strings.Join(r.Form["events"], ","))
+	s.audit(r.Context(), p, "notification_rule.create", "channel", channel, "mode", rule.Mode, "events", strings.Join(rule.EventTypes, ","))
 	return back(w, r, "/notifications", "notice", "Rule added.")
+}
+
+// editRule shows a rule's form, filled in.
+func (s *Server) editRule(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	rules, err := s.store.ListRules(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	chans, err := s.store.ListChannels(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		if rule.ID != r.PathValue("id") {
+			continue
+		}
+		v := RuleEditView{Base: withFlash(s.base(ctx, p, "notifications", "Edit rule"), r), ID: rule.ID, Form: ruleForm(rule)}
+		for _, c := range chans {
+			v.Channels = append(v.Channels, ChannelView{ID: c.ID, Name: c.Name, Type: c.Type})
+			if c.ID == rule.ChannelID {
+				v.Form.Channel = c.Name
+			}
+		}
+		return render(w, r, RulePage(v))
+	}
+	return back(w, r, "/notifications", "error", "That rule is gone.")
+}
+
+// updateRule saves an edited rule.
+func (s *Server) updateRule(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	rule, channel, problem := s.ruleFromForm(r, p)
+	if problem != "" {
+		return back(w, r, "/notifications/rules/"+r.PathValue("id"), "error", problem)
+	}
+	rule.ID = r.PathValue("id")
+	if err := s.store.UpdateRule(r.Context(), rule); errors.Is(err, store.ErrNotFound) {
+		return back(w, r, "/notifications", "error", "That rule is gone.")
+	} else if err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "notification_rule.update", "rule", rule.ID, "channel", channel, "mode", rule.Mode, "events", strings.Join(rule.EventTypes, ","))
+	return back(w, r, "/notifications", "notice", "Rule saved.")
+}
+
+// ruleForm fills the rule form from a stored rule.
+func ruleForm(rule store.Rule) RuleForm {
+	var f notifier.Filter
+	_ = json.Unmarshal(rule.Filter, &f)
+	out := RuleForm{
+		Mode: rule.Mode, MinJump: string(f.MinJump), Events: rule.EventTypes, DigestHour: 8,
+		Services: strings.Join(f.Services, ", "), Owners: strings.Join(f.Owners, ", "), Envs: strings.Join(f.Environments, ", "),
+	}
+	if f.DigestHour != nil {
+		out.DigestHour = *f.DigestHour
+	}
+	if len(out.Events) == 0 { // every type
+		out.Events = []string{"new_release", "drift_detected", "drift_resolved", "version_changed", "removed", "agent_stale"}
+	}
+	return out
 }
 
 // ---- users, workspaces and tokens ----
