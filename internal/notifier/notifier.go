@@ -76,7 +76,7 @@ type Filter struct {
 	Services     []string      `json:"services,omitempty"`
 	Owners       []string      `json:"owners,omitempty"`
 	Environments []string      `json:"environments,omitempty"`
-	Apps         []string      `json:"apps,omitempty"` // applications, as the matrix shows them
+	Apps         []string      `json:"apps,omitempty"`     // applications, as the matrix shows them
 	MinJump      versions.Jump `json:"min_jump,omitempty"` // for new_release: smallest version jump to report
 	DigestHour   *int          `json:"digest_hour,omitempty"`
 	Timezone     string        `json:"timezone,omitempty"`   // IANA name for the digest hour and quiet hours; UTC when empty
