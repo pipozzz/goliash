@@ -62,6 +62,20 @@ func TestAppsAndTeams(t *testing.T) {
 	if got.Owner != "team-shop" {
 		t.Fatalf("owner %q", got.Owner)
 	}
+	// The application keeps the team for services that appear later; forget stops that.
+	if _, page = get(t, member, e.srv.URL+"/apps", nil); !strings.Contains(page, "Team for new services") {
+		t.Fatal("apps page misses the application's team")
+	}
+	if teams, _ := e.st.AppTeams(ctx, sc); teams["shop"] != "team-shop" {
+		t.Fatalf("app teams %v", teams)
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/apps/team", url.Values{"app": {"shop"}, "team": {""}}); !strings.Contains(body, "no longer get a team") {
+		t.Fatalf("forget: %s", body)
+	}
+	if teams, _ := e.st.AppTeams(ctx, sc); len(teams) != 0 {
+		t.Fatalf("app team kept: %v", teams)
+	}
+	_, _, _ = post(t, member, e.srv.URL+"/apps/team", url.Values{"app": {"shop"}, "team": {"team-shop"}})
 
 	// Teams: listed, renamed; services without a team get one.
 	_, page = get(t, member, e.srv.URL+"/teams", nil)

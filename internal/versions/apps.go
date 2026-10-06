@@ -161,3 +161,46 @@ func FamilyOf(app string, apps []string) string {
 	}
 	return app
 }
+
+// FillOwners gives services without an owner the team of their application, when
+// their applications agree on one. It returns the services it gave a team.
+func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string, error) {
+	teams, err := st.AppTeams(ctx, sc)
+	if err != nil || len(teams) == 0 {
+		return nil, err
+	}
+	services, err := st.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	apps, err := ServiceApps(ctx, st, sc)
+	if err != nil {
+		return nil, err
+	}
+	var named []string
+	for _, svc := range services {
+		if svc.Owner != "" {
+			continue
+		}
+		team := ""
+		for _, a := range apps[svc.ID] {
+			t := teams[a]
+			if t == "" {
+				continue
+			}
+			if team != "" && t != team {
+				team = "" // its applications disagree: leave it to people
+				break
+			}
+			team = t
+		}
+		if team == "" {
+			continue
+		}
+		if _, err := st.SetOwners(ctx, sc, []string{svc.ID}, team); err != nil {
+			return named, err
+		}
+		named = append(named, svc.Name+" → "+team)
+	}
+	return named, nil
+}

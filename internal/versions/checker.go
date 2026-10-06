@@ -115,6 +115,11 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		if err := c.checkUpstreams(ctx, ws.Scope(), !upstream); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "upstream check failed", "workspace", ws.Slug, "err", err)
 		}
+		if named, err := FillOwners(ctx, c.store, ws.Scope()); err != nil && ctx.Err() == nil {
+			c.log.ErrorContext(ctx, "giving services their application's team failed", "workspace", ws.Slug, "err", err)
+		} else if len(named) > 0 {
+			c.log.InfoContext(ctx, "services got their application's team", "workspace", ws.Slug, "services", named)
+		}
 		if err := c.EvaluateDrift(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "drift evaluation failed", "workspace", ws.Slug, "err", err)
 		}

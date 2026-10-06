@@ -33,7 +33,10 @@ Members and up can:
   updates, delivery and drift.
 - **Merge** applications: rename one to the name of another. The card then says *From* with the names it was made of.
 - **Split out** a name again: *split out* next to it on the card.
-- **Set team**: give every service of the application one team.
+- **Set team**: give every service of the application one team. The application keeps it as its team: services
+  that appear in it later, without an owner, get it too (within a minute). *forget* next to *Team for new services*
+  stops that; services keep the team they have. A service in several applications with different teams gets none,
+  and an owner set by hand is never replaced.
 
 To put a single service in an application whatever its labels say, set **Application** on the service's page (or
 `goliash service set -name postgres -app identity`). Empty goes back to the labels.

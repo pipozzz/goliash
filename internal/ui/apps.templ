@@ -50,6 +50,17 @@ templ AppsPage(v AppsView) {
 							} else if a.Source != "" {
 								<span class="muted">Name from the { a.Source }</span>
 							}
+							if a.Team != "" {
+								<span class="muted">· Team for new services</span>
+								<span class="badge neutral">{ a.Team }</span>
+								if v.CanMember {
+									<form method="post" action="/apps/team" class="inline">
+										<input type="hidden" name="app" value={ a.Name }/>
+										<input type="hidden" name="team" value=""/>
+										<button class="link" type="submit" title="New services in it no longer get this team">forget</button>
+									</form>
+								}
+							}
 							if len(a.Teams) > 0 {
 								<span class="muted">· Team</span>
 								for _, t := range a.Teams {
@@ -82,7 +93,7 @@ templ AppsPage(v AppsView) {
 								</form>
 								<form method="post" action="/apps/team" class="inline">
 									<input type="hidden" name="app" value={ a.Name }/>
-									<input name="team" list="team-names" placeholder="team for all its services" aria-label={ "Team for " + a.Name }/>
+									<input name="team" list="team-names" placeholder="team for all its services" aria-label={ "Team for " + a.Name } required/>
 									<button class="secondary" type="submit">Set team</button>
 								</form>
 							</div>
