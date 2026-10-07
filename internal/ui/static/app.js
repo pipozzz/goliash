@@ -136,6 +136,16 @@
     if (close) close.click();
   });
 
+  // A click beside an application's card lays it down too, as on any modal: anywhere
+  // on the page but the card, the small board of all applications and the controls.
+  document.addEventListener("click", function (e) {
+    const close = document.querySelector(".stack-close");
+    if (!close || e.defaultPrevented || e.button !== 0) return;
+    if (e.target.closest(".stack-front, .stack-back, a, button, input, select, textarea, label, summary, details, header, .tiles-toolbar, .tile-panel, dialog")) return;
+    if (!e.target.closest("main")) return;
+    close.click();
+  });
+
   // Selects that act at once (role, workspace, collector) and the print button. The
   // Content-Security-Policy allows no inline handlers, so they live here.
   document.addEventListener("change", function (e) {
