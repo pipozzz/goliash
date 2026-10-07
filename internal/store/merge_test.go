@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestMergeService(t *testing.T) {
@@ -47,6 +48,39 @@ func TestMergeService(t *testing.T) {
 		}
 		if len(open) != 2 || !kinds["upstream"] || !kinds["eol"] {
 			t.Fatalf("open drift after merge: %+v", open)
+		}
+	})
+}
+
+func TestMoveAppInstances(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		from, _ := s.EnsureService(ctx, sc, "chat-db")
+		to, _ := s.EnsureService(ctx, sc, "portal-db")
+		now := time.Now()
+		var ids []string
+		for _, app := range []string{"mattermost", "portal"} {
+			id := NewID()
+			ids = append(ids, id)
+			if err := s.ApplySnapshot(ctx, SnapshotChanges{Scope: sc, SnapshotID: NewID(), TargetID: f.tgt.ID, At: now, Upsert: []Instance{{
+				ID: id, TargetID: f.tgt.ID, EnvironmentID: f.env.ID, WorkloadID: app + "/db", WorkloadName: "db", ContainerName: "db",
+				Image: "postgres:17", Tag: "17", Running: 1, IsMain: true, ServiceID: from.ID, App: app, AppSource: "compose project",
+			}}, Events: []Event{{Scope: sc, Type: "deployed", ServiceID: from.ID, EnvironmentID: f.env.ID, TargetID: f.tgt.ID, InstanceID: id, ToVersion: "17", At: now}}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		n, err := s.MoveAppInstances(ctx, sc, from.ID, to.ID, "portal")
+		if err != nil || n != 1 {
+			t.Fatalf("moved %d %v", n, err)
+		}
+		evs, _ := s.ListEvents(ctx, sc, EventFilter{ServiceID: to.ID, Limit: 10})
+		if len(evs) != 1 || evs[0].InstanceID != ids[1] {
+			t.Fatalf("events %+v", evs)
+		}
+		if evs, _ := s.ListEvents(ctx, sc, EventFilter{ServiceID: from.ID, Limit: 10}); len(evs) != 1 {
+			t.Fatalf("events left %+v", evs)
 		}
 	})
 }

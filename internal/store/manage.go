@@ -179,3 +179,27 @@ func (s *Store) MergeService(ctx context.Context, sc Scope, from, into string) e
 		return expectOne(res, err)
 	})
 }
+
+// MoveAppInstances moves a service's workloads of one application, and the events
+// of their instances, to another service. It reports how many instances moved.
+func (s *Store) MoveAppInstances(ctx context.Context, sc Scope, from, to, app string) (int, error) {
+	var moved int
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		res, err := s.exec(ctx, tx, `UPDATE instances SET service_id = ?
+			WHERE org_id = ? AND workspace_id = ? AND service_id = ? AND app = ?`, to, sc.OrgID, sc.WorkspaceID, from, app)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		moved = int(n)
+		_, err = s.exec(ctx, tx, `UPDATE events SET service_id = ?
+			WHERE workspace_id = ? AND service_id = ? AND instance_id IN
+				(SELECT id FROM instances WHERE workspace_id = ? AND service_id = ? AND app = ?)`,
+			to, sc.WorkspaceID, from, sc.WorkspaceID, to, app)
+		return err
+	})
+	return moved, err
+}

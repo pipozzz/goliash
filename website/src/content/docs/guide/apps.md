@@ -1,6 +1,6 @@
 ---
 title: Applications and teams
-description: 'Where applications and teams come from, label conventions, how to rename, merge and split applications and give services a team, and a recommended setup.'
+description: 'Where applications and teams come from, label conventions, how to rename, merge and split applications and services, give services a team, and a recommended setup.'
 ---
 
 Goliash groups services two ways: by **application** (what a service is part of: a webshop, an identity stack) and by
@@ -65,6 +65,12 @@ Notification rules that name a service by its old name need the new one.
 goliash service rename -name cefiro-redis -to redis
 goliash service rename -name lawrio-redis -to redis -merge
 ```
+
+The other way round: when one service collects workloads of several applications that should each be their own (a
+`db` in every project mapped once to `chat-db`), its page offers **Split by application**. Each application gets a
+service of its own, proposed as `<application>-<workload>` (`portal-db`); the one with the most workloads keeps the
+name. Workloads move with their history, and a rule per application keeps the next snapshots there, ahead of a rule on
+the workload name alone.
 
 ## Managing applications
 

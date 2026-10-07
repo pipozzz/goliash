@@ -291,6 +291,29 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 		}
+		if v.CanMember && len(v.Split) > 1 {
+			<section class="panel">
+				<div class="panel-head"><h2>Split by application</h2><span class="muted">it runs in { itoa(len(v.Split)) } applications</span></div>
+				<div class="panel-body">
+					<form class="stack" method="post" action={ templ.URL("/services/" + v.Name + "/split") }>
+						<p class="hint">
+							Each application below gets the service named next to it; the one named { v.Name } stays. Their
+							workloads move with their history, and a rule keeps them there. Keep a name to leave an
+							application as it is.
+						</p>
+						for _, a := range v.Split {
+							<div class="row split-row">
+								<input type="hidden" name="app" value={ a.App }/>
+								<span><strong>{ a.App }</strong> <span class="muted">{ plural(a.Workloads, "workload", "workloads") }</span></span>
+								<label class="sr-only" for={ "split-" + a.App }>Service for { a.App }</label>
+								<input id={ "split-" + a.App } name="name" value={ a.Name } required maxlength="100"/>
+							</div>
+						}
+						<div><button class="secondary" type="submit">Split</button></div>
+					</form>
+				</div>
+			</section>
+		}
 		if v.CanMember {
 			<section class="panel">
 				<div class="panel-head"><h2>Rename</h2></div>

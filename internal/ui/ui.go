@@ -175,6 +175,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /notifications/channels/{id}", s.page(a, s.updateChannel))
 	mux.Handle("POST /services/{name}/delete", s.page(a, s.deleteService))
 	mux.Handle("POST /services/{name}/rename", s.page(m, s.renameService))
+	mux.Handle("POST /services/{name}/split", s.page(m, s.splitService))
 	mux.Handle("POST /workspaces/{id}/rename", s.page(a, s.renameWorkspace))
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
 	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
@@ -537,6 +538,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
+	if v.Split, err = s.splitApps(ctx, p.Scope, svc); err != nil {
+		return err
+	}
 	pol, src, _ := versions.PolicyFor(svc, ref.Repo)
 	v.PolicyFrom = string(src)
 	v.NotesGitHub, v.NotesGitLab, v.NotesChangelog = pol.GitHub, pol.GitLab, pol.Changelog
@@ -1109,7 +1113,8 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if onlyWorkload {
 		rule = store.MappingRule{Scope: p.Scope, Priority: 50, MatchType: "workload_name", Pattern: mapping.WorkloadPattern(workloadName), ServiceID: svc.ID}
 		if app != "" {
-			rule.MatchType, rule.Pattern = "app_workload", mapping.AppWorkloadPattern(app, workloadName)
+			// Ahead of name-only rules: "db" of one application, whatever "db" elsewhere maps to.
+			rule.Priority, rule.MatchType, rule.Pattern = 40, "app_workload", mapping.AppWorkloadPattern(app, workloadName)
 		}
 	}
 	if _, err := s.store.CreateMappingRule(ctx, rule); err != nil {
@@ -2350,4 +2355,123 @@ func withCookie(r *http.Request, ck *http.Cookie) *http.Request {
 	}
 	r.AddCookie(ck)
 	return r
+}
+
+// appWorkloads is a service's running workloads by application (applications that
+// labels, projects or jobs name; not bare namespaces), each with its stable names.
+func (s *Server) appWorkloads(ctx context.Context, sc store.Scope, serviceID string) (map[string]map[string]bool, error) {
+	active, err := s.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]map[string]bool{}
+	for _, in := range active {
+		if in.ServiceID != serviceID || !in.IsMain || in.App == "" || in.AppSource == "namespace" {
+			continue
+		}
+		if out[in.App] == nil {
+			out[in.App] = map[string]bool{}
+		}
+		out[in.App][mapping.StableName(in.WorkloadName)] = true
+	}
+	return out, nil
+}
+
+// splitApps proposes services of their own for a service that runs in several
+// applications: the one with the most workloads keeps the name, the others become
+// "<application>-<workload>" ("portal-db").
+func (s *Server) splitApps(ctx context.Context, sc store.Scope, svc store.Service) ([]SplitApp, error) {
+	byApp, err := s.appWorkloads(ctx, sc, svc.ID)
+	if err != nil || len(byApp) < 2 {
+		return nil, err
+	}
+	var out []SplitApp
+	for app, names := range byApp {
+		out = append(out, SplitApp{App: app, Workloads: len(names)})
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if out[a].Workloads != out[b].Workloads {
+			return out[a].Workloads > out[b].Workloads
+		}
+		return out[a].App < out[b].App
+	})
+	taken := map[string]bool{svc.Name: true}
+	for i := range out {
+		if i == 0 {
+			out[i].Name = svc.Name
+			continue
+		}
+		name := out[i].App + "-" + svc.Name
+		if names := sortedSet(byApp[out[i].App]); len(names) == 1 && names[0] != svc.Name {
+			name = out[i].App + "-" + names[0]
+		}
+		for n := 2; taken[name]; n++ {
+			name = fmt.Sprintf("%s-%d", out[i].App+"-"+svc.Name, n)
+		}
+		taken[name], out[i].Name = true, name
+	}
+	return out, nil
+}
+
+// splitService gives the workloads of chosen applications services of their own:
+// each moves with its history, and a rule per workload keeps the next snapshots there.
+func (s *Server) splitService(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	svc, err := s.store.GetServiceByName(ctx, p.Scope, r.PathValue("name"))
+	if err != nil {
+		return back(w, r, "/", "error", "Unknown service.")
+	}
+	path := serviceURL(svc.Name)
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	apps, names := r.PostForm["app"], r.PostForm["name"]
+	if len(apps) != len(names) {
+		return back(w, r, path, "error", "Name a service for each application.")
+	}
+	byApp, err := s.appWorkloads(ctx, p.Scope, svc.ID)
+	if err != nil {
+		return err
+	}
+	var done []string
+	for i, app := range apps {
+		name := strings.TrimSpace(names[i])
+		if name == svc.Name || byApp[app] == nil {
+			continue
+		}
+		if !serviceName.MatchString(name) {
+			return back(w, r, path, "error", "Service names use letters, digits, dots, dashes and underscores.")
+		}
+		_, existed := s.store.GetServiceByName(ctx, p.Scope, name)
+		to, err := s.store.EnsureService(ctx, p.Scope, name)
+		if err != nil {
+			return err
+		}
+		if existed != nil { // a new service: the same kind of thing, checked the same way
+			to.Kind, to.Upstream, to.VersionPolicy = svc.Kind, svc.Upstream, svc.VersionPolicy
+			if err := s.store.UpdateService(ctx, to); err != nil {
+				return err
+			}
+		}
+		for _, wl := range sortedSet(byApp[app]) {
+			if _, err := s.store.CreateMappingRule(ctx, store.MappingRule{
+				Scope: p.Scope, Priority: 40, MatchType: "app_workload", Pattern: mapping.AppWorkloadPattern(app, wl), ServiceID: to.ID,
+			}); err != nil {
+				return err
+			}
+		}
+		if _, err := s.store.MoveAppInstances(ctx, p.Scope, svc.ID, to.ID, app); err != nil {
+			return err
+		}
+		s.audit(ctx, p, "service.split", "service", svc.Name, "app", app, "to", name)
+		done = append(done, app+" → "+name)
+	}
+	if len(done) == 0 {
+		return back(w, r, path, "notice", "Nothing to split: every application keeps "+svc.Name+".")
+	}
+	if s.checker != nil {
+		_ = s.checker.EvaluateDrift(ctx, p.Scope)
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	return back(w, r, path, "notice", "Split by application: "+strings.Join(done, ", ")+". Their history moved along, and they keep mapping there.")
 }

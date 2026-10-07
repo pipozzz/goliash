@@ -447,6 +447,16 @@ type ServiceView struct {
 	Acks                                                []AckView
 	Runs                                                bool // some environment runs the service
 	Badges                                              []BadgeView
+	// Split lists the applications the service's workloads belong to, when more than
+	// one, with the name each would get as a service of its own.
+	Split []SplitApp
+}
+
+// SplitApp is one application of a service that runs in several.
+type SplitApp struct {
+	App       string
+	Name      string // the service it would become; the first keeps the current name
+	Workloads int
 }
 
 // BadgeView is one badge of a service, with the markdown that embeds it.
