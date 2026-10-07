@@ -32,8 +32,12 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 
 ## Features
 
-- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, AWS Lambda, Nomad, Docker Swarm and plain Docker/Compose hosts, side by side, per
-  environment — with replicas, targets and rollouts in progress, grouped by application, team or status.
+- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, AWS Lambda (per alias), Nomad, Docker Swarm
+  and plain Docker/Compose hosts, side by side, per environment — with replicas, targets and rollouts in progress,
+  grouped by application, team or status.
+- **Connected in two clicks.** Pick the platform, copy one command: the agent registers itself with an enrollment
+  code and finds what to watch — the cluster, the Docker host, every ECS cluster and Lambda function of the region.
+  One code for a whole fleet works too.
 - **Applications, not just containers.** Workloads grouped by application from Kubernetes, Helm and Compose labels or
   Nomad jobs; Dokploy and Nomploy projects come together under one name. A database image shared by several apps is
   compared within each app.
@@ -54,11 +58,11 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
   dedup and ack/snooze, and a scheduled upgrade plan.
 - **Ask your AI assistant.** A built-in MCP server: "what runs in prod?", "what should we upgrade first?", "what
   changed in the last two hours?", answered from live data.
-- **Built for teams and MSPs.** Workspaces per client, roles, magic-link and OIDC sign-in, audit log, REST API and
-  Prometheus metrics.
+- **Built for teams and MSPs.** Workspaces per client, roles, passkeys, two-factor, magic-link and OIDC sign-in, audit
+  log, REST API and Prometheus metrics.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
-  in your network. One binary each, SQLite or PostgreSQL (several servers for high availability), Helm/Nomad/Swarm/ECS
-  manifests included.
+  in your network. One binary each, SQLite or PostgreSQL (several servers for high availability), Helm, Compose,
+  Swarm, Nomad, CloudFormation and Terraform manifests included.
 
 Out of scope: deploying or upgrading services (that is CI's or Renovate's job), CVE scanning, library versions in code.
 
