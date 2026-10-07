@@ -291,7 +291,8 @@ func arnParts(arn string) (region, cluster string) {
 }
 
 // discoverAWS adds, for the agent's region and those in GOLIASH_AWS_REGIONS, every
-// ECS cluster (or those in GOLIASH_ECS_CLUSTERS) as a target of its own, so each can
+// ECS cluster (or those in GOLIASH_ECS_CLUSTERS, without those in GOLIASH_ECS_EXCLUDE)
+// as a target of its own, so each can
 // sit in its own environment, and the region's Lambda functions (GOLIASH_LAMBDA=off
 // leaves them out). Platforms the credentials may not read are left out with a note.
 func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, string, agentproto.DeclaredTarget),
@@ -313,10 +314,15 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 			regions = append(regions, rg)
 		}
 	}
-	only := map[string]bool{}
+	only, skip := map[string]bool{}, map[string]bool{}
 	for _, c := range strings.Split(o.Env("GOLIASH_ECS_CLUSTERS"), ",") {
 		if c = strings.TrimSpace(c); c != "" {
 			only[c] = true
+		}
+	}
+	for _, c := range strings.Split(o.Env("GOLIASH_ECS_EXCLUDE"), ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			skip[c] = true
 		}
 	}
 	// Target names: the cluster in the agent's region, with the region elsewhere, so
@@ -338,7 +344,7 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 		}
 		for _, arn := range arns {
 			_, cluster := arnParts(arn)
-			if len(only) > 0 && !only[cluster] {
+			if (len(only) > 0 && !only[cluster]) || skip[cluster] {
 				continue
 			}
 			found(identity, agentName, agentproto.DeclaredTarget{

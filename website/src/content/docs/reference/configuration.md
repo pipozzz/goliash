@@ -118,6 +118,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_AGENT_ID` | | found where it runs | What tells this installation apart when it enrolls with a code for many agents |
 | `GOLIASH_AWS_REGIONS` | | | More AWS regions an enrolling agent adds ECS clusters and Lambda functions of, comma-separated |
 | `GOLIASH_ECS_CLUSTERS` | | every cluster | Only these ECS clusters, by name, comma-separated |
+| `GOLIASH_ECS_EXCLUDE` | | | ECS clusters, by name, an enrolling agent leaves out (the CloudFormation template sets its own cluster) |
 | `GOLIASH_LAMBDA_ALIASES` | | | Lambda aliases named otherwise than environments, e.g. `live=prod,canary=-` (`-` leaves one out) |
 | `GOLIASH_LAMBDA` | | on | `off` stops an enrolling agent from adding its AWS region's Lambda functions |
 | `GOLIASH_TARGETS` | | | Targets an enrolling agent declares, as a JSON array of [agent protocol targets](/reference/agent-protocol/) without `id` |

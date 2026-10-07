@@ -132,7 +132,7 @@ func TestInstallCommandPinsRelease(t *testing.T) {
 		"docker":     {"GOLIASH_AGENT_VERSION=1.13.1", "/v1.13.1/"},
 		"swarm":      {"GOLIASH_AGENT_VERSION=1.13.1", "/v1.13.1/"},
 		"nomad":      {"/v1.13.1/", "-var version=1.13.1"},
-		"ecs":        {"?ref=v1.13.1", "goliash_token_arn=\"$ARN\""},
+		"ecs":        {"/v1.13.1/deploy/ecs/goliash-agent.cfn.yaml", "Version=1.13.1"},
 		"compose":    {"goliash-agent:1.13.1"},
 	}
 	for p, parts := range want {
@@ -250,10 +250,11 @@ func TestCodesOnAgentsPageAndManagedTargets(t *testing.T) {
 
 func TestConnectLambda(t *testing.T) {
 	title, cmd := installCommand("lambda", "https://g", "glsh_enroll_x", nil, "1.14.0")
-	if !strings.Contains(title, "functions") || !strings.Contains(cmd, "watch_lambda       = true") || !strings.Contains(cmd, "?ref=v1.14.0") {
+	if !strings.Contains(title, "functions") || !strings.Contains(cmd, "WatchLambda=true") || !strings.Contains(cmd, "/v1.14.0/deploy/ecs/goliash-agent.cfn.yaml") ||
+		!strings.Contains(cmd, "Version=1.14.0") || !strings.Contains(cmd, "EnrollCode=glsh_enroll_x") {
 		t.Fatalf("lambda command: %s\n%s", title, cmd)
 	}
-	if _, cmd := installCommand("ecs", "https://g", "t", nil, "1.14.0"); strings.Contains(cmd, "watch_lambda") {
+	if _, cmd := installCommand("ecs", "https://g", "t", nil, "1.14.0"); !strings.Contains(cmd, "WatchLambda=false") {
 		t.Fatalf("ecs command watches lambda: %s", cmd)
 	}
 	settings, problem := connectSettings("lambda", url.Values{"region": {"eu-west-1"}, "prefixes": {"shop-, billing-"}, "aliases": {"live=prod, canary=-"}})

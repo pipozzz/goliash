@@ -581,25 +581,16 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			"# with Nomad ACLs, add nomad_token=<secret ID> above (a token that may list-jobs and read-job)\n" +
 			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
 	case "ecs", "lambda":
-		source := "github.com/pipozzz/goliash//deploy/ecs/goliash-agent"
-		if ref != "main" {
-			source += "?ref=" + ref
-		}
-		title, lambda := "Run the agent on ECS with Terraform", ""
+		lambda := "false"
+		title := "Run the agent on ECS Fargate with CloudFormation (default VPC)"
 		if platform == "lambda" {
-			title, lambda = "Run the agent on ECS with Terraform; it watches the region's functions", "  watch_lambda       = true\n"
+			lambda, title = "true", "Run the agent on ECS Fargate with CloudFormation; it watches the region's functions"
 		}
-		return title, "ARN=$(aws secretsmanager create-secret --name goliash-agent-token --secret-string " + token + " --query ARN --output text)\n" +
-			"terraform apply -var goliash_token_arn=\"$ARN\"\n\n" +
-			"variable \"goliash_token_arn\" { type = string }\n\n" +
-			"module \"goliash_agent\" {\n" +
-			"  source             = \"" + source + "\"\n" +
-			"  image              = \"" + image + "\"\n" +
-			"  cluster_arn        = aws_ecs_cluster.tools.arn\n" +
-			"  server_url         = \"" + serverURL + "\"\n" +
-			"  token_secret_arn   = var.goliash_token_arn\n" +
-			"  subnet_ids         = module.vpc.private_subnets\n" +
-			"  security_group_ids = [aws_security_group.egress_only.id]\n" + lambda + "}"
+		return title, "curl -fsSLo goliash-agent.cfn.yaml " + raw + "ecs/goliash-agent.cfn.yaml && \\\n" +
+			"aws cloudformation deploy --stack-name goliash-agent --template-file goliash-agent.cfn.yaml --capabilities CAPABILITY_IAM \\\n" +
+			"  --parameter-overrides ServerURL=" + serverURL + " EnrollCode=" + token + " Version=" + tag + " WatchLambda=" + lambda + " \\\n" +
+			"  Subnets=$(aws ec2 describe-subnets --filters Name=default-for-az,Values=true --query 'Subnets[].SubnetId' --output text | tr '\\t' ,)\n" +
+			"# Own subnets: Subnets=subnet-a,subnet-b AssignPublicIp=DISABLED. Terraform: https://goliash.dev/install/ecs/"
 	}
 	// Compose files on the agent's disk: mount their directories at the same paths, so
 	// the paths in the target's settings are right inside the container too.

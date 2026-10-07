@@ -148,6 +148,8 @@ jobs:
           terraform fmt -check
           terraform init -backend=false -input=false
           terraform validate
+      - name: CloudFormation template is valid
+        run: pipx run cfn-lint deploy/ecs/goliash-agent.cfn.yaml
 
   build:
     runs-on: ubuntu-latest
