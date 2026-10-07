@@ -49,12 +49,12 @@ func TestConnectSettings(t *testing.T) {
 
 func TestInstallCommand(t *testing.T) {
 	for _, p := range []string{"kubernetes", "docker", "swarm", "nomad", "ecs", "compose"} {
-		title, cmd := installCommand(p, "https://g.example.com", "glsh_agent_x", nil)
+		title, cmd := installCommand(p, "https://g.example.com", "glsh_agent_x", nil, "1.13.1")
 		if title == "" || !strings.Contains(cmd, "glsh_agent_x") || !strings.Contains(cmd, "https://g.example.com") {
 			t.Errorf("%s: %s", p, cmd)
 		}
 	}
-	_, cmd := installCommand("compose", "https://g", "t", []string{"/srv/shop/compose.yml", "/srv/shop/prod.yml", "https://x/y.yml"})
+	_, cmd := installCommand("compose", "https://g", "t", []string{"/srv/shop/compose.yml", "/srv/shop/prod.yml", "https://x/y.yml"}, "1.13.1")
 	if !strings.Contains(cmd, "-v /srv/shop:/srv/shop:ro -e GOLIASH_COMPOSE_DIRS=/srv/shop ") {
 		t.Errorf("compose mounts: %s", cmd)
 	}
@@ -119,5 +119,30 @@ func TestConnectFlow(t *testing.T) {
 	}
 	if code, _, _ := post(t, admin, e.srv.URL+"/connect/compose", url.Values{"name": {"shop"}, "env": {e.prod.ID}, "by": {"server"}, "files": {"https://x/c.yml"}}); code != http.StatusOK {
 		t.Fatal("duplicate name")
+	}
+}
+
+func TestInstallCommandPinsRelease(t *testing.T) {
+	want := map[string][]string{
+		"kubernetes": {"--version 1.13.1"},
+		"docker":     {"GOLIASH_AGENT_VERSION=1.13.1", "/v1.13.1/"},
+		"swarm":      {"GOLIASH_AGENT_VERSION=1.13.1", "/v1.13.1/"},
+		"nomad":      {"/v1.13.1/", "goliash-agent:1.13.1"},
+		"ecs":        {"?ref=v1.13.1", "goliash_token_arn=\"$ARN\""},
+		"compose":    {"goliash-agent:1.13.1"},
+	}
+	for p, parts := range want {
+		_, cmd := installCommand(p, "https://g", "t", []string{"/srv/a/compose.yml"}, "v1.13.1")
+		for _, s := range parts {
+			if !strings.Contains(cmd, s) {
+				t.Errorf("%s lacks %q:\n%s", p, s, cmd)
+			}
+		}
+		if strings.Contains(cmd, "/main/") || strings.Contains(cmd, "REPLACE") {
+			t.Errorf("%s not pinned or has a placeholder:\n%s", p, cmd)
+		}
+	}
+	if tag, ref := agentRelease("dev"); tag != "latest" || ref != "main" {
+		t.Errorf("dev build: %s %s", tag, ref)
 	}
 }

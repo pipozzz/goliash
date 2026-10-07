@@ -16,7 +16,8 @@ An agent is optional: the server can collect targets it can reach itself.
 
 - **Images:** `ghcr.io/pipozzz/goliash` and `ghcr.io/pipozzz/goliash-agent`, for linux/amd64 and linux/arm64.
   They are distroless and run as a non-root user. Tags follow releases (`0.1.0`), and `latest` is the newest
-  release.
+  release. The commands on the **Connect** page pin the agent image, chart and files to the server's own release, so
+  an agent you add later matches the server instead of whatever `latest` is that day.
 - **Binaries:** archives for Linux, macOS and Windows on the
   [releases page](https://github.com/pipozzz/goliash/releases).
 - **From source:** `make build`, or `docker build --target server .` and `docker build --target agent .`.

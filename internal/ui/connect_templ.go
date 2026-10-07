@@ -776,7 +776,7 @@ func ConnectDonePage(v ConnectDoneView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.NewToken != "" {
-				title, cmd := installCommand(v.Platform.Key, v.ServerURL, v.NewToken, v.Files)
+				title, cmd := installCommand(v.Platform.Key, v.ServerURL, v.NewToken, v.Files, v.Version)
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<section class=\"panel\"><div class=\"panel-head\"><h2>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

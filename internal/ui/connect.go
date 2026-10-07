@@ -86,6 +86,7 @@ type ConnectDoneView struct {
 	NewToken  string // set when an agent was created
 	ByServer  bool
 	ServerURL string
+	Version   string   // the server's release, which the snippets install
 	Settings  string   // pretty JSON, for the record
 	Files     []string // compose files, for the agent's mounts
 	Status    ConnectStatus
@@ -257,7 +258,7 @@ func (s *Server) connectCreate(w http.ResponseWriter, r *http.Request, p auth.Pr
 	}
 
 	// Who collects it.
-	v := ConnectDoneView{Platform: info, Target: name, Env: env.Name, ServerURL: s.publicURL}
+	v := ConnectDoneView{Platform: info, Target: name, Env: env.Name, ServerURL: s.publicURL, Version: s.version}
 	t := store.Target{Scope: p.Scope, EnvironmentID: env.ID, Platform: info.Key, Name: name, Settings: settings}
 	switch by := f.Get("by"); by {
 	case "server":
@@ -359,38 +360,62 @@ func (s *Server) connectProgress(w http.ResponseWriter, r *http.Request, p auth.
 	return render(w, r, connectStatusView(st, time.Now()))
 }
 
-const rawBase = "https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/"
+// agentRelease is the release snippets install: the agent and files matching this
+// server's version, not whatever latest and main are by then. A development build
+// uses latest and main.
+func agentRelease(version string) (imageTag, gitRef string) {
+	v := strings.TrimPrefix(version, "v")
+	if v == "" || v == "dev" || !strings.Contains(v, ".") {
+		return "latest", "main"
+	}
+	return v, "v" + v
+}
 
 // installCommand is how to start an agent for a platform, with the server URL and the
-// token filled in, so it can be pasted as it is.
-func installCommand(platform, serverURL, token string, files []string) (title, cmd string) {
+// token filled in and the release pinned to the server's, so it can be pasted as it is.
+func installCommand(platform, serverURL, token string, files []string, version string) (title, cmd string) {
+	tag, ref := agentRelease(version)
+	raw := "https://raw.githubusercontent.com/pipozzz/goliash/" + ref + "/deploy/"
+	image := "ghcr.io/pipozzz/goliash-agent:" + tag
+	chartVersion := ""
+	if tag != "latest" {
+		chartVersion = " --version " + tag
+	}
 	switch platform {
 	case "kubernetes":
 		return "Install the agent in the cluster with Helm", "kubectl create namespace goliash --dry-run=client -o yaml | kubectl apply -f -\n" +
 			"kubectl -n goliash create secret generic goliash-agent-token --from-literal=token=" + token + " \\\n" +
 			"  --dry-run=client -o yaml | kubectl apply -f -\n" +
-			"helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash \\\n" +
+			"helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent" + chartVersion + " -n goliash \\\n" +
 			"  --set serverURL=" + serverURL + " --set token.existingSecret=goliash-agent-token"
 	case "docker":
-		return "Start the agent on the Docker host", "curl -fsSLO " + rawBase + "docker/goliash-agent.yml\n" +
-			"GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
+		return "Start the agent on the Docker host", "curl -fsSLO " + raw + "docker/goliash-agent.yml\n" +
+			"GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
 			"  docker compose -f goliash-agent.yml up -d"
 	case "swarm":
-		return "Deploy the agent stack on a manager node", "curl -fsSLO " + rawBase + "swarm/goliash-agent.yml\n" +
+		return "Deploy the agent stack on a manager node", "curl -fsSLO " + raw + "swarm/goliash-agent.yml\n" +
 			"printf '%s' '" + token + "' | docker secret create goliash_agent_token -\n" +
-			"GOLIASH_SERVER_URL=" + serverURL + " docker stack deploy -c goliash-agent.yml goliash-agent"
+			"GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " docker stack deploy -c goliash-agent.yml goliash-agent"
 	case "nomad":
-		return "Run the agent job in Nomad", "curl -fsSLO " + rawBase + "nomad/goliash-agent.nomad.hcl\n" +
-			"sed -i.bak 's#https://goliash.example.com#" + serverURL + "#' goliash-agent.nomad.hcl\n" +
-			"nomad var put -force nomad/jobs/goliash-agent token=" + token + " nomad_token=<Nomad ACL token>\n" +
+		return "Run the agent job in Nomad", "curl -fsSLO " + raw + "nomad/goliash-agent.nomad.hcl\n" +
+			"sed -i.bak -e 's#https://goliash.example.com#" + serverURL + "#' -e 's#goliash-agent:latest#goliash-agent:" + tag + "#' goliash-agent.nomad.hcl\n" +
+			"nomad var put -force nomad/jobs/goliash-agent token=" + token + "\n" +
+			"# with Nomad ACLs, add nomad_token=<secret ID> above (a token that may list-jobs and read-job)\n" +
 			"nomad job run goliash-agent.nomad.hcl"
 	case "ecs":
-		return "Run the agent on ECS with Terraform", "aws secretsmanager create-secret --name goliash-agent-token --secret-string " + token + "\n\n" +
+		source := "github.com/pipozzz/goliash//deploy/ecs/goliash-agent"
+		if ref != "main" {
+			source += "?ref=" + ref
+		}
+		return "Run the agent on ECS with Terraform", "ARN=$(aws secretsmanager create-secret --name goliash-agent-token --secret-string " + token + " --query ARN --output text)\n" +
+			"terraform apply -var goliash_token_arn=\"$ARN\"\n\n" +
+			"variable \"goliash_token_arn\" { type = string }\n\n" +
 			"module \"goliash_agent\" {\n" +
-			"  source             = \"github.com/pipozzz/goliash//deploy/ecs/goliash-agent\"\n" +
+			"  source             = \"" + source + "\"\n" +
+			"  image              = \"" + image + "\"\n" +
 			"  cluster_arn        = aws_ecs_cluster.tools.arn\n" +
 			"  server_url         = \"" + serverURL + "\"\n" +
-			"  token_secret_arn   = \"<ARN printed above>\"\n" +
+			"  token_secret_arn   = var.goliash_token_arn\n" +
 			"  subnet_ids         = module.vpc.private_subnets\n" +
 			"  security_group_ids = [aws_security_group.egress_only.id]\n}"
 	}
@@ -416,7 +441,7 @@ func installCommand(platform, serverURL, token string, files []string) (title, c
 	return "Start the agent where the files are", "docker run -d --name goliash-agent --restart unless-stopped \\\n" +
 		"  -v goliash-agent:/data \\\n" + extra +
 		"  -e GOLIASH_SERVER_URL=" + serverURL + " -e GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
-		"  ghcr.io/pipozzz/goliash-agent:latest"
+		"  " + image
 }
 
 func capitalise(s string) string {
