@@ -23,7 +23,9 @@ description: 'How Goliash stays read-only, protects tokens, sessions and secrets
   limited per address and per client, answer the same whether or not the account exists, and take the same time.
 - Two-factor sign-in with TOTP codes (RFC 6238) is available to everyone and also guards sign-in links; codes
   cannot be replayed, recovery codes are single-use and stored hashed, the secret is encrypted at rest.
-- Owners can require two-factor sign-in for everyone who does not use single sign-on.
+- Passkeys (WebAuthn) sign in without a password and count as two factors: bound to the server's domain, with user
+  verification on the device. Only public keys are stored; each challenge is answered once within five minutes.
+- Owners can require two-factor sign-in for everyone who does not use single sign-on or a passkey.
 - Sessions end after 30 days, or 14 days unused (both configurable). Request bodies are capped at 1 MB outside the
   agent protocol, which has its own limits.
 - Sign-in links are single-use and short-lived. Sessions are HttpOnly cookies, marked Secure when

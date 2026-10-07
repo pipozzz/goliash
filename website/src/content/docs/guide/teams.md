@@ -10,6 +10,10 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   minutes after a link or single sign-on, the current password is not asked for.
 - **Magic links.** `goliash login-link -email you@example.com` prints a one-time link. The first person becomes the
   owner. With SMTP configured, people request links by e-mail on the sign-in page.
+- **Passkeys.** On the account page, **Add a passkey** saves one in the device (Touch ID, Face ID, Windows Hello, a
+  phone or a security key). Then **Sign in with a passkey** on the sign-in page, or pick it from the browser's
+  suggestions in the e-mail field: no password, no code. A passkey only works on this server's address, so it cannot
+  be phished. Passkeys need `GOLIASH_PUBLIC_URL` with a domain name over HTTPS (or `http://localhost`).
 - **OIDC.** Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …). Set
   `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID` and `GOLIASH_OIDC_CLIENT_SECRET`, and register the redirect URI
   `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
@@ -24,13 +28,16 @@ get in. Single sign-on (OIDC) leaves this to the identity provider.
 
 - A code works once; a little clock drift is fine. Five wrong codes end the attempt for a while.
 - Lost the phone: sign in with a recovery code, then set up again or make new codes on the account page.
-- No recovery codes either: an admin chooses **Reset 2FA** on the Users page, or the operator runs
-  `goliash user 2fa -email you@example.com -reset`. The `GOLIASH_RECOVERY_EMAIL` link (below) also skips the code.
+- With a passkey, **Use your passkey** on the code page works instead of a code.
+- No recovery codes either: an admin chooses **Reset 2FA** on the Users page (it removes passkeys too), or the
+  operator runs `goliash user 2fa -email you@example.com -reset`. The `GOLIASH_RECOVERY_EMAIL` link (below) also
+  skips the code.
 
 The secret is encrypted with the server's secret key, like channel secrets; recovery codes are stored as hashes.
 
 An owner can **require** two-factor sign-in for the organization (Users page): everyone who signs in with a password
-or a link then sets up an app before anything else. Owners turn it on only once they use it themselves.
+or a link then sets up an app, or adds a passkey and signs in with it, before anything else. A passkey counts as
+both factors. Owners turn it on only from a session that meets it themselves.
 
 ## Locked out?
 

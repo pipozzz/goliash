@@ -816,6 +816,7 @@ type LoginView struct {
 	Mail       bool
 	Password   bool
 	NoAccounts bool // nobody has an account yet: point to the setup link
+	Passkeys   bool // this server can offer passkeys
 }
 
 // relTime formats a time for <time datetime>.

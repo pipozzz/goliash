@@ -42,9 +42,15 @@ templ SecondFactorPage(v SecondFactorView) {
 						</form>
 						<a href="/login/2fa?use=recovery">Lost your phone? Use a recovery code</a>
 					}
+					if v.Passkey {
+						<div class="divider">or</div>
+						<button type="button" class="secondary" data-passkey="/auth/2fa/passkey" hidden>Use your passkey</button>
+						<p class="notice error" data-passkey-error hidden role="alert"></p>
+					}
 					<a href="/login" class="muted">Start over</a>
 				</div>
 			</div>
+			<script src={ templ.URL(asset("passkey.js")) }></script>
 		</body>
 	</html>
 }
@@ -125,4 +131,54 @@ templ TwoFactorSetupPage(v TwoFactorSetupView) {
 			</section>
 		}
 	}
+}
+
+// passkeysPanel lists the person's passkeys and adds new ones.
+templ passkeysPanel(v AccountView) {
+	<section class="panel">
+		<div class="panel-head">
+			<h2>Passkeys</h2>
+			<span class="muted">sign in with your fingerprint, face or device PIN</span>
+		</div>
+		<div class="panel-body stack">
+			if !v.PasskeysEnabled {
+				<p class="muted">Passkeys need this server on a domain name over HTTPS (GOLIASH_PUBLIC_URL).</p>
+			} else {
+				if len(v.Passkeys) == 0 {
+					<p>A passkey signs you in without a password or a code, and cannot be phished: it only works on this server.</p>
+				} else {
+					<ul class="passkeys">
+						for _, k := range v.Passkeys {
+							<li>
+								<form class="inline" method="post" action={ templ.URL("/account/passkeys/" + k.ID + "/rename") }>
+									<label class="sr-only" for={ "pk-" + k.ID }>Name</label>
+									<input id={ "pk-" + k.ID } name="name" value={ k.Name } maxlength="60" required/>
+									<button type="submit" class="secondary">Rename</button>
+								</form>
+								<span class="muted">
+									added{ " " }
+									@timeAgo(k.CreatedAt)
+									{ " · last used " }
+									@timeAgo(k.LastUsed)
+								</span>
+								<form class="inline" method="post" action={ templ.URL("/account/passkeys/" + k.ID + "/delete") } hx-confirm="Remove this passkey? It stops signing you in here.">
+									<button type="submit" class="danger">Remove</button>
+								</form>
+							</li>
+						}
+					</ul>
+				}
+				<div class="inline-form">
+					<label>
+						Name
+						<input id="passkey-name" maxlength="60" placeholder="e.g. MacBook, iPhone"/>
+					</label>
+					<button type="button" data-passkey-add="/account/passkeys" hidden>Add a passkey</button>
+				</div>
+				<p class="notice error" data-passkey-error hidden role="alert"></p>
+				<p class="hint" data-passkey-unsupported hidden>This browser cannot create passkeys.</p>
+			}
+		</div>
+		<script src={ templ.URL(asset("passkey.js")) }></script>
+	</section>
 }

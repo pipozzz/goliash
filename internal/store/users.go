@@ -46,6 +46,7 @@ type User struct {
 	LastLoginAt time.Time
 	HasPassword bool
 	TOTPEnabled bool // two-factor sign-in is on
+	Passkeys    int  // passkeys the user signs in with
 	// PasswordChangedAt is zero when the user has never set a password.
 	PasswordChangedAt time.Time
 }
@@ -116,12 +117,13 @@ func (s *Store) DeleteUser(ctx context.Context, orgID, userID string) error {
 }
 
 const userColumns = `id, org_id, email, name, role, created_at, last_login_at, password_hash <> '', password_changed_at,
-	totp_enabled_at IS NOT NULL`
+	totp_enabled_at IS NOT NULL, (SELECT COUNT(*) FROM passkeys k WHERE k.user_id = users.id)`
 
 func scanUser(row scanner) (User, error) {
 	var u User
 	var last, changed sql.NullTime
-	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed, &u.TOTPEnabled); err != nil {
+	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed, &u.TOTPEnabled,
+		&u.Passkeys); err != nil {
 		return User{}, notFound(err)
 	}
 	u.CreatedAt, u.LastLoginAt, u.PasswordChangedAt = u.CreatedAt.UTC(), timeOrZero(last), timeOrZero(changed)
@@ -196,13 +198,14 @@ func (s *Store) SessionUser(ctx context.Context, idHash string) (User, string, e
 	}
 	var method string
 	row := s.queryRow(ctx, s.db, `SELECT u.id, u.org_id, u.email, u.name, u.role, u.created_at, u.last_login_at,
-		u.password_hash <> '', u.password_changed_at, u.totp_enabled_at IS NOT NULL, x.method
+		u.password_hash <> '', u.password_changed_at, u.totp_enabled_at IS NOT NULL,
+		(SELECT COUNT(*) FROM passkeys k WHERE k.user_id = u.id), x.method
 		FROM sessions x JOIN users u ON u.id = x.user_id
 		WHERE x.id = ? AND x.expires_at > ? AND COALESCE(x.last_seen_at, x.created_at) > ?`, idHash, now, idleCutoff)
 	var u User
 	var last, changed sql.NullTime
 	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed,
-		&u.TOTPEnabled, &method); err != nil {
+		&u.TOTPEnabled, &u.Passkeys, &method); err != nil {
 		return User{}, "", notFound(err)
 	}
 	u.CreatedAt, u.LastLoginAt, u.PasswordChangedAt = u.CreatedAt.UTC(), timeOrZero(last), timeOrZero(changed)

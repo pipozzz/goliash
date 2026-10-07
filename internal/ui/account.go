@@ -24,6 +24,8 @@ type AccountView struct {
 	MinLength        int
 	Sessions         []SessionView
 	TOTP             store.TOTP
+	PasskeysEnabled  bool
+	Passkeys         []PasskeyView
 }
 
 // SessionView is one signed-in browser.
@@ -78,6 +80,17 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 		return err
 	}
 	v.TOTP.Secret = "" // never rendered
+	v.PasskeysEnabled = s.auth.PasskeysEnabled()
+	keys, err := s.store.ListPasskeys(r.Context(), p.User.ID)
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		v.Passkeys = append(v.Passkeys, PasskeyView{ID: k.ID, Name: k.Name, CreatedAt: k.CreatedAt, LastUsed: k.LastUsedAt})
+	}
+	if r.URL.Query().Get("passkey") == "added" && v.Notice == "" {
+		v.Notice = "Passkey added. Next time, sign in with it: no password or code needed."
+	}
 	for _, x := range all {
 		v.Sessions = append(v.Sessions, SessionView{
 			ID: x.ID, Device: device(x.UserAgent), IP: x.IP, Method: methodLabel(x.Method),
@@ -186,7 +199,7 @@ func (s *Server) removePassword(w http.ResponseWriter, r *http.Request, p auth.P
 
 func methodLabel(m string) string {
 	if first, second, ok := strings.Cut(m, "+"); ok {
-		return methodLabel(first) + " + " + map[string]string{"totp": "app code", "recovery code": "recovery code"}[second]
+		return methodLabel(first) + " + " + map[string]string{"totp": "app code", "recovery code": "recovery code", "passkey": "passkey"}[second]
 	}
 	switch m {
 	case "recovery":
@@ -197,6 +210,8 @@ func methodLabel(m string) string {
 		return "sign-in link"
 	case "oidc":
 		return "single sign-on"
+	case "passkey":
+		return "passkey"
 	}
 	return ""
 }

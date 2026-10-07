@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
+
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
 )
@@ -91,8 +93,9 @@ type Auth struct {
 	passwords  bool
 	sessionTTL time.Duration
 	trustProxy bool
-	byClient   *limiter // failed password sign-ins per client address
-	byEmail    *limiter // failed password sign-ins per e-mail
+	byClient   *limiter           // failed password sign-ins per client address
+	byEmail    *limiter           // failed password sign-ins per e-mail
+	webauthn   *webauthn.WebAuthn // nil when the public URL cannot carry passkeys
 }
 
 // New returns an Auth. publicURL is where people reach the server (for links and
@@ -105,6 +108,7 @@ func New(st *store.Store, log *slog.Logger, publicURL string, mail MailFunc) (*A
 	return &Auth{
 		store: st, log: log, publicURL: u, mail: mail, passwords: true, sessionTTL: sessionTTL,
 		byClient: newLimiter(st, "client", 30, 15*time.Minute), byEmail: newLimiter(st, "email", 8, 15*time.Minute),
+		webauthn: newWebAuthn(u.Scheme+"://"+u.Host, u.Hostname(), u.Scheme),
 	}, nil
 }
 
@@ -291,6 +295,10 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 func (a *Auth) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/password", a.passwordLogin)
 	mux.HandleFunc("POST /auth/2fa", a.verifySecondFactor)
+	mux.HandleFunc("POST /auth/passkey/options", a.passkeyOptions)
+	mux.HandleFunc("POST /auth/passkey", a.passkeyLogin)
+	mux.HandleFunc("POST /auth/2fa/passkey/options", a.secondPasskeyOptions)
+	mux.HandleFunc("POST /auth/2fa/passkey", a.secondPasskey)
 	mux.HandleFunc("POST /auth/setup", a.setup)
 	mux.HandleFunc("POST /auth/magic", a.requestLink)
 	mux.HandleFunc("GET /auth/magic", a.useLink)
