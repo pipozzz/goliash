@@ -215,6 +215,9 @@ templ Login(v LoginView) {
 								<input type="password" name="password" required autocomplete="current-password"/>
 							</label>
 							<button type="submit">Sign in</button>
+							if v.Mail {
+								<a class="forgot" href="#link-email">Forgot your password?</a>
+							}
 						</form>
 					}
 					if v.Mail {
@@ -233,6 +236,9 @@ templ Login(v LoginView) {
 								<input id="link-email" type="email" name="email" required autocomplete="email" autofocus?={ v.OIDC == "" && !v.Password }/>
 							</label>
 							<button type="submit" class={ templ.KV("secondary", v.Password) }>E-mail me a sign-in link</button>
+							if v.Password {
+								<p class="hint">After signing in with it, set a new password under your account within 15 minutes, without the old one.</p>
+							}
 						</form>
 					}
 					if !v.Mail && !v.NoAccounts {
@@ -240,8 +246,9 @@ templ Login(v LoginView) {
 							if v.Password {
 								No password yet, or forgot it?
 							}
-							Ask an administrator for a sign-in link. On the server, run
-							<code>goliash login-link -email you@example.com</code>.
+							Ask an administrator for a sign-in link: they create one under Settings → People. With it you
+							set a new password under your account. On the server, <code>goliash login-link -email you@example.com</code>
+							prints one too.
 						</p>
 					}
 				</div>
