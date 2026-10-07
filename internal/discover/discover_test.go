@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,7 +21,7 @@ func opts(env map[string]string) Options {
 		ReadFile: func(p string) ([]byte, error) { return nil, errors.New("no " + p) },
 		Exists:   func(string) bool { return false },
 		Hostname: func() (string, error) { return "box", nil },
-		Lambda:   func(context.Context, string) (string, error) { return "", errors.New("AccessDeniedException") },
+		AWS:      &fakeAWS{},
 	}
 }
 
@@ -95,25 +96,73 @@ func TestNomadDeclaredAndOverrides(t *testing.T) {
 	}
 }
 
-func TestLambda(t *testing.T) {
-	o := opts(map[string]string{"AWS_REGION": "eu-central-1"})
-	o.Lambda = func(_ context.Context, region string) (string, error) {
-		if region != "eu-central-1" {
-			return "", errors.New("wrong region")
-		}
-		return "123456789012", nil
+// fakeAWS answers for account 123456789012; regions without clusters or Lambda are
+// denied.
+type fakeAWS struct {
+	clusters map[string][]string
+	lambda   map[string]bool
+	asked    []string
+}
+
+func (f *fakeAWS) Account(context.Context, string) (string, error) { return "123456789012", nil }
+
+func (f *fakeAWS) ECSClusters(_ context.Context, region string) ([]string, error) {
+	f.asked = append(f.asked, "ecs "+region)
+	cs, ok := f.clusters[region]
+	if !ok {
+		return nil, errors.New("AccessDeniedException")
 	}
+	return cs, nil
+}
+
+func (f *fakeAWS) CanListFunctions(_ context.Context, region string) error {
+	f.asked = append(f.asked, "lambda "+region)
+	if !f.lambda[region] {
+		return errors.New("AccessDeniedException")
+	}
+	return nil
+}
+
+func names(ts []agentproto.DeclaredTarget) string {
+	var out []string
+	for _, t := range ts {
+		out = append(out, string(t.Platform)+" "+t.Name)
+	}
+	return strings.Join(out, ", ")
+}
+
+func TestAWS(t *testing.T) {
+	arn := func(region, name string) string { return "arn:aws:ecs:" + region + ":123456789012:cluster/" + name }
+	f := &fakeAWS{
+		clusters: map[string][]string{
+			"eu-west-1":    {arn("eu-west-1", "prod"), arn("eu-west-1", "staging"), arn("eu-west-1", "tools")},
+			"eu-central-1": {arn("eu-central-1", "prod")},
+		},
+		lambda: map[string]bool{"eu-west-1": true},
+	}
+	o := opts(map[string]string{"AWS_REGION": "eu-west-1", "GOLIASH_AWS_REGIONS": "eu-central-1, us-east-1"})
+	o.AWS = f
 	r, err := Run(context.Background(), o)
-	if err != nil || len(r.Targets) != 1 || r.Targets[0].Platform != agentproto.Lambda || r.Targets[0].Lambda.Region != "eu-central-1" ||
-		r.Targets[0].Name != "lambda-eu-central-1" || r.Identity != "lambda:123456789012/eu-central-1" {
-		t.Fatalf("lambda: %+v %v", r, err)
+	if err != nil || r.Identity != "aws:123456789012/eu-west-1" || r.Name != "aws-eu-west-1" {
+		t.Fatalf("aws: %+v %v", r, err)
 	}
-	// Without the permission it is only a note; off skips the check.
-	r, _ = Run(context.Background(), opts(map[string]string{"AWS_REGION": "eu-central-1"}))
-	if len(r.Targets) != 0 || len(r.Notes) != 1 {
-		t.Fatalf("denied: %+v", r)
+	// Every cluster its own target; another region's clusters carry the region.
+	if got := names(r.Targets); got != "ecs prod, ecs staging, ecs tools, lambda lambda-eu-west-1, ecs prod-eu-central-1" {
+		t.Fatalf("targets: %s", got)
 	}
-	o = opts(map[string]string{"AWS_REGION": "eu-central-1", "GOLIASH_LAMBDA": "off"})
-	o.Lambda = func(context.Context, string) (string, error) { t.Fatal("checked although off"); return "", nil }
-	_, _ = Run(context.Background(), o)
+	if c := r.Targets[4].Ecs; c.Region != "eu-central-1" || c.Clusters[0] != "prod" {
+		t.Fatalf("other region: %+v", c)
+	}
+	if len(r.Notes) != 3 { // no Lambda in eu-central-1, nothing in us-east-1
+		t.Fatalf("notes: %v", r.Notes)
+	}
+
+	// Only some clusters, and Lambda off.
+	o = opts(map[string]string{"AWS_REGION": "eu-west-1", "GOLIASH_ECS_CLUSTERS": "prod,staging", "GOLIASH_LAMBDA": "off"})
+	f.asked = nil
+	o.AWS = f
+	r, _ = Run(context.Background(), o)
+	if got := names(r.Targets); got != "ecs prod, ecs staging" || slices.Contains(f.asked, "lambda eu-west-1") {
+		t.Fatalf("filtered: %s %v", got, f.asked)
+	}
 }

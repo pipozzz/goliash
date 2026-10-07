@@ -57,10 +57,14 @@ goliash enroll create -env prod -many        # one code for a fleet, e.g. every 
 | The agent runs | It adds | Named after | Needs |
 | --- | --- | --- | --- |
 | In Kubernetes | the cluster | `name` in the Helm values, else `kubernetes` | nothing |
-| On ECS | its cluster in its region | the cluster | nothing |
+| On ECS, or with AWS credentials and `AWS_REGION` | every ECS cluster of its region, each a target of its own | its cluster, else `aws-<region>` | `ecs:ListClusters` (else only its own cluster) |
 | In Nomad | the region, through the Nomad agent of its node | `nomad-<region>` | `NOMAD_ADDR` (set by the job file) |
 | With a Docker socket | the host, or the swarm on a manager | the host name | `INFO=1` on the socket proxy |
-| With AWS credentials (ECS, `AWS_REGION`) | the region's Lambda functions | `lambda-<region>` | `lambda:ListFunctions`, `lambda:GetFunction` |
+| The same | the region's Lambda functions, as `lambda-<region>` | | `lambda:ListFunctions`, `lambda:GetFunction` |
+
+In AWS, `GOLIASH_AWS_REGIONS` adds the clusters and functions of more regions (their targets end in the region)
+and `GOLIASH_ECS_CLUSTERS` keeps only the named clusters. Each cluster lands in the code's environment; move the
+staging one to staging on its target page once, and it stays there.
 
 `GOLIASH_AGENT_NAME` sets the name, and `GOLIASH_TARGETS` declares more targets as a JSON array, e.g. Compose
 files: `[{"platform":"compose","name":"shop","compose":{"files":["/srv/shop/compose.yml"]}}]`. Targets the agent

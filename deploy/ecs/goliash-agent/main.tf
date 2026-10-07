@@ -106,10 +106,14 @@ resource "aws_ecs_task_definition" "agent" {
     name      = "agent"
     image     = var.image
     essential = true
-    environment = [
+    environment = concat([
       { name = "GOLIASH_SERVER_URL", value = var.server_url },
       { name = "GOLIASH_DATA_DIR", value = "/tmp/goliash" },
-    ]
+      { name = "GOLIASH_LAMBDA", value = var.watch_lambda ? "on" : "off" },
+      ],
+      length(var.regions) > 0 ? [{ name = "GOLIASH_AWS_REGIONS", value = join(",", var.regions) }] : [],
+      length(var.clusters) > 0 ? [{ name = "GOLIASH_ECS_CLUSTERS", value = join(",", var.clusters) }] : [],
+    )
     secrets                = [{ name = "GOLIASH_AGENT_TOKEN", valueFrom = var.token_secret_arn }]
     readonlyRootFilesystem = false
     logConfiguration = {

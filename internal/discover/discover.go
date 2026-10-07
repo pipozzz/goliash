@@ -15,11 +15,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
@@ -49,10 +51,17 @@ type Options struct {
 	Exists   func(string) bool
 	HTTP     *http.Client
 	Hostname func() (string, error)
-	// Lambda checks whether the agent may list the Lambda functions of a region and
-	// returns its AWS account (default: sts:GetCallerIdentity and one
-	// lambda:ListFunctions call).
-	Lambda func(ctx context.Context, region string) (account string, err error)
+	// AWS reads what the agent's AWS credentials reach (default: the AWS SDK with the
+	// default credential chain).
+	AWS AWS
+}
+
+// AWS is what discovery asks of AWS: who the credentials are (which needs no
+// permission), the ECS clusters of a region and whether Lambda functions may be listed.
+type AWS interface {
+	Account(ctx context.Context, region string) (string, error)
+	ECSClusters(ctx context.Context, region string) ([]string, error) // ARNs
+	CanListFunctions(ctx context.Context, region string) error
 }
 
 // Paths the agent looks at.
@@ -80,8 +89,8 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if o.Hostname == nil {
 		o.Hostname = os.Hostname
 	}
-	if o.Lambda == nil {
-		o.Lambda = canListFunctions
+	if o.AWS == nil {
+		o.AWS = sdkAWS{}
 	}
 	var r Result
 	found := func(identity, name string, t agentproto.DeclaredTarget) {
@@ -110,23 +119,23 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		}
 	}
 
-	// ECS: the task metadata endpoint names the cluster.
+	// AWS: on ECS the task metadata names the agent's cluster and region; elsewhere
+	// AWS_REGION does. The agent then adds what its credentials may read.
 	awsRegion := o.Env("AWS_REGION")
 	if awsRegion == "" {
 		awsRegion = o.Env("AWS_DEFAULT_REGION")
 	}
+	ownCluster := ""
 	if uri := o.Env("ECS_CONTAINER_METADATA_URI_V4"); uri != "" {
 		if arn, err := ecsCluster(ctx, o.HTTP, uri); err == nil {
-			region, cluster := arnParts(arn)
-			awsRegion = region
-			name := nameOr(cluster)
-			found("ecs:"+arn, name, agentproto.DeclaredTarget{
-				Platform: agentproto.Ecs, Name: name,
-				Ecs: &agentproto.ECSSettings{Region: region, Clusters: []string{cluster}},
-			})
+			ownCluster = arn
+			awsRegion, _ = arnParts(arn)
 		} else {
 			r.Notes = append(r.Notes, "ecs: "+err.Error())
 		}
+	}
+	if awsRegion != "" {
+		o.discoverAWS(ctx, &r, found, nameOr, awsRegion, ownCluster)
 	}
 
 	// Nomad: NOMAD_ADDR, as the job sets it. Inside Nomad the job is what stays the
@@ -176,19 +185,6 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			}
 		} else {
 			r.Notes = append(r.Notes, "docker: "+err.Error())
-		}
-	}
-
-	// Lambda: the functions of the agent's AWS region, when its role may list them.
-	// GOLIASH_LAMBDA=off skips the check.
-	if awsRegion != "" && o.Env("GOLIASH_LAMBDA") != "off" {
-		if account, err := o.Lambda(ctx, awsRegion); err == nil {
-			name := nameOr("lambda-" + awsRegion)
-			found("lambda:"+account+"/"+awsRegion, name, agentproto.DeclaredTarget{
-				Platform: agentproto.Lambda, Name: name, Lambda: &agentproto.LambdaSettings{Region: awsRegion},
-			})
-		} else {
-			r.Notes = append(r.Notes, "lambda: "+err.Error())
 		}
 	}
 
@@ -294,12 +290,86 @@ func arnParts(arn string) (region, cluster string) {
 	return region, cluster
 }
 
-// canListFunctions asks who the default AWS credentials are (which needs no
-// permission) and makes one lambda:ListFunctions call with them.
-func canListFunctions(ctx context.Context, region string) (string, error) {
+// discoverAWS adds, for the agent's region and those in GOLIASH_AWS_REGIONS, every
+// ECS cluster (or those in GOLIASH_ECS_CLUSTERS) as a target of its own, so each can
+// sit in its own environment, and the region's Lambda functions (GOLIASH_LAMBDA=off
+// leaves them out). Platforms the credentials may not read are left out with a note.
+func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, string, agentproto.DeclaredTarget),
+	nameOr func(string) string, home, ownCluster string,
+) {
+	account, err := o.AWS.Account(ctx, home)
+	if err != nil {
+		r.Notes = append(r.Notes, "aws: "+err.Error())
+		return
+	}
+	identity, agentName := "aws:"+account+"/"+home, nameOr("aws-"+home)
+	if ownCluster != "" {
+		_, cluster := arnParts(ownCluster)
+		identity, agentName = "ecs:"+ownCluster, nameOr(cluster)
+	}
+	regions := []string{home}
+	for _, rg := range strings.Split(o.Env("GOLIASH_AWS_REGIONS"), ",") {
+		if rg = strings.TrimSpace(rg); rg != "" && !slices.Contains(regions, rg) {
+			regions = append(regions, rg)
+		}
+	}
+	only := map[string]bool{}
+	for _, c := range strings.Split(o.Env("GOLIASH_ECS_CLUSTERS"), ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			only[c] = true
+		}
+	}
+	// Target names: the cluster in the agent's region, with the region elsewhere, so
+	// clusters of the same name in two regions stay apart.
+	named := func(name, region string) string {
+		if region == home {
+			return name
+		}
+		return name + "-" + region
+	}
+	for _, region := range regions {
+		arns, err := o.AWS.ECSClusters(ctx, region)
+		switch {
+		case err != nil && ownCluster != "" && region == home:
+			// Without ecs:ListClusters the agent still knows its own cluster.
+			arns = []string{ownCluster}
+		case err != nil:
+			r.Notes = append(r.Notes, "ecs "+region+": "+err.Error())
+		}
+		for _, arn := range arns {
+			_, cluster := arnParts(arn)
+			if len(only) > 0 && !only[cluster] {
+				continue
+			}
+			found(identity, agentName, agentproto.DeclaredTarget{
+				Platform: agentproto.Ecs, Name: named(cluster, region),
+				Ecs: &agentproto.ECSSettings{Region: region, Clusters: []string{cluster}},
+			})
+		}
+		if o.Env("GOLIASH_LAMBDA") == "off" {
+			continue
+		}
+		if err := o.AWS.CanListFunctions(ctx, region); err == nil {
+			found(identity, agentName, agentproto.DeclaredTarget{
+				Platform: agentproto.Lambda, Name: "lambda-" + region, Lambda: &agentproto.LambdaSettings{Region: region},
+			})
+		} else {
+			r.Notes = append(r.Notes, "lambda "+region+": "+err.Error())
+		}
+	}
+}
+
+// sdkAWS is AWS through the SDK and the default credential chain.
+type sdkAWS struct{}
+
+func awsConfig(ctx context.Context, region string) (aws.Config, error) {
+	return awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+}
+
+func (sdkAWS) Account(ctx context.Context, region string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	cfg, err := awsConfig(ctx, region)
 	if err != nil {
 		return "", err
 	}
@@ -307,9 +377,36 @@ func canListFunctions(ctx context.Context, region string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	one := int32(1)
-	if _, err = lambda.NewFromConfig(cfg).ListFunctions(ctx, &lambda.ListFunctionsInput{MaxItems: &one}); err != nil {
-		return "", err
-	}
 	return aws.ToString(who.Account), nil
+}
+
+func (sdkAWS) ECSClusters(ctx context.Context, region string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	cfg, err := awsConfig(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	var arns []string
+	p := ecs.NewListClustersPaginator(ecs.NewFromConfig(cfg), &ecs.ListClustersInput{})
+	for p.HasMorePages() {
+		page, err := p.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		arns = append(arns, page.ClusterArns...)
+	}
+	return arns, nil
+}
+
+func (sdkAWS) CanListFunctions(ctx context.Context, region string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cfg, err := awsConfig(ctx, region)
+	if err != nil {
+		return err
+	}
+	one := int32(1)
+	_, err = lambda.NewFromConfig(cfg).ListFunctions(ctx, &lambda.ListFunctionsInput{MaxItems: &one})
+	return err
 }
