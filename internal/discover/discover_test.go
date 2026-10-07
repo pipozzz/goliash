@@ -140,7 +140,10 @@ func TestAWS(t *testing.T) {
 		},
 		lambda: map[string]bool{"eu-west-1": true},
 	}
-	o := opts(map[string]string{"AWS_REGION": "eu-west-1", "GOLIASH_AWS_REGIONS": "eu-central-1, us-east-1"})
+	o := opts(map[string]string{
+		"AWS_REGION": "eu-west-1", "GOLIASH_AWS_REGIONS": "eu-central-1, us-east-1",
+		"GOLIASH_LAMBDA_ALIASES": "live=prod, canary=-, broken",
+	})
 	o.AWS = f
 	r, err := Run(context.Background(), o)
 	if err != nil || r.Identity != "aws:123456789012/eu-west-1" || r.Name != "aws-eu-west-1" {
@@ -149,6 +152,9 @@ func TestAWS(t *testing.T) {
 	// Every cluster its own target; another region's clusters carry the region.
 	if got := names(r.Targets); got != "ecs prod, ecs staging, ecs tools, lambda lambda-eu-west-1, ecs prod-eu-central-1" {
 		t.Fatalf("targets: %s", got)
+	}
+	if l := r.Targets[3].Lambda; len(l.AliasEnvironments) != 2 || l.AliasEnvironments["live"] != "prod" || l.AliasEnvironments["canary"] != "-" {
+		t.Fatalf("aliases: %+v", l)
 	}
 	if c := r.Targets[4].Ecs; c.Region != "eu-central-1" || c.Clusters[0] != "prod" {
 		t.Fatalf("other region: %+v", c)

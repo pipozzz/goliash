@@ -256,8 +256,8 @@ func TestConnectLambda(t *testing.T) {
 	if _, cmd := installCommand("ecs", "https://g", "t", nil, "1.14.0"); strings.Contains(cmd, "watch_lambda") {
 		t.Fatalf("ecs command watches lambda: %s", cmd)
 	}
-	settings, problem := connectSettings("lambda", url.Values{"region": {"eu-west-1"}, "prefixes": {"shop-, billing-"}})
-	if problem != "" || !strings.Contains(string(settings), `"lambda":{"name_prefixes":["shop-","billing-"],"region":"eu-west-1"}`) {
+	settings, problem := connectSettings("lambda", url.Values{"region": {"eu-west-1"}, "prefixes": {"shop-, billing-"}, "aliases": {"live=prod, canary=-"}})
+	if problem != "" || !strings.Contains(string(settings), `"lambda":{"alias_environments":{"canary":"-","live":"prod"},"name_prefixes":["shop-","billing-"],"region":"eu-west-1"}`) {
 		t.Fatalf("settings: %s %s", settings, problem)
 	}
 	if _, problem := connectSettings("lambda", url.Values{}); problem == "" {

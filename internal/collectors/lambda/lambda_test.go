@@ -34,9 +34,13 @@ func TestRuntimeImage(t *testing.T) {
 }
 
 type fakeAPI struct {
-	pages [][]types.FunctionConfiguration
-	code  map[string]*types.FunctionCodeLocation
-	tags  map[string]map[string]string
+	pages       [][]types.FunctionConfiguration
+	code        map[string]*types.FunctionCodeLocation
+	tags        map[string]map[string]string
+	aliases     map[string][]types.AliasConfiguration
+	versions    map[string]map[string]*lambda.GetFunctionOutput // function -> version
+	denyAliases bool
+	gets        []string
 }
 
 func (f *fakeAPI) ListFunctions(_ context.Context, in *lambda.ListFunctionsInput, _ ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error) {
@@ -56,7 +60,18 @@ func (f *fakeAPI) GetFunction(_ context.Context, in *lambda.GetFunctionInput, _ 
 	if name == "shop-broken" {
 		return nil, errors.New("AccessDeniedException")
 	}
+	if q := aws.ToString(in.Qualifier); q != "" {
+		f.gets = append(f.gets, name+":"+q)
+		return f.versions[name][q], nil
+	}
 	return &lambda.GetFunctionOutput{Code: f.code[name], Tags: f.tags[name]}, nil
+}
+
+func (f *fakeAPI) ListAliases(_ context.Context, in *lambda.ListAliasesInput, _ ...func(*lambda.Options)) (*lambda.ListAliasesOutput, error) {
+	if f.denyAliases {
+		return nil, errors.New("operation error Lambda: ListAliases, AccessDeniedException: not authorized")
+	}
+	return &lambda.ListAliasesOutput{Aliases: f.aliases[aws.ToString(in.FunctionName)]}, nil
 }
 
 func fn(name string, pkg types.PackageType, runtime types.Runtime) types.FunctionConfiguration {
@@ -93,5 +108,74 @@ func TestCollect(t *testing.T) {
 	}
 	if resize.Containers[0].Image != "public.ecr.aws/lambda/python:3.12" || resize.Containers[0].Name != "runtime" || resize.Containers[0].Running != 1 {
 		t.Fatalf("zip function: %+v", resize)
+	}
+}
+
+func alias(fn, name, version string) types.AliasConfiguration {
+	return types.AliasConfiguration{
+		Name: aws.String(name), FunctionVersion: aws.String(version),
+		AliasArn: aws.String("arn:aws:lambda:eu-west-1:1:function:" + fn + ":" + name),
+	}
+}
+
+func TestAliases(t *testing.T) {
+	image := func(tag string) *lambda.GetFunctionOutput {
+		return &lambda.GetFunctionOutput{
+			Configuration: &types.FunctionConfiguration{PackageType: types.PackageTypeImage},
+			Code:          &types.FunctionCodeLocation{ImageUri: aws.String("123.dkr.ecr.eu-west-1.amazonaws.com/api:" + tag)},
+		}
+	}
+	api := &fakeAPI{
+		pages: [][]types.FunctionConfiguration{{
+			fn("api", types.PackageTypeImage, ""), fn("resize", types.PackageTypeZip, types.RuntimePython312),
+		}},
+		code: map[string]*types.FunctionCodeLocation{"api": {ImageUri: aws.String("123.dkr.ecr.eu-west-1.amazonaws.com/api:1.5.0")}},
+		tags: map[string]map[string]string{"api": {"goliash.app": "shop"}},
+		aliases: map[string][]types.AliasConfiguration{
+			"api":    {alias("api", "dev", "$LATEST"), alias("api", "staging", "7"), alias("api", "live", "6"), alias("api", "canary", "7")},
+			"resize": {alias("resize", "prod", "3")},
+		},
+		versions: map[string]map[string]*lambda.GetFunctionOutput{
+			"api":    {"7": image("1.4.0"), "6": image("1.3.2")},
+			"resize": {"3": {Configuration: &types.FunctionConfiguration{PackageType: types.PackageTypeZip, Runtime: types.RuntimePython311}}},
+		},
+	}
+	c := NewWithAPI(api, "eu-west-1", nil)
+	c.aliasEnvs = map[string]string{"live": "prod", "canary": "-"}
+	res, err := c.Collect(context.Background())
+	if err != nil || !res.Complete || len(res.Errors) != 0 {
+		t.Fatalf("collect: %+v %v", res, err)
+	}
+	got := map[string]string{}
+	for _, w := range res.Workloads {
+		got[w.Name+"@"+w.Labels[aliasLabel]] = w.Labels["goliash.env"] + " " + w.Containers[0].Image
+		if w.Name == "api" && w.Labels["goliash.app"] != "shop" {
+			t.Errorf("tags lost: %+v", w.Labels)
+		}
+	}
+	want := map[string]string{
+		"api@dev":     "dev 123.dkr.ecr.eu-west-1.amazonaws.com/api:1.5.0",
+		"api@staging": "staging 123.dkr.ecr.eu-west-1.amazonaws.com/api:1.4.0",
+		"api@live":    "prod 123.dkr.ecr.eu-west-1.amazonaws.com/api:1.3.2",
+		"resize@prod": "prod public.ecr.aws/lambda/python:3.11",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("workloads: %v", got)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s: %q, want %q", k, got[k], v)
+		}
+	}
+	// Each version is read once, however many aliases point to it.
+	if len(api.gets) != 3 { // api:7, api:6, resize:3
+		t.Errorf("versions read: %v", api.gets)
+	}
+
+	// Without lambda:ListAliases: latest code, and a note.
+	api.denyAliases = true
+	res, err = NewWithAPI(api, "eu-west-1", nil).Collect(context.Background())
+	if err != nil || len(res.Workloads) != 2 || len(res.Errors) != 1 || res.Workloads[0].Labels[aliasLabel] != "" {
+		t.Fatalf("denied: %+v %v", res, err)
 	}
 }

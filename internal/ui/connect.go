@@ -189,6 +189,16 @@ func connectSettings(platform string, f url.Values) (json.RawMessage, string) {
 			return nil, "Enter the AWS region, e.g. eu-west-1."
 		}
 		t.Lambda = &agentproto.LambdaSettings{Region: region, NamePrefixes: fieldList(val("prefixes"))}
+		for _, pair := range fieldList(val("aliases")) {
+			alias, env, ok := strings.Cut(pair, "=")
+			if !ok || alias == "" || env == "" {
+				return nil, "Map aliases as alias=environment, e.g. live=prod, canary=-."
+			}
+			if t.Lambda.AliasEnvironments == nil {
+				t.Lambda.AliasEnvironments = map[string]string{}
+			}
+			t.Lambda.AliasEnvironments[alias] = env
+		}
 	case "compose":
 		files := fieldList(val("files"))
 		if len(files) == 0 {
