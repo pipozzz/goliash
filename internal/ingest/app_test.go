@@ -24,6 +24,8 @@ func TestWorkloadApp(t *testing.T) {
 		{nil, "", "", "", "", "", ""},
 		{nil, "", "default", "gitea", "nomad job", "nomad_job", "gitea"},
 		{map[string]string{"goliash.app": "forge"}, "", "default", "forge", "goliash.app", "nomad_job", "gitea"},
+		{nil, "", "velin-lawrio-ysp9bd", "velin-lawrio", "compose project", "compose_service", "db"},
+		{nil, "", "shop", "shop", "compose project", "swarm_service", "api"},
 	} {
 		app, from := workloadApp(c.labels, c.custom, c.ns, c.kind, c.name)
 		if app != c.wantApp || from != c.wantFrom {

@@ -25,7 +25,8 @@ var appLabels = []string{
 // workloadApp names the application of a workload and says where the name came
 // from: custom (a workspace's own label key, tried first), one of appLabels, or the
 // namespace when no label names it. A Nomad job is an application of its own, so
-// without a label its name stands in, not the (usually shared) namespace.
+// without a label its name stands in, not the (usually shared) namespace; a Compose
+// service's or Swarm service's namespace is its project or stack.
 func workloadApp(labels map[string]string, custom, namespace, kind, name string) (app, source string) {
 	if custom != "" {
 		if v := strings.TrimSpace(labels[custom]); v != "" {
@@ -42,6 +43,11 @@ func workloadApp(labels map[string]string, custom, namespace, kind, name string)
 	}
 	if kind == "nomad_job" && name != "" {
 		return withoutGeneratedSuffix(name), "nomad job"
+	}
+	// The Docker collector reports a Compose project (and Swarm a stack) as the
+	// namespace: there it names the application, not an environment.
+	if (kind == "compose_service" || kind == "swarm_service") && namespace != "" {
+		return withoutGeneratedSuffix(namespace), "compose project"
 	}
 	if namespace != "" {
 		return withoutGeneratedSuffix(namespace), "namespace"
