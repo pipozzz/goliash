@@ -347,3 +347,15 @@ func TestTry(t *testing.T) {
 		t.Fatal("did not stop")
 	}
 }
+
+func TestCommandLine(t *testing.T) {
+	if got := commandLine(nil, " try -public  -reset 1h "); strings.Join(got, "|") != "try|-public|-reset|1h" {
+		t.Errorf("from env: %q", got)
+	}
+	if got := commandLine([]string{"matrix"}, "try"); strings.Join(got, "|") != "matrix" {
+		t.Errorf("given args win: %q", got)
+	}
+	if got := commandLine(nil, ""); len(got) != 0 {
+		t.Errorf("nothing: %q", got)
+	}
+}
