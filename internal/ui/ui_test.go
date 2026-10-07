@@ -1595,3 +1595,17 @@ func TestDemoShowsConnect(t *testing.T) {
 		t.Fatal("no way to Connect from the agents page in the demo")
 	}
 }
+
+func TestPublicDemoAfterARestart(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer, _ := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	e.auth.SetDemoUser(viewer)
+	// A session cookie from before the demo restarted (unknown to this server).
+	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	code, body := get(t, c, e.srv.URL+"/updates", map[string]string{"Cookie": "goliash_session=from-before-the-restart"})
+	if code != http.StatusOK || !strings.Contains(body, "Live demo") {
+		t.Fatalf("stale cookie: %d", code)
+	}
+}
