@@ -586,7 +586,11 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .tile-ver .arrow { color: var(--faint); }
 .tile-ver .latest { color: var(--accent); }
 .tile-services .badges { margin-top: 6px; }
-.tile-panel footer { display: flex; gap: 18px; padding-top: 16px; font-size: 13.5px; }
+.tile-panel footer { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 18px; }
+.tile-panel footer .button { padding: 11px 16px; font-size: 14px; border-radius: 10px; }
+.tile-panel footer .tile-open { flex: 1; justify-content: center; }
+.tile-panel h2 a { color: inherit; }
+.tile-panel h2 a:hover { color: var(--accent); text-decoration: none; }
 /* Board: the logo enlarged. One navy rounded square; each cell an application. */
 .logo-board {
   display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: clamp(10px, 1.6vw, 20px);
