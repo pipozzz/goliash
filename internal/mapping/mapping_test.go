@@ -144,3 +144,15 @@ func TestAppWorkloadRule(t *testing.T) {
 		t.Errorf("portal's db mapped to lawrio's: %+v", d)
 	}
 }
+
+func TestLambdaRuntimeSuggestsTheFunction(t *testing.T) {
+	m, _ := New(nil)
+	d := m.Map(Workload{Name: "shop-resize"}, "runtime", versions.ParseImage("public.ecr.aws/lambda/python:3.12"))
+	if d.Suggested != "shop-resize" {
+		t.Fatalf("zip function: %+v", d)
+	}
+	d = m.Map(Workload{Name: "shop-api"}, "function", versions.ParseImage("123.dkr.ecr.eu-west-1.amazonaws.com/shop-api:1.4.2"))
+	if d.Suggested != "shop-api" {
+		t.Fatalf("image function: %+v", d)
+	}
+}

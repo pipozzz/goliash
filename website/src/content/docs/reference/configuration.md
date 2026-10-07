@@ -116,6 +116,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_ENROLL_CODE` | | | The enrollment code, if you prefer to keep it apart from tokens |
 | `GOLIASH_AGENT_NAME` | | found where it runs | Name of an enrolling agent and of the target it finds |
 | `GOLIASH_AGENT_ID` | | found where it runs | What tells this installation apart when it enrolls with a code for many agents |
+| `GOLIASH_LAMBDA` | | on | `off` stops an enrolling agent from adding its AWS region's Lambda functions |
 | `GOLIASH_TARGETS` | | | Targets an enrolling agent declares, as a JSON array of [agent protocol targets](/reference/agent-protocol/) without `id` |
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |

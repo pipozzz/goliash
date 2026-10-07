@@ -34,6 +34,7 @@ See [Security](/security/#verify-a-release) for how to verify them.
 | Docker Swarm | [Stack file](/install/swarm/) | [Stack file](/install/swarm/#agent) with docker-socket-proxy |
 | Nomad | [Job](/install/nomad/) | [Job](/install/nomad/#agent) with a list-jobs and read-job ACL token |
 | Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/install/ecs/) with a read-only task role |
+| AWS Lambda | any of the above | [the ECS module](/install/ecs/#lambda-functions) with `watch_lambda`, or any agent with AWS credentials |
 
 ## Enrollment codes
 
@@ -59,6 +60,7 @@ goliash enroll create -env prod -many        # one code for a fleet, e.g. every 
 | On ECS | its cluster in its region | the cluster | nothing |
 | In Nomad | the region, through the Nomad agent of its node | `nomad-<region>` | `NOMAD_ADDR` (set by the job file) |
 | With a Docker socket | the host, or the swarm on a manager | the host name | `INFO=1` on the socket proxy |
+| With AWS credentials (ECS, `AWS_REGION`) | the region's Lambda functions | `lambda-<region>` | `lambda:ListFunctions`, `lambda:GetFunction` |
 
 `GOLIASH_AGENT_NAME` sets the name, and `GOLIASH_TARGETS` declares more targets as a JSON array, e.g. Compose
 files: `[{"platform":"compose","name":"shop","compose":{"files":["/srv/shop/compose.yml"]}}]`. Targets the agent

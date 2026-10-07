@@ -23,6 +23,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/internal/collectors/ecs"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
+	"github.com/pipozzz/goliash/internal/collectors/lambda"
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
 	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/discover"
@@ -86,6 +87,7 @@ func main() {
 			Collectors: map[agentproto.Platform]collectors.Factory{
 				agentproto.Kubernetes: kubernetes.New,
 				agentproto.Ecs:        ecs.New,
+				agentproto.Lambda:     lambda.New,
 				agentproto.Nomad:      nomad.New,
 				agentproto.Swarm:      swarm.New,
 				agentproto.Docker:     docker.New,

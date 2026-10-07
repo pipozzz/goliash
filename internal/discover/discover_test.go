@@ -20,6 +20,7 @@ func opts(env map[string]string) Options {
 		ReadFile: func(p string) ([]byte, error) { return nil, errors.New("no " + p) },
 		Exists:   func(string) bool { return false },
 		Hostname: func() (string, error) { return "box", nil },
+		Lambda:   func(context.Context, string) (string, error) { return "", errors.New("AccessDeniedException") },
 	}
 }
 
@@ -92,4 +93,27 @@ func TestNomadDeclaredAndOverrides(t *testing.T) {
 	if err != nil || r.Identity != "lab-1" || r.Name != "box" {
 		t.Fatalf("override: %+v %v", r, err)
 	}
+}
+
+func TestLambda(t *testing.T) {
+	o := opts(map[string]string{"AWS_REGION": "eu-central-1"})
+	o.Lambda = func(_ context.Context, region string) (string, error) {
+		if region != "eu-central-1" {
+			return "", errors.New("wrong region")
+		}
+		return "123456789012", nil
+	}
+	r, err := Run(context.Background(), o)
+	if err != nil || len(r.Targets) != 1 || r.Targets[0].Platform != agentproto.Lambda || r.Targets[0].Lambda.Region != "eu-central-1" ||
+		r.Targets[0].Name != "lambda-eu-central-1" || r.Identity != "lambda:123456789012/eu-central-1" {
+		t.Fatalf("lambda: %+v %v", r, err)
+	}
+	// Without the permission it is only a note; off skips the check.
+	r, _ = Run(context.Background(), opts(map[string]string{"AWS_REGION": "eu-central-1"}))
+	if len(r.Targets) != 0 || len(r.Notes) != 1 {
+		t.Fatalf("denied: %+v", r)
+	}
+	o = opts(map[string]string{"AWS_REGION": "eu-central-1", "GOLIASH_LAMBDA": "off"})
+	o.Lambda = func(context.Context, string) (string, error) { t.Fatal("checked although off"); return "", nil }
+	_, _ = Run(context.Background(), o)
 }

@@ -253,7 +253,7 @@ components:
 
     Platform:
       type: string
-      enum: [kubernetes, ecs, nomad, swarm, docker, compose]
+      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda]
 
     RegisterRequest:
       type: object
@@ -338,6 +338,8 @@ components:
           $ref: '#/components/schemas/DockerSettings'
         compose:
           $ref: '#/components/schemas/ComposeSettings'
+        lambda:
+          $ref: '#/components/schemas/LambdaSettings'
 
     EnrollResponse:
       type: object
@@ -432,6 +434,8 @@ components:
           $ref: '#/components/schemas/DockerSettings'
         compose:
           $ref: '#/components/schemas/ComposeSettings'
+        lambda:
+          $ref: '#/components/schemas/LambdaSettings'
 
     KubernetesSettings:
       type: object
@@ -506,6 +510,24 @@ components:
           items:
             type: string
           example: [shop]
+
+    LambdaSettings:
+      type: object
+      required: [region]
+      description: |
+        AWS Lambda functions of a region, read with lambda:ListFunctions and lambda:GetFunction. A function built
+        from a container image reports that image; a .zip function reports its runtime as the matching AWS base
+        image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
+      properties:
+        region:
+          type: string
+          example: eu-west-1
+        name_prefixes:
+          type: array
+          description: Only functions whose name starts with one of these. Empty means every function.
+          items:
+            type: string
+          example: [shop-]
 
     ComposeSettings:
       type: object
@@ -600,7 +622,7 @@ components:
 
     WorkloadKind:
       type: string
-      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container]
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function]
 
     Workload:
       type: object

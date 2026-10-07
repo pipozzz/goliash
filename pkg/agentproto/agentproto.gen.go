@@ -47,6 +47,7 @@ const (
 	Docker     Platform = "docker"
 	Ecs        Platform = "ecs"
 	Kubernetes Platform = "kubernetes"
+	Lambda     Platform = "lambda"
 	Nomad      Platform = "nomad"
 	Swarm      Platform = "swarm"
 )
@@ -61,6 +62,8 @@ func (e Platform) Valid() bool {
 	case Ecs:
 		return true
 	case Kubernetes:
+		return true
+	case Lambda:
 		return true
 	case Nomad:
 		return true
@@ -97,6 +100,7 @@ const (
 	Deployment      WorkloadKind = "deployment"
 	DockerContainer WorkloadKind = "docker_container"
 	EcsService      WorkloadKind = "ecs_service"
+	LambdaFunction  WorkloadKind = "lambda_function"
 	NomadJob        WorkloadKind = "nomad_job"
 	Statefulset     WorkloadKind = "statefulset"
 	SwarmService    WorkloadKind = "swarm_service"
@@ -116,6 +120,8 @@ func (e WorkloadKind) Valid() bool {
 	case DockerContainer:
 		return true
 	case EcsService:
+		return true
+	case LambdaFunction:
 		return true
 	case NomadJob:
 		return true
@@ -204,14 +210,19 @@ type DeclaredTarget struct {
 
 	// Docker A standalone Docker host. Compose services are grouped by project and service; other containers are
 	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
-	Docker              *DockerSettings     `json:"docker,omitempty"`
-	Ecs                 *ECSSettings        `json:"ecs,omitempty"`
-	Kubernetes          *KubernetesSettings `json:"kubernetes,omitempty"`
-	Name                string              `json:"name"`
-	Nomad               *NomadSettings      `json:"nomad,omitempty"`
-	Platform            Platform            `json:"platform"`
-	PollIntervalSeconds *int                `json:"poll_interval_seconds,omitempty"`
-	Swarm               *SwarmSettings      `json:"swarm,omitempty"`
+	Docker     *DockerSettings     `json:"docker,omitempty"`
+	Ecs        *ECSSettings        `json:"ecs,omitempty"`
+	Kubernetes *KubernetesSettings `json:"kubernetes,omitempty"`
+
+	// Lambda AWS Lambda functions of a region, read with lambda:ListFunctions and lambda:GetFunction. A function built
+	// from a container image reports that image; a .zip function reports its runtime as the matching AWS base
+	// image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
+	Lambda              *LambdaSettings `json:"lambda,omitempty"`
+	Name                string          `json:"name"`
+	Nomad               *NomadSettings  `json:"nomad,omitempty"`
+	Platform            Platform        `json:"platform"`
+	PollIntervalSeconds *int            `json:"poll_interval_seconds,omitempty"`
+	Swarm               *SwarmSettings  `json:"swarm,omitempty"`
 }
 
 // DigestLookup defines model for DigestLookup.
@@ -312,6 +323,19 @@ type KubernetesSettings struct {
 
 	// KubeconfigContext Empty means in-cluster config.
 	KubeconfigContext *string `json:"kubeconfig_context,omitempty"`
+}
+
+// LambdaSettings AWS Lambda functions of a region, read with lambda:ListFunctions and lambda:GetFunction. A function built
+// from a container image reports that image; a .zip function reports its runtime as the matching AWS base
+// image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
+type LambdaSettings struct {
+	// NamePrefixes Only functions whose name starts with one of these. Empty means every function.
+	//
+	// Example: ["shop-"]
+	NamePrefixes []string `json:"name_prefixes,omitempty"`
+
+	// Region Example: eu-west-1
+	Region string `json:"region"`
 }
 
 // NomadSettings defines model for NomadSettings.
@@ -469,6 +493,11 @@ type Target struct {
 	// ID Example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D
 	ID         ULID                `json:"id"`
 	Kubernetes *KubernetesSettings `json:"kubernetes,omitempty"`
+
+	// Lambda AWS Lambda functions of a region, read with lambda:ListFunctions and lambda:GetFunction. A function built
+	// from a container image reports that image; a .zip function reports its runtime as the matching AWS base
+	// image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
+	Lambda *LambdaSettings `json:"lambda,omitempty"`
 
 	// Name Example: prod-eu-west-1
 	Name     string         `json:"name"`

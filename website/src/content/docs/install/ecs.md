@@ -1,6 +1,6 @@
 ---
-title: Amazon ECS
-description: 'Watch Amazon ECS clusters and private ECR repositories with the Goliash agent and a read-only IAM task role.'
+title: Amazon ECS and Lambda
+description: 'Watch Amazon ECS clusters, Lambda functions and private ECR repositories with the Goliash agent and a read-only IAM task role.'
 ---
 
 ## Agent
@@ -19,8 +19,20 @@ module "goliash_agent" {
 }
 ```
 
-The agent needs outbound HTTPS only. Create an `ecs` target for it with `{"ecs":{"region":"eu-west-1"}}`, and
-optionally `"clusters": [...]` to limit it to some clusters.
+The agent needs outbound HTTPS only. With an [enrollment code](/install/#enrollment-codes) in the secret it adds the
+cluster it runs in by itself. With an agent token, create an `ecs` target for it with
+`{"ecs":{"region":"eu-west-1"}}`, and optionally `"clusters": [...]` to limit it to some clusters.
+
+## Lambda functions
+
+Set `watch_lambda = true` and the task role may also call `lambda:ListFunctions` and `lambda:GetFunction`. An agent
+that enrolls with a code then adds the region's functions as a `lambda` target, named `lambda-<region>`; any agent
+with AWS credentials that may list functions does the same (`GOLIASH_LAMBDA=off` stops it). With a token, create the
+target with `{"lambda":{"region":"eu-west-1"}}`, optionally with `"name_prefixes": ["shop-"]`.
+
+Container functions show their image like any service. A .zip function shows its runtime as a version
+(`python 3.12`), with *new release* when AWS offers a newer runtime and *end of life* before AWS deprecates it. See
+[Collectors](/reference/collectors/#target-settings).
 
 ## What the ECS collector reports
 

@@ -126,7 +126,7 @@ func codeMany(p PlatformInfo) string {
 	switch p.Key {
 	case "kubernetes":
 		return "clusters"
-	case "nomad":
+	case "nomad", "lambda":
 		return "regions"
 	case "ecs":
 		return "ECS clusters"
@@ -228,6 +228,12 @@ templ connectManualForm(v ConnectFormView) {
 								<label>Clusters<input name="clusters" value={ formVal(v.Form, "clusters", "") } placeholder="every cluster in the region"/></label>
 							</div>
 							<p class="hint">The agent's task role needs only ecs:List*, ecs:Describe* and ecr:ListImages; the Terraform module sets that up.</p>
+						case "lambda":
+							<div class="row">
+								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
+								<label>Only functions starting with<input name="prefixes" value={ formVal(v.Form, "prefixes", "") } placeholder="every function"/><span class="hint">Comma-separated name prefixes, e.g. shop-.</span></label>
+							</div>
+							<p class="hint">Whoever collects it needs only lambda:ListFunctions and lambda:GetFunction.</p>
 						case "compose":
 							<label>
 								Compose files
