@@ -239,7 +239,7 @@ func (s *Server) page(role string, h handler) http.Handler {
 			// very request, without a redirect (link-preview crawlers keep no cookies).
 			ck, err := s.auth.SignInDemo(w, r)
 			if err == nil {
-				r.AddCookie(ck)
+				r = withCookie(r, ck)
 				p, ok, err = s.auth.Authenticate(r)
 			}
 			if err != nil {
@@ -2332,4 +2332,19 @@ func demoBrowsable(demo bool, r *http.Request) bool {
 	}
 	p := r.URL.Path
 	return p == "/connect" || (strings.HasPrefix(p, "/connect/") && !strings.HasPrefix(p, "/connect/code/") && !strings.HasPrefix(p, "/connect/status/"))
+}
+
+// withCookie is r with ck in place of any cookie of the same name: a visitor's
+// session from before the demo restarted must not shadow the new one.
+func withCookie(r *http.Request, ck *http.Cookie) *http.Request {
+	r = r.Clone(r.Context())
+	old := r.Cookies()
+	r.Header.Del("Cookie")
+	for _, c := range old {
+		if c.Name != ck.Name {
+			r.AddCookie(c)
+		}
+	}
+	r.AddCookie(ck)
+	return r
 }
