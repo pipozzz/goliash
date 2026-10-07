@@ -19,8 +19,10 @@ module "goliash_agent" {
 }
 ```
 
-The agent needs outbound HTTPS only. With an [enrollment code](/install/#enrollment-codes) in the secret it adds the
-cluster it runs in by itself. With an agent token, create an `ecs` target for it with
+The agent needs outbound HTTPS only. With an [enrollment code](/install/#enrollment-codes) in the secret it adds every
+ECS cluster of its region by itself, each as a target of its own, so the staging cluster can go to staging and the
+production one to production. `regions = ["us-east-1"]` adds the clusters of more regions and
+`clusters = ["prod", "staging"]` keeps only some. With an agent token, create an `ecs` target for it with
 `{"ecs":{"region":"eu-west-1"}}`, and optionally `"clusters": [...]` to limit it to some clusters.
 
 ## Lambda functions

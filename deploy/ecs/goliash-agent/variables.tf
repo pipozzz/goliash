@@ -65,3 +65,15 @@ variable "watch_lambda" {
   type        = bool
   default     = false
 }
+
+variable "regions" {
+  description = "More regions to watch besides the agent's own; with an enrollment code the agent adds their ECS clusters (and Lambda functions with watch_lambda)."
+  type        = list(string)
+  default     = []
+}
+
+variable "clusters" {
+  description = "Only these ECS clusters (names) when the agent enrolls with a code; empty means every cluster it may list."
+  type        = list(string)
+  default     = []
+}
