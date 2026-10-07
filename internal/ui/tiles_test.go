@@ -159,3 +159,29 @@ func TestTVCycle(t *testing.T) {
 		t.Error("cycling outside TV mode")
 	}
 }
+
+func TestBoardColumns(t *testing.T) {
+	for units, want := range map[int]int{4: 4, 6: 3, 7: 4, 9: 3, 10: 5, 12: 4, 16: 4, 18: 6, 20: 5} {
+		if got := boardColumns(units); got != want {
+			t.Errorf("%d units: %d columns, want %d", units, got, want)
+		}
+	}
+}
+
+func TestPackHoles(t *testing.T) {
+	cells := func(spans ...int) []BoardItem {
+		out := make([]BoardItem, len(spans))
+		for i, s := range spans {
+			out[i].Span = s
+		}
+		return out
+	}
+	// The demo board: two big applications among eight small ones on four columns
+	// leaves a 2×2 hole; one big among twelve small packs on four.
+	if h := packHoles(cells(2, 1, 1, 1, 1, 1, 1, 1, 1, 2), 4); h == 0 {
+		t.Error("two big cells on four columns pack without holes")
+	}
+	if h := packHoles(cells(2, 1, 1, 1, 1, 1, 1, 1, 1), 4); h != 0 {
+		t.Errorf("one big cell: %d holes", h)
+	}
+}

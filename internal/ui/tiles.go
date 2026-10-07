@@ -300,6 +300,14 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		units += it.Span * it.Span
 	}
 	v.Cols = boardColumns(units)
+	// Big cells stay only when they pack without holes in the middle of the board.
+	if units > len(v.Items) && packHoles(v.Items, v.Cols) > 0 {
+		for i := range v.Items {
+			v.Items[i].Span = 1
+		}
+		units = len(v.Items)
+		v.Cols = boardColumns(units)
+	}
 	if v.TV { // a wall screen is wide: more columns, fewer rows, bigger cells
 		v.Cols = min(max(int(math.Ceil(math.Sqrt(float64(units)*1.8))), 3), 8)
 	}
@@ -391,8 +399,75 @@ func tileGridSize(n int) int {
 
 // boardColumns keeps the board close to a square, like the logo: 3 columns for up to
 // nine units of area, 4 up to sixteen, and so on, never more than 6.
+// boardColumns picks 3 to 6 columns for a board of units cells: the fewest empty
+// places in the last row, then the squarest, then the wider board. Ten applications
+// are two full rows of five, not three rows of four with two holes.
 func boardColumns(units int) int {
-	return min(max(tileGridSize(units), 3), 6)
+	best, bestEmpty, bestSkew := 3, -1, 0
+	for c := 3; c <= 6; c++ {
+		rows := max((units+c-1)/c, 1)
+		empty, skew := rows*c-units, c-rows
+		if skew < 0 {
+			skew = -skew
+		}
+		// On a tie the wider board wins: pages are wider than tall.
+		if bestEmpty < 0 || empty < bestEmpty || (empty == bestEmpty && skew <= bestSkew) {
+			best, bestEmpty, bestSkew = c, empty, skew
+		}
+	}
+	return best
+}
+
+// packHoles places items on a board of cols columns the way the browser's dense grid
+// flow does, and counts the empty cells left before the last row.
+func packHoles(items []BoardItem, cols int) int {
+	var grid [][]bool
+	free := func(r, c, span int) bool {
+		if c+span > cols {
+			return false
+		}
+		for dr := 0; dr < span; dr++ {
+			for dc := 0; dc < span; dc++ {
+				if r+dr < len(grid) && grid[r+dr][c+dc] {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	for _, it := range items {
+		span := max(it.Span, 1)
+		for r := 0; ; r++ {
+			placed := false
+			for c := 0; c < cols; c++ {
+				if !free(r, c, span) {
+					continue
+				}
+				for len(grid) < r+span {
+					grid = append(grid, make([]bool, cols))
+				}
+				for dr := 0; dr < span; dr++ {
+					for dc := 0; dc < span; dc++ {
+						grid[r+dr][c+dc] = true
+					}
+				}
+				placed = true
+				break
+			}
+			if placed {
+				break
+			}
+		}
+	}
+	holes := 0
+	for r := 0; r+1 < len(grid); r++ {
+		for _, used := range grid[r] {
+			if !used {
+				holes++
+			}
+		}
+	}
+	return holes
 }
 
 func tileLabel(state string) string {
