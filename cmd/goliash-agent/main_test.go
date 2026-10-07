@@ -30,3 +30,16 @@ func TestAgentTokenShape(t *testing.T) {
 		}
 	}
 }
+
+func TestCredential(t *testing.T) {
+	code := "glsh_enroll_" + strings.Repeat("b", 36)
+	t.Setenv("GOLIASH_ENROLL_CODE", "")
+	t.Setenv("GOLIASH_AGENT_TOKEN", " "+code+"\n")
+	if c, tok, err := credential(); err != nil || c != code || tok != "" {
+		t.Fatalf("code in the token variable: %q %q %v", c, tok, err)
+	}
+	t.Setenv("GOLIASH_ENROLL_CODE", "glsh_agent_x")
+	if _, _, err := credential(); err == nil {
+		t.Fatal("a token in GOLIASH_ENROLL_CODE was accepted")
+	}
+}

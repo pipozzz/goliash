@@ -6,10 +6,13 @@
 #
 #   nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["list-jobs", "read-job"] }'
 #   nomad acl token create -name goliash-agent -policy goliash-read      # copy the secret ID
-#   nomad var put nomad/jobs/goliash-agent token=glsh_agent_… nomad_token=<secret ID>
+#   nomad var put nomad/jobs/goliash-agent token=glsh_enroll_… nomad_token=<secret ID>
 #   nomad job run goliash-agent.nomad.hcl
 #
-# In Goliash, create a nomad target with credentials_ref "nomad" and settings like
+# token is the code from Connect an agent: the agent registers itself and adds this
+# region as a target, read through the Nomad agent on its node (NOMAD_ADDR below).
+# With an agent token (glsh_agent_…) instead, create a nomad target in Goliash with
+# credentials_ref "nomad" and settings like
 #   {"nomad":{"address":"http://nomad.service.consul:4646"}}
 
 job "goliash-agent" {
@@ -28,6 +31,7 @@ job "goliash-agent" {
       env {
         GOLIASH_SERVER_URL = "https://goliash.example.com"
         GOLIASH_DATA_DIR   = "${NOMAD_ALLOC_DIR}/data"
+        NOMAD_ADDR         = "http://${attr.unique.network.ip-address}:4646"
       }
 
       template {

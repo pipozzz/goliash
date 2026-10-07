@@ -4,10 +4,11 @@
 # goliash-agent for a Docker Swarm. The agent reads the Docker API through
 # docker-socket-proxy, which allows only GET on services, tasks and nodes.
 #
-#   printf '%s' 'glsh_agent_…' | docker secret create goliash_agent_token -
+#   printf '%s' 'glsh_enroll_…' | docker secret create goliash_agent_token -   # the code from Connect an agent
 #   GOLIASH_SERVER_URL=https://goliash.example.com docker stack deploy -c goliash-agent.yml goliash-agent
 #
-# In Goliash, create a swarm target for this agent with
+# With an enrollment code the agent registers itself and adds the swarm as a target.
+# With an agent token (glsh_agent_…) in the secret instead, create the target in Goliash:
 #   {"swarm":{"docker_host":"tcp://socket-proxy:2375"}}
 #
 # When the server runs in the same swarm (goliash-server.yml), uncomment the goliash
@@ -19,6 +20,7 @@ services:
       SERVICES: 1
       TASKS: 1
       NODES: 1
+      INFO: 1          # the swarm ID, which tells this swarm apart when the agent enrolls
       POST: 0          # read-only
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -32,6 +34,7 @@ services:
     environment:
       GOLIASH_SERVER_URL: ${GOLIASH_SERVER_URL:?set GOLIASH_SERVER_URL}
       GOLIASH_AGENT_TOKEN_FILE: /run/secrets/goliash_agent_token
+      DOCKER_HOST: tcp://socket-proxy:2375
     secrets: [goliash_agent_token]
     volumes:
       - agent-data:/data

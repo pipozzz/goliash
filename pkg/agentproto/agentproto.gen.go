@@ -194,6 +194,26 @@ type Container struct {
 	Running int `json:"running"`
 }
 
+// DeclaredTarget A target as the agent names it; the server gives it an id.
+type DeclaredTarget struct {
+	// Compose Compose files read as declared, without a Docker engine: each service with an `image` is a workload
+	// running its declared replicas. Services built from source (`build` without `image`) are skipped.
+	Compose         *ComposeSettings `json:"compose,omitempty"`
+	CredentialsRef  *string          `json:"credentials_ref,omitempty"`
+	DebounceSeconds *int             `json:"debounce_seconds,omitempty"`
+
+	// Docker A standalone Docker host. Compose services are grouped by project and service; other containers are
+	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
+	Docker              *DockerSettings     `json:"docker,omitempty"`
+	Ecs                 *ECSSettings        `json:"ecs,omitempty"`
+	Kubernetes          *KubernetesSettings `json:"kubernetes,omitempty"`
+	Name                string              `json:"name"`
+	Nomad               *NomadSettings      `json:"nomad,omitempty"`
+	Platform            Platform            `json:"platform"`
+	PollIntervalSeconds *int                `json:"poll_interval_seconds,omitempty"`
+	Swarm               *SwarmSettings      `json:"swarm,omitempty"`
+}
+
 // DigestLookup defines model for DigestLookup.
 type DigestLookup struct {
 	Candidates []string `json:"candidates"`
@@ -229,6 +249,42 @@ type ECSSettings struct {
 
 	// Region Example: eu-west-1
 	Region string `json:"region"`
+}
+
+// EnrollRequest defines model for EnrollRequest.
+type EnrollRequest struct {
+	// Code Enrollment code, prefixed `glsh_enroll_`.
+	Code     string `json:"code"`
+	Hostname string `json:"hostname"`
+
+	// Identity Stable identity of the installation, e.g. `docker:<engine ID>` or `kubernetes:<CA hash>`. Codes for many
+	// agents need it to tell them apart; a code for one agent belongs to the first agent that uses it, and
+	// the identity may be empty.
+	//
+	//
+	// Example: docker:4FJ2:Q6RA:7ZLQ
+	Identity string `json:"identity"`
+
+	// Name Name for a new agent; the server adds a suffix when it is taken.
+	//
+	// Example: web-01
+	Name string `json:"name"`
+
+	// Targets Targets the agent found or declares.
+	Targets []DeclaredTarget `json:"targets"`
+
+	// Version Example: 1.14.0
+	Version string `json:"version"`
+}
+
+// EnrollResponse defines model for EnrollResponse.
+type EnrollResponse struct {
+	// AgentID Example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D
+	AgentID ULID   `json:"agent_id"`
+	Name    string `json:"name"`
+
+	// Token The agent token, prefixed `glsh_agent_`.
+	Token string `json:"token"`
 }
 
 // Heartbeat defines model for Heartbeat.
@@ -466,6 +522,9 @@ type GetConfigParams struct {
 	IfNoneMatch *string `json:"If-None-Match,omitempty"`
 }
 
+// EnrollAgentJSONRequestBody defines body for EnrollAgent for application/json ContentType.
+type EnrollAgentJSONRequestBody = EnrollRequest
+
 // PostHeartbeatJSONRequestBody defines body for PostHeartbeat for application/json ContentType.
 type PostHeartbeatJSONRequestBody = Heartbeat
 
@@ -560,6 +619,34 @@ type ClientInterface interface {
 	// Corresponds with GET /agent/v1/config (the `GetConfig` operationId).
 	GetConfig(ctx context.Context, params *GetConfigParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// EnrollAgentWithBody Exchange an enrollment code for an agent token
+	//
+	// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+	// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+	// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+	// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+	// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+	// found or declares are created in the code's environment, or updated when the agent reported them before.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+	EnrollAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnrollAgent Exchange an enrollment code for an agent token
+	//
+	// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+	// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+	// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+	// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+	// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+	// found or declares are created in the code's environment, or updated when the agent reported them before.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+	EnrollAgent(ctx context.Context, body EnrollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostHeartbeatWithBody Report that the agent is alive and how its collectors are doing
 	//
 	// Sent every minute. If no heartbeat arrives for 10 minutes, the server marks the agent's targets as stale.
@@ -643,6 +730,54 @@ type ClientInterface interface {
 // Corresponds with GET /agent/v1/config (the `GetConfig` operationId).
 func (c *Client) GetConfig(ctx context.Context, params *GetConfigParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetConfigRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnrollAgentWithBody Exchange an enrollment code for an agent token
+//
+// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+// found or declares are created in the code's environment, or updated when the agent reported them before.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+func (c *Client) EnrollAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnrollAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnrollAgent Exchange an enrollment code for an agent token
+//
+// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+// found or declares are created in the code's environment, or updated when the agent reported them before.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+func (c *Client) EnrollAgent(ctx context.Context, body EnrollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnrollAgentRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -845,6 +980,46 @@ func NewGetConfigRequest(server string, params *GetConfigParams) (*http.Request,
 		}
 
 	}
+
+	return req, nil
+}
+
+// NewEnrollAgentRequest calls the generic EnrollAgent builder with application/json body
+func NewEnrollAgentRequest(server string, body EnrollAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEnrollAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewEnrollAgentRequestWithBody constructs an http.Request for the EnrollAgent method, with any body, and a specified content type
+func NewEnrollAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/agent/v1/enroll")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -1063,6 +1238,34 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /agent/v1/config (the `GetConfig` operationId).
 	GetConfigWithResponse(ctx context.Context, params *GetConfigParams, reqEditors ...RequestEditorFn) (*GetConfigResponse, error)
 
+	// EnrollAgentWithBodyWithResponse Exchange an enrollment code for an agent token
+	//
+	// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+	// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+	// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+	// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+	// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+	// found or declares are created in the code's environment, or updated when the agent reported them before.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+	EnrollAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnrollAgentResponse, error)
+
+	// EnrollAgentWithResponse Exchange an enrollment code for an agent token
+	//
+	// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+	// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+	// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+	// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+	// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+	// found or declares are created in the code's environment, or updated when the agent reported them before.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+	EnrollAgentWithResponse(ctx context.Context, body EnrollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*EnrollAgentResponse, error)
+
 	// PostHeartbeatWithBodyWithResponse Report that the agent is alive and how its collectors are doing
 	//
 	// Sent every minute. If no heartbeat arrives for 10 minutes, the server marks the agent's targets as stale.
@@ -1201,6 +1404,75 @@ func (r GetConfigResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetConfigResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// EnrollAgentResponse429Headers the declared response headers of an HTTP 429 response for EnrollAgent
+type EnrollAgentResponse429Headers struct {
+	RetryAfter *int
+}
+
+type EnrollAgentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EnrollResponse
+	// ApplicationProblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationProblemJSON400 *BadRequest
+	// ApplicationProblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationProblemJSON401 *Problem
+	// ApplicationProblemJSON429 the response for an HTTP 429 `application/problem+json` response
+	ApplicationProblemJSON429 *TooManyRequests
+	// Headers429 the parsed response headers for an HTTP 429 response
+	Headers429 *EnrollAgentResponse429Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r EnrollAgentResponse) GetJSON200() *EnrollResponse {
+	return r.JSON200
+}
+
+// GetApplicationProblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r EnrollAgentResponse) GetApplicationProblemJSON400() *BadRequest {
+	return r.ApplicationProblemJSON400
+}
+
+// GetApplicationProblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r EnrollAgentResponse) GetApplicationProblemJSON401() *Problem {
+	return r.ApplicationProblemJSON401
+}
+
+// GetApplicationProblemJSON429 returns the response for an HTTP 429 `application/problem+json` response
+func (r EnrollAgentResponse) GetApplicationProblemJSON429() *TooManyRequests {
+	return r.ApplicationProblemJSON429
+}
+
+// GetBody returns the raw response body bytes
+func (r EnrollAgentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r EnrollAgentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EnrollAgentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r EnrollAgentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -1513,6 +1785,46 @@ func (c *ClientWithResponses) GetConfigWithResponse(ctx context.Context, params 
 	return ParseGetConfigResponse(rsp)
 }
 
+// EnrollAgentWithBodyWithResponse Exchange an enrollment code for an agent token
+//
+// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+// found or declares are created in the code's environment, or updated when the agent reported them before.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+func (c *ClientWithResponses) EnrollAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnrollAgentResponse, error) {
+	rsp, err := c.EnrollAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnrollAgentResponse(rsp)
+}
+
+// EnrollAgentWithResponse Exchange an enrollment code for an agent token
+//
+// For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+// code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+// apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+// enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+// tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+// found or declares are created in the code's environment, or updated when the agent reported them before.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /agent/v1/enroll (the `EnrollAgent` operationId).
+func (c *ClientWithResponses) EnrollAgentWithResponse(ctx context.Context, body EnrollAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*EnrollAgentResponse, error) {
+	rsp, err := c.EnrollAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnrollAgentResponse(rsp)
+}
+
 // PostHeartbeatWithBodyWithResponse Report that the agent is alive and how its collectors are doing
 //
 // Sent every minute. If no heartbeat arrives for 10 minutes, the server marks the agent's targets as stale.
@@ -1688,6 +2000,66 @@ func ParseGetConfigResponse(rsp *http.Response) (*GetConfigResponse, error) {
 		response.Headers200 = &headers
 	case rsp.StatusCode == 429:
 		var headers GetConfigResponse429Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
+		response.Headers429 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseEnrollAgentResponse parses an HTTP response from a EnrollAgentWithResponse call
+func ParseEnrollAgentResponse(rsp *http.Response) (*EnrollAgentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EnrollAgentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EnrollResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationProblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationProblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationProblemJSON429 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 429:
+		var headers EnrollAgentResponse429Headers
 		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
 			var value int
 			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {

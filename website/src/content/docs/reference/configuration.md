@@ -111,8 +111,12 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | Variable | Flag | Default | Meaning |
 | --- | --- | --- | --- |
 | `GOLIASH_SERVER_URL` | `-server` | | Server URL |
-| `GOLIASH_AGENT_TOKEN` | | | The agent's token (`glsh_agent_…`) |
-| `GOLIASH_AGENT_TOKEN_FILE` | | | File with the token, instead of the variable |
+| `GOLIASH_AGENT_TOKEN` | | | The enrollment code (`glsh_enroll_…`) or the agent's token (`glsh_agent_…`) |
+| `GOLIASH_AGENT_TOKEN_FILE` | | | File with the code or token, instead of the variable |
+| `GOLIASH_ENROLL_CODE` | | | The enrollment code, if you prefer to keep it apart from tokens |
+| `GOLIASH_AGENT_NAME` | | found where it runs | Name of an enrolling agent and of the target it finds |
+| `GOLIASH_AGENT_ID` | | found where it runs | What tells this installation apart when it enrolls with a code for many agents |
+| `GOLIASH_TARGETS` | | | Targets an enrolling agent declares, as a JSON array of [agent protocol targets](/reference/agent-protocol/) without `id` |
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |
 | `GOLIASH_CREDENTIAL_<NAME>` | | | A credential; see [Collectors](/reference/collectors/#credentials) |
@@ -120,4 +124,5 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
 
-Everything else (targets, intervals, which registries to check) the agent reads from the server.
+Everything else (targets, intervals, which registries to check) the agent reads from the server. With an
+[enrollment code](/install/#enrollment-codes) the agent adds the targets it finds itself.

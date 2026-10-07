@@ -16,7 +16,7 @@ you can write your own agent or collector. The server validates every request ag
 - Credentials stay with the agent. The server only sends a `credentials_ref` name, which the agent resolves
   locally.
 
-Call order: `register` on start, then `config` every minute (with an ETag), a `snapshot` per target on its interval
+Call order: `enroll` on start when the agent has an enrollment code instead of a token, then `register`, then `config` every minute (with an ETag), a `snapshot` per target on its interval
 (Kubernetes also shortly after changes), a `heartbeat` every minute, and `registry-results` on the registry check
 interval. While the server is unreachable, the agent buffers up to 200 snapshots on disk.
 

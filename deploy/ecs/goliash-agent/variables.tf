@@ -18,7 +18,7 @@ variable "server_url" {
 }
 
 variable "token_secret_arn" {
-  description = "Secrets Manager secret holding the agent token (glsh_agent_…) as a plain string."
+  description = "Secrets Manager secret holding the enrollment code from Connect an agent (glsh_enroll_…), or an agent token (glsh_agent_…), as a plain string."
   type        = string
 }
 

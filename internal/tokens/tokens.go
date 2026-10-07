@@ -25,6 +25,8 @@ const (
 	Agent Kind = "agent"
 	CI    Kind = "ci"
 	API   Kind = "api"
+	// Enroll codes let agents register themselves; they are not tokens of any agent.
+	Enroll Kind = "enroll"
 )
 
 const (

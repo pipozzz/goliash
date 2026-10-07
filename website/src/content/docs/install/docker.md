@@ -46,11 +46,12 @@ docker compose exec goliash goliash target create -env prod -platform docker -na
 
 ```sh
 export GOLIASH_SERVER_URL=https://goliash.example.com
-export GOLIASH_AGENT_TOKEN=glsh_agent_…
+export GOLIASH_AGENT_TOKEN=glsh_enroll_…   # goliash enroll create -env prod
 docker compose -f deploy/docker/goliash-agent.yml up -d
 ```
 
-Create a `docker` target for the agent with `{"docker":{"docker_host":"tcp://socket-proxy:2375"}}`.
+With an [enrollment code](/install/#enrollment-codes) the agent adds the host as a `docker` target itself. With an
+agent token instead, create the target with `{"docker":{"docker_host":"tcp://socket-proxy:2375"}}`.
 
 To check private registries with the host's `docker login`, mount its Docker config into the agent (read-only) and
 point `DOCKER_CONFIG` at it:
