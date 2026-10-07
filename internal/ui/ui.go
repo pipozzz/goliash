@@ -226,6 +226,29 @@ func (s *Server) page(role string, h handler) http.Handler {
 			s.problem(w, r, http.StatusForbidden, "No workspace yet", "You have no access to any workspace yet. Ask an admin to invite you to one.", true)
 			return
 		}
+		if !ok && s.auth.Demo() {
+			// A visitor of the public demo: sign them in as its viewer and show the page.
+			if err := s.auth.SignInDemo(w, r); err != nil {
+				s.fail(w, r, err)
+				return
+			}
+			// Back to the page they asked for, on this server only ("//host" leads elsewhere).
+			target := "/"
+			if p := r.URL.EscapedPath(); r.Method == http.MethodGet && strings.HasPrefix(p, "/") &&
+				!strings.HasPrefix(p, "//") && !strings.HasPrefix(p, "/\\") {
+				target = p
+				if r.URL.RawQuery != "" {
+					target += "?" + r.URL.RawQuery
+				}
+			}
+			if r.Header.Get("HX-Request") == "true" {
+				w.Header().Set("HX-Redirect", target)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // target is a path on this server, checked above
+			return
+		}
 		if !ok || p.Via != "session" {
 			if r.Header.Get("HX-Request") == "true" {
 				w.Header().Set("HX-Redirect", "/login")
@@ -285,7 +308,7 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 	b := Base{
 		Title: title, Page: page, Email: p.User.Email, Role: p.Role,
 		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(),
-		Workspace: p.Workspace.Name,
+		Workspace: p.Workspace.Name, Demo: s.auth.Demo(),
 	}
 	for _, a := range p.Workspaces {
 		b.Workspaces = append(b.Workspaces, WorkspaceOption{ID: a.Workspace.ID, Name: a.Workspace.Name, Current: a.Workspace.ID == p.Scope.WorkspaceID})
@@ -338,7 +361,7 @@ func render(w http.ResponseWriter, r *http.Request, c templ.Component) error {
 // ---- sign-in ----
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	if _, ok, _ := s.auth.Authenticate(r); ok {
+	if _, ok, _ := s.auth.Authenticate(r); ok || s.auth.Demo() {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
@@ -2278,4 +2301,26 @@ func (s *Server) inboxMapAll(w http.ResponseWriter, r *http.Request, p auth.Prin
 		msg += " Skipped, names to check: " + strings.Join(skipped, ", ") + "."
 	}
 	return back(w, r, "/inbox", "notice", msg)
+}
+
+// DemoGuard keeps a public demo read-only: it refuses every change but switching
+// workspaces (and what agents send), so no visitor can set a password, a passkey or two-factor sign-in on
+// the shared account, sign the others out, or post anything.
+func DemoGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			if r.URL.Path != "/workspace" && !strings.HasPrefix(r.URL.Path, "/agent/") {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				if r.Header.Get("HX-Request") == "true" {
+					w.Header().Set("HX-Reswap", "none")
+				}
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte("This is a read-only demo. Run your own: docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try\n"))
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

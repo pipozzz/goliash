@@ -117,7 +117,9 @@ const usage = `Usage:
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash backup -out DIR                 SQLite: a consistent copy of the database (and goliash.key) while the server runs
   goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
-  goliash try [-listen :8080]             a throwaway server with example data and a link that signs you in
+  goliash try [-listen :8080] [-public] [-reset 1h]
+                                          a throwaway server with example data and a link that signs you in;
+                                          -public makes it a read-only demo for everyone, -reset restarts it fresh
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
@@ -400,6 +402,7 @@ func serve(ctx context.Context, args []string) error {
 	drain := fs.Duration("drain", envDuration("GOLIASH_DRAIN", 0),
 		"on shutdown, answer /readyz with 503 this long before closing, so load balancers stop sending (env GOLIASH_DRAIN)")
 	backupDir := fs.String("backup-dir", os.Getenv("GOLIASH_BACKUP_DIR"), "SQLite: write a backup here every day (env GOLIASH_BACKUP_DIR)")
+	demoUser := fs.String("demo-user", "", "a public read-only demo: sign every visitor in as this existing viewer and refuse all changes")
 	backupKeep := fs.Int("backup-keep", envInt("GOLIASH_BACKUP_KEEP", 7), "backups kept in -backup-dir (env GOLIASH_BACKUP_KEEP)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -486,6 +489,23 @@ func serve(ctx context.Context, args []string) error {
 		return err
 	}
 	agents.SetClientIP(authn.ClientIP)
+	guard := func(h http.Handler) http.Handler { return h }
+	if *demoUser != "" {
+		ws, err := db.EnsureDefaultWorkspace(ctx)
+		if err != nil {
+			return err
+		}
+		u, err := db.GetUserByEmail(ctx, ws.OrgID, *demoUser)
+		if err != nil {
+			return fmt.Errorf("-demo-user %s: %w", *demoUser, err)
+		}
+		if u.Role != store.RoleViewer {
+			return fmt.Errorf("-demo-user %s is %s; a public demo signs everyone in, so it must be a viewer", u.Email, u.Role)
+		}
+		authn.SetDemoUser(u)
+		guard = ui.DemoGuard
+		log.Warn("public demo: every visitor is signed in as a read-only viewer", "user", u.Email)
+	}
 	mux := http.NewServeMux()
 	agents.Register(mux)
 	authn.Routes(mux)
@@ -566,7 +586,7 @@ func serve(ctx context.Context, args []string) error {
 		Addr: *listen,
 		// Browsers may not send state-changing requests from other origins (CSRF);
 		// agents and API clients send no Origin and are unaffected.
-		Handler: ui.SecurityHeaders(ui.Compress(ui.LimitBodies(http.NewCrossOriginProtection().Handler(mux), 1<<20, "/agent/")),
+		Handler: ui.SecurityHeaders(ui.Compress(ui.LimitBodies(guard(http.NewCrossOriginProtection().Handler(mux)), 1<<20, "/agent/")),
 			strings.HasPrefix(*publicURL, "https://")),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,
@@ -1747,6 +1767,8 @@ func tryCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("try", flag.ContinueOnError)
 	listen := fs.String("listen", ":8080", "HTTP listen address")
 	publicURL := fs.String("public-url", "http://localhost:8080", "URL you open it at")
+	public := fs.Bool("public", false, "a public demo: every visitor is signed in as a read-only viewer")
+	reset := fs.Duration("reset", 0, "stop after this long (e.g. 1h), so a restart brings fresh data")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1777,6 +1799,16 @@ func tryCmd(ctx context.Context, args []string, out io.Writer) error {
 		_ = db.Close()
 		return err
 	}
+	if *public {
+		viewer, err := db.CreateUser(ctx, ws.OrgID, "demo@goliash.dev", "Demo visitor", store.RoleViewer)
+		if err == nil {
+			err = db.SetMembership(ctx, viewer.ID, ws.ID, store.RoleViewer)
+		}
+		if err != nil {
+			_ = db.Close()
+			return err
+		}
+	}
 	a, err := auth.New(db, quiet, *publicURL, nil)
 	if err != nil {
 		_ = db.Close()
@@ -1787,17 +1819,31 @@ func tryCmd(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	serveArgs := []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "warn"}
+	if *public {
+		serveArgs = append(serveArgs, "-demo-user", "demo@goliash.dev")
+	}
+	if *reset > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, *reset)
+		defer cancel()
+	}
 	go func() {
 		// After the server's own start-up lines, so the link is what one sees last.
 		select {
 		case <-ctx.Done():
 		case <-time.After(2 * time.Second):
+			if *public {
+				_, _ = fmt.Fprintf(out, "\n  Public demo at %s: visitors are signed in as a read-only viewer.\n"+
+					"  Operator sign-in as owner (works once, for 15 minutes): %s\n\n", *publicURL, link)
+				return
+			}
 			_, _ = fmt.Fprintf(out, "\n  Goliash is running with three weeks of example data.\n\n  Open %s\n\n"+
 				"  (signs you in; works once, for 15 minutes). Stop with Ctrl-C: nothing is kept.\n"+
 				"  To run it for real: https://goliash.dev/getting-started/\n\n", link)
 		}
 	}()
-	return serve(ctx, []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "warn"})
+	return serve(ctx, serveArgs)
 }
 
 func demoCmd(ctx context.Context, args []string, out io.Writer) error {

@@ -1,0 +1,26 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The public demo on Fly.io: fly launch --copy-config --no-deploy, then fly deploy.
+# The machine stops after an hour (-reset) and Fly starts it again with fresh data.
+app = "goliash-demo"
+primary_region = "fra"
+
+[build]
+  image = "ghcr.io/pipozzz/goliash:latest"
+
+[experimental]
+  cmd = ["try", "-public", "-reset", "1h", "-public-url", "https://demo.goliash.dev"]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+
+[[restart]]
+  policy = "always"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
