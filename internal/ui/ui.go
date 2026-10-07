@@ -145,6 +145,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /connect/{platform}", s.page(a, s.connectForm))
 	mux.Handle("POST /connect/{platform}", s.page(a, s.connectCreate))
 	mux.Handle("GET /connect/status/{id}", s.page(v, s.connectProgress))
+	mux.Handle("GET /connect/code/{id}", s.page(v, s.connectCodeProgress))
+	mux.Handle("POST /enroll-codes/{id}/revoke", s.page(a, s.revokeCode))
 	mux.Handle("POST /agents/{id}/rotate", s.page(a, s.rotateAgent))
 	mux.Handle("POST /agents/{id}/revoke", s.page(a, s.revokeAgent))
 	mux.Handle("POST /agents/{id}/rename", s.page(a, s.renameAgent))
@@ -393,7 +395,7 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 	}
 	data := g.Unmapped > 0 || len(g.Rows) > 0
 	steps := []Step{
-		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS or Compose files: one form creates the environment, the agent and the target, and gives you the command to start the agent.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
+		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS or Compose files: pick one and get a single command: the agent it starts registers itself and adds what it finds.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
 		{Title: "Get the first report", Text: "Start the agent with the command Connect shows. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
 		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, or map their images once in the inbox; new workloads follow.", Href: "/inbox", Action: "Open the inbox", Done: len(g.Rows) > 0},
 		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: len(chans) > 0, Optional: true},
@@ -1180,7 +1182,28 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 		}
 		v.Targets = append(v.Targets, tv)
 	}
+	codes, err := s.store.ListEnrollmentCodes(ctx, p.Scope)
+	if err != nil {
+		return v, err
+	}
+	now := time.Now()
+	for _, c := range codes {
+		v.Codes = append(v.Codes, CodeView{
+			ID: c.ID, Env: envName[c.EnvironmentID], Many: !c.Single, Agents: c.Agents, Expires: c.ExpiresAt,
+			Expired: c.Expired(now), LastUsed: c.LastUsedAt, By: c.CreatedBy,
+		})
+	}
 	return v, nil
+}
+
+// revokeCode stops an enrollment code from admitting any agent.
+func (s *Server) revokeCode(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	if err := s.store.RevokeEnrollmentCode(ctx, p.Scope, r.PathValue("id")); err != nil {
+		return back(w, r, "/agents", "error", "Unknown or already revoked code.")
+	}
+	s.audit(ctx, p, "enroll.revoke", "code", r.PathValue("id"))
+	return back(w, r, "/agents", "notice", "Code revoked: no agent can register with it. Agents that did keep working until they restart.")
 }
 
 func (s *Server) agents(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

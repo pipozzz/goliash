@@ -157,6 +157,7 @@ func (s *Server) editTarget(w http.ResponseWriter, r *http.Request, p auth.Princ
 	v := TargetEditView{
 		Base: withFlash(s.base(ctx, p, "agents", t.Name), r), ID: t.ID, Name: t.Name, Platform: t.Platform,
 		EnvID: t.EnvironmentID, Envs: all.Envs, Settings: pretty.String(), Poll: t.PollIntervalSeconds, AgentID: t.AgentID,
+		Managed: t.AgentKey != "",
 	}
 	for _, a := range all.Moves {
 		if a.ID == t.AgentID {
@@ -174,6 +175,9 @@ func (s *Server) updateTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 	}
 	self := "/targets/" + t.ID + "/edit"
 	settings := strings.TrimSpace(r.FormValue("settings"))
+	if t.AgentKey != "" {
+		settings = string(t.Settings) // the agent's, sent again whenever it starts
+	}
 	if settings == "" {
 		settings = "{}"
 	}

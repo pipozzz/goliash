@@ -3,7 +3,10 @@
 
 package ui
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 templ ConnectPage(v ConnectView) {
 	@Layout(v.Base) {
@@ -11,7 +14,7 @@ templ ConnectPage(v ConnectView) {
 			<div>
 				<p class="sub"><a href="/agents">Agents and targets</a> /</p>
 				<h1>Connect</h1>
-				<p class="sub">What do you want to watch? One form sets up the environment, the agent and the target.</p>
+				<p class="sub">What do you want to watch? You get one command; the agent it starts registers itself.</p>
 			</div>
 		</div>
 		<div class="platforms">
@@ -41,7 +44,101 @@ templ ConnectFormPage(v ConnectFormView) {
 				<p class="sub">{ v.Platform.Summary }</p>
 			</div>
 		</div>
+		if v.Platform.AgentFirst {
+			@connectCodeForm(v)
+			<details class="panel connect-manual" open?={ formVal(v.Form, "mode", "") == "manual" }>
+				<summary class="panel-head"><h2>Set up by hand</h2><span class="muted">an agent you have, this server, or settings of your own</span></summary>
+				<div class="panel-body">
+					@connectManualForm(v)
+				</div>
+			</details>
+		} else {
+			@connectManualForm(v)
+		}
+	}
+}
+
+templ connectCodeForm(v ConnectFormView) {
+	<form class="stack connect-form" method="post" action={ templ.URL("/connect/" + v.Platform.Key) }>
+		<input type="hidden" name="mode" value="code"/>
+		<section class="panel">
+			<div class="panel-body stack">
+				<p>
+					You get one command. The agent it starts finds the { v.Platform.Title } it runs in, registers itself and
+					adds it to the environment: nothing else to fill in.
+				</p>
+				<div class="row">
+					if len(v.Envs) > 0 {
+						<label>
+							Environment
+							<select name="env">
+								for _, e := range v.Envs {
+									<option value={ e.ID } selected?={ formVal(v.Form, "env", "") == e.ID }>{ e.Name }</option>
+								}
+							</select>
+						</label>
+					}
+					<label>
+						if len(v.Envs) > 0 {
+							Or a new environment
+						} else {
+							Environment
+						}
+						<input name="new_env" maxlength="60" value={ formVal(v.Form, "new_env", codeEnvDefault(v)) } placeholder="production" required?={ len(v.Envs) == 0 }/>
+					</label>
+					if v.Platform.Key == "kubernetes" {
+						<label>
+							Cluster name
+							<input name="cluster_name" maxlength="100" value={ formVal(v.Form, "cluster_name", "") } placeholder="kubernetes"/>
+							<span class="hint">How the cluster shows in Goliash.</span>
+						</label>
+					}
+				</div>
+				<label class="check choice">
+					<input type="checkbox" name="many" checked?={ formVal(v.Form, "many", "") == "on" }/>
+					<span>
+						For many { codeMany(v.Platform) } <span class="muted">one command for all of them, e.g. from Ansible; each registers as its own agent.</span>
+					</span>
+				</label>
+				<label class="inline-field">
+					New agents may register for
+					<select name="expires">
+						<option value="7d" selected?={ formVal(v.Form, "expires", "7d") == "7d" }>7 days</option>
+						<option value="30d" selected?={ formVal(v.Form, "expires", "") == "30d" }>30 days</option>
+						<option value="never" selected?={ formVal(v.Form, "expires", "") == "never" }>no limit</option>
+					</select>
+				</label>
+				<p class="hint">Agents that registered come back with the same command after a restart, also after the limit.</p>
+			</div>
+		</section>
+		<div class="actions"><button type="submit">Get the command</button><a class="button secondary" href="/connect">Back</a></div>
+	</form>
+}
+
+func codeEnvDefault(v ConnectFormView) string {
+	if len(v.Envs) == 0 {
+		return "production"
+	}
+	return ""
+}
+
+func codeMany(p PlatformInfo) string {
+	switch p.Key {
+	case "kubernetes":
+		return "clusters"
+	case "nomad":
+		return "regions"
+	case "ecs":
+		return "ECS clusters"
+	case "swarm":
+		return "swarms"
+	}
+	return "hosts"
+}
+
+templ connectManualForm(v ConnectFormView) {
 		<form class="stack connect-form" method="post" action={ templ.URL("/connect/" + v.Platform.Key) }>
+			<input type="hidden" name="mode" value="manual"/>
 			<section class="panel">
 				<div class="panel-head"><h2>1. Where it belongs</h2></div>
 				<div class="panel-body stack">
@@ -146,7 +243,6 @@ templ ConnectFormPage(v ConnectFormView) {
 			</section>
 			<div class="actions"><button type="submit">Connect</button><a class="button secondary" href="/connect">Back</a></div>
 		</form>
-	}
 }
 
 templ ConnectDonePage(v ConnectDoneView) {
@@ -248,4 +344,124 @@ templ connectStatusView(st ConnectStatus, now time.Time) {
 			</div>
 		}
 	</section>
+}
+
+templ ConnectCodePage(v ConnectCodeView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/connect">Connect</a> /</p>
+				<h1>{ v.Platform.Title } <span class="badge neutral">{ v.Env }</span></h1>
+				<p class="sub">
+					if v.Many {
+						Run the command on every { codeMany(v.Platform) }; each registers as its own agent.
+					} else {
+						Run the command once; the agent registers itself.
+					}
+					if v.Expires.IsZero() {
+						New agents may register with it at any time.
+					} else {
+						New agents may register with it until { v.Expires.Format("2 Jan 2006") }.
+					}
+				</p>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-head"><h2>{ v.Title }</h2><span class="muted">the code is in it and shown only now</span></div>
+			<div class="panel-body stack">
+				<pre class="mono install-cmd" id="install-main">{ v.Command }</pre>
+				<div class="actions">
+					<button type="button" class="secondary" data-copy="install-main">Copy</button>
+				</div>
+				<details>
+					<summary>Just the code</summary>
+					<pre class="mono" id="install-code">{ v.Code }</pre>
+					<p class="hint">
+						It goes where an agent token would: <code>GOLIASH_AGENT_TOKEN</code>, a Helm or Docker secret, the Nomad
+						variable or the ECS secret. <a href="https://goliash.dev/install/#enrollment-codes" target="_blank" rel="noopener">How enrollment works</a>
+					</p>
+				</details>
+			</div>
+		</section>
+		@codeStatusView(v.Status)
+	}
+}
+
+// codeStatusView follows the agents that enrolled with a code; it polls itself until
+// the agent of a single code reported.
+templ codeStatusView(st CodeStatus) {
+	<section
+		class="panel connect-status"
+		id="code-status"
+		if !st.Done {
+			hx-get={ "/connect/code/" + st.CodeID }
+			hx-trigger="every 3s"
+			hx-swap="outerHTML"
+		}
+		aria-live="polite"
+	>
+		if len(st.Agents) == 0 {
+			<ol class="steps">
+				<li>
+					<span class="step-mark" aria-hidden="true"></span>
+					<div>
+						<strong>Waiting for the agent to register…</strong>
+						<p class="muted">Start it with the command above; this page updates by itself.</p>
+					</div>
+				</li>
+			</ol>
+		}
+		for _, a := range st.Agents {
+			<div class="code-agent">
+				<h3><a href={ templ.URL("/agents/" + a.ID) }>{ a.Name }</a></h3>
+				<ol class="steps">
+					<li class="done">
+						<span class="step-mark" aria-hidden="true"></span>
+						<div>
+							<strong>Registered</strong>
+							<p class="muted">{ codeTargets(a) }</p>
+						</div>
+					</li>
+					for _, t := range a.Targets {
+						<li class={ templ.KV("done", t.Reported) }>
+							<span class="step-mark" aria-hidden="true"></span>
+							<div>
+								if t.Reported {
+									<strong>{ t.Name }: { plural(t.Workloads, "workload", "workloads") }</strong>
+									if t.Unmapped > 0 {
+										<p class="muted">{ plural(t.Unmapped, "workload needs", "workloads need") } a service: <a href="/inbox">map in the inbox</a></p>
+									}
+								} else if t.Problem != "" {
+									<strong>{ t.Name }: the collector reports a problem</strong>
+									<p class="error-text">{ t.Problem }</p>
+								} else {
+									<strong>Waiting for the first report of { t.Name }…</strong>
+								}
+							</div>
+							if t.Reported {
+								<a class="button secondary" href={ templ.URL("/targets/" + t.ID) }>See what runs</a>
+							}
+						</li>
+					}
+				</ol>
+			</div>
+		}
+		if st.Done {
+			<div class="actions">
+				<a class="button" href="/">Open the matrix</a>
+				<a class="button secondary" href="/connect">Connect another</a>
+			</div>
+		}
+	</section>
+}
+
+func codeTargets(a CodeAgent) string {
+	if len(a.Targets) == 0 {
+		return "It found nothing to collect: see its log, or declare targets with GOLIASH_TARGETS."
+	}
+	names := make([]string, len(a.Targets))
+	for i, t := range a.Targets {
+		names[i] = t.Name + " (" + t.Platform + ")"
+	}
+	return "Found " + strings.Join(names, ", ") + "."
 }

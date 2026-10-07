@@ -41,6 +41,13 @@ An enrollment code (`glsh_enroll_…`) lets an agent register itself: start the 
 would go, and it finds what it can read where it runs, becomes an agent named after it and adds its targets to the
 code's environment. Nothing has to be set up in Goliash first.
 
+**Connect a cluster or host** (Settings → Agents and targets) does it in two clicks: pick the platform, then *Get
+the command*. The command carries a new code; the page then follows the agents that register with it, the targets
+they found and their first report. *Set up by hand* below it still creates a target with your own settings, for an
+agent you have or for the server.
+
+From the CLI:
+
 ```sh
 goliash enroll create -env prod              # a code for one agent, valid 7 days
 goliash enroll create -env prod -many        # one code for a fleet, e.g. every Docker host
@@ -69,6 +76,10 @@ The agent keeps no state: it enrolls on every start and gets a new token, which 
   keep coming back with the code. **Revoking** it (`goliash enroll revoke -id ID`) stops every agent from enrolling
   with it again, and **revoking an agent** keeps it out until it is deleted. `goliash enroll list` shows the codes
   and how many agents used each.
+
+The **Enrollment codes** panel on the agents page lists the codes with their environment, how many agents used
+them and until when new agents may join, and revokes them. Targets an agent found show *managed by agent*: their
+settings come from the agent on every start, while their environment and interval stay yours to change.
 
 Agents created with `goliash agent create` keep their token and their targets set up in Goliash.
 
