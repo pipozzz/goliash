@@ -1571,3 +1571,27 @@ func TestLinkPreviews(t *testing.T) {
 		t.Fatalf("crawler on the demo: %d", code)
 	}
 }
+
+func TestDemoShowsConnect(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer, _ := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	jar, _ := cookiejar.New(nil)
+	visitor := &http.Client{Jar: jar}
+	// Not a demo: a viewer may not connect.
+	if _, body := get(t, e.as(store.RoleViewer), e.srv.URL+"/connect", nil); !strings.Contains(body, "does not allow") {
+		t.Fatal("viewer sees Connect outside a demo")
+	}
+	e.auth.SetDemoUser(viewer)
+	if _, body := get(t, visitor, e.srv.URL+"/connect", nil); !strings.Contains(body, `href="/connect/docker"`) {
+		t.Fatalf("demo picker: %s", body[:min(len(body), 400)])
+	}
+	_, body := get(t, visitor, e.srv.URL+"/connect/docker", nil)
+	if !strings.Contains(body, "The live demo makes none") || !strings.Contains(body, "disabled>Get the command") || strings.Contains(body, "Set up by hand") {
+		t.Fatalf("demo form: %s", body)
+	}
+	if _, body := get(t, visitor, e.srv.URL+"/agents", nil); !strings.Contains(body, "Connect a cluster or host") {
+		t.Fatal("no way to Connect from the agents page in the demo")
+	}
+}

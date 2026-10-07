@@ -260,7 +260,7 @@ func (s *Server) page(role string, h handler) http.Handler {
 			_ = back(w, r, "/account", "error", "Your organization requires two-factor sign-in. Set it up, or add a passkey and sign in with it, to continue.")
 			return
 		}
-		if !p.Can(role) {
+		if !p.Can(role) && !demoBrowsable(s.auth.Demo(), r) {
 			s.problem(w, r, http.StatusForbidden, "Not allowed", "Your role ("+p.Role+") does not allow this. Ask an admin of this workspace.", true)
 			return
 		}
@@ -2321,4 +2321,15 @@ func DemoGuard(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// demoBrowsable reports whether a public demo shows a page to its viewers although
+// their role would not: the Connect pages, so visitors see how connecting works.
+// DemoGuard refuses what they would submit.
+func demoBrowsable(demo bool, r *http.Request) bool {
+	if !demo || r.Method != http.MethodGet {
+		return false
+	}
+	p := r.URL.Path
+	return p == "/connect" || (strings.HasPrefix(p, "/connect/") && !strings.HasPrefix(p, "/connect/code/") && !strings.HasPrefix(p, "/connect/status/"))
 }

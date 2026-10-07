@@ -44,7 +44,9 @@ templ ConnectFormPage(v ConnectFormView) {
 				<p class="sub">{ v.Platform.Summary }</p>
 			</div>
 		</div>
-		if v.Platform.AgentFirst {
+		if v.Platform.AgentFirst && v.Demo {
+			@connectCodeForm(v)
+		} else if v.Platform.AgentFirst {
 			@connectCodeForm(v)
 			<details class="panel connect-manual" open?={ formVal(v.Form, "mode", "") == "manual" }>
 				<summary class="panel-head"><h2>Set up by hand</h2><span class="muted">an agent you have, this server, or settings of your own</span></summary>
@@ -111,7 +113,15 @@ templ connectCodeForm(v ConnectFormView) {
 				<p class="hint">Agents that registered come back with the same command after a restart, also after the limit.</p>
 			</div>
 		</section>
-		<div class="actions"><button type="submit">Get the command</button><a class="button secondary" href="/connect">Back</a></div>
+		if v.Demo {
+			<div class="notice" role="note">
+				This is where you get the command. The live demo makes none: run your own Goliash in one line,
+				<code>docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try</code>, and connect from there.
+			</div>
+			<div class="actions"><button type="submit" disabled>Get the command</button><a class="button secondary" href="/connect">Back</a></div>
+		} else {
+			<div class="actions"><button type="submit">Get the command</button><a class="button secondary" href="/connect">Back</a></div>
+		}
 	</form>
 }
 

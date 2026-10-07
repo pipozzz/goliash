@@ -49,7 +49,7 @@ func AgentsPage(v AgentsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.CanAdmin {
+			if v.CanAdmin || v.Demo {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a class=\"button\" href=\"/connect\">Connect a cluster or host</a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
