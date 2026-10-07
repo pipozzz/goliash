@@ -7,22 +7,20 @@
 #
 # Dokploy: Create Service → Compose → Raw (paste this file) or Git (this path),
 # then Domains → demo.goliash.dev, service "demo", port 8080, HTTPS on, and Deploy.
-# Plain Docker: add `ports: ["8080:8080"]` and run `docker compose -f compose.yml up -d`.
+# Plain Docker: `docker compose -f compose.yml up -d` (publishes 8080 on a free host port;
+# use "8080:8080" to pin it).
 # Platforms that drop `command` (some compose-to-scheduler converters): set the
 # environment variable GOLIASH_ARGS to the same words instead.
-name: goliash-demo
 services:
   demo:
     image: ghcr.io/pipozzz/goliash:latest
-    command: ["try", "-public", "-reset", "1h", "-public-url", "https://demo.goliash.dev"]
+    command: try -public -reset 1h -public-url https://demo.goliash.dev
     environment:
+      # The same, for platforms that drop `command`.
       GOLIASH_ARGS: try -public -reset 1h -public-url https://demo.goliash.dev
-    restart: always
-    expose:
+    ports:
       - "8080"
+    restart: always
     read_only: true
     tmpfs:
       - /tmp
-    deploy:
-      resources:
-        limits: { cpus: "0.5", memory: 256M }
