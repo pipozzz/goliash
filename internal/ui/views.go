@@ -561,6 +561,7 @@ type InboxGroup struct {
 	Tags      []string
 	Envs      []string
 	Workloads []InboxItem
+	Apps      []string // the applications its workloads belong to, when known
 }
 
 // InboxView is the inbox page.

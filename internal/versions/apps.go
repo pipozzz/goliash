@@ -26,7 +26,7 @@ type AppFamily struct {
 // derivedSources are the app sources that come from generated names, not from a
 // label someone chose: only those are merged. An explicit label stays as it is.
 var derivedSources = map[string]bool{
-	"nomad job": true, "namespace": true, "com.docker.compose.project": true, "com.docker.stack.namespace": true,
+	"nomad job": true, "namespace": true, "compose project": true, "com.docker.compose.project": true, "com.docker.stack.namespace": true,
 	SourceWorkload: true,
 }
 

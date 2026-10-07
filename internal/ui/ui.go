@@ -1063,6 +1063,9 @@ func groupInbox(items []InboxItem) []InboxGroup {
 		if it.Env != "" && !slices.Contains(g.Envs, it.Env) {
 			g.Envs = append(g.Envs, it.Env)
 		}
+		if it.App != "" && !slices.Contains(g.Apps, it.App) {
+			g.Apps = append(g.Apps, it.App)
+		}
 	}
 	groups := make([]InboxGroup, 0, len(order))
 	for _, repo := range order {

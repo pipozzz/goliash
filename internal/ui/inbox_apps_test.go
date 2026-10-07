@@ -26,7 +26,8 @@ func TestInboxSameNameInSeveralApps(t *testing.T) {
 		ch.Upsert = append(ch.Upsert, store.Instance{
 			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, WorkloadID: app + "/db", WorkloadKind: "compose_service", WorkloadName: "db",
 			ContainerName: "db", Image: "postgres:17", Tag: "17", Running: 1, IsMain: true, SuggestedService: "postgres",
-			App: app, AppSource: "com.docker.compose.project",
+			// As the Docker collector reports it: the project as the namespace, no compose labels.
+			Namespace: app + "-ysp9bd", App: app, AppSource: "compose project",
 		})
 	}
 	_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: ch.SnapshotID, Scope: sc, TargetID: e.tgt.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
@@ -35,7 +36,8 @@ func TestInboxSameNameInSeveralApps(t *testing.T) {
 	}
 	member := e.as(store.RoleMember)
 	_, page := get(t, member, e.srv.URL+"/inbox", nil)
-	if !strings.Contains(page, `value="velin-lawrio-db"`) || !strings.Contains(page, `name="app" value="velin-portal"`) {
+	if !strings.Contains(page, `value="velin-lawrio-db"`) || !strings.Contains(page, `name="app" value="velin-portal"`) ||
+		!strings.Contains(page, "In 2 applications (velin-lawrio, velin-portal)") {
 		t.Fatalf("inbox does not offer per-project services: %s", page)
 	}
 	form := url.Values{"repo": {"docker.io/library/postgres"}, "only": {"workload"}, "workload_name": {"db"}, "app": {"velin-lawrio"}, "service": {"lawrio-db"}}

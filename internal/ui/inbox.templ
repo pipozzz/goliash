@@ -58,6 +58,13 @@ templ InboxPage(v InboxView) {
 													}
 												</button>
 											</form>
+											if len(g.Apps) > 1 {
+												<p class="hint inbox-apps">
+													{ "In " + itoa(len(g.Apps)) + " applications (" + strings.Join(g.Apps, ", ") + "). " }
+													{ "Map all: one " + g.Suggested + " service, shown and compared within each application. " }
+													Map only this workload: a service of its own for each.
+												</p>
+											}
 											<form class="inline" method="post" action="/inbox/ignore" style="margin-top:6px">
 												<input type="hidden" name="repo" value={ g.Repo }/>
 												<button class="link" type="submit">Ignore this image</button>
