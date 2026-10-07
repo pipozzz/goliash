@@ -35,6 +35,19 @@ templ headIcon(title, icon string) {
 		<!-- Show error pages (403, 404, 500) instead of ignoring them, so a failed action says why. -->
 		<meta name="htmx-config" content={ htmxConfig }/>
 		<title>{ title } · Goliash</title>
+		<!-- Link previews (Slack, LinkedIn, X, iMessage). -->
+		<meta name="description" content={ siteDescription }/>
+		<meta property="og:site_name" content="Goliash"/>
+		<meta property="og:type" content="website"/>
+		<meta property="og:title" content={ title + " · Goliash" }/>
+		<meta property="og:description" content={ siteDescription }/>
+		if publicBase != "" {
+			<meta property="og:image" content={ publicBase + "/static/og.png" }/>
+			<meta property="og:image:width" content="1200"/>
+			<meta property="og:image:height" content="630"/>
+			<meta property="og:image:alt" content="Goliash: what runs where, on which version. The service × environment matrix."/>
+		}
+		<meta name="twitter:card" content="summary_large_image"/>
 		<link rel="stylesheet" href={ templ.URL(asset("app.css")) }/>
 		<link rel="icon" type="image/svg+xml" href={ templ.URL(icon) } id="favicon"/>
 		<!-- Installable (and on iPhone, web push needs Goliash added to the home screen). -->

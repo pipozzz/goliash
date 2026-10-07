@@ -87,8 +87,16 @@ type Options struct {
 	PushSubject string
 }
 
+// siteDescription is what link previews say about any page.
+const siteDescription = "What runs where, on which version: one matrix of every service in every environment, " +
+	"across Kubernetes, ECS, Lambda, Nomad, Swarm and Docker, with drift, new releases and end of life."
+
+// publicBase is the server's public URL, for absolute links in link previews.
+var publicBase string
+
 // New returns the UI server.
 func New(o Options) *Server {
+	publicBase = strings.TrimSuffix(o.PublicURL, "/")
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version,
@@ -227,27 +235,17 @@ func (s *Server) page(role string, h handler) http.Handler {
 			return
 		}
 		if !ok && s.auth.Demo() {
-			// A visitor of the public demo: sign them in as its viewer and show the page.
-			if err := s.auth.SignInDemo(w, r); err != nil {
+			// A visitor of the public demo: sign them in as its viewer and answer this
+			// very request, without a redirect (link-preview crawlers keep no cookies).
+			ck, err := s.auth.SignInDemo(w, r)
+			if err == nil {
+				r.AddCookie(ck)
+				p, ok, err = s.auth.Authenticate(r)
+			}
+			if err != nil {
 				s.fail(w, r, err)
 				return
 			}
-			// Back to the page they asked for, on this server only ("//host" leads elsewhere).
-			target := "/"
-			if p := r.URL.EscapedPath(); r.Method == http.MethodGet && strings.HasPrefix(p, "/") &&
-				!strings.HasPrefix(p, "//") && !strings.HasPrefix(p, "/\\") {
-				target = p
-				if r.URL.RawQuery != "" {
-					target += "?" + r.URL.RawQuery
-				}
-			}
-			if r.Header.Get("HX-Request") == "true" {
-				w.Header().Set("HX-Redirect", target)
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // target is a path on this server, checked above
-			return
 		}
 		if !ok || p.Via != "session" {
 			if r.Header.Get("HX-Request") == "true" {

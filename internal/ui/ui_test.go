@@ -1548,3 +1548,26 @@ func TestPublicDemoStaysOnThisServer(t *testing.T) {
 		}
 	}
 }
+
+func TestLinkPreviews(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	// Any instance: the sign-in page carries the preview.
+	_, body := get(t, &http.Client{}, e.srv.URL+"/login", nil)
+	if !strings.Contains(body, `property="og:image" content="`+e.srv.URL+`/static/og.png"`) || !strings.Contains(body, `twitter:card`) {
+		t.Fatalf("login preview: %s", body[:min(len(body), 1500)])
+	}
+	if code, _ := get(t, &http.Client{}, e.srv.URL+"/static/og.png", nil); code != http.StatusOK {
+		t.Fatalf("og.png: %d", code)
+	}
+
+	// The public demo answers a crawler that keeps no cookies at once, no redirect.
+	viewer, _ := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	e.auth.SetDemoUser(viewer)
+	crawler := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	code, body := get(t, crawler, e.srv.URL+"/updates", nil)
+	if code != http.StatusOK || !strings.Contains(body, "og:image") || !strings.Contains(body, "Live demo") {
+		t.Fatalf("crawler on the demo: %d", code)
+	}
+}
