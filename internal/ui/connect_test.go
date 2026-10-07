@@ -348,8 +348,10 @@ func TestOutdatedAgentPage(t *testing.T) {
 	if _, err := e.st.CreateEnrollmentCode(ctx, e.ws.Scope(), e.prod.ID, "h", "", time.Time{}, true); err != nil {
 		t.Fatal(err)
 	}
-	res, err := e.st.Enroll(ctx, store.Enrollment{CodeHash: "h", Name: "web-01", TokenHash: "t",
-		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}}})
+	res, err := e.st.Enroll(ctx, store.Enrollment{
+		CodeHash: "h", Name: "web-01", TokenHash: "t",
+		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
