@@ -674,7 +674,9 @@ type AgentPageView struct {
 	ServerURL     string
 	ServerVersion string
 	Code          CodeInfo // for an enrolled agent: the code it registers with
-	Managed       int      // targets the agent found itself, deleted with it
+	UpgradeTitle  string   // how to update an outdated agent
+	UpgradeCmd    string
+	Managed       int // targets the agent found itself, deleted with it
 }
 
 // CodeInfo describes the enrollment code an agent registers with.

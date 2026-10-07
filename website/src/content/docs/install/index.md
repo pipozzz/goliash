@@ -96,6 +96,9 @@ with commands to start the agent on a Docker host, Kubernetes, Nomad or as a bin
 
 - **Status**: online, stale (missed heartbeats), never connected or revoked, its version (with *update available*
   when it is older than the server), host, platforms and the targets it collects.
+- **Update**: an agent older than the server shows the command that updates it where it runs, keeping its code or
+  token and settings: `helm upgrade --reuse-values`, the Docker one-liner, `docker service update`, the Nomad job
+  with `-var version`, or a CloudFormation `update-stack` with the previous values.
 - **Rotate token** without a gap: the old token keeps working until the agent first connects with the new one, then
   stops. Rotating an agent that never connected replaces its token at once. CLI: `goliash agent rotate -name N`.
 - **Revoke** every token when one leaked or the machine is gone; the agent stops sending data at once.

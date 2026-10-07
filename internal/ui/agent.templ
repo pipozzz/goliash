@@ -21,6 +21,21 @@ templ AgentPage(v AgentPageView) {
 			@secret("Token for "+v.Agent.Name+":", v.NewToken)
 			@installAgent(v.ServerURL, v.NewToken, v.Rotated)
 		}
+		if v.Agent.Outdated && v.CanAdmin {
+			<section class="panel">
+				<div class="panel-head"><h2>Update to { v.ServerVersion }</h2><span class="muted">it runs { v.Agent.Version }</span></div>
+				<div class="panel-body stack">
+					if v.UpgradeCmd != "" {
+						<p>{ v.UpgradeTitle }:</p>
+						<pre class="mono install-cmd" id="upgrade-cmd">{ v.UpgradeCmd }</pre>
+						<div class="actions"><button type="button" class="secondary" data-copy="upgrade-cmd">Copy</button></div>
+						<p class="hint">It keeps its targets and history; with an enrollment code it registers again as the same agent.</p>
+					} else {
+						<p>Run it with the image <code>ghcr.io/pipozzz/goliash-agent:{ v.ServerVersion }</code>, the way it was started.</p>
+					}
+				</div>
+			</section>
+		}
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Agent</h2></div>

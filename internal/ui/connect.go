@@ -664,3 +664,39 @@ func agentLogs(platform string) string {
 	}
 	return "docker logs goliash-agent"
 }
+
+// upgradeCommand updates an agent that was started with the Connect command on
+// platform to version, keeping its code or token and settings. Empty for platforms
+// where it was started by hand.
+func upgradeCommand(platform, serverURL, version string) (title, cmd string) {
+	tag, ref := agentRelease(version)
+	raw := "https://raw.githubusercontent.com/pipozzz/goliash/" + ref + "/deploy/"
+	switch platform {
+	case "kubernetes":
+		chart := ""
+		if tag != "latest" {
+			chart = " --version " + tag
+		}
+		return "Update with Helm, keeping its values", "helm upgrade goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent" + chart +
+			" -n goliash --reuse-values"
+	case "docker":
+		return "Update on the Docker host, keeping its code", "curl -fsSL " + raw + "docker/goliash-agent.yml | \\\n" +
+			"  GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " \\\n" +
+			"  GOLIASH_AGENT_TOKEN=$(docker inspect goliash-agent-agent-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^GOLIASH_AGENT_TOKEN=//p') \\\n" +
+			"  docker compose -p goliash-agent -f - up -d"
+	case "swarm":
+		return "Update the service on a manager node", "docker service update --image ghcr.io/pipozzz/goliash-agent:" + tag + " goliash-agent_agent"
+	case "nomad":
+		return "Run the job again with the new version", "curl -fsSLO " + raw + "nomad/goliash-agent.nomad.hcl\n" +
+			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
+	case "ecs", "lambda":
+		keep := ""
+		for _, p := range []string{"ServerURL", "EnrollCode", "Subnets", "AssignPublicIp", "Cluster", "SecurityGroups", "WatchLambda", "Regions", "Clusters", "CpuArchitecture"} {
+			keep += " ParameterKey=" + p + ",UsePreviousValue=true"
+		}
+		return "Update the CloudFormation stack (with Terraform: set image to the new tag)",
+			"aws cloudformation update-stack --stack-name goliash-agent --use-previous-template --capabilities CAPABILITY_IAM \\\n" +
+				"  --parameters ParameterKey=Version,ParameterValue=" + tag + keep
+	}
+	return "", ""
+}

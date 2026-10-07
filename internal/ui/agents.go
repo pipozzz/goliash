@@ -78,6 +78,13 @@ func (s *Server) showAgent(w http.ResponseWriter, r *http.Request, p auth.Princi
 			v.Targets = append(v.Targets, t)
 		}
 	}
+	if v.Agent.Outdated {
+		for _, t := range v.Targets {
+			if v.UpgradeTitle, v.UpgradeCmd = upgradeCommand(t.Platform, s.publicURL, buildinfo.Version); v.UpgradeCmd != "" {
+				break
+			}
+		}
+	}
 	if a.CodeID != "" {
 		if c, err := s.store.GetEnrollmentCode(ctx, p.Scope, a.CodeID); err == nil {
 			v.Code = CodeInfo{Many: !c.Single, Revoked: !c.RevokedAt.IsZero()}
