@@ -49,6 +49,7 @@ Usage:
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash backup -out DIR                 SQLite: a consistent copy of the database (and goliash.key) while the server runs
   goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
+  goliash try [-listen :8080]             a throwaway server with example data and a link that signs you in
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 

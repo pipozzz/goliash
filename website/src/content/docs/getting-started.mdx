@@ -5,8 +5,15 @@ description: 'Run Goliash with Docker in a minute, load example data, and add yo
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-This starts a server with Docker Compose, shows example data, and connects your first orchestrator. It takes about
-five minutes.
+Just looking? One command runs a throwaway server with three weeks of example data and prints a link that signs you
+in; nothing is kept when you stop it:
+
+```sh
+docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try
+```
+
+The rest of this page starts a server to keep with Docker Compose, shows example data, and connects your first
+orchestrator. It takes about five minutes.
 
 ## 1. Start the server
 

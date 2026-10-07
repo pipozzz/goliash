@@ -30,6 +30,15 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 > working within 1.x; see [Versions and compatibility](https://goliash.dev/reference/compatibility/). Security
 > reports: [SECURITY.md](SECURITY.md).
 
+## Try it
+
+```sh
+docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try
+```
+
+A throwaway server with three weeks of example data: open the link it prints and you are signed in. Nothing is
+kept when you stop it. To run it for real, see [Getting started](https://goliash.dev/getting-started/).
+
 ## Features
 
 - **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, AWS Lambda (per alias), Nomad, Docker Swarm
