@@ -10,7 +10,7 @@ templ AgentsPage(v AgentsView) {
 				<h1>Agents and targets</h1>
 				<p class="sub">Agents run in your network and read orchestrators read-only. Each target belongs to one environment.</p>
 			</div>
-			if v.CanAdmin {
+			if v.CanAdmin || v.Demo {
 				<a class="button" href="/connect">Connect a cluster or host</a>
 			}
 		</div>
