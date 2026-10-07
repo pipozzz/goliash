@@ -18,3 +18,15 @@
   border-radius: 0.75rem;
   box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.45);
 }
+
+/* The home page shows the product, not the logo. */
+.hero > img {
+  width: 100%;
+  max-width: 40rem;
+  border-radius: 12px;
+  border: 1px solid var(--sl-color-gray-5);
+  box-shadow: 0 24px 60px rgba(27, 42, 107, 0.22);
+}
+@media (min-width: 50rem) {
+  .hero { grid-template-columns: 5fr 6fr; }
+}
