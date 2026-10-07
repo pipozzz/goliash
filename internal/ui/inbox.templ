@@ -171,7 +171,7 @@ templ mapOnly(g InboxGroup, it InboxItem) {
 		if it.InApp {
 			<input type="hidden" name="app" value={ it.App }/>
 		}
-		<input name="service" list="services" value={ it.OwnName } required aria-label={ "Service for " + it.Workload } size="14"/>
+		<input name="service" list="services" value={ it.OwnName } required aria-label={ "Service for " + it.Workload } size="24"/>
 		<button class="secondary" type="submit" title={ "A service of its own for " + stableName(it.Workload) + ", whatever image it runs; other workloads running " + g.Repo + " stay apart" }>Map only this workload</button>
 	</form>
 }

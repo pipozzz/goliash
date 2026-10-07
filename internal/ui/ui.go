@@ -1013,7 +1013,7 @@ func (s *Server) inboxItems(ctx context.Context, sc store.Scope) ([]InboxItem, e
 		n := mapping.StableName(items[i].Workload)
 		items[i].OwnName = n
 		if items[i].App != "" && len(apps[n]) > 1 {
-			items[i].InApp, items[i].OwnName = true, items[i].App+"-"+n
+			items[i].InApp, items[i].OwnName = true, ownName(items[i].App, n)
 		}
 	}
 	sort.Slice(items, func(a, b int) bool { return items[a].Workload < items[b].Workload })
@@ -2474,4 +2474,15 @@ func (s *Server) splitService(w http.ResponseWriter, r *http.Request, p auth.Pri
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
 	return back(w, r, path, "notice", "Split by application: "+strings.Join(done, ", ")+". Their history moved along, and they keep mapping there.")
+}
+
+// ownName is the service suggested for workload name in app: "velin-lawrio-db".
+// Platforms that name a project and its one application alike ("lecanva-lecanva")
+// say it once: "lecanva-db".
+func ownName(app, name string) string {
+	parts := strings.Split(app, "-")
+	if n := len(parts); n%2 == 0 && strings.Join(parts[:n/2], "-") == strings.Join(parts[n/2:], "-") {
+		app = strings.Join(parts[:n/2], "-")
+	}
+	return app + "-" + name
 }

@@ -60,3 +60,17 @@ func TestInboxSameNameInSeveralApps(t *testing.T) {
 		t.Fatalf("rules %+v", rules)
 	}
 }
+
+func TestOwnName(t *testing.T) {
+	for in, want := range map[[2]string]string{
+		{"velin-lawrio", "db"}:        "velin-lawrio-db",
+		{"lecanva-lecanva", "db"}:     "lecanva-db",
+		{"shop-api-shop-api", "db"}:   "shop-api-db",
+		{"themestore-ledesign", "db"}: "themestore-ledesign-db",
+		{"a-b-a", "db"}:               "a-b-a-db",
+	} {
+		if got := ownName(in[0], in[1]); got != want {
+			t.Errorf("%v: %s, want %s", in, got, want)
+		}
+	}
+}
