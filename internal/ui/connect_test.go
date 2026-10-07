@@ -17,6 +17,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/pkg/agentproto"
+	"github.com/pipozzz/goliash/pkg/buildinfo"
 )
 
 func TestConnectSettings(t *testing.T) {
@@ -313,5 +314,50 @@ func TestAgentLogsHint(t *testing.T) {
 		if agentLogs(p) == "" {
 			t.Errorf("%q: no hint", p)
 		}
+	}
+}
+
+func TestUpgradeCommand(t *testing.T) {
+	want := map[string][]string{
+		"kubernetes": {"helm upgrade goliash-agent", "--version 1.15.0", "--reuse-values"},
+		"docker":     {"GOLIASH_AGENT_VERSION=1.15.0", "/v1.15.0/deploy/docker/", "docker inspect goliash-agent-agent-1", "-p goliash-agent"},
+		"swarm":      {"goliash-agent:1.15.0 goliash-agent_agent"},
+		"nomad":      {"-var version=1.15.0", "-var server_url=https://g"},
+		"ecs":        {"ParameterKey=Version,ParameterValue=1.15.0", "ParameterKey=EnrollCode,UsePreviousValue=true", "--use-previous-template"},
+		"lambda":     {"ParameterKey=Version,ParameterValue=1.15.0"},
+	}
+	for p, parts := range want {
+		title, cmd := upgradeCommand(p, "https://g", "1.15.0")
+		for _, s := range parts {
+			if title == "" || !strings.Contains(cmd, s) {
+				t.Errorf("%s lacks %q:\n%s", p, s, cmd)
+			}
+		}
+	}
+	if _, cmd := upgradeCommand("compose", "https://g", "1.15.0"); cmd != "" {
+		t.Errorf("compose: %s", cmd)
+	}
+}
+
+func TestOutdatedAgentPage(t *testing.T) {
+	old := buildinfo.Version
+	buildinfo.Version = "9.9.0"
+	t.Cleanup(func() { buildinfo.Version = old })
+	e := newUIEnv(t)
+	ctx := context.Background()
+	if _, err := e.st.CreateEnrollmentCode(ctx, e.ws.Scope(), e.prod.ID, "h", "", time.Time{}, true); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.st.Enroll(ctx, store.Enrollment{CodeHash: "h", Name: "web-01", TokenHash: "t",
+		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.RegisterAgent(ctx, e.ws.Scope(), res.Agent.ID, "1.0.0", "h", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, e.as(store.RoleAdmin), e.srv.URL+"/agents/"+res.Agent.ID, nil)
+	if !strings.Contains(body, "Update to 9.9.0") || !strings.Contains(body, "GOLIASH_AGENT_VERSION=9.9.0") {
+		t.Fatalf("agent page: %s", body)
 	}
 }
