@@ -36,7 +36,7 @@ job "goliash-agent" {
         data        = <<-EOT
         {{ with nomadVar "nomad/jobs/goliash-agent" }}
         GOLIASH_AGENT_TOKEN={{ .token }}
-        GOLIASH_CREDENTIAL_NOMAD={{ .nomad_token }}
+        {{ with .nomad_token }}GOLIASH_CREDENTIAL_NOMAD={{ . }}{{ end }}
         {{ end }}
         EOT
       }

@@ -28,7 +28,7 @@ services:
         constraints: [node.role == manager]   # the services and tasks APIs answer on managers only
 
   agent:
-    image: ghcr.io/pipozzz/goliash-agent:latest
+    image: ghcr.io/pipozzz/goliash-agent:${GOLIASH_AGENT_VERSION:-latest}
     environment:
       GOLIASH_SERVER_URL: ${GOLIASH_SERVER_URL:?set GOLIASH_SERVER_URL}
       GOLIASH_AGENT_TOKEN_FILE: /run/secrets/goliash_agent_token

@@ -65,6 +65,7 @@ type Server struct {
 	publicURL   string
 	smtp        bool
 	pushSubject string
+	version     string
 
 	favMu    sync.Mutex
 	favicons map[string]cachedFavicon // per workspace
@@ -79,7 +80,8 @@ type Options struct {
 	Hub       *Hub
 	Log       *slog.Logger
 	PublicURL string
-	SMTP      bool // whether e-mail is configured
+	SMTP      bool   // whether e-mail is configured
+	Version   string // the server's release
 	// PushSubject is who web pushes come from; empty when the server has no https
 	// address or mail sender to give, and Apple's push service refuses them.
 	PushSubject string
@@ -89,7 +91,7 @@ type Options struct {
 func New(o Options) *Server {
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject,
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version,
 	}
 }
 
