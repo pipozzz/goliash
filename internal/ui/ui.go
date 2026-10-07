@@ -194,6 +194,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/2fa/enable", s.page(v, s.enableTwoFactor))
 	mux.Handle("POST /account/2fa/codes", s.page(v, s.newRecoveryCodes))
 	mux.Handle("POST /account/2fa/disable", s.page(v, s.disableTwoFactor))
+	mux.Handle("POST /account/passkeys/options", s.page(v, s.passkeyOptions))
+	mux.Handle("POST /account/passkeys", s.page(v, s.addPasskey))
+	mux.Handle("POST /account/passkeys/{id}/rename", s.page(v, s.renamePasskey))
+	mux.Handle("POST /account/passkeys/{id}/delete", s.page(v, s.deletePasskey))
 	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
 	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
 	mux.Handle("POST /settings/app-label", s.page(a, s.setAppLabel))
@@ -232,7 +236,7 @@ func (s *Server) page(role string, h handler) http.Handler {
 			return
 		}
 		if s.needsTwoFactor(r, p) {
-			_ = back(w, r, "/account", "error", "Your organization requires two-factor sign-in. Set it up to continue.")
+			_ = back(w, r, "/account", "error", "Your organization requires two-factor sign-in. Set it up, or add a passkey and sign in with it, to continue.")
 			return
 		}
 		if !p.Can(role) {
@@ -340,7 +344,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	v := LoginView{
 		Sent: r.URL.Query().Get("sent") == "1", Mail: s.auth.MailEnabled(), OIDC: s.auth.OIDCName(),
-		Password: s.auth.PasswordsEnabled(), NoAccounts: s.auth.NoAccounts(r.Context()),
+		Password: s.auth.PasswordsEnabled(), NoAccounts: s.auth.NoAccounts(r.Context()), Passkeys: s.auth.PasskeysEnabled(),
 	}
 	switch r.URL.Query().Get("error") {
 	case "password":

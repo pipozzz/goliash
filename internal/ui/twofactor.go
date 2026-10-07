@@ -23,6 +23,7 @@ type SecondFactorView struct {
 	Email    string
 	Error    string
 	Recovery bool
+	Passkey  bool // the person has a passkey to use instead of a code
 }
 
 // TwoFactorSetupView sets up an authenticator app, then shows the recovery codes.
@@ -39,7 +40,7 @@ func (s *Server) secondFactorPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?error=expired", http.StatusSeeOther)
 		return
 	}
-	v := SecondFactorView{Email: u.Email, Recovery: r.URL.Query().Get("use") == "recovery"}
+	v := SecondFactorView{Email: u.Email, Recovery: r.URL.Query().Get("use") == "recovery", Passkey: u.Passkeys > 0 && s.auth.PasskeysEnabled()}
 	if r.URL.Query().Get("error") == "code" {
 		v.Error = "That code did not work. Codes change every 30 seconds and work once."
 	}
@@ -182,22 +183,33 @@ func (s *Server) resetTwoFactor(w http.ResponseWriter, r *http.Request, p auth.P
 	if err := s.store.DisableTOTP(r.Context(), u.ID); err != nil {
 		return err
 	}
+	if err := s.store.DeletePasskeys(r.Context(), u.ID); err != nil {
+		return err
+	}
 	if _, err := s.store.DeleteUserSessions(r.Context(), u.ID, ""); err != nil {
 		return err
 	}
 	s.audit(r.Context(), p, "user.2fa_reset", "user", u.Email)
-	return back(w, r, "/settings", "notice", "Two-factor sign-in of "+u.Email+" is off and every device signed out. They can set it up again.")
+	return back(w, r, "/settings", "notice", "Two-factor sign-in and passkeys of "+u.Email+" are off and every device signed out. They can set them up again.")
+}
+
+// strongSession reports whether a session meets a two-factor requirement: the person
+// has an app code (asked at every sign-in), signed in with single sign-on, or with a
+// passkey, which proves the device and its unlock.
+func strongSession(p auth.Principal) bool {
+	return p.User.TOTPEnabled || strings.HasPrefix(p.Method, "oidc") ||
+		strings.HasPrefix(p.Method, "passkey") || strings.HasSuffix(p.Method, "+passkey")
 }
 
 // needsTwoFactor reports whether a session must set up two-factor sign-in before
 // anything but its account page: the organization requires it, the person has none,
 // and they signed in with a password or a link (single sign-on brings its own).
 func (s *Server) needsTwoFactor(r *http.Request, p auth.Principal) bool {
-	if p.Via != "session" || p.User.TOTPEnabled || strings.HasPrefix(p.Method, "oidc") {
+	if p.Via != "session" || strongSession(p) {
 		return false
 	}
 	switch r.URL.Path {
-	case "/account", "/account/2fa", "/account/2fa/setup", "/account/2fa/enable":
+	case "/account", "/account/2fa", "/account/2fa/setup", "/account/2fa/enable", "/account/passkeys/options", "/account/passkeys":
 		return false
 	}
 	required, err := s.store.RequireTwoFactor(r.Context(), p.User.OrgID)
@@ -211,8 +223,11 @@ func (s *Server) setRequireTwoFactor(w http.ResponseWriter, r *http.Request, p a
 		return nil
 	}
 	on := r.FormValue("require") == "true"
-	if on && !p.User.TOTPEnabled {
-		return back(w, r, "/settings", "error", "Set up two-factor sign-in for yourself first, on your account page.")
+	if on && !strongSession(p) {
+		if p.User.Passkeys > 0 {
+			return back(w, r, "/settings", "error", "Sign in with your passkey first, so the requirement does not lock you out.")
+		}
+		return back(w, r, "/settings", "error", "Set up two-factor sign-in or a passkey for yourself first, on your account page.")
 	}
 	if err := s.store.SetRequireTwoFactor(r.Context(), p.User.OrgID, on); err != nil {
 		return err

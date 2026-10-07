@@ -35,6 +35,7 @@ type uiEnv struct {
 	hub  *Hub
 	prod store.Environment
 	tgt  store.Target
+	ui   *Server
 }
 
 func newUIEnv(t *testing.T) *uiEnv {
@@ -75,8 +76,9 @@ func newUIEnv(t *testing.T) *uiEnv {
 	a.Routes(mux)
 	hub := NewHub()
 	checker := versions.NewChecker(st, nil, log, time.Hour)
-	New(Options{Store: st, Auth: a, Checker: checker, Notifier: notifier.New(st, log, nil), Hub: hub, Log: log, PublicURL: srv.URL}).Register(mux)
-	return &uiEnv{t: t, st: st, ws: ws, srv: srv, auth: a, hub: hub, prod: prod, tgt: tgt}
+	ui := New(Options{Store: st, Auth: a, Checker: checker, Notifier: notifier.New(st, log, nil), Hub: hub, Log: log, PublicURL: srv.URL})
+	ui.Register(mux)
+	return &uiEnv{t: t, st: st, ws: ws, srv: srv, auth: a, hub: hub, prod: prod, tgt: tgt, ui: ui}
 }
 
 // as returns a browser signed in as a new user with the role.
@@ -996,7 +998,7 @@ func TestTwoFactorSetup(t *testing.T) {
 	if _, body = get(t, admin, e.srv.URL+"/settings", nil); !strings.Contains(body, "Reset 2FA") {
 		t.Fatal("no reset on the users page")
 	}
-	if _, body, _ = post(t, admin, e.srv.URL+"/settings/users/"+u.ID+"/2fa/delete", nil); !strings.Contains(body, "Two-factor sign-in of member@example.com is off") {
+	if _, body, _ = post(t, admin, e.srv.URL+"/settings/users/"+u.ID+"/2fa/delete", nil); !strings.Contains(body, "Two-factor sign-in and passkeys of member@example.com are off") {
 		t.Fatalf("reset: %s", body)
 	}
 	if got, _ := e.st.GetUser(ctx, u.ID); got.TOTPEnabled {
@@ -1011,7 +1013,7 @@ func TestRequireTwoFactorAndBodyLimit(t *testing.T) {
 	member := e.as(store.RoleMember)
 
 	// The owner must have 2FA before requiring it.
-	if _, body, _ := post(t, owner, e.srv.URL+"/settings/require-2fa", url.Values{"require": {"true"}}); !strings.Contains(body, "Set up two-factor sign-in for yourself first") {
+	if _, body, _ := post(t, owner, e.srv.URL+"/settings/require-2fa", url.Values{"require": {"true"}}); !strings.Contains(body, "Set up two-factor sign-in or a passkey for yourself first") {
 		t.Fatal("required without the owner's own 2FA")
 	}
 	o, _ := e.st.GetUserByEmail(ctx, e.ws.OrgID, "owner@example.com")
@@ -1437,5 +1439,51 @@ func TestMayResetPasswordAfterLinkAndSecondFactor(t *testing.T) {
 	}
 	if mayResetPassword(store.Session{Method: "link+totp", CreatedAt: now.Add(-time.Hour)}, now) {
 		t.Error("an old session may reset")
+	}
+}
+
+func TestPasskeysOnTheAccountPage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	owner := e.as(store.RoleOwner)
+
+	// The test server listens on an IP address: no passkeys, and it says why.
+	_, body := get(t, owner, e.srv.URL+"/account", nil)
+	if !strings.Contains(body, "Passkeys need this server on a domain name") {
+		t.Fatalf("account: %s", body)
+	}
+	if code, body, _ := post(t, owner, e.srv.URL+"/account/passkeys/options", nil); code != http.StatusNotFound || !strings.Contains(body, "passkeys need") {
+		t.Fatalf("options: %d %s", code, body)
+	}
+	if _, body := get(t, &http.Client{}, e.srv.URL+"/login", nil); strings.Contains(body, "data-passkey") {
+		t.Fatal("login offers passkeys without them")
+	}
+
+	// An admin reset removes passkeys too.
+	o, _ := e.st.GetUserByEmail(ctx, e.ws.OrgID, "owner@example.com")
+	if _, err := e.st.AddPasskey(ctx, o.ID, "cred", []byte(`{}`), "MacBook"); err != nil {
+		t.Fatal(err)
+	}
+	// Signed in with a link, the owner would lock themselves out.
+	if _, body, _ := post(t, owner, e.srv.URL+"/settings/require-2fa", url.Values{"require": {"true"}}); !strings.Contains(body, "Sign in with your passkey first") {
+		t.Fatal("an owner with a passkey but a link session may require two-factor sign-in")
+	}
+	admin := e.as(store.RoleAdmin)
+	post(t, admin, e.srv.URL+"/settings/users/"+o.ID+"/2fa/delete", nil)
+	if keys, _ := e.st.ListPasskeys(ctx, o.ID); len(keys) != 0 {
+		t.Fatalf("reset kept passkeys: %+v", keys)
+	}
+}
+
+func TestPasskeySessionsMeetTheRequirement(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	_ = e.st.SetRequireTwoFactor(ctx, e.ws.OrgID, true)
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	for method, needs := range map[string]bool{"password": true, "link": true, "passkey": false, "password+passkey": false, "oidc": false} {
+		p := auth.Principal{Via: "session", Method: method, User: store.User{OrgID: e.ws.OrgID}}
+		if got := e.ui.needsTwoFactor(r, p); got != needs {
+			t.Errorf("%s: %v", method, got)
+		}
 	}
 }

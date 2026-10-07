@@ -201,6 +201,10 @@ templ Login(v LoginView) {
 					if v.OIDC != "" {
 						<a class="button" href="/auth/oidc/start" style="justify-content:center">Continue with { v.OIDC }</a>
 					}
+					if v.Passkeys && !v.NoAccounts {
+						<button type="button" class={ "passkey-button", templ.KV("secondary", v.OIDC != "") } data-passkey="/auth/passkey" hidden>Sign in with a passkey</button>
+						<p class="notice error" data-passkey-error hidden role="alert"></p>
+					}
 					if v.Password {
 						if v.OIDC != "" {
 							<div class="divider">or</div>
@@ -208,7 +212,7 @@ templ Login(v LoginView) {
 						<form class="stack" method="post" action="/auth/password">
 							<label>
 								E-mail
-								<input id="email" type="email" name="email" required autocomplete="username" autofocus?={ v.OIDC == "" }/>
+								<input id="email" type="email" name="email" required autocomplete="username webauthn" autofocus?={ v.OIDC == "" }/>
 							</label>
 							<label>
 								Password
@@ -253,6 +257,9 @@ templ Login(v LoginView) {
 					}
 				</div>
 			</div>
+			if v.Passkeys {
+				<script src={ templ.URL(asset("passkey.js")) }></script>
+			}
 		</body>
 	</html>
 }
