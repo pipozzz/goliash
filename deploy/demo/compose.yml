@@ -1,0 +1,23 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# A public, read-only Goliash demo: example data, every visitor signed in as a
+# viewer, nothing kept. The server stops after an hour and the restart brings fresh
+# data. Put it behind a reverse proxy with TLS (Dokploy, Traefik, Caddy) at the
+# address in -public-url.
+#
+#   docker compose -f compose.yml up -d
+name: goliash-demo
+services:
+  demo:
+    image: ghcr.io/pipozzz/goliash:latest
+    command: ["try", "-public", "-reset", "1h", "-public-url", "https://demo.goliash.dev"]
+    restart: always
+    ports:
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }

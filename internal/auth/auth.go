@@ -96,6 +96,22 @@ type Auth struct {
 	byClient   *limiter           // failed password sign-ins per client address
 	byEmail    *limiter           // failed password sign-ins per e-mail
 	webauthn   *webauthn.WebAuthn // nil when the public URL cannot carry passkeys
+	demo       *store.User        // a public demo: everyone is signed in as this viewer
+}
+
+// SetDemoUser makes this a public demo: visitors without a session are signed in as
+// u, and the other ways to sign in are off.
+func (a *Auth) SetDemoUser(u store.User) { a.demo = &u }
+
+// Demo reports whether this is a public demo.
+func (a *Auth) Demo() bool { return a.demo != nil }
+
+// SignInDemo signs a visitor of a public demo in as its viewer.
+func (a *Auth) SignInDemo(w http.ResponseWriter, r *http.Request) error {
+	if a.demo == nil {
+		return errors.New("not a demo")
+	}
+	return a.startSession(w, r, *a.demo, "demo")
 }
 
 // New returns an Auth. publicURL is where people reach the server (for links and
@@ -276,6 +292,9 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 		Name: sessionCookie, Value: raw, Path: "/", HttpOnly: true, Secure: a.publicURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode, MaxAge: int(a.sessionTTL / time.Second),
 	})
+	if method == "demo" {
+		return nil // every visitor of a public demo: not worth a log line or an audit entry
+	}
 	a.log.InfoContext(r.Context(), "signed in", "user", u.Email, "method", method)
 	if err := a.store.Audit(r.Context(), store.AuditEntry{
 		OrgID: u.OrgID, Actor: u.Email, Action: "user.sign_in", Details: map[string]string{"method": method, "ip": x.IP},

@@ -823,3 +823,7 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .passkeys li .muted { font-size: 12.5px; flex: 1; min-width: 160px; }
 .inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
 .inline-form label { flex: 0 1 260px; }
+
+/* Public demo */
+.demo-banner { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; justify-content: space-between; padding: 10px 14px; margin-bottom: 16px; border-radius: 8px; background: var(--accent-soft, var(--surface-2)); border: 1px solid var(--line); font-size: 13px; }
+.demo-banner code { font-size: 12px; overflow-wrap: anywhere; }

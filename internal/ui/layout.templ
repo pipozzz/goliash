@@ -146,10 +146,12 @@ templ Layout(b Base) {
 										<strong>{ b.Email }</strong>
 										<span class="muted">{ b.Role }</span>
 									</div>
-									@menuLink(b, "account", "/account", "Your account")
-									<form method="post" action="/auth/logout" hx-boost="false">
-										<button class="menu-item" type="submit" role="menuitem">Sign out</button>
-									</form>
+									if !b.Demo {
+										@menuLink(b, "account", "/account", "Your account")
+										<form method="post" action="/auth/logout" hx-boost="false">
+											<button class="menu-item" type="submit" role="menuitem">Sign out</button>
+										</form>
+									}
 								</div>
 							</details>
 						</div>
@@ -157,6 +159,12 @@ templ Layout(b Base) {
 				</header>
 			}
 			<main>
+				if b.Demo {
+					<div class="demo-banner" role="note">
+						<span><strong>Live demo</strong> with three weeks of example data: read-only, and the data starts over regularly.</span>
+						<span>Run your own: <code>docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try</code> · <a href="https://goliash.dev/getting-started/">Get started</a></span>
+					</div>
+				}
 				if b.Notice != "" {
 					<div class="notice" role="status">{ b.Notice }</div>
 				}

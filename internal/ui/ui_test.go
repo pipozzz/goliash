@@ -1487,3 +1487,64 @@ func TestPasskeySessionsMeetTheRequirement(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicDemo(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer, err := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	e.auth.SetDemoUser(viewer)
+	guarded := httptest.NewServer(DemoGuard(e.srv.Config.Handler))
+	defer guarded.Close()
+
+	// A visitor without a session lands on the page they asked for, signed in.
+	jar, _ := cookiejar.New(nil)
+	visitor := &http.Client{Jar: jar}
+	code, body := get(t, visitor, guarded.URL+"/updates", nil)
+	if code != http.StatusOK || !strings.Contains(body, "Live demo") || strings.Contains(body, "Sign out") {
+		t.Fatalf("visitor: %d %s", code, body[:min(len(body), 300)])
+	}
+	if _, body := get(t, visitor, guarded.URL+"/login", nil); strings.Contains(body, "password") {
+		t.Fatal("the demo offers a sign-in form")
+	}
+
+	// Nothing changes the shared account or the data.
+	for _, path := range []string{"/account/password", "/account/passkeys/options", "/auth/logout", "/inbox/map", "/auth/password"} {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, guarded.URL+path, strings.NewReader("password=x"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := visitor.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("POST %s: %d", path, resp.StatusCode)
+		}
+	}
+	if got, _ := e.st.GetUser(ctx, viewer.ID); got.HasPassword {
+		t.Fatal("the demo account got a password")
+	}
+}
+
+func TestPublicDemoStaysOnThisServer(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer, _ := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	e.auth.SetDemoUser(viewer)
+	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	for path, want := range map[string]string{"/updates?env=prod": "/updates?env=prod", "//evil.example/x": "/", "/%2Fevil.example": "/%2Fevil.example"} {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, e.srv.URL+path, nil)
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if loc := resp.Header.Get("Location"); loc != want && resp.StatusCode == http.StatusSeeOther {
+			t.Errorf("%s → %s, want %s", path, loc, want)
+		}
+	}
+}

@@ -24,6 +24,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_DRAIN` | `-drain` | `0` | On shutdown, answer `/readyz` with 503 this long before closing |
 | `GOLIASH_BACKUP_DIR` | `-backup-dir` | — | SQLite: write a backup here at start and every day |
 | `GOLIASH_BACKUP_KEEP` | `-backup-keep` | `7` | Backups kept in the backup directory |
+| | `-demo-user` | | A public read-only demo: every visitor is signed in as this existing viewer and every change is refused. `goliash try -public` sets it up |
 | | `-collect` | `true` | Collect targets that have no agent in the server itself |
 | | `-upstream-interval` | `1h` | How often public registries are checked |
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
