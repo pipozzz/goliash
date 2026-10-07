@@ -106,12 +106,21 @@ func (a *Auth) SetDemoUser(u store.User) { a.demo = &u }
 // Demo reports whether this is a public demo.
 func (a *Auth) Demo() bool { return a.demo != nil }
 
-// SignInDemo signs a visitor of a public demo in as its viewer.
-func (a *Auth) SignInDemo(w http.ResponseWriter, r *http.Request) error {
+// SignInDemo signs a visitor of a public demo in as its viewer and returns the
+// session cookie it set, so the same request can go on signed in.
+func (a *Auth) SignInDemo(w http.ResponseWriter, r *http.Request) (*http.Cookie, error) {
 	if a.demo == nil {
-		return errors.New("not a demo")
+		return nil, errors.New("not a demo")
 	}
-	return a.startSession(w, r, *a.demo, "demo")
+	if err := a.startSession(w, r, *a.demo, "demo"); err != nil {
+		return nil, err
+	}
+	for _, c := range w.Header()["Set-Cookie"] {
+		if ck, err := http.ParseSetCookie(c); err == nil && ck.Name == sessionCookie {
+			return &http.Cookie{Name: ck.Name, Value: ck.Value}, nil //nolint:gosec // added to this request only; the one sent is set above
+		}
+	}
+	return nil, errors.New("no session cookie set")
 }
 
 // New returns an Auth. publicURL is where people reach the server (for links and

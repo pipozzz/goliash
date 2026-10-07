@@ -37,7 +37,8 @@ docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try
 ```
 
 A throwaway server with three weeks of example data: open the link it prints and you are signed in. Nothing is
-kept when you stop it. To run it for real, see [Getting started](https://goliash.dev/getting-started/).
+kept when you stop it. Or look around the **[live demo](https://demo.goliash.dev)** first, no install. To run it
+for real, see [Getting started](https://goliash.dev/getting-started/).
 
 ## Features
 
