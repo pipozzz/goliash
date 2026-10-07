@@ -27,10 +27,15 @@ production one to production. `regions = ["us-east-1"]` adds the clusters of mor
 
 ## Lambda functions
 
-Set `watch_lambda = true` and the task role may also call `lambda:ListFunctions` and `lambda:GetFunction`. An agent
+Set `watch_lambda = true` and the task role may also call `lambda:ListFunctions`, `lambda:GetFunction` and
+`lambda:ListAliases`. An agent
 that enrolls with a code then adds the region's functions as a `lambda` target, named `lambda-<region>`; any agent
 with AWS credentials that may list functions does the same (`GOLIASH_LAMBDA=off` stops it). With a token, create the
 target with `{"lambda":{"region":"eu-west-1"}}`, optionally with `"name_prefixes": ["shop-"]`.
+
+Aliases named like environments (`dev`, `staging`, `prod`) put each function's versions in those environments.
+Map other names with `GOLIASH_LAMBDA_ALIASES=live=prod,canary=-` on an enrolling agent, or `alias_environments` in
+the target's settings.
 
 Container functions show their image like any service. A .zip function shows its runtime as a version
 (`python 3.12`), with *new release* when AWS offers a newer runtime and *end of life* before AWS deprecates it. See

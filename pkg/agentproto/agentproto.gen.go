@@ -332,6 +332,14 @@ type KubernetesSettings struct {
 // from a container image reports that image; a .zip function reports its runtime as the matching AWS base
 // image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
 type LambdaSettings struct {
+	// AliasEnvironments A function with aliases is reported once per alias, with the version the alias points to, in the
+	// environment named like the alias. This maps aliases to environments named otherwise; "-" leaves an
+	// alias out (a canary). Aliases that match no environment stay in the target's.
+	//
+	//
+	// Example: {"live":"prod"}
+	AliasEnvironments map[string]string `json:"alias_environments,omitempty"`
+
 	// NamePrefixes Only functions whose name starts with one of these. Empty means every function.
 	//
 	// Example: ["shop-"]

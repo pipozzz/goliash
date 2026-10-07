@@ -233,7 +233,12 @@ templ connectManualForm(v ConnectFormView) {
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
 								<label>Only functions starting with<input name="prefixes" value={ formVal(v.Form, "prefixes", "") } placeholder="every function"/><span class="hint">Comma-separated name prefixes, e.g. shop-.</span></label>
 							</div>
-							<p class="hint">Whoever collects it needs only lambda:ListFunctions and lambda:GetFunction.</p>
+							<label>
+								Aliases named otherwise than environments
+								<input name="aliases" value={ formVal(v.Form, "aliases", "") } placeholder="live=prod, canary=-"/>
+								<span class="hint">A function with aliases shows once per alias, in the environment named like the alias. Map the others here; - leaves an alias out.</span>
+							</label>
+							<p class="hint">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases.</p>
 						case "compose":
 							<label>
 								Compose files

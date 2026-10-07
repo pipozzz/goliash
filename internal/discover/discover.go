@@ -351,7 +351,8 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 		}
 		if err := o.AWS.CanListFunctions(ctx, region); err == nil {
 			found(identity, agentName, agentproto.DeclaredTarget{
-				Platform: agentproto.Lambda, Name: "lambda-" + region, Lambda: &agentproto.LambdaSettings{Region: region},
+				Platform: agentproto.Lambda, Name: "lambda-" + region,
+				Lambda: &agentproto.LambdaSettings{Region: region, AliasEnvironments: aliasEnvironments(o.Env("GOLIASH_LAMBDA_ALIASES"))},
 			})
 		} else {
 			r.Notes = append(r.Notes, "lambda "+region+": "+err.Error())
@@ -409,4 +410,21 @@ func (sdkAWS) CanListFunctions(ctx context.Context, region string) error {
 	one := int32(1)
 	_, err = lambda.NewFromConfig(cfg).ListFunctions(ctx, &lambda.ListFunctionsInput{MaxItems: &one})
 	return err
+}
+
+// aliasEnvironments reads GOLIASH_LAMBDA_ALIASES: "live=prod,canary=-" maps Lambda
+// aliases to environments named otherwise, "-" leaves an alias out.
+func aliasEnvironments(v string) map[string]string {
+	var out map[string]string
+	for _, pair := range strings.Split(v, ",") {
+		alias, env, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		if !ok || strings.TrimSpace(alias) == "" || strings.TrimSpace(env) == "" {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[strings.TrimSpace(alias)] = strings.TrimSpace(env)
+	}
+	return out
 }

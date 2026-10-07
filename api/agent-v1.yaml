@@ -535,6 +535,15 @@ components:
           items:
             type: string
           example: [shop-]
+        alias_environments:
+          type: object
+          description: |
+            A function with aliases is reported once per alias, with the version the alias points to, in the
+            environment named like the alias. This maps aliases to environments named otherwise; "-" leaves an
+            alias out (a canary). Aliases that match no environment stay in the target's.
+          additionalProperties:
+            type: string
+          example: {live: prod}
 
     ComposeSettings:
       type: object

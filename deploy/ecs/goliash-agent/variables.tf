@@ -61,7 +61,7 @@ variable "tags" {
 }
 
 variable "watch_lambda" {
-  description = "Also watch the region's Lambda functions: lets the task role call lambda:ListFunctions and lambda:GetFunction."
+  description = "Also watch the region's Lambda functions: lets the task role call lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases."
   type        = bool
   default     = false
 }
