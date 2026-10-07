@@ -29,6 +29,7 @@ func agentView(a store.Agent) AgentView {
 	return AgentView{
 		ID: a.ID, Name: a.Name, Status: status, Outdated: olderThanServer(a.Version), Version: a.Version,
 		Hostname: a.Hostname, LastSeen: a.LastSeenAt, Platforms: strings.Join(a.Platforms, ", "),
+		Enrolled: a.CodeID != "", Notes: a.Notes,
 	}
 }
 
@@ -75,6 +76,25 @@ func (s *Server) showAgent(w http.ResponseWriter, r *http.Request, p auth.Princi
 	for _, t := range all.Targets {
 		if t.AgentID == a.ID {
 			v.Targets = append(v.Targets, t)
+		}
+	}
+	if a.CodeID != "" {
+		if c, err := s.store.GetEnrollmentCode(ctx, p.Scope, a.CodeID); err == nil {
+			v.Code = CodeInfo{Many: !c.Single, Revoked: !c.RevokedAt.IsZero()}
+			for _, e := range all.Envs {
+				if e.ID == c.EnvironmentID {
+					v.Code.Env = e.Name
+				}
+			}
+		}
+		ts, err := s.store.ListAgentTargets(ctx, p.Scope, a.ID)
+		if err != nil {
+			return err
+		}
+		for _, t := range ts {
+			if t.AgentKey != "" {
+				v.Managed++
+			}
 		}
 	}
 	if token != "" {
@@ -146,6 +166,21 @@ func (s *Server) deleteAgent(w http.ResponseWriter, r *http.Request, p auth.Prin
 	a, err := s.store.GetAgent(ctx, p.Scope, r.PathValue("id"))
 	if err != nil {
 		return back(w, r, "/agents", "error", "Unknown agent.")
+	}
+	// The targets an enrolled agent found itself go with it; others have to be moved
+	// or deleted first.
+	ts, err := s.store.ListAgentTargets(ctx, p.Scope, a.ID)
+	if err != nil {
+		return err
+	}
+	for _, t := range ts {
+		if t.AgentKey == "" {
+			continue
+		}
+		if err := s.store.DeleteTarget(ctx, p.Scope, t.ID); err != nil {
+			return err
+		}
+		s.audit(ctx, p, "target.delete", "target", t.Name, "agent", a.Name)
 	}
 	if err := s.store.DeleteAgent(ctx, p.Scope, a.ID); errors.Is(err, store.ErrInUse) {
 		return back(w, r, "/agents/"+a.ID, "error", "Move or delete the targets of "+a.Name+" first.")

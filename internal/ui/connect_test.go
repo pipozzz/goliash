@@ -131,7 +131,7 @@ func TestInstallCommandPinsRelease(t *testing.T) {
 		"kubernetes": {"--version 1.13.1"},
 		"docker":     {"GOLIASH_AGENT_VERSION=1.13.1", "/v1.13.1/"},
 		"swarm":      {"GOLIASH_AGENT_VERSION=1.13.1", "/v1.13.1/"},
-		"nomad":      {"/v1.13.1/", "goliash-agent:1.13.1"},
+		"nomad":      {"/v1.13.1/", "-var version=1.13.1"},
 		"ecs":        {"?ref=v1.13.1", "goliash_token_arn=\"$ARN\""},
 		"compose":    {"goliash-agent:1.13.1"},
 	}
@@ -262,5 +262,55 @@ func TestConnectLambda(t *testing.T) {
 	}
 	if _, problem := connectSettings("lambda", url.Values{}); problem == "" {
 		t.Fatal("lambda without a region")
+	}
+}
+
+func TestEnrolledAgentPage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+	if _, err := e.st.CreateEnrollmentCode(ctx, e.ws.Scope(), e.prod.ID, "h", "", time.Time{}, true); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.st.Enroll(ctx, store.Enrollment{
+		CodeHash: "h", Name: "web-01", TokenHash: "t",
+		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}},
+		Notes:   []string{"lambda eu-west-1: AccessDeniedException"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, admin, e.srv.URL+"/agents/"+res.Agent.ID, nil)
+	for _, want := range []string{"Registration", "enrollment code for this agent of prod", "Not collected", "AccessDeniedException", "1 target it found go with it"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("agent page lacks %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "Rotate token") {
+		t.Fatal("an enrolled agent offers token rotation")
+	}
+
+	// The code page shows the note too.
+	codes, _ := e.st.ListEnrollmentCodes(ctx, e.ws.Scope())
+	_, body = get(t, admin, e.srv.URL+"/connect/code/"+codes[0].ID+"?p=docker", nil)
+	if !strings.Contains(body, "Not collected: lambda eu-west-1") {
+		t.Fatalf("code status: %s", body)
+	}
+
+	// Deleting it takes the target it found along.
+	post(t, admin, e.srv.URL+"/agents/"+res.Agent.ID+"/delete", nil)
+	if _, err := e.st.GetAgent(ctx, e.ws.Scope(), res.Agent.ID); err == nil {
+		t.Fatal("agent not deleted")
+	}
+	if _, err := e.st.GetTarget(ctx, e.ws.Scope(), res.Added[0].ID); err == nil {
+		t.Fatal("its target is left")
+	}
+}
+
+func TestAgentLogsHint(t *testing.T) {
+	for _, p := range []string{"kubernetes", "docker", "swarm", "nomad", "ecs", "lambda", ""} {
+		if agentLogs(p) == "" {
+			t.Errorf("%q: no hint", p)
+		}
 	}
 }

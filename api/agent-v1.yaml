@@ -306,6 +306,13 @@ components:
           description: Targets the agent found or declares.
           items:
             $ref: '#/components/schemas/DeclaredTarget'
+        notes:
+          type: array
+          description: Platforms that looked present but could not be used, and why; shown with the agent.
+          maxItems: 50
+          items:
+            type: string
+            maxLength: 500
 
     DeclaredTarget:
       type: object

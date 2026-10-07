@@ -157,7 +157,7 @@ func enroll(ctx context.Context, server, code string, log *slog.Logger) (string,
 	host, _ := os.Hostname()
 	resp, err := agent.Enroll(ctx, server, agentproto.EnrollRequest{
 		Code: code, Identity: found.Identity, Name: found.Name, Version: buildinfo.Version, Hostname: host,
-		Targets: found.Targets,
+		Targets: found.Targets, Notes: shortNotes(found.Notes),
 	}, nil, log)
 	if err != nil {
 		return "", err
@@ -221,4 +221,17 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// shortNotes keeps what the agent reports it could not use within the protocol's
+// limits: 50 notes of 500 bytes.
+func shortNotes(notes []string) []string {
+	out := make([]string, 0, min(len(notes), 50))
+	for _, n := range notes[:min(len(notes), 50)] {
+		if len(n) > 500 {
+			n = strings.ToValidUTF8(n[:497], "") + "…"
+		}
+		out = append(out, n)
+	}
+	return out
 }

@@ -347,10 +347,12 @@ type ConnectCodeView struct {
 
 // CodeStatus is what the agents that enrolled with a code got to.
 type CodeStatus struct {
-	CodeID string
-	Many   bool
-	Agents []CodeAgent
-	Done   bool // every agent's targets reported, for a code for one agent
+	CodeID   string
+	Platform string // what the command started, for troubleshooting hints
+	Many     bool
+	Agents   []CodeAgent
+	Done     bool // every agent's targets reported, for a code for one agent
+	Slow     bool // no agent a minute after the code was made
 }
 
 // CodeAgent is one agent that enrolled with a code.
@@ -359,6 +361,7 @@ type CodeAgent struct {
 	Name      string
 	Connected bool
 	Targets   []CodeTarget
+	Notes     []string // what it could not use
 }
 
 // CodeTarget is a target an enrolled agent added.
@@ -414,27 +417,27 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 	if name != "" && info.Key == "kubernetes" {
 		v.Command += " --set name=" + name
 	}
-	if v.Status, err = s.codeStatus(r, p, c.ID); err != nil {
+	if v.Status, err = s.codeStatus(r, p, c.ID, info.Key); err != nil {
 		return err
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	return render(w, r, ConnectCodePage(v))
 }
 
-func (s *Server) codeStatus(r *http.Request, p auth.Principal, codeID string) (CodeStatus, error) {
+func (s *Server) codeStatus(r *http.Request, p auth.Principal, codeID, platform string) (CodeStatus, error) {
 	ctx := r.Context()
 	c, err := s.store.GetEnrollmentCode(ctx, p.Scope, codeID)
 	if err != nil {
 		return CodeStatus{}, err
 	}
-	st := CodeStatus{CodeID: c.ID, Many: !c.Single}
+	st := CodeStatus{CodeID: c.ID, Many: !c.Single, Platform: platform}
 	agents, err := s.store.ListCodeAgents(ctx, p.Scope, c.ID)
 	if err != nil {
 		return st, err
 	}
 	reported := len(agents) > 0
 	for _, a := range agents {
-		ca := CodeAgent{ID: a.ID, Name: a.Name, Connected: !a.LastSeenAt.IsZero()}
+		ca := CodeAgent{ID: a.ID, Name: a.Name, Connected: !a.LastSeenAt.IsZero(), Notes: a.Notes}
 		ts, err := s.store.ListAgentTargets(ctx, p.Scope, a.ID)
 		if err != nil {
 			return st, err
@@ -455,12 +458,17 @@ func (s *Server) codeStatus(r *http.Request, p auth.Principal, codeID string) (C
 		st.Agents = append(st.Agents, ca)
 	}
 	st.Done = reported && !st.Many
+	st.Slow = len(agents) == 0 && time.Since(c.CreatedAt) > time.Minute
 	return st, nil
 }
 
 // connectCodeProgress is the live fragment of the code page.
 func (s *Server) connectCodeProgress(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	st, err := s.codeStatus(r, p, r.PathValue("id"))
+	platform := r.URL.Query().Get("p")
+	if _, ok := platformInfo(platform); !ok {
+		platform = ""
+	}
+	st, err := s.codeStatus(r, p, r.PathValue("id"), platform)
 	if errors.Is(err, store.ErrNotFound) {
 		http.Error(w, "unknown code", http.StatusNotFound)
 		return nil
@@ -547,25 +555,21 @@ func installCommand(platform, serverURL, token string, files []string, version s
 	}
 	switch platform {
 	case "kubernetes":
-		return "Install the agent in the cluster with Helm", "kubectl create namespace goliash --dry-run=client -o yaml | kubectl apply -f -\n" +
-			"kubectl -n goliash create secret generic goliash-agent-token --from-literal=token=" + token + " \\\n" +
-			"  --dry-run=client -o yaml | kubectl apply -f -\n" +
-			"helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent" + chartVersion + " -n goliash \\\n" +
-			"  --set serverURL=" + serverURL + " --set token.existingSecret=goliash-agent-token"
+		return "Install the agent in the cluster with Helm", "helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent" + chartVersion + " \\\n" +
+			"  -n goliash --create-namespace --set serverURL=" + serverURL + " --set token.value=" + token
 	case "docker":
-		return "Start the agent on the Docker host", "curl -fsSLO " + raw + "docker/goliash-agent.yml\n" +
-			"GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
-			"  docker compose -f goliash-agent.yml up -d"
+		return "Start the agent on the Docker host", "curl -fsSL " + raw + "docker/goliash-agent.yml | \\\n" +
+			"  GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
+			"  docker compose -p goliash-agent -f - up -d"
 	case "swarm":
 		return "Deploy the agent stack on a manager node", "curl -fsSLO " + raw + "swarm/goliash-agent.yml\n" +
 			"printf '%s' '" + token + "' | docker secret create goliash_agent_token -\n" +
 			"GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " docker stack deploy -c goliash-agent.yml goliash-agent"
 	case "nomad":
 		return "Run the agent job in Nomad", "curl -fsSLO " + raw + "nomad/goliash-agent.nomad.hcl\n" +
-			"sed -i.bak -e 's#https://goliash.example.com#" + serverURL + "#' -e 's#goliash-agent:latest#goliash-agent:" + tag + "#' goliash-agent.nomad.hcl\n" +
 			"nomad var put -force nomad/jobs/goliash-agent token=" + token + "\n" +
 			"# with Nomad ACLs, add nomad_token=<secret ID> above (a token that may list-jobs and read-job)\n" +
-			"nomad job run goliash-agent.nomad.hcl"
+			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
 	case "ecs", "lambda":
 		source := "github.com/pipozzz/goliash//deploy/ecs/goliash-agent"
 		if ref != "main" {
@@ -641,4 +645,21 @@ func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	_ = render(w, r, SetupPage(token, r.URL.Query().Get("error")))
+}
+
+// agentLogs is where to read a new agent's log on each platform.
+func agentLogs(platform string) string {
+	switch platform {
+	case "kubernetes":
+		return "kubectl -n goliash logs deploy/goliash-agent"
+	case "docker":
+		return "docker compose -p goliash-agent logs agent"
+	case "swarm":
+		return "docker service logs goliash-agent_agent"
+	case "nomad":
+		return "nomad alloc logs -job goliash-agent"
+	case "ecs", "lambda":
+		return "aws logs tail /ecs/goliash-agent --follow"
+	}
+	return "docker logs goliash-agent"
 }

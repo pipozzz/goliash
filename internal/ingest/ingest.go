@@ -91,6 +91,7 @@ func (s *Service) Enroll(ctx context.Context, req agentproto.EnrollRequest) (age
 	token, hash := tokens.New(tokens.Agent)
 	res, err := s.store.Enroll(ctx, store.Enrollment{
 		CodeHash: tokens.Hash(req.Code), Identity: req.Identity, Name: req.Name, TokenHash: hash, Targets: targets,
+		Notes: notesOf(req),
 	})
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -341,4 +342,15 @@ func (s *Service) checkStale(ctx context.Context, onStale func(store.Agent)) {
 			onStale(a)
 		}
 	}
+}
+
+// notesOf cleans what an agent reported it could not use: one line each.
+func notesOf(req agentproto.EnrollRequest) []string {
+	var out []string
+	for _, n := range req.Notes {
+		if n = strings.Join(strings.Fields(n), " "); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
 }

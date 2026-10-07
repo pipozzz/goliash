@@ -372,6 +372,9 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .connect-manual > summary h2 { display: inline; }
 .connect-manual .connect-form .panel { box-shadow: none; }
 .code-agent + .code-agent { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.connect-status .notice ul.tight { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.connect-status .notice pre { margin: 6px 0; }
+.notes-list { margin: 0; padding-left: 34px; display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); }
 .code-agent h3 { margin: 4px 0 0; font-size: 15px; }
 #install-code { margin: 6px 0; word-break: break-all; white-space: pre-wrap; }
 .choice { align-items: flex-start; font-weight: 400; }

@@ -281,6 +281,9 @@ type EnrollRequest struct {
 	// Example: web-01
 	Name string `json:"name"`
 
+	// Notes Platforms that looked present but could not be used, and why; shown with the agent.
+	Notes []string `json:"notes,omitempty"`
+
 	// Targets Targets the agent found or declares.
 	Targets []DeclaredTarget `json:"targets"`
 

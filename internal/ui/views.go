@@ -589,6 +589,8 @@ type AgentView struct {
 	Hostname  string
 	Platforms string
 	LastSeen  time.Time
+	Enrolled  bool     // registers itself with an enrollment code
+	Notes     []string // what it could not use when it last registered
 }
 
 // TargetView is one target row.
@@ -671,6 +673,15 @@ type AgentPageView struct {
 	Rotated       bool
 	ServerURL     string
 	ServerVersion string
+	Code          CodeInfo // for an enrolled agent: the code it registers with
+	Managed       int      // targets the agent found itself, deleted with it
+}
+
+// CodeInfo describes the enrollment code an agent registers with.
+type CodeInfo struct {
+	Env     string
+	Many    bool
+	Revoked bool
 }
 
 // ChannelView is one notification channel.

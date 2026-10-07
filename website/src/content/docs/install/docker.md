@@ -45,10 +45,13 @@ docker compose exec goliash goliash target create -env prod -platform docker -na
 `deploy/docker/goliash-agent.yml` runs an agent with its own socket proxy on any Docker host:
 
 ```sh
-export GOLIASH_SERVER_URL=https://goliash.example.com
-export GOLIASH_AGENT_TOKEN=glsh_enroll_…   # goliash enroll create -env prod
-docker compose -f deploy/docker/goliash-agent.yml up -d
+curl -fsSL https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/docker/goliash-agent.yml | \
+  GOLIASH_SERVER_URL=https://goliash.example.com GOLIASH_AGENT_TOKEN=glsh_enroll_… \
+  docker compose -p goliash-agent -f - up -d
 ```
+
+`GOLIASH_AGENT_TOKEN` takes the code from **Connect** (or `goliash enroll create -env prod`). Its log:
+`docker compose -p goliash-agent logs agent`; to remove it: `docker compose -p goliash-agent down`.
 
 With an [enrollment code](/install/#enrollment-codes) the agent adds the host as a `docker` target itself. With an
 agent token instead, create the target with `{"docker":{"docker_host":"tcp://socket-proxy:2375"}}`.

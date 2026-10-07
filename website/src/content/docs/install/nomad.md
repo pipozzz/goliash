@@ -35,13 +35,14 @@ The agent reads the cluster through the Nomad API with a token that has the `lis
 ```sh
 nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["list-jobs", "read-job"] }'
 nomad acl token create -name goliash-agent -policy goliash-read      # copy the secret ID
-nomad var put nomad/jobs/goliash-agent token=glsh_agent_… nomad_token=<secret ID>
-nomad job run deploy/nomad/goliash-agent.nomad.hcl
+nomad var put nomad/jobs/goliash-agent token=glsh_enroll_… nomad_token=<secret ID>
+nomad job run -var server_url=https://goliash.example.com -var version=1.14.0 deploy/nomad/goliash-agent.nomad.hcl
 ```
 
-Edit `GOLIASH_SERVER_URL` in the job first. Create a `nomad` target with credentials reference `nomad` and
-settings like `{"nomad":{"address":"http://nomad.service.consul:4646"}}`. The job passes the Nomad token to the
-agent as `GOLIASH_CREDENTIAL_NOMAD`.
+`token` is the code from **Connect** (or `goliash enroll create -env prod`): the agent registers itself and adds the
+region as a target, read through the Nomad agent on its node. The job passes the Nomad token to the agent as
+`GOLIASH_CREDENTIAL_NOMAD`. With an agent token (`glsh_agent_…`) instead, create a `nomad` target with credentials
+reference `nomad` and settings like `{"nomad":{"address":"http://nomad.service.consul:4646"}}`.
 
 Run one agent per token: the job is a `service` job with one instance, not a `system` job.
 

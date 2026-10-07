@@ -400,7 +400,7 @@ templ codeStatusView(st CodeStatus) {
 		class="panel connect-status"
 		id="code-status"
 		if !st.Done {
-			hx-get={ "/connect/code/" + st.CodeID }
+			hx-get={ "/connect/code/" + st.CodeID + "?p=" + st.Platform }
 			hx-trigger="every 3s"
 			hx-swap="outerHTML"
 		}
@@ -416,6 +416,17 @@ templ codeStatusView(st CodeStatus) {
 					</div>
 				</li>
 			</ol>
+			if st.Slow {
+				<div class="notice">
+					<strong>Nothing yet?</strong> The agent's log says why:
+					<pre class="mono install-cmd">{ agentLogs(st.Platform) }</pre>
+					<ul class="tight">
+						<li>It has to reach this server's address from where it runs (outbound HTTPS).</li>
+						<li>A code for one agent belongs to the first agent that used it; a code expires for new agents after its limit.</li>
+						<li>On Docker, the socket proxy must allow <code>INFO=1</code> so the agent can tell the host apart.</li>
+					</ul>
+				</div>
+			}
 		}
 		for _, a := range st.Agents {
 			<div class="code-agent">
@@ -426,6 +437,9 @@ templ codeStatusView(st CodeStatus) {
 						<div>
 							<strong>Registered</strong>
 							<p class="muted">{ codeTargets(a) }</p>
+							for _, n := range a.Notes {
+								<p class="muted">Not collected: { n }</p>
+							}
 						</div>
 					</li>
 					for _, t := range a.Targets {

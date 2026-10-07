@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/pkg/agentproto"
@@ -127,6 +128,7 @@ type Enrollment struct {
 	Name      string // the agent's preferred name; a suffix is added when it is taken
 	TokenHash string // the agent's new token
 	Targets   []agentproto.Target
+	Notes     []string // what the agent could not use
 }
 
 // Enrolled is the outcome of an enrollment.
@@ -196,6 +198,11 @@ func (s *Store) Enroll(ctx context.Context, e Enrollment) (Enrolled, error) {
 			return err
 		}
 		out.Agent.ActiveTokens = 1
+		notes := strings.Join(e.Notes, "\n")
+		if _, err := s.exec(ctx, tx, `UPDATE agents SET notes = ? WHERE id = ?`, notes, out.Agent.ID); err != nil {
+			return err
+		}
+		out.Agent.Notes = e.Notes
 		if _, err := s.exec(ctx, tx, `UPDATE enrollment_codes SET last_used_at = ? WHERE id = ?`, now, code.ID); err != nil {
 			return err
 		}

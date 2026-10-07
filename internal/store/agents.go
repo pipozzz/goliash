@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,11 @@ type Agent struct {
 	// Identity is set on agents that enrolled with a code: what identifies their
 	// installation (a Docker engine, a cluster).
 	Identity string
+	// Notes are what the agent could not use when it last enrolled, and why.
+	Notes []string
+	// CodeID is the enrollment code the agent registered with; empty for agents
+	// created with a token.
+	CodeID string
 }
 
 // CreateAgent creates an agent together with its token. tokenHash is the SHA-256
@@ -177,7 +183,7 @@ func (s *Store) RevokeAgentTokens(ctx context.Context, sc Scope, agentID string)
 }
 
 const agentColumns = `a.id, a.org_id, a.workspace_id, a.name, a.version, a.hostname, a.platforms,
-	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity,
+	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity, a.notes, a.enrollment_code_id,
 	(SELECT COUNT(*) FROM tokens k WHERE k.agent_id = a.id AND k.kind = 'agent' AND k.revoked_at IS NULL)`
 
 func (s *Store) scanAgent(row scanner) (Agent, string, error) {
@@ -186,9 +192,11 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		platforms, extra                 string
 		registered, lastSeen, staleSince sql.NullTime
 		identity                         sql.NullString
+		notes                            string
+		codeID                           sql.NullString
 	)
 	err := row.Scan(&a.ID, &a.Scope.OrgID, &a.Scope.WorkspaceID, &a.Name, &a.Version, &a.Hostname,
-		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &a.ActiveTokens, &extra)
+		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &notes, &codeID, &a.ActiveTokens, &extra)
 	if err != nil {
 		return Agent{}, "", notFound(err)
 	}
@@ -196,7 +204,10 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		return Agent{}, "", err
 	}
 	a.RegisteredAt, a.LastSeenAt, a.StaleSince = timeOrZero(registered), timeOrZero(lastSeen), timeOrZero(staleSince)
-	a.CreatedAt, a.Identity = a.CreatedAt.UTC(), identity.String
+	a.CreatedAt, a.Identity, a.CodeID = a.CreatedAt.UTC(), identity.String, codeID.String
+	if notes != "" {
+		a.Notes = strings.Split(notes, "\n")
+	}
 	return a, extra, nil
 }
 
