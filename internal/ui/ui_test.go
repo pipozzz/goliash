@@ -1427,3 +1427,15 @@ func TestEmailChannelOwnServer(t *testing.T) {
 		t.Fatalf("edit lost settings: %v", cfg)
 	}
 }
+
+func TestMayResetPasswordAfterLinkAndSecondFactor(t *testing.T) {
+	now := time.Now()
+	for method, want := range map[string]bool{"link": true, "link+totp": true, "oidc": true, "link+recovery code": true, "password": false, "password+totp": false} {
+		if got := mayResetPassword(store.Session{Method: method, CreatedAt: now.Add(-time.Minute)}, now); got != want {
+			t.Errorf("%s: %v", method, got)
+		}
+	}
+	if mayResetPassword(store.Session{Method: "link+totp", CreatedAt: now.Add(-time.Hour)}, now) {
+		t.Error("an old session may reset")
+	}
+}

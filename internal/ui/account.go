@@ -44,7 +44,9 @@ const recentSignIn = 15 * time.Minute
 // mayResetPassword reports whether the current session proves the person just now:
 // a sign-in link or single sign-on in the last few minutes.
 func mayResetPassword(cur store.Session, now time.Time) bool {
-	return (cur.Method == "link" || cur.Method == "oidc") && now.Sub(cur.CreatedAt) < recentSignIn
+	// "link+totp" and the like: a link or single sign-on followed by a second factor.
+	first, _, _ := strings.Cut(cur.Method, "+")
+	return (first == "link" || first == "oidc") && now.Sub(cur.CreatedAt) < recentSignIn
 }
 
 func (s *Server) currentSession(r *http.Request, p auth.Principal) (store.Session, []store.Session, error) {
