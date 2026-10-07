@@ -117,6 +117,7 @@ const usage = `Usage:
   goliash rule create -match image_repo|workload_name|label|ignore -pattern REGEXP [-service NAME] [-priority N]
   goliash backup -out DIR                 SQLite: a consistent copy of the database (and goliash.key) while the server runs
   goliash healthcheck                     exit 0 when the local server answers /healthz (container health checks)
+  goliash try [-listen :8080]             a throwaway server with example data and a link that signs you in
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
@@ -251,6 +252,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return tokenRevoke(ctx, args, out)
 	case "demo":
 		return demoCmd(ctx, args, out)
+	case "try":
+		return tryCmd(ctx, args, out)
 	case "backup":
 		return backupCmd(ctx, args, out)
 	case "badges reset":
@@ -393,6 +396,7 @@ func serve(ctx context.Context, args []string) error {
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
 	debug := fs.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
 	logFormat := fs.String("log-format", envOr("GOLIASH_LOG_FORMAT", "text"), "text or json (env GOLIASH_LOG_FORMAT)")
+	logLevel := fs.String("log-level", envOr("GOLIASH_LOG_LEVEL", "info"), "debug, info, warn or error (env GOLIASH_LOG_LEVEL)")
 	drain := fs.Duration("drain", envDuration("GOLIASH_DRAIN", 0),
 		"on shutdown, answer /readyz with 503 this long before closing, so load balancers stop sending (env GOLIASH_DRAIN)")
 	backupDir := fs.String("backup-dir", os.Getenv("GOLIASH_BACKUP_DIR"), "SQLite: write a backup here every day (env GOLIASH_BACKUP_DIR)")
@@ -405,7 +409,10 @@ func serve(ctx context.Context, args []string) error {
 		return fmt.Errorf("unexpected %q: flags go after the command, e.g. goliash %s -database …", fs.Arg(0), fs.Arg(0))
 	}
 
-	level := slog.LevelInfo
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
+		return fmt.Errorf("-log-level %q: use debug, info, warn or error", *logLevel)
+	}
 	if *debug {
 		level = slog.LevelDebug
 	}
@@ -1732,6 +1739,65 @@ func healthcheck(ctx context.Context) error {
 		return fmt.Errorf("/healthz answered %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// tryCmd runs a throwaway server with example data and prints a link that signs
+// you in: one command to see Goliash. Everything is gone when it stops.
+func tryCmd(ctx context.Context, args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("try", flag.ContinueOnError)
+	listen := fs.String("listen", ":8080", "HTTP listen address")
+	publicURL := fs.String("public-url", "http://localhost:8080", "URL you open it at")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	dir, err := os.MkdirTemp("", "goliash-try-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	// A throwaway server: its new key and web push setup are nothing to report.
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer slog.SetDefault(prev)
+	if os.Getenv("GOLIASH_PUSH_SUBJECT") == "" {
+		_ = os.Setenv("GOLIASH_PUSH_SUBJECT", "mailto:try@example.com")
+	}
+	dsn := filepath.Join(dir, "goliash.db")
+	db, ws, err := openDefault(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := demo.Seed(ctx, db, ws, quiet); err != nil {
+		_ = db.Close()
+		return err
+	}
+	u, err := db.CreateUser(ctx, ws.OrgID, "you@example.com", "You", store.RoleOwner)
+	if err != nil {
+		_ = db.Close()
+		return err
+	}
+	a, err := auth.New(db, quiet, *publicURL, nil)
+	if err != nil {
+		_ = db.Close()
+		return err
+	}
+	link, err := a.LoginLink(ctx, u)
+	_ = db.Close()
+	if err != nil {
+		return err
+	}
+	go func() {
+		// After the server's own start-up lines, so the link is what one sees last.
+		select {
+		case <-ctx.Done():
+		case <-time.After(2 * time.Second):
+			_, _ = fmt.Fprintf(out, "\n  Goliash is running with three weeks of example data.\n\n  Open %s\n\n"+
+				"  (signs you in; works once, for 15 minutes). Stop with Ctrl-C: nothing is kept.\n"+
+				"  To run it for real: https://goliash.dev/getting-started/\n\n", link)
+		}
+	}()
+	return serve(ctx, []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "warn"})
 }
 
 func demoCmd(ctx context.Context, args []string, out io.Writer) error {

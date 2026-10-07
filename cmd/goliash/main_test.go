@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -297,5 +299,51 @@ func TestUserTwoFactorReset(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	if got, _ := db.GetUser(ctx, u.ID); got.TOTPEnabled {
 		t.Fatal("2FA still on")
+	}
+}
+
+// syncBuffer is a bytes.Buffer safe for a writer and a reader goroutine.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestTry(t *testing.T) {
+	t.Setenv("GOLIASH_PUSH_SUBJECT", "") // try sets it; restore it afterwards
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var out syncBuffer
+	done := make(chan error, 1)
+	go func() { done <- tryCmd(ctx, []string{"-listen", "127.0.0.1:0"}, &out) }()
+	deadline := time.Now().Add(20 * time.Second)
+	for !strings.Contains(out.String(), "/auth/magic?token=") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no sign-in link: %s", out.String())
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !strings.Contains(out.String(), "three weeks of example data") {
+		t.Fatalf("banner: %s", out.String())
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("did not stop")
 	}
 }
