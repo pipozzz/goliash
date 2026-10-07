@@ -828,3 +828,5 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .demo-banner { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; justify-content: space-between; padding: 10px 14px; margin-bottom: 16px; border-radius: 8px; background: var(--accent-soft, var(--surface-2)); border: 1px solid var(--line); font-size: 13px; }
 .demo-banner code { font-size: 12px; overflow-wrap: anywhere; }
 .inbox-apps { margin: 8px 0 0; max-width: 320px; }
+.split-row { align-items: center; }
+.split-row > span { min-width: 0; flex: 1; }
