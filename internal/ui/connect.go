@@ -214,6 +214,9 @@ func (s *Server) connectCreate(w http.ResponseWriter, r *http.Request, p auth.Pr
 	}
 	f := r.PostForm
 	again := func(problem string) error { return s.showConnectForm(w, r, p, f, problem) }
+	if f.Get("mode") == "code" && info.AgentFirst {
+		return s.connectCode(w, r, p, info, f)
+	}
 
 	name := strings.TrimSpace(f.Get("name"))
 	if !serviceName.MatchString(name) {
@@ -224,37 +227,12 @@ func (s *Server) connectCreate(w http.ResponseWriter, r *http.Request, p auth.Pr
 		return again(problem)
 	}
 
-	// The environment: one that exists, or a new one placed after the others.
-	envName := strings.TrimSpace(f.Get("new_env"))
-	var env store.Environment
-	envs, err := s.store.ListEnvironments(ctx, p.Scope)
+	env, problem, err := s.connectEnv(r, p, f)
 	if err != nil {
 		return err
 	}
-	if envName != "" {
-		if !serviceName.MatchString(envName) {
-			return again("Name the environment with letters, digits, dots, dashes and underscores, e.g. staging.")
-		}
-		pos := 10
-		for _, e := range envs {
-			if strings.EqualFold(e.Name, envName) {
-				return again("There is an environment " + e.Name + " already; pick it from the list.")
-			}
-			pos = max(pos, e.Position+10)
-		}
-		if env, err = s.store.CreateEnvironment(ctx, p.Scope, envName, pos); err != nil {
-			return err
-		}
-		s.audit(ctx, p, "environment.create", "environment", envName)
-	} else {
-		for _, e := range envs {
-			if e.ID == f.Get("env") {
-				env = e
-			}
-		}
-		if env.ID == "" {
-			return again("Pick an environment, or name a new one.")
-		}
+	if problem != "" {
+		return again(problem)
 	}
 
 	// Who collects it.
@@ -306,6 +284,182 @@ func (s *Server) connectCreate(w http.ResponseWriter, r *http.Request, p auth.Pr
 		w.Header().Set("Cache-Control", "no-store")
 	}
 	return render(w, r, ConnectDonePage(v))
+}
+
+// connectEnv is the environment the form picked: one that exists, or a new one
+// placed after the others. problem explains a wrong choice.
+func (s *Server) connectEnv(r *http.Request, p auth.Principal, f url.Values) (store.Environment, string, error) {
+	ctx := r.Context()
+	envName := strings.TrimSpace(f.Get("new_env"))
+	envs, err := s.store.ListEnvironments(ctx, p.Scope)
+	if err != nil {
+		return store.Environment{}, "", err
+	}
+	if envName == "" {
+		for _, e := range envs {
+			if e.ID == f.Get("env") {
+				return e, "", nil
+			}
+		}
+		return store.Environment{}, "Pick an environment, or name a new one.", nil
+	}
+	if !serviceName.MatchString(envName) {
+		return store.Environment{}, "Name the environment with letters, digits, dots, dashes and underscores, e.g. staging.", nil
+	}
+	pos := 10
+	for _, e := range envs {
+		if strings.EqualFold(e.Name, envName) {
+			return store.Environment{}, "There is an environment " + e.Name + " already; pick it from the list.", nil
+		}
+		pos = max(pos, e.Position+10)
+	}
+	env, err := s.store.CreateEnvironment(ctx, p.Scope, envName, pos)
+	if err != nil {
+		return env, "", err
+	}
+	s.audit(ctx, p, "environment.create", "environment", envName)
+	return env, "", nil
+}
+
+// ConnectCodeView shows the command with a new enrollment code, and follows the
+// agents that enroll with it.
+type ConnectCodeView struct {
+	Base
+	Platform PlatformInfo
+	Env      string
+	Code     string
+	Many     bool
+	Expires  time.Time // zero: never
+	Title    string
+	Command  string
+	Status   CodeStatus
+}
+
+// CodeStatus is what the agents that enrolled with a code got to.
+type CodeStatus struct {
+	CodeID string
+	Many   bool
+	Agents []CodeAgent
+	Done   bool // every agent's targets reported, for a code for one agent
+}
+
+// CodeAgent is one agent that enrolled with a code.
+type CodeAgent struct {
+	ID        string
+	Name      string
+	Connected bool
+	Targets   []CodeTarget
+}
+
+// CodeTarget is a target an enrolled agent added.
+type CodeTarget struct {
+	ID        string
+	Name      string
+	Platform  string
+	Reported  bool
+	Workloads int
+	Unmapped  int
+	Problem   string
+}
+
+// Expiry choices for enrollment codes: how long new agents may enroll.
+var codeExpiry = map[string]time.Duration{"7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour, "never": 0}
+
+// connectCode creates an enrollment code and shows the command that starts an agent
+// with it: the agent registers itself and adds what it finds.
+func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Principal, info PlatformInfo, f url.Values) error {
+	ctx := r.Context()
+	again := func(problem string) error { return s.showConnectForm(w, r, p, f, problem) }
+	name := strings.TrimSpace(f.Get("cluster_name"))
+	if name != "" && !serviceName.MatchString(name) {
+		return again("Name the cluster with letters, digits, dots, dashes and underscores, e.g. prod-eu.")
+	}
+	validity, ok := codeExpiry[f.Get("expires")]
+	if !ok {
+		validity = codeExpiry["7d"]
+	}
+	env, problem, err := s.connectEnv(r, p, f)
+	if err != nil {
+		return err
+	}
+	if problem != "" {
+		return again(problem)
+	}
+	var until time.Time
+	if validity > 0 {
+		until = time.Now().Add(validity)
+	}
+	many := f.Get("many") == "on"
+	code, hash := tokens.New(tokens.Enroll)
+	c, err := s.store.CreateEnrollmentCode(ctx, p.Scope, env.ID, hash, p.User.Email, until, !many)
+	if err != nil {
+		return err
+	}
+	s.audit(ctx, p, "enroll.create", "environment", env.Name, "platform", info.Key, "code", c.ID)
+	v := ConnectCodeView{
+		Base: s.base(ctx, p, "agents", "Connect "+info.Title), Platform: info, Env: env.Name, Code: code, Many: many,
+		Expires: until,
+	}
+	v.Title, v.Command = installCommand(info.Key, s.publicURL, code, nil, s.version)
+	if name != "" && info.Key == "kubernetes" {
+		v.Command += " --set name=" + name
+	}
+	if v.Status, err = s.codeStatus(r, p, c.ID); err != nil {
+		return err
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	return render(w, r, ConnectCodePage(v))
+}
+
+func (s *Server) codeStatus(r *http.Request, p auth.Principal, codeID string) (CodeStatus, error) {
+	ctx := r.Context()
+	c, err := s.store.GetEnrollmentCode(ctx, p.Scope, codeID)
+	if err != nil {
+		return CodeStatus{}, err
+	}
+	st := CodeStatus{CodeID: c.ID, Many: !c.Single}
+	agents, err := s.store.ListCodeAgents(ctx, p.Scope, c.ID)
+	if err != nil {
+		return st, err
+	}
+	reported := len(agents) > 0
+	for _, a := range agents {
+		ca := CodeAgent{ID: a.ID, Name: a.Name, Connected: !a.LastSeenAt.IsZero()}
+		ts, err := s.store.ListAgentTargets(ctx, p.Scope, a.ID)
+		if err != nil {
+			return st, err
+		}
+		for _, t := range ts {
+			ct := CodeTarget{ID: t.ID, Name: t.Name, Platform: t.Platform, Reported: !t.LastSnapshotAt.IsZero(), Problem: t.CollectorError}
+			if ct.Reported {
+				one, err := s.connectStatus(r, p, t.ID)
+				if err != nil {
+					return st, err
+				}
+				ct.Workloads, ct.Unmapped = one.Workloads, one.Unmapped
+			}
+			reported = reported && ct.Reported
+			ca.Targets = append(ca.Targets, ct)
+		}
+		reported = reported && len(ts) > 0
+		st.Agents = append(st.Agents, ca)
+	}
+	st.Done = reported && !st.Many
+	return st, nil
+}
+
+// connectCodeProgress is the live fragment of the code page.
+func (s *Server) connectCodeProgress(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	st, err := s.codeStatus(r, p, r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		http.Error(w, "unknown code", http.StatusNotFound)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	return render(w, r, codeStatusView(st))
 }
 
 func (s *Server) connectStatus(r *http.Request, p auth.Principal, targetID string) (ConnectStatus, error) {

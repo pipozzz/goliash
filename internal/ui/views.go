@@ -614,6 +614,19 @@ type AgentsView struct {
 	ServerURL  string
 	Moves      []AgentOption
 	Envs       []EnvView
+	Codes      []CodeView
+}
+
+// CodeView is an enrollment code on the agents page.
+type CodeView struct {
+	ID       string
+	Env      string
+	Many     bool
+	Agents   int
+	Expires  time.Time // zero: never
+	Expired  bool
+	LastUsed time.Time
+	By       string
 }
 
 // EnvView is one environment on the agents page.
@@ -636,6 +649,7 @@ type TargetEditView struct {
 	Poll     int
 	Agent    string
 	AgentID  string
+	Managed  bool // the agent found or declared it and owns its settings
 }
 
 // AgentOption is an agent a target can move to.

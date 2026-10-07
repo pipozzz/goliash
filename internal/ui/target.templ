@@ -35,11 +35,19 @@ templ TargetPage(v TargetEditView) {
 							<span class="hint">30 to 86400. Kubernetes targets also watch for changes between polls.</span>
 						</label>
 					</div>
-					<label>
-						Settings (JSON)
-						<textarea name="settings" rows="8" class="mono" spellcheck="false">{ v.Settings }</textarea>
-						<span class="hint">The platform settings sent to the collector, e.g. <code>{ `{"swarm":{"docker_host":"tcp://proxy:2375"}}` }</code>. Credentials go in a credentials reference, never here.</span>
-					</label>
+					if v.Managed {
+						<label>
+							Settings (JSON) <span class="badge neutral">managed by agent { v.Agent }</span>
+							<textarea name="settings" rows="8" class="mono" spellcheck="false" readonly>{ v.Settings }</textarea>
+							<span class="hint">The agent found this target and sends its settings whenever it starts. Change them where the agent runs (its environment, <code>GOLIASH_TARGETS</code>, the job or values file).</span>
+						</label>
+					} else {
+						<label>
+							Settings (JSON)
+							<textarea name="settings" rows="8" class="mono" spellcheck="false">{ v.Settings }</textarea>
+							<span class="hint">The platform settings sent to the collector, e.g. <code>{ `{"swarm":{"docker_host":"tcp://proxy:2375"}}` }</code>. Credentials go in a credentials reference, never here.</span>
+						</label>
+					}
 					<div class="actions">
 						<button type="submit">Save</button>
 						<a class="button secondary" href={ templ.URL(targetBack(v.AgentID)) }>Cancel</a>

@@ -366,6 +366,13 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .platform strong { font-size: 16px; }
 .platform span { color: var(--muted); font-size: 13px; }
 .connect-form { max-width: 860px; }
+.connect-manual { max-width: 860px; margin-top: 18px; }
+.connect-manual > summary { cursor: pointer; list-style: none; }
+.connect-manual > summary h2 { display: inline; }
+.connect-manual .connect-form .panel { box-shadow: none; }
+.code-agent + .code-agent { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.code-agent h3 { margin: 4px 0 0; font-size: 15px; }
+#install-code { margin: 6px 0; word-break: break-all; white-space: pre-wrap; }
 .choice { align-items: flex-start; font-weight: 400; }
 .choice input { margin-top: 3px; }
 .inline-field { margin-left: 26px; max-width: 320px; }

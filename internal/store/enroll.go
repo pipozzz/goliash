@@ -216,13 +216,17 @@ func (s *Store) syncAgentTargets(ctx context.Context, tx *sql.Tx, a Agent, envir
 		if err != nil {
 			return nil, err
 		}
+		// The interval is the agent's only when it declares one; otherwise it stays
+		// what it was set to in Goliash.
 		poll := pt.PollIntervalSeconds
-		if poll < 30 {
+		keepPoll := poll < 30
+		if keepPoll {
 			poll = 300
 		}
-		res, err := s.exec(ctx, tx, `UPDATE targets SET settings = ?, poll_interval_seconds = ?
+		res, err := s.exec(ctx, tx, `UPDATE targets SET settings = ?,
+			poll_interval_seconds = CASE WHEN ? THEN poll_interval_seconds ELSE ? END
 			WHERE workspace_id = ? AND agent_id = ? AND agent_key = ?`,
-			settings, poll, a.Scope.WorkspaceID, a.ID, key)
+			settings, keepPoll, poll, a.Scope.WorkspaceID, a.ID, key)
 		if err != nil {
 			return nil, err
 		}
@@ -293,4 +297,24 @@ func (s *Store) freeName(ctx context.Context, tx *sql.Tx, count, workspaceID, na
 			return try, nil
 		}
 	}
+}
+
+// ListCodeAgents returns the agents that enrolled with a code, oldest first.
+func (s *Store) ListCodeAgents(ctx context.Context, sc Scope, codeID string) ([]Agent, error) {
+	rows, err := s.query(ctx, s.db, `SELECT `+agentColumns+`, '' FROM agents a
+		WHERE a.org_id = ? AND a.workspace_id = ? AND a.enrollment_code_id = ? ORDER BY a.created_at, a.id`,
+		sc.OrgID, sc.WorkspaceID, codeID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Agent
+	for rows.Next() {
+		a, _, err := s.scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }

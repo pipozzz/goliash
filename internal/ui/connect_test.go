@@ -8,8 +8,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/pipozzz/goliash/internal/tokens"
 
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/pkg/agentproto"
@@ -144,5 +148,102 @@ func TestInstallCommandPinsRelease(t *testing.T) {
 	}
 	if tag, ref := agentRelease("dev"); tag != "latest" || ref != "main" {
 		t.Errorf("dev build: %s %s", tag, ref)
+	}
+}
+
+func TestConnectWithCode(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+
+	_, body := get(t, admin, e.srv.URL+"/connect/docker", nil)
+	if !strings.Contains(body, `name="mode" value="code"`) || !strings.Contains(body, "Get the command") || !strings.Contains(body, "Set up by hand") {
+		t.Fatalf("form: %s", body)
+	}
+
+	// One click: the command carries a code for one agent.
+	_, body, hdr := post(t, admin, e.srv.URL+"/connect/docker", url.Values{"mode": {"code"}, "env": {e.prod.ID}, "expires": {"7d"}})
+	if !strings.Contains(body, "glsh_enroll_") || strings.Contains(body, "glsh_agent_") || !strings.Contains(body, "Waiting for the agent to register") ||
+		hdr.Get("Cache-Control") != "no-store" {
+		t.Fatalf("code page: %s", body)
+	}
+	codes, _ := e.st.ListEnrollmentCodes(ctx, e.ws.Scope())
+	if len(codes) != 1 || !codes[0].Single || codes[0].EnvironmentID != e.prod.ID || codes[0].ExpiresAt.IsZero() {
+		t.Fatalf("codes: %+v", codes)
+	}
+	code := codes[0]
+
+	// The agent enrolls: the page shows it and its target, and keeps polling until the report.
+	secret := regexp.MustCompile(`glsh_enroll_[0-9A-Za-z]+`).FindString(body)
+	if _, err := e.st.Enroll(ctx, store.Enrollment{
+		CodeHash: tokens.Hash(secret), Name: "web-01", TokenHash: "t",
+		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, body = get(t, admin, e.srv.URL+"/connect/code/"+code.ID, nil)
+	if !strings.Contains(body, "every 3s") || !strings.Contains(body, "Found web-01 (docker)") || !strings.Contains(body, "Waiting for the first report of web-01") {
+		t.Fatalf("status after enrolling: %s", body)
+	}
+
+	// Many hosts, no expiry, and a cluster name for Kubernetes.
+	_, body, _ = post(t, admin, e.srv.URL+"/connect/kubernetes", url.Values{
+		"mode": {"code"}, "new_env": {"edge"}, "many": {"on"},
+		"expires": {"never"}, "cluster_name": {"prod-eu"},
+	})
+	if !strings.Contains(body, "--set name=prod-eu") || !strings.Contains(body, "each registers as its own agent") {
+		t.Fatalf("many: %s", body)
+	}
+	codes, _ = e.st.ListEnrollmentCodes(ctx, e.ws.Scope())
+	if len(codes) != 2 || codes[0].Single || !codes[0].ExpiresAt.IsZero() {
+		t.Fatalf("many code: %+v", codes)
+	}
+}
+
+func TestCodesOnAgentsPageAndManagedTargets(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+	c, err := e.st.CreateEnrollmentCode(ctx, e.ws.Scope(), e.prod.ID, "h", "ana@example.com", time.Time{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.st.Enroll(ctx, store.Enrollment{
+		CodeHash: "h", Identity: "docker:E", Name: "web-01", TokenHash: "t",
+		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, admin, e.srv.URL+"/agents", nil)
+	if !strings.Contains(body, "Enrollment codes") || !strings.Contains(body, "many agents") || !strings.Contains(body, "ana@example.com") {
+		t.Fatalf("agents page: %s", body)
+	}
+
+	// The agent's target: settings are read-only and survive a save.
+	tid := res.Added[0].ID
+	_, body = get(t, admin, e.srv.URL+"/targets/"+tid+"/edit", nil)
+	if !strings.Contains(body, "managed by agent web-01") || !strings.Contains(body, "readonly") {
+		t.Fatalf("edit: %s", body)
+	}
+	post(t, admin, e.srv.URL+"/targets/"+tid, url.Values{"environment": {e.prod.ID}, "poll": {"600"}, "settings": {`{"docker":{"docker_host":"tcp://evil:1"}}`}})
+	got, _ := e.st.GetTarget(ctx, e.ws.Scope(), tid)
+	if !strings.Contains(string(got.Settings), "tcp://p:2375") || got.PollIntervalSeconds != 600 {
+		t.Fatalf("saved: %s %d", got.Settings, got.PollIntervalSeconds)
+	}
+	// Enrolling again keeps the interval set in Goliash.
+	if _, err := e.st.Enroll(ctx, store.Enrollment{
+		CodeHash: "h", Identity: "docker:E", Name: "web-01", TokenHash: "t2",
+		Targets: []agentproto.Target{{Platform: agentproto.Docker, Name: "web-01", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.st.GetTarget(ctx, e.ws.Scope(), tid); got.PollIntervalSeconds != 600 {
+		t.Fatalf("interval reset: %d", got.PollIntervalSeconds)
+	}
+
+	post(t, admin, e.srv.URL+"/enroll-codes/"+c.ID+"/revoke", nil)
+	if codes, _ := e.st.ListEnrollmentCodes(ctx, e.ws.Scope()); len(codes) != 0 {
+		t.Fatalf("not revoked: %+v", codes)
 	}
 }

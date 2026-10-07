@@ -61,6 +61,48 @@ templ AgentsPage(v AgentsView) {
 				@targetsTable(v.Targets, v.Moves, v.CanAdmin, "/agents")
 			}
 		</section>
+		if v.CanAdmin && len(v.Codes) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Enrollment codes</h2><span class="muted">agents started with one register themselves</span></div>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Environment</th><th>For</th><th>Agents</th><th>New agents until</th><th>Last used</th><th>Created by</th><th><span class="sr-only">Actions</span></th></tr></thead>
+						<tbody>
+							for _, c := range v.Codes {
+								<tr>
+									<td>{ c.Env }</td>
+									<td>
+										if c.Many {
+											many agents
+										} else {
+											one agent
+										}
+									</td>
+									<td>{ itoa(c.Agents) }</td>
+									<td>
+										if c.Expires.IsZero() {
+											no limit
+										} else {
+											{ c.Expires.Format("2 Jan 2006") }
+											if c.Expired {
+												<span class="badge neutral">expired</span>
+											}
+										}
+									</td>
+									<td>@timeAgo(c.LastUsed)</td>
+									<td>{ orDash(c.By) }</td>
+									<td class="row-actions">
+										<form class="inline" method="post" action={ templ.URL("/enroll-codes/" + c.ID + "/revoke") } hx-confirm="Revoke this code? No agent can register with it any more.">
+											<button type="submit" class="danger">Revoke</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		if v.CanAdmin {
 			<section class="panel">
 				<div class="panel-head"><h2>Environments</h2><span class="muted">in promotion order</span></div>
