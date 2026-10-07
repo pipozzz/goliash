@@ -34,6 +34,9 @@ A workload running a shared image such as `postgres` or `redis` can be mapped tw
 - **Map**: every workload running the image goes to one service (`postgres`), split per application as above.
 - **Map only this workload**: this workload becomes a service of its own (`goliash-db`), by its name without the
   generated suffix, so it keeps mapping after a redeploy renames it. Other workloads running the image stay apart.
+  When other projects have a workload of the same name (a `db` in each Dokploy project), it maps within its
+  project: the Inbox suggests `velin-lawrio-db`, and the rule matches `db` in `velin-lawrio` only, so each project's
+  `db` becomes its own service.
 
 With several images waiting, **Map all as suggested** at the top maps each to the service suggested next to it in one
 go; fix a suggestion on its row first where it is not right.

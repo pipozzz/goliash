@@ -962,6 +962,26 @@ func (s *Server) inboxItems(ctx context.Context, sc store.Scope) ([]InboxItem, e
 			Env: envName[i.EnvironmentID], Namespace: i.Namespace, Workload: i.WorkloadName, Kind: i.WorkloadKind,
 			Image: i.Image, Repo: ref.Repo(), Suggested: i.SuggestedService,
 		})
+		if i.AppSource != "namespace" { // a namespace is often an environment: not an identity
+			items[len(items)-1].App = i.App
+		}
+	}
+	// One workload name in several applications ("db" in four projects) maps within its
+	// application, to a service named with it.
+	apps := map[string]map[string]bool{}
+	for _, it := range items {
+		n := mapping.StableName(it.Workload)
+		if apps[n] == nil {
+			apps[n] = map[string]bool{}
+		}
+		apps[n][it.App] = true
+	}
+	for i := range items {
+		n := mapping.StableName(items[i].Workload)
+		items[i].OwnName = n
+		if items[i].App != "" && len(apps[n]) > 1 {
+			items[i].InApp, items[i].OwnName = true, items[i].App+"-"+n
+		}
 	}
 	sort.Slice(items, func(a, b int) bool { return items[a].Workload < items[b].Workload })
 	return items, nil
@@ -1040,7 +1060,7 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if !serviceName.MatchString(name) {
 		return back(w, r, "/inbox", "error", "Service names use letters, digits, dots, dashes and underscores.")
 	}
-	repo, workloadName := r.FormValue("repo"), r.FormValue("workload_name")
+	repo, workloadName, app := r.FormValue("repo"), r.FormValue("workload_name"), r.FormValue("app")
 	onlyWorkload := r.FormValue("only") == "workload"
 	if repo == "" || (onlyWorkload && workloadName == "") {
 		return back(w, r, "/inbox", "error", "Nothing to map.")
@@ -1056,13 +1076,16 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 	rule := store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: mapping.ImagePattern(repo), ServiceID: svc.ID}
 	if onlyWorkload {
 		rule = store.MappingRule{Scope: p.Scope, Priority: 50, MatchType: "workload_name", Pattern: mapping.WorkloadPattern(workloadName), ServiceID: svc.ID}
+		if app != "" {
+			rule.MatchType, rule.Pattern = "app_workload", mapping.AppWorkloadPattern(app, workloadName)
+		}
 	}
 	if _, err := s.store.CreateMappingRule(ctx, rule); err != nil {
 		return err
 	}
 	mapped := 0
 	for _, it := range items {
-		if it.Repo != repo || (onlyWorkload && mapping.StableName(it.Workload) != mapping.StableName(workloadName)) {
+		if it.Repo != repo || (onlyWorkload && (mapping.StableName(it.Workload) != mapping.StableName(workloadName) || (app != "" && it.App != app))) {
 			continue
 		}
 		if err := s.store.MapInstances(ctx, p.Scope, it.TargetID, it.WorkloadID, svc.ID); err != nil {
@@ -1078,6 +1101,9 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 	msg := fmt.Sprintf("Mapped %s to %s. New workloads running %s map to it by themselves.", plural(mapped, "workload", "workloads"), svc.Name, repo)
 	if onlyWorkload {
 		msg = fmt.Sprintf("Mapped %s to %s. Workloads named %s keep mapping to it, also after a redeploy renames them.", workloadName, svc.Name, mapping.StableName(workloadName))
+		if app != "" {
+			msg = fmt.Sprintf("Mapped %s of %s to %s. Workloads named %s in %s keep mapping to it; the same name in other applications stays apart.", workloadName, app, svc.Name, mapping.StableName(workloadName), app)
+		}
 	}
 	return back(w, r, "/inbox", "notice", msg)
 }

@@ -133,7 +133,7 @@ type MappingRule struct {
 	ID        string
 	Scope     Scope
 	Priority  int    // lower runs first
-	MatchType string // image_repo, workload_name, label or ignore
+	MatchType string // image_repo, workload_name, app_workload ("<app>/<workload>"), label or ignore
 	Pattern   string // regular expression; for label: key=value-regexp
 	ServiceID string // empty for ignore rules
 	CreatedAt time.Time
