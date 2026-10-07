@@ -14,6 +14,10 @@ Usage:
   goliash agent list                      agents with status, version and last contact
   goliash agent rotate -name NAME         new token; the old one works until the agent uses the new one
   goliash agent revoke -name NAME         every token of the agent stops working
+  goliash enroll create -env NAME [-many] [-expires 168h|never]
+                                          prints an enrollment code once: agents started with it register themselves
+  goliash enroll list                     enrollment codes with their environment and agents
+  goliash enroll revoke -id ID            no agent can enroll with the code any more
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-limit N]
@@ -58,6 +62,7 @@ Changes made with the CLI are recorded in the audit log like changes in the UI.
 
 ```sh
 goliash env create -name staging -position 20
+goliash enroll create -env prod                         # prints a code for one agent once
 goliash agent create -name prod-eu                      # prints the token once
 goliash target create -agent prod-eu -env prod -platform kubernetes -name prod-eu-1 \
   -settings '{"kubernetes":{"exclude_namespaces":["kube-system"]}}'

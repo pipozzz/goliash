@@ -35,6 +35,43 @@ See [Security](/security/#verify-a-release) for how to verify them.
 | Nomad | [Job](/install/nomad/) | [Job](/install/nomad/#agent) with a list-jobs and read-job ACL token |
 | Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/install/ecs/) with a read-only task role |
 
+## Enrollment codes
+
+An enrollment code (`glsh_enroll_…`) lets an agent register itself: start the agent with the code where a token
+would go, and it finds what it can read where it runs, becomes an agent named after it and adds its targets to the
+code's environment. Nothing has to be set up in Goliash first.
+
+```sh
+goliash enroll create -env prod              # a code for one agent, valid 7 days
+goliash enroll create -env prod -many        # one code for a fleet, e.g. every Docker host
+```
+
+| The agent runs | It adds | Named after | Needs |
+| --- | --- | --- | --- |
+| In Kubernetes | the cluster | `name` in the Helm values, else `kubernetes` | nothing |
+| On ECS | its cluster in its region | the cluster | nothing |
+| In Nomad | the region, through the Nomad agent of its node | `nomad-<region>` | `NOMAD_ADDR` (set by the job file) |
+| With a Docker socket | the host, or the swarm on a manager | the host name | `INFO=1` on the socket proxy |
+
+`GOLIASH_AGENT_NAME` sets the name, and `GOLIASH_TARGETS` declares more targets as a JSON array, e.g. Compose
+files: `[{"platform":"compose","name":"shop","compose":{"files":["/srv/shop/compose.yml"]}}]`. Targets the agent
+added follow what it reports when it starts again; their environment, and anything else, can still be changed in
+Goliash.
+
+The agent keeps no state: it enrolls on every start and gets a new token, which ends the old one.
+
+- **A code for one agent** belongs to the first agent that enrolls with it, which can come back with it at any time.
+  It works like a token that the agent exchanges for its own.
+- **A code for many agents** (`-many`) tells them apart by what identifies their installation: the cluster's CA, the
+  ECS cluster, the Nomad job and region, or the Docker engine or swarm ID. Where none is found, set
+  `GOLIASH_AGENT_ID` to a name that stays the same across restarts.
+- **Expiry** (7 days by default, `-expires 720h` or `-expires never`) stops new agents only: agents that enrolled
+  keep coming back with the code. **Revoking** it (`goliash enroll revoke -id ID`) stops every agent from enrolling
+  with it again, and **revoking an agent** keeps it out until it is deleted. `goliash enroll list` shows the codes
+  and how many agents used each.
+
+Agents created with `goliash agent create` keep their token and their targets set up in Goliash.
+
 ## Managing agents
 
 Create an agent under **Settings → Agents and targets** (or `goliash agent create -name prod-eu`). Its page shows the token once,

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -165,4 +166,44 @@ func (c *client) registryResults(ctx context.Context, res agentproto.RegistryRes
 		return toError(resp.HTTPResponse, resp.Body)
 	}
 	return nil
+}
+
+// Unauthorized reports whether the server rejected the agent's token or code.
+func Unauthorized(err error) bool { return statusCode(err) == http.StatusUnauthorized }
+
+// Enroll exchanges an enrollment code for an agent token, retrying while the server
+// cannot be reached. It gives up when the server refuses the code.
+func Enroll(ctx context.Context, serverURL string, req agentproto.EnrollRequest, hc *http.Client, log *slog.Logger) (agentproto.EnrollResponse, error) {
+	if serverURL == "" {
+		return agentproto.EnrollResponse{}, errors.New("server URL is required")
+	}
+	if hc == nil {
+		hc = &http.Client{Timeout: 60 * time.Second}
+	}
+	api, err := agentproto.NewClientWithResponses(strings.TrimSuffix(serverURL, "/"),
+		agentproto.WithHTTPClient(hc),
+		agentproto.WithRequestEditorFn(func(_ context.Context, r *http.Request) error {
+			r.Header.Set("User-Agent", "goliash-agent/"+buildinfo.Version)
+			return nil
+		}))
+	if err != nil {
+		return agentproto.EnrollResponse{}, err
+	}
+	var out agentproto.EnrollResponse
+	err = retry(ctx, log, "enroll", func() error {
+		resp, err := api.EnrollAgentWithResponse(ctx, req)
+		if err != nil {
+			return err
+		}
+		if resp.JSON200 == nil {
+			err := toError(resp.HTTPResponse, resp.Body)
+			if !retryable(err) && !fatal(err) {
+				return &statusError{Code: http.StatusUnauthorized, Detail: err.Error()} // a bad request will not get better
+			}
+			return err
+		}
+		out = *resp.JSON200
+		return nil
+	})
+	return out, err
 }

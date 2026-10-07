@@ -10,11 +10,17 @@ imagePullSecrets: []
 # Goliash server URL, reachable from this cluster (outbound HTTPS only).
 serverURL: https://goliash.example.com
 
-# The agent token (glsh_agent_…), from an existing secret (recommended) or a value.
+# The enrollment code from Connect an agent (glsh_enroll_…), with which the agent
+# registers itself and adds this cluster as a target, or an agent token
+# (glsh_agent_…). From an existing secret (recommended) or a value.
 token:
   existingSecret: ""
   existingSecretKey: token
   value: ""
+
+# Name of the agent and of this cluster's target when the agent enrolls with a code,
+# e.g. prod-eu. Default: kubernetes (with a suffix when it is taken).
+name: ""
 
 # Secret with credentials for other targets this agent collects; every key becomes a
 # file in /etc/goliash-agent/credentials (a target's credentials_ref names the key).

@@ -11,9 +11,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
@@ -57,6 +59,69 @@ func (s *Service) OnAgentBack(f func(store.Agent)) { s.onBack = f }
 // New returns a Service backed by st.
 func New(st *store.Store, log *slog.Logger) *Service {
 	return &Service{store: st, log: log, pending: make(chan struct{}, 1)}
+}
+
+// Enrollment errors, each meaning the agent cannot enroll with its code.
+var (
+	ErrBadCode    = errors.New("unknown or revoked enrollment code")
+	ErrExpired    = errors.New("the enrollment code expired: create a new one (agents that enrolled before can still use it)")
+	ErrRevoked    = errors.New("this agent was revoked: delete it in Goliash to let it enroll again")
+	ErrNoIdentity = errors.New("this code is for many agents, and this one found nothing that tells it apart " +
+		"(Kubernetes, ECS, Nomad or Docker /info): set GOLIASH_AGENT_ID, or use a code for one agent")
+)
+
+// Enroll exchanges an enrollment code for an agent token, creating the agent and the
+// targets it reported, or giving a known installation its agent back.
+func (s *Service) Enroll(ctx context.Context, req agentproto.EnrollRequest) (agentproto.EnrollResponse, error) {
+	if !tokens.Valid(req.Code, tokens.Enroll) {
+		return agentproto.EnrollResponse{}, ErrBadCode
+	}
+	targets := make([]agentproto.Target, 0, len(req.Targets))
+	for _, d := range req.Targets {
+		b, err := json.Marshal(d)
+		if err != nil {
+			return agentproto.EnrollResponse{}, err
+		}
+		var t agentproto.Target
+		if err := json.Unmarshal(b, &t); err != nil {
+			return agentproto.EnrollResponse{}, err
+		}
+		targets = append(targets, t)
+	}
+	token, hash := tokens.New(tokens.Agent)
+	res, err := s.store.Enroll(ctx, store.Enrollment{
+		CodeHash: tokens.Hash(req.Code), Identity: req.Identity, Name: req.Name, TokenHash: hash, Targets: targets,
+	})
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return agentproto.EnrollResponse{}, ErrBadCode
+	case errors.Is(err, store.ErrCodeExpired):
+		return agentproto.EnrollResponse{}, ErrExpired
+	case errors.Is(err, store.ErrAgentRevoked):
+		return agentproto.EnrollResponse{}, ErrRevoked
+	case errors.Is(err, store.ErrNoIdentity):
+		return agentproto.EnrollResponse{}, ErrNoIdentity
+	case err != nil:
+		return agentproto.EnrollResponse{}, err
+	}
+	a := res.Agent
+	if res.Created || len(res.Added) > 0 {
+		names := make([]string, len(res.Added))
+		for i, t := range res.Added {
+			names[i] = t.Name
+		}
+		action := "agent.enroll"
+		if !res.Created {
+			action = "agent.targets"
+		}
+		_ = s.store.Audit(ctx, store.AuditEntry{
+			OrgID: a.Scope.OrgID, WorkspaceID: a.Scope.WorkspaceID, Actor: "enrollment code", Action: action,
+			Details: map[string]string{"agent": a.Name, "hostname": req.Hostname, "targets": strings.Join(names, ", ")},
+		})
+	}
+	s.log.InfoContext(ctx, "agent enrolled", "agent", a.Name, "agent_id", a.ID, "new", res.Created,
+		"targets_added", len(res.Added), "hostname", req.Hostname)
+	return agentproto.EnrollResponse{Token: token, AgentID: a.ID, Name: a.Name}, nil
 }
 
 // Register records an agent's version, hostname and platforms.

@@ -23,6 +23,9 @@ type Agent struct {
 	StaleSince   time.Time // set while the agent misses heartbeats
 	CreatedAt    time.Time
 	ActiveTokens int // tokens that work; 0 means revoked, 2 means a rotation waits for the agent
+	// Identity is set on agents that enrolled with a code: what identifies their
+	// installation (a Docker engine, a cluster).
+	Identity string
 }
 
 // CreateAgent creates an agent together with its token. tokenHash is the SHA-256
@@ -174,7 +177,7 @@ func (s *Store) RevokeAgentTokens(ctx context.Context, sc Scope, agentID string)
 }
 
 const agentColumns = `a.id, a.org_id, a.workspace_id, a.name, a.version, a.hostname, a.platforms,
-	a.registered_at, a.last_seen_at, a.stale_since, a.created_at,
+	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity,
 	(SELECT COUNT(*) FROM tokens k WHERE k.agent_id = a.id AND k.kind = 'agent' AND k.revoked_at IS NULL)`
 
 func (s *Store) scanAgent(row scanner) (Agent, string, error) {
@@ -182,9 +185,10 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		a                                Agent
 		platforms, extra                 string
 		registered, lastSeen, staleSince sql.NullTime
+		identity                         sql.NullString
 	)
 	err := row.Scan(&a.ID, &a.Scope.OrgID, &a.Scope.WorkspaceID, &a.Name, &a.Version, &a.Hostname,
-		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &a.ActiveTokens, &extra)
+		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &a.ActiveTokens, &extra)
 	if err != nil {
 		return Agent{}, "", notFound(err)
 	}
@@ -192,7 +196,7 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		return Agent{}, "", err
 	}
 	a.RegisteredAt, a.LastSeenAt, a.StaleSince = timeOrZero(registered), timeOrZero(lastSeen), timeOrZero(staleSince)
-	a.CreatedAt = a.CreatedAt.UTC()
+	a.CreatedAt, a.Identity = a.CreatedAt.UTC(), identity.String
 	return a, extra, nil
 }
 

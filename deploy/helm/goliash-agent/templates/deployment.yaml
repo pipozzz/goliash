@@ -37,6 +37,9 @@ spec:
                   name: {{ include "agent.tokenSecret" . }}
                   key: {{ ternary .Values.token.existingSecretKey "token" (ne .Values.token.existingSecret "") }}
             - { name: GOLIASH_DATA_DIR, value: /data }
+            {{- with .Values.name }}
+            - { name: GOLIASH_AGENT_NAME, value: {{ . | quote }} }
+            {{- end }}
             - { name: GOLIASH_CREDENTIALS_DIR, value: /etc/goliash-agent/credentials }
             {{- if .Values.rbac.readPullSecrets }}
             - { name: GOLIASH_READ_PULL_SECRETS, value: "true" }

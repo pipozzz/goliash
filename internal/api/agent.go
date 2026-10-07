@@ -12,8 +12,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -39,7 +42,13 @@ type AgentHandler struct {
 	ingest *ingest.Service
 	log    *slog.Logger
 	spec   *openapi3.T
+	// clientIP names the caller for rate limiting enrollment.
+	clientIP func(*http.Request) string
 }
+
+// SetClientIP sets how the caller's address is found (behind trusted proxies, from
+// X-Forwarded-For). The default is the connection's address.
+func (h *AgentHandler) SetClientIP(f func(*http.Request) string) { h.clientIP = f }
 
 // NewAgentHandler returns the agent protocol handler. It fails if the embedded spec is invalid.
 func NewAgentHandler(st *store.Store, svc *ingest.Service, log *slog.Logger) (*AgentHandler, error) {
@@ -55,6 +64,7 @@ func NewAgentHandler(st *store.Store, svc *ingest.Service, log *slog.Logger) (*A
 
 // Register adds the agent routes to mux.
 func (h *AgentHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("POST /agent/v1/enroll", h.enroll)
 	mux.Handle("POST /agent/v1/register", h.authed(maxSmallRequestBody, h.register))
 	mux.Handle("GET /agent/v1/config", h.authed(0, h.config))
 	mux.Handle("POST /agent/v1/snapshot", h.authed(maxSnapshotBody, h.snapshot))
@@ -161,6 +171,54 @@ func (h *AgentHandler) validate(r *http.Request, body []byte) error {
 			MultiError:         false,
 		},
 	})
+}
+
+// Failed enrollments a client address may make in enrollWindow.
+const (
+	enrollFailures = 20
+	enrollWindow   = 15 * time.Minute
+)
+
+// enroll needs no token: the code in the body is the credential. Failures are rate
+// limited per client address.
+func (h *AgentHandler) enroll(w http.ResponseWriter, r *http.Request) {
+	ip := r.RemoteAddr
+	if h.clientIP != nil {
+		ip = h.clientIP(r)
+	} else if host, _, err := net.SplitHostPort(ip); err == nil {
+		ip = host
+	}
+	key := tokens.Hash("enroll\x00" + ip)
+	if n, err := h.store.SigninFailures(r.Context(), key, time.Now().Add(-enrollWindow)); err == nil && n >= enrollFailures {
+		w.Header().Set("Retry-After", strconv.Itoa(int(enrollWindow/time.Second)))
+		writeProblem(w, http.StatusTooManyRequests, "Too many requests", "too many failed enrollments from this address")
+		return
+	}
+	body, err := readBody(w, r, maxSmallRequestBody)
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "Bad request", err.Error())
+		return
+	}
+	if err := h.validate(r, body); err != nil {
+		writeProblem(w, http.StatusBadRequest, "Invalid request", err.Error())
+		return
+	}
+	var req agentproto.EnrollRequest
+	if !decode(w, body, &req) {
+		return
+	}
+	resp, err := h.ingest.Enroll(r.Context(), req)
+	if errors.Is(err, ingest.ErrBadCode) || errors.Is(err, ingest.ErrExpired) || errors.Is(err, ingest.ErrRevoked) ||
+		errors.Is(err, ingest.ErrNoIdentity) {
+		_ = h.store.AddSigninFailure(r.Context(), key)
+		writeProblem(w, http.StatusUnauthorized, "Unauthorized", err.Error())
+		return
+	}
+	if err != nil {
+		h.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *AgentHandler) register(w http.ResponseWriter, r *http.Request, a store.Agent, body []byte) {

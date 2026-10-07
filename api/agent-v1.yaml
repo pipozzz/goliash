@@ -16,7 +16,7 @@ info:
     - Request bodies may be gzip-compressed (`Content-Encoding: gzip`); snapshots should be.
     - Errors use `application/problem+json` (RFC 9457).
 
-    Call order: `register` on start, then `config` every minute, `snapshot` per target on its interval (Kubernetes:
+    Call order: `enroll` on start when the agent has an enrollment code instead of a token, then `register`, then `config` every minute, `snapshot` per target on its interval (Kubernetes:
     after changes, debounced), `heartbeat` every minute and `registry-results` on the registry check interval.
   license:
     name: Apache-2.0
@@ -27,6 +27,42 @@ security:
   - agentToken: []
 
 paths:
+  /agent/v1/enroll:
+    post:
+      operationId: enrollAgent
+      summary: Exchange an enrollment code for an agent token
+      description: |
+        For agents started with an enrollment code (`glsh_enroll_…`) instead of a token. Needs no token. The
+        code for one agent belongs to the first agent that enrolls with it. A code for many agents tells them
+        apart by identity, which names the installation (a Docker engine, a cluster). Either way an agent that
+        enrolls again — after a restart, without state — gets its own agent back with a new token; its old
+        tokens stop working. Codes that expired admit only agents that enrolled before; revoked codes admit none. The targets the agent
+        found or declares are created in the code's environment, or updated when the agent reported them before.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollRequest'
+      responses:
+        '200':
+          description: Enrolled. Use the token for every other call.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Unknown, revoked or expired code, or the agent was revoked. The agent should stop.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /agent/v1/register:
     post:
       operationId: registerAgent
@@ -238,6 +274,82 @@ components:
         started_at:
           type: string
           format: date-time
+
+    EnrollRequest:
+      type: object
+      required: [code, identity, name, version, hostname, targets]
+      properties:
+        code:
+          type: string
+          description: Enrollment code, prefixed `glsh_enroll_`.
+        identity:
+          type: string
+          maxLength: 300
+          description: |
+            Stable identity of the installation, e.g. `docker:<engine ID>` or `kubernetes:<CA hash>`. Codes for many
+            agents need it to tell them apart; a code for one agent belongs to the first agent that uses it, and
+            the identity may be empty.
+          example: docker:4FJ2:Q6RA:7ZLQ
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Name for a new agent; the server adds a suffix when it is taken.
+          example: web-01
+        version:
+          type: string
+          example: 1.14.0
+        hostname:
+          type: string
+        targets:
+          type: array
+          description: Targets the agent found or declares.
+          items:
+            $ref: '#/components/schemas/DeclaredTarget'
+
+    DeclaredTarget:
+      type: object
+      description: A target as the agent names it; the server gives it an id.
+      required: [platform, name]
+      properties:
+        platform:
+          $ref: '#/components/schemas/Platform'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        poll_interval_seconds:
+          type: integer
+          minimum: 30
+        debounce_seconds:
+          type: integer
+          minimum: 0
+        credentials_ref:
+          type: string
+        kubernetes:
+          $ref: '#/components/schemas/KubernetesSettings'
+        ecs:
+          $ref: '#/components/schemas/ECSSettings'
+        nomad:
+          $ref: '#/components/schemas/NomadSettings'
+        swarm:
+          $ref: '#/components/schemas/SwarmSettings'
+        docker:
+          $ref: '#/components/schemas/DockerSettings'
+        compose:
+          $ref: '#/components/schemas/ComposeSettings'
+
+    EnrollResponse:
+      type: object
+      required: [token, agent_id, name]
+      properties:
+        token:
+          type: string
+          description: The agent token, prefixed `glsh_agent_`.
+        agent_id:
+          $ref: '#/components/schemas/ULID'
+        name:
+          type: string
 
     RegisterResponse:
       type: object

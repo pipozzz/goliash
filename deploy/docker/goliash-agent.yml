@@ -6,10 +6,11 @@
 # on containers and images.
 #
 #   export GOLIASH_SERVER_URL=https://goliash.example.com
-#   export GOLIASH_AGENT_TOKEN=glsh_agent_…
+#   export GOLIASH_AGENT_TOKEN=glsh_enroll_…   # the code from Connect an agent
 #   docker compose -f goliash-agent.yml up -d
 #
-# In Goliash, create a docker target for this agent with
+# With an enrollment code the agent registers itself and adds this host as a docker
+# target. With an agent token (glsh_agent_…) instead, create the target in Goliash:
 #   {"docker":{"docker_host":"tcp://socket-proxy:2375"}}
 #
 # Compose services are reported per project and service (label goliash.service on a
@@ -21,6 +22,7 @@ services:
     environment:
       CONTAINERS: 1
       IMAGES: 1        # registry digests of running images
+      INFO: 1          # the engine ID, which tells this host apart when the agent enrolls
       POST: 0          # read-only
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -30,7 +32,8 @@ services:
     image: ghcr.io/pipozzz/goliash-agent:${GOLIASH_AGENT_VERSION:-latest}
     environment:
       GOLIASH_SERVER_URL: ${GOLIASH_SERVER_URL:?set GOLIASH_SERVER_URL}
-      GOLIASH_AGENT_TOKEN: ${GOLIASH_AGENT_TOKEN:?set GOLIASH_AGENT_TOKEN}
+      GOLIASH_AGENT_TOKEN: ${GOLIASH_AGENT_TOKEN:?set GOLIASH_AGENT_TOKEN to the enrollment code}
+      DOCKER_HOST: tcp://socket-proxy:2375
       # Check private registries with this host's `docker login` (and the volume below).
       # DOCKER_CONFIG: /etc/goliash-agent/docker
     volumes:

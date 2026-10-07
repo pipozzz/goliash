@@ -29,6 +29,9 @@ type Target struct {
 	CollectorError      string
 	CollectorReportedAt time.Time
 	CreatedAt           time.Time
+	// AgentKey is set on targets an enrolled agent found or declared itself: the agent
+	// names them by it and owns their settings.
+	AgentKey string
 }
 
 // CreateTarget adds a target. ID and CreatedAt are set by the store.
@@ -100,7 +103,8 @@ func (s *Store) ListTargets(ctx context.Context, sc Scope) ([]Target, error) {
 }
 
 const targetColumns = `id, org_id, workspace_id, environment_id, agent_id, platform, name, settings,
-	poll_interval_seconds, last_snapshot_at, collector_status, collector_error, collector_reported_at, created_at`
+	poll_interval_seconds, last_snapshot_at, collector_status, collector_error, collector_reported_at, created_at,
+	agent_key`
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -111,13 +115,14 @@ func scanTarget(row scanner) (Target, error) {
 		settings string
 		last     sql.NullTime
 		reported sql.NullTime
+		key      sql.NullString
 	)
 	if err := row.Scan(&t.ID, &t.Scope.OrgID, &t.Scope.WorkspaceID, &t.EnvironmentID, &agentID, &t.Platform,
 		&t.Name, &settings, &t.PollIntervalSeconds, &last, &t.CollectorStatus, &t.CollectorError, &reported,
-		&t.CreatedAt); err != nil {
+		&t.CreatedAt, &key); err != nil {
 		return Target{}, err
 	}
-	t.AgentID, t.Settings = agentID.String, json.RawMessage(settings)
+	t.AgentID, t.Settings, t.AgentKey = agentID.String, json.RawMessage(settings), key.String
 	t.LastSnapshotAt, t.CollectorReportedAt, t.CreatedAt = timeOrZero(last), timeOrZero(reported), t.CreatedAt.UTC()
 	return t, nil
 }

@@ -75,6 +75,10 @@ const usage = `Usage:
   goliash agent list                      agents with status, version and last contact
   goliash agent rotate -name NAME         new token; the old one works until the agent uses the new one
   goliash agent revoke -name NAME         every token of the agent stops working
+  goliash enroll create -env NAME [-many] [-expires 168h|never]
+                                          prints an enrollment code once: agents started with it register themselves
+  goliash enroll list                     enrollment codes with their environment and agents
+  goliash enroll revoke -id ID            no agent can enroll with the code any more
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
@@ -154,6 +158,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if len(args) > 0 && cmd == "agent" && (args[0] == "list" || args[0] == "rotate" || args[0] == "revoke") {
 			cmd, args = "agent "+args[0], args[1:]
 		}
+		if len(args) > 0 && cmd == "enroll" && (args[0] == "create" || args[0] == "list" || args[0] == "revoke") {
+			cmd, args = "enroll "+args[0], args[1:]
+		}
 		if len(args) > 0 && (cmd == "app" || cmd == "team") && args[0] == "rename" {
 			cmd, args = cmd+" rename", args[1:]
 		}
@@ -231,6 +238,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return agentRotate(ctx, args, out)
 	case "agent revoke":
 		return agentRevoke(ctx, args, out)
+	case "enroll create":
+		return enrollCreate(ctx, args, out)
+	case "enroll list":
+		return enrollList(ctx, args, out)
+	case "enroll revoke":
+		return enrollRevoke(ctx, args, out)
 	case "token list":
 		return tokenList(ctx, args, out)
 	case "token revoke":
@@ -464,6 +477,7 @@ func serve(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	agents.SetClientIP(authn.ClientIP)
 	mux := http.NewServeMux()
 	agents.Register(mux)
 	authn.Routes(mux)
@@ -711,6 +725,119 @@ func agentCreate(ctx context.Context, args []string, out io.Writer) error {
 	}
 	cliAudit(ctx, db, ws, "agent.create", "agent", a.Name)
 	_, _ = fmt.Fprintf(out, "agent %s created (%s)\n\nToken (shown once, store it as GOLIASH_AGENT_TOKEN):\n%s\n", a.Name, a.ID, token)
+	return nil
+}
+
+func enrollCreate(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("enroll create")
+	envName := fs.String("env", "", "environment the agents' targets go to")
+	expires := fs.String("expires", "168h", `how long new agents may enroll ("never" for no limit); agents that enrolled keep working`)
+	many := fs.Bool("many", false, "a code for many agents (e.g. every host of a fleet), told apart by their platform; default: one agent")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *envName == "" {
+		return errors.New("-env is required")
+	}
+	var until time.Time
+	if *expires != "never" {
+		d, err := time.ParseDuration(*expires)
+		if err != nil || d <= 0 {
+			return fmt.Errorf("-expires %q: use a duration like 168h, or never", *expires)
+		}
+		until = time.Now().Add(d)
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	env, err := db.GetEnvironmentByName(ctx, ws.Scope(), *envName)
+	if err != nil {
+		return fmt.Errorf("environment %q: %w", *envName, err)
+	}
+	code, hash := tokens.New(tokens.Enroll)
+	c, err := db.CreateEnrollmentCode(ctx, ws.Scope(), env.ID, hash, "cli", until, !*many)
+	if err != nil {
+		return err
+	}
+	cliAudit(ctx, db, ws, "enroll.create", "environment", env.Name, "code", c.ID)
+	kind := "one agent"
+	if *many {
+		kind = "many agents"
+	}
+	valid := "never expires"
+	if !until.IsZero() {
+		valid = "admits new agents until " + until.Format(time.RFC3339)
+	}
+	_, _ = fmt.Fprintf(out, "enrollment code %s for %s in %s (%s)\n\nCode (shown once, start agents with GOLIASH_ENROLL_CODE):\n%s\n",
+		c.ID, kind, env.Name, valid, code)
+	return nil
+}
+
+func enrollList(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("enroll list")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	codes, err := db.ListEnrollmentCodes(ctx, ws.Scope())
+	if err != nil {
+		return err
+	}
+	envs, err := db.ListEnvironments(ctx, ws.Scope())
+	if err != nil {
+		return err
+	}
+	envName := map[string]string{}
+	for _, e := range envs {
+		envName[e.ID] = e.Name
+	}
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "ID\tENVIRONMENT\tFOR\tAGENTS\tNEW AGENTS UNTIL\tLAST USED")
+	for _, c := range codes {
+		until, used := "no limit", "never"
+		if !c.ExpiresAt.IsZero() {
+			until = c.ExpiresAt.Format(time.RFC3339)
+			if c.Expired(time.Now()) {
+				until += " (expired)"
+			}
+		}
+		if !c.LastUsedAt.IsZero() {
+			used = c.LastUsedAt.Format(time.RFC3339)
+		}
+		kind := "many"
+		if c.Single {
+			kind = "one"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n", c.ID, envName[c.EnvironmentID], kind, c.Agents, until, used)
+	}
+	return tw.Flush()
+}
+
+func enrollRevoke(ctx context.Context, args []string, out io.Writer) error {
+	fs, dsn := newFlags("enroll revoke")
+	id := fs.String("id", "", "code ID, from goliash enroll list")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *id == "" {
+		return errors.New("-id is required")
+	}
+	db, ws, err := openDefault(ctx, *dsn)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.RevokeEnrollmentCode(ctx, ws.Scope(), *id); err != nil {
+		return fmt.Errorf("code %s: %w", *id, err)
+	}
+	cliAudit(ctx, db, ws, "enroll.revoke", "code", *id)
+	_, _ = fmt.Fprintf(out, "code %s revoked: no agent can enroll with it; enrolled agents keep working until they restart\n", *id)
 	return nil
 }
 
