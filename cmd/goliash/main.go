@@ -127,11 +127,21 @@ Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db) and
 -workspace SLUG (env GOLIASH_WORKSPACE, default: the first workspace).
 `
 
+// commandLine is the command and flags to run: those given, or, when none are,
+// GOLIASH_ARGS split at spaces, for platforms that let you set environment variables
+// more easily than a container's command (GOLIASH_ARGS="try -public -reset 1h").
+func commandLine(args []string, env string) []string {
+	if len(args) > 0 || strings.TrimSpace(env) == "" {
+		return args
+	}
+	return strings.Fields(env)
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, os.Args[1:], os.Stdout); err != nil {
+	if err := run(ctx, commandLine(os.Args[1:], os.Getenv("GOLIASH_ARGS")), os.Stdout); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(2)
 		}

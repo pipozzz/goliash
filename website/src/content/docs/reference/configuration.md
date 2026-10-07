@@ -20,6 +20,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
+| `GOLIASH_ARGS` | | | The command and flags when the container gets none, e.g. `try -public -reset 1h` on a platform where setting a variable is easier than a command |
 | `GOLIASH_LOG_LEVEL` | `-log-level` | `info` | `debug`, `info`, `warn` or `error` |
 | `GOLIASH_DRAIN` | `-drain` | `0` | On shutdown, answer `/readyz` with 503 this long before closing |
 | `GOLIASH_BACKUP_DIR` | `-backup-dir` | — | SQLite: write a backup here at start and every day |
