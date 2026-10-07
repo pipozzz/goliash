@@ -247,3 +247,20 @@ func TestCodesOnAgentsPageAndManagedTargets(t *testing.T) {
 		t.Fatalf("not revoked: %+v", codes)
 	}
 }
+
+func TestConnectLambda(t *testing.T) {
+	title, cmd := installCommand("lambda", "https://g", "glsh_enroll_x", nil, "1.14.0")
+	if !strings.Contains(title, "functions") || !strings.Contains(cmd, "watch_lambda       = true") || !strings.Contains(cmd, "?ref=v1.14.0") {
+		t.Fatalf("lambda command: %s\n%s", title, cmd)
+	}
+	if _, cmd := installCommand("ecs", "https://g", "t", nil, "1.14.0"); strings.Contains(cmd, "watch_lambda") {
+		t.Fatalf("ecs command watches lambda: %s", cmd)
+	}
+	settings, problem := connectSettings("lambda", url.Values{"region": {"eu-west-1"}, "prefixes": {"shop-, billing-"}})
+	if problem != "" || !strings.Contains(string(settings), `"lambda":{"name_prefixes":["shop-","billing-"],"region":"eu-west-1"}`) {
+		t.Fatalf("settings: %s %s", settings, problem)
+	}
+	if _, problem := connectSettings("lambda", url.Values{}); problem == "" {
+		t.Fatal("lambda without a region")
+	}
+}

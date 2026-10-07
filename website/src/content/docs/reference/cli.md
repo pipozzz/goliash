@@ -18,7 +18,7 @@ Usage:
                                           prints an enrollment code once: agents started with it register themselves
   goliash enroll list                     enrollment codes with their environment and agents
   goliash enroll revoke -id ID            no agent can enroll with the code any more
-  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker -name NAME [-settings JSON] [-poll SECONDS]
+  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose|lambda -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-limit N]
   goliash drift                           open drifts

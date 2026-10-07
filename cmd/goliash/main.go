@@ -52,6 +52,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/internal/collectors/ecs"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
+	"github.com/pipozzz/goliash/internal/collectors/lambda"
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
 	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/demo"
@@ -79,7 +80,7 @@ const usage = `Usage:
                                           prints an enrollment code once: agents started with it register themselves
   goliash enroll list                     enrollment codes with their environment and agents
   goliash enroll revoke -id ID            no agent can enroll with the code any more
-  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose -name NAME [-settings JSON] [-poll SECONDS]
+  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose|lambda -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
   goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
@@ -545,6 +546,7 @@ func serve(ctx context.Context, args []string) error {
 			go ingest.NewServerCollectors(svc, db, map[agentproto.Platform]collectors.Factory{
 				agentproto.Kubernetes: kubernetes.New,
 				agentproto.Ecs:        ecs.New,
+				agentproto.Lambda:     lambda.New,
 				agentproto.Nomad:      nomad.New,
 				agentproto.Swarm:      swarm.New,
 				agentproto.Docker:     docker.New,

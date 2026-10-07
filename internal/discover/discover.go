@@ -18,6 +18,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
@@ -44,6 +49,10 @@ type Options struct {
 	Exists   func(string) bool
 	HTTP     *http.Client
 	Hostname func() (string, error)
+	// Lambda checks whether the agent may list the Lambda functions of a region and
+	// returns its AWS account (default: sts:GetCallerIdentity and one
+	// lambda:ListFunctions call).
+	Lambda func(ctx context.Context, region string) (account string, err error)
 }
 
 // Paths the agent looks at.
@@ -70,6 +79,9 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	}
 	if o.Hostname == nil {
 		o.Hostname = os.Hostname
+	}
+	if o.Lambda == nil {
+		o.Lambda = canListFunctions
 	}
 	var r Result
 	found := func(identity, name string, t agentproto.DeclaredTarget) {
@@ -99,9 +111,14 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	}
 
 	// ECS: the task metadata endpoint names the cluster.
+	awsRegion := o.Env("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = o.Env("AWS_DEFAULT_REGION")
+	}
 	if uri := o.Env("ECS_CONTAINER_METADATA_URI_V4"); uri != "" {
 		if arn, err := ecsCluster(ctx, o.HTTP, uri); err == nil {
 			region, cluster := arnParts(arn)
+			awsRegion = region
 			name := nameOr(cluster)
 			found("ecs:"+arn, name, agentproto.DeclaredTarget{
 				Platform: agentproto.Ecs, Name: name,
@@ -159,6 +176,19 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			}
 		} else {
 			r.Notes = append(r.Notes, "docker: "+err.Error())
+		}
+	}
+
+	// Lambda: the functions of the agent's AWS region, when its role may list them.
+	// GOLIASH_LAMBDA=off skips the check.
+	if awsRegion != "" && o.Env("GOLIASH_LAMBDA") != "off" {
+		if account, err := o.Lambda(ctx, awsRegion); err == nil {
+			name := nameOr("lambda-" + awsRegion)
+			found("lambda:"+account+"/"+awsRegion, name, agentproto.DeclaredTarget{
+				Platform: agentproto.Lambda, Name: name, Lambda: &agentproto.LambdaSettings{Region: awsRegion},
+			})
+		} else {
+			r.Notes = append(r.Notes, "lambda: "+err.Error())
 		}
 	}
 
@@ -262,4 +292,24 @@ func arnParts(arn string) (region, cluster string) {
 		cluster = strings.TrimPrefix(parts[5], "cluster/")
 	}
 	return region, cluster
+}
+
+// canListFunctions asks who the default AWS credentials are (which needs no
+// permission) and makes one lambda:ListFunctions call with them.
+func canListFunctions(ctx context.Context, region string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		return "", err
+	}
+	who, err := sts.NewFromConfig(cfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return "", err
+	}
+	one := int32(1)
+	if _, err = lambda.NewFromConfig(cfg).ListFunctions(ctx, &lambda.ListFunctionsInput{MaxItems: &one}); err != nil {
+		return "", err
+	}
+	return aws.ToString(who.Account), nil
 }

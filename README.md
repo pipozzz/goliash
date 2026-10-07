@@ -32,7 +32,7 @@ prod is still on 1.3.2, or two prod clusters disagreeing.
 
 ## Features
 
-- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, Nomad, Docker Swarm and plain Docker/Compose hosts, side by side, per
+- **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, AWS Lambda, Nomad, Docker Swarm and plain Docker/Compose hosts, side by side, per
   environment — with replicas, targets and rollouts in progress, grouped by application, team or status.
 - **Applications, not just containers.** Workloads grouped by application from Kubernetes, Helm and Compose labels or
   Nomad jobs; Dokploy and Nomploy projects come together under one name. A database image shared by several apps is

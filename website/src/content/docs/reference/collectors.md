@@ -1,6 +1,6 @@
 ---
 title: Collectors
-description: 'What each collector reads from Kubernetes, ECS, Nomad, Swarm, Docker and Compose, and the permissions it needs.'
+description: 'What each collector reads from Kubernetes, ECS, Lambda, Nomad, Swarm, Docker and Compose, and the permissions it needs.'
 ---
 
 Collectors only read. They run in the agent, or in the server for targets without an agent.
@@ -9,6 +9,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | --- | --- | --- | --- |
 | Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context`) |
 | Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` names an AWS profile |
+| AWS Lambda | functions of a region: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction` | default AWS chain; `credentials_ref` names an AWS profile |
 | Nomad | jobs, job versions, allocations | ACL token with `list-jobs` and `read-job` | `credentials_ref` resolves to the token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
@@ -24,11 +25,19 @@ Each target has the settings object of its platform:
 {"nomad": {"address": "https://nomad.service.consul:4646", "region": "", "namespaces": []}}
 {"swarm": {"docker_host": "tcp://socket-proxy:2375"}}
 {"docker": {"docker_host": "tcp://socket-proxy:2375", "projects": ["shop"]}}
+{"lambda": {"region": "eu-west-1", "name_prefixes": ["shop-"]}}
 {"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 
 Nomad: each job is a workload. A periodic or parameterized job is one workload (a cron job) that counts its
 running runs, rather than a new workload for every `backup/periodic-…` or `export/dispatch-…` run.
+
+Lambda: each function is a workload, its tags are labels (so `goliash.app` and `goliash.service` work as tags). A
+function built from a container image reports that image and digest, checked for new tags like any image. A .zip
+function reports its runtime as the matching AWS base image, `python3.12` as `public.ecr.aws/lambda/python:3.12`
+and `nodejs20.x` as `public.ecr.aws/lambda/nodejs:20`: Goliash then tells when a newer runtime exists and, from
+endoflife.date, when AWS deprecates the one in use. The inbox suggests the function's name as its service, so
+functions on the same runtime stay apart. What is reported is the function's latest code (`$LATEST`).
 
 Empty lists mean everything. `docker_host` takes `tcp://`, `https://` or `unix:///var/run/docker.sock`. The poll
 interval is at least 30 seconds and defaults to 300; Kubernetes also sends a snapshot shortly after a change.

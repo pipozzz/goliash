@@ -45,6 +45,10 @@ var connectPlatforms = []PlatformInfo{
 	},
 	{Key: "ecs", Title: "Amazon ECS", Summary: "Services of ECS clusters in a region, and private ECR tags.", AgentFirst: true},
 	{
+		Key: "lambda", Title: "AWS Lambda", Summary: "Functions of a region: their container images, or the runtime of .zip functions and its end of life.",
+		AgentFirst: true, ServerHint: "The server can read Lambda itself when it runs with AWS credentials that may list functions.",
+	},
+	{
 		Key: "compose", Title: "Compose files", Summary: "What Compose files in Git declare, without a Docker engine.",
 		ServerHint: "The server fetches the files from their URLs; no agent needed.",
 	},
@@ -179,6 +183,12 @@ func connectSettings(platform string, f url.Values) (json.RawMessage, string) {
 			return nil, "Enter the AWS region, e.g. eu-west-1."
 		}
 		t.Ecs = &agentproto.ECSSettings{Region: region, Clusters: fieldList(val("clusters"))}
+	case "lambda":
+		region := val("region")
+		if region == "" {
+			return nil, "Enter the AWS region, e.g. eu-west-1."
+		}
+		t.Lambda = &agentproto.LambdaSettings{Region: region, NamePrefixes: fieldList(val("prefixes"))}
 	case "compose":
 		files := fieldList(val("files"))
 		if len(files) == 0 {
@@ -556,12 +566,16 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			"nomad var put -force nomad/jobs/goliash-agent token=" + token + "\n" +
 			"# with Nomad ACLs, add nomad_token=<secret ID> above (a token that may list-jobs and read-job)\n" +
 			"nomad job run goliash-agent.nomad.hcl"
-	case "ecs":
+	case "ecs", "lambda":
 		source := "github.com/pipozzz/goliash//deploy/ecs/goliash-agent"
 		if ref != "main" {
 			source += "?ref=" + ref
 		}
-		return "Run the agent on ECS with Terraform", "ARN=$(aws secretsmanager create-secret --name goliash-agent-token --secret-string " + token + " --query ARN --output text)\n" +
+		title, lambda := "Run the agent on ECS with Terraform", ""
+		if platform == "lambda" {
+			title, lambda = "Run the agent on ECS with Terraform; it watches the region's functions", "  watch_lambda       = true\n"
+		}
+		return title, "ARN=$(aws secretsmanager create-secret --name goliash-agent-token --secret-string " + token + " --query ARN --output text)\n" +
 			"terraform apply -var goliash_token_arn=\"$ARN\"\n\n" +
 			"variable \"goliash_token_arn\" { type = string }\n\n" +
 			"module \"goliash_agent\" {\n" +
@@ -571,7 +585,7 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			"  server_url         = \"" + serverURL + "\"\n" +
 			"  token_secret_arn   = var.goliash_token_arn\n" +
 			"  subnet_ids         = module.vpc.private_subnets\n" +
-			"  security_group_ids = [aws_security_group.egress_only.id]\n}"
+			"  security_group_ids = [aws_security_group.egress_only.id]\n" + lambda + "}"
 	}
 	// Compose files on the agent's disk: mount their directories at the same paths, so
 	// the paths in the target's settings are right inside the container too.

@@ -59,3 +59,9 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "watch_lambda" {
+  description = "Also watch the region's Lambda functions: lets the task role call lambda:ListFunctions and lambda:GetFunction."
+  type        = bool
+  default     = false
+}

@@ -481,7 +481,7 @@ func AgentsPage(v AgentsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<form class=\"stack\" method=\"post\" action=\"/targets\"><div class=\"row\"><label>Name<input name=\"name\" required placeholder=\"prod-eu-1\"></label> <label>Platform <select name=\"platform\"><option value=\"kubernetes\">Kubernetes</option> <option value=\"ecs\">ECS</option> <option value=\"nomad\">Nomad</option> <option value=\"swarm\">Docker Swarm</option> <option value=\"docker\">Docker</option> <option value=\"compose\">Compose files</option></select></label> <label>Environment <select name=\"environment\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<form class=\"stack\" method=\"post\" action=\"/targets\"><div class=\"row\"><label>Name<input name=\"name\" required placeholder=\"prod-eu-1\"></label> <label>Platform <select name=\"platform\"><option value=\"kubernetes\">Kubernetes</option> <option value=\"ecs\">ECS</option> <option value=\"nomad\">Nomad</option> <option value=\"swarm\">Docker Swarm</option> <option value=\"docker\">Docker</option> <option value=\"compose\">Compose files</option> <option value=\"lambda\">AWS Lambda</option></select></label> <label>Environment <select name=\"environment\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -493,7 +493,7 @@ func AgentsPage(v AgentsView) templ.Component {
 						var templ_7745c5c3_Var22 string
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(e)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 183, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 184, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 						if templ_7745c5c3_Err != nil {
@@ -506,7 +506,7 @@ func AgentsPage(v AgentsView) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(e)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 183, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 184, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -529,7 +529,7 @@ func AgentsPage(v AgentsView) templ.Component {
 						var templ_7745c5c3_Var24 string
 						templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(a)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 191, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 192, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 						if templ_7745c5c3_Err != nil {
@@ -542,7 +542,7 @@ func AgentsPage(v AgentsView) templ.Component {
 						var templ_7745c5c3_Var25 string
 						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(a)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 191, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 192, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -560,7 +560,7 @@ func AgentsPage(v AgentsView) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(`{"kubernetes":{"exclude_namespaces":["kube-system"]}}`)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 199, Col: 126}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 200, Col: 126}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 					if templ_7745c5c3_Err != nil {
@@ -573,7 +573,7 @@ func AgentsPage(v AgentsView) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(`{"ecs":{"region":"eu-west-1"}}`)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 200, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 201, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -586,7 +586,7 @@ func AgentsPage(v AgentsView) templ.Component {
 					var templ_7745c5c3_Var28 string
 					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(`{"nomad":{"address":"https://nomad:4646"}}`)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 200, Col: 126}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 201, Col: 126}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {
@@ -599,31 +599,44 @@ func AgentsPage(v AgentsView) templ.Component {
 					var templ_7745c5c3_Var29 string
 					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(`{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}`)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 200, Col: 211}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 201, Col: 211}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, ", with \"docker\" for a standalone host · Compose: ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, ", with \"docker\" for a standalone host · Lambda: ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var30 string
-					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(`{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}`)
+					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(`{"lambda":{"region":"eu-west-1"}}`)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 200, Col: 355}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 201, Col: 299}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</span></label><div><button type=\"submit\">Create target</button></div></form>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, " · Compose: ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var31 string
+					templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(`{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}`)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agents.templ`, Line: 201, Col: 406}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</span></label><div><button type=\"submit\">Create target</button></div></form>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</div></section></details>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</div></section></details>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

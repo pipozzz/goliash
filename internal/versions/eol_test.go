@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,4 +105,39 @@ func detailOf(t *testing.T, d store.Drift) DriftDetail {
 		t.Fatal(err)
 	}
 	return det
+}
+
+func TestLambdaRuntimeCycles(t *testing.T) {
+	e := &EOL{cycles: map[string]eolEntry{lambdaProduct: {at: time.Now(), cycles: []EOLCycle{
+		{Name: "python3.12"},
+		{Name: "python3.8", IsEOL: true},
+		{Name: "nodejs20.x"},
+		{Name: "java8.al2"},
+		{Name: "java21"},
+		{Name: "dotnetcore3.1", IsEOL: true},
+		{Name: "dotnet8"},
+		{Name: "go1.x"},
+	}}}}
+	ctx := context.Background()
+	product, err := e.Product(ctx, "public.ecr.aws/lambda/python")
+	if err != nil || product != "aws-lambda/python" {
+		t.Fatalf("product %q %v", product, err)
+	}
+	for family, want := range map[string]string{"python": "3.12 3.8", "nodejs": "20", "java": "21", "dotnet": "8", "go": "1"} {
+		cs, err := e.Cycles(ctx, "aws-lambda/"+family)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, c := range cs {
+			names = append(names, c.Name)
+		}
+		if strings.Join(names, " ") != want {
+			t.Errorf("%s: %v, want %s", family, names, want)
+		}
+	}
+	cs, _ := e.Cycles(ctx, "aws-lambda/python")
+	if c, ok := CycleFor("3.8", cs); !ok || !c.IsEOL {
+		t.Fatalf("python 3.8: %+v %v", c, ok)
+	}
 }

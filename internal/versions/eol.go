@@ -53,6 +53,9 @@ func (c *Checker) SetEOL(e *EOL) { c.eol = e }
 // Product returns the endoflife.date product of an image repository
 // ("docker.io/library/postgres" -> "postgresql"), or "" when the site does not list it.
 func (e *EOL) Product(ctx context.Context, repo string) (string, error) {
+	if family := LambdaRuntime(repo); family != "" {
+		return lambdaProduct + "/" + family, nil
+	}
 	e.mu.Lock()
 	fresh := e.products != nil && time.Since(e.loaded) < 24*time.Hour
 	e.mu.Unlock()
@@ -116,8 +119,54 @@ func purlImage(purl string) string {
 	return ""
 }
 
+// The endoflife.date product of AWS Lambda runtimes. Its release cycles are runtime
+// identifiers (python3.12, nodejs20.x); Lambda functions report runtimes as AWS base
+// images (public.ecr.aws/lambda/python:3.12), so each image family reads the cycles
+// of its runtime as versions ("aws-lambda/python": 3.12).
+const lambdaProduct = "aws-lambda"
+
+// LambdaRuntime is the Lambda runtime family of an AWS base image repository, or "":
+// what a .zip function reports as its image.
+func LambdaRuntime(repo string) string {
+	family, ok := strings.CutPrefix(repo, "public.ecr.aws/lambda/")
+	switch {
+	case !ok:
+		return ""
+	case family == "python", family == "nodejs", family == "java", family == "dotnet", family == "ruby", family == "go":
+		return family
+	}
+	return ""
+}
+
+// lambdaCycles turns the runtimes of one family into cycles named by version:
+// python3.12 -> 3.12, nodejs20.x -> 20. Runtimes of other families, or with a
+// suffix (java8.al2, dotnetcore3.1), are left out.
+func lambdaCycles(family string, runtimes []EOLCycle) []EOLCycle {
+	var out []EOLCycle
+	for _, r := range runtimes {
+		v, ok := strings.CutPrefix(r.Name, family)
+		if !ok || v == "" || v[0] < '0' || v[0] > '9' {
+			continue
+		}
+		v = strings.TrimSuffix(v, ".x")
+		if _, ok := ParseVersion(v); !ok || strings.ContainsAny(v, "abcdefghijklmnopqrstuvwxyz") {
+			continue
+		}
+		r.Name = v
+		out = append(out, r)
+	}
+	return out
+}
+
 // Cycles returns the release cycles of a product.
 func (e *EOL) Cycles(ctx context.Context, product string) ([]EOLCycle, error) {
+	if family, ok := strings.CutPrefix(product, lambdaProduct+"/"); ok {
+		runtimes, err := e.Cycles(ctx, lambdaProduct)
+		if err != nil {
+			return nil, err
+		}
+		return lambdaCycles(family, runtimes), nil
+	}
 	e.mu.Lock()
 	c, ok := e.cycles[product]
 	e.mu.Unlock()

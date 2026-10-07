@@ -118,6 +118,10 @@ func (m *Mapper) Map(w Workload, container string, image versions.ImageRef) Deci
 		}
 	}
 	d.Suggested, d.Source = image.Name(), "heuristic"
+	if versions.LambdaRuntime(image.Repo()) != "" && w.Name != "" {
+		// .zip functions all report their runtime's image: the function is the service.
+		d.Suggested = w.Name
+	}
 	return d
 }
 
