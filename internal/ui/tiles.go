@@ -6,7 +6,6 @@ package ui
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"math"
 	"net/http"
 	"net/url"
 	"slices"
@@ -148,6 +147,11 @@ func versionOf(c MatrixCell) string {
 		v += " = " + c.Versions[0].Resolved
 	}
 	return v
+}
+
+// envDetail is an environment's line in the service panel, which already names the environment.
+func envDetail(e TileEnv) string {
+	return strings.TrimPrefix(e.Title, e.Env+": ")
 }
 
 // service turns a matrix row into a tile cell, with its state in env (all when empty).
@@ -299,24 +303,14 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	for _, it := range v.Items {
 		units += it.Span * it.Span
 	}
-	v.Cols = boardColumns(units)
-	// Big cells stay only when they pack without holes in the middle of the board.
-	if units > len(v.Items) && packHoles(v.Items, v.Cols) > 0 {
-		for i := range v.Items {
-			v.Items[i].Span = 1
-		}
-		units = len(v.Items)
-		v.Cols = boardColumns(units)
-	}
-	if v.TV { // a wall screen is wide: more columns, fewer rows, bigger cells
-		v.Cols = min(max(int(math.Ceil(math.Sqrt(float64(units)*1.8))), 3), 8)
+	v.Items, v.Cols = layoutBoard(v.Items)
+	units = 0
+	for _, it := range v.Items {
+		units += it.Span * it.Span
 	}
 	v.Rows = max((units+v.Cols-1)/v.Cols, 1)
-	for _, it := range v.Items {
-		if it.Span == 2 { // big cells leave gaps the dense flow cannot always fill
-			v.Rows++
-			break
-		}
+	if _, rows := packBoard(v.Items, v.Cols); rows > v.Rows {
+		v.Rows = rows
 	}
 	if v.Env == "side" {
 		for i, e := range v.Envs {
@@ -418,9 +412,65 @@ func boardColumns(units int) int {
 	return best
 }
 
-// packHoles places items on a board of cols columns the way the browser's dense grid
-// flow does, and counts the empty cells left before the last row.
+// layoutBoard keeps big cells for large applications when the board can hold them
+// without holes in its middle: on 3 to 6 columns, in the items' order or with the big
+// ones first (small cells then fill in around them). The fullest board wins (the
+// fewest empty places in its last row), then the one with the fewest rows (pages are
+// wide), then the items' own order. When no layout fits, every cell is small.
+func layoutBoard(items []BoardItem) ([]BoardItem, int) {
+	units, big := 0, false
+	for _, it := range items {
+		units += it.Span * it.Span
+		big = big || it.Span > 1
+	}
+	if !big {
+		return items, boardColumns(units)
+	}
+	bigFirst := make([]BoardItem, 0, len(items))
+	for _, it := range items {
+		if it.Span > 1 {
+			bigFirst = append(bigFirst, it)
+		}
+	}
+	for _, it := range items {
+		if it.Span <= 1 {
+			bigFirst = append(bigFirst, it)
+		}
+	}
+	var best []BoardItem
+	bestCols, bestRows, bestEmpty := 0, 0, 0
+	for _, order := range [][]BoardItem{items, bigFirst} {
+		for c := 3; c <= 6; c++ {
+			holes, rows := packBoard(order, c)
+			if holes > 0 {
+				continue
+			}
+			empty := rows*c - units
+			if best == nil || empty < bestEmpty || (empty == bestEmpty && rows < bestRows) {
+				best, bestCols, bestRows, bestEmpty = order, c, rows, empty
+			}
+		}
+	}
+	if best != nil {
+		return best, bestCols
+	}
+	small := make([]BoardItem, len(items))
+	copy(small, items)
+	for i := range small {
+		small[i].Span = 1
+	}
+	return small, boardColumns(len(small))
+}
+
+// packHoles counts the empty cells packBoard leaves before the last row.
 func packHoles(items []BoardItem, cols int) int {
+	holes, _ := packBoard(items, cols)
+	return holes
+}
+
+// packBoard places items on a board of cols columns the way the browser's dense grid
+// flow does, and reports the empty cells left before the last row and the rows used.
+func packBoard(items []BoardItem, cols int) (holes, rows int) {
 	var grid [][]bool
 	free := func(r, c, span int) bool {
 		if c+span > cols {
@@ -459,7 +509,6 @@ func packHoles(items []BoardItem, cols int) int {
 			}
 		}
 	}
-	holes := 0
 	for r := 0; r+1 < len(grid); r++ {
 		for _, used := range grid[r] {
 			if !used {
@@ -467,7 +516,7 @@ func packHoles(items []BoardItem, cols int) int {
 			}
 		}
 	}
-	return holes
+	return holes, len(grid)
 }
 
 func tileLabel(state string) string {
@@ -662,7 +711,7 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 				it.Headline += " → " + worst.Latest
 			}
 		}
-		if it.Total >= 4 && !v.TV {
+		if it.Total >= 4 { // the same board on a wall screen as on the page
 			it.Span = 2
 		}
 		items = append(items, it)

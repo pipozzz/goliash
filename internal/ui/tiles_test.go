@@ -185,3 +185,50 @@ func TestPackHoles(t *testing.T) {
 		t.Errorf("one big cell: %d holes", h)
 	}
 }
+
+// The board of a real installation: 17 applications, velin (10 services) and nomploy
+// (6) big. Both stay big, with no hole in the middle.
+func TestLayoutBoardKeepsBigCells(t *testing.T) {
+	var items []BoardItem
+	for _, a := range []struct {
+		name string
+		span int
+	}{
+		{"auth-authentik", 1},
+		{"cefiro", 1},
+		{"code-server", 1},
+		{"gitea", 1},
+		{"goliash", 1},
+		{"goliashagent", 1},
+		{"immich", 1},
+		{"lecanva", 1},
+		{"memos", 1},
+		{"nomadtest", 1},
+		{"nomploy", 2},
+		{"nvinspect", 1},
+		{"pipoline", 1},
+		{"themestore", 1},
+		{"trek", 1},
+		{"velin", 2},
+		{"other", 1},
+	} {
+		items = append(items, BoardItem{Name: a.name, Span: a.span})
+	}
+	out, cols := layoutBoard(items)
+	big := 0
+	for _, it := range out {
+		if it.Span == 2 {
+			big++
+		}
+	}
+	if big != 2 || packHoles(out, cols) != 0 {
+		t.Fatalf("cols %d, big %d, holes %d", cols, big, packHoles(out, cols))
+	}
+	_, rows := packBoard(out, cols)
+	t.Logf("%d columns × %d rows, first %s", cols, rows, out[0].Name)
+	// The demo's ten applications with two big ones fit too.
+	demo := []BoardItem{{Span: 2}, {Span: 1}, {Span: 1}, {Span: 1}, {Span: 1}, {Span: 1}, {Span: 1}, {Span: 1}, {Span: 1}, {Span: 2}}
+	if out, cols := layoutBoard(demo); packHoles(out, cols) != 0 {
+		t.Fatalf("demo: holes on %d columns", cols)
+	}
+}

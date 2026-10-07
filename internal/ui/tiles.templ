@@ -240,7 +240,7 @@ templ servicePanel(v TilesView, c TileCell) {
 			<header>
 				<span class={ "tcell", "big", c.State }></span>
 				<div>
-					<h2>{ c.Service }</h2>
+					<h2><a href={ templ.URL(c.URL) } title="Open the service page">{ c.Service }</a></h2>
 					<small>{ v.App }</small>
 					<div class={ "tile-state", "s-" + c.State }>{ tileLabel(c.State) }</div>
 				</div>
@@ -250,7 +250,7 @@ templ servicePanel(v TilesView, c TileCell) {
 				for _, e := range c.Envs {
 					<li>
 						<span class={ "tcell", e.State }></span>
-						<div><strong>{ e.Env }</strong><div class="tile-ver">{ e.Title }</div></div>
+						<div><strong>{ e.Env }</strong><div class="tile-ver">{ envDetail(e) }</div></div>
 					</li>
 				}
 			</ul>
@@ -272,8 +272,8 @@ templ servicePanel(v TilesView, c TileCell) {
 				</div>
 			}
 			<footer>
-				<a href={ templ.URL(c.URL) }>Service page</a>
-				<a href="/updates">What to upgrade</a>
+				<a class="button tile-open" href={ templ.URL(c.URL) }>Open service page <span aria-hidden="true">→</span></a>
+				<a class="button secondary" href="/updates">What to upgrade</a>
 			</footer>
 		</div>
 	</aside>
