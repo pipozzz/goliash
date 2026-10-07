@@ -37,7 +37,7 @@ func TestSeed(t *testing.T) {
 	if len(o.Stale) != 0 {
 		t.Fatalf("demo data looks stale: %v", o.Stale)
 	}
-	if len(o.Matrix.Rows) != 7 || o.Matrix.Unmapped != 1 {
+	if len(o.Matrix.Rows) != 18 || o.Matrix.Unmapped != 1 {
 		t.Fatalf("rows=%d unmapped=%d", len(o.Matrix.Rows), o.Matrix.Unmapped)
 	}
 	kinds := map[string]int{}
