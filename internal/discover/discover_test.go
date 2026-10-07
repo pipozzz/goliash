@@ -164,7 +164,7 @@ func TestAWS(t *testing.T) {
 	}
 
 	// Only some clusters, and Lambda off.
-	o = opts(map[string]string{"AWS_REGION": "eu-west-1", "GOLIASH_ECS_CLUSTERS": "prod,staging", "GOLIASH_LAMBDA": "off"})
+	o = opts(map[string]string{"AWS_REGION": "eu-west-1", "GOLIASH_ECS_CLUSTERS": "prod,staging,tools", "GOLIASH_ECS_EXCLUDE": "tools", "GOLIASH_LAMBDA": "off"})
 	f.asked = nil
 	o.AWS = f
 	r, _ = Run(context.Background(), o)

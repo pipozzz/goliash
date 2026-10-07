@@ -33,7 +33,7 @@ See [Security](/security/#verify-a-release) for how to verify them.
 | Docker and Compose | [Compose quickstart](/install/docker/) | [Compose file](/install/docker/#agent-on-another-host) with docker-socket-proxy |
 | Docker Swarm | [Stack file](/install/swarm/) | [Stack file](/install/swarm/#agent) with docker-socket-proxy |
 | Nomad | [Job](/install/nomad/) | [Job](/install/nomad/#agent) with a list-jobs and read-job ACL token |
-| Amazon ECS | any of the above, with PostgreSQL | [Terraform module](/install/ecs/) with a read-only task role |
+| Amazon ECS | any of the above, with PostgreSQL | [CloudFormation template or Terraform module](/install/ecs/) with a read-only task role |
 | AWS Lambda | any of the above | [the ECS module](/install/ecs/#lambda-functions) with `watch_lambda`, or any agent with AWS credentials |
 
 ## Enrollment codes

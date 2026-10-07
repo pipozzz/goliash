@@ -1,0 +1,200 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# goliash-agent as an ECS Fargate service, with a read-only task role. With an
+# enrollment code (Connect → Amazon ECS in Goliash) the agent registers itself and adds
+# every ECS cluster of the region, each as a target, and with WatchLambda the
+# region's Lambda functions.
+#
+# To try it in the default VPC, in one line:
+#
+#   curl -fsSLo goliash-agent.cfn.yaml https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/ecs/goliash-agent.cfn.yaml && \
+#   aws cloudformation deploy --stack-name goliash-agent --template-file goliash-agent.cfn.yaml --capabilities CAPABILITY_IAM \
+#     --parameter-overrides ServerURL=https://goliash.example.com EnrollCode=glsh_enroll_… \
+#     Subnets=$(aws ec2 describe-subnets --filters Name=default-for-az,Values=true --query 'Subnets[].SubnetId' --output text | tr '\t' ,)
+#
+# Remove it with: aws cloudformation delete-stack --stack-name goliash-agent
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: goliash-agent on ECS Fargate, reading ECS (and Lambda) read-only and reporting to a Goliash server.
+
+Parameters:
+  ServerURL:
+    Type: String
+    Description: Goliash server URL, reachable from the subnets (outbound HTTPS only).
+    AllowedPattern: "https?://.+"
+  EnrollCode:
+    Type: String
+    NoEcho: true
+    Description: Enrollment code from Connect → Amazon ECS (glsh_enroll_…), or an agent token (glsh_agent_…).
+    AllowedPattern: "glsh_(enroll|agent)_[0-9A-Za-z]+"
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets for the agent's task. Private subnets need a NAT gateway; public ones need AssignPublicIp.
+  AssignPublicIp:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: ENABLED in public subnets without a NAT gateway (the default VPC); DISABLED in private subnets.
+  Cluster:
+    Type: String
+    Default: ""
+    Description: Cluster to run the agent in (name or ARN). Empty creates a small cluster for it.
+  SecurityGroups:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: Security groups for the task. Empty uses the VPC's default group; the agent only connects out.
+  Version:
+    Type: String
+    Default: latest
+    Description: Agent image tag; the Goliash server's version fits best.
+  WatchLambda:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Also watch the region's Lambda functions (lets the role list and read them).
+  Regions:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: More regions to watch besides this one.
+  Clusters:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: Only these ECS clusters (names); empty means every cluster the role may list.
+  CpuArchitecture:
+    Type: String
+    Default: ARM64
+    AllowedValues: [ARM64, X86_64]
+
+Conditions:
+  NewCluster: !Equals [!Ref Cluster, ""]
+  DefaultSecurityGroup: !Equals [!Join ["", !Ref SecurityGroups], ""]
+  Lambda: !Equals [!Ref WatchLambda, "true"]
+
+Resources:
+  AgentCluster:
+    Type: AWS::ECS::Cluster
+    Condition: NewCluster
+    Properties:
+      ClusterName: !Sub "${AWS::StackName}"
+
+  Code:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Enrollment code or token of goliash-agent
+      SecretString: !Ref EnrollCode
+
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${AWS::StackName}"
+      RetentionInDays: 30
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: goliash-read
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadOnlyEcs
+                Effect: Allow
+                Action: ["ecs:List*", "ecs:Describe*"]
+                Resource: "*"
+              - Sid: ListEcrTags
+                Effect: Allow
+                Action: ["ecr:ListImages"]
+                Resource: "*"
+              - !If
+                - Lambda
+                - Sid: ReadLambda
+                  Effect: Allow
+                  Action: ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases"]
+                  Resource: "*"
+                - !Ref AWS::NoValue
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: goliash-agent-code
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref Code
+
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "256"
+      Memory: "512"
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: !Ref CpuArchitecture
+      ContainerDefinitions:
+        - Name: agent
+          Image: !Sub "ghcr.io/pipozzz/goliash-agent:${Version}"
+          Essential: true
+          Environment:
+            - { Name: GOLIASH_SERVER_URL, Value: !Ref ServerURL }
+            - { Name: GOLIASH_DATA_DIR, Value: /tmp/goliash }
+            - { Name: GOLIASH_LAMBDA, Value: !If [Lambda, "on", "off"] }
+            - { Name: GOLIASH_AWS_REGIONS, Value: !Join [",", !Ref Regions] }
+            - { Name: GOLIASH_ECS_CLUSTERS, Value: !Join [",", !Ref Clusters] }
+            # The cluster made for the agent alone is not worth watching.
+            - { Name: GOLIASH_ECS_EXCLUDE, Value: !If [NewCluster, !Ref AWS::StackName, ""] }
+          Secrets:
+            - { Name: GOLIASH_AGENT_TOKEN, ValueFrom: !Ref Code }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref Logs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: agent
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref AWS::StackName
+      Cluster: !If [NewCluster, !Ref AgentCluster, !Ref Cluster]
+      TaskDefinition: !Ref Task
+      DesiredCount: 1
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0 # never two agents with the same code
+        MaximumPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref Subnets
+          AssignPublicIp: !Ref AssignPublicIp
+          SecurityGroups: !If [DefaultSecurityGroup, !Ref AWS::NoValue, !Ref SecurityGroups]
+
+Outputs:
+  Logs:
+    Description: Where the agent logs (aws logs tail <group> --follow)
+    Value: !Ref Logs
+  Cluster:
+    Description: The cluster the agent runs in
+    Value: !If [NewCluster, !Ref AgentCluster, !Ref Cluster]
