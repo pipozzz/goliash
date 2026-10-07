@@ -44,6 +44,9 @@ templ AgentPage(v AgentPageView) {
 					<dd>@timeAgo(v.Created)</dd>
 				</dl>
 			</section>
+			if v.Agent.Enrolled {
+				@agentRegistration(v)
+			} else {
 			<section class="panel">
 				<div class="panel-head"><h2>Token</h2></div>
 				<div class="panel-body stack">
@@ -86,7 +89,18 @@ templ AgentPage(v AgentPageView) {
 					}
 				</div>
 			</section>
+			}
 		</div>
+		if len(v.Agent.Notes) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Not collected</h2><span class="muted">what the agent found but could not read when it last started</span></div>
+				<ul class="panel-body notes-list">
+					for _, n := range v.Agent.Notes {
+						<li class="mono">{ n }</li>
+					}
+				</ul>
+			</section>
+		}
 		<section class="panel">
 			<div class="panel-head"><h2>Targets</h2><span class="muted">what this agent collects</span></div>
 			if len(v.Targets) == 0 {
@@ -115,12 +129,15 @@ templ AgentPage(v AgentPageView) {
 				<section class="panel">
 					<div class="panel-head"><h2>Delete</h2></div>
 					<div class="panel-body">
-						if len(v.Targets) > 0 {
-							<p class="muted">Move or delete its targets first.</p>
+						if len(v.Targets) > v.Managed {
+							<p class="muted">Move or delete the targets you set up for it first.</p>
 						} else {
-							<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/delete") } hx-confirm="Delete this agent and its tokens?">
+							<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/delete") } hx-confirm={ deleteAgentConfirm(v) }>
 								<button type="submit" class="danger">Delete agent</button>
 							</form>
+							if v.Managed > 0 {
+								<p class="hint">The { plural(v.Managed, "target", "targets") } it found go with it. If it still runs, it registers again when it restarts.</p>
+							}
 						}
 					</div>
 				</section>
@@ -234,6 +251,53 @@ templ installAgent(serverURL, token string, rotated bool) {
 				<pre class="mono" id="install-binary">{ "GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n  goliash-agent -data-dir /var/lib/goliash-agent" }</pre>
 				<button type="button" class="secondary" data-copy="install-binary">Copy</button>
 			</details>
+		</div>
+	</section>
+}
+
+func registrationText(v AgentPageView) string {
+	t := "It registers itself with an enrollment code for this agent"
+	if v.Code.Many {
+		t = "It registers itself with an enrollment code for many agents"
+	}
+	if v.Code.Env != "" {
+		t += " of " + v.Code.Env
+	}
+	return t + ", and gets a new token every time it starts."
+}
+
+func deleteAgentConfirm(v AgentPageView) string {
+	if v.Managed > 0 {
+		return "Delete this agent and the " + plural(v.Managed, "target", "targets") + " it found?"
+	}
+	return "Delete this agent and its tokens?"
+}
+
+// agentRegistration replaces the token panel for agents that register themselves.
+templ agentRegistration(v AgentPageView) {
+	<section class="panel">
+		<div class="panel-head"><h2>Registration</h2></div>
+		<div class="panel-body stack">
+			<p>{ registrationText(v) }</p>
+			if len(v.Tokens) > 0 {
+				<p class="muted">
+					Last registered{ " " }
+					@timeAgo(v.Tokens[len(v.Tokens)-1].CreatedAt)
+				</p>
+			}
+			if v.Code.Revoked {
+				<p class="muted">The code is revoked: the agent works until it restarts, then cannot register again.</p>
+			}
+			if v.CanAdmin {
+				if len(v.Tokens) > 0 {
+					<form class="inline" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/revoke") } hx-confirm="Revoke this agent? It stops sending data at once and cannot register again until you delete it.">
+						<button type="submit" class="danger">Revoke</button>
+					</form>
+				} else {
+					<p>Revoked: it cannot send data or register again. Delete it to let it register anew.</p>
+				}
+				<p class="hint">To update it, run the command from Connect again with the new version, or change its image tag; it keeps its targets.</p>
+			}
 		</div>
 	</section>
 }

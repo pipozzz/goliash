@@ -43,17 +43,17 @@ which gives the server a read-only ClusterRole, and create a `kubernetes` target
 
 ## Agent
 
-Create the agent in the UI (**Settings → Agents and targets → Add an agent**) or with `goliash agent create -name prod-eu`, and keep the
-token in a secret:
+**Connect → Kubernetes → Get the command** gives the one command, with an enrollment code
+(or `goliash enroll create -env prod`):
 
 ```sh
-kubectl -n goliash create secret generic goliash-agent-token --from-literal=token=glsh_agent_…
-helm install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash \
-  --set serverURL=https://goliash.example.com --set token.existingSecret=goliash-agent-token
+helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash --create-namespace \
+  --set serverURL=https://goliash.example.com --set token.value=glsh_enroll_… --set name=prod-eu
 ```
 
-Then add a `kubernetes` target for the agent, for example with
-`{"kubernetes":{"exclude_namespaces":["kube-system"]}}`.
+The agent registers itself and adds the cluster as a target. To keep the code out of Helm's values, put it in a
+secret and pass `--set token.existingSecret=<secret>` instead. With an agent token (`goliash agent create`), add a
+`kubernetes` target for it, for example with `{"kubernetes":{"exclude_namespaces":["kube-system"]}}`.
 
 The agent's ClusterRole allows only `get`, `list` and `watch` on Deployments, ReplicaSets, StatefulSets,
 DaemonSets, CronJobs, Jobs and Pods. It watches for changes and sends a snapshot shortly after a rollout, and a full
