@@ -139,14 +139,15 @@ templ versionChart(t Timeline) {
 			for li, lane := range t.Lanes {
 				{{ y := float64(li) * laneH }}
 				<text class="lane" x="0" y={ f(y + laneH/2 + 4) }>{ lane.Env }</text>
-				for _, sg := range lane.Segments {
+				for si, sg := range lane.Segments {
 					{{ x := labelW + sg.Start*(chartW-labelW) }}
 					{{ w := max((sg.End-sg.Start)*(chartW-labelW), 2) }}
 					<rect class={ "seg", sg.Class } fill={ "url(#tl-" + sg.Class + ")" } x={ f(x) } y={ f(y + 5) } width={ f(max(w-2, 2)) } height={ f(laneH - 10) } rx="6">
 						<title>{ sg.Title }</title>
 					</rect>
-					if w > float64(len(sg.Version))*7+10 {
-						<text class="seg-label" x={ f(x + 6) } y={ f(y + laneH/2 + 4) }>{ sg.Version }</text>
+					{{ lb := segLabel(lane, si, labelW) }}
+					if lb.Show {
+						<text class={ "seg-label", templ.KV("outside", lb.Outside) } x={ f(lb.X) } y={ f(y + laneH/2 + 4) } text-anchor={ lb.Anchor }>{ sg.Version }</text>
 					}
 				}
 			}

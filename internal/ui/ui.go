@@ -569,8 +569,10 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	for ei, e := range o.Matrix.Environments {
 		se := ServiceEnv{Name: e.Name}
+		var running []versions.RunningVersion
 		if row != nil {
-			for _, ver := range row.Cells[ei].Versions {
+			running = row.Cells[ei].Versions
+			for _, ver := range running {
 				se.Versions = append(se.Versions, VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")})
 			}
 		}
@@ -579,7 +581,27 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			if d.App != "" {
 				b.Label = d.App + ": " + b.Label
 			}
+			// With more than one version running, show each drift next to the version it is about.
+			if i := driftVersion(b, running); i >= 0 && len(running) > 1 && d.Kind != "inconsistent" {
+				se.Versions[i].Drifts = append(se.Versions[i].Drifts, b)
+				continue
+			}
 			se.Drifts = append(se.Drifts, b)
+		}
+		// Drift is tracked for the version most replicas run; say so for the others too.
+		if up, ok := o.Upstreams[svc.ID]; ok && len(running) > 1 {
+			for i, ver := range running[1:] {
+				vv := &se.Versions[i+1]
+				if len(vv.Drifts) > 0 {
+					continue
+				}
+				if jump, lag := versions.Lagging(ver.Version(), up, pol); lag {
+					vv.Drifts = append(vv.Drifts, DriftBadge{
+						Kind: "upstream", Label: "upstream " + up.Latest.Raw, Running: ver.Version(),
+						Title: fmt.Sprintf("%s is available (%s); running %s", up.Latest.Raw, jump, ver.Version()),
+					})
+				}
+			}
 		}
 		v.Envs = append(v.Envs, se)
 		if len(se.Versions) > 0 {
@@ -2488,4 +2510,18 @@ func ownName(app, name string) string {
 		app = strings.Join(parts[:n/2], "-")
 	}
 	return app + "-" + name
+}
+
+// driftVersion finds the running version a drift is about (a leading v aside), or -1.
+func driftVersion(b DriftBadge, running []versions.RunningVersion) int {
+	if b.Running == "" {
+		return -1
+	}
+	want := strings.TrimPrefix(b.Running, "v")
+	for i, v := range running {
+		if strings.TrimPrefix(v.Version(), "v") == want || strings.TrimPrefix(v.Tag, "v") == want {
+			return i
+		}
+	}
+	return -1
 }

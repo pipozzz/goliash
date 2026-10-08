@@ -463,3 +463,41 @@ func (s *Server) deliveryCharts(r *http.Request, p auth.Principal, v *Promotions
 	v.Drift = openDriftPerDay(drifts, now, 30)
 	return nil
 }
+
+// SegLabel is where a timeline segment's version is written: inside the bar when it fits, otherwise beside
+// it where the lane is free, so a short or recent segment still says what it is.
+type SegLabel struct {
+	X       float64
+	Anchor  string // start or end
+	Outside bool
+	Show    bool
+}
+
+func segLabel(lane Lane, i int, labelW float64) SegLabel {
+	span := chartW - labelW
+	sg := lane.Segments[i]
+	x, w := labelW+sg.Start*span, max((sg.End-sg.Start)*span, 2)
+	text := float64(len(sg.Version))*7 + 10
+	if w > text {
+		return SegLabel{X: x + 6, Anchor: "start", Show: true}
+	}
+	free := func(from, to float64) bool { // nothing else of the lane between from and to
+		if from < labelW || to > chartW {
+			return false
+		}
+		for j, o := range lane.Segments {
+			ox, ow := labelW+o.Start*span, max((o.End-o.Start)*span, 2)
+			if j != i && ox < to && ox+ow > from {
+				return false
+			}
+		}
+		return true
+	}
+	if free(x+w, x+w+text) {
+		return SegLabel{X: x + w + 4, Anchor: "start", Outside: true, Show: true}
+	}
+	if free(x-text, x) {
+		return SegLabel{X: x - 4, Anchor: "end", Outside: true, Show: true}
+	}
+	return SegLabel{}
+}
