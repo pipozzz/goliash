@@ -616,6 +616,10 @@ func Layout(b Base) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = menuLink(b, "integrations", "/integrations", "Integrations").Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			if b.CanAdmin {
 				templ_7745c5c3_Err = menuLink(b, "settings", "/settings", "Users and API tokens").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -657,7 +661,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(b.Email + " · " + b.Role)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 153, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 154, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 			if templ_7745c5c3_Err != nil {
@@ -670,7 +674,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(initial(b.Email))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 154, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 155, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -683,7 +687,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(b.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 155, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 156, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -696,7 +700,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(b.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 159, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 160, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -709,7 +713,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(b.Role)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 160, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 161, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -752,7 +756,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(b.Notice)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 182, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 183, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -771,7 +775,7 @@ func Layout(b Base) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(b.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 185, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 186, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -793,7 +797,7 @@ func Layout(b Base) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(asset("htmx.min.js")))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 189, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 190, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 		if templ_7745c5c3_Err != nil {
@@ -806,7 +810,7 @@ func Layout(b Base) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(asset("app.js")))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 190, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 191, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 		if templ_7745c5c3_Err != nil {
@@ -881,7 +885,7 @@ func Login(v LoginView) templ.Component {
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(v.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 220, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 221, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -900,7 +904,7 @@ func Login(v LoginView) templ.Component {
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(v.OIDC)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 223, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 224, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -1064,7 +1068,7 @@ func Login(v LoginView) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(asset("passkey.js")))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 282, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layout.templ`, Line: 283, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 			if templ_7745c5c3_Err != nil {

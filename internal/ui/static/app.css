@@ -835,3 +835,7 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .inbox-apps { margin: 8px 0 0; max-width: 320px; }
 .split-row { align-items: center; }
 .split-row > span { min-width: 0; flex: 1; }
+/* Integrations: one card per tool, numbered steps. */
+.integrations { display: grid; gap: 16px; }
+.integration h3 { font-size: 14px; margin: 0 0 8px; }
+.integration .install-cmd { white-space: pre; overflow-x: auto; }

@@ -1,0 +1,104 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// IntegrationsPage shows how to read Goliash from Prometheus and Grafana, SigNoz and AI assistants.
+templ IntegrationsPage(v IntegrationsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Integrations</h1>
+				<p class="sub">Goliash on the dashboards and in the tools you already use. The settings below are filled in for this server.</p>
+			</div>
+			<a class="button secondary" href="https://goliash.dev/guide/observability/" target="_blank" rel="noopener noreferrer">Guide</a>
+		</div>
+		<div class="integrations">
+			<section class="panel integration" id="prometheus">
+				<div class="panel-head"><h2>Prometheus and Grafana</h2><span class="muted">scrape /metrics, import the dashboard</span></div>
+				<div class="panel-body stack">
+					@integrationToken(v, "prometheus", "/etc/prometheus/goliash-token")
+					<div>
+						<h3>2. Scrape</h3>
+						<pre class="mono install-cmd" id="cfg-prometheus">{ prometheusConfig(v.ServerURL) }</pre>
+						<div class="actions"><button type="button" class="secondary" data-copy="cfg-prometheus">Copy</button></div>
+					</div>
+					<div>
+						<h3>3. Dashboard</h3>
+						<p class="hint">Grafana → Dashboards → New → Import, upload the file and pick the Prometheus data source. Versions, drift, delivery, image hygiene and Goliash's own health, with deploys marked on the graphs.</p>
+						<div class="actions">
+							<a class="button" href="/integrations/dashboards/grafana.json" hx-boost="false" download>Download the Grafana dashboard</a>
+							<a href="/notifications">Events as Grafana annotations</a>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="panel integration" id="signoz">
+				<div class="panel-head"><h2>SigNoz</h2><span class="muted">the OpenTelemetry Collector reads /metrics</span></div>
+				<div class="panel-body stack">
+					@integrationToken(v, "signoz", "/etc/otelcol/goliash-token")
+					<div>
+						<h3>2. Add to the collector</h3>
+						<pre class="mono install-cmd" id="cfg-signoz">{ collectorConfig(v.ServerURL) }</pre>
+						<div class="actions"><button type="button" class="secondary" data-copy="cfg-signoz">Copy</button></div>
+					</div>
+					<div>
+						<h3>3. Dashboard</h3>
+						<p class="hint">SigNoz → Dashboards → New dashboard → Import JSON. Metrics show up about a minute after the collector restarts.</p>
+						<div class="actions">
+							<a class="button" href="/integrations/dashboards/signoz.json" hx-boost="false" download>Download the SigNoz dashboard</a>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="panel integration" id="mcp">
+				<div class="panel-head"><h2>AI assistants</h2><span class="muted">Claude, Cursor and others ask Goliash over MCP</span></div>
+				<div class="panel-body stack">
+					@integrationToken(v, "mcp", "")
+					<div>
+						<h3>2. Add the server</h3>
+						<pre class="mono install-cmd" id="cfg-mcp">{ mcpCommand(v.ServerURL, tokenFor(v, "mcp")) }</pre>
+						<div class="actions">
+							<button type="button" class="secondary" data-copy="cfg-mcp">Copy</button>
+							<a href="https://goliash.dev/reference/mcp/" target="_blank" rel="noopener noreferrer">Cursor, Claude Desktop and more</a>
+						</div>
+					</div>
+				</div>
+			</section>
+		</div>
+	}
+}
+
+// integrationToken is step 1 of an integration: a viewer token, made here or shown right after.
+templ integrationToken(v IntegrationsView, tool, file string) {
+	<div>
+		<h3>1. A token</h3>
+		if v.Tool == tool && v.Token != "" {
+			if file != "" {
+				<p class="hint">Save it as <code>{ file }</code>, nothing else in the file. Shown only now.</p>
+			} else {
+				<p class="hint">It is in the command below. Shown only now.</p>
+			}
+			<pre class="mono install-cmd" id={ "token-" + tool }>{ v.Token }</pre>
+			<div class="actions">
+				<button type="button" class="secondary" data-copy={ "token-" + tool }>Copy</button>
+				<span class="hint">Check it: <code>{ checkCommand(v.ServerURL, v.Token) }</code> prints how many samples it reads.</span>
+			</div>
+		} else if v.CanAdmin && !v.Demo {
+			<form class="inline" method="post" action="/integrations/token">
+				<input type="hidden" name="tool" value={ tool }/>
+				<button type="submit" class="secondary">Create a viewer token</button>
+				<span class="hint">reads only; revoke it any time under <a href="/settings">Users and API tokens</a></span>
+			</form>
+		} else {
+			<p class="hint">An admin creates a viewer token under Users and API tokens, or with <code>goliash token create -name { tool } -role viewer</code>.</p>
+		}
+	</div>
+}
+
+func tokenFor(v IntegrationsView, tool string) string {
+	if v.Tool == tool {
+		return v.Token
+	}
+	return ""
+}
