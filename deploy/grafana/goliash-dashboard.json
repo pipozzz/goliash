@@ -571,8 +571,11 @@
           "min": 0,
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "stepAfter",
-            "fillOpacity": 10
+            "lineInterpolation": "smooth",
+            "fillOpacity": 25,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "gradientMode": "opacity"
           }
         },
         "overrides": []
@@ -622,7 +625,11 @@
           "min": 0,
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "stepAfter"
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 0,
+            "gradientMode": "none"
           }
         },
         "overrides": []
@@ -1207,10 +1214,13 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 10,
+            "fillOpacity": 25,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineInterpolation": "smooth",
+            "showPoints": "never",
+            "gradientMode": "opacity"
           }
         },
         "overrides": []

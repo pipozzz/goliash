@@ -5,151 +5,284 @@
     "goliash",
     "versions",
     "drift",
-    "prometheus"
+    "delivery"
   ],
   "uuid": "6f6efd79-8e2e-5cae-8b19-fc12a1e07b55",
   "version": "v5",
   "uploadedGrafana": false,
   "layout": [
     {
-      "i": "w1",
+      "i": "c7339444-4634-5cfa-965e-88af203127b4",
       "x": 0,
       "y": 0,
+      "w": 12,
+      "h": 1,
+      "minH": 1,
+      "maxH": 1,
+      "minW": 12,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w1",
+      "x": 0,
+      "y": 1,
       "w": 3,
-      "h": 3
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w2",
       "x": 3,
-      "y": 0,
+      "y": 1,
       "w": 3,
-      "h": 3
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w3",
       "x": 6,
-      "y": 0,
+      "y": 1,
       "w": 3,
-      "h": 3
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w4",
       "x": 9,
-      "y": 0,
+      "y": 1,
       "w": 3,
-      "h": 3
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w5",
       "x": 0,
-      "y": 3,
+      "y": 4,
       "w": 6,
-      "h": 8
+      "h": 8,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w6",
       "x": 6,
-      "y": 3,
+      "y": 4,
       "w": 6,
-      "h": 8
+      "h": 8,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w21",
+      "x": 0,
+      "y": 12,
+      "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w22",
+      "x": 4,
+      "y": 12,
+      "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w23",
+      "x": 8,
+      "y": 12,
+      "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w7",
       "x": 0,
-      "y": 11,
+      "y": 19,
       "w": 6,
-      "h": 6
+      "h": 6,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w8",
       "x": 6,
-      "y": 11,
+      "y": 19,
       "w": 6,
-      "h": 6
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "55bfc33b-b954-52db-8752-420d81923b59",
+      "x": 0,
+      "y": 25,
+      "w": 12,
+      "h": 1,
+      "minH": 1,
+      "maxH": 1,
+      "minW": 12,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w9",
       "x": 0,
-      "y": 17,
-      "w": 3,
-      "h": 3
+      "y": 26,
+      "w": 4,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w10",
-      "x": 3,
-      "y": 17,
-      "w": 3,
-      "h": 3
+      "x": 4,
+      "y": 26,
+      "w": 4,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w11",
-      "x": 6,
-      "y": 17,
-      "w": 3,
-      "h": 3
-    },
-    {
-      "i": "w12",
-      "x": 9,
-      "y": 17,
-      "w": 3,
-      "h": 3
+      "x": 8,
+      "y": 26,
+      "w": 4,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w13",
       "x": 0,
-      "y": 20,
+      "y": 29,
       "w": 6,
-      "h": 7
+      "h": 7,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w14",
       "x": 6,
-      "y": 20,
+      "y": 29,
       "w": 6,
-      "h": 7
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "71e49115-bc4e-5757-a942-126a86cc8e2e",
+      "x": 0,
+      "y": 36,
+      "w": 12,
+      "h": 1,
+      "minH": 1,
+      "maxH": 1,
+      "minW": 12,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w12",
+      "x": 0,
+      "y": 37,
+      "w": 3,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w24",
+      "x": 3,
+      "y": 37,
+      "w": 4,
+      "h": 6,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w15",
+      "x": 7,
+      "y": 37,
+      "w": 5,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "x": 0,
-      "y": 27,
-      "w": 6,
-      "h": 6
+      "y": 43,
+      "w": 12,
+      "h": 1,
+      "minH": 1,
+      "maxH": 1,
+      "minW": 12,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w16",
-      "x": 6,
-      "y": 27,
-      "w": 3,
-      "h": 6
+      "x": 0,
+      "y": 44,
+      "w": 2,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w25",
+      "x": 2,
+      "y": 44,
+      "w": 2,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w17",
-      "x": 9,
-      "y": 27,
-      "w": 3,
-      "h": 3
+      "x": 4,
+      "y": 44,
+      "w": 2,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w18",
-      "x": 9,
-      "y": 30,
-      "w": 3,
-      "h": 3
+      "x": 6,
+      "y": 44,
+      "w": 2,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w19",
-      "x": 0,
-      "y": 33,
-      "w": 3,
-      "h": 3
+      "x": 8,
+      "y": 44,
+      "w": 2,
+      "h": 3,
+      "moved": false,
+      "static": false
     },
     {
       "i": "w20",
-      "x": 3,
-      "y": 33,
-      "w": 3,
-      "h": 3
+      "x": 10,
+      "y": 44,
+      "w": 2,
+      "h": 3,
+      "moved": false,
+      "static": false
     }
   ],
   "variables": {
@@ -182,13 +315,19 @@
   },
   "widgets": [
     {
+      "id": "c7339444-4634-5cfa-965e-88af203127b4",
+      "panelTypes": "row",
+      "title": "Versions and drift",
+      "description": ""
+    },
+    {
       "id": "w1",
       "panelTypes": "value",
       "title": "Behind upstream",
-      "description": "Service × environment pairs behind the newest release by at least the tracked jump (sum of goliash_outdated).",
+      "description": "Service × environment pairs behind the newest release by at least the tracked jump.",
       "query": {
         "queryType": "builder",
-        "id": "bdc91398-1ef8-5086-b001-8cc1a5798573",
+        "id": "67a584d2-2746-5dd9-bf50-633ce503cea1",
         "builder": {
           "queryData": [
             {
@@ -246,7 +385,20 @@
       "opacity": "1",
       "softMin": 0,
       "softMax": 0,
-      "thresholds": [],
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
       "fillSpans": false,
       "isStacked": false,
       "contextLinks": {
@@ -290,10 +442,10 @@
       "id": "w2",
       "panelTypes": "value",
       "title": "Open drifts",
-      "description": "Open environment, upstream and inconsistent drift.",
+      "description": "Drifts not resolved yet: env, upstream, inconsistent, declared, eol.",
       "query": {
         "queryType": "builder",
-        "id": "b337277e-a15a-5620-8f15-41fc596d6971",
+        "id": "5c9e3c3d-93db-5ce3-add6-20b556daa153",
         "builder": {
           "queryData": [
             {
@@ -351,7 +503,20 @@
       "opacity": "1",
       "softMin": 0,
       "softMax": 0,
-      "thresholds": [],
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
       "fillSpans": false,
       "isStacked": false,
       "contextLinks": {
@@ -394,11 +559,11 @@
     {
       "id": "w3",
       "panelTypes": "value",
-      "title": "Oldest drift (days)",
-      "description": "Days the oldest open drift has lasted.",
+      "title": "Oldest drift",
+      "description": "How long the oldest open drift has been open.",
       "query": {
         "queryType": "builder",
-        "id": "8cd707c2-b304-5c39-8e19-18245c8aa14f",
+        "id": "4ea9a89c-be3d-5397-b303-309b684f0cf3",
         "builder": {
           "queryData": [
             {
@@ -456,7 +621,32 @@
       "opacity": "1",
       "softMin": 0,
       "softMax": 0,
-      "thresholds": [],
+      "thresholds": [
+        {
+          "index": "9251278a-c484-556b-a8a9-aa5d51de487b",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 7,
+          "thresholdUnit": "d",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        },
+        {
+          "index": "7c40ca33-a5af-5f6f-8676-abfd3ea7b6be",
+          "keyIndex": 1,
+          "thresholdOperator": ">",
+          "thresholdValue": 30,
+          "thresholdUnit": "d",
+          "thresholdColor": "Red",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
       "fillSpans": false,
       "isStacked": false,
       "contextLinks": {
@@ -500,10 +690,10 @@
       "id": "w4",
       "panelTypes": "value",
       "title": "Running versions",
-      "description": "Distinct service, environment and version combinations running.",
+      "description": "Distinct service × environment × version combinations running now.",
       "query": {
         "queryType": "builder",
-        "id": "e3191792-13e6-5424-8833-0659874cba82",
+        "id": "a7dd655f-7590-5437-bbdf-b4b83ee72357",
         "builder": {
           "queryData": [
             {
@@ -608,7 +798,7 @@
       "description": "Running replicas per service, environment and version.",
       "query": {
         "queryType": "builder",
-        "id": "ee43d271-f315-5193-a5f4-66b374406502",
+        "id": "6951beb5-382e-5e32-ab76-b38c70e68353",
         "builder": {
           "queryData": [
             {
@@ -729,21 +919,16 @@
           "name": "duration_nano",
           "signal": "traces"
         }
-      ],
-      "columnUnits": {},
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "mergeAllActiveQueries": false,
-      "stackedBarChart": false
+      ]
     },
     {
       "id": "w6",
       "panelTypes": "table",
       "title": "Open drift",
-      "description": "Open drift by service, environment and kind, in days.",
+      "description": "Open drifts and how long they have been open, longest first.",
       "query": {
         "queryType": "builder",
-        "id": "b6833918-d011-5397-81fd-1a4d0ff89b4d",
+        "id": "e1b7671e-51eb-58f0-b0e4-76d521261229",
         "builder": {
           "queryData": [
             {
@@ -867,20 +1052,366 @@
       ],
       "columnUnits": {
         "A": "d"
+      }
+    },
+    {
+      "id": "w21",
+      "panelTypes": "table",
+      "title": "Behind upstream",
+      "description": "Services running a version behind the newest release, per environment.",
+      "query": {
+        "queryType": "builder",
+        "id": "4ba808d7-fed6-5721-b313-7fe72ea309a0",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_outdated",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": "sum(goliash_outdated) > 0"
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "service",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "environment--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "environment",
+                  "type": "tag"
+                }
+              ],
+              "legend": "Behind",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
       },
-      "bucketCount": 30,
-      "bucketWidth": 0,
-      "mergeAllActiveQueries": false,
-      "stackedBarChart": false
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w22",
+      "panelTypes": "pie",
+      "title": "Drift by kind",
+      "description": "Open drifts by kind: env (environments differ), upstream (behind the newest release), inconsistent, declared, eol.",
+      "query": {
+        "queryType": "builder",
+        "id": "5d9cb085-ab40-5c79-b1ec-15c3f779b81b",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_drift_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "count",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "kind--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "kind",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{kind}}",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w23",
+      "panelTypes": "pie",
+      "title": "Behind upstream by environment",
+      "description": "",
+      "query": {
+        "queryType": "builder",
+        "id": "386b44ff-b1e5-5313-a8f3-f4fde6dd8f42",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_outdated",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": "sum(goliash_outdated) > 0"
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "environment--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "environment",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{environment}}",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
     },
     {
       "id": "w7",
       "panelTypes": "graph",
-      "title": "Behind upstream by environment",
-      "description": "How many services each environment runs behind upstream.",
+      "title": "Behind upstream over time",
+      "description": "Services behind upstream per environment.",
       "query": {
         "queryType": "builder",
-        "id": "017b1b00-1a56-58d5-b96b-7e372382546c",
+        "id": "1d2b2941-5808-5f6b-9f42-26e4c00594ca",
         "builder": {
           "queryData": [
             {
@@ -986,16 +1517,21 @@
           "signal": "traces"
         }
       ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
       "legendPosition": "bottom"
     },
     {
       "id": "w8",
       "panelTypes": "graph",
       "title": "Longest drift per service",
-      "description": "Days the longest open drift of each service has lasted.",
+      "description": "How long each service's oldest drift has been open.",
       "query": {
         "queryType": "builder",
-        "id": "eb6a8bf9-9690-5415-a7cd-feae75c44796",
+        "id": "fbcc6211-16b7-58fa-b234-99aa94e50e2b",
         "builder": {
           "queryData": [
             {
@@ -1101,12 +1637,23 @@
           "signal": "traces"
         }
       ],
+      "fillMode": "none",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
       "legendPosition": "bottom"
+    },
+    {
+      "id": "55bfc33b-b954-52db-8752-420d81923b59",
+      "panelTypes": "row",
+      "title": "Delivery (last 30 days)",
+      "description": ""
     },
     {
       "id": "w9",
       "panelTypes": "value",
-      "title": "Deploys (30 days)",
+      "title": "Deploys",
       "description": "Versions that arrived in the selected environments in the last 30 days.",
       "query": {
         "queryType": "builder",
@@ -1212,7 +1759,7 @@
       "id": "w10",
       "panelTypes": "value",
       "title": "Median lead time",
-      "description": "Median of the services' median time from one environment to the next, last 30 days. Empty until versions move between two environments (e.g. staging → prod).",
+      "description": "Median of the services' median time from one environment to the next. Empty until versions move between two environments (e.g. staging → prod).",
       "query": {
         "queryType": "builder",
         "id": "3a2e2c8a-13a7-5191-bcec-58c7ba1faaf6",
@@ -1384,7 +1931,7 @@
           "keyIndex": 0,
           "thresholdOperator": ">",
           "thresholdValue": 604800,
-          "thresholdUnit": "none",
+          "thresholdUnit": "s",
           "thresholdColor": "Orange",
           "thresholdFormat": "Text",
           "thresholdLabel": "",
@@ -1396,7 +1943,7 @@
           "keyIndex": 1,
           "thresholdOperator": ">",
           "thresholdValue": 1209600,
-          "thresholdUnit": "none",
+          "thresholdUnit": "s",
           "thresholdColor": "Red",
           "thresholdFormat": "Text",
           "thresholdLabel": "",
@@ -1442,6 +1989,267 @@
           "signal": "traces"
         }
       ]
+    },
+    {
+      "id": "w13",
+      "panelTypes": "table",
+      "title": "Deploys per service",
+      "description": "Versions that arrived in the last 30 days, per service and environment.",
+      "query": {
+        "queryType": "builder",
+        "id": "54e863d2-43ec-5f12-8be3-19287a813b27",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_deploys",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": "sum(goliash_deploys) > 0"
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "service",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "environment--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "environment",
+                  "type": "tag"
+                }
+              ],
+              "legend": "Deploys",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w14",
+      "panelTypes": "table",
+      "title": "Lead time",
+      "description": "Median time a version took from one environment to the next. Empty until versions move between two environments (e.g. staging → prod).",
+      "query": {
+        "queryType": "builder",
+        "id": "595771df-275f-53ea-aaa8-d90606b01ff0",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_lead_time_seconds",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND to IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "service--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "service",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "from--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "from",
+                  "type": "tag"
+                },
+                {
+                  "dataType": "string",
+                  "id": "to--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "to",
+                  "type": "tag"
+                }
+              ],
+              "legend": "Median",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "s",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "columnUnits": {
+        "A": "s"
+      }
+    },
+    {
+      "id": "71e49115-bc4e-5757-a942-126a86cc8e2e",
+      "panelTypes": "row",
+      "title": "Image hygiene",
+      "description": ""
     },
     {
       "id": "w12",
@@ -1562,257 +2370,13 @@
       ]
     },
     {
-      "id": "w13",
-      "panelTypes": "bar",
-      "title": "Deploys per service",
-      "description": "Versions that arrived in the last 30 days, per service.",
+      "id": "w24",
+      "panelTypes": "pie",
+      "title": "Findings by kind",
+      "description": "moving-tag: latest, stable…; retagged: a tag pushed again with other content; untrusted-registry; unpinned: no digest.",
       "query": {
         "queryType": "builder",
-        "id": "54e863d2-43ec-5f12-8be3-19287a813b27",
-        "builder": {
-          "queryData": [
-            {
-              "dataSource": "metrics",
-              "disabled": false,
-              "expression": "A",
-              "queryName": "A",
-              "stepInterval": 60,
-              "aggregations": [
-                {
-                  "metricName": "goliash_deploys",
-                  "temporality": "unspecified",
-                  "timeAggregation": "latest",
-                  "spaceAggregation": "sum",
-                  "reduceTo": "last"
-                }
-              ],
-              "filter": {
-                "expression": "service IN $service AND environment IN $environment"
-              },
-              "functions": [],
-              "having": {
-                "expression": ""
-              },
-              "limit": null,
-              "orderBy": [],
-              "selectColumns": [],
-              "groupBy": [
-                {
-                  "dataType": "string",
-                  "id": "service--string--tag--false",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "key": "service",
-                  "type": "tag"
-                }
-              ],
-              "legend": "{{service}}",
-              "reduceTo": "last"
-            }
-          ],
-          "queryFormulas": []
-        },
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ],
-        "promql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ]
-      },
-      "yAxisUnit": "none",
-      "timePreferance": "GLOBAL_TIME",
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "softMax": 0,
-      "thresholds": [],
-      "fillSpans": false,
-      "isStacked": false,
-      "contextLinks": {
-        "linksData": []
-      },
-      "selectedLogFields": [
-        {
-          "fieldContext": "log",
-          "name": "timestamp",
-          "signal": "logs",
-          "type": "log"
-        },
-        {
-          "fieldContext": "log",
-          "name": "body",
-          "signal": "logs",
-          "type": "log"
-        }
-      ],
-      "selectedTracesFields": [
-        {
-          "fieldContext": "resource",
-          "fieldDataType": "string",
-          "name": "service.name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "fieldDataType": "string",
-          "name": "name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "name": "duration_nano",
-          "signal": "traces"
-        }
-      ]
-    },
-    {
-      "id": "w14",
-      "panelTypes": "table",
-      "title": "Lead time",
-      "description": "Median time a version took from one environment to the next, last 30 days. Empty until versions move between two environments (e.g. staging → prod).",
-      "query": {
-        "queryType": "builder",
-        "id": "595771df-275f-53ea-aaa8-d90606b01ff0",
-        "builder": {
-          "queryData": [
-            {
-              "dataSource": "metrics",
-              "disabled": false,
-              "expression": "A",
-              "queryName": "A",
-              "stepInterval": 60,
-              "aggregations": [
-                {
-                  "metricName": "goliash_lead_time_seconds",
-                  "temporality": "unspecified",
-                  "timeAggregation": "latest",
-                  "spaceAggregation": "max",
-                  "reduceTo": "last"
-                }
-              ],
-              "filter": {
-                "expression": "service IN $service AND to IN $environment"
-              },
-              "functions": [],
-              "having": {
-                "expression": ""
-              },
-              "limit": null,
-              "orderBy": [],
-              "selectColumns": [],
-              "groupBy": [
-                {
-                  "dataType": "string",
-                  "id": "service--string--tag--false",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "key": "service",
-                  "type": "tag"
-                },
-                {
-                  "dataType": "string",
-                  "id": "from--string--tag--false",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "key": "from",
-                  "type": "tag"
-                },
-                {
-                  "dataType": "string",
-                  "id": "to--string--tag--false",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "key": "to",
-                  "type": "tag"
-                }
-              ],
-              "legend": "",
-              "reduceTo": "last"
-            }
-          ],
-          "queryFormulas": []
-        },
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ],
-        "promql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ]
-      },
-      "yAxisUnit": "s",
-      "timePreferance": "GLOBAL_TIME",
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "softMax": 0,
-      "thresholds": [],
-      "fillSpans": false,
-      "isStacked": false,
-      "contextLinks": {
-        "linksData": []
-      },
-      "selectedLogFields": [
-        {
-          "fieldContext": "log",
-          "name": "timestamp",
-          "signal": "logs",
-          "type": "log"
-        },
-        {
-          "fieldContext": "log",
-          "name": "body",
-          "signal": "logs",
-          "type": "log"
-        }
-      ],
-      "selectedTracesFields": [
-        {
-          "fieldContext": "resource",
-          "fieldDataType": "string",
-          "name": "service.name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "fieldDataType": "string",
-          "name": "name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "name": "duration_nano",
-          "signal": "traces"
-        }
-      ]
-    },
-    {
-      "id": "w15",
-      "panelTypes": "graph",
-      "title": "Hygiene findings by kind",
-      "description": "",
-      "query": {
-        "queryType": "builder",
-        "id": "fc5c44e2-54c6-5946-b9f3-04f1a57b4b20",
+        "id": "c5423efd-f1d7-5375-bddb-201b0daa066d",
         "builder": {
           "queryData": [
             {
@@ -1835,7 +2399,7 @@
               },
               "functions": [],
               "having": {
-                "expression": ""
+                "expression": "sum(goliash_image_hygiene_findings) > 0"
               },
               "limit": null,
               "orderBy": [],
@@ -1920,10 +2484,136 @@
       ]
     },
     {
+      "id": "w15",
+      "panelTypes": "graph",
+      "title": "Findings over time",
+      "description": "",
+      "query": {
+        "queryType": "builder",
+        "id": "fc5c44e2-54c6-5946-b9f3-04f1a57b4b20",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_hygiene_findings",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "kind--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "kind",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{kind}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
+      "legendPosition": "bottom"
+    },
+    {
+      "id": "83831094-f342-5739-a3d0-f5bd4cd956ea",
+      "panelTypes": "row",
+      "title": "Goliash itself",
+      "description": ""
+    },
+    {
       "id": "w16",
-      "panelTypes": "table",
-      "title": "Agents",
-      "description": "Agents by status: online, stale (stopped reporting), never connected, revoked.",
+      "panelTypes": "value",
+      "title": "Agents online",
+      "description": "Agents that reported in time.",
       "query": {
         "queryType": "builder",
         "id": "d276de33-6d87-580a-9b10-a0c5e0b36fa9",
@@ -1945,7 +2635,7 @@
                 }
               ],
               "filter": {
-                "expression": ""
+                "expression": "status = 'online'"
               },
               "functions": [],
               "having": {
@@ -1954,16 +2644,7 @@
               "limit": null,
               "orderBy": [],
               "selectColumns": [],
-              "groupBy": [
-                {
-                  "dataType": "string",
-                  "id": "status--string--tag--false",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "key": "status",
-                  "type": "tag"
-                }
-              ],
+              "groupBy": [],
               "legend": "",
               "reduceTo": "last"
             }
@@ -1994,6 +2675,124 @@
       "softMin": 0,
       "softMax": 0,
       "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w25",
+      "panelTypes": "value",
+      "title": "Agents stale",
+      "description": "Agents that stopped reporting; their targets keep their last state.",
+      "query": {
+        "queryType": "builder",
+        "id": "84446f24-865a-5b42-b95e-1c574f0d9f53",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_agents",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "status = 'stale'"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "2a546840-c51b-5cc4-840c-230ed5c91fbf",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Red",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
       "fillSpans": false,
       "isStacked": false,
       "contextLinks": {
@@ -2166,7 +2965,7 @@
     {
       "id": "w18",
       "panelTypes": "value",
-      "title": "Notifications failing",
+      "title": "Failing notifications",
       "description": "Notifications not sent that failed at least once.",
       "query": {
         "queryType": "builder",
@@ -2284,8 +3083,8 @@
     {
       "id": "w19",
       "panelTypes": "value",
-      "title": "Servers running background work",
-      "description": "Must be exactly 1 across all servers sharing a database.",
+      "title": "Background workers",
+      "description": "Servers running the background work; must be exactly 1 per database.",
       "query": {
         "queryType": "builder",
         "id": "5ba204f3-91c4-5a7f-97b5-0415a1f0eb7a",
@@ -2402,7 +3201,7 @@
     {
       "id": "w20",
       "panelTypes": "table",
-      "title": "Goliash version",
+      "title": "Version",
       "description": "The running Goliash servers.",
       "query": {
         "queryType": "builder",
@@ -2444,7 +3243,7 @@
                   "type": "tag"
                 }
               ],
-              "legend": "",
+              "legend": "Servers",
               "reduceTo": "last"
             }
           ],
@@ -2513,5 +3312,252 @@
         }
       ]
     }
-  ]
+  ],
+  "panelMap": {
+    "c7339444-4634-5cfa-965e-88af203127b4": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w1",
+          "x": 0,
+          "y": 1,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w2",
+          "x": 3,
+          "y": 1,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w3",
+          "x": 6,
+          "y": 1,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w4",
+          "x": 9,
+          "y": 1,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w5",
+          "x": 0,
+          "y": 4,
+          "w": 6,
+          "h": 8,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w6",
+          "x": 6,
+          "y": 4,
+          "w": 6,
+          "h": 8,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w21",
+          "x": 0,
+          "y": 12,
+          "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w22",
+          "x": 4,
+          "y": 12,
+          "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w23",
+          "x": 8,
+          "y": 12,
+          "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w7",
+          "x": 0,
+          "y": 19,
+          "w": 6,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w8",
+          "x": 6,
+          "y": 19,
+          "w": 6,
+          "h": 6,
+          "moved": false,
+          "static": false
+        }
+      ]
+    },
+    "55bfc33b-b954-52db-8752-420d81923b59": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w9",
+          "x": 0,
+          "y": 26,
+          "w": 4,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w10",
+          "x": 4,
+          "y": 26,
+          "w": 4,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w11",
+          "x": 8,
+          "y": 26,
+          "w": 4,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w13",
+          "x": 0,
+          "y": 29,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w14",
+          "x": 6,
+          "y": 29,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        }
+      ]
+    },
+    "71e49115-bc4e-5757-a942-126a86cc8e2e": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w12",
+          "x": 0,
+          "y": 37,
+          "w": 3,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w24",
+          "x": 3,
+          "y": 37,
+          "w": 4,
+          "h": 6,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w15",
+          "x": 7,
+          "y": 37,
+          "w": 5,
+          "h": 6,
+          "moved": false,
+          "static": false
+        }
+      ]
+    },
+    "83831094-f342-5739-a3d0-f5bd4cd956ea": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w16",
+          "x": 0,
+          "y": 44,
+          "w": 2,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w25",
+          "x": 2,
+          "y": 44,
+          "w": 2,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w17",
+          "x": 4,
+          "y": 44,
+          "w": 2,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w18",
+          "x": 6,
+          "y": 44,
+          "w": 2,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w19",
+          "x": 8,
+          "y": 44,
+          "w": 2,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w20",
+          "x": 10,
+          "y": 44,
+          "w": 2,
+          "h": 3,
+          "moved": false,
+          "static": false
+        }
+      ]
+    }
+  }
 }
