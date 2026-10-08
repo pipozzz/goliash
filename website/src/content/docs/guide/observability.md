@@ -12,6 +12,10 @@ Goliash fits next to the observability stack you already have in three ways:
 3. **Deploys on your graphs.** A deploy shows up as a marker on the graphs of the services it may have changed, from
    the metrics alone or from a Grafana notification channel.
 
+The quickest way is **Settings → Integrations** in Goliash: it creates a viewer token with one click and shows the
+scrape settings for Prometheus and the OpenTelemetry Collector, filled in for your server, next to download links
+for both dashboards. The steps below do the same by hand.
+
 ## 1. A token for the scraper
 
 `/metrics` needs an API token with the viewer role. Create one under **Users → API tokens**, or:
