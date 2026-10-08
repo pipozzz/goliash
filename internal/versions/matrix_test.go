@@ -162,3 +162,16 @@ func TestOverviewDriftsOnce(t *testing.T) {
 		t.Fatalf("auth drifts %+v", got)
 	}
 }
+
+func TestCellOldest(t *testing.T) {
+	c := Cell{Versions: []RunningVersion{{Tag: "v3.7.14", Running: 2}, {Tag: "v3.6.7", Running: 1}, {Tag: "latest", Running: 1}}}
+	if got := c.Oldest().Tag; got != "v3.6.7" {
+		t.Fatalf("oldest %s", got)
+	}
+	if got := (Cell{Versions: []RunningVersion{{Tag: "latest"}, {Tag: "edge"}}}).Oldest().Tag; got != "latest" {
+		t.Fatalf("unparsed: %s", got)
+	}
+	if got := (Cell{}).Oldest().Tag; got != "" {
+		t.Fatalf("empty: %s", got)
+	}
+}

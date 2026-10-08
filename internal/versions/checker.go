@@ -605,8 +605,9 @@ func partDrifts(m Matrix, svc string, part Part, upstreams map[string]Upstream, 
 		prevEnv = ei
 
 		if up, ok := upstreams[svc]; ok {
-			if jump, lag := Lagging(primary, up, policies[svc]); lag {
-				add(env, "upstream", DriftDetail{Running: primary, Other: up.Latest.Raw, Jump: jump})
+			oldest := cell.Oldest().Version()
+			if jump, lag := Lagging(oldest, up, policies[svc]); lag {
+				add(env, "upstream", DriftDetail{Running: oldest, Other: up.Latest.Raw, Jump: jump})
 			}
 		}
 
