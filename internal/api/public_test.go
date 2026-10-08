@@ -262,6 +262,26 @@ func TestDashboardsUseServedMetrics(t *testing.T) {
 			}
 		}
 	}
+	rules, err := os.ReadFile("../../deploy/prometheus/goliash-alerts.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range regexp.MustCompile(`goliash_[a-z_]+`).FindAllString(string(rules), -1) {
+		if !served[m] {
+			t.Errorf("the alerts read %s, which /metrics does not serve", m)
+		}
+	}
+	// The Helm chart carries copies, since a chart cannot read files outside its directory.
+	for chart, orig := range map[string]string{
+		"../../deploy/helm/goliash/files/goliash-alerts.yaml":    "../../deploy/prometheus/goliash-alerts.yaml",
+		"../../deploy/helm/goliash/files/goliash-dashboard.json": "../../deploy/grafana/goliash-dashboard.json",
+	} {
+		a, _ := os.ReadFile(chart)
+		b, _ := os.ReadFile(orig)
+		if len(a) == 0 || string(a) != string(b) {
+			t.Errorf("%s differs from %s: copy it again", chart, orig)
+		}
+	}
 }
 
 func newJar() http.CookieJar {

@@ -38,6 +38,9 @@ func TestIntegrations(t *testing.T) {
 			t.Errorf("%s: %d", f, code)
 		}
 	}
+	if code, body := get(t, viewer, e.srv.URL+"/integrations/dashboards/alerts.yaml", nil); code != 200 || !strings.Contains(body, "GoliashAgentStale") {
+		t.Errorf("alerts: %d", code)
+	}
 	if code, _ := get(t, viewer, e.srv.URL+"/integrations/dashboards/other.json", nil); code != http.StatusNotFound {
 		t.Errorf("unknown dashboard %d", code)
 	}

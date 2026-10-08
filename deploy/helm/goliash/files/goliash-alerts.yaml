@@ -1,0 +1,52 @@
+# Copyright 2026 The Goliash Authors
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Prometheus alerting rules for Goliash /metrics. Load with rule_files: in prometheus.yml,
+# or let the Helm chart create a PrometheusRule (metrics.prometheusRule.enabled).
+# Alerts about versions themselves (new releases, drift, removed services) are better sent by
+# Goliash directly: see https://goliash.dev/guide/notifications/.
+groups:
+  - name: goliash
+    rules:
+      - alert: GoliashMetricsMissing
+        expr: absent(goliash_build_info)
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: Goliash /metrics is not scraped
+          description: No Goliash metrics for 10 minutes. The server is down, or the scrape fails (check the token).
+      - alert: GoliashBackgroundWork
+        expr: sum(goliash_leader) != 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $value }} Goliash servers run the background work"
+          description: Exactly one server per database must run checks, notifications and clean-up.
+      - alert: GoliashAgentStale
+        expr: goliash_agents{status="stale"} > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} Goliash agents stopped reporting"
+          description: Their targets keep their last known state. See Settings → Agents and targets.
+      - alert: GoliashFallingBehind
+        expr: goliash_snapshots_pending > 20
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} Goliash snapshots wait to be processed"
+          description: The server falls behind the agents; give it more CPU or check the database.
+      - alert: GoliashNotificationsFailing
+        expr: goliash_notifications_failing > 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} Goliash notifications keep failing"
+          description: The Notifications page shows each channel's answer.
+      - alert: GoliashDriftOpenLong
+        expr: max by (service, environment, kind) (goliash_drift_days) > 14
+        for: 1h
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $labels.service }} in {{ $labels.environment }}: {{ $labels.kind }} drift open for {{ $value | humanize }} days"
+          description: Upgrade, or acknowledge it in Goliash if it is on purpose.
