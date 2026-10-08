@@ -40,6 +40,7 @@ type UpdateItem struct {
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
 	EOLPassed                            bool
+	On                                   string // the targets running Running, when others run newer versions
 	Since                                time.Time
 	Level                                int
 	LevelClass                           string
@@ -84,7 +85,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		it := UpdateItem{
 			Service: u.Service.Name, ServiceURL: serviceURL(u.Service.Name), App: u.App, Owner: u.Service.Owner,
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
-			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency,
+			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 		}
 		if u.Acked {
@@ -112,6 +113,9 @@ func updateMarkdown(it UpdateItem) string {
 		b.WriteString(" (" + it.App + ")")
 	}
 	b.WriteString(" @ " + it.Env + ": " + orDash(it.Running))
+	if it.On != "" {
+		b.WriteString(" on " + it.On)
+	}
 	if it.Target != "" {
 		b.WriteString(" → " + it.Target)
 	}

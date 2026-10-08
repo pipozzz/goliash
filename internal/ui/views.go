@@ -280,7 +280,7 @@ func driftBadge(d store.Drift) DriftBadge {
 		b.Title = fmt.Sprintf("%s runs %s; this environment runs %s", det.OtherIn, det.Other, det.Running)
 	case "upstream":
 		b.Label = "upstream " + det.Other
-		b.Title = fmt.Sprintf("%s is available (%s); running %s", det.Other, det.Jump, det.Running)
+		b.Title = fmt.Sprintf("%s is available (%s); running %s%s", det.Other, det.Jump, det.Running, onTargets(det.On))
 	case "eol":
 		b.Label = "end of life"
 		if det.EOL != "" {
@@ -288,7 +288,7 @@ func driftBadge(d store.Drift) DriftBadge {
 				b.Label = "EOL " + det.EOL
 			}
 		}
-		b.Title = fmt.Sprintf("Release cycle %s ends support on %s (endoflife.date)", det.Other, orDash(det.EOL))
+		b.Title = fmt.Sprintf("Release cycle %s ends support on %s (endoflife.date); running %s%s", det.Other, orDash(det.EOL), det.Running, onTargets(det.On))
 	case "declared":
 		b.Label = "Git says " + det.Other
 		b.Title = fmt.Sprintf("The Compose files declare %s; running %s", det.Other, det.Running)
@@ -1075,4 +1075,12 @@ func oldestDrift(drifts []DriftBadge) time.Time {
 		}
 	}
 	return t
+}
+
+// onTargets is " on a, b" for the targets a drift is about, or "".
+func onTargets(targets []string) string {
+	if len(targets) == 0 {
+		return ""
+	}
+	return " on " + strings.Join(targets, ", ")
 }

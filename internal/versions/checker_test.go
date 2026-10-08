@@ -196,10 +196,28 @@ func TestUpstreamAndDrift(t *testing.T) {
 	if got := l.drifts(); got != want {
 		t.Fatalf("drifts\n got: %s\nwant: %s", got, want)
 	}
+	// ... and names the target left behind, in the drift and in its announcement.
+	open, _ := l.st.OpenDrifts(ctx, l.sc)
+	for _, d := range open {
+		var det DriftDetail
+		_ = json.Unmarshal(d.Detail, &det)
+		if d.Kind == "upstream" && d.EnvironmentID == l.envs["prod"].ID && strings.Join(det.On, ",") != "prod-b" {
+			t.Fatalf("prod upstream drift on %v", det.On)
+		}
+		if d.Kind == "upstream" && d.EnvironmentID == l.envs["dev"].ID && det.On != nil {
+			t.Fatalf("dev runs one version, yet on %v", det.On)
+		}
+	}
 	// Upstream drift is announced at once; inconsistent after 15 minutes, env after 7 days.
 	announced := func() int { return strings.Count(l.events("drift_detected"), "drift_detected") }
 	if n := announced(); n != 3 {
 		t.Fatalf("announced at once: %s", l.events("drift_detected"))
+	}
+	evs, _ := l.st.ListEvents(ctx, l.sc, store.EventFilter{Types: []string{"drift_detected"}})
+	for _, e := range evs {
+		if e.Note == "upstream" && e.EnvironmentID == l.envs["prod"].ID && e.TargetID != l.targets["prod-b"].ID {
+			t.Fatalf("prod upstream announcement not on prod-b: %+v", e)
+		}
 	}
 	clock := time.Now().UTC()
 	l.checker.now = func() time.Time { return clock }
