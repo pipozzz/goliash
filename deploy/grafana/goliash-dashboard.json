@@ -711,7 +711,7 @@
       "id": 103,
       "type": "stat",
       "title": "Median lead time",
-      "description": "Median of the services' median time from one environment to the next, last 30 days.",
+      "description": "Median of the services' median time from one environment to the next, last 30 days. Empty until versions move between two environments (e.g. staging → prod).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -768,7 +768,7 @@
       "id": 104,
       "type": "stat",
       "title": "Slowest promotion",
-      "description": "The longest median lead time of any service and environment pair.",
+      "description": "The longest median lead time of any service and environment pair. Empty until versions move between two environments (e.g. staging → prod).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -952,7 +952,7 @@
       "id": 107,
       "type": "table",
       "title": "Lead time",
-      "description": "Median time a version took from one environment to the next, last 30 days.",
+      "description": "Median time a version took from one environment to the next, last 30 days. Empty until versions move between two environments (e.g. staging → prod).",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"

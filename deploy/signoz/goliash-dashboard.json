@@ -1212,7 +1212,7 @@
       "id": "w10",
       "panelTypes": "value",
       "title": "Median lead time",
-      "description": "Median of the services' median time from one environment to the next, last 30 days.",
+      "description": "Median of the services' median time from one environment to the next, last 30 days. Empty until versions move between two environments (e.g. staging → prod).",
       "query": {
         "queryType": "builder",
         "id": "3a2e2c8a-13a7-5191-bcec-58c7ba1faaf6",
@@ -1317,7 +1317,7 @@
       "id": "w11",
       "panelTypes": "value",
       "title": "Slowest promotion",
-      "description": "The longest median lead time of any service and environment pair.",
+      "description": "The longest median lead time of any service and environment pair. Empty until versions move between two environments (e.g. staging → prod).",
       "query": {
         "queryType": "builder",
         "id": "91052210-355e-5c6c-a063-bb93a40510c2",
@@ -1679,7 +1679,7 @@
       "id": "w14",
       "panelTypes": "table",
       "title": "Lead time",
-      "description": "Median time a version took from one environment to the next, last 30 days.",
+      "description": "Median time a version took from one environment to the next, last 30 days. Empty until versions move between two environments (e.g. staging → prod).",
       "query": {
         "queryType": "builder",
         "id": "595771df-275f-53ea-aaa8-d90606b01ff0",

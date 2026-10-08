@@ -81,7 +81,8 @@ Both have the same parts, filterable by environment and service:
 - **Versions and drift:** services behind upstream, open drifts and the oldest, what runs where, services running
   more than one version.
 - **Delivery (last 30 days):** deploys, the median and slowest lead time from one environment to the next, deploys
-  per service and the lead time table.
+  per service and the lead time table. Lead time needs at least two environments; with only one, its panels stay
+  empty (SigNoz says it cannot find `goliash_lead_time_seconds`).
 - **Image hygiene:** moving tags, tags pushed again, untrusted registries and images without a digest.
 - **Goliash itself:** agents online and stale, snapshots waiting, failing notifications, the server running the
   background work and the running version.
