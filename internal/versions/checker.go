@@ -396,6 +396,7 @@ type DriftDetail struct {
 	Jump    Jump              `json:"jump,omitempty"`
 	Targets map[string]string `json:"targets,omitempty"` // inconsistent: target -> version
 	EOL     string            `json:"eol,omitempty"`     // eol: the date the release cycle (Other) stops being supported
+	On      []string          `json:"on,omitempty"`      // the targets running Running, when the environment runs other versions too
 }
 
 // WantedDrift is a drift the current state calls for.
@@ -403,6 +404,7 @@ type WantedDrift struct {
 	Service, Env, Kind string
 	Detail             DriftDetail
 	App                string // the application, when the service splits by application
+	TargetID           string // the one target the drift is about, when it is one of several in the environment
 }
 
 // EvaluateDrift opens drifts the current state shows and resolves those it no longer
@@ -504,6 +506,7 @@ func (c *Checker) EvaluateDrift(ctx context.Context, sc store.Scope) error {
 			evs = append(evs, store.Event{
 				Type: "drift_detected", ServiceID: w.Service, App: w.App, EnvironmentID: w.Env,
 				FromVersion: w.Detail.Running, ToVersion: w.Detail.Other, Note: w.Kind, Source: "poll", At: now,
+				TargetID: w.TargetID,
 			})
 		}
 	}
@@ -605,9 +608,12 @@ func partDrifts(m Matrix, svc string, part Part, upstreams map[string]Upstream, 
 		prevEnv = ei
 
 		if up, ok := upstreams[svc]; ok {
-			oldest := cell.Oldest().Version()
-			if jump, lag := Lagging(oldest, up, policies[svc]); lag {
-				add(env, "upstream", DriftDetail{Running: oldest, Other: up.Latest.Raw, Jump: jump})
+			oldest := cell.Oldest()
+			if jump, lag := Lagging(oldest.Version(), up, policies[svc]); lag {
+				out = append(out, WantedDrift{
+					Service: svc, Env: env, Kind: "upstream", App: part.App, TargetID: cell.OnlyTarget(oldest),
+					Detail: DriftDetail{Running: oldest.Version(), Other: up.Latest.Raw, Jump: jump, On: cell.On(oldest)},
+				})
 			}
 		}
 

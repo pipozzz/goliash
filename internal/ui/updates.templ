@@ -119,7 +119,12 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 				<span class="owner">{ it.Owner }</span>
 			}
 		</td>
-		<td data-label="Environment">{ it.Env }</td>
+		<td data-label="Environment">
+			{ it.Env }
+			if it.On != "" {
+				<div class="targets">on { it.On }</div>
+			}
+		</td>
 		<td data-label="Upgrade" class="upgrade">
 			<span class="tag">{ orDash(it.Running) }</span>
 			if it.Target != "" {

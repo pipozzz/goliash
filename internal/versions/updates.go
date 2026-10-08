@@ -24,6 +24,7 @@ type Update struct {
 	Behind      string // the previous environment it is behind, if any
 	EOL         string // the end-of-life date of the running release cycle, if it is near or past
 	EOLPassed   bool
+	On          []string  // the targets running Running, when the environment runs other versions too
 	Since       time.Time // when the oldest of its drifts opened
 	Acked       bool      // an acknowledgement quiets it
 	Urgency     int       // 0 most urgent; see urgencyLabels
@@ -65,8 +66,11 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 			}
 			var det DriftDetail
 			_ = json.Unmarshal(d.Detail, &det)
-			if det.Running != "" {
+			if det.Running != "" && (d.Kind != "env" || u.Running == "") {
 				u.Running = det.Running
+			}
+			if len(det.On) > 0 {
+				u.On = det.On
 			}
 			switch d.Kind {
 			case "upstream":

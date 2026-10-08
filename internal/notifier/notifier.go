@@ -584,13 +584,13 @@ func Describe(it Item) string {
 		case "env":
 			return fmt.Sprintf("%s: runs %s, behind %s in the previous environment", where, it.From, it.To)
 		case "upstream":
-			return fmt.Sprintf("%s: runs %s, upstream has %s", where, it.From, it.To)
+			return fmt.Sprintf("%s: runs %s%s, upstream has %s", where, it.From, on, it.To)
 		case "inconsistent":
 			return fmt.Sprintf("%s: targets run different versions", where)
 		case "declared":
 			return fmt.Sprintf("%s: runs %s, but Git declares %s", where, it.From, it.To)
 		case "eol":
-			return fmt.Sprintf("%s: runs %s, whose release cycle %s reaches or has reached its end of life", where, it.From, it.To)
+			return fmt.Sprintf("%s: runs %s%s, whose release cycle %s reaches or has reached its end of life", where, it.From, on, it.To)
 		}
 		return fmt.Sprintf("%s: drift (%s)", where, it.Note)
 	case "drift_resolved":

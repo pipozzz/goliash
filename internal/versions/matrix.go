@@ -90,6 +90,23 @@ func (c Cell) Oldest() RunningVersion {
 	return oldest
 }
 
+// On names the targets running v when the environment runs other versions too, so a drift about
+// v can say where; nil when v is all that runs.
+func (c Cell) On(v RunningVersion) []string {
+	if len(c.Versions) < 2 {
+		return nil
+	}
+	return v.Targets
+}
+
+// OnlyTarget is the ID of the one target running v while others run other versions, else "".
+func (c Cell) OnlyTarget(v RunningVersion) string {
+	if len(c.Versions) < 2 || len(v.TargetIDs) != 1 {
+		return ""
+	}
+	return v.TargetIDs[0]
+}
+
 // Empty reports whether nothing of the service runs in the environment.
 func (c Cell) Empty() bool { return len(c.Versions) == 0 }
 

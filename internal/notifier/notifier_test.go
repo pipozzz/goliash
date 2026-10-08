@@ -551,3 +551,14 @@ func TestRuleFilterByApplication(t *testing.T) {
 		t.Fatalf("webshop rule %d, identity rule %d; want 1 and 0", shop.count(), identity.count())
 	}
 }
+
+func TestDescribeDriftOnTarget(t *testing.T) {
+	it := Item{Type: "drift_detected", Service: "traefik", Environment: "prod", Target: "dp-pipoline", From: "v3.6.7", To: "3.7.14", Note: "upstream"}
+	if got, want := Describe(it), "traefik @ prod: runs v3.6.7 on dp-pipoline, upstream has 3.7.14"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	it.Target = ""
+	if got, want := Describe(it), "traefik @ prod: runs v3.6.7, upstream has 3.7.14"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

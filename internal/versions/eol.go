@@ -258,7 +258,8 @@ func EOLDrifts(m Matrix, cycles map[string][]EOLCycle, now time.Time) []WantedDr
 				if cell.Empty() {
 					continue
 				}
-				running := cell.Oldest().Version()
+				oldest := cell.Oldest()
+				running := oldest.Version()
 				c, ok := CycleFor(running, cs)
 				if !ok {
 					continue
@@ -268,11 +269,11 @@ func EOLDrifts(m Matrix, cycles map[string][]EOLCycle, now time.Time) []WantedDr
 				if !ended && !soon {
 					continue
 				}
-				d := DriftDetail{Running: running, Other: c.Name}
+				d := DriftDetail{Running: running, Other: c.Name, On: cell.On(oldest)}
 				if !c.EOLFrom.IsZero() {
 					d.EOL = c.EOLFrom.Format("2006-01-02")
 				}
-				out = append(out, WantedDrift{Service: row.Service.ID, Env: m.Environments[ei].ID, Kind: "eol", Detail: d, App: part.App})
+				out = append(out, WantedDrift{Service: row.Service.ID, Env: m.Environments[ei].ID, Kind: "eol", Detail: d, App: part.App, TargetID: cell.OnlyTarget(oldest)})
 			}
 		}
 	}
