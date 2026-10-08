@@ -76,6 +76,20 @@ func (v RunningVersion) Version() string {
 	return v.Tag
 }
 
+// Oldest is the lowest version running, the one an upgrade has to reach: a target left behind
+// while most replicas moved on still needs it. Versions that do not parse count only when none does.
+func (c Cell) Oldest() RunningVersion {
+	oldest, found := c.Primary(), false
+	var low Version
+	for _, v := range c.Versions {
+		pv, ok := ParseVersion(v.Version())
+		if ok && (!found || pv.Compare(low) < 0) {
+			oldest, low, found = v, pv, true
+		}
+	}
+	return oldest
+}
+
 // Empty reports whether nothing of the service runs in the environment.
 func (c Cell) Empty() bool { return len(c.Versions) == 0 }
 

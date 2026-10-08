@@ -112,6 +112,9 @@ label must not make the server reach arbitrary addresses.
 | `declared` | What runs differs from what the Compose files in Git declare. | 30 minutes |
 | `eol` | The running release cycle reaches its end of life within 60 days, or already has. | immediately |
 
+Where an environment runs more than one version, `upstream` and `eol` are about the oldest of them: a target left
+behind while the others moved on still shows up on the Updates page. `env` compares the version most replicas run.
+
 Drift shows in the UI as soon as it exists. It is **announced** as a `drift_detected` event, which is what
 notification rules react to, only once it has lasted the time above. That way a normal promotion from staging to
 prod over a few days, or a rollout in progress, does not page anyone. Override per service:

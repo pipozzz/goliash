@@ -258,7 +258,7 @@ func EOLDrifts(m Matrix, cycles map[string][]EOLCycle, now time.Time) []WantedDr
 				if cell.Empty() {
 					continue
 				}
-				running := cell.Primary().Version()
+				running := cell.Oldest().Version()
 				c, ok := CycleFor(running, cs)
 				if !ok {
 					continue

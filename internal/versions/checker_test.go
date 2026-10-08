@@ -189,7 +189,9 @@ func TestUpstreamAndDrift(t *testing.T) {
 	if err := l.checker.EvaluateDrift(ctx, l.sc); err != nil {
 		t.Fatal(err)
 	}
-	want := "dev:upstream:1.27.3<1.28.0 prod:inconsistent:1.27.2< prod:upstream:1.27.2<1.28.0 " +
+	// prod runs 1.27.2 on most replicas and 1.26.2 on one target: upstream drift is about the oldest,
+	// the one an upgrade has to reach; inconsistent and env drift keep the main version.
+	want := "dev:upstream:1.27.3<1.28.0 prod:inconsistent:1.27.2< prod:upstream:1.26.2<1.28.0 " +
 		"staging:env:1.27.2<1.27.3 staging:upstream:1.27.2<1.28.0"
 	if got := l.drifts(); got != want {
 		t.Fatalf("drifts\n got: %s\nwant: %s", got, want)
