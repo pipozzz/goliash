@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -224,6 +225,42 @@ func TestMetrics(t *testing.T) {
 	}
 	if code, _ := e.call(nil, "GET", "/metrics", "", ""); code != http.StatusUnauthorized {
 		t.Fatal("metrics without auth")
+	}
+}
+
+// The Grafana and SigNoz dashboards in deploy/ read only metrics /metrics serves, and they show every family
+// except goliash_notifications_queued (a queue that is often legitimately non-zero).
+func TestDashboardsUseServedMetrics(t *testing.T) {
+	src, err := os.ReadFile("public.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	served := map[string]bool{}
+	for _, m := range regexp.MustCompile(`# HELP (goliash_\w+)`).FindAllStringSubmatch(string(src), -1) {
+		served[m[1]] = true
+	}
+	for _, f := range []string{"../../deploy/grafana/goliash-dashboard.json", "../../deploy/signoz/goliash-dashboard.json"} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !json.Valid(b) {
+			t.Fatalf("%s is not JSON", f)
+		}
+		used := map[string]bool{}
+		for _, m := range regexp.MustCompile(`goliash_[a-z_]+`).FindAllString(string(b), -1) {
+			used[m] = true
+		}
+		for m := range used {
+			if !served[m] {
+				t.Errorf("%s reads %s, which /metrics does not serve", f, m)
+			}
+		}
+		for m := range served {
+			if !used[m] && m != "goliash_notifications_queued" {
+				t.Errorf("%s leaves out %s", f, m)
+			}
+		}
 	}
 }
 

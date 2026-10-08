@@ -242,12 +242,5 @@ scrape_configs:
     static_configs: [{ targets: ["goliash.example.com"] }]
 ```
 
-A ready-made Grafana dashboard is in
-[`deploy/grafana/goliash-dashboard.json`](https://github.com/pipozzz/goliash/blob/main/deploy/grafana/goliash-dashboard.json):
-open **Dashboards → New → Import** in Grafana and upload the file. It shows what runs where, open drift, services
-behind upstream per environment, and services running more than one version, filterable by environment and
-service.
-
-For SigNoz, scrape `/metrics` with the OpenTelemetry Collector's Prometheus receiver and import
-[`deploy/signoz/goliash-dashboard.json`](https://github.com/pipozzz/goliash/blob/main/deploy/signoz/goliash-dashboard.json);
-the [README](https://github.com/pipozzz/goliash/blob/main/deploy/signoz/README.md) has the collector configuration.
+Ready-made Grafana and SigNoz dashboards, scrape settings for the OpenTelemetry Collector, deploy markers on
+your graphs and more alerts are on [Grafana and SigNoz](../observability/).
