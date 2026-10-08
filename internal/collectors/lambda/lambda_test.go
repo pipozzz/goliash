@@ -6,6 +6,7 @@ package lambda
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -40,6 +41,7 @@ type fakeAPI struct {
 	aliases     map[string][]types.AliasConfiguration
 	versions    map[string]map[string]*lambda.GetFunctionOutput // function -> version
 	denyAliases bool
+	mu          sync.Mutex // the collector reads functions in parallel
 	gets        []string
 }
 
@@ -61,7 +63,9 @@ func (f *fakeAPI) GetFunction(_ context.Context, in *lambda.GetFunctionInput, _ 
 		return nil, errors.New("AccessDeniedException")
 	}
 	if q := aws.ToString(in.Qualifier); q != "" {
+		f.mu.Lock()
 		f.gets = append(f.gets, name+":"+q)
+		f.mu.Unlock()
 		return f.versions[name][q], nil
 	}
 	return &lambda.GetFunctionOutput{Code: f.code[name], Tags: f.tags[name]}, nil
