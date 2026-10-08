@@ -169,36 +169,48 @@ func openDriftPerDay(drifts []store.Drift, now time.Time, days int) LineChart {
 
 // versionTimeline turns a service's deploy events into lanes of versions per
 // environment over the window ending now, one lane per target where an environment
-// has several. events may come in any order.
-func versionTimeline(events []store.Event, envs []store.Environment, targets map[string]string, now time.Time, window time.Duration) Timeline {
+// has several, and one per application (or workload) where a target runs the service
+// for several at once. parts names each instance's application or workload; events
+// may come in any order.
+func versionTimeline(events []store.Event, envs []store.Environment, targets, parts map[string]string, now time.Time, window time.Duration) Timeline {
 	from := now.Add(-window)
 	t := Timeline{From: from, To: now}
-	type key struct{ env, target string }
+	type key struct{ env, target, part string }
 	byLane := map[key][]store.Event{}
 	targetsOf := map[string]map[string]bool{}
+	partsOf := map[[2]string]map[string]bool{}
 	for _, ev := range events {
 		switch ev.Type {
 		case "deployed", "version_changed", "removed":
-			byLane[key{ev.EnvironmentID, ev.TargetID}] = append(byLane[key{ev.EnvironmentID, ev.TargetID}], ev)
+			k := key{ev.EnvironmentID, ev.TargetID, parts[ev.InstanceID]}
+			byLane[k] = append(byLane[k], ev)
 			if targetsOf[ev.EnvironmentID] == nil {
 				targetsOf[ev.EnvironmentID] = map[string]bool{}
 			}
 			targetsOf[ev.EnvironmentID][ev.TargetID] = true
+			et := [2]string{ev.EnvironmentID, ev.TargetID}
+			if partsOf[et] == nil {
+				partsOf[et] = map[string]bool{}
+			}
+			partsOf[et][k.part] = true
 		}
 	}
 	for _, env := range envs {
-		ids := make([]string, 0, len(targetsOf[env.ID]))
-		for id := range targetsOf[env.ID] {
-			ids = append(ids, id)
-		}
-		sort.Slice(ids, func(i, j int) bool { return targets[ids[i]] < targets[ids[j]] })
+		ids := sortedKeys(targetsOf[env.ID], func(a, b string) bool { return targets[a] < targets[b] })
 		for _, tid := range ids {
 			name := env.Name
 			if len(ids) > 1 && targets[tid] != "" {
 				name += " · " + targets[tid]
 			}
-			if lane, ok := buildLane(byLane[key{env.ID, tid}], name, from, now, window); ok {
-				t.Lanes = append(t.Lanes, lane)
+			ps := sortedKeys(partsOf[[2]string{env.ID, tid}], func(a, b string) bool { return a < b })
+			for _, part := range ps {
+				laneName := name
+				if len(ps) > 1 && part != "" {
+					laneName += " · " + part
+				}
+				if lane, ok := buildLane(byLane[key{env.ID, tid, part}], laneName, from, now, window); ok {
+					t.Lanes = append(t.Lanes, lane)
+				}
 			}
 		}
 	}
@@ -207,6 +219,15 @@ func versionTimeline(events []store.Event, envs []store.Environment, targets map
 		t.Ticks = append(t.Ticks, Tick{At: float64(i) / 4, Label: at.UTC().Format("Jan 2")})
 	}
 	return t
+}
+
+func sortedKeys(m map[string]bool, less func(a, b string) bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Slice(out, func(i, j int) bool { return less(out[i], out[j]) })
+	return out
 }
 
 func buildLane(evs []store.Event, name string, from, now time.Time, window time.Duration) (Lane, bool) {
