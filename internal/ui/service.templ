@@ -65,31 +65,46 @@ templ ServicePage(v ServiceView) {
 						<thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead>
 						<tbody>
 							for _, e := range v.Envs {
-								<tr>
-									<td><strong>{ e.Name }</strong></td>
-									<td>
-										if len(e.Versions) == 0 {
-											<span class="none">not deployed</span>
-										}
-										for _, ver := range e.Versions {
-											<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
-											<div class="targets">{ ver.Targets }</div>
-										}
-									</td>
-									<td>
-										<div class="badges">
-											for _, d := range e.Drifts {
-												<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+								if len(e.Versions) <= 1 {
+									<tr>
+										<td><strong>{ e.Name }</strong></td>
+										<td>
+											if len(e.Versions) == 0 {
+												<span class="none">not deployed</span>
 											}
-										</div>
-										if len(e.Drifts) > 0 {
-											<div class="targets">
-												{ "open since " }
-												@timeAgo(e.Drifts[0].Since)
-											</div>
-										}
-									</td>
-								</tr>
+											for _, ver := range e.Versions {
+												@runningVersion(ver)
+											}
+										</td>
+										<td>
+											@driftCell(e.Drifts)
+										</td>
+									</tr>
+								} else {
+									for i, ver := range e.Versions {
+										<tr class={ templ.KV("same-env", i > 0) }>
+											if i == 0 {
+												<td rowspan={ itoa(len(e.Versions)) }>
+													<strong>{ e.Name }</strong>
+													<div class="targets">{ itoa(len(e.Versions)) } versions</div>
+												</td>
+											}
+											<td>
+												@runningVersion(ver)
+											</td>
+											<td>
+												if i == 0 {
+													@driftCell(append(append([]DriftBadge{}, e.Drifts...), ver.Drifts...))
+												} else {
+													@versionDrifts(ver.Drifts)
+												}
+												if len(ver.Drifts) == 0 && (i > 0 || len(e.Drifts) == 0) {
+													<span class="muted">no drift</span>
+												}
+											</td>
+										</tr>
+									}
+								}
 							}
 						</tbody>
 					</table>
@@ -362,4 +377,41 @@ templ releaseNotesSource(v ServiceView) {
 				{ "No release notes source. Images that set the org.opencontainers.image.source label get one automatically." }
 		}
 	</p>
+}
+
+templ runningVersion(ver VersionView) {
+	<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
+	<div class="targets">{ ver.Targets }</div>
+}
+
+// driftCell is the drift badges of an environment or a version, and how long the oldest has been open.
+templ driftCell(drifts []DriftBadge) {
+	if len(drifts) > 0 {
+		<div class="badges">
+			for _, d := range drifts {
+				<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+			}
+		</div>
+		<div class="targets">
+			{ "open since " }
+			@timeAgo(oldestDrift(drifts))
+		</div>
+	}
+}
+
+// versionDrifts is the badges of a version beside the first; some are not tracked drifts, so no "open since".
+templ versionDrifts(drifts []DriftBadge) {
+	if len(drifts) > 0 {
+		<div class="badges">
+			for _, d := range drifts {
+				<span class={ "badge", d.Kind } title={ d.Title }>{ d.Label }</span>
+			}
+		</div>
+		if !drifts[0].Since.IsZero() {
+			<div class="targets">
+				{ "open since " }
+				@timeAgo(oldestDrift(drifts))
+			</div>
+		}
+	}
 }

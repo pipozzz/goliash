@@ -315,6 +315,7 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .chart .axis { fill: var(--faint); font: 500 10.5px var(--sans); font-variant-numeric: tabular-nums; }
 .chart .lane { fill: var(--muted); font: 600 11px var(--sans); }
 .chart .seg-label { fill: #fff; font: 600 11px var(--mono); pointer-events: none; }
+.chart .seg-label.outside { fill: var(--ink); }
 .chart .bar { transition: opacity 0.15s; }
 .chart.hovering .bar { opacity: 0.45; }
 .chart.hovering .bar.active { opacity: 1; }
@@ -345,7 +346,7 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .swatch.c0 { background: var(--c0); } .swatch.c1 { background: var(--c1); } .swatch.c2 { background: var(--c2); }
 .swatch.c3 { background: var(--c3); } .swatch.c4 { background: var(--c4); } .swatch.c5 { background: var(--c5); }
-@media (prefers-color-scheme: dark) { .chart .seg-label { fill: #0e1117; } }
+@media (prefers-color-scheme: dark) { .chart .seg-label:not(.outside) { fill: #0e1117; } }
 /* The tooltip, SigNoz-style: the period, then every series with its value. */
 .chart-tip {
   position: absolute; z-index: 5; pointer-events: none; min-width: 168px; padding: 9px 11px;
@@ -839,3 +840,5 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .integrations { display: grid; gap: 16px; }
 .integration h3 { font-size: 14px; margin: 0 0 8px; }
 .integration .install-cmd { white-space: pre; overflow-x: auto; }
+/* Service page: an environment running several versions spans several rows. */
+tr.same-env td { border-top: 1px dashed var(--line); }

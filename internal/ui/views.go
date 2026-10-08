@@ -256,14 +256,16 @@ type VersionView struct {
 	Resolved string // the exact release behind a moving tag
 	Running  int
 	Targets  string
+	Drifts   []DriftBadge // the drifts about this version, on a service page
 }
 
 // DriftBadge is a short drift label with an explanation on hover.
 type DriftBadge struct {
-	Kind  string
-	Label string
-	Title string
-	Since time.Time
+	Kind    string
+	Label   string
+	Title   string
+	Since   time.Time
+	Running string // the version the drift is about; empty for drifts of the whole environment
 }
 
 func serviceURL(name string) string { return "/services/" + url.PathEscape(name) }
@@ -271,7 +273,7 @@ func serviceURL(name string) string { return "/services/" + url.PathEscape(name)
 func driftBadge(d store.Drift) DriftBadge {
 	var det versions.DriftDetail
 	_ = json.Unmarshal(d.Detail, &det)
-	b := DriftBadge{Kind: d.Kind, Since: d.Since}
+	b := DriftBadge{Kind: d.Kind, Since: d.Since, Running: det.Running}
 	switch d.Kind {
 	case "env":
 		b.Label = "behind " + det.OtherIn
@@ -485,7 +487,7 @@ type PolicyForm struct {
 type ServiceEnv struct {
 	Name     string
 	Versions []VersionView
-	Drifts   []DriftBadge
+	Drifts   []DriftBadge // drifts of the whole environment, or about a version no longer running
 }
 
 // AckView is an acknowledgement shown on a service page.
@@ -1063,3 +1065,14 @@ func eventTitle(kind string) string {
 }
 
 func stableName(name string) string { return mapping.StableName(name) }
+
+// oldestDrift is when the longest-open of the drifts began.
+func oldestDrift(drifts []DriftBadge) time.Time {
+	var t time.Time
+	for _, d := range drifts {
+		if t.IsZero() || d.Since.Before(t) {
+			t = d.Since
+		}
+	}
+	return t
+}
