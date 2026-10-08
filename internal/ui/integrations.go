@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/pipozzz/goliash/deploy"
 	"github.com/pipozzz/goliash/internal/auth"
@@ -56,11 +57,16 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request, _ auth.Princi
 		b = deploy.GrafanaDashboard
 	case "signoz.json":
 		b = deploy.SigNozDashboard
+	case "alerts.yaml":
+		b = deploy.PrometheusAlerts
 	default:
 		http.NotFound(w, r)
 		return nil
 	}
 	w.Header().Set("Content-Type", "application/json")
+	if strings.HasSuffix(r.PathValue("file"), ".yaml") {
+		w.Header().Set("Content-Type", "application/yaml")
+	}
 	w.Header().Set("Content-Disposition", `attachment; filename="goliash-`+r.PathValue("file")+`"`)
 	_, err := w.Write(b)
 	return err

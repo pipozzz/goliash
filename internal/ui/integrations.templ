@@ -25,9 +25,10 @@ templ IntegrationsPage(v IntegrationsView) {
 					</div>
 					<div>
 						<h3>3. Dashboard</h3>
-						<p class="hint">Grafana → Dashboards → New → Import, upload the file and pick the Prometheus data source. Versions, drift, delivery, image hygiene and Goliash's own health, with deploys marked on the graphs.</p>
+						<p class="hint">Grafana → Dashboards → New → Import, upload the file and pick the Prometheus data source. Versions, drift, delivery, image hygiene and Goliash's own health, with deploys marked on the graphs. The alert rules go into Prometheus' <code>rule_files</code>. On Kubernetes, the Helm chart creates all three: <code>--set metrics.serviceMonitor.enabled=true,metrics.prometheusRule.enabled=true,metrics.grafanaDashboard.enabled=true</code>.</p>
 						<div class="actions">
 							<a class="button" href="/integrations/dashboards/grafana.json" hx-boost="false" download>Download the Grafana dashboard</a>
+							<a class="button secondary" href="/integrations/dashboards/alerts.yaml" hx-boost="false" download>Download the alert rules</a>
 							<a href="/notifications">Events as Grafana annotations</a>
 						</div>
 					</div>

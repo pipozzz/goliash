@@ -114,7 +114,11 @@ or alert on new versions (below).
 
 ## 5. Alerts
 
-Worth having, in Prometheus rules, Grafana alerting or SigNoz alerts:
+Ready-made Prometheus rules are in
+[`deploy/prometheus/goliash-alerts.yaml`](https://github.com/pipozzz/goliash/blob/main/deploy/prometheus/goliash-alerts.yaml)
+(also a download on the Integrations page): add the file to `rule_files` in `prometheus.yml`. They cover a missing
+scrape, the background work not running exactly once, stale agents, a growing snapshot queue, failing notifications
+and drift open for more than two weeks. The same queries work in Grafana alerting and SigNoz alerts:
 
 | Alert | Query |
 |---|---|
@@ -127,6 +131,24 @@ Worth having, in Prometheus rules, Grafana alerting or SigNoz alerts:
 
 Alerts about versions themselves (new releases, drift, removed services) are better sent by Goliash directly; see
 [Notifications](../notifications/).
+
+## Kubernetes
+
+With the Prometheus Operator (kube-prometheus-stack) and Grafana's dashboard sidecar, the Helm chart sets up all of the
+above. Create the token secret first, then turn the parts on:
+
+```sh
+kubectl create secret generic goliash-metrics --from-literal=token=glsh_api_…
+helm upgrade --install goliash oci://ghcr.io/pipozzz/charts/goliash \
+  --set metrics.serviceMonitor.enabled=true \
+  --set metrics.serviceMonitor.labels.release=kube-prometheus-stack \
+  --set metrics.prometheusRule.enabled=true \
+  --set metrics.prometheusRule.labels.release=kube-prometheus-stack \
+  --set metrics.grafanaDashboard.enabled=true
+```
+
+The `release` label must match your Prometheus' `serviceMonitorSelector` and `ruleSelector`; the dashboard ConfigMap
+carries `grafana_dashboard: "1"`, which the sidecar of kube-prometheus-stack looks for.
 
 ## Metrics
 

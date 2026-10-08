@@ -41,6 +41,12 @@ one running. With SQLite the chart refuses more than one.
 To watch only the cluster Goliash runs in, skip the agent. Install the server with `--set collectInCluster=true`,
 which gives the server a read-only ClusterRole, and create a `kubernetes` target without an agent.
 
+### Prometheus, alerts and Grafana
+
+`metrics.serviceMonitor.enabled`, `metrics.prometheusRule.enabled` and `metrics.grafanaDashboard.enabled` create a
+ServiceMonitor, the alert rules and the Grafana dashboard for the Prometheus Operator; see
+[Grafana and SigNoz](../../guide/observability/#kubernetes).
+
 ## Agent
 
 **Connect → Kubernetes → Get the command** gives the one command, with an enrollment code

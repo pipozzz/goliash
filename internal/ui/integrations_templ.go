@@ -67,7 +67,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-prometheus\">Copy</button></div></div><div><h3>3. Dashboard</h3><p class=\"hint\">Grafana → Dashboards → New → Import, upload the file and pick the Prometheus data source. Versions, drift, delivery, image hygiene and Goliash's own health, with deploys marked on the graphs.</p><div class=\"actions\"><a class=\"button\" href=\"/integrations/dashboards/grafana.json\" hx-boost=\"false\" download>Download the Grafana dashboard</a> <a href=\"/notifications\">Events as Grafana annotations</a></div></div></div></section><section class=\"panel integration\" id=\"signoz\"><div class=\"panel-head\"><h2>SigNoz</h2><span class=\"muted\">the OpenTelemetry Collector reads /metrics</span></div><div class=\"panel-body stack\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-prometheus\">Copy</button></div></div><div><h3>3. Dashboard</h3><p class=\"hint\">Grafana → Dashboards → New → Import, upload the file and pick the Prometheus data source. Versions, drift, delivery, image hygiene and Goliash's own health, with deploys marked on the graphs. The alert rules go into Prometheus' <code>rule_files</code>. On Kubernetes, the Helm chart creates all three: <code>--set metrics.serviceMonitor.enabled=true,metrics.prometheusRule.enabled=true,metrics.grafanaDashboard.enabled=true</code>.</p><div class=\"actions\"><a class=\"button\" href=\"/integrations/dashboards/grafana.json\" hx-boost=\"false\" download>Download the Grafana dashboard</a> <a class=\"button secondary\" href=\"/integrations/dashboards/alerts.yaml\" hx-boost=\"false\" download>Download the alert rules</a> <a href=\"/notifications\">Events as Grafana annotations</a></div></div></div></section><section class=\"panel integration\" id=\"signoz\"><div class=\"panel-head\"><h2>SigNoz</h2><span class=\"muted\">the OpenTelemetry Collector reads /metrics</span></div><div class=\"panel-body stack\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -82,7 +82,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(collectorConfig(v.ServerURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 42, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 43, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -103,7 +103,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(mcpCommand(v.ServerURL, tokenFor(v, "mcp")))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 60, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 61, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -158,7 +158,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(file)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 78, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 79, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -181,7 +181,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue("token-" + tool)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 82, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 83, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -194,7 +194,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(v.Token)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 82, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 83, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -207,7 +207,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("token-" + tool)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 84, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 85, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 			if templ_7745c5c3_Err != nil {
@@ -220,7 +220,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(checkCommand(v.ServerURL, v.Token))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 85, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 86, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -238,7 +238,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(tool)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 89, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 90, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 			if templ_7745c5c3_Err != nil {
@@ -256,7 +256,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(tool)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 94, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `integrations.templ`, Line: 95, Col: 126}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {

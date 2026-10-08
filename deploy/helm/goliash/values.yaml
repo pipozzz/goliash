@@ -73,3 +73,21 @@ podAnnotations: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Monitoring with the Prometheus Operator and Grafana. /metrics needs a viewer API token:
+# create one in Goliash (Settings → Integrations, or `goliash token create -name prometheus`)
+# and put it in a secret: kubectl create secret generic goliash-metrics --from-literal=token=glsh_api_…
+metrics:
+  serviceMonitor:
+    enabled: false
+    tokenSecret: goliash-metrics
+    tokenSecretKey: token
+    interval: 60s
+    labels: {}       # e.g. release: kube-prometheus-stack, to match your Prometheus
+  prometheusRule:
+    enabled: false   # the alerts in deploy/prometheus/goliash-alerts.yaml
+    labels: {}
+  grafanaDashboard:
+    enabled: false   # a ConfigMap the Grafana sidecar picks up
+    labels: { grafana_dashboard: "1" }
+    annotations: {}  # e.g. grafana_folder: Goliash
