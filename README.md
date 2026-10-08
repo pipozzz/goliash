@@ -66,6 +66,10 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
 - **Notifications with less noise.** Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, webhooks (signed), e-mail, browser push and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze, and a scheduled upgrade plan.
+- **On the dashboards you already have.** Ready-made Grafana and SigNoz dashboards (versions, drift, delivery speed,
+  image hygiene, Goliash's own health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
+  PrometheusRule and dashboard from the Helm chart. Settings → Integrations fills in the scrape settings and creates
+  the token in one click.
 - **Ask your AI assistant.** A built-in MCP server: "what runs in prod?", "what should we upgrade first?", "what
   changed in the last two hours?", answered from live data.
 - **Built for teams and MSPs.** Workspaces per client, roles, passkeys, two-factor, magic-link and OIDC sign-in, audit
@@ -193,9 +197,11 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
 - **AI assistants (MCP)**: every server serves the Model Context Protocol at `/mcp` (Streamable HTTP, API token),
   and `goliash mcp` runs it on stdio for Claude Desktop or Cursor. Tools: matrix, service, drifts, changes, promotions,
   delivery, inventory, hygiene and acknowledge.
-- **Prometheus** `GET /metrics` (same auth): `goliash_deployed_version_info`, `goliash_outdated`, `goliash_drift_days`,
-  `goliash_deploys` and `goliash_lead_time_seconds` (last 30 days).
-  Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and [SigNoz](deploy/signoz) are included.
+- **Prometheus** `GET /metrics` (same auth): what runs where (`goliash_deployed_version_info`), drift
+  (`goliash_outdated`, `goliash_drift_days`), delivery (`goliash_deploys`, `goliash_lead_time_seconds`), image
+  hygiene and the server's own health. Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and
+  [SigNoz](deploy/signoz), [alert rules](deploy/prometheus/goliash-alerts.yaml), and the Helm chart's `metrics.*`
+  options are described in [Grafana and SigNoz](https://goliash.dev/guide/observability/).
 
 ### Versions, upstream and drift
 
