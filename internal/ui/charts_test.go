@@ -78,7 +78,7 @@ func TestVersionTimeline(t *testing.T) {
 		{Type: "removed", EnvironmentID: "prod", TargetID: "eu", At: now.Add(-5 * day)},
 		{Type: "deployed", EnvironmentID: "prod", TargetID: "us", ToVersion: "0.9", At: now.Add(-20 * day)},
 	}
-	tl := versionTimeline(evs, envs, map[string]string{"s": "stg-1", "eu": "prod-eu", "us": "prod-us"}, now, 30*day)
+	tl := versionTimeline(evs, envs, map[string]string{"s": "stg-1", "eu": "prod-eu", "us": "prod-us"}, nil, now, 30*day)
 	if len(tl.Lanes) != 3 || tl.Lanes[0].Env != "staging" || tl.Lanes[1].Env != "prod · prod-eu" || tl.Lanes[2].Env != "prod · prod-us" {
 		t.Fatalf("lanes %+v", tl.Lanes)
 	}
@@ -92,6 +92,28 @@ func TestVersionTimeline(t *testing.T) {
 	}
 	if len(tl.Ticks) != 5 || tl.Ticks[4].Label != "Oct 7" {
 		t.Fatalf("ticks %+v", tl.Ticks)
+	}
+}
+
+// One target running the service for two applications at once gets a lane per application, while a
+// workload replaced within one application stays in one lane.
+func TestVersionTimelineApplications(t *testing.T) {
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	day := 24 * time.Hour
+	envs := []store.Environment{{ID: "prod", Name: "prod"}}
+	evs := []store.Event{
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "a", ToVersion: "15.5", At: now.Add(-20 * day)},
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "b", ToVersion: "15.6", At: now.Add(-19 * day)},
+		{Type: "removed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "b", At: now.Add(-5 * day)},
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "c", ToVersion: "15.7", At: now.Add(-5 * day)},
+	}
+	parts := map[string]string{"a": "webshop", "b": "identity", "c": "identity"}
+	tl := versionTimeline(evs, envs, map[string]string{"eu": "prod-eu"}, parts, now, 30*day)
+	if len(tl.Lanes) != 2 || tl.Lanes[0].Env != "prod · identity" || tl.Lanes[1].Env != "prod · webshop" {
+		t.Fatalf("lanes %+v", tl.Lanes)
+	}
+	if id := tl.Lanes[0].Segments; len(id) != 2 || id[0].Version != "15.6" || id[1].Version != "15.7" || id[1].End != 1 {
+		t.Fatalf("identity %+v", id)
 	}
 }
 

@@ -638,7 +638,8 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			for _, t := range tgts {
 				names[t.ID] = t.Name
 			}
-			v.Versions = versionTimeline(deploys, envs, names, time.Now(), 30*24*time.Hour)
+			deploys = s.withRunningInstances(ctx, p.Scope, svc.ID, deploys)
+			v.Versions = versionTimeline(deploys, envs, names, s.instanceParts(ctx, p.Scope, deploys), time.Now(), 30*24*time.Hour)
 		}
 	}
 	evs, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{ServiceID: svc.ID, Limit: 25})
@@ -2524,4 +2525,52 @@ func driftVersion(b DriftBadge, running []versions.RunningVersion) int {
 		}
 	}
 	return -1
+}
+
+// instanceParts names the application, or else the workload, of each instance the events are about, so the
+// versions chart can tell apart what one target runs for several applications at once.
+func (s *Server) instanceParts(ctx context.Context, sc store.Scope, events []store.Event) map[string]string {
+	seen := map[string]bool{}
+	parts := map[string]string{}
+	for _, ev := range events {
+		if ev.TargetID == "" || seen[ev.TargetID] {
+			continue
+		}
+		seen[ev.TargetID] = true
+		insts, err := s.store.ListTargetInstances(ctx, sc, ev.TargetID)
+		if err != nil {
+			continue
+		}
+		for _, in := range insts {
+			if in.App != "" {
+				parts[in.ID] = in.App
+			} else {
+				parts[in.ID] = in.WorkloadName
+			}
+		}
+	}
+	return parts
+}
+
+// withRunningInstances adds a deploy, at first sight, for each running instance of the service the events do
+// not mention: it ran before Goliash's history begins, and the versions chart should still show it.
+func (s *Server) withRunningInstances(ctx context.Context, sc store.Scope, serviceID string, events []store.Event) []store.Event {
+	active, err := s.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return events
+	}
+	known := map[string]bool{}
+	for _, ev := range events {
+		known[ev.InstanceID] = true
+	}
+	for _, in := range active {
+		if in.ServiceID != serviceID || !in.IsMain || known[in.ID] || in.FirstSeenAt.IsZero() {
+			continue
+		}
+		events = append(events, store.Event{
+			Type: "deployed", ServiceID: serviceID, EnvironmentID: in.EnvironmentID, TargetID: in.TargetID,
+			InstanceID: in.ID, ToVersion: in.Tag, At: in.FirstSeenAt,
+		})
+	}
+	return events
 }
