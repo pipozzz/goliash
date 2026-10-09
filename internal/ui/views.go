@@ -1023,10 +1023,19 @@ func attention(kind string, d versions.DriftDetail) (label, text string) {
 // HygieneView is the image hygiene page.
 type HygieneView struct {
 	Base
-	Findings []versions.Finding
-	Kinds    []HygieneKind
-	Kind     string // the kind shown; empty for all
-	Total    int
+	Findings    []versions.Finding
+	Kinds       []HygieneKind
+	Kind        string // the kind shown; empty for all
+	Total       int
+	DigestHints []DigestHint // targets that report no digest at all, and what to do about it
+}
+
+// DigestHint is a target whose containers all lack a digest, with the likely reason for its platform.
+type DigestHint struct {
+	Target   string
+	Platform string
+	Images   int
+	Advice   string
 }
 
 // HygieneKind is one kind of finding with its count, for the summary.

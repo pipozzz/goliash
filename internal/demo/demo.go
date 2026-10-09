@@ -8,6 +8,8 @@ package demo
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -353,7 +355,21 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 	if service == "payments-api" && t.platform == "kubernetes" {
 		w.Containers = append(w.Containers, agentproto.Container{Name: "istio-proxy", Image: "docker.io/istio/proxyv2:1.23.2", Running: replicas})
 	}
+	// Most platforms report the registry digest; Nomad reports the image as the job writes it, so the hygiene
+	// page has a target to explain.
+	if t.platform != "nomad" {
+		for i := range w.Containers {
+			d := demoDigest(w.Containers[i].Image)
+			w.Containers[i].Digest = &d
+		}
+	}
 	return w
+}
+
+// demoDigest is a stable made-up digest for an image reference: the same tag is the same image everywhere.
+func demoDigest(image string) string {
+	sum := sha256.Sum256([]byte(image))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func sortedKeys(m map[string]string) []string {

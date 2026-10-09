@@ -904,7 +904,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 		{Kind: "moving-tag", Label: "Moving tags", Help: "latest, stable and the like: the version cannot be known", Warn: true},
 		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},
 		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},
-		{Kind: "unpinned", Label: "No digest known", Help: "the tag could be pushed again unnoticed"},
+		{Kind: "unpinned", Label: "Digest unknown", Help: "a tag pushed again would go unnoticed; often a collector permission"},
 	}
 	known := false
 	for i := range v.Kinds {
@@ -921,6 +921,11 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	for _, f := range findings {
 		if v.Kind == "" || f.Kind == v.Kind {
 			v.Findings = append(v.Findings, f)
+		}
+	}
+	if v.Kinds[3].Count > 0 && (v.Kind == "" || v.Kind == "unpinned") {
+		if v.DigestHints, err = s.digestHints(r.Context(), p.Scope); err != nil {
+			return err
 		}
 	}
 	return render(w, r, HygienePage(v))
@@ -2573,4 +2578,49 @@ func (s *Server) withRunningInstances(ctx context.Context, sc store.Scope, servi
 		})
 	}
 	return events
+}
+
+// digestAdvice says, per platform, why a target may report no image digests and how to get them.
+var digestAdvice = map[string]string{
+	"docker": "The agent reads digests from Docker's image API. Behind a socket proxy, allow image reads " +
+		"(IMAGES=1 for tecnativa/docker-socket-proxy and its forks).",
+	"compose": "Compose files name tags, not digests; collect the Docker host that runs them to know the digests.",
+	"swarm":   "Swarm keeps a digest only when the service was deployed with image resolution; deploy without --resolve-image=never.",
+	"nomad":   "Nomad reports the image as the job writes it; pin it by digest (image@sha256:…) to make it known.",
+	"lambda":  "Functions deployed as zip archives run a managed runtime image; only container-image functions have a digest.",
+}
+
+// digestHints lists the targets none of whose containers report a digest, with advice for their platform.
+func (s *Server) digestHints(ctx context.Context, sc store.Scope) ([]DigestHint, error) {
+	active, err := s.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.store.ListTargets(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	images, digests := map[string]map[string]bool{}, map[string]int{}
+	for _, in := range active {
+		if images[in.TargetID] == nil {
+			images[in.TargetID] = map[string]bool{}
+		}
+		images[in.TargetID][in.Image] = true
+		if in.Digest != "" {
+			digests[in.TargetID]++
+		}
+	}
+	var out []DigestHint
+	for _, t := range targets {
+		if len(images[t.ID]) == 0 || digests[t.ID] > 0 {
+			continue
+		}
+		advice := digestAdvice[t.Platform]
+		if advice == "" {
+			advice = "This platform reported no digests; the image references in its workloads can pin them (image@sha256:…)."
+		}
+		out = append(out, DigestHint{Target: t.Name, Platform: t.Platform, Images: len(images[t.ID]), Advice: advice})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Target < out[j].Target })
+	return out, nil
 }

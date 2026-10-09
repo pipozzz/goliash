@@ -10,6 +10,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 func TestIntegrations(t *testing.T) {
@@ -80,5 +83,34 @@ func TestScrapeTarget(t *testing.T) {
 	}
 	if c := prometheusConfig("https://example.com/goliash"); !strings.Contains(c, "\n    metrics_path: /goliash/metrics\n") {
 		t.Errorf("prometheus config with a path:\n%s", c)
+	}
+}
+
+// A target reporting no digest at all gets advice for its platform on the hygiene page.
+func TestHygieneDigestHints(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	sc := e.ws.Scope()
+	host, err := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: e.prod.ID, Platform: "docker", Name: "dp-host"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap := store.NewID()
+	_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: snap, Scope: sc, TargetID: host.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, SnapshotID: snap, TargetID: host.ID, At: time.Now(), Upsert: []store.Instance{{
+		TargetID: host.ID, EnvironmentID: e.prod.ID, WorkloadID: "w1", WorkloadKind: "container", WorkloadName: "traefik",
+		ContainerName: "traefik", Image: "traefik:v3.6.7", Tag: "v3.6.7", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	viewer := e.as(store.RoleViewer)
+	_, page := get(t, viewer, e.srv.URL+"/hygiene", nil)
+	for _, want := range []string{"Why digests are unknown", "dp-host", "IMAGES=1", "digest unknown"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("hygiene page misses %q", want)
+		}
+	}
+	if _, page := get(t, viewer, e.srv.URL+"/hygiene?kind=moving-tag", nil); strings.Contains(page, "Why digests are unknown") {
+		t.Error("digest hints on the moving-tag filter")
 	}
 }
