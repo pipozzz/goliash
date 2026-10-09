@@ -114,3 +114,21 @@ func TestHygieneDigestHints(t *testing.T) {
 		t.Error("digest hints on the moving-tag filter")
 	}
 }
+
+func TestSecurityPage(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	code, page := get(t, viewer, e.srv.URL+"/security", nil)
+	if code != 200 {
+		t.Fatalf("security %d", code)
+	}
+	for _, want := range []string{"Security posture", "Median exposure", "Past end of life", "Supply chain", "Blind spots", `href="/security.csv"`, `aria-current="page"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("security page misses %q", want)
+		}
+	}
+	code, body := get(t, viewer, e.srv.URL+"/security.csv", nil)
+	if code != 200 || !strings.HasPrefix(body, "service,application,environment,targets,running,fix,behind_since,days_exposed,date_known") {
+		t.Errorf("csv %d: %.120s", code, body)
+	}
+}
