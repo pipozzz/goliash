@@ -139,9 +139,9 @@ func (s *Store) ReportCollectorStatus(ctx context.Context, sc Scope, agentID, ta
 func nullString(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
 
 // ListServerTargets returns the targets of every workspace that the server collects
-// itself (no agent assigned).
+// itself (no agent assigned); manual targets are entered by people, not collected.
 func (s *Store) ListServerTargets(ctx context.Context) ([]Target, error) {
-	rows, err := s.query(ctx, s.db, `SELECT `+targetColumns+` FROM targets WHERE agent_id IS NULL ORDER BY workspace_id, name`)
+	rows, err := s.query(ctx, s.db, `SELECT `+targetColumns+` FROM targets WHERE agent_id IS NULL AND platform <> 'manual' ORDER BY workspace_id, name`)
 	if err != nil {
 		return nil, err
 	}

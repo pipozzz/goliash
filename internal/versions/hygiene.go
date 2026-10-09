@@ -133,11 +133,11 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	}
 	for _, t := range targets {
 		targetName[t.ID] = t.Name
-		declared[t.ID] = Declared(t.Platform)
+		declared[t.ID] = Declared(t.Platform) || Manual(t.Platform)
 	}
 	running := active[:0]
 	for _, i := range active {
-		if !declared[i.TargetID] { // Compose files declare tags; digests are not theirs to report
+		if !declared[i.TargetID] { // Compose files and people enter tags; digests are not theirs to report
 			running = append(running, i)
 		}
 	}

@@ -48,6 +48,7 @@ const (
 	Ecs        Platform = "ecs"
 	Kubernetes Platform = "kubernetes"
 	Lambda     Platform = "lambda"
+	Manual     Platform = "manual"
 	Nomad      Platform = "nomad"
 	Swarm      Platform = "swarm"
 )
@@ -64,6 +65,8 @@ func (e Platform) Valid() bool {
 	case Kubernetes:
 		return true
 	case Lambda:
+		return true
+	case Manual:
 		return true
 	case Nomad:
 		return true
@@ -101,6 +104,7 @@ const (
 	DockerContainer WorkloadKind = "docker_container"
 	EcsService      WorkloadKind = "ecs_service"
 	LambdaFunction  WorkloadKind = "lambda_function"
+	ManualEntry     WorkloadKind = "manual_entry"
 	NomadJob        WorkloadKind = "nomad_job"
 	Statefulset     WorkloadKind = "statefulset"
 	SwarmService    WorkloadKind = "swarm_service"
@@ -122,6 +126,8 @@ func (e WorkloadKind) Valid() bool {
 	case EcsService:
 		return true
 	case LambdaFunction:
+		return true
+	case ManualEntry:
 		return true
 	case NomadJob:
 		return true
@@ -217,12 +223,14 @@ type DeclaredTarget struct {
 	// Lambda AWS Lambda functions of a region, read with lambda:ListFunctions and lambda:GetFunction. A function built
 	// from a container image reports that image; a .zip function reports its runtime as the matching AWS base
 	// image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
-	Lambda              *LambdaSettings `json:"lambda,omitempty"`
-	Name                string          `json:"name"`
-	Nomad               *NomadSettings  `json:"nomad,omitempty"`
-	Platform            Platform        `json:"platform"`
-	PollIntervalSeconds *int            `json:"poll_interval_seconds,omitempty"`
-	Swarm               *SwarmSettings  `json:"swarm,omitempty"`
+	Lambda *LambdaSettings `json:"lambda,omitempty"`
+	Name   string          `json:"name"`
+	Nomad  *NomadSettings  `json:"nomad,omitempty"`
+
+	// Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
+	Platform            Platform       `json:"platform"`
+	PollIntervalSeconds *int           `json:"poll_interval_seconds,omitempty"`
+	Swarm               *SwarmSettings `json:"swarm,omitempty"`
 }
 
 // DigestLookup defines model for DigestLookup.
@@ -359,7 +367,7 @@ type NomadSettings struct {
 	Region     *string  `json:"region,omitempty"`
 }
 
-// Platform defines model for Platform.
+// Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
 type Platform string
 
 // Problem RFC 9457 problem details.
@@ -511,9 +519,11 @@ type Target struct {
 	Lambda *LambdaSettings `json:"lambda,omitempty"`
 
 	// Name Example: prod-eu-west-1
-	Name     string         `json:"name"`
-	Nomad    *NomadSettings `json:"nomad,omitempty"`
-	Platform Platform       `json:"platform"`
+	Name  string         `json:"name"`
+	Nomad *NomadSettings `json:"nomad,omitempty"`
+
+	// Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
+	Platform Platform `json:"platform"`
 
 	// PollIntervalSeconds Full snapshot interval. Kubernetes also sends a snapshot after changes.
 	PollIntervalSeconds int            `json:"poll_interval_seconds"`

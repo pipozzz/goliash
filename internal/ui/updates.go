@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -25,6 +27,13 @@ type UpdatesView struct {
 	Team, Env    string
 	Markdown     string // the list as a markdown checklist, to copy into a ticket
 	Total        int    // before filters
+	Watched      []WatchedItem
+}
+
+// WatchedItem is a service watched for its releases that runs nowhere Goliash knows.
+type WatchedItem struct {
+	Service, Upstream, Latest, URL string
+	Published                      time.Time
 }
 
 // UpdateLevel is one urgency with its count, for the tiles.
@@ -101,6 +110,9 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		md.WriteString(updateMarkdown(it))
 	}
 	v.Teams, v.Envs = sortedSet(teams), sortedSet(envs)
+	if v.Watched, err = s.watched(ctx, p.Scope, o); err != nil {
+		return err
+	}
 	v.Markdown = md.String()
 	return render(w, r, UpdatesPage(v))
 }
@@ -196,4 +208,36 @@ func sortedSet(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// watched lists the services with an upstream that run nowhere, with their newest release.
+func (s *Server) watched(ctx context.Context, sc store.Scope, o versions.Overview) ([]WatchedItem, error) {
+	running := map[string]bool{}
+	for _, row := range o.Matrix.Rows {
+		running[row.Service.ID] = true
+	}
+	services, err := s.store.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	var out []WatchedItem
+	for _, svc := range services {
+		if running[svc.ID] || svc.Upstream == "" {
+			continue
+		}
+		it := WatchedItem{Service: svc.Name, Upstream: svc.Upstream}
+		rels, err := s.store.ListReleases(ctx, sc, svc.ID)
+		if err != nil {
+			return nil, err
+		}
+		var newest *versions.Version
+		for _, r := range rels {
+			if v, ok := versions.ParseVersion(r.Version); ok && v.Pre == "" && (newest == nil || v.Compare(*newest) > 0) {
+				newest = &v
+				it.Latest, it.Published, it.URL = r.Version, r.PublishedAt, r.ChangelogURL
+			}
+		}
+		out = append(out, it)
+	}
+	return out, nil
 }

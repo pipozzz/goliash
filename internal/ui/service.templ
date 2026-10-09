@@ -306,6 +306,9 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 		}
+		if len(v.Manual) > 0 || v.CanMember {
+			@manualPanel(v)
+		}
 		if v.CanMember && len(v.Split) > 1 {
 			<section class="panel">
 				<div class="panel-head"><h2>Split by application</h2><span class="muted">it runs in { itoa(len(v.Split)) } applications</span></div>
@@ -414,4 +417,58 @@ templ versionDrifts(drifts []DriftBadge) {
 			</div>
 		}
 	}
+}
+
+// manualPanel lists and edits where the service runs outside what Goliash collects: a virtual machine,
+// a managed database, an appliance.
+templ manualPanel(v ServiceView) {
+	<section class="panel">
+		<div class="panel-head"><h2>Runs outside Goliash</h2><span class="muted">versions entered by hand: a VM, a managed service</span></div>
+		<div class="panel-body stack">
+			if len(v.Manual) > 0 {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Environment</th><th>Where</th><th>Version</th><th><span class="sr-only">Remove</span></th></tr></thead>
+						<tbody>
+							for _, m := range v.Manual {
+								<tr>
+									<td>{ m.Env }</td>
+									<td>{ m.Where }</td>
+									<td class="mono">{ m.Version }</td>
+									<td class="num">
+										if v.CanMember {
+											<form class="inline" method="post" action={ templ.URL("/services/" + v.Name + "/manual") } hx-confirm={ "Remove " + v.Name + " from " + m.Where + "?" }>
+												<input type="hidden" name="env" value={ m.Env }/>
+												<input type="hidden" name="where" value={ m.Where }/>
+												<input type="hidden" name="version" value=""/>
+												<button class="link" type="submit">Remove</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			} else {
+				<p class="hint">Runs somewhere Goliash does not collect, such as a virtual machine or a managed database? Enter it, and it counts in the matrix, updates, end of life and the security posture.</p>
+			}
+			if v.CanMember && len(v.EnvNames) > 0 {
+				<form class="row" method="post" action={ templ.URL("/services/" + v.Name + "/manual") }>
+					<label>
+						Environment
+						<select name="env">
+							for _, e := range v.EnvNames {
+								<option>{ e }</option>
+							}
+						</select>
+					</label>
+					<label>Where<input name="where" required maxlength="100" placeholder="db-vm-1"/></label>
+					<label>Version<input name="version" required maxlength="128" placeholder="16.4"/></label>
+					<div><button class="secondary" type="submit">Save</button></div>
+				</form>
+				<p class="hint">Enter a new version under the same Where to record an upgrade; it shows in the history.</p>
+			}
+		</div>
+	</section>
 }

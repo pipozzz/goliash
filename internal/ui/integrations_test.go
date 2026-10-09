@@ -5,6 +5,7 @@ package ui
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/store"
 )
 
@@ -130,5 +132,73 @@ func TestSecurityPage(t *testing.T) {
 	code, body := get(t, viewer, e.srv.URL+"/security.csv", nil)
 	if code != 200 || !strings.HasPrefix(body, "service,application,environment,targets,running,fix,behind_since,days_exposed,date_known") {
 		t.Errorf("csv %d: %.120s", code, body)
+	}
+}
+
+// A service entered by hand runs on a manual target, processed like a collected snapshot; one without a
+// version is only watched.
+func TestManualService(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	member := e.as(store.RoleMember)
+	_, body, _ := post(t, member, e.srv.URL+"/services/new", url.Values{
+		"name": {"postgres-billing"}, "upstream": {"postgres"}, "owner": {"team-payments"},
+		"env": {"prod"}, "where": {"db-vm-1"}, "version": {"14.10"},
+	})
+	if !strings.Contains(body, "postgres-billing added") {
+		t.Fatalf("not added: %.300s", body)
+	}
+	svc, err := e.st.GetServiceByName(ctx, e.ws.Scope(), "postgres-billing")
+	if err != nil || svc.Upstream != "docker.io/library/postgres" || svc.Owner != "team-payments" {
+		t.Fatalf("service %+v %v", svc, err)
+	}
+	targets, _ := e.st.ListTargets(ctx, e.ws.Scope())
+	var vm store.Target
+	for _, tg := range targets {
+		if tg.Name == "db-vm-1" {
+			vm = tg
+		}
+	}
+	if vm.Platform != "manual" || vm.AgentID != "" || vm.EnvironmentID != e.prod.ID {
+		t.Fatalf("manual target %+v", vm)
+	}
+	if server, _ := e.st.ListServerTargets(ctx); len(server) > 0 {
+		for _, tg := range server {
+			if tg.ID == vm.ID {
+				t.Fatal("the server would try to collect a manual target")
+			}
+		}
+	}
+	if _, err := ingest.New(e.st, slog.New(slog.DiscardHandler)).ProcessPending(ctx); err != nil {
+		t.Fatal(err)
+	}
+	insts, _ := e.st.ListTargetInstances(ctx, e.ws.Scope(), vm.ID)
+	if len(insts) != 1 || insts[0].Tag != "14.10" || insts[0].ServiceID != svc.ID || insts[0].Image != "docker.io/library/postgres:14.10" {
+		t.Fatalf("instances %+v", insts)
+	}
+	_, page := get(t, member, e.srv.URL+"/services/postgres-billing", nil)
+	if !strings.Contains(page, "Runs outside Goliash") || !strings.Contains(page, "db-vm-1") {
+		t.Error("service page misses the manual entry")
+	}
+	// A collected target's name is not taken over.
+	if _, body, _ := post(t, member, e.srv.URL+"/services/postgres-billing/manual", url.Values{"env": {"prod"}, "where": {"k8s-prod"}, "version": {"15"}}); !strings.Contains(body, "already a collected target") {
+		t.Error("manual entry on a collected target")
+	}
+	// An empty version removes it.
+	post(t, member, e.srv.URL+"/services/postgres-billing/manual", url.Values{"env": {"prod"}, "where": {"db-vm-1"}, "version": {""}})
+	_, _ = ingest.New(e.st, slog.New(slog.DiscardHandler)).ProcessPending(ctx)
+	insts, _ = e.st.ListTargetInstances(ctx, e.ws.Scope(), vm.ID)
+	for _, in := range insts {
+		if in.RemovedAt.IsZero() {
+			t.Fatalf("still running: %+v", in)
+		}
+	}
+	// Without a version, a service is watched: listed on the updates page.
+	post(t, member, e.srv.URL+"/services/new", url.Values{"name": {"terraform"}, "upstream": {"hashicorp/terraform"}})
+	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, "Watching") || !strings.Contains(page, "docker.io/hashicorp/terraform") {
+		t.Error("watched service not on the updates page")
+	}
+	if code, _, _ := post(t, e.as(store.RoleViewer), e.srv.URL+"/services/new", url.Values{"name": {"x"}, "upstream": {"x"}}); code != http.StatusForbidden {
+		t.Errorf("viewer added a service: %d", code)
 	}
 }

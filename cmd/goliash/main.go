@@ -526,6 +526,7 @@ func serve(ctx context.Context, args []string) error {
 	ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
+		Snapshots: svc,
 	}).Register(mux)
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

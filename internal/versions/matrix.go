@@ -58,6 +58,10 @@ type Cell struct {
 // Git) rather than what runs.
 func Declared(platform string) bool { return platform == "compose" }
 
+// Manual reports whether a platform's versions are entered by people on the server, for software
+// Goliash does not collect: they count as running, but carry no digests and never go stale.
+func Manual(platform string) bool { return platform == "manual" }
+
 // RunningVersion is one tag running in a cell.
 type RunningVersion struct {
 	Tag       string
