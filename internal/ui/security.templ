@@ -154,6 +154,58 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			</section>
 		}
+		if v.Evidence.Images > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Supply-chain evidence</h2><span class="muted">{ "images running in " + v.Prod.Name + ": what their registry holds beside them" }</span></div>
+				<div class="tiles evidence">
+					<div class="tile">
+						<strong>{ percent(v.Evidence.Signed, v.Evidence.Checked) }</strong>
+						<span>Signed</span>
+						<small>{ itoa(v.Evidence.Signed) } of { itoa(v.Evidence.Checked) } checked: cosign, Sigstore or Notation</small>
+					</div>
+					<div class="tile">
+						<strong>{ percent(v.Evidence.SBOM, v.Evidence.Checked) }</strong>
+						<span>With an SBOM</span>
+						<small>{ itoa(v.Evidence.SBOM) } of { itoa(v.Evidence.Checked) }: SPDX or CycloneDX attestation</small>
+					</div>
+					<div class="tile">
+						<strong>{ percent(v.Evidence.Provenance, v.Evidence.Checked) }</strong>
+						<span>With provenance</span>
+						<small>{ itoa(v.Evidence.Provenance) } of { itoa(v.Evidence.Checked) }: SLSA, from the build</small>
+					</div>
+					<div class={ "tile", templ.KV("warn", v.Evidence.Unchecked > 0) }>
+						<strong>{ itoa(v.Evidence.Unchecked) }</strong>
+						<span>Not checked</span>
+						<small>private registries or no digest known</small>
+					</div>
+				</div>
+				<p class="hint panel-note">Goliash records that signatures and attestations exist; it does not verify who signed them.</p>
+				if len(v.Evidence.Unsigned) > 0 {
+					<details class="unsigned">
+						<summary>{ plural(len(v.Evidence.Unsigned), "unsigned image", "unsigned images") }</summary>
+						<div class="scroll">
+							<table>
+								<thead><tr><th>Image</th><th>Found</th></tr></thead>
+								<tbody>
+									for _, it := range v.Evidence.Unsigned {
+										<tr>
+											<td class="mono">{ it.Image }</td>
+											<td>
+												if len(it.Found) == 0 {
+													<span class="muted">nothing</span>
+												} else {
+													{ strings.Join(it.Found, ", ") }
+												}
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					</details>
+				}
+			</section>
+		}
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Supply chain</h2><span class="muted">what runs, as images</span></div>
@@ -174,7 +226,7 @@ templ SecurityPage(v SecurityView) {
 					if len(v.Stale) == 0 {
 						<p>Every target reported recently.</p>
 					} else {
-						<p><strong>{ itoa(len(v.Stale)) } stale targets:</strong> { strings.Join(v.Stale, ", ") }. Their last known state counts.</p>
+						<p><strong>{ plural(len(v.Stale), "stale target", "stale targets") }:</strong> { strings.Join(v.Stale, ", ") }. Their last known state counts.</p>
 					}
 					if len(v.NoUpstream) == 0 {
 						<p>{ "The newest release is known for every service in " + v.Prod.Name + "." }</p>
@@ -182,7 +234,7 @@ templ SecurityPage(v SecurityView) {
 						<p><strong>{ itoa(len(v.NoUpstream)) } of { itoa(v.ProdRunning) } services</strong> have no known upstream release, so their exposure is not measured: { strings.Join(v.NoUpstream, ", ") }.</p>
 					}
 					if !v.DigestOK {
-						<p><strong>{ itoa(v.NoDigest) } targets</strong> report no image digests, so a tag pushed again would go unnoticed there; <a href="/hygiene?kind=unpinned">see why</a>.</p>
+						<p><strong>{ plural(v.NoDigest, "target", "targets") }</strong> report no image digests, so a tag pushed again would go unnoticed there; <a href="/hygiene?kind=unpinned">see why</a>.</p>
 					}
 				</div>
 			</section>

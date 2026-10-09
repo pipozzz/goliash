@@ -31,6 +31,20 @@ An image that does not declare its base can name it in the service's version pol
 `node:22-alpine`); `none` turns tracking off. The image is read on a public registry by the server; for private
 images, set the base in the policy.
 
+## Supply-chain evidence
+
+For every image running in production, Goliash asks its registry what it holds beside the image:
+
+- **Signed**: a [cosign](https://docs.sigstore.dev/cosign/) signature (`sha256-<digest>.sig`), a Sigstore bundle or a
+  Notation signature as an OCI referrer.
+- **SBOM**: an SPDX or CycloneDX attestation, as `docker buildx build --sbom=true` attaches it, or an SBOM artifact.
+- **Provenance**: a SLSA provenance attestation (`--provenance=true`, GitHub artifact attestations).
+
+The Security page shows the share of production images with each, and lists the unsigned ones. Goliash records that
+these **exist**; it does not verify who signed them. Images on public registries are looked up by the server, at
+most 40 per workspace and check, again after a week when something was found and after a day when nothing was.
+Images on private registries, and images without a known digest, count as *not checked*.
+
 ## How exposure is counted
 
 Exposure starts when the first release newer than the running one was **published** (GitHub or GitLab release

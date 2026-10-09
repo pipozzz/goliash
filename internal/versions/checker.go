@@ -127,6 +127,11 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		if err := c.EvaluateDrift(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "drift evaluation failed", "workspace", ws.Slug, "err", err)
 		}
+		if upstream {
+			if err := c.CheckEvidence(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.ErrorContext(ctx, "supply-chain evidence lookup failed", "workspace", ws.Slug, "err", err)
+			}
+		}
 	}
 }
 

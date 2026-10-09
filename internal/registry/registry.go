@@ -59,6 +59,9 @@ func New() *Client {
 // ErrUnauthorized means the registry refused the credentials (or anonymous access).
 var ErrUnauthorized = errors.New("registry denied access")
 
+// ErrNotFound is a 404: the repository, tag or manifest does not exist.
+var ErrNotFound = errors.New("registry answered 404")
+
 // ListTags returns every tag of repository ("ghcr.io/acme/app", "docker.io/library/nginx").
 func (c *Client) ListTags(ctx context.Context, repository string, creds Credentials) ([]string, error) {
 	host, repo, err := splitRepository(repository)
@@ -134,6 +137,8 @@ func statusError(resp *http.Response, body []byte) error {
 		return fmt.Errorf("%w (%d)", ErrUnauthorized, resp.StatusCode)
 	case http.StatusTooManyRequests:
 		return errors.New("registry rate limit reached (429)")
+	case http.StatusNotFound:
+		return fmt.Errorf("%w: %s", ErrNotFound, strings.TrimSpace(string(body[:min(len(body), 200)])))
 	}
 	return fmt.Errorf("registry answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body[:min(len(body), 200)])))
 }

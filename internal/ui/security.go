@@ -6,6 +6,7 @@ package ui
 import (
 	"encoding/csv"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ type SecurityView struct {
 	Hygiene  map[string]int
 	DigestOK bool // every target reports digests
 	Bases    []BaseRow
+	Evidence EvidenceSummary
 	NoDigest int // targets reporting no digest at all
 	At       time.Time
 }
@@ -55,6 +57,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	}
 	v := SecurityView{Base: s.base(r.Context(), p, "security", "Security posture"), Posture: pos, All: r.URL.Query().Get("env") == "all", Hygiene: hyg, At: time.Now()}
 	if v.Bases, err = s.baseRows(r, p); err != nil {
+		return err
+	}
+	if v.Evidence, err = s.evidenceSummary(r, p, v.Prod.ID); err != nil {
 		return err
 	}
 	if hints, err := s.digestHints(r.Context(), p.Scope); err == nil {
@@ -137,5 +142,66 @@ func (s *Server) baseRows(r *http.Request, p auth.Principal) ([]BaseRow, error) 
 			out = append(out, BaseRow{Service: row.Service.Name, BaseStatus: st})
 		}
 	}
+	return out, nil
+}
+
+// EvidenceSummary is how many images running in production have signatures and attestations.
+type EvidenceSummary struct {
+	Images                   int // distinct images (repository and digest) running in production
+	Checked                  int // looked up on their registry
+	Signed, SBOM, Provenance int
+	Unchecked                int            // private registries or no digest: not looked up by the server
+	Unsigned                 []EvidenceItem // checked images without a signature
+}
+
+// EvidenceItem is one production image and what was found for it.
+type EvidenceItem struct {
+	Image string
+	Found []string
+}
+
+// evidenceSummary counts the signatures and attestations of the images running in the last environment.
+func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID string) (EvidenceSummary, error) {
+	var out EvidenceSummary
+	ctx := r.Context()
+	active, err := s.store.ListActiveInstances(ctx, p.Scope)
+	if err != nil {
+		return out, err
+	}
+	known, err := s.store.ListImageEvidence(ctx, p.Scope)
+	if err != nil {
+		return out, err
+	}
+	seen := map[string]bool{}
+	for _, in := range active {
+		if in.EnvironmentID != prodID {
+			continue
+		}
+		repo := versions.ParseImage(in.Image).Repo()
+		key := repo + "@" + in.Digest
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out.Images++
+		ev, ok := known[key]
+		if in.Digest == "" || !ok || ev.Error != "" {
+			out.Unchecked++
+			continue
+		}
+		out.Checked++
+		if ev.Signed {
+			out.Signed++
+		} else {
+			out.Unsigned = append(out.Unsigned, EvidenceItem{Image: strings.TrimPrefix(in.Image, "docker.io/"), Found: ev.Found})
+		}
+		if ev.SBOM {
+			out.SBOM++
+		}
+		if ev.Provenance {
+			out.Provenance++
+		}
+	}
+	sort.Slice(out.Unsigned, func(i, j int) bool { return out.Unsigned[i].Image < out.Unsigned[j].Image })
 	return out, nil
 }
