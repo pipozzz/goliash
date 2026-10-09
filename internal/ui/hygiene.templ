@@ -32,6 +32,25 @@ templ HygienePage(v HygieneView) {
 				}
 			</nav>
 		}
+		if len(v.DigestHints) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Why digests are unknown</h2><span class="muted">these targets report none at all</span></div>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Target</th><th>Images</th><th>What to do</th></tr></thead>
+						<tbody>
+							for _, h := range v.DigestHints {
+								<tr>
+									<td><strong>{ h.Target }</strong><div class="targets">{ h.Platform }</div></td>
+									<td class="num">{ itoa(h.Images) }</td>
+									<td>{ h.Advice }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		<section class="panel">
 			if len(v.Findings) == 0 && v.Total > 0 {
 				<div class="empty">None of this kind. <a href="/hygiene">Show all findings</a></div>
@@ -46,7 +65,7 @@ templ HygienePage(v HygieneView) {
 								<tr>
 									<td class="mono">{ f.Image }</td>
 									<td>
-										<span class={ "badge", findingClass(f) }>{ strings.ReplaceAll(f.Kind, "-", " ") }</span>
+										<span class={ "badge", findingClass(f) }>{ findingLabel(f.Kind) }</span>
 										<div class="targets">{ f.Detail }</div>
 									</td>
 									<td>
@@ -69,4 +88,12 @@ func findingClass(f versions.Finding) string {
 		return "env"
 	}
 	return "neutral"
+}
+
+// findingLabel is a finding's kind as people read it.
+func findingLabel(kind string) string {
+	if kind == "unpinned" {
+		return "digest unknown"
+	}
+	return strings.ReplaceAll(kind, "-", " ")
 }
