@@ -141,7 +141,7 @@ jobs:
           helm template t deploy/helm/goliash --set database.url=postgres://x --set replicaCount=2 | grep -q PodDisruptionBudget
           ! helm template t deploy/helm/goliash --set replicaCount=2 > /dev/null 2>&1   # SQLite: one server only
           helm template t deploy/helm/goliash-agent --set token.existingSecret=s > /dev/null
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - name: Terraform module is valid
         working-directory: deploy/ecs/goliash-agent
         run: |
