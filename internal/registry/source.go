@@ -40,43 +40,69 @@ type manifest struct {
 	} `json:"config"`
 }
 
+// LabelBaseName is the OCI annotation (or label) naming the image a build started FROM; BuildKit sets it.
+const LabelBaseName = "org.opencontainers.image.base.name"
+
+// ImageMeta is what an image declares about itself.
+type ImageMeta struct {
+	Source string // org.opencontainers.image.source: the source repository URL
+	Base   string // org.opencontainers.image.base.name: the image it was built on, e.g. docker.io/library/node:18-alpine
+}
+
 // ImageSource returns the source repository URL an image declares for reference (a
 // tag or digest): the org.opencontainers.image.source annotation of its index or
 // manifest, else the label in its linux/amd64 image config. It returns "" when the
 // image declares none.
 func (c *Client) ImageSource(ctx context.Context, repository, reference string, creds Credentials) (string, error) {
+	m, err := c.ImageMeta(ctx, repository, reference, creds)
+	return m.Source, err
+}
+
+// ImageMeta returns the source repository and base image an image declares for reference, from the
+// annotations of its index or manifest, else the labels in its linux/amd64 image config.
+func (c *Client) ImageMeta(ctx context.Context, repository, reference string, creds Credentials) (ImageMeta, error) {
+	var meta ImageMeta
 	host, repo, err := splitRepository(repository)
 	if err != nil {
-		return "", err
+		return meta, err
 	}
 	base := fmt.Sprintf("%s://%s/v2/%s", c.Scheme, host, repo)
 	accept := strings.Join([]string{mediaIndex, mediaDockerList, mediaManifest, mediaDockerImage}, ", ")
+	take := func(values map[string]string) bool {
+		if meta.Source == "" {
+			meta.Source = values[LabelSource]
+		}
+		if meta.Base == "" {
+			meta.Base = values[LabelBaseName]
+		}
+		return meta.Source != "" && meta.Base != ""
+	}
 
 	m, err := c.manifest(ctx, base+"/manifests/"+reference, repo, creds, accept)
 	if err != nil {
-		return "", err
+		return meta, err
 	}
-	if src := m.Annotations[LabelSource]; src != "" {
-		return src, nil
+	if take(m.Annotations) {
+		return meta, nil
 	}
 	if len(m.Manifests) > 0 {
 		digest := pickPlatform(m)
 		if digest == "" {
-			return "", nil
+			return meta, nil
 		}
 		if m, err = c.manifest(ctx, base+"/manifests/"+digest, repo, creds, accept); err != nil {
-			return "", err
+			return meta, err
 		}
-		if src := m.Annotations[LabelSource]; src != "" {
-			return src, nil
+		if take(m.Annotations) {
+			return meta, nil
 		}
 	}
 	if m.Config.Digest == "" {
-		return "", nil
+		return meta, nil
 	}
 	body, _, err := c.get(ctx, base+"/blobs/"+m.Config.Digest, repo, creds, "application/json")
 	if err != nil {
-		return "", err
+		return meta, err
 	}
 	var cfg struct {
 		Config struct {
@@ -84,9 +110,10 @@ func (c *Client) ImageSource(ctx context.Context, repository, reference string, 
 		} `json:"config"`
 	}
 	if err := json.Unmarshal(body, &cfg); err != nil {
-		return "", fmt.Errorf("image config of %s: %w", repository, err)
+		return meta, fmt.Errorf("image config of %s: %w", repository, err)
 	}
-	return cfg.Config.Labels[LabelSource], nil
+	take(cfg.Config.Labels)
+	return meta, nil
 }
 
 // TagDigest returns the digest of reference's manifest (or index) with a HEAD

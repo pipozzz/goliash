@@ -22,7 +22,8 @@ type SecurityView struct {
 	All      bool // every environment, not only production
 	Hygiene  map[string]int
 	DigestOK bool // every target reports digests
-	NoDigest int  // targets reporting no digest at all
+	Bases    []BaseRow
+	NoDigest int // targets reporting no digest at all
 	At       time.Time
 }
 
@@ -53,6 +54,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	v := SecurityView{Base: s.base(r.Context(), p, "security", "Security posture"), Posture: pos, All: r.URL.Query().Get("env") == "all", Hygiene: hyg, At: time.Now()}
+	if v.Bases, err = s.baseRows(r, p); err != nil {
+		return err
+	}
 	if hints, err := s.digestHints(r.Context(), p.Scope); err == nil {
 		v.DigestOK, v.NoDigest = len(hints) == 0, len(hints)
 	}
@@ -101,4 +105,37 @@ func exposureClass(ex versions.Exposure) string {
 	default:
 		return "upstream"
 	}
+}
+
+// BaseRow is a service built on a base image whose support has ended or ends soon.
+type BaseRow struct {
+	Service string
+	versions.BaseStatus
+}
+
+// baseRows lists the running services built on a base image past or near its end of life.
+func (s *Server) baseRows(r *http.Request, p auth.Principal) ([]BaseRow, error) {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	seen := map[string]versions.BaseStatus{}
+	var out []BaseRow
+	for _, row := range o.Matrix.Rows {
+		base := versions.BaseImage(row.Service)
+		if base == "" {
+			continue
+		}
+		st, ok := seen[base]
+		if !ok {
+			st = s.checker.BaseStatus(ctx, base, now)
+			seen[base] = st
+		}
+		if st.Passed || st.Soon {
+			out = append(out, BaseRow{Service: row.Service.Name, BaseStatus: st})
+		}
+	}
+	return out, nil
 }

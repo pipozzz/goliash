@@ -29,7 +29,7 @@ func fakeImages(t *testing.T) string {
 				{"digest":"sha256:att","platform":{"os":"unknown","architecture":"unknown"}},
 				{"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}},
 				{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}}]}`,
-			"/v2/acme/labeled/manifests/sha256:amd": `{"mediaType":"` + mediaManifest + `","config":{"digest":"sha256:cfg"}}`,
+			"/v2/acme/labeled/manifests/sha256:amd": `{"mediaType":"` + mediaManifest + `","annotations":{"org.opencontainers.image.base.name":"docker.io/library/node:18-alpine"},"config":{"digest":"sha256:cfg"}}`,
 			"/v2/acme/labeled/blobs/sha256:cfg":     `{"config":{"Labels":{"org.opencontainers.image.source":"https://github.com/acme/labeled.git"}}}`,
 			// single manifest without a label
 			"/v2/acme/plain/manifests/1.0":    `{"mediaType":"` + mediaDockerImage + `","config":{"digest":"sha256:cfg"}}`,
@@ -64,6 +64,20 @@ func TestImageSource(t *testing.T) {
 	}
 	if _, err := client().ImageSource(context.Background(), host+"/acme/missing", "1.0", Credentials{}); err == nil {
 		t.Error("missing image: no error")
+	}
+}
+
+func TestImageMeta(t *testing.T) {
+	host := fakeImages(t)
+	for repo, want := range map[string]ImageMeta{
+		"acme/annotated": {Source: "https://github.com/acme/annotated"},
+		"acme/labeled":   {Source: "https://github.com/acme/labeled.git", Base: "docker.io/library/node:18-alpine"},
+		"acme/plain":     {},
+	} {
+		got, err := client().ImageMeta(context.Background(), host+"/"+repo, "1.0", Credentials{})
+		if err != nil || got != want {
+			t.Errorf("%s: %+v, %v; want %+v", repo, got, err, want)
+		}
 	}
 }
 

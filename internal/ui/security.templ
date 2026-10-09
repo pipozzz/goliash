@@ -129,6 +129,31 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			}
 		</section>
+		if len(v.Bases) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Built on an unsupported base</h2><span class="muted">rebuild on a newer base image</span></div>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Service</th><th>Base image</th><th>End of life</th></tr></thead>
+						<tbody>
+							for _, b := range v.Bases {
+								<tr>
+									<td><a href={ templ.URL(serviceURL(b.Service)) }><strong>{ b.Service }</strong></a></td>
+									<td class="mono" title={ b.Image }>{ b.Short }</td>
+									<td>
+										if b.Passed {
+											<span class="badge eol">ended { b.EOL }</span>
+										} else {
+											<span class="badge env">ends { b.EOL }</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Supply chain</h2><span class="muted">what runs, as images</span></div>

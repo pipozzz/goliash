@@ -29,6 +29,8 @@ type Service struct {
 	SourceURL       string
 	SourceImage     string
 	SourceCheckedAt time.Time
+	// BaseImage is the image SourceImage was built on, as it declares (org.opencontainers.image.base.name).
+	BaseImage string
 
 	// PrivateUpstream is the upstream repository a public registry refused to show
 	// anonymously; while it equals the upstream, the agents check it.
@@ -84,10 +86,10 @@ func (s *Store) ListServices(ctx context.Context, sc Scope) ([]Service, error) {
 	return out, rows.Err()
 }
 
-// SetServiceSource records the source repository image declares (empty for none).
-func (s *Store) SetServiceSource(ctx context.Context, sc Scope, id, image, source string) error {
-	res, err := s.exec(ctx, s.db, `UPDATE services SET source_url = ?, source_image = ?, source_checked_at = ?
-		WHERE org_id = ? AND workspace_id = ? AND id = ?`, source, image, s.now(), sc.OrgID, sc.WorkspaceID, id)
+// SetServiceSource records the source repository and the base image that image declares (empty for none).
+func (s *Store) SetServiceSource(ctx context.Context, sc Scope, id, image, source, base string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE services SET source_url = ?, source_image = ?, source_checked_at = ?, base_image = ?
+		WHERE org_id = ? AND workspace_id = ? AND id = ?`, source, image, s.now(), base, sc.OrgID, sc.WorkspaceID, id)
 	return expectOne(res, err)
 }
 
@@ -113,14 +115,14 @@ func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 }
 
 const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at,
-	source_url, source_image, source_checked_at, private_upstream, app, owner_source`
+	source_url, source_image, source_checked_at, private_upstream, app, owner_source, base_image`
 
 func scanService(row scanner) (Service, error) {
 	var svc Service
 	var policy string
 	var checked sql.NullTime
 	if err := row.Scan(&svc.ID, &svc.Scope.OrgID, &svc.Scope.WorkspaceID, &svc.Name, &svc.Owner, &svc.Kind,
-		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App, &svc.OwnerSource); err != nil {
+		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App, &svc.OwnerSource, &svc.BaseImage); err != nil {
 		return Service{}, notFound(err)
 	}
 	svc.VersionPolicy, svc.CreatedAt = json.RawMessage(policy), svc.CreatedAt.UTC()
