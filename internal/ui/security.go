@@ -253,7 +253,7 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	q := strings.ToUpper(v.Query)
 	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
 	for _, f := range v.Findings {
-		if (q != "" && !findingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) {
+		if (q != "" && !versions.FindingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) {
 			continue
 		}
 		if len(v.Shown) >= 300 {
@@ -272,24 +272,6 @@ func positionOf(envs []store.Environment, id string) int {
 		}
 	}
 	return -1
-}
-
-// findingMatches reports whether a finding answers the query: a CVE or advisory ID, a package, a service.
-func findingMatches(f versions.VulnFinding, q string) bool {
-	if strings.Contains(strings.ToUpper(f.Key), q) {
-		return true
-	}
-	for _, id := range append(append([]string{}, f.IDs...), f.Aliases...) {
-		if strings.Contains(strings.ToUpper(id), q) {
-			return true
-		}
-	}
-	for _, a := range f.Affected {
-		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) {
-			return true
-		}
-	}
-	return false
 }
 
 // vulnURL links an advisory to osv.dev.

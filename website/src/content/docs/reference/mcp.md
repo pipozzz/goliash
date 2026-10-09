@@ -5,7 +5,7 @@ description: 'Ask Claude, Cursor and other AI assistants what runs where through
 
 Goliash speaks the [Model Context Protocol](https://modelcontextprotocol.io), so an AI assistant such as Claude or
 Cursor can answer "which version of payments runs in prod, and is it behind upstream?", "what changed in prod in the
-last two hours?" or "what reaches end of life soon?" from live data.
+last two hours?", "what reaches end of life soon?" or "is Log4Shell running anywhere?" from live data.
 
 Every tool calls the REST API with an API token, so the assistant sees and may do exactly what the token allows.
 Create one for it; a viewer token only reads, a member token may also acknowledge:
@@ -28,6 +28,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `delivery` | Deploys per environment and lead times, last 30 days |
 | `inventory` | Every running container with image and digest, now or at a past time |
 | `hygiene` | Moving tags, tags pushed again, untrusted registries |
+| `vulnerabilities` | Is a CVE running? Known vulnerabilities of running images, exploited ones first, with the services and the version that fixes each |
 | `acknowledge` | Quiet notifications until a version or a time (needs a member token; the only tool that writes) |
 
 ## Remote (HTTP)

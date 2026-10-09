@@ -50,6 +50,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
+	mux.Handle("GET /api/v1/vulnerabilities", h.with(store.RoleViewer, h.vulnerabilities))
 	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
@@ -759,4 +760,77 @@ func (h *PublicHandler) serverMetrics(ctx context.Context, b *strings.Builder, s
 			fmt.Fprintf(b, "goliash_agents{status=%q} %d\n", st, counts[st])
 		}
 	}
+}
+
+// vulnerabilities answers "is this vulnerability running?" from the running images' SBOMs and OSV.
+func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	q := r.URL.Query()
+	envID := ""
+	if name := q.Get("environment"); name != "" {
+		env, err := h.store.GetEnvironmentByName(r.Context(), p.Scope, name)
+		if err != nil {
+			writeProblem(w, http.StatusNotFound, "Unknown environment", name)
+			return
+		}
+		envID = env.ID
+	}
+	rep, err := versions.LoadVulnReport(r.Context(), h.store, p.Scope, envID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiExploited struct {
+		DueDate    string `json:"due_date,omitempty"`
+		DateAdded  string `json:"date_added,omitempty"`
+		Ransomware bool   `json:"ransomware"`
+	}
+	type apiAffected struct {
+		Service     string `json:"service"`
+		Environment string `json:"environment"`
+		Image       string `json:"image"`
+		Package     string `json:"package"`
+		Fix         string `json:"fix,omitempty"`
+	}
+	type apiFinding struct {
+		ID         string        `json:"id"`
+		Advisories []string      `json:"advisories"`
+		Aliases    []string      `json:"aliases"`
+		Summary    string        `json:"summary,omitempty"`
+		Severity   string        `json:"severity,omitempty"`
+		Exploited  *apiExploited `json:"exploited,omitempty"`
+		Fixable    bool          `json:"fixable"`
+		Affected   []apiAffected `json:"affected"`
+	}
+	query := strings.ToUpper(strings.TrimSpace(q.Get("q")))
+	onlyExploited := q.Get("exploited") == "true"
+	out := struct {
+		Images   int          `json:"images"`
+		WithSBOM int          `json:"images_with_sbom"`
+		Packages int          `json:"packages"`
+		Complete bool         `json:"complete"`
+		Findings []apiFinding `json:"findings"`
+	}{Images: rep.Images, WithSBOM: rep.WithSBOM, Packages: rep.Packages, Complete: rep.Pending == 0 && rep.Unasked == 0, Findings: []apiFinding{}}
+	for _, f := range rep.Findings {
+		if onlyExploited && f.Exploited == nil {
+			continue
+		}
+		if query != "" && !versions.FindingMatches(f, query) {
+			continue
+		}
+		af := apiFinding{
+			ID: f.Key, Advisories: f.IDs, Aliases: f.Aliases, Summary: f.Summary, Severity: strings.ToLower(f.Severity),
+			Fixable: f.Fixable, Affected: []apiAffected{},
+		}
+		if af.Aliases == nil {
+			af.Aliases = []string{}
+		}
+		if f.Exploited != nil {
+			af.Exploited = &apiExploited{DueDate: f.Exploited.DueDate, DateAdded: f.Exploited.DateAdded, Ransomware: f.Exploited.Ransomware}
+		}
+		for _, a := range f.Affected {
+			af.Affected = append(af.Affected, apiAffected{Service: a.Service, Environment: a.Env, Image: a.Image, Package: a.Package, Fix: a.Fix})
+		}
+		out.Findings = append(out.Findings, af)
+	}
+	writeJSON(w, http.StatusOK, out)
 }

@@ -45,6 +45,8 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		{"GET", "/api/v1/matrix?at=yesterday", e.token, "", 400},
 		{"GET", "/api/v1/inventory", e.token, "", 200},
 		{"GET", "/api/v1/hygiene", e.token, "", 200},
+		{"GET", "/api/v1/vulnerabilities?q=CVE-2021-44228&exploited=true", e.token, "", 200},
+		{"GET", "/api/v1/vulnerabilities?environment=nowhere", e.token, "", 404},
 		{"GET", "/api/v1/updates", e.token, "", 200},
 		{"GET", "/api/v1/inventory?format=csv", e.token, "", 200},
 		{"GET", "/api/v1/services", e.token, "", 200},

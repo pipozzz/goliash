@@ -280,6 +280,67 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/vulnerabilities:
+    get:
+      operationId: getVulnerabilities
+      summary: Known vulnerabilities of running images
+      description: |
+        Is a vulnerability running? From the SBOMs of running images and OSV: one finding per CVE (else advisory),
+        with every advisory naming it, whether CISA lists it as exploited in the wild, and the packages and
+        services it is in with the version that fixes each. `complete` is false while advisories or packages are
+        still being looked up: an empty answer then does not mean "not running". Only images with an SBOM are
+        covered (`images_with_sbom` of `images`).
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: 'A CVE or advisory ID, package or service; part of it matches' }
+        - { name: environment, in: query, schema: { type: string }, description: Only this environment }
+        - { name: exploited, in: query, schema: { type: boolean }, description: Only vulnerabilities exploited in the wild (CISA KEV) }
+      responses:
+        "200":
+          description: Findings, exploited first, then by severity.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [images, images_with_sbom, packages, complete, findings]
+                properties:
+                  images: { type: integer }
+                  images_with_sbom: { type: integer }
+                  packages: { type: integer }
+                  complete: { type: boolean }
+                  findings:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, advisories, aliases, fixable, affected]
+                      properties:
+                        id: { type: string, example: CVE-2021-44228 }
+                        advisories: { type: array, items: { type: string } }
+                        aliases: { type: array, items: { type: string } }
+                        summary: { type: string }
+                        severity: { type: string, example: critical }
+                        exploited:
+                          type: object
+                          required: [ransomware]
+                          properties:
+                            due_date: { type: string }
+                            date_added: { type: string }
+                            ransomware: { type: boolean }
+                        fixable: { type: boolean }
+                        affected:
+                          type: array
+                          items:
+                            type: object
+                            required: [service, environment, image, package]
+                            properties:
+                              service: { type: string }
+                              environment: { type: string }
+                              image: { type: string }
+                              package: { type: string, example: log4j-core 2.14.1 }
+                              fix: { type: string, example: 2.15.0 }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
   /api/v1/acks:
     post:
       operationId: createAck
