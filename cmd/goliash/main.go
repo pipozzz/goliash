@@ -472,6 +472,11 @@ func serve(ctx context.Context, args []string) error {
 	checker.SetGitLab(versions.NewGitLab(os.Getenv("GOLIASH_GITLAB_URL"), os.Getenv("GOLIASH_GITLAB_TOKEN")))
 	if *eol {
 		checker.SetEOL(versions.NewEOL())
+		// Known vulnerabilities of the packages in running images' SBOMs: osv.dev unless a mirror is named,
+		// or none with "off". Only package names and versions leave the server.
+		if osvURL := os.Getenv("GOLIASH_OSV_URL"); osvURL != "off" {
+			checker.SetOSV(versions.NewOSV(osvURL))
+		}
 	}
 	versions.SetAllowedRegistries(splitList(os.Getenv("GOLIASH_ALLOWED_REGISTRIES")))
 	svc.SetUpstreams(checker)

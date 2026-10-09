@@ -154,6 +154,27 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			</section>
 		}
+		<section class="panel">
+			<div class="panel-head"><h2>Is it running?</h2><span class="muted">{ "known vulnerabilities in " + v.Prod.Name + ", from the images' SBOMs and OSV" }</span></div>
+			<div class="panel-body stack">
+				<form class="row vuln-search" method="get" action="/security/vulns">
+					<label class="grow">
+						<span class="sr-only">Vulnerability, package or service</span>
+						<input name="q" placeholder="CVE-2024-3094, openssl, payments-api" required/>
+					</label>
+					<button type="submit">Check</button>
+				</form>
+				if v.Vulns.WithSBOM == 0 {
+					<p class="hint">No running image has an SBOM Goliash could read yet. Build with <code>docker buildx build --sbom=true</code> (official images have one) and Goliash reads it from the registry.</p>
+				} else {
+					<p>
+						<a href="/security/vulns"><strong>{ plural(len(v.Vulns.Findings), "known vulnerability", "known vulnerabilities") }</strong></a>
+						{ " in " + plural(v.Vulns.Packages, "package", "packages") + " of " }
+						{ itoa(v.Vulns.WithSBOM) } of { itoa(v.Vulns.Images) } images with an SBOM.
+					</p>
+				}
+			</div>
+		</section>
 		if v.Evidence.Images > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Supply-chain evidence</h2><span class="muted">{ "images running in " + v.Prod.Name + ": what their registry holds beside them" }</span></div>

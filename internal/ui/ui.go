@@ -141,6 +141,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /hygiene", s.page(v, s.hygiene))
 	mux.Handle("GET /security", s.page(v, s.security))
 	mux.Handle("GET /security.csv", s.page(v, s.securityCSV))
+	mux.Handle("GET /security/vulns", s.page(v, s.vulns))
 	mux.Handle("GET /updates", s.page(v, s.updates))
 	mux.Handle("GET /tiles", s.page(v, s.tiles))
 	mux.Handle("GET /apps", s.page(v, s.apps))

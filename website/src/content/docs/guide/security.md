@@ -45,6 +45,24 @@ these **exist**; it does not verify who signed them. Images on public registries
 most 40 per workspace and check, again after a week when something was found and after a day when nothing was.
 Images on private registries, and images without a known digest, count as *not checked*.
 
+## Is it running?
+
+**Security → Is it running?** answers "is CVE-2024-3094 in production?" in seconds, and lists every known
+vulnerability of the running images:
+
+1. For images whose registry holds an SBOM attestation (see above), Goliash reads its package list once: package URLs
+   such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`.
+2. It asks [OSV](https://osv.dev) which known vulnerabilities affect those packages, again every day, and reads
+   each advisory once for its CVE aliases, summary and severity.
+3. Search by CVE or advisory ID, package or service. A vulnerability shows once, under its CVE, with every advisory
+   that names it (`DEBIAN-CVE-…`, `DSA-…`, `GHSA-…`) and each package and service it is in.
+
+The answer covers only images with an SBOM Goliash could read, and the page says how many those are. While
+advisories are still being looked up it says so, and does not answer "not running".
+
+Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
+lookups at a mirror, or turns them off (`off`).
+
 ## How exposure is counted
 
 Exposure starts when the first release newer than the running one was **published** (GitHub or GitLab release

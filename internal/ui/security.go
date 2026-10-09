@@ -6,12 +6,14 @@ package ui
 import (
 	"encoding/csv"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -25,6 +27,7 @@ type SecurityView struct {
 	DigestOK bool // every target reports digests
 	Bases    []BaseRow
 	Evidence EvidenceSummary
+	Vulns    versions.VulnReport
 	NoDigest int // targets reporting no digest at all
 	At       time.Time
 }
@@ -60,6 +63,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	if v.Evidence, err = s.evidenceSummary(r, p, v.Prod.ID); err != nil {
+		return err
+	}
+	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
 		return err
 	}
 	if hints, err := s.digestHints(r.Context(), p.Scope); err == nil {
@@ -204,4 +210,109 @@ func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID strin
 	}
 	sort.Slice(out.Unsigned, func(i, j int) bool { return out.Unsigned[i].Image < out.Unsigned[j].Image })
 	return out, nil
+}
+
+// VulnsView is the answer to "is this vulnerability running?" and the list of known vulnerabilities.
+type VulnsView struct {
+	Base
+	versions.VulnReport
+	Query    string
+	All      bool // every environment, not only the last one
+	EnvName  string
+	Shown    []versions.VulnFinding
+	Hidden   int  // findings not shown (the list is long)
+	LooksCVE bool // the query is a vulnerability ID
+	Enabled  bool // vulnerability lookups are on
+}
+
+func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	envs, err := s.store.ListEnvironments(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	v := VulnsView{
+		Base: s.base(ctx, p, "security", "Vulnerabilities"), Query: strings.TrimSpace(r.URL.Query().Get("q")),
+		All: r.URL.Query().Get("env") == "all", Enabled: s.checker != nil && s.checker.OSVEnabled(),
+	}
+	envID := ""
+	for _, e := range envs {
+		if envID == "" || e.Position >= positionOf(envs, envID) {
+			envID, v.EnvName = e.ID, e.Name
+		}
+	}
+	if v.All {
+		envID = ""
+	}
+	if v.VulnReport, err = versions.LoadVulnReport(ctx, s.store, p.Scope, envID); err != nil {
+		return err
+	}
+	q := strings.ToUpper(v.Query)
+	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
+	for _, f := range v.Findings {
+		if q != "" && !findingMatches(f, q) {
+			continue
+		}
+		if len(v.Shown) >= 300 {
+			v.Hidden++
+			continue
+		}
+		v.Shown = append(v.Shown, f)
+	}
+	return render(w, r, VulnsPage(v))
+}
+
+func positionOf(envs []store.Environment, id string) int {
+	for _, e := range envs {
+		if e.ID == id {
+			return e.Position
+		}
+	}
+	return -1
+}
+
+// findingMatches reports whether a finding answers the query: a CVE or advisory ID, a package, a service.
+func findingMatches(f versions.VulnFinding, q string) bool {
+	if strings.Contains(strings.ToUpper(f.Key), q) {
+		return true
+	}
+	for _, id := range append(append([]string{}, f.IDs...), f.Aliases...) {
+		if strings.Contains(strings.ToUpper(id), q) {
+			return true
+		}
+	}
+	for _, a := range f.Affected {
+		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) {
+			return true
+		}
+	}
+	return false
+}
+
+// vulnURL links an advisory to osv.dev.
+func vulnURL(id string) string { return "https://osv.dev/vulnerability/" + id }
+
+// PackageUse is one package of a finding and where it runs.
+type PackageUse struct {
+	Package string
+	Where   []string // "service (env)"
+}
+
+// byPackage groups a finding's running images by package, each service once.
+func byPackage(f versions.VulnFinding) []PackageUse {
+	var out []PackageUse
+	index := map[string]int{}
+	for _, a := range f.Affected {
+		i, ok := index[a.Package]
+		if !ok {
+			i = len(out)
+			index[a.Package] = i
+			out = append(out, PackageUse{Package: a.Package})
+		}
+		w := a.Service + " (" + a.Env + ")"
+		if !slices.Contains(out[i].Where, w) {
+			out[i].Where = append(out[i].Where, w)
+		}
+	}
+	return out
 }

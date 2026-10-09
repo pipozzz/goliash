@@ -67,6 +67,7 @@ type Checker struct {
 	github *GitHub
 	gitlab *GitLab
 	eol    *EOL
+	osv    *OSV
 
 	driftMu sync.Mutex // one drift evaluation at a time
 }
@@ -115,6 +116,15 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		return
 	}
 	for _, ws := range workspaces {
+		// Signatures, SBOMs and vulnerabilities first: quick, and not held up by slow registries below.
+		if upstream {
+			if err := c.CheckEvidence(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.ErrorContext(ctx, "supply-chain evidence lookup failed", "workspace", ws.Slug, "err", err)
+			}
+			if err := c.CheckVulnerabilities(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.ErrorContext(ctx, "vulnerability lookup failed", "workspace", ws.Slug, "err", err)
+			}
+		}
 		// Every tick checks services seen for the first time; the full check runs on its interval.
 		if err := c.checkUpstreams(ctx, ws.Scope(), !upstream); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "upstream check failed", "workspace", ws.Slug, "err", err)
@@ -126,11 +136,6 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		}
 		if err := c.EvaluateDrift(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "drift evaluation failed", "workspace", ws.Slug, "err", err)
-		}
-		if upstream {
-			if err := c.CheckEvidence(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
-				c.log.ErrorContext(ctx, "supply-chain evidence lookup failed", "workspace", ws.Slug, "err", err)
-			}
 		}
 	}
 }

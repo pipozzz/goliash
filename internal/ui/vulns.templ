@@ -1,0 +1,114 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import "strings"
+
+// VulnsPage answers "is this vulnerability running?" and lists the known vulnerabilities of running images.
+templ VulnsPage(v VulnsView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p><a href="/security">Security</a> / vulnerabilities</p>
+				<h1>Known vulnerabilities</h1>
+				<p class="sub">{ "From the SBOMs of " + itoa(v.WithSBOM) + " of " + itoa(v.Images) + " running images" + inEnv(v) + ", looked up on OSV. Images without an SBOM are not covered." }</p>
+			</div>
+			<span class="noprint">
+				if v.All {
+					<a href={ templ.URL("/security/vulns?q=" + v.Query) }>{ "Only " + v.EnvName }</a>
+				} else {
+					<a href={ templ.URL("/security/vulns?env=all&q=" + v.Query) }>Every environment</a>
+				}
+			</span>
+		</div>
+		<form class="row vuln-search" method="get" action="/security/vulns">
+			if v.All {
+				<input type="hidden" name="env" value="all"/>
+			}
+			<label class="grow"><span class="sr-only">Vulnerability, package or service</span><input name="q" value={ v.Query } placeholder="CVE-2024-3094, openssl, payments-api"/></label>
+			<button type="submit">Check</button>
+		</form>
+		if !v.Enabled {
+			<div class="notice error">Vulnerability lookups are off on this server (GOLIASH_OSV_URL=off).</div>
+		}
+		if v.Pending > 0 || v.Unasked > 0 {
+			<div class="notice">{ "Still looking up " + plural(v.Pending, "advisory", "advisories") + " and " + plural(v.Unasked, "package", "packages") + " on OSV; until then a vulnerability may be listed under another ID, and an answer may be incomplete." }</div>
+		}
+		if v.Query != "" && len(v.Shown) == 0 {
+			<section class={ "panel", "answer", templ.KV("answer-ok", v.LooksCVE && v.Pending == 0 && v.Unasked == 0) }>
+				<div class="panel-body">
+					if v.LooksCVE && (v.Pending > 0 || v.Unasked > 0) {
+						<h2>{ strings.ToUpper(v.Query) } not found yet</h2>
+					} else if v.LooksCVE {
+						<h2>{ strings.ToUpper(v.Query) } is not running</h2>
+					} else {
+						<h2>Nothing matches { v.Query }</h2>
+					}
+					<p class="muted">{ "As far as the SBOMs of " + itoa(v.WithSBOM) + " of " + itoa(v.Images) + " running images" + inEnv(v) + " tell. " + plural(v.Images-v.WithSBOM, "image has", "images have") + " no SBOM Goliash could read." }</p>
+				</div>
+			</section>
+		} else if len(v.Shown) > 0 {
+			<section class="panel">
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Vulnerability</th><th>Severity</th><th>Running in</th></tr></thead>
+						<tbody>
+							for _, f := range v.Shown {
+								<tr>
+									<td>
+										<a class="mono" href={ templ.URL(vulnURL(f.IDs[0])) } target="_blank" rel="noopener noreferrer"><strong>{ f.Key }</strong></a>
+										if f.Summary != "" {
+											<div class="targets">{ f.Summary }</div>
+										}
+										if len(f.IDs) > 1 || f.IDs[0] != f.Key {
+											<div class="targets mono">{ strings.Join(f.IDs, ", ") }</div>
+										}
+										if len(f.Aliases) > 1 {
+											<div class="targets mono">{ "also " + strings.Join(f.Aliases, ", ") }</div>
+										}
+									</td>
+									<td>
+										if f.Severity != "" {
+											<span class={ "badge", severityClass(f.Severity) }>{ strings.ToLower(f.Severity) }</span>
+										} else {
+											<span class="muted">—</span>
+										}
+									</td>
+									<td>
+										for _, u := range byPackage(f) {
+											<div class="vuln-use">
+												<span class="mono">{ u.Package }</span>
+												<div class="targets">{ strings.Join(u.Where, ", ") }</div>
+											</div>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				if v.Hidden > 0 {
+					<p class="hint panel-note">{ plural(v.Hidden, "more vulnerability", "more vulnerabilities") } not shown; search to narrow the list.</p>
+				}
+			</section>
+		}
+	}
+}
+
+func severityClass(s string) string {
+	switch strings.ToUpper(s) {
+	case "CRITICAL", "HIGH":
+		return "eol"
+	case "MODERATE", "MEDIUM":
+		return "env"
+	}
+	return "neutral"
+}
+
+func inEnv(v VulnsView) string {
+	if v.All {
+		return ""
+	}
+	return " in " + v.EnvName
+}
