@@ -1,0 +1,48 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// NewServicePage adds a service by hand: software watched for its releases, and optionally running
+// somewhere Goliash does not collect.
+templ NewServicePage(v NewServiceView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Add a service by hand</h1>
+				<p class="sub">For software Goliash does not collect: a database on a virtual machine, a managed service, a tool you are about to deploy. Goliash checks its releases and end of life like any other.</p>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-body">
+				<form class="stack" method="post" action="/services/new">
+					<div class="row">
+						<label>Name<input name="name" required maxlength="100" value={ v.Form.Get("name") } placeholder="postgres-billing"/></label>
+						<label>Owner<input name="owner" maxlength="100" value={ v.Form.Get("owner") } placeholder="team-payments"/></label>
+					</div>
+					<label>
+						Image repository its releases are read from
+						<input name="upstream" required maxlength="300" value={ v.Form.Get("upstream") } placeholder="docker.io/library/postgres"/>
+						<span class="hint">Version tags of this image tell Goliash about new releases; the catalog adds release notes and end of life for popular software.</span>
+					</label>
+					<fieldset class="stack">
+						<legend>Where it runs <span class="muted">(optional; leave empty to only watch its releases)</span></legend>
+						<div class="row">
+							<label>
+								Environment
+								<select name="env">
+									for _, e := range v.Envs {
+										<option selected?={ v.Form.Get("env") == e }>{ e }</option>
+									}
+								</select>
+							</label>
+							<label>Where<input name="where" maxlength="100" value={ v.Form.Get("where") } placeholder="db-vm-1"/></label>
+							<label>Version<input name="version" maxlength="128" value={ v.Form.Get("version") } placeholder="16.4"/></label>
+						</div>
+					</fieldset>
+					<div><button type="submit">Add</button></div>
+				</form>
+			</div>
+		</section>
+	}
+}

@@ -66,6 +66,7 @@ type Server struct {
 	smtp        bool
 	pushSubject string
 	version     string
+	snapshots   SnapshotSink
 
 	favMu    sync.Mutex
 	favicons map[string]cachedFavicon // per workspace
@@ -85,6 +86,8 @@ type Options struct {
 	// PushSubject is who web pushes come from; empty when the server has no https
 	// address or mail sender to give, and Apple's push service refuses them.
 	PushSubject string
+	// Snapshots processes the versions people enter by hand like collected ones.
+	Snapshots SnapshotSink
 }
 
 // siteDescription is what link previews say about any page.
@@ -100,6 +103,7 @@ func New(o Options) *Server {
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version,
+		snapshots: o.Snapshots,
 	}
 }
 
@@ -125,6 +129,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/stream", s.page(v, s.stream))
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
+	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
+	mux.Handle("GET /services/new", s.page(m, s.newService))
+	mux.Handle("POST /services/new", s.page(m, s.createService))
 	mux.Handle("POST /services/{name}/ack", s.page(m, s.ack))
 	mux.Handle("POST /services/{name}/check", s.page(m, s.checkNow))
 	mux.Handle("GET /events", s.page(v, s.events))
@@ -544,6 +551,14 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
 	if v.Split, err = s.splitApps(ctx, p.Scope, svc); err != nil {
+		return err
+	}
+	envName := map[string]string{}
+	for _, e := range o.Matrix.Environments {
+		envName[e.ID] = e.Name
+		v.EnvNames = append(v.EnvNames, e.Name)
+	}
+	if v.Manual, err = s.manualEntries(ctx, p.Scope, svc, envName); err != nil {
 		return err
 	}
 	pol, src, _ := versions.PolicyFor(svc, ref.Repo)

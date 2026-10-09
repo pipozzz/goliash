@@ -58,6 +58,9 @@ templ MatrixPage(v MatrixView) {
 						Image hygiene <span class="count">{ itoa(v.Hygiene) }</span>
 					</a>
 				}
+				if v.CanMember {
+					<a href="/services/new" class="toolbar-link" title="Software Goliash does not collect: a VM, a managed service">Add by hand</a>
+				}
 				<a href={ templ.URL(exportURL(v.At)) } hx-boost="false" class="toolbar-link">Export CSV</a>
 				<details class="menu timetravel" open?={ v.At != "" }>
 					<summary>Time travel</summary>

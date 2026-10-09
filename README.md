@@ -66,6 +66,9 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
 - **Notifications with less noise.** Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, webhooks (signed), e-mail, browser push and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze, and a scheduled upgrade plan.
+- **Software outside containers too.** Add a database on a VM or a managed service by hand, with where it runs and
+  its version: it counts in the matrix, updates, end of life and the security posture. Or only watch a tool's
+  releases.
 - **Security posture for whoever answers for the risk.** How long production has run behind an available release
   (median, 90th percentile, 30+ and 90+ days), what is past its end of life, accepted risk, supply-chain findings and
   blind spots, with a CSV and a PDF for risk registers and audits (NIS2, DORA, SOC 2, ISO 27001).

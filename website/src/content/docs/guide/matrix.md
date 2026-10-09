@@ -167,6 +167,19 @@ rules and acknowledgements; its history stays. Admins rename and reorder environ
 once no target belongs to it. **Edit** on a target changes its environment, settings and poll interval; its
 collector picks the change up with the next configuration poll.
 
+## Software Goliash does not collect
+
+A database on a virtual machine, a managed service, an appliance, or a tool you are about to deploy: **Add by hand**
+on the matrix (members) takes a name, the image repository its releases are read from (for example
+`docker.io/library/postgres`) and, optionally, where it runs: an environment, a place (`db-vm-1`) and a version.
+
+- **With a version** it runs on a *manual* target named after the place, and counts like anything collected: the
+  matrix, drift, the Updates page, end of life, the [security posture](../security/) and notifications. On the
+  service page, *Runs outside Goliash* lists the entries; enter a new version under the same place to record an
+  upgrade, or remove it. Manual targets never go stale and are never given to an agent.
+- **Without a version** it is watched: Goliash checks its releases, notifies `new_release` and lists it under
+  *Watching* on the Updates page.
+
 ## How workloads map to services
 
 Each running workload goes through these steps, and the first match wins:

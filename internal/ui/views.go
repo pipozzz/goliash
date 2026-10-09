@@ -452,6 +452,10 @@ type ServiceView struct {
 	// Split lists the applications the service's workloads belong to, when more than
 	// one, with the name each would get as a service of its own.
 	Split []SplitApp
+	// Manual lists where people entered that the service runs outside Goliash, and EnvNames the
+	// environments to choose from.
+	Manual   []ManualEntry
+	EnvNames []string
 }
 
 // SplitApp is one application of a service that runs in several.

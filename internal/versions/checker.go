@@ -172,6 +172,10 @@ func (c *Checker) load(ctx context.Context, sc store.Scope) (workspaceState, err
 	st.byID = map[string]store.Service{}
 	for _, s := range st.services {
 		st.byID[s.ID] = s
+		// A service watched for its releases, running nowhere Goliash knows: check its upstream all the same.
+		if _, ok := st.refs[s.ID]; !ok && s.Upstream != "" {
+			st.refs[s.ID] = Reference{Repo: s.Upstream}
+		}
 	}
 	return st, nil
 }
@@ -303,6 +307,9 @@ func (c *Checker) listTags(ctx context.Context, repo string) ([]string, error) {
 		return e.tags, e.err
 	}
 	c.mu.Unlock()
+	if c.tags == nil {
+		return nil, errors.New("no registry client")
+	}
 	tags, err := c.tags.ListTags(ctx, repo, registry.Credentials{})
 	if ctx.Err() != nil {
 		return nil, ctx.Err()

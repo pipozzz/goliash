@@ -91,6 +91,37 @@ templ UpdatesPage(v UpdatesView) {
 				</div>
 			}
 		</section>
+		if len(v.Watched) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Watching</h2><span class="muted">releases of software that runs nowhere Goliash knows</span></div>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Service</th><th>Newest release</th><th>Published</th></tr></thead>
+						<tbody>
+							for _, w := range v.Watched {
+								<tr>
+									<td><a href={ templ.URL(serviceURL(w.Service)) }><strong>{ w.Service }</strong></a><div class="targets">{ w.Upstream }</div></td>
+									<td class="mono">
+										if w.URL != "" {
+											<a href={ templ.URL(w.URL) } target="_blank" rel="noopener noreferrer">{ w.Latest }</a>
+										} else {
+											{ orDash(w.Latest) }
+										}
+									</td>
+									<td>
+										if !w.Published.IsZero() {
+											@timeAgo(w.Published)
+										} else {
+											<span class="muted">—</span>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		if len(v.Acked) > 0 {
 			<details class="panel acked">
 				<summary class="panel-head"><h2>Acknowledged</h2><span class="muted">{ plural(len(v.Acked), "update", "updates") } put off on purpose</span></summary>

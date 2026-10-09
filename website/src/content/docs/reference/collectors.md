@@ -14,6 +14,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
 | Compose files | services and images declared in Compose files | an HTTP(S) URL, or for an agent a file in `GOLIASH_COMPOSE_DIRS` | `credentials_ref` → bearer token for the URL |
+| Manual | versions people enter on a service page (**Add by hand**), for software Goliash does not collect | nothing: never collected, never stale | none |
 
 ## Target settings
 

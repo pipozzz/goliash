@@ -253,7 +253,10 @@ components:
 
     Platform:
       type: string
-      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda]
+      description: >-
+        manual is a target whose versions people enter on the server, for software Goliash does not collect
+        (a virtual machine, a managed service); it is never assigned to an agent.
+      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, manual]
 
     RegisterRequest:
       type: object
@@ -638,7 +641,7 @@ components:
 
     WorkloadKind:
       type: string
-      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function]
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, manual_entry]
 
     Workload:
       type: object

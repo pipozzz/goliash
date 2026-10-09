@@ -37,7 +37,7 @@ type Overview struct {
 // sending heartbeats, or its last snapshot is older than three poll intervals
 // (at least 15 minutes).
 func StaleTarget(t store.Target, agentStale bool, now time.Time) bool {
-	if t.LastSnapshotAt.IsZero() {
+	if t.LastSnapshotAt.IsZero() || Manual(t.Platform) {
 		return false
 	}
 	limit := 3 * time.Duration(t.PollIntervalSeconds) * time.Second
