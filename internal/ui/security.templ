@@ -1,0 +1,186 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import (
+	"strings"
+	"time"
+)
+
+// SecurityPage is the security posture: patch latency, end of life, supply-chain findings and blind spots.
+templ SecurityPage(v SecurityView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Security posture</h1>
+				<p class="sub">How long { orDash(v.Prod.Name) } runs behind available releases, what is past its end of life, and where Goliash cannot see. Counted from when the first newer release came out; for risk registers and audits.</p>
+			</div>
+			<div class="actions noprint">
+				<a class="button secondary" href="/security.csv" hx-boost="false">Export CSV</a>
+				<button class="secondary" type="button" data-print>Print or save as PDF</button>
+			</div>
+		</div>
+		<div class="tiles">
+			<div class={ "tile", templ.KV("warn", v.ProdMedian > 30) }>
+				<strong>{ days(v.ProdMedian) }</strong>
+				<span>Median exposure</span>
+				<small>{ "90th percentile " + days(v.ProdP90) + ", in " + v.Prod.Name }</small>
+			</div>
+			<div class={ "tile", templ.KV("warn", v.Prod30 > 0) }>
+				<strong>{ itoa(v.Prod30) }</strong>
+				<span>Behind for 30+ days</span>
+				<small>{ itoa(v.Prod90) } of them 90+ days</small>
+			</div>
+			<div class={ "tile", templ.KV("warn", v.EOLPassed > 0) }>
+				<strong>{ itoa(v.EOLPassed) }</strong>
+				<span>Past end of life</span>
+				<small>{ itoa(v.EOLSoon) } more within 60 days</small>
+			</div>
+			<div class="tile">
+				<strong>{ itoa(v.Accepted) }</strong>
+				<span>Accepted risk</span>
+				<small>acknowledged in Goliash, with who and until when</small>
+			</div>
+			<div class={ "tile", templ.KV("warn", len(v.Stale) > 0 || !v.DigestOK) }>
+				<strong>{ itoa(len(v.Stale) + len(v.NoUpstream) + v.NoDigest) }</strong>
+				<span>Blind spots</span>
+				<small>stale targets, targets without digests, services without a known upstream</small>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-head">
+				<h2>
+					if v.All {
+						Exposure in every environment
+					} else {
+						{ "Exposure in " + v.Prod.Name }
+					}
+				</h2>
+				<span class="noprint">
+					if v.All {
+						<a href="/security">{ "Only " + v.Prod.Name }</a>
+					} else {
+						<a href="/security?env=all">Every environment</a>
+					}
+				</span>
+			</div>
+			if len(v.Exposures) == 0 {
+				<div class="empty">Nothing runs behind a newer release{ " " }{ "in " + v.Prod.Name }.</div>
+			} else {
+				<div class="scroll">
+					<table>
+						<thead><tr><th>Service</th><th>Running</th><th>Fix</th><th>Exposed</th><th>Why</th></tr></thead>
+						<tbody>
+							for _, ex := range v.Exposures {
+								<tr>
+									<td>
+										<a href={ templ.URL(serviceURL(ex.Service.Name)) }><strong>{ ex.Service.Name }</strong></a>
+										if ex.App != "" {
+											<div class="targets">{ ex.App }</div>
+										}
+										if v.All {
+											<div class="targets">{ ex.Environment.Name }</div>
+										}
+									</td>
+									<td class="mono">
+										{ ex.Running }
+										if len(ex.On) > 0 {
+											<div class="targets">{ "on " + strings.Join(ex.On, ", ") }</div>
+										}
+									</td>
+									<td class="mono">
+										if ex.TargetURL != "" {
+											<a href={ templ.URL(ex.TargetURL) } target="_blank" rel="noopener noreferrer">{ ex.Target }</a>
+										} else {
+											{ orDash(ex.Target) }
+										}
+									</td>
+									<td>
+										if ex.Known {
+											<span class={ "badge", exposureClass(ex) }>{ days(ex.Days) }</span>
+											<div class="targets">since { ex.BehindSince.UTC().Format("2006-01-02") }</div>
+										} else {
+											<span class={ "badge", exposureClass(ex) } title="The release date is unknown; counted from when Goliash first saw the newer release">{ "≥ " + days(ex.Days) }</span>
+											<div class="targets">seen { ex.BehindSince.UTC().Format("2006-01-02") }</div>
+										}
+									</td>
+									<td>
+										<div class="badges">
+											if ex.EOL != "" {
+												if ex.EOLPassed {
+													<span class="badge eol">end of life { ex.EOL }</span>
+												} else {
+													<span class="badge eol">EOL { ex.EOL }</span>
+												}
+											}
+											if ex.Jump != "" {
+												<span class="badge upstream">{ string(ex.Jump) }</span>
+											}
+											if ex.Acked {
+												<span class="badge neutral">accepted</span>
+											}
+										</div>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		<div class="grid-2">
+			<section class="panel">
+				<div class="panel-head"><h2>Supply chain</h2><span class="muted">what runs, as images</span></div>
+				<div class="scroll">
+					<table>
+						<tbody>
+							@postureRow("Moving tags", "latest, stable: the version cannot be known", v.Hygiene["moving-tag"], "/hygiene?kind=moving-tag", true)
+							@postureRow("Tags pushed again", "one tag running as different images", v.Hygiene["retagged"], "/hygiene?kind=retagged", true)
+							@postureRow("Untrusted registries", "outside GOLIASH_ALLOWED_REGISTRIES", v.Hygiene["untrusted-registry"], "/hygiene?kind=untrusted-registry", true)
+							@postureRow("Digest unknown", "a tag pushed again would go unnoticed", v.Hygiene["unpinned"], "/hygiene?kind=unpinned", false)
+						</tbody>
+					</table>
+				</div>
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>Blind spots</h2><span class="muted">where the numbers above may be incomplete</span></div>
+				<div class="panel-body stack">
+					if len(v.Stale) == 0 {
+						<p>Every target reported recently.</p>
+					} else {
+						<p><strong>{ itoa(len(v.Stale)) } stale targets:</strong> { strings.Join(v.Stale, ", ") }. Their last known state counts.</p>
+					}
+					if len(v.NoUpstream) == 0 {
+						<p>{ "The newest release is known for every service in " + v.Prod.Name + "." }</p>
+					} else {
+						<p><strong>{ itoa(len(v.NoUpstream)) } of { itoa(v.ProdRunning) } services</strong> have no known upstream release, so their exposure is not measured: { strings.Join(v.NoUpstream, ", ") }.</p>
+					}
+					if !v.DigestOK {
+						<p><strong>{ itoa(v.NoDigest) } targets</strong> report no image digests, so a tag pushed again would go unnoticed there; <a href="/hygiene?kind=unpinned">see why</a>.</p>
+					}
+				</div>
+			</section>
+		</div>
+		<p class="muted print-only">{ "Generated " + v.At.UTC().Format("2006-01-02 15:04 UTC") + " for " + v.Workspace + " by Goliash." }</p>
+	}
+}
+
+templ postureRow(label, help string, n int, href string, warn bool) {
+	<tr>
+		<td><a href={ templ.URL(href) }>{ label }</a><div class="targets">{ help }</div></td>
+		<td class="num">
+			<span class={ "badge", templ.KV("env", warn && n > 0), templ.KV("neutral", !warn || n == 0) }>{ itoa(n) }</span>
+		</td>
+	</tr>
+}
+
+// days is a number of days as people read it.
+func days(n int) string {
+	if n == 1 {
+		return "1 day"
+	}
+	return itoa(n) + " days"
+}
+
+var _ = time.Now

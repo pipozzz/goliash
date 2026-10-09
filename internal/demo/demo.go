@@ -266,7 +266,48 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	if err := checker.EvaluateDrift(ctx, sc); err != nil {
 		return err
 	}
+	if err := backdateReleases(ctx, st, sc); err != nil {
+		return err
+	}
 	return backdateDrift(ctx, st, sc)
+}
+
+// backdateReleases gives the example releases publication dates, newest a few days ago and each older one
+// about a month before the next, so the security page measures exposure as it would for real releases.
+func backdateReleases(ctx context.Context, st *store.Store, sc store.Scope) error {
+	services, err := st.ListServices(ctx, sc)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, svc := range services {
+		rels, err := st.ListReleases(ctx, sc, svc.ID)
+		if err != nil {
+			return err
+		}
+		var vs []versions.Version
+		byVersion := map[string]store.Release{}
+		for _, r := range rels {
+			if v, ok := versions.ParseVersion(r.Version); ok {
+				vs = append(vs, v)
+				byVersion[v.Raw] = r
+			}
+		}
+		sort.Slice(vs, func(i, j int) bool { return vs[i].Compare(vs[j]) > 0 })
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(svc.Name))
+		at := now.Add(-time.Duration(3+h.Sum32()%12) * 24 * time.Hour)
+		for _, v := range vs {
+			r := byVersion[v.Raw]
+			if r.PublishedAt.IsZero() {
+				if err := st.SetReleaseInfo(ctx, sc, svc.ID, r.Version, at, r.ChangelogURL); err != nil {
+					return err
+				}
+			}
+			at = at.Add(-time.Duration(20+h.Sum32()%25) * 24 * time.Hour)
+		}
+	}
+	return nil
 }
 
 // backdateDrift spreads the example drift over the three demo weeks, as if it had

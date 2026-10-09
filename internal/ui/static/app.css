@@ -208,6 +208,7 @@ details[open] > summary { margin-bottom: 12px; }
 .report-stats span { color: var(--muted); font-size: 12.5px; }
 @media print {
   header.top, .noprint, .flash { display: none !important; }
+  .print-only { display: block !important; }
   body { background: #fff; }
   .panel { box-shadow: none; break-inside: avoid; border-color: #ddd; }
   a { color: inherit; text-decoration: none; }
@@ -856,3 +857,4 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .integration .install-cmd { white-space: pre; overflow-x: auto; }
 /* Service page: an environment running several versions spans several rows. */
 tr.same-env td { border-top: 1px dashed var(--line); }
+.print-only { display: none; }
