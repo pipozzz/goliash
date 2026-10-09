@@ -7,14 +7,19 @@ package ecr
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
+
+	"github.com/pipozzz/goliash/internal/registry"
 )
 
 // host is a private ECR registry: <account>.dkr.ecr[-fips].<region>.amazonaws.com[.cn].
@@ -33,6 +38,7 @@ func Parse(repository string) (account, region, name string, ok bool) {
 // API is the part of the ECR client the lister uses.
 type API interface {
 	ListImages(ctx context.Context, in *ecr.ListImagesInput, opts ...func(*ecr.Options)) (*ecr.ListImagesOutput, error)
+	GetAuthorizationToken(ctx context.Context, in *ecr.GetAuthorizationTokenInput, opts ...func(*ecr.Options)) (*ecr.GetAuthorizationTokenOutput, error)
 }
 
 // Lister lists tags of ECR repositories, with one client per region and AWS profile.
@@ -42,6 +48,13 @@ type Lister struct {
 
 	mu      sync.Mutex
 	clients map[string]API
+	tokens  map[string]token // per region and profile
+	now     func() time.Time
+}
+
+type token struct {
+	creds   registry.Credentials
+	expires time.Time
 }
 
 // New returns a Lister using the AWS default credential chain (environment, shared
@@ -117,4 +130,55 @@ func (l *Lister) client(ctx context.Context, region, profile string) (API, error
 	}
 	l.clients[key] = c
 	return c, nil
+}
+
+// Credentials returns registry credentials for an ECR repository (user AWS and a token valid for 12 hours),
+// so manifests, signatures and attestations can be read with the Distribution API. Tokens are reused until
+// shortly before they expire.
+func (l *Lister) Credentials(ctx context.Context, repository, profile string) (registry.Credentials, error) {
+	_, region, _, ok := Parse(repository)
+	if !ok {
+		return registry.Credentials{}, fmt.Errorf("%s is not an ECR repository", repository)
+	}
+	now := time.Now()
+	if l.now != nil {
+		now = l.now()
+	}
+	key := region + "|" + profile // a token reaches every registry the identity may read
+	l.mu.Lock()
+	t, cached := l.tokens[key]
+	l.mu.Unlock()
+	if cached && now.Before(t.expires.Add(-10*time.Minute)) {
+		return t.creds, nil
+	}
+	api, err := l.client(ctx, region, profile)
+	if err != nil {
+		return registry.Credentials{}, err
+	}
+	out, err := api.GetAuthorizationToken(ctx, &ecr.GetAuthorizationTokenInput{})
+	if err != nil {
+		return registry.Credentials{}, fmt.Errorf("ecr GetAuthorizationToken: %w", err)
+	}
+	if len(out.AuthorizationData) == 0 || out.AuthorizationData[0].AuthorizationToken == nil {
+		return registry.Credentials{}, fmt.Errorf("ecr GetAuthorizationToken: no token")
+	}
+	raw, err := base64.StdEncoding.DecodeString(aws.ToString(out.AuthorizationData[0].AuthorizationToken))
+	if err != nil {
+		return registry.Credentials{}, fmt.Errorf("ecr token: %w", err)
+	}
+	user, pass, ok := strings.Cut(string(raw), ":")
+	if !ok {
+		return registry.Credentials{}, fmt.Errorf("ecr token: not user:password")
+	}
+	t = token{creds: registry.Credentials{Username: user, Password: pass}, expires: now.Add(time.Hour)}
+	if e := out.AuthorizationData[0].ExpiresAt; e != nil {
+		t.expires = *e
+	}
+	l.mu.Lock()
+	if l.tokens == nil {
+		l.tokens = map[string]token{}
+	}
+	l.tokens[key] = t
+	l.mu.Unlock()
+	return t.creds, nil
 }

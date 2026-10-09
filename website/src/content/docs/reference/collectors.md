@@ -88,7 +88,9 @@ Credentials never leave the agent.
 - **Distribution API registries** (Harbor, GitLab, Artifactory, Nexus, GHCR, Docker Hub, …): `user:password`, or a
   token.
 - **Amazon ECR** (`<account>.dkr.ecr.<region>.amazonaws.com`): the agent uses the ECR API with its AWS credentials
-  and needs IAM `ecr:ListImages`. The default chain is used: IRSA, an ECS task role, an instance profile or the
+  and needs IAM `ecr:ListImages`; with `ecr:GetAuthorizationToken`, `ecr:BatchGetImage` and
+  `ecr:GetDownloadUrlForLayer` it also reads the exact version behind moving tags, and the signatures, attestations
+  and SBOMs of running images. The default chain is used: IRSA, an ECS task role, an instance profile or the
   environment. A credential, if set, names an AWS profile.
 
 ## Linux servers

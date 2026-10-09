@@ -1,7 +1,8 @@
 # ECS
 
 Terraform module [`goliash-agent`](goliash-agent): the agent as a Fargate service whose task role may only call
-`ecs:List*`, `ecs:Describe*` and `ecr:ListImages` (tags of private ECR repositories).
+`ecs:List*`, `ecs:Describe*`, `ecr:ListImages` (tags of private ECR repositories) and `ecr:GetAuthorizationToken`,
+`ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` (signatures, attestations and SBOMs of running images).
 
 ```hcl
 module "goliash_agent" {

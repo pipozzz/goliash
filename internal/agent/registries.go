@@ -132,7 +132,15 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if _, _, _, ok := ecr.Parse(c.Repository); ok {
 		tags, err := a.opts.ECR.ListTags(ctx, c.Repository, strings.TrimSpace(secret))
-		return tags, none, err
+		creds := none
+		if auth, ok := a.opts.ECR.(ECRAuth); ok && err == nil && (len(c.Resolve) > 0 || len(c.Inspect) > 0) {
+			// A token for reading manifests: needs ecr:GetAuthorizationToken and ecr:BatchGetImage.
+			if creds, err = auth.Credentials(ctx, c.Repository, strings.TrimSpace(secret)); err != nil {
+				a.log.Warn("no ECR token; digests and attestations of this repository are not read", "repository", c.Repository, "err", err)
+				creds, err = none, nil
+			}
+		}
+		return tags, creds, err
 	}
 	if secret != "" {
 		creds := registry.ParseCredentials(secret)
@@ -189,8 +197,8 @@ func (a *Agent) resolveDigests(ctx context.Context, c agentproto.RegistryCheck, 
 	if !ok || len(c.Resolve) == 0 {
 		return nil
 	}
-	if _, _, _, isECR := ecr.Parse(c.Repository); isECR {
-		return nil
+	if _, _, _, isECR := ecr.Parse(c.Repository); isECR && creds.Password == "" {
+		return nil // no ECR token
 	}
 	out := make([]agentproto.DigestMatch, 0, len(c.Resolve))
 	for _, l := range c.Resolve {
@@ -233,8 +241,8 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 	if !ok || len(c.Inspect) == 0 {
 		return nil
 	}
-	if _, _, _, isECR := ecr.Parse(c.Repository); isECR {
-		return nil // ECR is read through the AWS API, which does not serve these
+	if _, _, _, isECR := ecr.Parse(c.Repository); isECR && creds.Password == "" {
+		return nil // no ECR token
 	}
 	out := make([]agentproto.ImageInspection, 0, len(c.Inspect))
 	for _, digest := range c.Inspect {

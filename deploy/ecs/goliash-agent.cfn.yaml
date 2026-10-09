@@ -108,9 +108,10 @@ Resources:
                 Effect: Allow
                 Action: ["ecs:List*", "ecs:Describe*"]
                 Resource: "*"
-              - Sid: ListEcrTags
+              - Sid: ReadEcrImages
                 Effect: Allow
-                Action: ["ecr:ListImages"]
+                # Tags, and the manifests, signatures, attestations and SBOMs of running images.
+                Action: ["ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
                 Resource: "*"
               - !If
                 - Lambda

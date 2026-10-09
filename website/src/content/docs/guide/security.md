@@ -45,7 +45,9 @@ these **exist**; it does not verify who signed them. Images on public registries
 most 40 per workspace and check, again after a week when something was found and after a day when nothing was.
 Images on private registries are looked up by the agents, with the credentials they already use for private tags
 (up to 20 digests per repository and round), and they send the packages of the SBOM along; this needs agent 1.27 or
-newer. Images on Amazon ECR, and images without a known digest, count as *not checked*.
+newer. Images on Amazon ECR need the agent's role to have `ecr:GetAuthorizationToken`, `ecr:BatchGetImage` and
+`ecr:GetDownloadUrlForLayer` (the CloudFormation and Terraform setups include them). Images without a known
+digest count as *not checked*.
 
 ## Is it running?
 

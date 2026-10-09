@@ -5,8 +5,10 @@ package ecr
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
@@ -32,10 +34,19 @@ func TestParse(t *testing.T) {
 }
 
 type fakeECR struct {
-	pages [][]string
-	calls int
-	err   error
-	got   []*ecr.ListImagesInput
+	pages      [][]string
+	calls      int
+	err        error
+	got        []*ecr.ListImagesInput
+	tokenCalls int
+}
+
+func (f *fakeECR) GetAuthorizationToken(context.Context, *ecr.GetAuthorizationTokenInput, ...func(*ecr.Options)) (*ecr.GetAuthorizationTokenOutput, error) {
+	f.tokenCalls++
+	expires := time.Date(2026, 10, 9, 22, 0, 0, 0, time.UTC)
+	return &ecr.GetAuthorizationTokenOutput{AuthorizationData: []types.AuthorizationData{{
+		AuthorizationToken: aws.String(base64.StdEncoding.EncodeToString([]byte("AWS:tok3n"))), ExpiresAt: &expires,
+	}}}, nil
 }
 
 func (f *fakeECR) ListImages(_ context.Context, in *ecr.ListImagesInput, _ ...func(*ecr.Options)) (*ecr.ListImagesOutput, error) {
@@ -92,5 +103,28 @@ func TestListTags(t *testing.T) {
 	}
 	if _, err := l.ListTags(context.Background(), "ghcr.io/acme/app", ""); err == nil {
 		t.Fatal("non-ECR accepted")
+	}
+}
+
+func TestCredentials(t *testing.T) {
+	fake := &fakeECR{}
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	l := &Lister{NewAPI: func(context.Context, string, string) (API, error) { return fake, nil }, now: func() time.Time { return now }}
+	repo := "123456789012.dkr.ecr.eu-west-1.amazonaws.com/team/payments"
+	c, err := l.Credentials(context.Background(), repo, "")
+	if err != nil || c.Username != "AWS" || c.Password != "tok3n" {
+		t.Fatalf("credentials %+v %v", c, err)
+	}
+	_, _ = l.Credentials(context.Background(), repo, "")
+	if fake.tokenCalls != 1 {
+		t.Fatalf("token fetched %d times while valid", fake.tokenCalls)
+	}
+	now = time.Date(2026, 10, 9, 21, 55, 0, 0, time.UTC) // within ten minutes of expiry
+	_, _ = l.Credentials(context.Background(), repo, "")
+	if fake.tokenCalls != 2 {
+		t.Fatalf("token not renewed before expiry: %d", fake.tokenCalls)
+	}
+	if _, err := l.Credentials(context.Background(), "ghcr.io/acme/x", ""); err == nil {
+		t.Error("credentials for a non-ECR repository")
 	}
 }

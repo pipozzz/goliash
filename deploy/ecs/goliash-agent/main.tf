@@ -46,8 +46,9 @@ data "aws_iam_policy_document" "read_ecs" {
     resources = ["*"]
   }
   statement {
-    sid       = "ListEcrTags"
-    actions   = ["ecr:ListImages"]
+    sid = "ReadEcrImages"
+    # Tags, and the manifests, signatures, attestations and SBOMs of running images.
+    actions   = ["ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
     resources = ["*"]
   }
   dynamic "statement" {

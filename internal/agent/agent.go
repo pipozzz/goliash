@@ -61,6 +61,12 @@ type ECRLister interface {
 	ListTags(ctx context.Context, repository, profile string) ([]string, error)
 }
 
+// ECRAuth gives registry credentials for an ECR repository, so its manifests, signatures and attestations
+// can be read with the Distribution API. ecr.Lister implements it.
+type ECRAuth interface {
+	Credentials(ctx context.Context, repository, profile string) (registry.Credentials, error)
+}
+
 // Agent registers with the server, follows its configuration, runs a collector per
 // target and ships snapshots and heartbeats.
 type Agent struct {
