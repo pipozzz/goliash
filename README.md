@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <strong>What runs where, on which version, in which environment — across Kubernetes, ECS, Nomad, Docker Swarm and plain Docker.</strong>
+  <strong>What runs where, on which version, in which environment — across Kubernetes, ECS, Lambda, Nomad, Docker Swarm, plain Docker and Linux servers.</strong>
 </p>
 
 <p align="center">

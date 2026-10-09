@@ -2638,7 +2638,7 @@ func (s *Server) digestHints(ctx context.Context, sc store.Scope) ([]DigestHint,
 	}
 	var out []DigestHint
 	for _, t := range targets {
-		if len(images[t.ID]) == 0 || digests[t.ID] > 0 {
+		if len(images[t.ID]) == 0 || digests[t.ID] > 0 || versions.Manual(t.Platform) || versions.Packaged(t.Platform) {
 			continue
 		}
 		advice := digestAdvice[t.Platform]

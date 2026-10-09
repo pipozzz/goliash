@@ -133,7 +133,7 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	}
 	for _, t := range targets {
 		targetName[t.ID] = t.Name
-		declared[t.ID] = Declared(t.Platform) || Manual(t.Platform)
+		declared[t.ID] = Declared(t.Platform) || Manual(t.Platform) || Packaged(t.Platform)
 	}
 	running := active[:0]
 	for _, i := range active {

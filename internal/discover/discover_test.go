@@ -172,3 +172,30 @@ func TestAWS(t *testing.T) {
 		t.Fatalf("filtered: %s %v", got, f.asked)
 	}
 }
+
+func TestHost(t *testing.T) {
+	o := opts(map[string]string{"GOLIASH_HOST_ROOT": "/host"})
+	files := map[string]string{"/host/etc/hostname": "db-vm-1\n", "/host/etc/machine-id": "abc123\n"}
+	o.Exists = func(p string) bool { return p == "/host/etc/os-release" }
+	o.ReadFile = func(p string) ([]byte, error) {
+		if b, ok := files[p]; ok {
+			return []byte(b), nil
+		}
+		return nil, errors.New("no " + p)
+	}
+	r, err := Run(context.Background(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Identity != "host:abc123" || r.Name != "db-vm-1" || len(r.Targets) != 1 {
+		t.Fatalf("result %+v", r)
+	}
+	if tg := r.Targets[0]; tg.Platform != agentproto.Host || tg.Host == nil || *tg.Host.Root != "/host" {
+		t.Fatalf("target %+v", tg)
+	}
+	// Without the host's files, a note instead of a target.
+	r, _ = Run(context.Background(), opts(map[string]string{"GOLIASH_HOST_ROOT": "/host"}))
+	if len(r.Targets) != 0 || len(r.Notes) == 0 {
+		t.Fatalf("no os-release: %+v", r)
+	}
+}

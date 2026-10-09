@@ -30,6 +30,10 @@ var publicRegistries = map[string]bool{
 }
 
 // IsPublicRegistry reports whether the server checks repo itself.
+// PackageRepo reports whether repo stands for an operating system package without an image
+// (pkg.goliash/…): its versions are recorded, but no registry has its releases.
+func PackageRepo(repo string) bool { return strings.HasPrefix(repo, "pkg.goliash/") }
+
 func IsPublicRegistry(repo string) bool {
 	host, _, _ := strings.Cut(repo, "/")
 	return publicRegistries[host]
@@ -786,7 +790,7 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 	seen := map[string]bool{}
 	var out []agentproto.RegistryCheck
 	for id, ref := range st.refs {
-		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo) || seen[ref.Repo] {
+		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo) || seen[ref.Repo] || PackageRepo(ref.Repo) {
 			continue
 		}
 		seen[ref.Repo] = true

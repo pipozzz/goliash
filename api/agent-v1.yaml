@@ -256,7 +256,7 @@ components:
       description: >-
         manual is a target whose versions people enter on the server, for software Goliash does not collect
         (a virtual machine, a managed service); it is never assigned to an agent.
-      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, manual]
+      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, manual, host]
 
     RegisterRequest:
       type: object
@@ -350,6 +350,8 @@ components:
           $ref: '#/components/schemas/ComposeSettings'
         lambda:
           $ref: '#/components/schemas/LambdaSettings'
+        host:
+          $ref: '#/components/schemas/HostSettings'
 
     EnrollResponse:
       type: object
@@ -446,6 +448,8 @@ components:
           $ref: '#/components/schemas/ComposeSettings'
         lambda:
           $ref: '#/components/schemas/LambdaSettings'
+        host:
+          $ref: '#/components/schemas/HostSettings'
 
     KubernetesSettings:
       type: object
@@ -548,6 +552,29 @@ components:
             type: string
           example: {live: prod}
 
+    HostSettings:
+      type: object
+      description: |
+        A Linux server or virtual machine: its operating system (/etc/os-release) and the installed packages
+        that matter (dpkg or apk databases), read from the files only. In a container, mount the host's
+        root read-only and set root.
+      properties:
+        root:
+          type: string
+          description: Where the host's root file system is mounted. Default `/`.
+          example: /host
+        packages:
+          type: array
+          description: |
+            Package names to report besides the built-in list of servers, runtimes and security-relevant
+            libraries (nginx, postgresql, redis, openssl, openssh-server, docker, java, nodejs, python3 …).
+          items:
+            type: string
+          example: [haproxy, keepalived]
+        all_packages:
+          type: boolean
+          description: Report every installed package, not only the list.
+
     ComposeSettings:
       type: object
       required: [files]
@@ -641,7 +668,7 @@ components:
 
     WorkloadKind:
       type: string
-      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, manual_entry]
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, manual_entry, host_os, host_package]
 
     Workload:
       type: object
