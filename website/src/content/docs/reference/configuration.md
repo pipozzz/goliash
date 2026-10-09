@@ -17,6 +17,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITHUB_TOKEN` | | | Token for GitHub release lookups; raises the rate limit |
 | `GOLIASH_GITLAB_URL` | | | A self-hosted GitLab whose releases may be read, e.g. `https://gitlab.example.com` |
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
+| `GOLIASH_OSV_URL` | | `https://api.osv.dev/v1` | Where the packages of running images' SBOMs are looked up for known vulnerabilities: an OSV API mirror, or `off`. Only package names and versions are sent |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |

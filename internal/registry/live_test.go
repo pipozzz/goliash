@@ -65,3 +65,19 @@ func TestLiveImageEvidence(t *testing.T) {
 		}
 	}
 }
+
+// Run with GOLIASH_LIVE_REGISTRY_TEST=1 to read the SBOM of a real image.
+func TestLiveImageSBOM(t *testing.T) {
+	if os.Getenv("GOLIASH_LIVE_REGISTRY_TEST") == "" {
+		t.Skip("set GOLIASH_LIVE_REGISTRY_TEST=1")
+	}
+	digest, err := New().TagDigest(context.Background(), "docker.io/library/nginx", "1.27.3", Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	purls, err := New().ImageSBOM(context.Background(), "docker.io/library/nginx", digest, Credentials{})
+	t.Logf("%d purls, e.g. %v", len(purls), purls[:min(5, len(purls))])
+	if err != nil || len(purls) < 20 {
+		t.Fatalf("%d purls: %v", len(purls), err)
+	}
+}

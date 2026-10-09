@@ -312,6 +312,34 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 		if err := st.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}
+		// A short SBOM: real package versions, so the live lookup on OSV answers with their real vulnerabilities.
+		if purls := demoSBOM(ev.Repo); len(purls) > 0 && ev.SBOM {
+			if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: ev.Repo, Digest: ev.Digest, Purls: purls}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// demoSBOM lists some packages of an example image, as its SBOM would: Debian 12 packages of the official
+// images, npm packages of the shop's Node application.
+func demoSBOM(repo string) []string {
+	deb := func(pkgs ...string) []string {
+		var out []string
+		for _, p := range pkgs {
+			out = append(out, "pkg:deb/debian/"+p+"?os_distro=bookworm&os_name=debian&os_version=12")
+		}
+		return out
+	}
+	base := deb("openssl@3.0.11-1~deb12u2", "libc6@2.36-9+deb12u4", "zlib1g@1:1.2.13.dfsg-1", "libgnutls30@3.7.9-2+deb12u2", "libexpat1@2.5.0-1")
+	switch repo {
+	case "docker.io/library/postgres", "docker.io/library/redis", "docker.io/library/rabbitmq":
+		return base
+	case "docker.io/library/nginx":
+		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
+	case "ghcr.io/acme/checkout":
+		return []string{"pkg:npm/lodash@4.17.15", "pkg:npm/express@4.17.1", "pkg:npm/axios@0.21.1", "pkg:npm/jsonwebtoken@8.5.1"}
 	}
 	return nil
 }
