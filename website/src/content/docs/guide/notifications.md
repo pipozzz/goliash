@@ -156,6 +156,21 @@ goliash notify create -channel team-payments -events updates_plan -owners team-p
 **Send plan now** on the rule sends its plan at once, to check the channel and the filters without waiting for
 Monday; the scheduled plans are not affected.
 
+## Vulnerabilities
+
+The `vulnerability` event announces a vulnerability exploited in the wild (CISA KEV) or rated critical as soon as it
+runs somewhere, once per service and environment, with the package and the version that fixes it:
+
+> payments-api @ prod: CVE-2021-44228 (exploited, ransomware, critical) in log4j-core 2.14.1, fixed in 2.15.0
+
+```sh
+goliash notify create -channel security -events vulnerability -envs prod -mode instant
+```
+
+The first time a workspace's SBOMs are looked up completely, what already runs is recorded without announcing, so
+an installation does not hear about every vulnerability it runs on day one; the Security page lists those. See
+[Security posture](../security/#is-it-running).
+
 ## Deploys on your dashboards
 
 A Grafana channel turns events into annotations, so a deploy shows up on the graphs it may have changed:

@@ -235,6 +235,10 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 		if e.Type == "new_release" {
 			dedup = "new_release|" + e.ServiceID + "|" + e.ToVersion // once per service and version
 		}
+		if e.Type == "vulnerability" { // once per vulnerability, service and environment
+			cve, _, _ := strings.Cut(e.Note, " ")
+			dedup = "vulnerability|" + cve + "|" + e.ServiceID + "|" + e.EnvironmentID
+		}
 		if dedup == "" {
 			dedup = fmt.Sprintf("%s|%s|%s|%s|%d", e.Type, e.ServiceID, e.EnvironmentID, e.ToVersion, e.At.UnixNano())
 		}
@@ -601,6 +605,16 @@ func Describe(it Item) string {
 			to = " → " + it.To
 		}
 		return fmt.Sprintf("%s: %s%s (%s)", where, orDash(it.From), to, it.Note)
+	case "vulnerability":
+		fix := ", no fix yet"
+		if it.To != "" {
+			fix = ", fixed in " + it.To
+		}
+		cve, flags, _ := strings.Cut(it.Note, " ")
+		if flags != "" {
+			flags = " (" + strings.ReplaceAll(flags, " ", ", ") + ")"
+		}
+		return fmt.Sprintf("%s: %s%s in %s%s", where, cve, flags, it.From, fix)
 	case "agent_stale":
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
 	case "agent_back":

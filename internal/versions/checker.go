@@ -125,6 +125,9 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 			if err := c.CheckVulnerabilities(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "vulnerability lookup failed", "workspace", ws.Slug, "err", err)
 			}
+			if err := c.AlertVulnerabilities(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.ErrorContext(ctx, "vulnerability alerts failed", "workspace", ws.Slug, "err", err)
+			}
 		}
 		// Every tick checks services seen for the first time; the full check runs on its interval.
 		if err := c.checkUpstreams(ctx, ws.Scope(), !upstream); err != nil && ctx.Err() == nil {

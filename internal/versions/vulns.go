@@ -156,6 +156,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 type Affected struct {
 	Service, Env, Image, Package string
 	Fix                          string // the version of the package that fixes it, when known
+	ServiceID, EnvironmentID     string
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -209,7 +210,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	for _, e := range envs {
 		envName[e.ID] = e.Name
 	}
-	type use struct{ service, env, image string }
+	type use struct{ service, env, image, serviceID, envID string }
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
 	for _, in := range active {
@@ -229,7 +230,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -288,7 +289,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 			fix := chooseFix(purlVersion(p), rec.Fixes[fixKey(p)])
 			for _, u := range byPurl[p] {
-				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix}
+				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID}
 				if i := indexAffected(f.Affected, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
@@ -394,4 +395,76 @@ func chooseFix(running string, fixes []string) string {
 		return fixes[len(fixes)-1]
 	}
 	return best
+}
+
+// AlertVulnerabilities announces, once per service and environment, the vulnerabilities exploited in the
+// wild (CISA KEV) or rated critical that run there: a vulnerability event each, handed to notification rules. The
+// workspace's first complete look is recorded without announcing, so an installation does not hear about
+// every vulnerability it already runs.
+func (c *Checker) AlertVulnerabilities(ctx context.Context, sc store.Scope) error {
+	if c.osv == nil {
+		return nil
+	}
+	r, err := LoadVulnReport(ctx, c.store, sc, "")
+	if err != nil {
+		return err
+	}
+	done, baseline, err := c.store.VulnAlerts(ctx, sc)
+	if err != nil {
+		return err
+	}
+	if !baseline && (r.WithSBOM == 0 || r.Pending > 0 || r.Unasked > 0) {
+		return nil // wait for a complete picture before the first look
+	}
+	var record []store.VulnAlert
+	var evs []store.Event
+	now := c.now()
+	for _, f := range r.Findings {
+		critical := strings.EqualFold(f.Severity, "CRITICAL")
+		if f.Exploited == nil && !critical {
+			continue
+		}
+		for _, a := range f.Affected {
+			if a.ServiceID == "" {
+				continue
+			}
+			key := store.VulnAlert{CVE: f.Key, ServiceID: a.ServiceID, EnvironmentID: a.EnvironmentID}
+			if done[key] {
+				continue
+			}
+			done[key] = true
+			record = append(record, key)
+			if !baseline {
+				continue
+			}
+			evs = append(evs, store.Event{
+				Type: "vulnerability", ServiceID: a.ServiceID, EnvironmentID: a.EnvironmentID,
+				FromVersion: a.Package, ToVersion: a.Fix, Note: vulnNote(f), Source: "poll", At: now,
+			})
+		}
+	}
+	if len(record) == 0 && baseline {
+		return nil
+	}
+	if err := c.store.RecordVulnAlerts(ctx, sc, record, !baseline); err != nil {
+		return err
+	}
+	// Announced, not kept in the history of version events: vulnerability_alerts records what was announced.
+	c.emit(sc, evs)
+	return nil
+}
+
+// vulnNote is a vulnerability event's note: the CVE, then exploited, ransomware and severity when they apply.
+func vulnNote(f VulnFinding) string {
+	parts := []string{f.Key}
+	if f.Exploited != nil {
+		parts = append(parts, "exploited")
+		if f.Exploited.Ransomware {
+			parts = append(parts, "ransomware")
+		}
+	}
+	if f.Severity != "" {
+		parts = append(parts, strings.ToLower(f.Severity))
+	}
+	return strings.Join(parts, " ")
 }
