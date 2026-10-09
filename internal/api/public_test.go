@@ -305,3 +305,58 @@ func TestParseSince(t *testing.T) {
 		}
 	}
 }
+
+func TestVulnerabilitiesAPI(t *testing.T) {
+	e := newPublicEnv(t)
+	ctx := context.Background()
+	prod, _ := e.st.GetEnvironmentByName(ctx, e.sc, "prod")
+	targets, _ := e.st.ListTargets(ctx, e.sc)
+	for _, tg := range targets {
+		if tg.EnvironmentID != prod.ID {
+			continue
+		}
+		insts, _ := e.st.ListTargetInstances(ctx, e.sc, tg.ID)
+		var remove []string
+		for i := range insts {
+			remove = append(remove, insts[i].ID)
+			insts[i].ID, insts[i].Digest = "", "sha256:"+strings.Repeat("a", 64) // a new digest is a new instance
+		}
+		if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: store.NewID(), TargetID: tg.ID, At: time.Now(), Upsert: insts, Remove: remove}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	purl := "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+	_ = e.st.SetImageSBOM(ctx, e.sc, store.ImageSBOM{Repo: "docker.io/library/nginx", Digest: "sha256:" + strings.Repeat("a", 64), Purls: []string{purl}})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{purl: {"GHSA-jfh8-c2jp-5v3q"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{
+		ID: "GHSA-jfh8-c2jp-5v3q", Aliases: []string{"CVE-2021-44228"}, Severity: "CRITICAL",
+		Fixes: map[string][]string{"Maven|org.apache.logging.log4j:log4j-core": {"2.15.0"}},
+	})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228", DueDate: "2021-12-24", Ransomware: true}})
+
+	var got struct {
+		Complete bool `json:"complete"`
+		Findings []struct {
+			ID        string `json:"id"`
+			Exploited *struct {
+				Ransomware bool `json:"ransomware"`
+			} `json:"exploited"`
+			Affected []struct {
+				Service, Environment, Package, Fix string
+			} `json:"affected"`
+		} `json:"findings"`
+	}
+	for _, q := range []string{"q=CVE-2021-44228", "q=log4j&environment=prod&exploited=true"} {
+		code, body := e.call(nil, "GET", "/api/v1/vulnerabilities?"+q, e.token, "")
+		if code != 200 || json.Unmarshal([]byte(body), &got) != nil {
+			t.Fatalf("%s: %d %s", q, code, body)
+		}
+		if !got.Complete || len(got.Findings) != 1 || got.Findings[0].ID != "CVE-2021-44228" || got.Findings[0].Exploited == nil ||
+			!got.Findings[0].Exploited.Ransomware || got.Findings[0].Affected[0].Fix != "2.15.0" || got.Findings[0].Affected[0].Environment != "prod" {
+			t.Fatalf("%s: %s", q, body)
+		}
+	}
+	if _, body := e.call(nil, "GET", "/api/v1/vulnerabilities?q=CVE-2024-3094", e.token, ""); !strings.Contains(body, `"findings":[]`) || !strings.Contains(body, `"complete":true`) {
+		t.Fatalf("not running: %s", body)
+	}
+}

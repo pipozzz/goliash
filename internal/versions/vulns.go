@@ -468,3 +468,19 @@ func vulnNote(f VulnFinding) string {
 	}
 	return strings.Join(parts, " ")
 }
+
+// FindingMatches reports whether a finding answers a query (upper case): a CVE or advisory ID, a package or
+// a service.
+func FindingMatches(f VulnFinding, q string) bool {
+	for _, id := range append(append([]string{f.Key}, f.IDs...), f.Aliases...) {
+		if strings.Contains(strings.ToUpper(id), q) {
+			return true
+		}
+	}
+	for _, a := range f.Affected {
+		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) {
+			return true
+		}
+	}
+	return false
+}

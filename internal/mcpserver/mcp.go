@@ -101,6 +101,11 @@ type (
 		Environment string `json:"environment,omitempty"`
 		Service     string `json:"service,omitempty"`
 	}
+	vulnsIn struct {
+		Query         string `json:"query,omitempty" jsonschema:"a CVE or advisory ID (CVE-2021-44228), a package (openssl) or a service"`
+		Environment   string `json:"environment,omitempty" jsonschema:"only this environment, e.g. prod"`
+		ExploitedOnly bool   `json:"exploited_only,omitempty" jsonschema:"only vulnerabilities exploited in the wild (CISA KEV)"`
+	}
 	noIn  struct{}
 	ackIn struct {
 		Service      string `json:"service" jsonschema:"the service to acknowledge"`
@@ -251,6 +256,29 @@ func NewServer(c *Client) *mcp.Server {
 				return nil, Result{Data: data}, err
 			})
 	}
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "vulnerabilities", Annotations: readOnly,
+		Description: "Is a vulnerability running? Known vulnerabilities of running images, from their SBOMs and OSV: " +
+			"per CVE, whether it is exploited in the wild (CISA KEV), and the packages and services it is in with the " +
+			"version that fixes each. Use it for \"is CVE-2021-44228 running anywhere?\" or \"what is exploited in prod?\". " +
+			"Only images with an SBOM are covered (images_with_sbom of images); when complete is false, lookups are " +
+			"still running and an empty answer does not mean not running.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in vulnsIn) (*mcp.CallToolResult, Result, error) {
+			q := url.Values{}
+			if in.Query != "" {
+				q.Set("q", in.Query)
+			}
+			if in.Environment != "" {
+				q.Set("environment", in.Environment)
+			}
+			if in.ExploitedOnly {
+				q.Set("exploited", "true")
+			}
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/vulnerabilities", q, nil)
+			return nil, Result{Data: data}, err
+		})
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "inventory", Annotations: readOnly,
