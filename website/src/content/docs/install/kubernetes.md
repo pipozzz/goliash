@@ -92,7 +92,8 @@ Registry, with no secret: bind its service account to a Google service account w
 `azure.workload.identity/use: "true"` through `podLabels`, and annotate the service account with
 `azure.workload.identity/client-id`).
 
-For Amazon ECR on EKS, give the agent an IAM role with `ecr:ListImages` through IRSA:
+For Amazon ECR on EKS, give the agent an IAM role with `ecr:ListImages` (and `ecr:GetAuthorizationToken`,
+`ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer` for signatures and SBOMs) through IRSA:
 
 ```sh
 helm upgrade goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash --reuse-values \

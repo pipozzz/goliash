@@ -688,6 +688,9 @@ func TestInspectDigests(t *testing.T) {
 	}
 	ecr := agentproto.RegistryCheck{Repository: "111111111111.dkr.ecr.eu-west-1.amazonaws.com/team/api", Inspect: []string{good}}
 	if got := a.inspectDigests(context.Background(), ecr, registry.Credentials{}); got != nil {
-		t.Fatalf("ECR inspected through the Distribution API: %+v", got)
+		t.Fatalf("ECR inspected without a token: %+v", got)
+	}
+	if got := a.inspectDigests(context.Background(), ecr, registry.Credentials{Username: "AWS", Password: "tok3n"}); len(got) != 1 || !*got[0].Signed {
+		t.Fatalf("ECR with a token not inspected: %+v", got)
 	}
 }
