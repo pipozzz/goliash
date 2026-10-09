@@ -41,3 +41,27 @@ func TestLiveImageSource(t *testing.T) {
 		t.Logf("%s:%s -> %q (github %q) err=%v", repo, tag, src, GitHubRepository(src), err)
 	}
 }
+
+// Run with GOLIASH_LIVE_REGISTRY_TEST=1 to look for signatures and attestations of real images.
+func TestLiveImageEvidence(t *testing.T) {
+	if os.Getenv("GOLIASH_LIVE_REGISTRY_TEST") == "" {
+		t.Skip("set GOLIASH_LIVE_REGISTRY_TEST=1")
+	}
+	for _, c := range []struct {
+		repo, tag          string
+		signed, sbom, prov bool
+	}{
+		{"docker.io/library/nginx", "1.27.3", false, true, true},
+		{"ghcr.io/sigstore/cosign/cosign", "v2.4.1", true, false, false},
+	} {
+		digest, err := New().TagDigest(context.Background(), c.repo, c.tag, Credentials{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ev, err := New().ImageEvidence(context.Background(), c.repo, digest, Credentials{})
+		t.Logf("%s:%s %s: %+v %v", c.repo, c.tag, digest, ev, err)
+		if err != nil || (c.signed && !ev.Signed) || (c.sbom && !ev.SBOM) || (c.prov && !ev.Provenance) {
+			t.Errorf("%s: %+v %v", c.repo, ev, err)
+		}
+	}
+}

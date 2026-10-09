@@ -281,7 +281,39 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 			}
 		}
 	}
+	if err := seedEvidence(ctx, st, sc); err != nil {
+		return err
+	}
 	return backdateDrift(ctx, st, sc)
+}
+
+// seedEvidence records what the registries would hold beside the demo's images: the team's own images
+// are signed with an SBOM and provenance, official images carry BuildKit's SBOM and provenance, the rest
+// nothing.
+func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
+	active, err := st.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return err
+	}
+	for _, in := range active {
+		if in.Digest == "" {
+			continue
+		}
+		ref := versions.ParseImage(in.Image)
+		ev := store.ImageEvidence{Repo: ref.Repo(), Digest: in.Digest}
+		switch {
+		case strings.HasPrefix(ev.Repo, "ghcr.io/acme/") && ev.Repo != "ghcr.io/acme/report" && ev.Repo != "ghcr.io/acme/image-resizer":
+			ev.Signed, ev.SBOM, ev.Provenance = true, true, true
+			ev.Found = []string{"sigstore bundle", "buildkit sbom", "buildkit provenance"}
+		case strings.HasPrefix(ev.Repo, "docker.io/library/"):
+			ev.SBOM, ev.Provenance = true, true
+			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
+		}
+		if err := st.SetImageEvidence(ctx, sc, ev); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // backdateReleases gives the example releases publication dates, newest a few days ago and each older one
