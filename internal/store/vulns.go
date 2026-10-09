@@ -212,3 +212,50 @@ func (s *Store) KnownExploited(ctx context.Context) (map[string]Exploited, time.
 	}
 	return out, fetched, rows.Err()
 }
+
+// VulnAlert is a vulnerability announced for a service in an environment.
+type VulnAlert struct {
+	CVE, ServiceID, EnvironmentID string
+}
+
+// VulnAlerts returns what was announced in the workspace, and whether its first look was recorded.
+func (s *Store) VulnAlerts(ctx context.Context, sc Scope) (map[VulnAlert]bool, bool, error) {
+	rows, err := s.query(ctx, s.db, `SELECT cve, service_id, environment_id FROM vulnerability_alerts
+		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[VulnAlert]bool{}
+	baseline := false
+	for rows.Next() {
+		var a VulnAlert
+		if err := rows.Scan(&a.CVE, &a.ServiceID, &a.EnvironmentID); err != nil {
+			return nil, false, err
+		}
+		if a.CVE == "" {
+			baseline = true
+			continue
+		}
+		out[a] = true
+	}
+	return out, baseline, rows.Err()
+}
+
+// RecordVulnAlerts records announced vulnerabilities; with baseline, also the workspace's first look.
+func (s *Store) RecordVulnAlerts(ctx context.Context, sc Scope, alerts []VulnAlert, baseline bool) error {
+	if baseline {
+		alerts = append(alerts, VulnAlert{})
+	}
+	now := s.now()
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		for _, a := range alerts {
+			if _, err := s.exec(ctx, tx, `INSERT INTO vulnerability_alerts (org_id, workspace_id, cve, service_id, environment_id, alerted_at)
+				VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (workspace_id, cve, service_id, environment_id) DO NOTHING`,
+				sc.OrgID, sc.WorkspaceID, a.CVE, a.ServiceID, a.EnvironmentID, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

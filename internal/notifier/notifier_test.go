@@ -562,3 +562,14 @@ func TestDescribeDriftOnTarget(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestDescribeVulnerability(t *testing.T) {
+	it := Item{Type: "vulnerability", Service: "payments-api", Environment: "prod", From: "log4j-core 2.14.1", To: "2.15.0", Note: "CVE-2021-44228 exploited ransomware critical"}
+	if got, want := Describe(it), "payments-api @ prod: CVE-2021-44228 (exploited, ransomware, critical) in log4j-core 2.14.1, fixed in 2.15.0"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	it.To, it.Note = "", "CVE-2026-1 critical"
+	if got, want := Describe(it), "payments-api @ prod: CVE-2026-1 (critical) in log4j-core 2.14.1, no fix yet"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

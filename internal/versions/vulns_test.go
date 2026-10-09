@@ -207,3 +207,51 @@ func TestChooseFix(t *testing.T) {
 		}
 	}
 }
+
+func TestAlertVulnerabilities(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	l.checker.SetOSV(NewOSV("http://osv.invalid"))
+	var announced []store.Event
+	l.checker.OnEvents(func(_ store.Scope, evs []store.Event) { announced = append(announced, evs...) })
+	tgt := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{
+		{
+			TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "w", WorkloadName: "pay", ContainerName: "app",
+			Image: "ghcr.io/acme/pay:1", Tag: "1", Digest: "sha256:pay", Running: 1, IsMain: true,
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	log4j := "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "ghcr.io/acme/pay", Digest: "sha256:pay", Purls: []string{log4j}})
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-old"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "GHSA-old", Aliases: []string{"CVE-2020-1"}, Severity: "CRITICAL", Fixes: map[string][]string{}})
+
+	// The first complete look is recorded, not announced.
+	if err := l.checker.AlertVulnerabilities(ctx, l.sc); err != nil || len(announced) != 0 {
+		t.Fatalf("first look announced %v %v", announced, err)
+	}
+	// A new exploited vulnerability is announced once, with its fix.
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-old", "GHSA-jfh8-c2jp-5v3q"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{
+		ID: "GHSA-jfh8-c2jp-5v3q", Aliases: []string{"CVE-2021-44228"}, Severity: "CRITICAL",
+		Fixes: map[string][]string{"Maven|org.apache.logging.log4j:log4j-core": {"2.12.2", "2.15.0"}},
+	})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228", Ransomware: true}})
+	if err := l.checker.AlertVulnerabilities(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	if len(announced) != 1 {
+		t.Fatalf("announced %+v", announced)
+	}
+	e := announced[0]
+	if e.Type != "vulnerability" || e.ServiceID != l.svc.ID || e.EnvironmentID != tgt.EnvironmentID || e.Note != "CVE-2021-44228 exploited ransomware critical" ||
+		e.FromVersion != "log4j-core 2.14.1" || e.ToVersion != "2.15.0" {
+		t.Fatalf("event %+v", e)
+	}
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	if len(announced) != 1 {
+		t.Fatalf("announced again: %+v", announced)
+	}
+}

@@ -41,6 +41,11 @@ func kindOf(it Item) kind {
 		return kind{"✅", "#30a46c", "Drift resolved"}
 	case "update":
 		return kind{"⬆️", urgencyColour(it.Note), "Update · " + it.Note}
+	case "vulnerability":
+		if strings.Contains(it.Note, "exploited") {
+			return kind{"🚨", "#e5484d", "Exploited vulnerability"}
+		}
+		return kind{"🛡️", "#e5484d", "Critical vulnerability"}
 	case "agent_stale":
 		return kind{"🔌", "#e5484d", "Agent silent"}
 	case "agent_back":

@@ -63,6 +63,9 @@ marked *exploited* with CISA's due date and *ransomware* when CISA knows of rans
 in the wild* shows just those. Each affected package says the version that fixes it (the lowest above the running
 one, from OSV), or *no fix yet*. The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
 
+A notification rule with the `vulnerability` event announces each exploited or critical vulnerability as it starts
+running ([Notifications](../notifications/#vulnerabilities)).
+
 The answer covers only images with an SBOM Goliash could read, and the page says how many those are. While
 advisories are still being looked up it says so, and does not answer "not running".
 
