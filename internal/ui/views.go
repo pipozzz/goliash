@@ -438,6 +438,7 @@ type ServiceView struct {
 	Private        bool // the agents check the upstream
 	PublicRegistry bool // the server can try it: "check now"
 	Policy         PolicyForm
+	BuiltOn        *versions.BaseStatus // the image the service is built on, when known
 	Envs           []ServiceEnv
 	Releases       []ReleaseView
 	PolicyFrom     string // service, catalog or default
@@ -485,6 +486,7 @@ type PolicyForm struct {
 	Track      string
 	PinMajor   string
 	Prerelease bool
+	BaseImage  string // set by people; empty: as the image declares
 }
 
 // ServiceEnv is one environment on a service page.

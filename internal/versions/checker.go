@@ -43,7 +43,7 @@ type TagLister interface {
 // SourceReader reads the source repository an image declares. registry.Client
 // implements it; tag listers without it skip source discovery.
 type SourceReader interface {
-	ImageSource(ctx context.Context, repository, reference string, creds registry.Credentials) (string, error)
+	ImageMeta(ctx context.Context, repository, reference string, creds registry.Credentials) (registry.ImageMeta, error)
 }
 
 // sourceTTL is how long a source read from an image is trusted before it is read again.
@@ -268,8 +268,8 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 	return nil
 }
 
-// discoverSource reads the source repository ref's image declares, at most once per
-// sourceTTL and again when the upstream image changes, and returns svc with it.
+// discoverSource reads the source repository and base image ref's image declares, at most once per
+// sourceTTL and again when the upstream image changes, and returns svc with them.
 func (c *Checker) discoverSource(ctx context.Context, sc store.Scope, svc store.Service, ref Reference) store.Service {
 	reader, ok := c.tags.(SourceReader)
 	if !ok || (svc.SourceImage == ref.Repo && c.now().Sub(svc.SourceCheckedAt) < sourceTTL) {
@@ -279,24 +279,25 @@ func (c *Checker) discoverSource(ctx context.Context, sc store.Scope, svc store.
 	if tag == "" {
 		tag = "latest"
 	}
-	src, err := reader.ImageSource(ctx, ref.Repo, tag, registry.Credentials{})
+	meta, err := reader.ImageMeta(ctx, ref.Repo, tag, registry.Credentials{})
+	src, base := meta.Source, meta.Base
 	if err != nil {
 		if ctx.Err() != nil {
 			return svc
 		}
 		c.log.DebugContext(ctx, "image source not readable", "service", svc.Name, "repo", ref.Repo, "tag", tag, "err", err)
 		if svc.SourceImage == ref.Repo {
-			src = svc.SourceURL // keep what was known; try again after the TTL
+			src, base = svc.SourceURL, svc.BaseImage // keep what was known; try again after the TTL
 		}
 	}
-	if err := c.store.SetServiceSource(ctx, sc, svc.ID, ref.Repo, src); err != nil {
+	if err := c.store.SetServiceSource(ctx, sc, svc.ID, ref.Repo, src, base); err != nil {
 		c.log.WarnContext(ctx, "record image source", "service", svc.Name, "err", err)
 		return svc
 	}
 	if gh := LabelGitHub(store.Service{SourceURL: src, SourceImage: ref.Repo}, ref.Repo); gh != "" && src != svc.SourceURL {
 		c.log.InfoContext(ctx, "release notes source found in image label", "service", svc.Name, "github", gh)
 	}
-	svc.SourceURL, svc.SourceImage, svc.SourceCheckedAt = src, ref.Repo, c.now()
+	svc.SourceURL, svc.SourceImage, svc.SourceCheckedAt, svc.BaseImage = src, ref.Repo, c.now(), base
 	return svc
 }
 

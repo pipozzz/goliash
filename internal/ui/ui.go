@@ -574,6 +574,13 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.NotesFrom = "from the catalog"
 	}
 	v.Policy = PolicyForm{TagFilter: pol.TagFilter, Track: string(pol.Track), Prerelease: pol.Prerelease}
+	if own, err := versions.ParsePolicy(svc.VersionPolicy); err == nil {
+		v.Policy.BaseImage = own.BaseImage
+	}
+	if base := versions.BaseImage(svc); base != "" {
+		st := s.checker.BaseStatus(ctx, base, time.Now())
+		v.BuiltOn = &st
+	}
 	if pol.PinMajor != nil {
 		v.Policy.PinMajor = strconv.Itoa(*pol.PinMajor)
 	}
@@ -699,10 +706,12 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return back(w, r, "/", "error", "Unknown service")
 	}
-	pol := versions.Policy{
-		TagFilter: strings.TrimSpace(r.FormValue("tag_filter")), Track: versions.Jump(r.FormValue("track")),
-		Prerelease: r.FormValue("prerelease") == "1",
-	}
+	// Start from the service's own policy, so settings the form does not show (release notes, end of life,
+	// alert delays) stay as they are.
+	pol, _ := versions.ParsePolicy(svc.VersionPolicy)
+	pol.TagFilter, pol.Track = strings.TrimSpace(r.FormValue("tag_filter")), versions.Jump(r.FormValue("track"))
+	pol.Prerelease, pol.PinMajor = r.FormValue("prerelease") == "1", nil
+	pol.BaseImage = strings.TrimSpace(r.FormValue("base_image"))
 	if pm := strings.TrimSpace(r.FormValue("pin_major")); pm != "" {
 		n, err := strconv.Atoi(pm)
 		if err != nil || n < 0 {

@@ -269,6 +269,18 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	if err := backdateReleases(ctx, st, sc); err != nil {
 		return err
 	}
+	// What the team's own images are built on, as their images would declare it.
+	for name, base := range map[string]string{
+		"checkout": "docker.io/library/node:18-alpine", "notifications": "docker.io/library/node:22-alpine",
+		"invoice-pdf": "docker.io/library/python:3.9-slim", "orders-api": "docker.io/library/golang:1.22-alpine",
+		"payments-api": "docker.io/library/eclipse-temurin:21-jre",
+	} {
+		if s, err := st.GetServiceByName(ctx, sc, name); err == nil {
+			if err := st.SetServiceSource(ctx, sc, s.ID, images[name], "", base); err != nil {
+				return err
+			}
+		}
+	}
 	return backdateDrift(ctx, st, sc)
 }
 

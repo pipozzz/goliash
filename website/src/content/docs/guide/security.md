@@ -18,6 +18,19 @@ than from tickets or pipelines:
 - **Where are we blind?** Targets that stopped reporting, targets that report no digests, and services whose newest
   release is unknown, so their exposure cannot be measured.
 
+## Base images
+
+A service's own image is only as supported as the image it is built on: `node:18-alpine` reached its end of life in
+April 2025 whatever the application's version. Goliash reads the base from the
+`org.opencontainers.image.base.name` annotation or label, which BuildKit (`docker buildx`) records, when it reads
+the image's source repository. The service page shows it under **Built on**, with its end of life from
+[endoflife.date](https://endoflife.date), and the Security page lists every running service **built on an
+unsupported base**: past its end of life, or within 60 days of it.
+
+An image that does not declare its base can name it in the service's version policy (**Base image**, for example
+`node:22-alpine`); `none` turns tracking off. The image is read on a public registry by the server; for private
+images, set the base in the policy.
+
 ## How exposure is counted
 
 Exposure starts when the first release newer than the running one was **published** (GitHub or GitLab release

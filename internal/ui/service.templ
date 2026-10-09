@@ -22,6 +22,19 @@ templ ServicePage(v ServiceView) {
 			<div class="fact"><dt>Owner</dt><dd>{ orDash(v.Owner) }</dd></div>
 			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.Kind) }</dd></div>
 			<div class="fact"><dt>Upstream</dt><dd class="mono">{ orDash(v.RefRepo) }</dd></div>
+			if v.BuiltOn != nil {
+				<div class="fact">
+					<dt>Built on</dt>
+					<dd>
+						<span class="mono" title={ v.BuiltOn.Image }>{ v.BuiltOn.Short }</span>
+						if v.BuiltOn.Passed {
+							<span class="badge eol" title={ v.BuiltOn.Product + " " + v.BuiltOn.Cycle + " is no longer supported" }>end of life { v.BuiltOn.EOL }</span>
+						} else if v.BuiltOn.Soon {
+							<span class="badge eol" title={ v.BuiltOn.Product + " " + v.BuiltOn.Cycle + " support ends soon" }>EOL { v.BuiltOn.EOL }</span>
+						}
+					</dd>
+				</div>
+			}
 			<div class="fact">
 				<dt>Latest acceptable</dt>
 				<dd class="mono">{ orDash(v.Latest) }</dd>
@@ -271,6 +284,11 @@ templ ServicePage(v ServiceView) {
 								Tag filter
 								<input name="tag_filter" class="mono" value={ v.Policy.TagFilter } placeholder="^\d+\.\d+\.\d+$"/>
 								<span class="hint">Regular expression. Empty: tags shaped like the running one.</span>
+							</label>
+							<label>
+								Base image
+								<input name="base_image" class="mono" value={ v.Policy.BaseImage } placeholder="node:22-alpine"/>
+								<span class="hint">What the service's image is built FROM, tracked for end of life. Empty: as the image declares (org.opencontainers.image.base.name); none: not tracked.</span>
 							</label>
 							<label class="check">
 								<input type="checkbox" name="prerelease" value="1" checked?={ v.Policy.Prerelease }/>

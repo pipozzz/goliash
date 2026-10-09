@@ -124,12 +124,13 @@ func TestReleaseAnnotations(t *testing.T) {
 type labeledTags struct {
 	*fakeTags
 	sources map[string]string
+	bases   map[string]string
 	reads   atomic.Int32
 }
 
-func (l *labeledTags) ImageSource(_ context.Context, repo, _ string, _ registry.Credentials) (string, error) {
+func (l *labeledTags) ImageMeta(_ context.Context, repo, _ string, _ registry.Credentials) (registry.ImageMeta, error) {
 	l.reads.Add(1)
-	return l.sources[repo], nil
+	return registry.ImageMeta{Source: l.sources[repo], Base: l.bases[repo]}, nil
 }
 
 func TestSourceFromImageLabel(t *testing.T) {
@@ -139,7 +140,7 @@ func TestSourceFromImageLabel(t *testing.T) {
 	reg := &labeledTags{fakeTags: l.tags, sources: map[string]string{
 		"ghcr.io/acme/web":        "https://github.com/acme/web.git",
 		"docker.io/library/nginx": "https://github.com/nginxinc/docker-nginx.git#abc:mainline",
-	}}
+	}, bases: map[string]string{"ghcr.io/acme/web": "docker.io/library/node:18-alpine"}}
 	l.checker = NewChecker(l.st, reg, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Hour)
 	l.svc.Upstream = "ghcr.io/acme/web"
 	if err := l.st.UpdateService(ctx, l.svc); err != nil {
@@ -158,6 +159,9 @@ func TestSourceFromImageLabel(t *testing.T) {
 	svc := check()
 	if p, _, _ := PolicyFor(svc, "ghcr.io/acme/web"); p.GitHub != "acme/web" {
 		t.Fatalf("label not used: %+v (service %+v)", p, svc)
+	}
+	if BaseImage(svc) != "docker.io/library/node:18-alpine" {
+		t.Fatalf("base image not recorded: %q", svc.BaseImage)
 	}
 	own := svc
 	own.VersionPolicy = json.RawMessage(`{"github":"acme/other"}`)

@@ -171,6 +171,9 @@ type Policy struct {
 	EOL             string `json:"eol,omitempty"`
 	GitHubTagPrefix string `json:"github_tag_prefix,omitempty"`
 	Changelog       string `json:"changelog,omitempty"`
+	// BaseImage names the image the service's own image is built on ("node:18-alpine"), for images that
+	// do not declare it; "none" turns base image tracking off.
+	BaseImage string `json:"base_image,omitempty"`
 }
 
 // PolicySource says where a service's effective policy comes from.
