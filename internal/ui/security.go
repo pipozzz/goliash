@@ -6,6 +6,7 @@ package ui
 import (
 	"encoding/csv"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strconv"
@@ -223,6 +224,7 @@ type VulnsView struct {
 	Hidden   int  // findings not shown (the list is long)
 	LooksCVE bool // the query is a vulnerability ID
 	Enabled  bool // vulnerability lookups are on
+	OnlyKEV  bool // only vulnerabilities exploited in the wild
 }
 
 func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -234,6 +236,7 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	v := VulnsView{
 		Base: s.base(ctx, p, "security", "Vulnerabilities"), Query: strings.TrimSpace(r.URL.Query().Get("q")),
 		All: r.URL.Query().Get("env") == "all", Enabled: s.checker != nil && s.checker.OSVEnabled(),
+		OnlyKEV: r.URL.Query().Get("kev") == "1",
 	}
 	envID := ""
 	for _, e := range envs {
@@ -250,7 +253,7 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	q := strings.ToUpper(v.Query)
 	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
 	for _, f := range v.Findings {
-		if q != "" && !findingMatches(f, q) {
+		if (q != "" && !findingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) {
 			continue
 		}
 		if len(v.Shown) >= 300 {
@@ -295,6 +298,7 @@ func vulnURL(id string) string { return "https://osv.dev/vulnerability/" + id }
 // PackageUse is one package of a finding and where it runs.
 type PackageUse struct {
 	Package string
+	Fix     string
 	Where   []string // "service (env)"
 }
 
@@ -307,7 +311,7 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		if !ok {
 			i = len(out)
 			index[a.Package] = i
-			out = append(out, PackageUse{Package: a.Package})
+			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix})
 		}
 		w := a.Service + " (" + a.Env + ")"
 		if !slices.Contains(out[i].Where, w) {
@@ -315,4 +319,27 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		}
 	}
 	return out
+}
+
+// vulnsHref links the vulnerability list with its filters.
+func vulnsHref(v VulnsView, key, value string) string {
+	q := url.Values{}
+	if v.Query != "" {
+		q.Set("q", v.Query)
+	}
+	if v.All {
+		q.Set("env", "all")
+	}
+	if v.OnlyKEV {
+		q.Set("kev", "1")
+	}
+	if value == "" {
+		q.Del(key)
+	} else {
+		q.Set(key, value)
+	}
+	if len(q) == 0 {
+		return "/security/vulns"
+	}
+	return "/security/vulns?" + q.Encode()
 }

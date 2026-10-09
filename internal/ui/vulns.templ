@@ -14,17 +14,25 @@ templ VulnsPage(v VulnsView) {
 				<h1>Known vulnerabilities</h1>
 				<p class="sub">{ "From the SBOMs of " + itoa(v.WithSBOM) + " of " + itoa(v.Images) + " running images" + inEnv(v) + ", looked up on OSV. Images without an SBOM are not covered." }</p>
 			</div>
-			<span class="noprint">
-				if v.All {
-					<a href={ templ.URL("/security/vulns?q=" + v.Query) }>{ "Only " + v.EnvName }</a>
+			<span class="noprint actions">
+				if v.OnlyKEV {
+					<a href={ templ.URL(vulnsHref(v, "kev", "")) }>Every vulnerability</a>
 				} else {
-					<a href={ templ.URL("/security/vulns?env=all&q=" + v.Query) }>Every environment</a>
+					<a href={ templ.URL(vulnsHref(v, "kev", "1")) }>Only exploited in the wild</a>
+				}
+				if v.All {
+					<a href={ templ.URL(vulnsHref(v, "env", "")) }>{ "Only " + v.EnvName }</a>
+				} else {
+					<a href={ templ.URL(vulnsHref(v, "env", "all")) }>Every environment</a>
 				}
 			</span>
 		</div>
 		<form class="row vuln-search" method="get" action="/security/vulns">
 			if v.All {
 				<input type="hidden" name="env" value="all"/>
+			}
+			if v.OnlyKEV {
+				<input type="hidden" name="kev" value="1"/>
 			}
 			<label class="grow"><span class="sr-only">Vulnerability, package or service</span><input name="q" value={ v.Query } placeholder="CVE-2024-3094, openssl, payments-api"/></label>
 			<button type="submit">Check</button>
@@ -33,7 +41,7 @@ templ VulnsPage(v VulnsView) {
 			<div class="notice error">Vulnerability lookups are off on this server (GOLIASH_OSV_URL=off).</div>
 		}
 		if v.Pending > 0 || v.Unasked > 0 {
-			<div class="notice">{ "Still looking up " + plural(v.Pending, "advisory", "advisories") + " and " + plural(v.Unasked, "package", "packages") + " on OSV; until then a vulnerability may be listed under another ID, and an answer may be incomplete." }</div>
+			<div class="notice pending">{ "Still looking up " + plural(v.Pending, "advisory", "advisories") + " and " + plural(v.Unasked, "package", "packages") + " on OSV; until then a vulnerability may be listed under another ID, and an answer may be incomplete." }</div>
 		}
 		if v.Query != "" && len(v.Shown) == 0 {
 			<section class={ "panel", "answer", templ.KV("answer-ok", v.LooksCVE && v.Pending == 0 && v.Unasked == 0) }>
@@ -69,9 +77,18 @@ templ VulnsPage(v VulnsView) {
 										}
 									</td>
 									<td>
+										if f.Exploited != nil {
+											<span class="badge eol" title={ "CISA: " + f.Exploited.Name + ", added " + f.Exploited.DateAdded }>exploited</span>
+											if f.Exploited.Ransomware {
+												<span class="badge eol">ransomware</span>
+											}
+											if f.Exploited.DueDate != "" {
+												<div class="targets">{ "CISA due " + f.Exploited.DueDate }</div>
+											}
+										}
 										if f.Severity != "" {
 											<span class={ "badge", severityClass(f.Severity) }>{ strings.ToLower(f.Severity) }</span>
-										} else {
+										} else if f.Exploited == nil {
 											<span class="muted">—</span>
 										}
 									</td>
@@ -79,6 +96,11 @@ templ VulnsPage(v VulnsView) {
 										for _, u := range byPackage(f) {
 											<div class="vuln-use">
 												<span class="mono">{ u.Package }</span>
+												if u.Fix != "" {
+													<span class="fix">{ "→ fixed in " + u.Fix }</span>
+												} else {
+													<span class="muted">no fix yet</span>
+												}
 												<div class="targets">{ strings.Join(u.Where, ", ") }</div>
 											</div>
 										}

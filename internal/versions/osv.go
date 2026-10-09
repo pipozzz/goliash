@@ -152,7 +152,8 @@ type OSVVuln struct {
 	ID       string
 	Aliases  []string
 	Summary  string
-	Severity string // CRITICAL, HIGH, MODERATE, LOW when the record says; empty otherwise
+	Severity string              // CRITICAL, HIGH, MODERATE, LOW when the record says; empty otherwise
+	Fixes    map[string][]string // "ecosystem|package" -> versions that fix it
 }
 
 // Vuln reads one vulnerability record.
@@ -166,6 +167,17 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 		DatabaseSpecific struct {
 			Severity string `json:"severity"`
 		} `json:"database_specific"`
+		Affected []struct {
+			Package struct {
+				Name      string `json:"name"`
+				Ecosystem string `json:"ecosystem"`
+			} `json:"package"`
+			Ranges []struct {
+				Events []struct {
+					Fixed string `json:"fixed"`
+				} `json:"events"`
+			} `json:"ranges"`
+		} `json:"affected"`
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.BaseURL+"/vulns/"+url.PathEscape(id), nil)
 	if err != nil {
@@ -174,7 +186,17 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 	if err := o.do(req, &rec); err != nil {
 		return OSVVuln{}, err
 	}
-	v := OSVVuln{ID: rec.ID, Aliases: append(rec.Aliases, rec.Upstream...), Summary: rec.Summary, Severity: strings.ToUpper(rec.DatabaseSpecific.Severity)}
+	v := OSVVuln{ID: rec.ID, Aliases: append(rec.Aliases, rec.Upstream...), Summary: rec.Summary, Severity: strings.ToUpper(rec.DatabaseSpecific.Severity), Fixes: map[string][]string{}}
+	for _, a := range rec.Affected {
+		key := a.Package.Ecosystem + "|" + a.Package.Name
+		for _, r := range a.Ranges {
+			for _, e := range r.Events {
+				if e.Fixed != "" && !contains(v.Fixes[key], e.Fixed) {
+					v.Fixes[key] = append(v.Fixes[key], e.Fixed)
+				}
+			}
+		}
+	}
 	if v.Summary == "" {
 		v.Summary = strings.SplitN(strings.TrimSpace(rec.Details), "\n", 2)[0]
 	}
@@ -209,4 +231,28 @@ func (o *OSV) do(req *http.Request, into any) error {
 		return fmt.Errorf("osv answered %d: %s", resp.StatusCode, strings.TrimSpace(string(b[:min(len(b), 200)])))
 	}
 	return json.Unmarshal(b, into)
+}
+
+// fixKey is the "ecosystem|package" key OSV files a package's fixes under.
+func fixKey(purl string) string {
+	q, ok := osvQueryFor(purl)
+	if !ok {
+		return ""
+	}
+	if q.Package.Ecosystem != "" {
+		return q.Package.Ecosystem + "|" + q.Package.Name
+	}
+	typ, rest, _ := strings.Cut(strings.TrimPrefix(q.Package.Purl, "pkg:"), "/")
+	eco := map[string]string{
+		"npm": "npm", "pypi": "PyPI", "golang": "Go", "maven": "Maven", "cargo": "crates.io",
+		"gem": "RubyGems", "nuget": "NuGet", "composer": "Packagist", "hex": "Hex", "pub": "Pub",
+	}[typ]
+	name := strings.SplitN(rest, "@", 2)[0]
+	if typ == "maven" {
+		name = strings.Replace(name, "/", ":", 1)
+	}
+	if u, err := url.PathUnescape(name); err == nil {
+		name = u
+	}
+	return eco + "|" + name
 }

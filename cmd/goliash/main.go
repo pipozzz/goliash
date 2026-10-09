@@ -477,6 +477,10 @@ func serve(ctx context.Context, args []string) error {
 		if osvURL := os.Getenv("GOLIASH_OSV_URL"); osvURL != "off" {
 			checker.SetOSV(versions.NewOSV(osvURL))
 		}
+		// CISA's catalog of vulnerabilities exploited in the wild, to put those first.
+		if kevURL := os.Getenv("GOLIASH_KEV_URL"); kevURL != "off" {
+			checker.SetKEV(versions.NewKEV(kevURL))
+		}
 	}
 	versions.SetAllowedRegistries(splitList(os.Getenv("GOLIASH_ALLOWED_REGISTRIES")))
 	svc.SetUpstreams(checker)

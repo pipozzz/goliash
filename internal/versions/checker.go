@@ -68,6 +68,7 @@ type Checker struct {
 	gitlab *GitLab
 	eol    *EOL
 	osv    *OSV
+	kev    *KEV
 
 	driftMu sync.Mutex // one drift evaluation at a time
 }

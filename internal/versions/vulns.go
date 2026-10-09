@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -30,6 +31,9 @@ const (
 // CheckVulnerabilities reads the SBOMs of running images that have one, asks OSV which known vulnerabilities
 // affect their packages, and keeps the records of those vulnerabilities.
 func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) error {
+	if err := c.refreshKEV(ctx); err != nil && ctx.Err() == nil {
+		c.log.WarnContext(ctx, "known exploited vulnerabilities not refreshed", "err", err)
+	}
 	reader, ok := c.tags.(SBOMReader)
 	if c.osv == nil || !ok {
 		return nil
@@ -129,7 +133,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 				continue
 			}
 			asked[id] = true
-			if r, ok := records[id]; ok && now.Sub(r.FetchedAt) < detailsRefresh {
+			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh {
 				continue
 			}
 			fetched++
@@ -140,7 +144,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 				}
 				continue
 			}
-			if err := c.store.SetVuln(ctx, store.Vuln{ID: v.ID, Aliases: v.Aliases, Summary: v.Summary, Severity: v.Severity}); err != nil {
+			if err := c.store.SetVuln(ctx, store.Vuln{ID: v.ID, Aliases: v.Aliases, Summary: v.Summary, Severity: v.Severity, Fixes: v.Fixes}); err != nil {
 				return err
 			}
 		}
@@ -151,6 +155,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 // Affected is one running image a vulnerability is in.
 type Affected struct {
 	Service, Env, Image, Package string
+	Fix                          string // the version of the package that fixes it, when known
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -161,16 +166,21 @@ type VulnFinding struct {
 	Summary  string
 	Severity string
 	Affected []Affected
+	// Exploited is set when CISA lists the CVE as exploited in the wild.
+	Exploited *store.Exploited
+	Fixable   bool // a fixed version exists for at least one affected package
 }
 
 // VulnReport is what the SBOMs and OSV say about the running images.
 type VulnReport struct {
-	Findings []VulnFinding
-	Images   int // running images with a digest
-	WithSBOM int // of them, with an SBOM read
-	Packages int // distinct packages in those SBOMs
-	Unasked  int // packages OSV has not answered for yet
-	Pending  int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
+	Findings  []VulnFinding
+	Images    int // running images with a digest
+	WithSBOM  int // of them, with an SBOM read
+	Packages  int // distinct packages in those SBOMs
+	Unasked   int // packages OSV has not answered for yet
+	Pending   int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
+	Exploited int // findings CISA lists as exploited in the wild
+	Fixable   int // findings with a fixed version for an affected package
 }
 
 // LoadVulnReport builds the report for the running images, envID limiting it to one environment ("" for all).
@@ -236,6 +246,10 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
+	kev, _, err := st.KnownExploited(ctx)
+	if err != nil {
+		return r, err
+	}
 	findings := map[string]*VulnFinding{}
 	pending := map[string]bool{}
 	for p, k := range pv {
@@ -272,9 +286,14 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			if severityRank(rec.Severity) > severityRank(f.Severity) {
 				f.Severity = rec.Severity
 			}
+			fix := chooseFix(purlVersion(p), rec.Fixes[fixKey(p)])
 			for _, u := range byPurl[p] {
-				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p)}
-				if !containsAffected(f.Affected, a) {
+				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix}
+				if i := indexAffected(f.Affected, a); i >= 0 {
+					if f.Affected[i].Fix == "" {
+						f.Affected[i].Fix = fix
+					}
+				} else {
 					f.Affected = append(f.Affected, a)
 				}
 			}
@@ -284,10 +303,28 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	for _, f := range findings {
 		sort.Strings(f.IDs)
 		sort.Strings(f.Aliases)
+		for _, c := range append([]string{f.Key}, f.Aliases...) {
+			if e, ok := kev[c]; ok {
+				f.Exploited = &e
+				break
+			}
+		}
+		for _, a := range f.Affected {
+			f.Fixable = f.Fixable || a.Fix != ""
+		}
+		if f.Exploited != nil {
+			r.Exploited++
+		}
+		if f.Fixable {
+			r.Fixable++
+		}
 		r.Findings = append(r.Findings, *f)
 	}
 	sort.Slice(r.Findings, func(i, j int) bool {
 		a, b := r.Findings[i], r.Findings[j]
+		if (a.Exploited != nil) != (b.Exploited != nil) {
+			return a.Exploited != nil
+		}
 		if severityRank(a.Severity) != severityRank(b.Severity) {
 			return severityRank(a.Severity) > severityRank(b.Severity)
 		}
@@ -312,11 +349,49 @@ func severityRank(s string) int {
 	return map[string]int{"LOW": 1, "MODERATE": 2, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}[strings.ToUpper(s)]
 }
 
-func containsAffected(list []Affected, a Affected) bool {
-	for _, x := range list {
-		if x == a {
-			return true
+// indexAffected finds the same service, environment, image and package in list, fix aside.
+func indexAffected(list []Affected, a Affected) int {
+	for i, x := range list {
+		if x.Service == a.Service && x.Env == a.Env && x.Image == a.Image && x.Package == a.Package {
+			return i
 		}
 	}
-	return false
+	return -1
+}
+
+// purlVersion is the version of a package URL.
+func purlVersion(p string) string {
+	p = strings.SplitN(p, "?", 2)[0]
+	_, v, _ := strings.Cut(p[strings.LastIndex(p, "/")+1:], "@")
+	if u, err := url.PathUnescape(v); err == nil {
+		v = u
+	}
+	return v
+}
+
+// chooseFix picks the version to move to among those that fix an advisory: the lowest above the running
+// one (log4j 2.14.1 -> 2.15.0, not the 2.12.2 of an older branch), else the last listed.
+func chooseFix(running string, fixes []string) string {
+	if len(fixes) == 0 {
+		return ""
+	}
+	cur, ok := ParseVersion(running)
+	if !ok {
+		return fixes[len(fixes)-1]
+	}
+	best, found := "", false
+	var low Version
+	for _, f := range fixes {
+		v, ok := ParseVersion(f)
+		if !ok || v.Compare(cur) <= 0 {
+			continue
+		}
+		if !found || v.Compare(low) < 0 {
+			best, low, found = f, v, true
+		}
+	}
+	if !found {
+		return fixes[len(fixes)-1]
+	}
+	return best
 }

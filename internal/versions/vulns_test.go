@@ -82,6 +82,15 @@ func TestCheckVulnerabilities(t *testing.T) {
 			case "GHSA-p6mc-m468-83gw":
 				rec["aliases"] = []string{"CVE-2020-8203"}
 				rec["database_specific"] = map[string]string{"severity": "HIGH"}
+				rec["affected"] = []map[string]any{{
+					"package": map[string]string{"name": "lodash", "ecosystem": "npm"},
+					"ranges":  []map[string]any{{"events": []map[string]string{{"introduced": "3.7.0"}, {"fixed": "4.17.19"}}}},
+				}}
+			case "DEBIAN-CVE-2024-5535":
+				rec["affected"] = []map[string]any{{
+					"package": map[string]string{"name": "openssl", "ecosystem": "Debian:12"},
+					"ranges":  []map[string]any{{"events": []map[string]string{{"introduced": "0"}, {"fixed": "3.0.15-1~deb12u1"}}}},
+				}}
 			}
 			_ = json.NewEncoder(w).Encode(rec)
 		default:
@@ -121,6 +130,10 @@ func TestCheckVulnerabilities(t *testing.T) {
 		t.Fatalf("asked again: sbom %d, osv %d", reg.reads.Load(), batches.Load())
 	}
 
+	// CISA lists the OpenSSL one as exploited: it comes first, whatever its severity.
+	if err := l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2024-5535", Name: "OpenSSL", DueDate: "2026-11-01", Ransomware: true}}); err != nil {
+		t.Fatal(err)
+	}
 	r, err := LoadVulnReport(ctx, l.st, l.sc, tgt.EnvironmentID)
 	if err != nil {
 		t.Fatal(err)
@@ -128,12 +141,17 @@ func TestCheckVulnerabilities(t *testing.T) {
 	if r.Images != 1 || r.WithSBOM != 1 || r.Packages != 2 || len(r.Findings) != 2 || r.Pending != 0 || r.Unasked != 0 {
 		t.Fatalf("report %+v", r)
 	}
-	// The Debian advisories of one CVE are one finding; the GHSA is known by its CVE and ranks first (HIGH).
-	if f := r.Findings[0]; f.Key != "CVE-2020-8203" || f.Severity != "HIGH" || f.Affected[0].Package != "lodash 4.17.15" {
+	// The Debian advisories of one CVE are one finding, exploited and so first, with the version that fixes it.
+	if f := r.Findings[0]; f.Key != "CVE-2024-5535" || len(f.IDs) != 2 || f.Exploited == nil || !f.Exploited.Ransomware ||
+		f.Affected[0].Service != l.svc.Name || f.Affected[0].Package != "openssl 3.0.11-1~deb12u2" || f.Affected[0].Fix != "3.0.15-1~deb12u1" {
 		t.Errorf("first finding %+v", f)
 	}
-	if f := r.Findings[1]; f.Key != "CVE-2024-5535" || len(f.IDs) != 2 || f.Affected[0].Service != l.svc.Name || f.Affected[0].Package != "openssl 3.0.11-1~deb12u2" {
+	// The GHSA is known by its CVE, with its severity and fix.
+	if f := r.Findings[1]; f.Key != "CVE-2020-8203" || f.Severity != "HIGH" || f.Affected[0].Package != "lodash 4.17.15" || f.Affected[0].Fix != "4.17.19" {
 		t.Errorf("second finding %+v", f)
+	}
+	if r.Exploited != 1 || r.Fixable != 2 {
+		t.Errorf("exploited %d, fixable %d", r.Exploited, r.Fixable)
 	}
 
 	// An advisory whose record is not read yet (no CVE in its ID) leaves the answer incomplete.
@@ -141,5 +159,51 @@ func TestCheckVulnerabilities(t *testing.T) {
 	_ = l.st.SetPackageVulns(ctx, map[string][]string{"pkg:npm/lodash@4.17.20": {"GHSA-new-one"}})
 	if r, _ := LoadVulnReport(ctx, l.st, l.sc, ""); r.Pending != 1 || len(r.Findings) != 1 || r.Findings[0].Key != "GHSA-new-one" {
 		t.Fatalf("an advisory without its record is not pending: %+v", r)
+	}
+}
+
+func TestKEV(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"catalogVersion":"2026.10.08","vulnerabilities":[
+			{"cveID":"CVE-2024-3094","vendorProject":"XZ","product":"Utils","vulnerabilityName":"XZ backdoor","dateAdded":"2024-04-01","dueDate":"2024-04-22","knownRansomwareCampaignUse":"Unknown"},
+			{"cveID":"CVE-2023-4966","vendorProject":"Citrix","product":"NetScaler","vulnerabilityName":"Citrix Bleed","dateAdded":"2023-10-18","dueDate":"2023-11-08","knownRansomwareCampaignUse":"Known"}]}`))
+	}))
+	defer srv.Close()
+	l := newLab(t)
+	ctx := context.Background()
+	l.checker.SetKEV(NewKEV(srv.URL))
+	if err := l.checker.refreshKEV(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got, fetched, err := l.st.KnownExploited(ctx)
+	if err != nil || len(got) != 2 || fetched.IsZero() || !got["CVE-2023-4966"].Ransomware || got["CVE-2024-3094"].DueDate != "2024-04-22" {
+		t.Fatalf("kev %+v %v", got, err)
+	}
+	// An empty download does not wipe the catalog.
+	l.checker.SetKEV(NewKEV(httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"vulnerabilities":[]}`))
+	})).URL))
+	l.checker.now = func() time.Time { return time.Now().UTC().Add(25 * time.Hour) }
+	_ = l.checker.refreshKEV(ctx)
+	if got, _, _ := l.st.KnownExploited(ctx); len(got) != 2 {
+		t.Fatalf("empty catalog replaced the known one: %d", len(got))
+	}
+}
+
+func TestChooseFix(t *testing.T) {
+	for _, c := range []struct {
+		running string
+		fixes   []string
+		want    string
+	}{
+		{"2.14.1", []string{"2.12.2", "2.15.0", "2.3.1"}, "2.15.0"},
+		{"4.17.15", []string{"4.17.19"}, "4.17.19"},
+		{"3.0.11-1~deb12u2", []string{"3.0.15-1~deb12u1"}, "3.0.15-1~deb12u1"},
+		{"weird", []string{"1.0", "2.0"}, "2.0"},
+		{"1.0", nil, ""},
+	} {
+		if got := chooseFix(c.running, c.fixes); got != c.want {
+			t.Errorf("%s %v: %q, want %q", c.running, c.fixes, got, c.want)
+		}
 	}
 }

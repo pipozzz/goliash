@@ -338,6 +338,8 @@ func demoSBOM(repo string) []string {
 		return base
 	case "docker.io/library/nginx":
 		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
+	case "ghcr.io/acme/payments-api":
+		return []string{"pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.13.2"}
 	case "ghcr.io/acme/checkout":
 		return []string{"pkg:npm/lodash@4.17.15", "pkg:npm/express@4.17.1", "pkg:npm/axios@0.21.1", "pkg:npm/jsonwebtoken@8.5.1"}
 	}
