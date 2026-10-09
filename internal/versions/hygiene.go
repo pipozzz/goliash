@@ -85,7 +85,7 @@ func Hygiene(active []store.Instance, envName, targetName map[string]string, all
 		if len(g.digests) == 0 {
 			out = append(out, Finding{
 				Kind: "unpinned", Severity: "info", Image: image, Where: g.where,
-				Detail: "no digest reported; the tag could be pushed again unnoticed",
+				Detail: "no digest reported, so a tag pushed again would go unnoticed",
 			})
 		}
 	}
