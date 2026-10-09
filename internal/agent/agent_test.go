@@ -656,3 +656,38 @@ func TestResolveDigests(t *testing.T) {
 		t.Fatalf("ECR resolved through the Distribution API: %+v", got)
 	}
 }
+
+type inspectRegistry struct {
+	fakeRegistry
+	creds []string
+}
+
+func (r *inspectRegistry) ImageEvidence(_ context.Context, _, digest string, creds registry.Credentials) (registry.Evidence, error) {
+	r.creds = append(r.creds, creds.Password)
+	if strings.HasSuffix(digest, "bad") {
+		return registry.Evidence{}, errors.New("registry denied access (401)")
+	}
+	return registry.Evidence{Signed: true, SBOM: true, Found: []string{"cosign signature", "buildkit sbom"}}, nil
+}
+
+func (r *inspectRegistry) ImageSBOM(context.Context, string, string, registry.Credentials) ([]string, error) {
+	return []string{"pkg:npm/lodash@4.17.15"}, nil
+}
+
+func TestInspectDigests(t *testing.T) {
+	good, bad := "sha256:"+strings.Repeat("a", 64), "sha256:"+strings.Repeat("a", 61)+"bad"
+	reg := &inspectRegistry{}
+	a := &Agent{registry: reg, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	got := a.inspectDigests(context.Background(), agentproto.RegistryCheck{Repository: "harbor.example.com/shop/api", Inspect: []string{good, bad}},
+		registry.Credentials{Password: "s3cret"})
+	if len(got) != 2 || !*got[0].Signed || !*got[0].Sbom || len(got[0].Purls) != 1 || got[1].Error == nil || got[1].Signed != nil {
+		t.Fatalf("inspections %+v", got)
+	}
+	if len(reg.creds) != 2 || reg.creds[0] != "s3cret" {
+		t.Fatalf("credentials %v", reg.creds)
+	}
+	ecr := agentproto.RegistryCheck{Repository: "111111111111.dkr.ecr.eu-west-1.amazonaws.com/team/api", Inspect: []string{good}}
+	if got := a.inspectDigests(context.Background(), ecr, registry.Credentials{}); got != nil {
+		t.Fatalf("ECR inspected through the Distribution API: %+v", got)
+	}
+}

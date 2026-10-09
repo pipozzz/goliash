@@ -47,6 +47,7 @@ type Upstreams interface {
 	PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error)
 	RecordPrivateTags(ctx context.Context, sc store.Scope, repo string, tags []string, checkErr string) error
 	RecordDigestMatches(ctx context.Context, sc store.Scope, repo string, matches map[string]string) error
+	RecordInspections(ctx context.Context, sc store.Scope, repo string, found []agentproto.ImageInspection) error
 }
 
 // SetUpstreams connects the version checker. It must be called before serving.
@@ -288,6 +289,11 @@ func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentp
 		}
 		if err := s.upstreams.RecordPrivateTags(ctx, a.Scope, r.Repository, tags, checkErr); err != nil {
 			return err
+		}
+		if len(r.Inspected) > 0 {
+			if err := s.upstreams.RecordInspections(ctx, a.Scope, r.Repository, r.Inspected); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

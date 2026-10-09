@@ -64,7 +64,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 		keys[key] = true
 		b, have := sboms[key]
-		if !evidence[key].SBOM || (have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
+		if !IsPublicRegistry(repo) || !evidence[key].SBOM || (have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
 			continue
 		}
 		read++

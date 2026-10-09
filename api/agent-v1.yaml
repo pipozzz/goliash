@@ -624,6 +624,15 @@ components:
             manifests) has that digest.
           items:
             $ref: '#/components/schemas/DigestLookup'
+        inspect:
+          type: array
+          maxItems: 20
+          description: |
+            Digests of running images to look up signatures and attestations for (cosign tags, BuildKit
+            attestation manifests, OCI referrers), and the packages of their SBOM. Older agents ignore it.
+          items:
+            type: string
+            pattern: '^sha256:[a-f0-9]{64}$'
 
     DigestLookup:
       type: object
@@ -763,6 +772,38 @@ components:
           description: Answers to `resolve`, one per digest looked up; `tag` is empty when no candidate matched.
           items:
             $ref: '#/components/schemas/DigestMatch'
+        inspected:
+          type: array
+          description: Answers to `inspect`, one per digest.
+          items:
+            $ref: '#/components/schemas/ImageInspection'
+
+    ImageInspection:
+      type: object
+      required: [digest]
+      properties:
+        digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        signed:
+          type: boolean
+        sbom:
+          type: boolean
+        provenance:
+          type: boolean
+        found:
+          type: array
+          description: What was found, for people ("cosign signature", "buildkit sbom" …).
+          items:
+            type: string
+        purls:
+          type: array
+          maxItems: 20000
+          description: The package URLs the SBOM attestation lists, when there is one.
+          items:
+            type: string
+        error:
+          type: string
 
     DigestMatch:
       type: object

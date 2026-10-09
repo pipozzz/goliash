@@ -81,6 +81,7 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 			}
 		}
 		r.Resolved = a.resolveDigests(ctx, c, creds)
+		r.Inspected = a.inspectDigests(ctx, c, creds)
 		out = append(out, r)
 	}
 	return out
@@ -212,6 +213,51 @@ func (a *Agent) resolveDigests(ctx context.Context, c agentproto.RegistryCheck, 
 			return out
 		}
 		out = append(out, m)
+	}
+	return out
+}
+
+// Inspector finds the signatures, attestations and SBOM packages of an image. registry.Client implements it.
+type Inspector interface {
+	ImageEvidence(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.Evidence, error)
+	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) ([]string, error)
+}
+
+// maxPurls bounds the packages reported for one image.
+const maxPurls = 20000
+
+// inspectDigests answers the server's inspections: what the registry holds beside each running digest, and
+// the packages of its SBOM, read with the agent's own credentials.
+func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, creds registry.Credentials) []agentproto.ImageInspection {
+	reader, ok := a.registry.(Inspector)
+	if !ok || len(c.Inspect) == 0 {
+		return nil
+	}
+	if _, _, _, isECR := ecr.Parse(c.Repository); isECR {
+		return nil // ECR is read through the AWS API, which does not serve these
+	}
+	out := make([]agentproto.ImageInspection, 0, len(c.Inspect))
+	for _, digest := range c.Inspect {
+		in := agentproto.ImageInspection{Digest: digest}
+		ev, err := reader.ImageEvidence(ctx, c.Repository, digest, creds)
+		if ctx.Err() != nil {
+			return out
+		}
+		if err != nil {
+			msg := err.Error()
+			in.Error = &msg
+			out = append(out, in)
+			continue
+		}
+		in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
+		if ev.SBOM {
+			purls, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
+			if err != nil {
+				a.log.Warn("sbom not readable", "repository", c.Repository, "digest", digest, "err", err)
+			}
+			in.Purls = purls[:min(len(purls), maxPurls)]
+		}
+		out = append(out, in)
 	}
 	return out
 }

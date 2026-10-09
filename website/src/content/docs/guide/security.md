@@ -43,7 +43,9 @@ For every image running in production, Goliash asks its registry what it holds b
 The Security page shows the share of production images with each, and lists the unsigned ones. Goliash records that
 these **exist**; it does not verify who signed them. Images on public registries are looked up by the server, at
 most 40 per workspace and check, again after a week when something was found and after a day when nothing was.
-Images on private registries, and images without a known digest, count as *not checked*.
+Images on private registries are looked up by the agents, with the credentials they already use for private tags
+(up to 20 digests per repository and round), and they send the packages of the SBOM along; this needs agent 1.27 or
+newer. Images on Amazon ECR, and images without a known digest, count as *not checked*.
 
 ## Is it running?
 
