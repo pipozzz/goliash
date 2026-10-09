@@ -120,7 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: azure/setup-helm@v5
-      - uses: helm/kind-action@v1.15.0
+      - uses: helm/kind-action@v1.15.1
         with:
           cluster_name: goliash-e2e
       - name: Kubernetes end-to-end test
@@ -141,7 +141,7 @@ jobs:
           helm template t deploy/helm/goliash --set database.url=postgres://x --set replicaCount=2 | grep -q PodDisruptionBudget
           ! helm template t deploy/helm/goliash --set replicaCount=2 > /dev/null 2>&1   # SQLite: one server only
           helm template t deploy/helm/goliash-agent --set token.existingSecret=s > /dev/null
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       - name: Terraform module is valid
         working-directory: deploy/ecs/goliash-agent
         run: |

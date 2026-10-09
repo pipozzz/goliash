@@ -66,6 +66,9 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
 - **Notifications with less noise.** Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, webhooks (signed), e-mail, browser push and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze, and a scheduled upgrade plan.
+- **Security posture for whoever answers for the risk.** How long production has run behind an available release
+  (median, 90th percentile, 30+ and 90+ days), what is past its end of life, accepted risk, supply-chain findings and
+  blind spots, with a CSV and a PDF for risk registers and audits (NIS2, DORA, SOC 2, ISO 27001).
 - **On the dashboards you already have.** Ready-made Grafana and SigNoz dashboards (versions, drift, delivery speed,
   image hygiene, Goliash's own health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
   PrometheusRule and dashboard from the Helm chart. Settings → Integrations fills in the scrape settings and creates
