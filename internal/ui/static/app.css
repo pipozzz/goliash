@@ -869,3 +869,6 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 .panel.answer h2 { margin: 0 0 6px; font-size: 20px; }
 .panel.answer-ok { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); background: var(--ok-soft); }
 .vuln-use + .vuln-use { margin-top: 6px; }
+.vuln-use .fix { color: var(--ok); font-size: 12.5px; margin-left: 6px; }
+.vuln-use .muted { font-size: 12.5px; margin-left: 6px; }
+.notice.pending { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }

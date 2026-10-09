@@ -170,8 +170,12 @@ templ SecurityPage(v SecurityView) {
 					<p>
 						<a href="/security/vulns"><strong>{ plural(len(v.Vulns.Findings), "known vulnerability", "known vulnerabilities") }</strong></a>
 						{ " in " + plural(v.Vulns.Packages, "package", "packages") + " of " }
-						{ itoa(v.Vulns.WithSBOM) } of { itoa(v.Vulns.Images) } images with an SBOM.
+						{ itoa(v.Vulns.WithSBOM) } of { itoa(v.Vulns.Images) } images with an SBOM;
+						{ itoa(v.Vulns.Fixable) } with a fixed version out.
 					</p>
+					if v.Vulns.Exploited > 0 {
+						<p class="notice error"><a href="/security/vulns?kev=1"><strong>{ plural(v.Vulns.Exploited, "vulnerability is", "vulnerabilities are") } exploited in the wild</strong></a> (CISA KEV): patch these first.</p>
+					}
 				}
 			</div>
 		</section>

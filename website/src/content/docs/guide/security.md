@@ -57,6 +57,12 @@ vulnerability of the running images:
 3. Search by CVE or advisory ID, package or service. A vulnerability shows once, under its CVE, with every advisory
    that names it (`DEBIAN-CVE-…`, `DSA-…`, `GHSA-…`) and each package and service it is in.
 
+**What to patch first.** Vulnerabilities in CISA's catalog of
+[known exploited vulnerabilities](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) (KEV) come first,
+marked *exploited* with CISA's due date and *ransomware* when CISA knows of ransomware using them; *Only exploited
+in the wild* shows just those. Each affected package says the version that fixes it (the lowest above the running
+one, from OSV), or *no fix yet*. The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
+
 The answer covers only images with an SBOM Goliash could read, and the page says how many those are. While
 advisories are still being looked up it says so, and does not answer "not running".
 

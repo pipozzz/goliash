@@ -114,20 +114,28 @@ type Vuln struct {
 	Aliases   []string
 	Summary   string
 	Severity  string
+	Fixes     map[string][]string // "ecosystem|package" -> versions that fix it; nil until read with them
 	FetchedAt time.Time
 }
 
 // SetVuln records a vulnerability's details.
 func (s *Store) SetVuln(ctx context.Context, v Vuln) error {
-	_, err := s.exec(ctx, s.db, `INSERT INTO osv_vulns (id, aliases, summary, severity, fetched_at) VALUES (?, ?, ?, ?, ?)
+	fixes := []byte("{}")
+	if len(v.Fixes) > 0 {
+		var err error
+		if fixes, err = json.Marshal(v.Fixes); err != nil {
+			return err
+		}
+	}
+	_, err := s.exec(ctx, s.db, `INSERT INTO osv_vulns (id, aliases, summary, severity, fixes, fetched_at) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET aliases = excluded.aliases, summary = excluded.summary, severity = excluded.severity,
-			fetched_at = excluded.fetched_at`, v.ID, jsonList(v.Aliases), v.Summary, v.Severity, s.now())
+			fixes = excluded.fixes, fetched_at = excluded.fetched_at`, v.ID, jsonList(v.Aliases), v.Summary, v.Severity, string(fixes), s.now())
 	return err
 }
 
 // ListVulns returns every vulnerability record kept, by ID.
 func (s *Store) ListVulns(ctx context.Context) (map[string]Vuln, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, aliases, summary, severity, fetched_at FROM osv_vulns`)
+	rows, err := s.query(ctx, s.db, `SELECT id, aliases, summary, severity, fixes, fetched_at FROM osv_vulns`)
 	if err != nil {
 		return nil, err
 	}
@@ -135,11 +143,15 @@ func (s *Store) ListVulns(ctx context.Context) (map[string]Vuln, error) {
 	out := map[string]Vuln{}
 	for rows.Next() {
 		var v Vuln
-		var aliases string
-		if err := rows.Scan(&v.ID, &aliases, &v.Summary, &v.Severity, &v.FetchedAt); err != nil {
+		var aliases, fixes string
+		if err := rows.Scan(&v.ID, &aliases, &v.Summary, &v.Severity, &fixes, &v.FetchedAt); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(aliases), &v.Aliases)
+		if fixes != "" {
+			v.Fixes = map[string][]string{}
+			_ = json.Unmarshal([]byte(fixes), &v.Fixes)
+		}
 		out[v.ID] = v
 	}
 	return out, rows.Err()
@@ -151,4 +163,52 @@ func jsonList(v []string) string {
 	}
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+// Exploited is a vulnerability in CISA's catalog of known exploited vulnerabilities (KEV).
+type Exploited struct {
+	CVE, VendorProduct, Name string
+	DateAdded, DueDate       string // YYYY-MM-DD
+	Ransomware               bool   // known to be used in ransomware campaigns
+}
+
+// SetKnownExploited replaces the catalog of known exploited vulnerabilities.
+func (s *Store) SetKnownExploited(ctx context.Context, list []Exploited) error {
+	now := s.now()
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := s.exec(ctx, tx, `DELETE FROM known_exploited`); err != nil {
+			return err
+		}
+		for _, e := range list {
+			if _, err := s.exec(ctx, tx, `INSERT INTO known_exploited (cve, vendor_product, name, date_added, due_date, ransomware, fetched_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (cve) DO NOTHING`,
+				e.CVE, e.VendorProduct, e.Name, e.DateAdded, e.DueDate, e.Ransomware, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// KnownExploited returns the catalog by CVE, and when it was last fetched (zero when never).
+func (s *Store) KnownExploited(ctx context.Context) (map[string]Exploited, time.Time, error) {
+	rows, err := s.query(ctx, s.db, `SELECT cve, vendor_product, name, date_added, due_date, ransomware, fetched_at FROM known_exploited`)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]Exploited{}
+	var fetched time.Time
+	for rows.Next() {
+		var e Exploited
+		var at time.Time
+		if err := rows.Scan(&e.CVE, &e.VendorProduct, &e.Name, &e.DateAdded, &e.DueDate, &e.Ransomware, &at); err != nil {
+			return nil, time.Time{}, err
+		}
+		out[e.CVE] = e
+		if at.After(fetched) {
+			fetched = at.UTC()
+		}
+	}
+	return out, fetched, rows.Err()
 }
