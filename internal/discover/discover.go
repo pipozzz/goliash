@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -185,6 +186,31 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			}
 		} else {
 			r.Notes = append(r.Notes, "docker: "+err.Error())
+		}
+	}
+
+	// A Linux host: its root mounted read-only at GOLIASH_HOST_ROOT (/host in the agent's container), or
+	// "/" for an agent installed on the host itself.
+	if root := o.Env("GOLIASH_HOST_ROOT"); root != "" {
+		if o.Exists(path.Join(root, "etc", "os-release")) {
+			name := ""
+			if b, err := o.ReadFile(path.Join(root, "etc", "hostname")); err == nil {
+				name = strings.TrimSpace(string(b))
+			}
+			if name == "" {
+				name, _ = o.Hostname()
+			}
+			name = nameOr(name)
+			id := name
+			if b, err := o.ReadFile(path.Join(root, "etc", "machine-id")); err == nil && strings.TrimSpace(string(b)) != "" {
+				id = strings.TrimSpace(string(b))
+			}
+			hostRoot := root
+			found("host:"+id, name, agentproto.DeclaredTarget{
+				Platform: agentproto.Host, Name: name, Host: &agentproto.HostSettings{Root: &hostRoot},
+			})
+		} else {
+			r.Notes = append(r.Notes, "host: no etc/os-release under "+root)
 		}
 	}
 

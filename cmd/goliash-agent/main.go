@@ -22,6 +22,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/compose"
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/internal/collectors/ecs"
+	"github.com/pipozzz/goliash/internal/collectors/host"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
 	"github.com/pipozzz/goliash/internal/collectors/lambda"
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
@@ -92,6 +93,7 @@ func main() {
 				agentproto.Swarm:      swarm.New,
 				agentproto.Docker:     docker.New,
 				agentproto.Compose:    compose.New,
+				agentproto.Host:       host.New,
 			},
 			Logger: log,
 		})

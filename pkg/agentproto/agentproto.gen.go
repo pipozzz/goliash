@@ -46,6 +46,7 @@ const (
 	Compose    Platform = "compose"
 	Docker     Platform = "docker"
 	Ecs        Platform = "ecs"
+	Host       Platform = "host"
 	Kubernetes Platform = "kubernetes"
 	Lambda     Platform = "lambda"
 	Manual     Platform = "manual"
@@ -61,6 +62,8 @@ func (e Platform) Valid() bool {
 	case Docker:
 		return true
 	case Ecs:
+		return true
+	case Host:
 		return true
 	case Kubernetes:
 		return true
@@ -103,6 +106,8 @@ const (
 	Deployment      WorkloadKind = "deployment"
 	DockerContainer WorkloadKind = "docker_container"
 	EcsService      WorkloadKind = "ecs_service"
+	HostOs          WorkloadKind = "host_os"
+	HostPackage     WorkloadKind = "host_package"
 	LambdaFunction  WorkloadKind = "lambda_function"
 	ManualEntry     WorkloadKind = "manual_entry"
 	NomadJob        WorkloadKind = "nomad_job"
@@ -124,6 +129,10 @@ func (e WorkloadKind) Valid() bool {
 	case DockerContainer:
 		return true
 	case EcsService:
+		return true
+	case HostOs:
+		return true
+	case HostPackage:
 		return true
 	case LambdaFunction:
 		return true
@@ -216,8 +225,13 @@ type DeclaredTarget struct {
 
 	// Docker A standalone Docker host. Compose services are grouped by project and service; other containers are
 	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
-	Docker     *DockerSettings     `json:"docker,omitempty"`
-	Ecs        *ECSSettings        `json:"ecs,omitempty"`
+	Docker *DockerSettings `json:"docker,omitempty"`
+	Ecs    *ECSSettings    `json:"ecs,omitempty"`
+
+	// Host A Linux server or virtual machine: its operating system (/etc/os-release) and the installed packages
+	// that matter (dpkg or apk databases), read from the files only. In a container, mount the host's
+	// root read-only and set root.
+	Host       *HostSettings       `json:"host,omitempty"`
 	Kubernetes *KubernetesSettings `json:"kubernetes,omitempty"`
 
 	// Lambda AWS Lambda functions of a region, read with lambda:ListFunctions and lambda:GetFunction. A function built
@@ -322,6 +336,26 @@ type Heartbeat struct {
 type HeartbeatResponse struct {
 	// ConfigEtag Current config ETag; when it differs from the agent's, the agent refetches config right away.
 	ConfigEtag string `json:"config_etag"`
+}
+
+// HostSettings A Linux server or virtual machine: its operating system (/etc/os-release) and the installed packages
+// that matter (dpkg or apk databases), read from the files only. In a container, mount the host's
+// root read-only and set root.
+type HostSettings struct {
+	// AllPackages Report every installed package, not only the list.
+	AllPackages *bool `json:"all_packages,omitempty"`
+
+	// Packages Package names to report besides the built-in list of servers, runtimes and security-relevant
+	// libraries (nginx, postgresql, redis, openssl, openssh-server, docker, java, nodejs, python3 …).
+	//
+	//
+	// Example: ["haproxy","keepalived"]
+	Packages []string `json:"packages,omitempty"`
+
+	// Root Where the host's root file system is mounted. Default `/`.
+	//
+	// Example: /host
+	Root *string `json:"root,omitempty"`
 }
 
 // KubernetesSettings defines model for KubernetesSettings.
@@ -508,6 +542,11 @@ type Target struct {
 	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
 	Docker *DockerSettings `json:"docker,omitempty"`
 	Ecs    *ECSSettings    `json:"ecs,omitempty"`
+
+	// Host A Linux server or virtual machine: its operating system (/etc/os-release) and the installed packages
+	// that matter (dpkg or apk databases), read from the files only. In a container, mount the host's
+	// root read-only and set root.
+	Host *HostSettings `json:"host,omitempty"`
 
 	// ID Example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D
 	ID         ULID                `json:"id"`

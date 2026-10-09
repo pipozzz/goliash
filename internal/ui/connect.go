@@ -38,6 +38,7 @@ var connectPlatforms = []PlatformInfo{
 		ServerHint: "The server can watch the cluster it runs in when installed with collectInCluster=true.",
 	},
 	{Key: "docker", Title: "Docker host", Summary: "Containers on one Docker engine, optionally only some Compose projects.", AgentFirst: true},
+	{Key: "host", Title: "Linux server", Summary: "The operating system and installed packages (dpkg, apk) of a server or VM, with their end of life.", AgentFirst: true},
 	{Key: "swarm", Title: "Docker Swarm", Summary: "Services of a Swarm, read on a manager node.", AgentFirst: true},
 	{
 		Key: "nomad", Title: "Nomad", Summary: "Jobs of a Nomad region, with an ACL token that may list and read jobs.", AgentFirst: true,
@@ -157,6 +158,17 @@ func connectSettings(platform string, f url.Values) (json.RawMessage, string) {
 			return nil, "Enter the Docker API address, e.g. tcp://socket-proxy:2375."
 		}
 		t.Docker = &agentproto.DockerSettings{DockerHost: host, Projects: fieldList(val("projects"))}
+	case "host":
+		root := val("root")
+		if root == "" {
+			root = "/host"
+		}
+		h := agentproto.HostSettings{Root: &root, Packages: fieldList(val("packages"))}
+		if f.Get("all_packages") == "on" {
+			all := true
+			h.AllPackages = &all
+		}
+		t.Host = &h
 	case "swarm":
 		host := val("docker_host")
 		if host == "" {
@@ -571,6 +583,12 @@ func installCommand(platform, serverURL, token string, files []string, version s
 		return "Start the agent on the Docker host", "curl -fsSL " + raw + "docker/goliash-agent.yml | \\\n" +
 			"  GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
 			"  docker compose -p goliash-agent -f - up -d"
+	case "host":
+		return "Start the agent on the server, its root mounted read-only", "docker run -d --name goliash-agent --restart unless-stopped \\\n" +
+			"  -v goliash-agent:/data -v /:/host:ro -e GOLIASH_HOST_ROOT=/host \\\n" +
+			"  -e GOLIASH_SERVER_URL=" + serverURL + " -e GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
+			"  " + image + "\n" +
+			"# Without Docker: run the goliash-agent binary on the server with GOLIASH_HOST_ROOT=/ (root set to / in the target)"
 	case "swarm":
 		return "Deploy the agent stack on a manager node", "curl -fsSLO " + raw + "swarm/goliash-agent.yml\n" +
 			"printf '%s' '" + token + "' | docker secret create goliash_agent_token -\n" +

@@ -223,6 +223,10 @@ templ connectManualForm(v ConnectFormView) {
 						case "docker":
 							<label>Docker API<input name="docker_host" required value={ formVal(v.Form, "docker_host", "tcp://socket-proxy:2375") }/><span class="hint">The agent's compose file starts a read-only socket proxy at tcp://socket-proxy:2375.</span></label>
 							<label>Only these Compose projects<input name="projects" value={ formVal(v.Form, "projects", "") } placeholder="all containers"/></label>
+						case "host":
+							<label>Host root<input name="root" value={ formVal(v.Form, "root", "/host") }/><span class="hint">Where the agent sees the server's files: /host when the agent runs in a container with -v /:/host:ro, / when it runs on the server itself.</span></label>
+							<label>More packages<input name="packages" value={ formVal(v.Form, "packages", "") } placeholder="haproxy, keepalived"/><span class="hint">Besides servers, runtimes and security libraries Goliash knows (nginx, postgresql, redis, openssl, openssh-server, docker, java, node, python …).</span></label>
+							<label class="check"><input type="checkbox" name="all_packages" checked?={ formVal(v.Form, "all_packages", "") == "on" }/> Report every installed package</label>
 						case "swarm":
 							<label>Docker API of a manager<input name="docker_host" required value={ formVal(v.Form, "docker_host", "tcp://socket-proxy:2375") }/><span class="hint">The agent's stack starts a read-only socket proxy on a manager at tcp://socket-proxy:2375.</span></label>
 						case "nomad":

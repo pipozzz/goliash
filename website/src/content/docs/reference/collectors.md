@@ -14,6 +14,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
 | Compose files | services and images declared in Compose files | an HTTP(S) URL, or for an agent a file in `GOLIASH_COMPOSE_DIRS` | `credentials_ref` → bearer token for the URL |
+| Linux server | the operating system (`/etc/os-release`) and installed packages that matter (dpkg, apk) | read access to the host's files: the root mounted at `/host` read-only, or the agent on the host | none |
 | Manual | versions people enter on a service page (**Add by hand**), for software Goliash does not collect | nothing: never collected, never stale | none |
 
 ## Target settings
@@ -89,3 +90,32 @@ Credentials never leave the agent.
 - **Amazon ECR** (`<account>.dkr.ecr.<region>.amazonaws.com`): the agent uses the ECR API with its AWS credentials
   and needs IAM `ecr:ListImages`. The default chain is used: IRSA, an ECS task role, an instance profile or the
   environment. A credential, if set, names an AWS profile.
+
+## Linux servers
+
+A server or virtual machine outside containers: the agent reads its operating system from `/etc/os-release` and
+its packages from the dpkg (Debian, Ubuntu) or apk (Alpine) database. It only reads files and runs nothing on the
+host. RPM-based systems report the operating system only, for now.
+
+```sh
+docker run -d --name goliash-agent --restart unless-stopped \
+  -v goliash-agent:/data -v /:/host:ro -e GOLIASH_HOST_ROOT=/host \
+  -e GOLIASH_SERVER_URL=https://goliash.example.com -e GOLIASH_AGENT_TOKEN=glsh_enroll_… \
+  ghcr.io/pipozzz/goliash-agent
+```
+
+With `GOLIASH_HOST_ROOT` set, the agent finds the host by itself (named after `/etc/hostname`, identified by
+`/etc/machine-id`). **Connect → Linux server** gives the same command.
+
+- **The operating system** is a workload named after it (`ubuntu`, `debian`, `alpine`, `rocky` …) at its version,
+  compared with the distribution's image, so its end of life (Ubuntu 20.04, Debian 11 …) shows up like any other.
+- **Packages**: servers, runtimes and security-relevant libraries Goliash knows (nginx, Apache, HAProxy, PostgreSQL,
+  MySQL, MariaDB, Redis, MongoDB, RabbitMQ, Elasticsearch, Java, Node.js, Python, PHP, Docker, OpenSSL, OpenSSH,
+  sudo …), plus the names in `packages`; `all_packages` reports everything. Versions are the upstream part of the
+  distribution's (`1.18.0-6ubuntu14.4` → `1.18.0`). Packages with an image of the same software (nginx →
+  `docker.io/library/nginx`) get its new releases and end of life; the others (`pkg.goliash/openssl`) are inventory
+  only, and their end of life can be named in the service's policy (`"eol": "openssl"`).
+
+```json
+{"host": {"root": "/host", "packages": ["keepalived"], "all_packages": false}}
+```
