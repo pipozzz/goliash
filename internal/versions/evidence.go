@@ -9,6 +9,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // EvidenceReader finds the signatures and attestations of an image. registry.Client implements it.
@@ -80,4 +81,65 @@ func fresh(ev store.ImageEvidence, now time.Time) bool {
 		ttl = evidenceFound
 	}
 	return now.Sub(ev.CheckedAt) < ttl
+}
+
+// inspectPerRepo bounds the digests an agent is asked to inspect per repository and round.
+const inspectPerRepo = 20
+
+// pendingInspections lists, per private repository, the running digests whose signatures, attestations and
+// SBOM the agents should read: those without a fresh lookup.
+func (c *Checker) pendingInspections(ctx context.Context, sc store.Scope, active []store.Instance) (map[string][]string, error) {
+	known, err := c.store.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	now := c.now()
+	out := map[string][]string{}
+	seen := map[string]bool{}
+	for _, in := range active {
+		repo := ParseImage(in.Image).Repo()
+		key := repo + "@" + in.Digest
+		if in.Digest == "" || seen[key] || IsPublicRegistry(repo) || PackageRepo(repo) || fresh(known[key], now) ||
+			len(out[repo]) >= inspectPerRepo || !validDigest(in.Digest) {
+			continue
+		}
+		seen[key] = true
+		out[repo] = append(out[repo], in.Digest)
+	}
+	return out, nil
+}
+
+func validDigest(d string) bool {
+	if len(d) != len("sha256:")+64 || d[:7] != "sha256:" {
+		return false
+	}
+	for _, r := range d[7:] {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// RecordInspections records what an agent found beside private images: signatures and attestations, and the
+// packages of their SBOMs.
+func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo string, found []agentproto.ImageInspection) error {
+	for _, in := range found {
+		ev := store.ImageEvidence{Repo: repo, Digest: in.Digest, Found: in.Found}
+		if in.Error != nil {
+			ev.Error = *in.Error
+		}
+		ev.Signed = in.Signed != nil && *in.Signed
+		ev.SBOM = in.Sbom != nil && *in.Sbom
+		ev.Provenance = in.Provenance != nil && *in.Provenance
+		if err := c.store.SetImageEvidence(ctx, sc, ev); err != nil {
+			return err
+		}
+		if ev.SBOM && len(in.Purls) > 0 {
+			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -68,7 +68,8 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.Handle("POST /agent/v1/register", h.authed(maxSmallRequestBody, h.register))
 	mux.Handle("GET /agent/v1/config", h.authed(0, h.config))
 	mux.Handle("POST /agent/v1/snapshot", h.authed(maxSnapshotBody, h.snapshot))
-	mux.Handle("POST /agent/v1/registry-results", h.authed(maxSmallRequestBody, h.registryResults))
+	// Registry results carry the package lists of private images' SBOMs: as large as snapshots.
+	mux.Handle("POST /agent/v1/registry-results", h.authed(maxSnapshotBody, h.registryResults))
 	mux.Handle("POST /agent/v1/heartbeat", h.authed(maxSmallRequestBody, h.heartbeat))
 	mux.HandleFunc("/agent/", func(w http.ResponseWriter, _ *http.Request) {
 		writeProblem(w, http.StatusNotFound, "Not found", "unknown agent protocol endpoint")

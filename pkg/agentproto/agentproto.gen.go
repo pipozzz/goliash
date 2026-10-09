@@ -358,6 +358,21 @@ type HostSettings struct {
 	Root *string `json:"root,omitempty"`
 }
 
+// ImageInspection defines model for ImageInspection.
+type ImageInspection struct {
+	Digest string  `json:"digest"`
+	Error  *string `json:"error,omitempty"`
+
+	// Found What was found, for people ("cosign signature", "buildkit sbom" …).
+	Found      []string `json:"found,omitempty"`
+	Provenance *bool    `json:"provenance,omitempty"`
+
+	// Purls The package URLs the SBOM attestation lists, when there is one.
+	Purls  []string `json:"purls,omitempty"`
+	Sbom   *bool    `json:"sbom,omitempty"`
+	Signed *bool    `json:"signed,omitempty"`
+}
+
 // KubernetesSettings defines model for KubernetesSettings.
 type KubernetesSettings struct {
 	// ExcludeNamespaces Example: ["kube-system"]
@@ -444,6 +459,10 @@ type RegisterResponse struct {
 type RegistryCheck struct {
 	CredentialsRef *string `json:"credentials_ref,omitempty"`
 
+	// Inspect Digests of running images to look up signatures and attestations for (cosign tags, BuildKit
+	// attestation manifests, OCI referrers), and the packages of their SBOM. Older agents ignore it.
+	Inspect []string `json:"inspect,omitempty"`
+
 	// Repository Image repository without tag or digest.
 	//
 	// Example: registry.example.com/team/payments-api
@@ -463,8 +482,11 @@ type RegistryCheck struct {
 // RegistryResult defines model for RegistryResult.
 type RegistryResult struct {
 	// Error Set when the repository could not be read; `tags` is then empty.
-	Error      *string `json:"error,omitempty"`
-	Repository string  `json:"repository"`
+	Error *string `json:"error,omitempty"`
+
+	// Inspected Answers to `inspect`, one per digest.
+	Inspected  []ImageInspection `json:"inspected,omitempty"`
+	Repository string            `json:"repository"`
 
 	// Resolved Answers to `resolve`, one per digest looked up; `tag` is empty when no candidate matched.
 	Resolved []DigestMatch `json:"resolved,omitempty"`

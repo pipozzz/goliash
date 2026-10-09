@@ -7,12 +7,14 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 type evidenceTags struct {
@@ -69,5 +71,55 @@ func TestCheckEvidence(t *testing.T) {
 	_ = l.checker.CheckEvidence(ctx, l.sc)
 	if reg.lookups.Load() != 3 {
 		t.Errorf("after a day, only the unsigned image is looked up again: %d", reg.lookups.Load())
+	}
+}
+
+// Private images are inspected by the agents: the server asks for running digests without a fresh lookup,
+// and stops asking once their answer is recorded.
+func TestPrivateInspections(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	tgt := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{
+		{
+			TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.private.ID, WorkloadID: "pay", WorkloadName: "pay", ContainerName: "app",
+			Image: "registry.internal.example/team/payments:1.0.0", Tag: "1.0.0", Digest: digest, Running: 1, IsMain: true,
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	inspectOf := func() []string {
+		t.Helper()
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range checks {
+			if c.Repository == "registry.internal.example/team/payments" {
+				return c.Inspect
+			}
+		}
+		t.Fatalf("no check for the private repository: %+v", checks)
+		return nil
+	}
+	if got := inspectOf(); len(got) != 1 || got[0] != digest {
+		t.Fatalf("inspect %v", got)
+	}
+	yes := true
+	purls := []string{"pkg:npm/lodash@4.17.15"}
+	if err := l.checker.RecordInspections(ctx, l.sc, "registry.internal.example/team/payments", []agentproto.ImageInspection{
+		{Digest: digest, Signed: &yes, Sbom: &yes, Found: []string{"cosign signature", "buildkit sbom"}, Purls: purls},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := inspectOf(); len(got) != 0 {
+		t.Fatalf("asked again after the answer: %v", got)
+	}
+	ev, _ := l.st.ListImageEvidence(ctx, l.sc)
+	sb, _ := l.st.ListImageSBOMs(ctx, l.sc)
+	key := "registry.internal.example/team/payments@" + digest
+	if !ev[key].Signed || !ev[key].SBOM || len(sb[key].Purls) != 1 {
+		t.Fatalf("evidence %+v sbom %+v", ev[key], sb[key])
 	}
 }
