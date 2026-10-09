@@ -163,7 +163,7 @@ func parseApk(r io.Reader) (map[string]string, error) {
 }
 
 func readKeyValues(path string) (map[string]string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // a fixed file under the root the target names: reading the host is the point
 	if err != nil {
 		return nil, err
 	}
