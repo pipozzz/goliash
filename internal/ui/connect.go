@@ -6,6 +6,7 @@ package ui
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -357,14 +358,15 @@ func (s *Server) connectEnv(r *http.Request, p auth.Principal, f url.Values) (st
 // agents that enroll with it.
 type ConnectCodeView struct {
 	Base
-	Platform PlatformInfo
-	Env      string
-	Code     string
-	Many     bool
-	Expires  time.Time // zero: never
-	Title    string
-	Command  string
-	Status   CodeStatus
+	Platform  PlatformInfo
+	Env       string
+	Code      string
+	Many      bool
+	Expires   time.Time // zero: never
+	Title     string
+	Command   string
+	ServerURL string // this server's public address, for the localhost warning
+	Status    CodeStatus
 }
 
 // CodeStatus is what the agents that enrolled with a code got to.
@@ -433,7 +435,7 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 	s.audit(ctx, p, "enroll.create", "environment", env.Name, "platform", info.Key, "code", c.ID)
 	v := ConnectCodeView{
 		Base: s.base(ctx, p, "agents", "Connect "+info.Title), Platform: info, Env: env.Name, Code: code, Many: many,
-		Expires: until,
+		Expires: until, ServerURL: s.publicURL,
 	}
 	v.Title, v.Command = installCommand(info.Key, s.publicURL, code, nil, s.version)
 	if name != "" && info.Key == "kubernetes" {
@@ -568,6 +570,11 @@ func agentRelease(version string) (imageTag, gitRef string) {
 // installCommand is how to start an agent for a platform, with the server URL and the
 // token filled in and the release pinned to the server's, so it can be pasted as it is.
 func installCommand(platform, serverURL, token string, files []string, version string) (title, cmd string) {
+	serverURL = agentServerURL(platform, serverURL)
+	addHost := ""
+	if strings.Contains(serverURL, "//"+dockerHostAlias) {
+		addHost = " --add-host " + dockerHostAlias + ":host-gateway"
+	}
 	tag, ref := agentRelease(version)
 	raw := "https://raw.githubusercontent.com/pipozzz/goliash/" + ref + "/deploy/"
 	image := "ghcr.io/pipozzz/goliash-agent:" + tag
@@ -584,7 +591,7 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			"  GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
 			"  docker compose -p goliash-agent -f - up -d"
 	case "host":
-		return "Start the agent on the server, its root mounted read-only", "docker run -d --name goliash-agent --restart unless-stopped \\\n" +
+		return "Start the agent on the server, its root mounted read-only", "docker run -d --name goliash-agent --restart unless-stopped" + addHost + " \\\n" +
 			"  -v goliash-agent:/data -v /:/host:ro -e GOLIASH_HOST_ROOT=/host \\\n" +
 			"  -e GOLIASH_SERVER_URL=" + serverURL + " -e GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
 			"  " + image + "\n" +
@@ -629,7 +636,7 @@ func installCommand(platform, serverURL, token string, files []string, version s
 	if len(dirs) > 0 {
 		extra = "  " + strings.Join(mounts, " ") + " -e GOLIASH_COMPOSE_DIRS=" + strings.Join(dirs, ",") + " \\\n"
 	}
-	return "Start the agent where the files are", "docker run -d --name goliash-agent --restart unless-stopped \\\n" +
+	return "Start the agent where the files are", "docker run -d --name goliash-agent --restart unless-stopped" + addHost + " \\\n" +
 		"  -v goliash-agent:/data \\\n" + extra +
 		"  -e GOLIASH_SERVER_URL=" + serverURL + " -e GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
 		"  " + image
@@ -687,6 +694,7 @@ func agentLogs(platform string) string {
 // platform to version, keeping its code or token and settings. Empty for platforms
 // where it was started by hand.
 func upgradeCommand(platform, serverURL, version string) (title, cmd string) {
+	serverURL = agentServerURL(platform, serverURL)
 	tag, ref := agentRelease(version)
 	raw := "https://raw.githubusercontent.com/pipozzz/goliash/" + ref + "/deploy/"
 	switch platform {
@@ -717,4 +725,62 @@ func upgradeCommand(platform, serverURL, version string) (title, cmd string) {
 				"  --parameters ParameterKey=Version,ParameterValue=" + tag + keep
 	}
 	return "", ""
+}
+
+// dockerHostAlias is how a container reaches the machine it runs on: Docker Desktop knows the name,
+// Linux engines learn it from --add-host / extra_hosts host-gateway.
+const dockerHostAlias = "host.docker.internal"
+
+// loopbackURL reports whether serverURL points at this machine only (localhost, 127.0.0.1, ::1).
+func loopbackURL(serverURL string) bool {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return false
+	}
+	h := u.Hostname()
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
+// agentServerURL is the address an agent started on platform uses for this server. A server known as
+// localhost is the container itself from inside the agent's container, so agents on the same Docker
+// engine reach it through the host instead; other platforms keep the address (and get a warning).
+func agentServerURL(platform, serverURL string) string {
+	if !loopbackURL(serverURL) || !sameMachinePlatform(platform) {
+		return serverURL
+	}
+	u, _ := url.Parse(serverURL)
+	if port := u.Port(); port != "" {
+		u.Host = dockerHostAlias + ":" + port
+	} else {
+		u.Host = dockerHostAlias
+	}
+	return u.String()
+}
+
+// sameMachinePlatform reports whether the agent for platform usually runs in a container on the machine
+// a trial server runs on.
+func sameMachinePlatform(platform string) bool {
+	switch platform {
+	case "docker", "host", "compose", "":
+		return true
+	}
+	return false
+}
+
+// localServerNote warns when agents get a localhost address for the server, which only works on the
+// server's own machine.
+func localServerNote(platform, serverURL string) string {
+	if !loopbackURL(serverURL) {
+		return ""
+	}
+	if sameMachinePlatform(platform) {
+		return "This server's address is " + serverURL + ", so the command reaches it through " + dockerHostAlias +
+			": it works for an agent on this same machine. For agents elsewhere set GOLIASH_PUBLIC_URL to an address they can reach and restart the server."
+	}
+	return "This server's address is " + serverURL + ", which an agent in " + capitalise(platform) +
+		" cannot reach. Set GOLIASH_PUBLIC_URL to an address it can reach (a hostname or IP and port) and restart the server first."
 }

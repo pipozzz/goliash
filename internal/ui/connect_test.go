@@ -363,3 +363,28 @@ func TestOutdatedAgentPage(t *testing.T) {
 		t.Fatalf("agent page: %s", body)
 	}
 }
+
+// A trial server on localhost: agents in containers on the same machine reach it through the host.
+func TestInstallCommandLocalServer(t *testing.T) {
+	for _, p := range []string{"docker", "host", "compose"} {
+		_, cmd := installCommand(p, "http://localhost:8080", "glsh_enroll_x", nil, "1.29.0")
+		if !strings.Contains(cmd, "http://host.docker.internal:8080") || strings.Contains(cmd, "localhost") {
+			t.Errorf("%s: %s", p, cmd)
+		}
+		if p != "docker" && !strings.Contains(cmd, "--add-host host.docker.internal:host-gateway") {
+			t.Errorf("%s without --add-host: %s", p, cmd)
+		}
+		if note := localServerNote(p, "http://127.0.0.1:8080"); !strings.Contains(note, "same machine") {
+			t.Errorf("%s note %q", p, note)
+		}
+	}
+	if _, cmd := installCommand("kubernetes", "http://localhost:8080", "glsh_enroll_x", nil, "1.29.0"); !strings.Contains(cmd, "serverURL=http://localhost:8080") {
+		t.Errorf("kubernetes rewritten: %s", cmd)
+	}
+	if note := localServerNote("kubernetes", "http://localhost:8080"); !strings.Contains(note, "cannot reach") {
+		t.Errorf("kubernetes note %q", note)
+	}
+	if _, cmd := installCommand("docker", "https://goliash.example.com", "c", nil, "1.29.0"); strings.Contains(cmd, "host.docker.internal") || localServerNote("docker", "https://goliash.example.com") != "" {
+		t.Error("a real address was rewritten")
+	}
+}

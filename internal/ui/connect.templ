@@ -286,6 +286,9 @@ templ ConnectDonePage(v ConnectDoneView) {
 				<div class="panel-head"><h2>{ title }</h2><span class="muted">the token is in it and shown only now</span></div>
 				<div class="panel-body stack">
 					<pre class="mono install-cmd" id="install-main">{ cmd }</pre>
+					if note := localServerNote(v.Platform.Key, v.ServerURL); note != "" {
+						<p class="notice" role="status">{ note }</p>
+					}
 					<div class="actions">
 						<button type="button" class="secondary" data-copy="install-main">Copy</button>
 						<a href={ templ.URL("/agents/" + v.AgentID) }>Other ways to start agent { v.AgentName }</a>
@@ -395,6 +398,9 @@ templ ConnectCodePage(v ConnectCodeView) {
 			<div class="panel-head"><h2>{ v.Title }</h2><span class="muted">the code is in it and shown only now</span></div>
 			<div class="panel-body stack">
 				<pre class="mono install-cmd" id="install-main">{ v.Command }</pre>
+				if note := localServerNote(v.Platform.Key, v.ServerURL); note != "" {
+					<p class="notice" role="status">{ note }</p>
+				}
 				<div class="actions">
 					<button type="button" class="secondary" data-copy="install-main">Copy</button>
 				</div>

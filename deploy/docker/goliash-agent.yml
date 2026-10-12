@@ -39,6 +39,10 @@ services:
     volumes:
       - agent-data:/data
       # - /root/.docker/config.json:/etc/goliash-agent/docker/config.json:ro
+    # A trial server on this machine (GOLIASH_SERVER_URL=http://host.docker.internal:8080) is
+    # reachable from the container through the host; Docker Desktop knows the name already.
+    extra_hosts:
+      - host.docker.internal:host-gateway
     depends_on: [socket-proxy]
     restart: unless-stopped
 

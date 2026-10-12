@@ -14,7 +14,9 @@ docker compose logs goliash | grep link=        # open it to create your account
 ```
 
 Open the server and create the first account: the sign-in page offers it for 15 minutes after the start, later
-use the setup link from the log. `GOLIASH_VERSION=1.0.0` pins the image (the tag `1`
+use the setup link from the log. On a laptop the server is `http://localhost:8080`; **Connect → Docker host** then gives a
+command that reaches it from the agent's container through `host.docker.internal`, so a trial needs no other
+address. Agents on other machines need `GOLIASH_PUBLIC_URL` set to an address they can reach. `GOLIASH_VERSION=1.0.0` pins the image (the tag `1`
 follows 1.x). Set `GOLIASH_PUBLIC_URL` to the address people use, and put a reverse proxy with TLS in front for
 anything beyond a trial.
 
