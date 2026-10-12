@@ -41,6 +41,7 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 		return err
 	}
 	now := c.now()
+	auth := c.registryAuth(ctx, sc)
 	done := map[string]bool{}
 	n := 0
 	for _, in := range active {
@@ -49,12 +50,13 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 		}
 		repo := ParseImage(in.Image).Repo()
 		key := repo + "@" + in.Digest
-		if done[key] || !IsPublicRegistry(repo) || fresh(known[key], now) {
+		if done[key] || !auth.Reads(repo) || fresh(known[key], now) {
 			continue
 		}
 		done[key] = true
 		n++
-		ev, err := reader.ImageEvidence(ctx, repo, in.Digest, registry.Credentials{})
+		creds, _ := auth.For(repo)
+		ev, err := reader.ImageEvidence(ctx, repo, in.Digest, creds)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -94,12 +96,13 @@ func (c *Checker) pendingInspections(ctx context.Context, sc store.Scope, active
 		return nil, err
 	}
 	now := c.now()
+	auth := c.registryAuth(ctx, sc)
 	out := map[string][]string{}
 	seen := map[string]bool{}
 	for _, in := range active {
 		repo := ParseImage(in.Image).Repo()
 		key := repo + "@" + in.Digest
-		if in.Digest == "" || seen[key] || IsPublicRegistry(repo) || PackageRepo(repo) || fresh(known[key], now) ||
+		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || fresh(known[key], now) ||
 			len(out[repo]) >= inspectPerRepo || !validDigest(in.Digest) {
 			continue
 		}

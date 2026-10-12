@@ -5,6 +5,7 @@ package ui
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -310,7 +311,7 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 			t.Errorf("audit log misses %s", want)
 		}
 	}
-	if regexp.MustCompile(`glsh_(agent|api)_[A-Za-z0-9]{20}`).MatchString(page) || strings.Contains(page, "SECRET") {
+	if regexp.MustCompile(`glsh_(agent|api)_[A-Za-z0-9]{20}`).MatchString(page) || strings.Contains(page, "B/SECRET") {
 		t.Error("a secret reached the audit log")
 	}
 }
@@ -1647,5 +1648,47 @@ func TestPublicDemoAfterARestart(t *testing.T) {
 	code, body := get(t, c, e.srv.URL+"/updates", map[string]string{"Cookie": "goliash_session=from-before-the-restart"})
 	if code != http.StatusOK || !strings.Contains(body, "Live demo") {
 		t.Fatalf("stale cookie: %d", code)
+	}
+}
+
+func TestRegistryCredentialsSettings(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleAdmin)
+	form := url.Values{"host": {"https://Registry.Example.com/v2/"}, "username": {"robot$goliash"}, "secret": {"tok-123"}}
+	if _, body, _ := post(t, admin, e.srv.URL+"/settings/registries", form); !strings.Contains(body, "GOLIASH_SECRET_KEY") {
+		t.Fatal("stored without a secret key")
+	}
+	if err := e.st.SetSecretKey(bytes.Repeat([]byte{5}, store.SecretKeySize)); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"not a host", "127.0.0.1:5000", "169.254.169.254", "metadata.google.internal", "localhost"} {
+		if _, body, _ := post(t, admin, e.srv.URL+"/settings/registries", url.Values{"host": {bad}, "secret": {"x"}}); !strings.Contains(body, "Enter the registry host") {
+			t.Fatalf("bad host %s accepted", bad)
+		}
+	}
+	_, body, _ := post(t, admin, e.srv.URL+"/settings/registries", form)
+	if !strings.Contains(body, "No service uses registry.example.com yet") {
+		t.Fatalf("save: %s", body)
+	}
+	creds, _ := e.st.ListRegistryCredentials(ctx, e.ws.Scope())
+	if len(creds) != 1 || creds[0].Host != "registry.example.com" || creds[0].Username != "robot$goliash" || creds[0].CreatedBy == "" {
+		t.Fatalf("stored %+v", creds)
+	}
+	_, page := get(t, admin, e.srv.URL+"/settings", nil)
+	if !strings.Contains(page, "registry.example.com") || strings.Contains(page, "tok-123") || !strings.Contains(page, "registry.credentials") {
+		t.Fatal("registries panel, secret shown or no audit entry")
+	}
+	if _, page := get(t, admin, e.srv.URL+"/settings?registry=ghcr.io", nil); !strings.Contains(page, `value="ghcr.io"`) {
+		t.Fatal("host not prefilled")
+	}
+	// Members do not manage credentials; admins remove them.
+	member := e.as(store.RoleMember)
+	post(t, member, e.srv.URL+"/settings/registries/"+creds[0].ID+"/delete", nil)
+	if left, _ := e.st.ListRegistryCredentials(ctx, e.ws.Scope()); len(left) != 1 {
+		t.Fatal("member removed credentials")
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/settings/registries/"+creds[0].ID+"/delete", nil); !strings.Contains(body, "Removed the credentials for registry.example.com") {
+		t.Fatalf("delete: %s", body)
 	}
 }

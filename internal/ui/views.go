@@ -366,7 +366,7 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 	} else if msg := o.CheckErrs[row.Service.ID]; msg != "" {
 		r.Note = "check failed"
 		r.NoteTitle = msg
-	} else if versions.CheckedByAgent(row.Service, ref.Repo) {
+	} else if versions.CheckedByAgent(row.Service, ref.Repo, o.Registries) {
 		r.Note = "checked by agent"
 	} else if ref.Repo != "" {
 		r.Note = "not checked yet"
@@ -825,6 +825,10 @@ type SettingsView struct {
 	Require2FA    bool
 	SelfHas2FA    bool
 	AppLabel      string // the workspace's own application label key
+	Registries    []RegistryView
+	Unread        []UnreadRegistry // private registries only the agents read
+	Encrypts      bool             // the server can store registry credentials
+	RegistryHost  string           // prefilled from "Add credentials"
 	Audit         []AuditView
 	Users         []UserView
 	Tokens        []TokenView

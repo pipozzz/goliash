@@ -31,6 +31,7 @@ import (
 	"github.com/pipozzz/goliash/internal/demo"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/internal/versions"
@@ -228,6 +229,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/password", s.page(v, s.changePassword))
 	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
 	mux.Handle("POST /account/sessions/{id}/delete", s.page(v, s.signOutSession))
+	mux.Handle("POST /settings/registries", s.page(a, s.saveRegistry))
+	mux.Handle("POST /settings/registries/{id}/delete", s.page(a, s.deleteRegistry))
 	mux.Handle("POST /settings/tokens", s.page(a, s.createToken))
 	mux.Handle("POST /settings/tokens/{id}/revoke", s.page(a, s.revokeToken))
 	mux.Handle("POST /workspace", s.page(v, s.switchWorkspace))
@@ -345,11 +348,15 @@ func back(w http.ResponseWriter, r *http.Request, path, key, msg string) error {
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") || strings.HasPrefix(path, "/\\") {
 		path = "/"
 	}
+	path, fragment, _ := strings.Cut(path, "#") // the message goes in the query, before a fragment
+	if fragment != "" {
+		fragment = "#" + fragment
+	}
 	sep := "?"
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
-	http.Redirect(w, r, path+sep+key+"="+url.QueryEscape(msg), http.StatusSeeOther) //nolint:gosec // same-site path, checked above
+	http.Redirect(w, r, path+sep+key+"="+url.QueryEscape(msg)+fragment, http.StatusSeeOther) //nolint:gosec // same-site path, checked above
 	return nil
 }
 
@@ -554,7 +561,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, OwnerSource: svc.OwnerSource, App: svc.App, Kind: svc.Kind, Upstream: svc.Upstream}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
-	v.Private = versions.CheckedByAgent(svc, ref.Repo)
+	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)
 	v.PublicRegistry = ref.Repo != "" && versions.IsPublicRegistry(ref.Repo)
 	if u, ok := o.Upstreams[svc.ID]; ok {
 		if u.HasLatest {
@@ -1827,6 +1834,10 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID, HasPassword: u.HasPassword, TOTP: u.TOTPEnabled,
 		})
 	}
+	if v.Registries, v.Unread, err = s.registriesView(ctx, p.Scope); err != nil {
+		return v, err
+	}
+	v.Encrypts = s.store.Encrypts()
 	toks, err := s.store.ListAPITokens(ctx, p.Scope)
 	if err != nil {
 		return v, err
@@ -1871,6 +1882,9 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	v.Base = withFlash(v.Base, r)
+	if h := registry.NormalizeHost(r.URL.Query().Get("registry")); validRegistryHost(h) {
+		v.RegistryHost = h
+	}
 	return render(w, r, SettingsPage(v))
 }
 

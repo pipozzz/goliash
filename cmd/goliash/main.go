@@ -1006,7 +1006,7 @@ func matrixCmd(ctx context.Context, args []string, out io.Writer) error {
 			if u.LatestAny.Raw != u.Latest.Raw {
 				latest += " (" + u.LatestAny.Raw + " outside pin)"
 			}
-		} else if ref := o.Refs[row.Service.ID]; versions.CheckedByAgent(row.Service, ref.Repo) {
+		} else if ref := o.Refs[row.Service.ID]; versions.CheckedByAgent(row.Service, ref.Repo, o.Registries) {
 			latest = "? (agent checks " + ref.Repo + ")"
 		}
 		cols = append(cols, latest)

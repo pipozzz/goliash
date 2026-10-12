@@ -51,6 +51,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		return err
 	}
 	now := c.now()
+	auth := c.registryAuth(ctx, sc)
 	read := 0
 	keys := map[string]bool{}
 	for _, in := range active {
@@ -64,11 +65,12 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 		keys[key] = true
 		b, have := sboms[key]
-		if !IsPublicRegistry(repo) || !evidence[key].SBOM || (have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
+		if !auth.Reads(repo) || !evidence[key].SBOM || (have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
 			continue
 		}
 		read++
-		purls, err := reader.ImageSBOM(ctx, repo, in.Digest, registry.Credentials{})
+		creds, _ := auth.For(repo)
+		purls, err := reader.ImageSBOM(ctx, repo, in.Digest, creds)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

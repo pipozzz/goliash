@@ -65,6 +65,26 @@ Images from registries other than the public ones are checked by the agents. So 
 registries (GHCR, Docker Hub, Quay, …): when a registry refuses the server's anonymous check, the repository is
 handed to the agents. **Check upstream now** on the service page tries anonymously again, in case it became public.
 
+### Credentials on the server
+
+The quickest way is **Settings → Private registries**: an admin enters the registry host, a username and a
+read-only password or token, and the server reads that registry itself for the workspace: new releases, the version
+behind moving tags, signatures, attestations, SBOMs and vulnerabilities, with no agent configuration. The panel
+lists the registries your services use that only agents can read, each with **Add credentials**; saving tries the
+credentials on one of them at once and shows whether the registry accepted them. A token the registry later
+refuses is marked *refused* there.
+
+Use a read-only robot account or token: a Harbor or Quay robot, a GitLab deploy token with `read_registry`, a
+GitHub token with `read:packages`, a Docker Hub access token, an Artifactory or Nexus read user. The secret is
+stored encrypted with the server's secret key (the server refuses to store it without one), bound to its row, never
+shown again and never sent to agents; tags read with it are cached for that workspace only. Amazon ECR tokens
+expire after 12 hours, so ECR stays with an agent and its IAM role.
+
+Prefer agent credentials when the registry is only reachable from inside your network, or when credentials must not
+leave it.
+
+### Credentials on the agent
+
 For each repository the agent looks for credentials for the registry host, in this order:
 
 1. the credential named after the host, for example `GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM` or the file

@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 )
 
@@ -31,6 +32,8 @@ type Overview struct {
 	SplitApps map[string]bool
 	// Resolved maps image digests to the exact release behind a moving tag.
 	Resolved map[string]string
+	// Registries holds the hosts the workspace gave the server credentials for, secrets left out.
+	Registries RegistryAuth
 }
 
 // StaleTarget reports whether a target's data is out of date: its agent stopped
@@ -73,6 +76,14 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return o, err
+	}
+	creds, err := st.ListRegistryCredentials(ctx, sc)
+	if err != nil {
+		return o, err
+	}
+	o.Registries = RegistryAuth{}
+	for _, c := range creds {
+		o.Registries[c.Host] = registry.Credentials{}
 	}
 	envs, err := st.ListEnvironments(ctx, sc)
 	if err != nil {

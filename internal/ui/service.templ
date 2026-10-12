@@ -3,7 +3,11 @@
 
 package ui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/pipozzz/goliash/internal/versions"
+)
 
 templ ServicePage(v ServiceView) {
 	@Layout(v.Base) {
@@ -44,6 +48,9 @@ templ ServicePage(v ServiceView) {
 				<dd>
 					if v.Private {
 						<span class="muted">by the agent</span>
+						if v.CanAdmin && v.RefRepo != "" {
+							<a class="link" href={ templ.URL("/settings?registry=" + versions.RegistryHost(v.RefRepo) + "#registries") }>or by the server</a>
+						}
 					} else {
 						@timeAgo(v.CheckedAt)
 					}
@@ -55,7 +62,7 @@ templ ServicePage(v ServiceView) {
 				Upstream check failed: { v.CheckError }
 				if v.Private && strings.Contains(v.CheckError, "denied") {
 					<p class="hint">
-						The agents check this registry with their own credentials: a <code>GOLIASH_CREDENTIAL_…</code> variable named after the registry host, a <code>docker login</code> on the host, or the cluster's image pull secrets.
+						The agents check this registry with their own credentials: a <code>GOLIASH_CREDENTIAL_…</code> variable named after the registry host, a <code>docker login</code> on the host, or the cluster's image pull secrets. Or give the server read access under Settings → Private registries.
 						<a href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How to give agents credentials</a>
 					</p>
 				}

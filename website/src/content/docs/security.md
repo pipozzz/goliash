@@ -40,7 +40,9 @@ description: 'How Goliash stays read-only, protects tokens, sessions and secrets
 
 ## Secrets at rest
 
-Notification channel secrets are encrypted with AES-256-GCM and bound to their channel; see
+Notification channel secrets and private registry credentials are encrypted with AES-256-GCM and bound to their
+row; registry credentials are never stored without a key, never shown again after saving and never sent to agents.
+See
 [Install](/install/#secrets-at-rest). Webhook deliveries can be signed with HMAC-SHA256; see
 [Notifications](/guide/notifications/#webhook-payload).
 

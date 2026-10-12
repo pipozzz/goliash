@@ -4,8 +4,10 @@
 package versions
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,6 +29,7 @@ type fakeTags struct {
 	denied  map[string]bool     // anonymous access refused
 	digests map[string][]string // repo:tag -> digests
 	lookups int
+	needs   map[string]string // repo -> the password it takes
 }
 
 func (f *fakeTags) TagDigest(_ context.Context, repo, ref string, _ registry.Credentials) (string, error) {
@@ -46,10 +49,13 @@ func (f *fakeTags) ManifestDigests(_ context.Context, repo, ref string, _ regist
 	return f.digests[repo+":"+ref], nil
 }
 
-func (f *fakeTags) ListTags(_ context.Context, repo string, _ registry.Credentials) ([]string, error) {
+func (f *fakeTags) ListTags(_ context.Context, repo string, creds registry.Credentials) ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls[repo]++
+	if want, ok := f.needs[repo]; ok && creds.Password != want {
+		return nil, fmt.Errorf("%w: wrong credentials", registry.ErrUnauthorized)
+	}
 	if f.denied[repo] {
 		return nil, fmt.Errorf("%w: token endpoint answered 403", registry.ErrUnauthorized)
 	}
@@ -341,8 +347,8 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 		t.Fatalf("handed to agents: %s", got)
 	}
 	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
-	if _, msg, _ := l.st.UpstreamStatus(ctx, l.sc, l.svc.ID); msg != "" || !CheckedByAgent(svc, nginx) {
-		t.Fatalf("status %q, checked by agent %v", msg, CheckedByAgent(svc, nginx))
+	if _, msg, _ := l.st.UpstreamStatus(ctx, l.sc, l.svc.ID); msg != "" || !CheckedByAgent(svc, nginx, nil) {
+		t.Fatalf("status %q, checked by agent %v", msg, CheckedByAgent(svc, nginx, nil))
 	}
 	calls := l.tags.calls[nginx]
 	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil || l.tags.calls[nginx] != calls {
@@ -492,5 +498,72 @@ func TestMovingTagThroughAgents(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// With credentials for a private registry the server reads it itself; refused credentials are
+// reported, not handed to the agents.
+func TestRegistryCredentialsOnServer(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"})
+	const payments = "registry.internal.example/team/payments"
+	l.tags.tags[payments] = []string{"1.0.0", "1.1.0"}
+	l.tags.needs = map[string]string{payments: "good"}
+	if err := l.st.SetSecretKey(bytes.Repeat([]byte{3}, store.SecretKeySize)); err != nil {
+		t.Fatal(err)
+	}
+	agents := func() int {
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(checks)
+	}
+	if agents() != 1 {
+		t.Fatal("private registry not with the agents")
+	}
+	save := func(secret string) {
+		if _, err := l.st.SetRegistryCredential(ctx, store.RegistryCredential{Scope: l.sc, Host: "registry.internal.example", Username: "robot", Secret: secret}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	save("wrong")
+	if repo, _, err := l.checker.TryRegistry(ctx, l.sc, "registry.internal.example"); repo != payments || !errors.Is(err, registry.ErrUnauthorized) {
+		t.Fatalf("try %s %v", repo, err)
+	}
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	creds, _ := l.st.ListRegistryCredentials(ctx, l.sc)
+	if agents() != 0 || creds[0].Error == "" {
+		t.Fatalf("refused credentials: agents %d, error %q", agents(), creds[0].Error)
+	}
+	if svc, _ := l.st.GetService(ctx, l.sc, l.private.ID); svc.PrivateUpstream != "" {
+		t.Fatal("handed over despite credentials")
+	}
+
+	save("good")
+	if repo, n, err := l.checker.TryRegistry(ctx, l.sc, "registry.internal.example"); repo != payments || n != 2 || err != nil {
+		t.Fatalf("try %s %d %v", repo, n, err)
+	}
+	l.checker.RefreshRegistry(ctx, l.sc)
+	if rels, _ := l.st.ListReleases(ctx, l.sc, l.private.ID); len(rels) != 2 {
+		t.Fatalf("releases of the private image: %+v", rels)
+	}
+	if creds, _ = l.st.ListRegistryCredentials(ctx, l.sc); creds[0].Error != "" || creds[0].UsedAt.IsZero() {
+		t.Fatalf("use not recorded: %+v", creds[0])
+	}
+	// What was read with one workspace's credentials is cached for that workspace only.
+	l.checker.mu.Lock()
+	_, shared := l.checker.cache[payments]
+	_, own := l.checker.cache[l.sc.WorkspaceID+"|"+payments]
+	l.checker.mu.Unlock()
+	if shared || !own {
+		t.Fatalf("cache shared %v, own %v", shared, own)
+	}
+	if repo, _, err := l.checker.TryRegistry(ctx, l.sc, "unused.example.com"); repo != "" || err != nil {
+		t.Fatalf("unused registry: %s %v", repo, err)
 	}
 }

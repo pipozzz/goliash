@@ -151,9 +151,11 @@ func (s *Store) CheckSecrets(ctx context.Context) error {
 	}
 	for _, r := range all {
 		if _, ok := sealed(r.config); ok {
-			_, err := s.open(r.id, r.config)
-			return err
+			if _, err := s.open(r.id, r.config); err != nil {
+				return err
+			}
+			break
 		}
 	}
-	return nil
+	return s.checkRegistrySecrets(ctx)
 }

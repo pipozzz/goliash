@@ -42,6 +42,10 @@ func (k Keychain) add(host string, c Credentials) {
 	k[host] = append(k[host], c)
 }
 
+// NormalizeHost returns the canonical form of a registry host: lower case, without a scheme or path, and
+// docker.io for Docker Hub's other names.
+func NormalizeHost(h string) string { return normalizeHost(h) }
+
 // normalizeHost turns the keys Docker writes ("https://index.docker.io/v1/",
 // "ghcr.io") into the host of a repository reference ("docker.io", "ghcr.io").
 func normalizeHost(h string) string {

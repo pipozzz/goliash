@@ -367,6 +367,7 @@ templ SettingsPage(v SettingsView) {
 				</div>
 			</section>
 		}
+		@registriesPanel(v)
 		<section class="panel">
 			<div class="panel-head"><h2>Applications</h2><span class="muted">how the target page groups workloads</span></div>
 			<div class="panel-body stack">
@@ -585,4 +586,77 @@ var commonZones = []string{
 	"America/Chicago", "America/Denver", "America/Los_Angeles", "America/Toronto", "America/Sao_Paulo",
 	"America/Mexico_City", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Shanghai", "Asia/Tokyo",
 	"Asia/Seoul", "Australia/Sydney", "Pacific/Auckland", "Africa/Johannesburg",
+}
+
+templ registriesPanel(v SettingsView) {
+	<section class="panel" id="registries">
+		<div class="panel-head"><h2>Private registries</h2><span class="muted">{ "for " + v.Workspace }</span></div>
+		<div class="panel-body stack">
+			<p class="muted">Give the server read access to a private registry and it checks its images itself: new releases, the version behind a moving tag, signatures, SBOMs and vulnerabilities. Without it, an agent reads them with credentials it finds next to it.</p>
+			if len(v.Unread) > 0 {
+				<ul class="unread-registries">
+					for _, u := range v.Unread {
+						<li>
+							<code>{ u.Host }</code>
+							<span class="muted">{ plural(u.Services, "service", "services") } only agents can check</span>
+							<a class="link" href={ templ.URL("/settings?registry=" + u.Host + "#registries") }>Add credentials</a>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+		if len(v.Registries) > 0 {
+			<div class="scroll">
+				<table>
+					<thead><tr><th>Registry</th><th>Username</th><th>Status</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead>
+					<tbody>
+						for _, c := range v.Registries {
+							<tr>
+								<td>
+									<strong><code>{ c.Host }</code></strong>
+									<div class="targets">{ plural(c.Services, "service", "services") }</div>
+								</td>
+								<td><code>{ c.Username }</code></td>
+								<td>
+									if c.Error != "" {
+										<span class="badge revoked" title={ c.Error }>refused</span>
+										<div class="targets">{ c.Error }</div>
+									} else if !c.UsedAt.IsZero() {
+										<span class="badge ok">works</span>
+										<div class="targets">used @timeAgo(c.UsedAt)</div>
+									} else {
+										<span class="muted">not used yet</span>
+									}
+								</td>
+								<td>
+									@timeAgo(c.CreatedAt)
+									if c.CreatedBy != "" {
+										<div class="targets">by { c.CreatedBy }</div>
+									}
+								</td>
+								<td class="num">
+									<form class="inline" method="post" action={ templ.URL("/settings/registries/" + c.ID + "/delete") } hx-confirm={ "Remove the credentials for " + c.Host + "? Its images go back to the agents." }>
+										<button class="link" type="submit" style="color:var(--bad)">Remove</button>
+									</form>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		<div class="panel-body" style="border-top:1px solid var(--line)">
+			if v.Encrypts {
+				<form class="inline" method="post" action="/settings/registries" data-busy="Trying them…">
+					<label>Registry<input name="host" required value={ v.RegistryHost } placeholder="registry.example.com" spellcheck="false" autocomplete="off" autofocus?={ v.RegistryHost != "" }/></label>
+					<label>Username<input name="username" maxlength="200" placeholder="robot$goliash" spellcheck="false" autocomplete="off"/></label>
+					<label>Password or token<input name="secret" type="password" required autocomplete="new-password"/></label>
+					<button type="submit">Save and try</button>
+				</form>
+				<p class="hint">Use a read-only robot account or token: a Harbor or Quay robot, a GitLab deploy token (read_registry), a GitHub token with read:packages, a Docker Hub access token. Saved encrypted and never shown again; saving again replaces it. Amazon ECR tokens expire, so ECR stays with the agent and its IAM role.</p>
+			} else {
+				<p class="notice error">The server has no secret key, so it cannot store registry credentials. Set <code>GOLIASH_SECRET_KEY</code> (32 bytes, base64) and restart it.</p>
+			}
+		</div>
+	</section>
 }

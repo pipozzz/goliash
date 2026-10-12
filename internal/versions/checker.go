@@ -70,7 +70,8 @@ type Checker struct {
 	osv    *OSV
 	kev    *KEV
 
-	driftMu sync.Mutex // one drift evaluation at a time
+	driftMu    sync.Mutex // one drift evaluation at a time
+	upstreamMu sync.Mutex // one upstream check at a time, so a release is announced once
 }
 
 type cachedTags struct {
@@ -151,6 +152,7 @@ type workspaceState struct {
 	matrix    Matrix
 	refs      map[string]Reference
 	instances []store.Instance
+	auth      RegistryAuth // the workspace's credentials for private registries
 }
 
 // Reference is what a service's upstream is compared against: its image repository
@@ -161,7 +163,7 @@ type Reference struct {
 }
 
 func (c *Checker) load(ctx context.Context, sc store.Scope) (workspaceState, error) {
-	var st workspaceState
+	st := workspaceState{auth: c.registryAuth(ctx, sc)}
 	var err error
 	if st.services, err = c.store.ListServices(ctx, sc); err != nil {
 		return st, err
@@ -242,6 +244,8 @@ func (c *Checker) CheckUpstreams(ctx context.Context, sc store.Scope) error {
 }
 
 func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bool) error {
+	c.upstreamMu.Lock()
+	defer c.upstreamMu.Unlock()
 	st, err := c.load(ctx, sc)
 	if err != nil {
 		return err
@@ -253,7 +257,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 	sort.Strings(ids)
 	for _, id := range ids {
 		ref := st.refs[id]
-		if ref.Repo == "" || !serverChecks(st.byID[id], ref.Repo) {
+		if ref.Repo == "" || !serverChecks(st.byID[id], ref.Repo, st.auth) {
 			continue
 		}
 		if onlyNew {
@@ -261,14 +265,17 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 				continue
 			}
 		}
-		tags, err := c.listTags(ctx, ref.Repo)
+		tags, err := c.listTags(ctx, sc, ref.Repo, st.auth)
 		if err != nil {
-			if c.handOver(ctx, sc, st.byID[id], ref.Repo, err) {
+			if c.handOver(ctx, sc, st.byID[id], ref.Repo, st.auth, err) {
 				continue
 			}
 			c.log.WarnContext(ctx, "upstream check failed", "service", st.byID[id].Name, "repo", ref.Repo, "err", err)
 			_ = c.store.RecordUpstreamCheck(ctx, sc, id, err.Error())
 			continue
+		}
+		if st.byID[id].PrivateUpstream != "" { // read with the workspace's credentials now
+			_ = c.store.SetPrivateUpstream(ctx, sc, id, "")
 		}
 		if c.resolveMoving(ctx, sc, st, id, ref.Repo, tags) {
 			// The exact version behind a moving tag is the reference from now on.
@@ -276,7 +283,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 				st, ref = fresh, fresh.refs[id]
 			}
 		}
-		svc := c.discoverSource(ctx, sc, st.byID[id], ref)
+		svc := c.discoverSource(ctx, sc, st.byID[id], ref, st.auth)
 		evs, err := c.recordTags(ctx, sc, svc, ref.Repo, tags, ref.Tag)
 		if err != nil {
 			return err
@@ -288,7 +295,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 
 // discoverSource reads the source repository and base image ref's image declares, at most once per
 // sourceTTL and again when the upstream image changes, and returns svc with them.
-func (c *Checker) discoverSource(ctx context.Context, sc store.Scope, svc store.Service, ref Reference) store.Service {
+func (c *Checker) discoverSource(ctx context.Context, sc store.Scope, svc store.Service, ref Reference, auth RegistryAuth) store.Service {
 	reader, ok := c.tags.(SourceReader)
 	if !ok || (svc.SourceImage == ref.Repo && c.now().Sub(svc.SourceCheckedAt) < sourceTTL) {
 		return svc
@@ -297,7 +304,8 @@ func (c *Checker) discoverSource(ctx context.Context, sc store.Scope, svc store.
 	if tag == "" {
 		tag = "latest"
 	}
-	meta, err := reader.ImageMeta(ctx, ref.Repo, tag, registry.Credentials{})
+	creds, _ := auth.For(ref.Repo)
+	meta, err := reader.ImageMeta(ctx, ref.Repo, tag, creds)
 	src, base := meta.Source, meta.Base
 	if err != nil {
 		if ctx.Err() != nil {
@@ -319,9 +327,16 @@ func (c *Checker) discoverSource(ctx context.Context, sc store.Scope, svc store.
 	return svc
 }
 
-func (c *Checker) listTags(ctx context.Context, repo string) ([]string, error) {
+// listTags lists repo's tags, with the workspace's credentials for its registry if it gave any. Tags
+// read with credentials are cached for that workspace only.
+func (c *Checker) listTags(ctx context.Context, sc store.Scope, repo string, auth RegistryAuth) ([]string, error) {
+	creds, private := auth.For(repo)
+	key := repo
+	if private {
+		key = sc.WorkspaceID + "|" + repo
+	}
 	c.mu.Lock()
-	if e, ok := c.cache[repo]; ok && time.Since(e.at) < c.ttl {
+	if e, ok := c.cache[key]; ok && time.Since(e.at) < c.ttl {
 		c.mu.Unlock()
 		return e.tags, e.err
 	}
@@ -329,12 +344,13 @@ func (c *Checker) listTags(ctx context.Context, repo string) ([]string, error) {
 	if c.tags == nil {
 		return nil, errors.New("no registry client")
 	}
-	tags, err := c.tags.ListTags(ctx, repo, registry.Credentials{})
+	tags, err := c.tags.ListTags(ctx, repo, creds)
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
+	c.noteAuth(ctx, sc, auth, repo, err)
 	c.mu.Lock()
-	c.cache[repo] = cachedTags{tags: tags, err: err, at: time.Now()}
+	c.cache[key] = cachedTags{tags: tags, err: err, at: time.Now()}
 	c.mu.Unlock()
 	return tags, err
 }
@@ -727,18 +743,19 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	if !ok || ref.Repo == "" {
 		return ErrNoUpstream
 	}
-	if !IsPublicRegistry(ref.Repo) {
+	if !st.auth.Reads(ref.Repo) {
 		return fmt.Errorf("%s is private; the agent checks it", ref.Repo)
 	}
 	// A repository on a public registry is tried anonymously again, in case it was
-	// made public.
+	// made public; one with credentials with the credentials as they are now.
 	c.mu.Lock()
 	delete(c.cache, ref.Repo)
+	delete(c.cache, sc.WorkspaceID+"|"+ref.Repo)
 	c.mu.Unlock()
 	svc := st.byID[serviceID]
-	tags, err := c.listTags(ctx, ref.Repo)
+	tags, err := c.listTags(ctx, sc, ref.Repo, st.auth)
 	if err != nil {
-		if c.handOver(ctx, sc, svc, ref.Repo, err) {
+		if c.handOver(ctx, sc, svc, ref.Repo, st.auth, err) {
 			return fmt.Errorf("%s: %w", ref.Repo, ErrNeedsCredentials)
 		}
 		_ = c.store.RecordUpstreamCheck(ctx, sc, serviceID, err.Error())
@@ -760,17 +777,21 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	return c.EvaluateDrift(ctx, sc)
 }
 
-// serverChecks reports whether the server checks repo, svc's upstream, itself: it is
-// on a public registry and the registry has not refused it anonymously.
-func serverChecks(svc store.Service, repo string) bool {
+// serverChecks reports whether the server checks repo, svc's upstream, itself: the workspace
+// gave credentials for its registry, or it is on a public registry that has not refused it
+// anonymously.
+func serverChecks(svc store.Service, repo string, auth RegistryAuth) bool {
+	if _, ok := auth.For(repo); ok {
+		return true
+	}
 	return IsPublicRegistry(repo) && svc.PrivateUpstream != repo
 }
 
 // handOver leaves repo to the agents when a public registry refused it anonymously
 // (a private repository on GHCR or Docker Hub, say) and reports whether it did.
-func (c *Checker) handOver(ctx context.Context, sc store.Scope, svc store.Service, repo string, err error) bool {
-	if !errors.Is(err, registry.ErrUnauthorized) {
-		return false
+func (c *Checker) handOver(ctx context.Context, sc store.Scope, svc store.Service, repo string, auth RegistryAuth, err error) bool {
+	if _, ok := auth.For(repo); ok || !errors.Is(err, registry.ErrUnauthorized) {
+		return false // refused credentials are reported on the settings page, not handed over
 	}
 	if svc.PrivateUpstream != repo {
 		if err := c.store.SetPrivateUpstream(ctx, sc, svc.ID, repo); err != nil {
@@ -784,9 +805,10 @@ func (c *Checker) handOver(ctx context.Context, sc store.Scope, svc store.Servic
 }
 
 // CheckedByAgent reports whether the agents, not the server, check repo, svc's
-// upstream: it is on a private registry, or a public one refused it anonymously.
-func CheckedByAgent(svc store.Service, repo string) bool {
-	return repo != "" && !serverChecks(svc, repo)
+// upstream: it is on a private registry the workspace gave no credentials for, or a
+// public one refused it anonymously.
+func CheckedByAgent(svc store.Service, repo string, auth RegistryAuth) bool {
+	return repo != "" && !serverChecks(svc, repo, auth)
 }
 
 // PrivateRepositories lists upstream repositories the server cannot check itself,
@@ -808,7 +830,7 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 	seen := map[string]bool{}
 	var out []agentproto.RegistryCheck
 	for id, ref := range st.refs {
-		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo) || seen[ref.Repo] || PackageRepo(ref.Repo) {
+		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo, st.auth) || seen[ref.Repo] || PackageRepo(ref.Repo) {
 			continue
 		}
 		seen[ref.Repo] = true

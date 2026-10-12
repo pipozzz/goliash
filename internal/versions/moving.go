@@ -98,6 +98,7 @@ func (c *Checker) resolveMoving(ctx context.Context, sc store.Scope, st workspac
 		c.log.WarnContext(ctx, "tag resolutions", "err", err)
 		return false
 	}
+	creds, _ := st.auth.For(repo)
 	done := map[string]bool{}
 	for _, r := range known {
 		if r.Repo == repo && (r.Version != "" || c.now().Sub(r.CheckedAt) < movingRetry) {
@@ -113,7 +114,7 @@ func (c *Checker) resolveMoving(ctx context.Context, sc store.Scope, st workspac
 		version := ""
 		cands := movingCandidates(i.Tag, tags, movingLookups)
 		for _, cand := range cands {
-			d, err := reader.TagDigest(ctx, repo, cand, registry.Credentials{})
+			d, err := reader.TagDigest(ctx, repo, cand, creds)
 			if ctx.Err() != nil {
 				return found
 			}
@@ -126,7 +127,7 @@ func (c *Checker) resolveMoving(ctx context.Context, sc store.Scope, st workspac
 			if version != "" {
 				break
 			}
-			digests, err := reader.ManifestDigests(ctx, repo, cand, registry.Credentials{})
+			digests, err := reader.ManifestDigests(ctx, repo, cand, creds)
 			if ctx.Err() != nil {
 				return found
 			}
