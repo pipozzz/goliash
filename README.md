@@ -52,8 +52,8 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   Nomad jobs; Dokploy and Nomploy projects come together under one name. A database image shared by several apps is
   compared within each app.
 - **Upstream awareness.** Tags from Docker Hub, GHCR, Quay, registry.k8s.io, ECR, Google Artifact Registry, Azure ACR
-  and private registries (credentials from the agent's environment, `docker login`, pull secrets or the pod's cloud
-  identity), compared with per-service semver policies (track minor only, pin a major, ignore `-alpine` noise).
+  and private registries (read access given once under Settings → Private registries, or credentials from the
+  agent's environment, `docker login`, pull secrets or the pod's cloud identity), compared with per-service semver policies (track minor only, pin a major, ignore `-alpine` noise).
   Moving tags resolved by digest (`1 = 1.27.3`). A built-in catalog of popular images, release dates and
   release-notes links from GitHub.
 - **Tiles.** The matrix drawn like the logo: every application a cell, coloured by how current it is, warm where
@@ -63,7 +63,14 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
-- **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself.
+- **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself. Scrub a timeline
+  back through 400 days and watch versions change, or play the deployments back one by one.
+- **An SBOM of what actually runs.** Not one image at build time: every running image in every environment, with its
+  digest, where it runs and the packages of its SBOM (BuildKit, cosign or OCI referrers), as CycloneDX 1.6 for now
+  or any past moment, per environment, straight into Dependency-Track.
+- **Is CVE-X running?** Packages from those SBOMs checked daily against OSV (Debian, Ubuntu, Alpine, Wolfi,
+  Chainguard and language ecosystems), exploited-in-the-wild (CISA KEV) first, with the version that fixes each, and
+  an alert when one starts running.
 - **Notifications with less noise.** Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, webhooks (signed), e-mail, browser push and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze, and a scheduled upgrade plan.
 - **Software outside containers too.** Add a database on a VM or a managed service by hand, with where it runs and
@@ -161,7 +168,7 @@ and updates live over server-sent events.
 
 | Page | What it is for |
 | --- | --- |
-| Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream; filter (`/`) and "only with drift"; time travel to a past moment; CSV export; cards on phones; a first-run checklist when empty |
+| Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream; filter (`/`) and "only with drift"; a time travel timeline to scrub, step or play back deployments; CSV and CycloneDX SBOM export; cards on phones; a first-run checklist when empty |
 | Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now"; delete once it runs nowhere |
 | Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image; the list of mapping rules |
 | Hygiene | moving tags, tags pushed again, untrusted registries and images without a digest, summarised by kind |
@@ -197,7 +204,8 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
   organization reach every workspace. Organization admins change roles under Settings → Users and API tokens; only owners grant or
   take the owner role, and the last owner cannot be removed.
 - **REST API** (session or `Authorization: Bearer glsh_api_…`): `GET /api/v1/matrix`, `/services`, `/environments`,
-  `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`; `POST /api/v1/acks`. The OpenAPI
+  `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`, `/updates`, `/vulnerabilities`,
+  `/inventory?format=json|csv|cyclonedx&environment=&at=`; `POST /api/v1/acks`. The OpenAPI
   description is [`api/public-v1.yaml`](api/public-v1.yaml), also served at `/api/v1/openapi.yaml`; every response
   is tested against it.
 - **AI assistants (MCP)**: every server serves the Model Context Protocol at `/mcp` (Streamable HTTP, API token),
@@ -228,8 +236,9 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 
 - **Mapping:** labels `goliash.service` / `app.kubernetes.io/name` (and `goliash.env`), then rules, then unmapped
   workloads wait in the inbox with a suggested name.
-- **Upstream:** public registries (Docker Hub, GHCR, Quay, registry.k8s.io, …) are checked by the server; other
-  registries by the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>` (`user:password` or a
+- **Upstream:** public registries (Docker Hub, GHCR, Quay, registry.k8s.io, …) are checked by the server, and so are
+  private ones an admin gave read access under Settings → Private registries (stored encrypted); other registries by
+  the agent, with credentials from `GOLIASH_CREDENTIAL_<REGISTRY_HOST>` (`user:password` or a
   token). Private Amazon ECR repositories go through the ECR API with the agent's AWS credentials (IAM
   `ecr:ListImages`; IRSA, task role or instance profile), where the credential, if set, names an AWS profile.
   New services are checked within a minute, then hourly.
