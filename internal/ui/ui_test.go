@@ -1816,4 +1816,7 @@ func TestPastDrifts(t *testing.T) {
 	if len(staging) != 0 || len(prod) != 2 || prod[0].Label != "upstream 1.3.0" || prod[1].Label != "behind staging" || g.Rows[0].Health != "warn" {
 		t.Fatalf("staging %+v prod %+v health %s", staging, prod, g.Rows[0].Health)
 	}
+	if len(g.Groups) != 1 || g.Groups[0].Warn != 1 || g.Groups[0].OK != 0 {
+		t.Fatalf("groups not recounted: %+v", g.Groups)
+	}
 }

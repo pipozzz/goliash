@@ -309,9 +309,13 @@ templ timeTravel(t TimeTravel) {
 		</div>
 		<div class="tl-controls">
 			<div class="tl-buttons" data-tl-buttons hidden>
-				<button type="button" class="secondary icon" data-tl-prev title="Previous deployment (←)" aria-label="Previous deployment">⏮</button>
-				<button type="button" class="tl-play" data-tl-play title="Play the deployments back (space)">▶ Play</button>
-				<button type="button" class="secondary icon" data-tl-next title="Next deployment (→)" aria-label="Next deployment">⏭</button>
+				<button type="button" class="secondary icon" data-tl-prev title="Previous deployment (←)" aria-label="Previous deployment">
+					<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3v10M13 3 6 8l7 5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+				</button>
+				<button type="button" class="tl-play" data-tl-play title="Play the deployments back (space)">Play</button>
+				<button type="button" class="secondary icon" data-tl-next title="Next deployment (→)" aria-label="Next deployment">
+					<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 3v10M3 3l7 5-7 5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
+				</button>
 				<span class="hint">← → step from deployment to deployment, Shift moves a day</span>
 			</div>
 			<form class="inline tl-exact" method="get" action={ templ.URL(t.Path) }>

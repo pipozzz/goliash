@@ -776,12 +776,13 @@
   function tlPlay() {
     const btn = tl.root.querySelector("[data-tl-play]");
     if (tl.playing) {
-      clearInterval(tl.playing); tl.playing = null; btn.textContent = "▶ Play"; return;
+      clearInterval(tl.playing); tl.playing = null; btn.textContent = "Play"; btn.classList.remove("playing"); return;
     }
     if (Number(tl.range.value) >= tl.to && tl.changes.length) tlGo(tl.changes[Math.max(0, tl.changes.length - 30)]);
-    btn.textContent = "❚❚ Pause";
+    btn.textContent = "Pause";
+    btn.classList.add("playing");
     tl.playing = setInterval(function () {
-      if (!tl || !tlStep(1)) { if (tl) { clearInterval(tl.playing); tl.playing = null; btn.textContent = "▶ Play"; } }
+      if (!tl || !tlStep(1)) { if (tl) { clearInterval(tl.playing); tl.playing = null; btn.textContent = "Play"; btn.classList.remove("playing"); } }
     }, 1200);
   }
 

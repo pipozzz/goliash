@@ -960,3 +960,8 @@ td.tl-in > * { animation: tl-fade .45s ease-out; }
 .tiles-live.tl-loading { opacity: .6; transition: opacity .15s; }
 @keyframes tl-tile { 0% { transform: scale(.92); box-shadow: 0 0 0 3px var(--accent); } 40% { transform: scale(1.04); } 100% { transform: none; box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .board-cell.tl-changed, .board-cell.tl-in { animation: none; outline: 2px solid var(--accent); } }
+/* Play and pause draw their own triangle and bars, independent of the fonts installed. */
+.tl-play::before { content: ""; width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 9px;
+  border-color: transparent transparent transparent currentColor; margin-right: 6px; }
+.tl-play.playing::before { width: 3px; height: 10px; border: 0; border-left: 3px solid currentColor; border-right: 3px solid currentColor;
+  box-sizing: content-box; }

@@ -1184,4 +1184,5 @@ func pastDrifts(g *MatrixGrid) {
 		}
 		r.Health = healthOf(all, true)
 	}
+	g.Groups = groupRows(g.Rows, g.GroupBy) // the groups count rows by health
 }

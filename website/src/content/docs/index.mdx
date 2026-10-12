@@ -34,6 +34,7 @@ import target from '../../assets/target.png';
 import tilesEnvs from '../../assets/tiles-envs.png';
 import security from '../../assets/security.png';
 import vulns from '../../assets/vulns.png';
+import timeline from '../../assets/timeline-tiles.png';
 
 <Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
 
@@ -114,6 +115,11 @@ Goliash cannot see, ready to export for the risk register or the audit.
 
 **Is it running?** answers "is Log4Shell in production?" from the images' SBOMs: CVEs exploited in the wild first,
 with the service, the package and the version that fixes it.
+
+<Image src={timeline} alt="Service tiles on 6 October with the time travel timeline above: a mark for every deployment, Play and step buttons, and every application coloured as it stood then" class="screenshot" />
+
+**Time travel**: scrub back through 400 days, step from deployment to deployment or press Play, and watch the
+matrix or the tiles change, coloured as things stood then. "What ran in prod when the incident started?" in seconds.
 
 ### An SBOM of what actually runs
 

@@ -122,6 +122,8 @@ key applies from each target's next snapshot.
 
 ## Looking back, and exporting for audits
 
+![Time travel above the matrix: 6 October, a track from 12 September to now with a mark for each deployment, Play and step buttons, and the matrix as it was then with upstream and behind-staging badges](../../../assets/timeline.png)
+
 Open **Time travel** above the matrix to scrub through the past: "what was in prod on 12 September at 14:00?". The
 track marks every deployment, taller where more happened. Drag along it and the matrix redraws as you go, with the
 versions that differ from the moment shown before sliding in and highlighted. **⏮ ⏭** (or ← → on the track) step from
