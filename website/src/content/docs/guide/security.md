@@ -6,6 +6,8 @@ description: 'How long production runs behind available releases, what is past i
 The **Security** page answers the questions a security officer asks about what runs, from the runtime itself rather
 than from tickets or pipelines:
 
+![The Security page: tiles for the median exposure of production, services behind for 30 or more days, end of life, accepted risk and blind spots, then each production service with its running version, the fix, and how many days it has been exposed](../../../assets/security.png)
+
 - **How long has production been exposed?** For every service behind a newer release, the time since the *first*
   newer release came out. The median and the 90th percentile summarise it, with the count behind for more than 30
   and 90 days.
@@ -53,6 +55,8 @@ digest count as *not checked*.
 
 **Security → Is it running?** answers "is CVE-2024-3094 in production?" in seconds, and lists every known
 vulnerability of the running images:
+
+![Known vulnerabilities, only those exploited in the wild: two Log4j CVEs marked exploited, ransomware and critical with CISA's due dates, in log4j-core 2.14.1 of payments-api in prod, fixed in 2.15.0 and 2.16.0](../../../assets/vulns.png)
 
 1. For images whose registry holds an SBOM attestation (see above), Goliash reads its package list once: package URLs
    such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`.

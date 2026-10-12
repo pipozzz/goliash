@@ -32,6 +32,8 @@ import updates from '../../assets/updates.png';
 import delivery from '../../assets/delivery.png';
 import target from '../../assets/target.png';
 import tilesEnvs from '../../assets/tiles-envs.png';
+import security from '../../assets/security.png';
+import vulns from '../../assets/vulns.png';
 
 <Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
 
@@ -97,6 +99,16 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
 
 **Updates** turns drift into a to-do list: what runs, what to move to (with release notes) and why, the most
 urgent first.
+
+<Image src={security} alt="The Security page: tiles for the median exposure of production, services behind for 30 or more days, end of life, accepted risk and blind spots, then each production service with its running version, the fix, and how many days it has been exposed" class="screenshot" />
+
+**Security** says how long production has run behind an available fix, what is past its end of life and where
+Goliash cannot see, ready to export for the risk register or the audit.
+
+<Image src={vulns} alt="Known vulnerabilities, only those exploited in the wild: two Log4j CVEs marked exploited, ransomware and critical with CISA's due dates, in log4j-core 2.14.1 of payments-api in prod, fixed in 2.15.0 and 2.16.0" class="screenshot" />
+
+**Is it running?** answers "is Log4Shell in production?" from the images' SBOMs: CVEs exploited in the wild first,
+with the service, the package and the version that fixes it.
 
 <Image src={target} alt="A target page: a ring with the share of up-to-date workloads, deploys over 30 days, and workload cards grouped by application, coloured by how current they are" class="screenshot" />
 
