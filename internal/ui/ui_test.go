@@ -1824,7 +1824,7 @@ func TestPastDrifts(t *testing.T) {
 func TestMarkExploited(t *testing.T) {
 	g := MatrixGrid{Envs: []EnvHeader{{Name: "staging"}, {Name: "prod"}}, Rows: []MatrixRow{{
 		Service: "payments", Health: "warn",
-		Cells:   []MatrixCell{{Versions: []VersionView{{Tag: "1.6.0"}}}, {Versions: []VersionView{{Tag: "1.4.2"}}}},
+		Cells: []MatrixCell{{Versions: []VersionView{{Tag: "1.6.0"}}}, {Versions: []VersionView{{Tag: "1.4.2"}}}},
 	}}}
 	markExploited(&g, versions.VulnReport{Findings: []versions.VulnFinding{
 		{Key: "CVE-2021-45046", Exploited: &store.Exploited{}, Affected: []versions.Affected{{Service: "payments", Env: "prod"}}},

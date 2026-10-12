@@ -1223,8 +1223,10 @@ func markExploited(g *MatrixGrid, r versions.VulnReport) {
 			if len(list) > 1 {
 				label += fmt.Sprintf(" +%d", len(list)-1)
 			}
-			r.Cells[i].Drifts = append([]DriftBadge{{Kind: "exploited", Label: label,
-				Title: "Exploited in the wild (CISA KEV), in the running image: " + strings.Join(list, ", ")}}, r.Cells[i].Drifts...)
+			r.Cells[i].Drifts = append([]DriftBadge{{
+				Kind: "exploited", Label: label,
+				Title: "Exploited in the wild (CISA KEV), in the running image: " + strings.Join(list, ", "),
+			}}, r.Cells[i].Drifts...)
 			marked = true
 		}
 		if marked {
