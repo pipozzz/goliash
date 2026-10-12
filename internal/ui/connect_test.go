@@ -386,6 +386,8 @@ func TestInstallCommandLocalServer(t *testing.T) {
 	}
 	if _, cmd := installCommand("docker", "https://goliash.example.com", "c", nil, "1.29.0"); strings.Contains(cmd, "host.docker.internal") || localServerNote("docker", "https://goliash.example.com") != "" {
 		t.Error("a real address was rewritten")
+	}
+}
 
 func TestConnectOffersWatchOnly(t *testing.T) {
 	e := newUIEnv(t)
