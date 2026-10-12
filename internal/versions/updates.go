@@ -4,8 +4,10 @@
 package versions
 
 import (
+	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -28,11 +30,16 @@ type Update struct {
 	Since       time.Time // when the oldest of its drifts opened
 	Acked       bool      // an acknowledgement quiets it
 	Urgency     int       // 0 most urgent; see urgencyLabels
+	// Exploited lists the vulnerabilities in the running image that CISA knows to be exploited in the wild;
+	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
+	Exploited []string
+	Critical  int
 }
 
 // Urgency levels, most urgent first.
 const (
-	UrgencyEOLPassed = iota
+	UrgencyExploited = iota
+	UrgencyEOLPassed
 	UrgencyEOLSoon
 	UrgencyMajor
 	UrgencyMinor
@@ -41,7 +48,7 @@ const (
 )
 
 // UrgencyLabels name the levels.
-var UrgencyLabels = []string{"end of life", "end of life soon", "major", "minor", "behind previous env", "patch"}
+var UrgencyLabels = []string{"exploited vulnerability", "end of life", "end of life soon", "major", "minor", "behind previous env", "patch"}
 
 // Updates lists what to upgrade, most urgent first: open end-of-life, upstream and
 // environment drift, one item per service, application and environment.
@@ -106,6 +113,12 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		u.Acked = ackedUpdate(*u, acks, now)
 		out = append(out, *u)
 	}
+	sortUpdates(out)
+	return out
+}
+
+// sortUpdates puts the most urgent first, production first within a level, then the oldest.
+func sortUpdates(out []Update) {
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := out[i], out[j]
 		if a.Urgency != b.Urgency {
@@ -122,11 +135,53 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		}
 		return a.App < b.App
 	})
-	return out
+}
+
+// WithVulnerabilities adds what the running images are known to carry to each update and puts those with a
+// vulnerability exploited in the wild first: upgrading is how most of them go away.
+func WithVulnerabilities(us []Update, r VulnReport) []Update {
+	type key struct{ svc, env string }
+	exploited, critical := map[key][]string{}, map[key]int{}
+	for _, f := range r.Findings {
+		seen := map[key]bool{}
+		for _, a := range f.Affected {
+			k := key{a.ServiceID, a.EnvironmentID}
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			switch {
+			case f.Exploited != nil:
+				exploited[k] = append(exploited[k], f.Key)
+			case strings.EqualFold(f.Severity, "CRITICAL"):
+				critical[k]++
+			}
+		}
+	}
+	for i := range us {
+		k := key{us[i].Service.ID, us[i].Environment.ID}
+		us[i].Exploited, us[i].Critical = exploited[k], critical[k]
+		sort.Strings(us[i].Exploited)
+		us[i].Urgency = urgency(us[i])
+	}
+	sortUpdates(us)
+	return us
+}
+
+// LoadUpdates lists what to upgrade with the vulnerabilities of the running images; without a vulnerability
+// report (OSV off, or it failed) the list is the same, ranked by drift alone.
+func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time) []Update {
+	us := Updates(o, acks, now)
+	if r, err := LoadVulnReport(ctx, st, sc, ""); err == nil {
+		us = WithVulnerabilities(us, r)
+	}
+	return us
 }
 
 func urgency(u Update) int {
 	switch {
+	case len(u.Exploited) > 0:
+		return UrgencyExploited
 	case u.EOL != "" && u.EOLPassed:
 		return UrgencyEOLPassed
 	case u.EOL != "":

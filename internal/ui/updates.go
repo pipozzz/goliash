@@ -55,9 +55,11 @@ type UpdateItem struct {
 	LevelClass                           string
 	LevelLabel                           string
 	Skip                                 string // the version after Target: "skip this version" holds until a newer one
+	Exploited                            []string
+	Critical                             int
 }
 
-var levelClasses = []string{"eol", "eol", "inconsistent", "upstream", "env", "neutral"}
+var levelClasses = []string{"eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
 
 func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
@@ -83,7 +85,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.Levels = append(v.Levels, UpdateLevel{Level: i, Label: label, Class: levelClasses[i]})
 	}
 	var md strings.Builder
-	for _, u := range versions.Updates(o, acks, time.Now()) {
+	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, time.Now()) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
 		}
@@ -96,6 +98,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
+			Exploited: u.Exploited, Critical: u.Critical,
 		}
 		if u.Acked {
 			v.Acked = append(v.Acked, it)

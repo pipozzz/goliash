@@ -573,13 +573,16 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Urgency      string    `json:"urgency"`
 		Since        time.Time `json:"since"`
 		Acknowledged bool      `json:"acknowledged"`
+		Exploited    []string  `json:"exploited,omitempty"`
+		Critical     int       `json:"critical_vulnerabilities,omitempty"`
 	}
 	out := []apiUpdate{}
-	for _, u := range versions.Updates(o, acks, time.Now()) {
+	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, time.Now()) {
 		out = append(out, apiUpdate{
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
 			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
+			Exploited: u.Exploited, Critical: u.Critical,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

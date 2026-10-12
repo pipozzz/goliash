@@ -235,7 +235,8 @@ paths:
       description: |
         One item per service (and application, for a service compared per application) and environment with open
         end-of-life, upstream or environment drift: what runs, the version to move to and why. Ordered by urgency
-        (end of life, end of life soon, major, minor, behind the previous environment, patch), production first.
+        (an exploited vulnerability in the running image, end of life, end of life soon, major, minor, behind the previous
+        environment, patch), production first.
         Items an acknowledgement quiets are included with `acknowledged: true`.
       responses:
         "200":
@@ -258,7 +259,12 @@ paths:
                     jump: { type: string, enum: [patch, minor, major] }
                     behind: { type: string, description: "The previous environment it is behind." }
                     eol: { type: string, format: date }
-                    urgency: { type: string, enum: ["end of life", "end of life soon", major, minor, "behind previous env", patch] }
+                    urgency: { type: string, enum: ["exploited vulnerability", "end of life", "end of life soon", major, minor, "behind previous env", patch] }
+                    exploited:
+                      type: array
+                      items: { type: string }
+                      description: Vulnerabilities in the running image that CISA lists as exploited in the wild, from its SBOM.
+                    critical_vulnerabilities: { type: integer, description: "Other critical vulnerabilities in the running image." }
                     since: { type: string, format: date-time }
                     acknowledged: { type: boolean }
         "401": { $ref: '#/components/responses/Unauthorized' }

@@ -89,7 +89,7 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 	if err != nil {
 		return err
 	}
-	updates := versions.Updates(o, acks, now)
+	updates := versions.LoadUpdates(ctx, n.store, sc, o, acks, now)
 	apps, err := versions.ServiceApps(ctx, n.store, sc)
 	if err != nil {
 		return err
@@ -155,7 +155,7 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 		return 0, err
 	}
 	msg := Message{Workspace: rt.workspace, Digest: true, Link: n.link}
-	for _, u := range versions.Updates(o, acks, now) {
+	for _, u := range versions.LoadUpdates(ctx, n.store, sc, o, acks, now) {
 		if u.Acked {
 			continue
 		}

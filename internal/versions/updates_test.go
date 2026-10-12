@@ -66,3 +66,30 @@ func mustVersion(t *testing.T, s string) Version {
 	}
 	return v
 }
+
+// An update whose running image has a vulnerability exploited in the wild goes first, with it named.
+func TestUpdatesWithVulnerabilities(t *testing.T) {
+	prod := store.Environment{ID: "e-prod", Name: "prod", Position: 30}
+	us := []Update{
+		{Service: store.Service{ID: "s-db", Name: "db"}, Environment: prod, Running: "15.6", Target: "15.8", EOL: "2026-01-01", EOLPassed: true},
+		{Service: store.Service{ID: "s-pay", Name: "payments"}, Environment: prod, Running: "2.0.0", Target: "2.0.1", Jump: JumpPatch},
+	}
+	for i := range us {
+		us[i].Urgency = urgency(us[i])
+	}
+	r := VulnReport{Findings: []VulnFinding{
+		{Key: "CVE-2021-44228", Exploited: &store.Exploited{}, Affected: []Affected{{ServiceID: "s-pay", EnvironmentID: "e-prod"}, {ServiceID: "s-pay", EnvironmentID: "e-prod"}}},
+		{Key: "CVE-2024-0001", Severity: "CRITICAL", Affected: []Affected{{ServiceID: "s-db", EnvironmentID: "e-prod"}}},
+		{Key: "CVE-2024-0002", Severity: "LOW", Affected: []Affected{{ServiceID: "s-db", EnvironmentID: "e-prod"}}},
+	}}
+	got := WithVulnerabilities(us, r)
+	if got[0].Service.Name != "payments" || got[0].Urgency != UrgencyExploited || len(got[0].Exploited) != 1 || got[0].Exploited[0] != "CVE-2021-44228" {
+		t.Fatalf("first %+v", got[0])
+	}
+	if got[1].Service.Name != "db" || got[1].Critical != 1 || got[1].Urgency != UrgencyEOLPassed {
+		t.Fatalf("second %+v", got[1])
+	}
+	if UrgencyLabels[UrgencyExploited] != "exploited vulnerability" || len(UrgencyLabels) != UrgencyPatch+1 {
+		t.Fatal("labels out of step with the levels")
+	}
+}
