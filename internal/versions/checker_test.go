@@ -567,3 +567,18 @@ func TestRegistryCredentialsOnServer(t *testing.T) {
 		t.Fatalf("unused registry: %s %v", repo, err)
 	}
 }
+
+func TestNewerGoliash(t *testing.T) {
+	l := newLab(t)
+	l.tags.tags[GoliashRepo] = []string{"1", "1.34", "1.34.0", "1.35.0", "latest", "1.36.0-rc.1"}
+	ctx := context.Background()
+	if v, err := l.checker.NewerGoliash(ctx, "1.34.0"); err != nil || v != "1.35.0" {
+		t.Fatalf("newer %q %v", v, err)
+	}
+	if v, _ := l.checker.NewerGoliash(ctx, "v1.35.0"); v != "" {
+		t.Fatalf("on the newest: %q", v)
+	}
+	if v, _ := l.checker.NewerGoliash(ctx, "dev"); v != "" {
+		t.Fatalf("dev build: %q", v)
+	}
+}

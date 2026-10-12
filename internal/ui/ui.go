@@ -68,6 +68,7 @@ type Server struct {
 	smtp        bool
 	pushSubject string
 	version     string
+	updateCheck bool
 	snapshots   SnapshotSink
 
 	favMu    sync.Mutex
@@ -85,6 +86,8 @@ type Options struct {
 	PublicURL string
 	SMTP      bool   // whether e-mail is configured
 	Version   string // the server's release
+	// UpdateCheck lets the status page ask Goliash's registry for a newer release of Goliash.
+	UpdateCheck bool
 	// PushSubject is who web pushes come from; empty when the server has no https
 	// address or mail sender to give, and Apple's push service refuses them.
 	PushSubject string
@@ -104,7 +107,7 @@ func New(o Options) *Server {
 	publicBase = strings.TrimSuffix(o.PublicURL, "/")
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version,
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
 		snapshots: o.Snapshots,
 	}
 }

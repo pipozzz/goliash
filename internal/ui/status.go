@@ -221,6 +221,30 @@ func (s *Server) statusView(ctx context.Context, p auth.Principal) (StatusView, 
 		add(c)
 	}
 
+	// Goliash itself: a newer release, from its own registry.
+	c = StatusCheck{Title: "Goliash", State: "ok", Link: "https://github.com/pipozzz/goliash/releases", LinkText: "Releases"}
+	switch {
+	case !s.updateCheck:
+		c.State, c.Summary = "off", "Version "+s.version+"; looking for newer releases is off (GOLIASH_UPDATE_CHECK=off)."
+	case s.checker == nil:
+		c.Summary = "Version " + s.version + "."
+	default:
+		look, cancel := context.WithTimeout(ctx, 5*time.Second)
+		newer, err := s.checker.NewerGoliash(look, s.version)
+		cancel()
+		switch {
+		case err != nil:
+			c.Summary = "Version " + s.version + "; could not look for a newer one: " + err.Error()
+		case newer != "":
+			c.State, c.Summary = "warn", "Version "+s.version+"; "+newer+" is out."
+			c.Link, c.LinkText = "https://github.com/pipozzz/goliash/releases/tag/v"+newer, "Release notes"
+			c.Details = append(c.Details, "Upgrade the server first, then the agents (their pages show the command).")
+		default:
+			c.Summary = "Version " + s.version + ", the newest."
+		}
+	}
+	add(c)
+
 	v.Worst = "ok"
 	rank := map[string]int{"bad": 3, "warn": 2, "ok": 1, "off": 0}
 	for _, c := range v.Checks {

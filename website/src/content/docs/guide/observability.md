@@ -5,7 +5,8 @@ description: 'Scrape Goliash /metrics with Prometheus or the OpenTelemetry Colle
 
 For a quick look without any of that, **Settings → Status** (also the *Live* sign above the matrix) says whether
 Goliash itself works and its data is fresh: agents and targets reporting, upstream releases checked, private
-registries accepting their credentials, SBOMs, OSV and CISA's catalog current, notifications going out. Each line
+registries accepting their credentials, SBOMs, OSV and CISA's catalog current, notifications going out, and whether a
+newer Goliash is out. Each line
 names what is wrong and links to where to fix it.
 
 Goliash fits next to the observability stack you already have in three ways:

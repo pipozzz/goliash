@@ -122,3 +122,24 @@ func (c *Checker) RefreshRegistry(ctx context.Context, sc store.Scope) {
 	}
 	_ = c.EvaluateDrift(ctx, sc)
 }
+
+// GoliashRepo is where Goliash's own server image is published.
+const GoliashRepo = "ghcr.io/pipozzz/goliash"
+
+// NewerGoliash returns the newest release of Goliash itself above running, from its public registry (the tag
+// list is cached like any other), or "" when running is the newest or not a release.
+func (c *Checker) NewerGoliash(ctx context.Context, running string) (string, error) {
+	cur, ok := ParseVersion(strings.TrimPrefix(running, "v"))
+	if !ok {
+		return "", nil
+	}
+	tags, err := c.listTags(ctx, store.Scope{}, GoliashRepo, nil)
+	if err != nil {
+		return "", err
+	}
+	u := Latest(tags, cur.Raw, Policy{})
+	if u.HasLatestAny && u.LatestAny.Compare(cur) > 0 {
+		return u.LatestAny.Raw, nil
+	}
+	return "", nil
+}

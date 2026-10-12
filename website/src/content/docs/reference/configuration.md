@@ -19,6 +19,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
 | `GOLIASH_OSV_URL` | | `https://api.osv.dev/v1` | Where the packages of running images' SBOMs are looked up for known vulnerabilities: an OSV API mirror, or `off`. Only package names and versions are sent |
 | `GOLIASH_KEV_URL` | | CISA's feed | Where the catalog of known exploited vulnerabilities is read from (a mirror of CISA's JSON), or `off` |
+| `GOLIASH_UPDATE_CHECK` | | on | `off` stops the Status page from asking `ghcr.io/pipozzz/goliash` for a newer release of Goliash (only its tag list is read) |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |

@@ -1869,7 +1869,7 @@ func TestStatusPage(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("status %d", code)
 	}
-	for _, want := range []string{"Agents", "Targets", "Upstream releases", "Vulnerability data", `class="status-overall`} {
+	for _, want := range []string{"Agents", "Targets", "Upstream releases", "Vulnerability data", `class="status-overall`, "Goliash"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("status page misses %q", want)
 		}
