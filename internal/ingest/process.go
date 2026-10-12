@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/mapping"
@@ -92,9 +93,14 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	if err != nil {
 		return err
 	}
+	autoMap, err := s.store.WorkspaceAutoMap(ctx, sc.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	autoMapped := map[string]string{}
 	changes, err := diff(diffInput{
 		Target: target, Snapshot: payload, Existing: existing, Mapper: mapper, EnvByName: envByName,
-		Baseline: !hasBase, AppLabel: appLabel,
+		Baseline: !hasBase, AppLabel: appLabel, AutoMap: autoMap, AutoMapped: autoMapped,
 		ServiceID: func(name string) (string, error) {
 			if id, ok := serviceIDs[name]; ok {
 				return id, nil
@@ -112,6 +118,24 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	}
 	if err := s.store.ApplySnapshot(ctx, changes); err != nil {
 		return err
+	}
+	// What was mapped automatically stays so through a rule per image, as the inbox would make it.
+	repos := make([]string, 0, len(autoMapped))
+	for repo := range autoMapped {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	for _, repo := range repos {
+		if _, err := s.store.CreateMappingRule(ctx, store.MappingRule{
+			Scope: sc, Priority: 100, MatchType: "image_repo", Pattern: mapping.ImagePattern(repo), ServiceID: autoMapped[repo],
+		}); err != nil {
+			return err
+		}
+		_ = s.store.Audit(ctx, store.AuditEntry{
+			OrgID: sc.OrgID, WorkspaceID: sc.WorkspaceID, Actor: "auto-map", Action: "mapping.create",
+			Details: map[string]string{"image_repo": mapping.ImagePattern(repo), "target": target.Name},
+		})
+		s.log.InfoContext(ctx, "image mapped to its suggested service", "repo", repo, "target", target.Name)
 	}
 	s.log.DebugContext(ctx, "snapshot processed", "snapshot_id", snap.ID, "target", target.Name,
 		"instances", len(changes.Upsert), "removed", len(changes.Remove), "events", len(changes.Events), "baseline", !hasBase)

@@ -13,6 +13,7 @@ templ InboxPage(v InboxView) {
 				<p class="sub">Workloads Goliash could not map to a service, grouped by image. Your choice becomes a rule, so the next ones map by themselves.</p>
 			</div>
 		</div>
+		@autoMapPanel(v)
 		<section class="panel">
 			if len(v.Groups) == 0 {
 				<div class="empty">Nothing to classify. Every running workload belongs to a service.</div>
@@ -174,4 +175,39 @@ templ mapOnly(g InboxGroup, it InboxItem) {
 		<input name="service" list="services" value={ it.OwnName } required aria-label={ "Service for " + it.Workload } size="24"/>
 		<button class="secondary" type="submit" title={ "A service of its own for " + stableName(it.Workload) + ", whatever image it runs; other workloads running " + g.Repo + " stay apart" }>Map only this workload</button>
 	</form>
+}
+
+// autoMapPanel turns automatic mapping on or off.
+templ autoMapPanel(v InboxView) {
+	<section class={ "panel", "auto-map", templ.KV("on", v.AutoMap) } id="auto-map">
+		<div class="panel-body auto-map-body">
+			<div>
+				<strong>
+					if v.AutoMap {
+						Automatic mapping is on
+					} else {
+						Map new images automatically
+					}
+				</strong>
+				<span class="muted">
+					if v.AutoMap {
+						Workloads of new images go to the service suggested for them (from goliash.service, Kubernetes and Compose labels, or the image name) as soon as they report, each with a rule below. Rename or merge services any time.
+					} else {
+						Workloads of new images go to the service suggested for them as soon as they report, so the matrix fills by itself. What waits here now is mapped the same way.
+					}
+				</span>
+			</div>
+			if v.CanMember {
+				<form method="post" action="/inbox/auto-map">
+					if v.AutoMap {
+						<input type="hidden" name="auto_map" value="off"/>
+						<button type="submit" class="secondary">Turn off</button>
+					} else {
+						<input type="hidden" name="auto_map" value="on"/>
+						<button type="submit">Turn on</button>
+					}
+				</form>
+			}
+		</div>
+	</section>
 }

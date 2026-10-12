@@ -159,6 +159,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
 	mux.Handle("POST /inbox/map-all", s.page(m, s.inboxMapAll))
+	mux.Handle("POST /inbox/auto-map", s.page(m, s.setAutoMap))
 	mux.Handle("GET /agents", s.page(v, s.agents))
 	mux.Handle("POST /agents", s.page(a, s.createAgent))
 	mux.Handle("GET /agents/{id}", s.page(v, s.agent))
@@ -448,7 +449,7 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 	steps := []Step{
 		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS, Lambda, a Linux server or Compose files: pick one and get a single command: the agent it starts registers itself and adds what it finds.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
 		{Title: "Get the first report", Text: "Start the agent with the command Connect shows. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
-		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, or map their images once in the inbox; new workloads follow.", Href: "/inbox", Action: "Open the inbox", Done: len(g.Rows) > 0},
+		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, map their images once in the inbox, or let Goliash map them automatically; new workloads follow.", Href: "/inbox#auto-map", Action: "Open the inbox", Done: len(g.Rows) > 0},
 		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: len(chans) > 0, Optional: true},
 		{Title: "Invite your team", Text: "Viewers read, members map services and acknowledge, admins configure.", Href: "/settings", Action: "Invite people", Done: users > 1, Optional: true},
 	}
@@ -1130,6 +1131,9 @@ func (s *Server) inbox(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		return err
 	}
 	v := InboxView{Base: withFlash(s.base(ctx, p, "inbox", "Inbox"), r), Groups: groupInbox(items)}
+	if v.AutoMap, err = s.store.WorkspaceAutoMap(ctx, p.Scope.WorkspaceID); err != nil {
+		return err
+	}
 	svcName := map[string]string{}
 	for _, svc := range svcs {
 		v.Services = append(v.Services, svc.Name)
@@ -2373,41 +2377,10 @@ func (s *Server) inboxMapAll(w http.ResponseWriter, r *http.Request, p auth.Prin
 	if len(repos) == 0 || len(repos) != len(names) {
 		return back(w, r, "/inbox", "error", "Nothing to map.")
 	}
-	items, err := s.inboxItems(ctx, p.Scope)
+	images, workloads, skipped, err := s.mapImages(ctx, p, repos, names)
 	if err != nil {
 		return err
 	}
-	images, workloads := 0, 0
-	var skipped []string
-	for i, repo := range repos {
-		name := strings.TrimSpace(names[i])
-		if repo == "" || !serviceName.MatchString(name) {
-			skipped = append(skipped, repo)
-			continue
-		}
-		svc, err := s.store.EnsureService(ctx, p.Scope, name)
-		if err != nil {
-			return err
-		}
-		if _, err := s.store.CreateMappingRule(ctx, store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: mapping.ImagePattern(repo), ServiceID: svc.ID}); err != nil {
-			return err
-		}
-		for _, it := range items {
-			if it.Repo != repo {
-				continue
-			}
-			if err := s.store.MapInstances(ctx, p.Scope, it.TargetID, it.WorkloadID, svc.ID); err != nil {
-				return err
-			}
-			workloads++
-		}
-		images++
-		s.audit(ctx, p, "mapping.create", "service", svc.Name, "image_repo", mapping.ImagePattern(repo))
-	}
-	if s.checker != nil {
-		_ = s.checker.EvaluateDrift(ctx, p.Scope)
-	}
-	s.hub.Publish(p.Scope.WorkspaceID)
 	msg := fmt.Sprintf("Mapped %s (%s). New workloads running them map by themselves.", plural(images, "image", "images"), plural(workloads, "workload", "workloads"))
 	if len(skipped) > 0 {
 		msg += " Skipped, names to check: " + strings.Join(skipped, ", ") + "."
@@ -2781,4 +2754,81 @@ func (s *Server) timeline(w http.ResponseWriter, r *http.Request, p auth.Princip
 	slices.Sort(changes)
 	w.Header().Set("Cache-Control", "no-store")
 	return writeJSON(w, http.StatusOK, map[string]any{"from": from.Add(-time.Hour).Unix(), "to": now.Unix(), "changes": changes})
+}
+
+// mapImages maps every waiting workload of each image repos[i] to the service names[i], with a rule per image
+// so new workloads follow, and reports how many images and workloads it mapped and which it skipped.
+func (s *Server) mapImages(ctx context.Context, p auth.Principal, repos, names []string) (images, workloads int, skipped []string, err error) {
+	items, err := s.inboxItems(ctx, p.Scope)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	for i, repo := range repos {
+		name := strings.TrimSpace(names[i])
+		if repo == "" || !serviceName.MatchString(name) {
+			skipped = append(skipped, repo)
+			continue
+		}
+		svc, err := s.store.EnsureService(ctx, p.Scope, name)
+		if err != nil {
+			return images, workloads, skipped, err
+		}
+		if _, err := s.store.CreateMappingRule(ctx, store.MappingRule{Scope: p.Scope, Priority: 100, MatchType: "image_repo", Pattern: mapping.ImagePattern(repo), ServiceID: svc.ID}); err != nil {
+			return images, workloads, skipped, err
+		}
+		for _, it := range items {
+			if it.Repo != repo {
+				continue
+			}
+			if err := s.store.MapInstances(ctx, p.Scope, it.TargetID, it.WorkloadID, svc.ID); err != nil {
+				return images, workloads, skipped, err
+			}
+			workloads++
+		}
+		images++
+		s.audit(ctx, p, "mapping.create", "service", svc.Name, "image_repo", mapping.ImagePattern(repo))
+	}
+	if s.checker != nil {
+		_ = s.checker.EvaluateDrift(ctx, p.Scope)
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	return images, workloads, skipped, nil
+}
+
+// setAutoMap turns automatic mapping on or off; turning it on maps what waits in the inbox as suggested too.
+func (s *Server) setAutoMap(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	on := r.FormValue("auto_map") == "on"
+	if err := s.store.SetWorkspaceAutoMap(ctx, p.User.OrgID, p.Scope.WorkspaceID, on); err != nil {
+		return err
+	}
+	s.audit(ctx, p, "workspace.auto_map", "on", strconv.FormatBool(on))
+	if !on {
+		return back(w, r, "/inbox", "notice", "New images wait here again. What was mapped stays mapped.")
+	}
+	images, workloads, err := s.mapSuggested(ctx, p)
+	if err != nil {
+		return err
+	}
+	msg := "New images now map to the service suggested for them as soon as they report; rename or merge services any time."
+	if images > 0 {
+		msg = fmt.Sprintf("Mapped %s waiting here (%s). ", plural(images, "image", "images"), plural(workloads, "workload", "workloads")) + msg
+	}
+	return back(w, r, "/inbox", "notice", msg)
+}
+
+// mapSuggested maps every image waiting in the inbox to the service suggested for it.
+func (s *Server) mapSuggested(ctx context.Context, p auth.Principal) (images, workloads int, err error) {
+	items, err := s.inboxItems(ctx, p.Scope)
+	if err != nil {
+		return 0, 0, err
+	}
+	var repos, names []string
+	for _, g := range groupInbox(items) {
+		if g.Suggested != "" {
+			repos, names = append(repos, g.Repo), append(names, g.Suggested)
+		}
+	}
+	images, workloads, _, err = s.mapImages(ctx, p, repos, names)
+	return images, workloads, err
 }

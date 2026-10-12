@@ -125,6 +125,19 @@ func (s *Store) SetWorkspaceAppLabel(ctx context.Context, orgID, workspaceID, ke
 	return expectOne(res, err)
 }
 
+// WorkspaceAutoMap reports whether the workspace maps workloads of new images to their suggested service.
+func (s *Store) WorkspaceAutoMap(ctx context.Context, workspaceID string) (bool, error) {
+	var on bool
+	err := s.queryRow(ctx, s.db, `SELECT auto_map FROM workspaces WHERE id = ?`, workspaceID).Scan(&on)
+	return on, notFound(err)
+}
+
+// SetWorkspaceAutoMap turns automatic mapping on or off.
+func (s *Store) SetWorkspaceAutoMap(ctx context.Context, orgID, workspaceID string, on bool) error {
+	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET auto_map = ? WHERE org_id = ? AND id = ?`, on, orgID, workspaceID)
+	return expectOne(res, err)
+}
+
 // RenameService gives a service a new name. It refuses (ErrExists) when another
 // service has it: MergeService joins them.
 func (s *Store) RenameService(ctx context.Context, sc Scope, id, name string) error {

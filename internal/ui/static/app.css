@@ -951,3 +951,7 @@ td.tl-in > * { animation: tl-fade .45s ease-out; }
   .timeline.tl-stuck .tl-now, .timeline.tl-stuck [data-tl-note] { display: none; }
 }
 .empty-past { padding: 28px 16px; text-align: center; }
+/* Inbox: automatic mapping, one switch. */
+.auto-map-body { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.auto-map-body > div { display: grid; gap: 4px; max-width: 78ch; }
+.auto-map.on { border-color: var(--ok); background: linear-gradient(180deg, var(--ok-soft), var(--surface) 80%); }

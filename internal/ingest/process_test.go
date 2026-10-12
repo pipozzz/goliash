@@ -268,3 +268,39 @@ func TestAgentBack(t *testing.T) {
 		t.Fatal("reported back twice")
 	}
 }
+
+// With automatic mapping, a workload of a new image goes to its suggested service at once, with a rule;
+// sidecars stay out of it.
+func TestAutoMap(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	sc := w.ws.Scope()
+	if err := w.st.SetWorkspaceAutoMap(ctx, sc.OrgID, sc.WorkspaceID, true); err != nil {
+		t.Fatal(err)
+	}
+	w.send(true, payments(map[string]int{"1.4.2": 3}, false), worker(nil))
+	act := w.active()
+	svc, err := w.st.GetServiceByName(ctx, sc, "worker")
+	if err != nil || act["worker-v2/main:2.0.0"].ServiceID != svc.ID {
+		t.Fatalf("worker not mapped: %+v %v", act["worker-v2/main:2.0.0"], err)
+	}
+	if env := act["payments-api/envoy:v1.31.2"]; env.ServiceID == "" || env.IsMain {
+		t.Fatalf("sidecar: %+v", env)
+	}
+	if _, err := w.st.GetServiceByName(ctx, sc, "envoy"); err == nil {
+		t.Fatal("a service was made for a sidecar")
+	}
+	rules, _ := w.st.ListMappingRules(ctx, sc)
+	if len(rules) != 1 || rules[0].MatchType != "image_repo" || rules[0].ServiceID != svc.ID {
+		t.Fatalf("rules %+v", rules)
+	}
+	// Turned off, the rule keeps the image mapped; nothing is made twice.
+	_ = w.st.SetWorkspaceAutoMap(ctx, sc.OrgID, sc.WorkspaceID, false)
+	w.send(true, payments(map[string]int{"1.4.2": 3}, false), worker(nil))
+	if act := w.active(); act["worker-v2/main:2.0.0"].ServiceID != svc.ID {
+		t.Fatal("mapping lost when turned off")
+	}
+	if rules, _ := w.st.ListMappingRules(ctx, sc); len(rules) != 1 {
+		t.Fatalf("rules %d", len(rules))
+	}
+}

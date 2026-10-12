@@ -209,6 +209,13 @@ or `datadog-agent` are skipped.
 
 The inbox groups unmapped workloads by image.
 
+**Map new images automatically** (the switch at the top, also offered when you connect the first agent) skips
+the inbox: a workload of an image no rule or label maps goes to the service suggested for it, from
+`goliash.service`, Kubernetes and Compose labels or the image name, as soon as it reports, and the image gets a
+rule like **Map all** makes. Sidecars are left out. Turning it on maps what waits in the inbox the same way;
+turning it off keeps what was mapped. Each automatic mapping is in the audit log as `auto-map`. Rename or merge
+services afterwards as you like.
+
 - **Map all** maps every workload running the image to a service at once and adds an image rule, so new
   workloads with that image map by themselves.
 - **Map only this** is for an image that runs as several services, for example one image deployed as `web` and

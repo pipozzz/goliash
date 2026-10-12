@@ -78,6 +78,8 @@ type ConnectFormView struct {
 	Envs     []EnvView
 	Agents   []AgentOption
 	Form     url.Values // values to show again after a mistake
+	// AutoMap is on for the workspace already; SuggestAutoMap offers it checked while it has no services.
+	AutoMap, SuggestAutoMap bool
 }
 
 // ConnectDoneView is what to do next, and the live status of the new target.
@@ -132,6 +134,12 @@ func (s *Server) showConnectForm(w http.ResponseWriter, r *http.Request, p auth.
 	}
 	if problem != "" {
 		v.Error = problem
+	}
+	if v.AutoMap, err = s.store.WorkspaceAutoMap(r.Context(), p.Scope.WorkspaceID); err != nil {
+		return err
+	}
+	if svcs, err := s.store.ListServices(r.Context(), p.Scope); err == nil {
+		v.SuggestAutoMap = len(svcs) == 0
 	}
 	return render(w, r, ConnectFormPage(v))
 }
@@ -427,6 +435,12 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 		until = time.Now().Add(validity)
 	}
 	many := f.Get("many") == "on"
+	if f.Get("auto_map") == "on" {
+		if err := s.store.SetWorkspaceAutoMap(ctx, p.User.OrgID, p.Scope.WorkspaceID, true); err != nil {
+			return err
+		}
+		s.audit(ctx, p, "workspace.auto_map", "on", "true")
+	}
 	code, hash := tokens.New(tokens.Enroll)
 	c, err := s.store.CreateEnrollmentCode(ctx, p.Scope, env.ID, hash, p.User.Email, until, !many)
 	if err != nil {

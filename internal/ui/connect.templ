@@ -109,6 +109,16 @@ templ connectCodeForm(v ConnectFormView) {
 						For many { codeMany(v.Platform) } <span class="muted">one command for all of them, e.g. from Ansible; each registers as its own agent.</span>
 					</span>
 				</label>
+				if v.AutoMap {
+					<p class="hint">What it finds maps to services by itself (automatic mapping is on in the <a href="/inbox">inbox</a>).</p>
+				} else {
+					<label class="check choice">
+						<input type="checkbox" name="auto_map" checked?={ (len(v.Form) == 0 && v.SuggestAutoMap) || formVal(v.Form, "auto_map", "") == "on" }/>
+						<span>
+							Map what it finds to services automatically <span class="muted">by its labels or image name, so the matrix fills by itself; rename, merge or turn it off in the inbox.</span>
+						</span>
+					</label>
+				}
 				<label class="inline-field">
 					New agents may register for
 					<select name="expires">

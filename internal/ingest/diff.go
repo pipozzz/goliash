@@ -4,6 +4,7 @@
 package ingest
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,10 @@ type diffInput struct {
 	// Baseline is true for a target's first processed snapshot: instances are recorded
 	// but no events are emitted, so onboarding does not flood the history.
 	Baseline bool
+	// AutoMap maps the main container of an unmapped workload to the service suggested for its image;
+	// AutoMapped collects image repository -> service ID for the rules that keep it so.
+	AutoMap    bool
+	AutoMapped map[string]string
 }
 
 // slot is one container of one workload; its version is what events track.
@@ -109,6 +114,16 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 
 		for _, r := range rows {
 			r.inst.IsMain = r.inst.ContainerName == main
+			if in.AutoMap && r.inst.IsMain && r.inst.ServiceID == "" && validServiceName(r.inst.SuggestedService) {
+				id, err := in.ServiceID(r.inst.SuggestedService)
+				if err != nil {
+					return ch, err
+				}
+				r.inst.ServiceID = id
+				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMapped != nil {
+					in.AutoMapped[repo] = id
+				}
+			}
 			if prev, ok := existing[r.inst.Key()]; ok {
 				r.inst.ID = prev.ID
 			} else {
@@ -253,3 +268,8 @@ func event(typ string, i store.Instance, from, to, note string, at time.Time) st
 		FromVersion: from, ToVersion: to, Note: note, Source: "poll", At: at,
 	}
 }
+
+// serviceNamePattern is what the inbox accepts as a service name.
+var serviceNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$`)
+
+func validServiceName(name string) bool { return serviceNamePattern.MatchString(name) }

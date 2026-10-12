@@ -1760,3 +1760,31 @@ func TestTimelineScrubbing(t *testing.T) {
 		t.Fatal("no timeline on the matrix")
 	}
 }
+
+func TestAutoMapSwitch(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	member := e.as(store.RoleMember)
+	if _, page := get(t, member, e.srv.URL+"/inbox", nil); !strings.Contains(page, "Map new images automatically") {
+		t.Fatal("no switch in the inbox")
+	}
+	// Turning it on maps what waits (worker-v2, suggested "worker") at once.
+	_, body, _ := post(t, member, e.srv.URL+"/inbox/auto-map", url.Values{"auto_map": {"on"}})
+	if !strings.Contains(body, "Mapped 1 image waiting here") || !strings.Contains(body, "Automatic mapping is on") {
+		t.Fatalf("turn on: %.400s", body)
+	}
+	if on, _ := e.st.WorkspaceAutoMap(ctx, e.ws.ID); !on {
+		t.Fatal("not stored")
+	}
+	if _, err := e.st.GetServiceByName(ctx, e.ws.Scope(), "worker"); err != nil {
+		t.Fatal("waiting image not mapped")
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/inbox/auto-map", url.Values{"auto_map": {"off"}}); !strings.Contains(body, "What was mapped stays mapped") {
+		t.Fatal("turn off")
+	}
+	// Connect offers it, checked while the workspace has no services of its own.
+	admin := e.as(store.RoleAdmin)
+	if _, page := get(t, admin, e.srv.URL+"/connect/docker", nil); !strings.Contains(page, `name="auto_map"`) {
+		t.Fatal("connect does not offer automatic mapping")
+	}
+}

@@ -592,6 +592,7 @@ type InboxGroup struct {
 // InboxView is the inbox page.
 type InboxView struct {
 	Base
+	AutoMap  bool // new images map to their suggested service by themselves
 	Groups   []InboxGroup
 	Services []string
 	Rules    []MappingRuleView
