@@ -3,6 +3,8 @@
 
 package ui
 
+import "strings"
+
 templ TilesPage(v TilesView) {
 	@Layout(v.Base) {
 		if v.TV {
@@ -28,7 +30,8 @@ templ TilesPage(v TilesView) {
 			<div class="head">
 				<div>
 					<h1>Service tiles</h1>
-					<p class="sub">Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.</p>
+					<p class="sub" data-tl-asof hidden?={ v.At == "" }>As of <strong data-tl-asof-date>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then, against the newest releases out by then, with drift as it was.</p>
+					<p class="sub" data-tl-live hidden?={ v.At != "" }>Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.</p>
 				</div>
 			</div>
 			<div class="toolbar tiles-toolbar">
@@ -54,8 +57,12 @@ templ TilesPage(v TilesView) {
 					<a href={ templ.URL(tilesWith(v, "env", "side")) } class={ templ.KV("on", v.Env == "side") } title="One board per environment">Side by side</a>
 				</nav>
 				<span class="spacer"></span>
+				if v.At == "" {
+					<a href={ templ.URL(tilesWithAt(v, v.Yesterday)) } class="toolbar-link timetravel-open" data-tl-open hx-boost="false" title="Scrub through what ran when, deployment by deployment">Time travel</a>
+				}
 				<a class="toolbar-link" href={ templ.URL(tilesWith(v, "tv", "1")) } title="Full screen, for a wall screen">TV mode</a>
 			</div>
+			@timeTravel(newTimeTravel("tiles", tilesWithAt(v, ""), v.GroupBy, v.At))
 		}
 		<div
 			class="tiles-live"

@@ -490,6 +490,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		}
 		v.Grid, v.At = buildGrid(o, 0, s.grouping(w, r, matrixGroupCookie)), at.UTC().Format("2006-01-02T15:04")
 		v.Grid.Past = true
+		pastDrifts(&v.Grid)
 		return render(w, r, MatrixPage(v))
 	}
 	g, err := s.overview(r.Context(), p.Scope, s.grouping(w, r, matrixGroupCookie))
@@ -523,6 +524,7 @@ func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		g := buildGrid(o, 0, r.URL.Query().Get("group"))
 		g.Past = true
+		pastDrifts(&g)
 		return render(w, r, MatrixGridView(g))
 	}
 	g, err := s.overview(r.Context(), p.Scope, r.URL.Query().Get("group"))

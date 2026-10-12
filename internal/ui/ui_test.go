@@ -1788,3 +1788,32 @@ func TestAutoMapSwitch(t *testing.T) {
 		t.Fatal("connect does not offer automatic mapping")
 	}
 }
+
+func TestTimeTravelOnTiles(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	soon := time.Now().UTC().Add(time.Minute).Format("2006-01-02T15:04")
+	_, page := get(t, viewer, e.srv.URL+"/tiles?group=app", nil)
+	if !strings.Contains(page, "data-tl-open") || !strings.Contains(page, `data-kind="tiles"`) {
+		t.Fatal("no time travel on the tiles")
+	}
+	_, past := get(t, viewer, e.srv.URL+"/tiles?group=app&at="+soon, nil)
+	if !strings.Contains(past, "against the newest releases out by then") || !strings.Contains(past, "at="+url.QueryEscape(soon)) {
+		t.Fatal("tiles of a moment: heading or links without the moment")
+	}
+}
+
+func TestPastDrifts(t *testing.T) {
+	g := MatrixGrid{Envs: []EnvHeader{{Name: "staging"}, {Name: "prod"}}, Rows: []MatrixRow{{
+		Latest: "1.3.0",
+		Cells: []MatrixCell{
+			{Versions: []VersionView{{Tag: "1.3.0"}}},
+			{Versions: []VersionView{{Tag: "1.2.0"}}},
+		},
+	}}}
+	pastDrifts(&g)
+	staging, prod := g.Rows[0].Cells[0].Drifts, g.Rows[0].Cells[1].Drifts
+	if len(staging) != 0 || len(prod) != 2 || prod[0].Label != "upstream 1.3.0" || prod[1].Label != "behind staging" || g.Rows[0].Health != "warn" {
+		t.Fatalf("staging %+v prod %+v health %s", staging, prod, g.Rows[0].Health)
+	}
+}

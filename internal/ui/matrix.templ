@@ -10,7 +10,7 @@ templ MatrixPage(v MatrixView) {
 		<div class="head">
 			<div>
 				<h1>Service × environment</h1>
-				<p class="sub" data-tl-asof hidden?={ v.At == "" }>As of <strong data-tl-asof-date>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then. Drift and upstream releases describe now, so they are not shown. <a href="/">Back to now</a></p>
+				<p class="sub" data-tl-asof hidden?={ v.At == "" }>As of <strong data-tl-asof-date>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then, against the newest releases out by then, with drift as it was. <a href="/">Back to now</a></p>
 				<p class="sub" data-tl-live hidden?={ v.At != "" }>What runs where, the newest release upstream, and where versions drift apart.</p>
 			</div>
 			if v.At == "" && len(v.Grid.Rows) > 0 {
@@ -64,7 +64,7 @@ templ MatrixPage(v MatrixView) {
 					<a href={ templ.URL(matrixURL(v.Grid.GroupBy, v.Yesterday)) } class="toolbar-link timetravel-open" data-tl-open hx-boost="false" title="Scrub through what ran when, deployment by deployment">Time travel</a>
 				}
 			</div>
-			@timeTravel(v)
+			@timeTravel(newTimeTravel("matrix", matrixURL(v.Grid.GroupBy, ""), v.Grid.GroupBy, v.At))
 		}
 		if v.At != "" {
 			<section class="panel" id="matrix-panel">
@@ -280,14 +280,14 @@ templ firstRun(steps []Step, explore bool) {
 
 // timeTravel is the time travel bar: a track of the past with a mark for every deployment, to scrub, step from
 // change to change or play back. Without JavaScript its form picks a moment.
-templ timeTravel(v MatrixView) {
-	<section class="timeline panel" id="timeline" data-group={ v.Grid.GroupBy } data-at={ v.At } hidden?={ v.At == "" } aria-label="Time travel">
+templ timeTravel(t TimeTravel) {
+	<section class="timeline panel" id="timeline" data-kind={ t.Kind } data-base={ t.Base } data-group={ t.Group } data-at={ t.At } hidden?={ t.At == "" } aria-label="Time travel">
 		<div class="tl-head">
 			<div class="tl-when">
 				<span class="tl-kicker">Time travel</span>
 				<strong class="tl-date" data-tl-label aria-live="polite">
-					if v.At != "" {
-						{ strings.Replace(v.At, "T", " ", 1) } UTC
+					if t.At != "" {
+						{ strings.Replace(t.At, "T", " ", 1) } UTC
 					} else {
 						Now
 					}
@@ -300,7 +300,7 @@ templ timeTravel(v MatrixView) {
 				<button type="button" class="chip" data-tl-jump="-2592000">30 days ago</button>
 				<button type="button" class="chip" data-tl-jump="-7776000">90 days ago</button>
 			</div>
-			<a href={ templ.URL(matrixURL(v.Grid.GroupBy, "")) } class="button secondary tl-now" data-tl-now>Back to now</a>
+			<a href={ templ.URL(t.Base) } class="button secondary tl-now" data-tl-now>Back to now</a>
 		</div>
 		<div class="tl-track" data-tl-track hidden>
 			<svg class="tl-ticks" data-tl-ticks viewBox="0 0 1000 28" preserveAspectRatio="none" aria-hidden="true"></svg>
@@ -314,9 +314,11 @@ templ timeTravel(v MatrixView) {
 				<button type="button" class="secondary icon" data-tl-next title="Next deployment (→)" aria-label="Next deployment">⏭</button>
 				<span class="hint">← → step from deployment to deployment, Shift moves a day</span>
 			</div>
-			<form class="inline tl-exact" method="get" action="/">
-				<label>Exact moment (UTC)<input type="datetime-local" name="at" value={ v.At } required data-tl-input/></label>
-				<input type="hidden" name="group" value={ v.Grid.GroupBy }/>
+			<form class="inline tl-exact" method="get" action={ templ.URL(t.Path) }>
+				<label>Exact moment (UTC)<input type="datetime-local" name="at" value={ t.At } required data-tl-input/></label>
+				for _, h := range t.Hidden {
+					<input type="hidden" name={ h[0] } value={ h[1] }/>
+				}
 				<button type="submit" class="secondary">Show</button>
 			</form>
 		</div>

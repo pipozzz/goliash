@@ -126,27 +126,13 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	for _, e := range envs {
 		o.Envs[e.ID] = e
 	}
-	for id, ref := range o.Refs {
+	for id := range o.Refs {
 		if _, msg, err := st.UpstreamStatus(ctx, sc, id); err == nil && msg != "" {
 			o.CheckErrs[id] = msg
 		}
-		p, _, _ := PolicyFor(o.Services[id], ref.Repo)
-		o.Policies[id] = p
-		releases, err := st.ListReleases(ctx, sc, id)
-		if err != nil {
-			return o, err
-		}
-		if len(releases) == 0 {
-			continue
-		}
-		tags := make([]string, len(releases))
-		for i, r := range releases {
-			tags[i] = r.Version
-			if r.ChangelogURL != "" {
-				o.ReleaseURL[id+"|"+r.Version] = r.ChangelogURL
-			}
-		}
-		o.Upstreams[id] = Latest(tags, ref.Tag, p)
+	}
+	if err := loadUpstreams(ctx, st, sc, &o, nil); err != nil {
+		return o, err
 	}
 	drifts, err := st.OpenDrifts(ctx, sc)
 	if err != nil {
@@ -171,4 +157,37 @@ func splitApps(m Matrix) map[string]bool {
 		}
 	}
 	return out
+}
+
+// loadUpstreams fills each referenced service's policy and newest acceptable release. With at, only releases
+// out by then count: published by then when the date is known, else seen by Goliash by then.
+func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Overview, at *time.Time) error {
+	for id, ref := range o.Refs {
+		p, _, _ := PolicyFor(o.Services[id], ref.Repo)
+		o.Policies[id] = p
+		releases, err := st.ListReleases(ctx, sc, id)
+		if err != nil {
+			return err
+		}
+		var tags []string
+		for _, r := range releases {
+			if at != nil {
+				out := r.DiscoveredAt
+				if !r.PublishedAt.IsZero() {
+					out = r.PublishedAt
+				}
+				if out.After(*at) {
+					continue
+				}
+			}
+			tags = append(tags, r.Version)
+			if r.ChangelogURL != "" {
+				o.ReleaseURL[id+"|"+r.Version] = r.ChangelogURL
+			}
+		}
+		if len(tags) > 0 {
+			o.Upstreams[id] = Latest(tags, ref.Tag, p)
+		}
+	}
+	return nil
 }

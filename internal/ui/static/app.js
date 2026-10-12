@@ -606,7 +606,8 @@
 
   document.addEventListener("htmx:beforeRequest", function (e) {
     // The live refresh shows now; while the timeline shows the past it waits.
-    if (tl && tl.at !== null && e.detail.elt && e.detail.elt.id === "matrix-panel") e.preventDefault();
+    const elt = e.detail.elt;
+    if (tl && tl.at !== null && elt && (elt.id === "matrix-panel" || elt.classList.contains("tiles-live"))) e.preventDefault();
   });
 
   function tlSetup() {
@@ -616,6 +617,7 @@
     if (!root) return;
     tl = {
       root: root, range: root.querySelector("[data-tl-range]"), group: root.getAttribute("data-group") || "",
+      kind: root.getAttribute("data-kind") || "matrix", base: root.getAttribute("data-base") || "/",
       at: tlParse(root.getAttribute("data-at")), from: 0, to: 0, changes: [], seq: 0, timer: null, playing: null, loaded: false,
     };
     if (!root.hidden) tlLoad();
@@ -693,37 +695,63 @@
     else tlShow(sec);
   }
 
+  // tlURL is the page (or, for the matrix, its grid) as of sec; now leaves the moment out.
+  function tlURL(sec, now, grid) {
+    const u = new URL(tl.base, location.origin);
+    if (now) u.searchParams.delete("at"); else u.searchParams.set("at", tlIso(sec));
+    if (grid && tl.kind === "matrix") return "/ui/matrix?" + u.searchParams.toString();
+    return u.pathname + "?" + u.searchParams.toString();
+  }
+
   async function tlShow(sec) {
     const seq = ++tl.seq;
     const now = sec >= tl.to;
-    const panel = document.getElementById("matrix-panel");
-    const q = new URLSearchParams({ group: tl.group });
-    if (!now) q.set("at", tlIso(sec));
+    const tiles = tl.kind === "tiles";
+    const panel = tiles ? document.querySelector(".tiles-live") : document.getElementById("matrix-panel");
+    if (!panel) return;
+    const keyed = tiles ? ".board-cell[data-key]" : "td[data-key]";
+    const what = tiles ? function (el) { return el.textContent.replace(/\s+/g, " ").trim(); } : tlVersions;
     panel.classList.add("tl-loading");
     let html;
     try {
-      const res = await fetch("/ui/matrix?" + q.toString(), { headers: { "HX-Request": "true" } });
+      const res = await fetch(tlURL(sec, now, true), { headers: { "HX-Request": "true" } });
       if (!res.ok) throw new Error(res.statusText);
       html = await res.text();
     } catch (_) { panel.classList.remove("tl-loading"); return; }
     if (!tl || seq !== tl.seq) return; // a later moment was asked for meanwhile
     tl.at = now ? null : sec;
     const before = new Map();
-    panel.querySelectorAll("td[data-key]").forEach(function (td) { before.set(td.getAttribute("data-key"), tlVersions(td)); });
-    panel.innerHTML = html;
-    panel.classList.remove("tl-loading");
-    htmx.process(panel);
-    refreshTimes(panel);
-    filterMatrix();
+    panel.querySelectorAll(keyed).forEach(function (el) { before.set(el.getAttribute("data-key"), what(el)); });
+    let target = panel;
+    if (tiles) {
+      // The whole page came back; its board replaces this one.
+      const fresh = new DOMParser().parseFromString(html, "text/html").querySelector(".tiles-live");
+      if (!fresh) { panel.classList.remove("tl-loading"); return; }
+      panel.replaceWith(fresh);
+      target = fresh;
+    } else {
+      panel.innerHTML = html;
+      panel.classList.remove("tl-loading");
+    }
+    htmx.process(target);
+    refreshTimes(target);
+    if (!tiles) filterMatrix();
     let changed = 0;
-    panel.querySelectorAll("td[data-key]").forEach(function (td) {
-      const old = before.get(td.getAttribute("data-key"));
-      if (old === undefined) { if (before.size) td.classList.add("tl-in"); return; }
-      if (old !== tlVersions(td)) { td.classList.add("tl-changed"); changed++; }
+    target.querySelectorAll(keyed).forEach(function (el) {
+      const old = before.get(el.getAttribute("data-key"));
+      if (old === undefined) { if (before.size) el.classList.add("tl-in"); return; }
+      if (old !== what(el)) { el.classList.add("tl-changed"); changed++; }
     });
     // The address, the heading and the links follow, so the moment can be shared and reloaded.
-    const url = "/?" + q.toString();
+    const url = tiles ? tlURL(sec, now, false) : "/?" + new URL(tlURL(sec, now, false), location.origin).searchParams.toString();
     history.replaceState(history.state, "", url);
+    if (tiles) {
+      document.querySelectorAll("a[href^='/tiles']").forEach(function (a) {
+        const u = new URL(a.getAttribute("href"), location.origin);
+        if (now) u.searchParams.delete("at"); else u.searchParams.set("at", tlIso(sec));
+        a.setAttribute("href", u.pathname + "?" + u.searchParams.toString() + u.hash);
+      });
+    }
     document.querySelectorAll("[data-tl-asof]").forEach(function (p) { p.hidden = now; });
     document.querySelectorAll("[data-tl-live]").forEach(function (p) { p.hidden = !now; });
     const asof = document.querySelector("[data-tl-asof-date]");
@@ -737,7 +765,7 @@
     });
     const label = tl.root.querySelector("[data-tl-label]");
     label.classList.remove("tl-pop"); void label.offsetWidth; label.classList.add("tl-pop");
-    if (changed) tl.root.querySelector("[data-tl-note]").textContent += " · " + changed + (changed === 1 ? " version changed" : " versions changed");
+    if (changed) tl.root.querySelector("[data-tl-note]").textContent += " · " + changed + (tiles ? (changed === 1 ? " cell changed" : " cells changed") : (changed === 1 ? " version changed" : " versions changed"));
   }
 
   // tlVersions is what a cell runs, the versions only: badges for drift and releases exist for now alone.

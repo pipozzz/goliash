@@ -1115,3 +1115,73 @@ func onTargets(targets []string) string {
 	}
 	return " on " + strings.Join(targets, ", ")
 }
+
+// TimeTravel is the timeline above the matrix or the tiles: Base is the page now, without a moment.
+type TimeTravel struct {
+	Kind, Base, Path, Group, At string
+	Hidden                      [][2]string // the base's query, for the exact-moment form
+}
+
+func newTimeTravel(kind, base, group, at string) TimeTravel {
+	t := TimeTravel{Kind: kind, Base: base, Group: group, At: at, Path: base}
+	if u, err := url.Parse(base); err == nil {
+		t.Path = u.Path
+		keys := make([]string, 0, len(u.Query()))
+		for k := range u.Query() {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if k != "at" {
+				t.Hidden = append(t.Hidden, [2]string{k, u.Query().Get(k)})
+			}
+		}
+	}
+	return t
+}
+
+// pastDrifts gives the matrix of a past moment its drift as it was then, worked out from what ran: a version
+// older than the newest release out by then, or older than the environment before it ran. The drift Goliash
+// stored describes now and is not shown for the past.
+func pastDrifts(g *MatrixGrid) {
+	for ri := range g.Rows {
+		r := &g.Rows[ri]
+		latest, hasLatest := versions.ParseVersion(r.Latest)
+		var prev versions.Version
+		prevEnv, hasPrev := "", false
+		for i := range r.Cells {
+			c := &r.Cells[i]
+			if len(c.Versions) == 0 {
+				continue
+			}
+			tag := c.Versions[0].Tag
+			if c.Versions[0].Resolved != "" {
+				tag = c.Versions[0].Resolved
+			}
+			v, ok := versions.ParseVersion(tag)
+			if !ok {
+				continue
+			}
+			if hasLatest && v.Compare(latest) < 0 {
+				c.Drifts = append(c.Drifts, DriftBadge{
+					Kind: "upstream", Label: "upstream " + r.Latest, Running: tag,
+					Title: fmt.Sprintf("%s was out by then; running %s", r.Latest, tag),
+				})
+			}
+			if hasPrev && v.Compare(prev) < 0 {
+				c.Drifts = append(c.Drifts, DriftBadge{
+					Kind: "env", Label: "behind " + prevEnv, Running: tag,
+					Title: fmt.Sprintf("%s ran %s then; this environment ran %s", prevEnv, prev.Raw, tag),
+				})
+			}
+			if i < len(g.Envs) {
+				prev, prevEnv, hasPrev = v, g.Envs[i].Name, true
+			}
+		}
+		var all []DriftBadge
+		for _, c := range r.Cells {
+			all = append(all, c.Drifts...)
+		}
+		r.Health = healthOf(all, true)
+	}
+}

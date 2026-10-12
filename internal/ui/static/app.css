@@ -955,3 +955,8 @@ td.tl-in > * { animation: tl-fade .45s ease-out; }
 .auto-map-body { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .auto-map-body > div { display: grid; gap: 4px; max-width: 78ch; }
 .auto-map.on { border-color: var(--ok); background: linear-gradient(180deg, var(--ok-soft), var(--surface) 80%); }
+.board-cell.tl-changed { animation: tl-tile 1.4s cubic-bezier(.2, .8, .2, 1); }
+.board-cell.tl-in { animation: tl-fade .45s ease-out; }
+.tiles-live.tl-loading { opacity: .6; transition: opacity .15s; }
+@keyframes tl-tile { 0% { transform: scale(.92); box-shadow: 0 0 0 3px var(--accent); } 40% { transform: scale(1.04); } 100% { transform: none; box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .board-cell.tl-changed, .board-cell.tl-in { animation: none; outline: 2px solid var(--accent); } }

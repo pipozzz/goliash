@@ -11,8 +11,8 @@ import (
 	"github.com/pipozzz/goliash/internal/store"
 )
 
-// OverviewAt is the matrix as it was at a point in time, from the instance history.
-// It carries no drift or upstream data: those describe now, not then.
+// OverviewAt is the matrix as it was at a point in time, from the instance history, with the newest
+// releases out by then. It carries no drift: that describes now, not then.
 func OverviewAt(ctx context.Context, st *store.Store, sc store.Scope, at time.Time) (Overview, error) {
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -36,6 +36,7 @@ func OverviewAt(ctx context.Context, st *store.Store, sc store.Scope, at time.Ti
 	o := Overview{
 		Matrix: BuildMatrix(services, envs, targets, instances), Targets: targets,
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{},
+		Upstreams: map[string]Upstream{}, Policies: map[string]Policy{}, ReleaseURL: map[string]string{},
 	}
 	if o.Resolved, err = resolvedDigests(ctx, st, sc); err != nil {
 		return Overview{}, err
@@ -47,6 +48,10 @@ func OverviewAt(ctx context.Context, st *store.Store, sc store.Scope, at time.Ti
 	}
 	for _, e := range envs {
 		o.Envs[e.ID] = e
+	}
+	o.Refs = References(o.Matrix, instances)
+	if err := loadUpstreams(ctx, st, sc, &o, &at); err != nil {
+		return Overview{}, err
 	}
 	return o, nil
 }

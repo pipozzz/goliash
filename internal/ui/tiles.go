@@ -14,7 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // The tiles view draws the matrix the way the logo does: a navy board of rounded
@@ -67,6 +69,8 @@ type TilesView struct {
 	TV             bool
 	Cycle          int // TV mode: seconds before the next environment; 0 stays put
 	Updated        string
+	At             string // "2006-01-02T15:04" (UTC) when looking back; empty for now
+	Yesterday      string // where "Time travel" opens without JavaScript
 }
 
 // EnvBoard is one environment's board when they are drawn side by side.
@@ -189,13 +193,30 @@ func service(r MatrixRow, envs []EnvHeader, env string) (TileCell, string, strin
 
 func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	q := r.URL.Query()
-	g, err := s.overview(r.Context(), p.Scope, matrixGroupBy(q.Get("group")))
-	if err != nil {
-		return err
+	var g MatrixGrid
+	at := ""
+	if raw := q.Get("at"); raw != "" {
+		t, err := api.ParseAt(raw)
+		if err != nil {
+			return back(w, r, "/tiles", "error", "Enter a date and time like 2026-09-12T14:00.")
+		}
+		o, err := versions.OverviewAt(r.Context(), s.store, p.Scope, t)
+		if err != nil {
+			return err
+		}
+		g, at = buildGrid(o, 0, matrixGroupBy(q.Get("group"))), t.UTC().Format("2006-01-02T15:04")
+		g.Past = true
+		pastDrifts(&g)
+	} else {
+		var err error
+		if g, err = s.overview(r.Context(), p.Scope, matrixGroupBy(q.Get("group"))); err != nil {
+			return err
+		}
 	}
 	v := TilesView{
 		Base: s.base(r.Context(), p, "matrix", "Tiles"), GroupBy: g.GroupBy, Env: q.Get("env"),
 		App: q.Get("app"), TV: q.Get("tv") == "1", Updated: time.Now().UTC().Format("15:04 UTC"),
+		At: at, Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04"),
 	}
 	v.Kiosk = v.TV
 	if c, err := strconv.Atoi(q.Get("cycle")); err == nil && v.TV && c > 0 {
@@ -255,7 +276,7 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 			}
 			if running != "" {
 				it.Headline = running
-				if c.State != stCurrent && c.Latest != "" {
+				if c.State != stCurrent && c.Latest != "" && c.Latest != running && !strings.HasSuffix(running, "= "+c.Latest) {
 					it.Headline += " → " + c.Latest
 				}
 				if v.Env == "" && len(g.Envs) > 1 {
@@ -331,6 +352,9 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 // tilesHref links to the tiles with the page's choices, drilled into app (or not).
 func tilesHref(v TilesView, app string) string {
 	q := url.Values{"group": {v.GroupBy}}
+	if v.At != "" {
+		q.Set("at", v.At)
+	}
 	if v.Env != "" {
 		q.Set("env", v.Env)
 	}
@@ -707,7 +731,7 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 		}
 		if worst.State == stAttention || worst.State == stBehind {
 			it.Headline = worst.Service + " " + worstRunning
-			if worst.Latest != "" {
+			if worst.Latest != "" && worst.Latest != worstRunning && !strings.HasSuffix(worstRunning, "= "+worst.Latest) {
 				it.Headline += " → " + worst.Latest
 			}
 		}
@@ -762,4 +786,10 @@ func partItems(v TilesView, parts map[string][]MatrixRow, envs []EnvHeader, env 
 		items[i].Caption, items[i].VT, items[i].VTFront = "", "", ""
 	}
 	return items, counts
+}
+
+// tilesWithAt is the tiles as they are drawn now, as of at (empty: now).
+func tilesWithAt(v TilesView, at string) string {
+	v.At = at
+	return tilesHref(v, v.App)
 }

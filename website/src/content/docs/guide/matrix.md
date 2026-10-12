@@ -128,7 +128,9 @@ versions that differ from the moment shown before sliding in and highlighted. **
 deployment to deployment, Shift with the arrows moves a day, **Play** (or space) steps through the deployments one by
 one up to now, and the chips jump a day, a week, 30 or 90 days back. While you scroll the matrix the track stays at the
 top. The address follows, so a moment can be shared; **Exact moment** picks one to the minute. Goliash keeps when each version ran for 400 days, so the answer is right even after versions moved on and
-back. Drift and upstream releases describe now, so they are not shown for the past.
+back. The past is compared with the newest releases out by then (published by then, or first seen by Goliash when
+the date is unknown), and its drift is worked out from what ran: a version behind that release, or behind the
+environment before it. The **tiles** have the same timeline, coloured as things stood then.
 
 **Export CSV** downloads every container that runs (or ran at that time), sidecars included, with environment,
 target, workload, image, tag, digest, replicas and when it was first seen: an asset inventory for ISO 27001 or
