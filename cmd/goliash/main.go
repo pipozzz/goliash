@@ -82,7 +82,8 @@ const usage = `Usage:
   goliash enroll revoke -id ID            no agent can enroll with the code any more
   goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose|lambda -name NAME [-settings JSON] [-poll SECONDS]
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
-  goliash inventory [-at T] [-csv]        every running container with image and digest (audits)
+  goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
+                                          every running container with image and digest (audits, SBOM)
   goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
   goliash mcp [-server URL] [-token T]    MCP server on stdin/stdout for AI assistants (env GOLIASH_URL, GOLIASH_TOKEN)
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
@@ -2243,9 +2244,19 @@ func deliveryCmd(ctx context.Context, args []string, out io.Writer) error {
 func inventoryCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("inventory")
 	asOf := fs.String("at", "", "what ran at this time (UTC), e.g. 2026-09-12T14:00")
-	asCSV := fs.Bool("csv", false, "write CSV")
+	asCSV := fs.Bool("csv", false, "write CSV (same as -format csv)")
+	format := fs.String("format", "table", "table, csv or cyclonedx (a CycloneDX 1.6 SBOM with the packages of each image's SBOM)")
+	envName := fs.String("environment", "", "only what runs in this environment")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *asCSV {
+		*format = "csv"
+	}
+	switch *format {
+	case "table", "csv", "cyclonedx":
+	default:
+		return fmt.Errorf("unknown -format %q: table, csv or cyclonedx", *format)
 	}
 	var at *time.Time
 	if *asOf != "" {
@@ -2264,7 +2275,28 @@ func inventoryCmd(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *asCSV {
+	if *envName != "" {
+		if _, err := db.GetEnvironmentByName(ctx, ws.Scope(), *envName); err != nil {
+			return fmt.Errorf("no environment %q", *envName)
+		}
+		kept := items[:0]
+		for _, i := range items {
+			if i.Environment == *envName {
+				kept = append(kept, i)
+			}
+		}
+		items = kept
+	}
+	if *format == "cyclonedx" {
+		sboms, err := db.ListImageSBOMs(ctx, ws.Scope())
+		if err != nil {
+			return err
+		}
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(versions.InventoryBOM(items, sboms, ws.Name, buildinfo.Version, at, time.Now()))
+	}
+	if *format == "csv" {
 		cw := csv.NewWriter(out)
 		_ = cw.Write([]string{"environment", "target", "platform", "service", "namespace", "workload", "kind", "container", "image", "tag", "digest", "running", "first_seen"})
 		for _, i := range items {

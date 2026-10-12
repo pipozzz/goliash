@@ -22,6 +22,8 @@ Usage:
   goliash matrix                          service × environment versions
   goliash events [-service NAME] [-limit N]
   goliash drift                           open drifts
+  goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
+                                          every running container with image and digest (audits, SBOM)
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]

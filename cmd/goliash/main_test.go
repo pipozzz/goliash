@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // Flags before the command must not silently start a server.
@@ -357,5 +359,35 @@ func TestCommandLine(t *testing.T) {
 	}
 	if got := commandLine(nil, ""); len(got) != 0 {
 		t.Errorf("nothing: %q", got)
+	}
+}
+
+func TestInventoryFormats(t *testing.T) {
+	ctx := context.Background()
+	dsn := filepath.Join(t.TempDir(), "g.db")
+	var buf bytes.Buffer
+	if err := run(ctx, []string{"demo", "-database", dsn}, &buf); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	if err := inventoryCmd(ctx, []string{"-database", dsn, "-format", "cyclonedx", "-environment", "prod"}, &buf); err != nil {
+		t.Fatal(err)
+	}
+	var bom versions.BOM
+	if err := json.Unmarshal(buf.Bytes(), &bom); err != nil || bom.BOMFormat != "CycloneDX" || len(bom.Components) == 0 {
+		t.Fatalf("bom %v: %.300s", err, buf.String())
+	}
+	for _, c := range bom.Components {
+		for _, p := range c.Properties {
+			if p.Name == "goliash:environment" && p.Value != "prod" {
+				t.Fatalf("another environment: %+v", c)
+			}
+		}
+	}
+	if err := inventoryCmd(ctx, []string{"-database", dsn, "-environment", "nowhere"}, &buf); err == nil {
+		t.Fatal("unknown environment accepted")
+	}
+	if err := inventoryCmd(ctx, []string{"-database", dsn, "-format", "xml"}, &buf); err == nil {
+		t.Fatal("unknown format accepted")
 	}
 }
