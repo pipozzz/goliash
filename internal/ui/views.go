@@ -985,11 +985,14 @@ func matrixURL(group, at string) string {
 	return "/?" + q.Encode()
 }
 
-func exportURL(at string) string {
+func exportURL(at string) string { return exportFormatURL("csv", at) }
+
+// exportFormatURL is the inventory in format (csv, cyclonedx), at a point in time when at is set.
+func exportFormatURL(format, at string) string {
 	if at == "" {
-		return "/api/v1/inventory?format=csv"
+		return "/api/v1/inventory?format=" + format
 	}
-	return "/api/v1/inventory?format=csv&at=" + url.QueryEscape(at)
+	return "/api/v1/inventory?format=" + format + "&at=" + url.QueryEscape(at)
 }
 
 // ReportView is the monthly report.

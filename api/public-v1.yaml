@@ -196,12 +196,16 @@ paths:
     get:
       operationId: getInventory
       summary: Every running container, for audits
-      description: Every container that runs now (or ran at `at`), sidecars included, with image, tag and digest.
+      description: |
+        Every container that runs now (or ran at `at`), sidecars included, with image, tag and digest.
+        `format=cyclonedx` returns a CycloneDX 1.6 BOM instead: one component per image (an OCI purl and its
+        digest, where it runs as `goliash:` properties) with the packages of its SBOM nested inside, where the
+        registry holds one, ready for Dependency-Track or an auditor.
       parameters:
         - $ref: '#/components/parameters/At'
         - name: format
           in: query
-          schema: { type: string, enum: [json, csv], default: json }
+          schema: { type: string, enum: [json, csv, cyclonedx], default: json }
       responses:
         "200":
           description: The inventory.
@@ -213,6 +217,8 @@ paths:
                   $ref: '#/components/schemas/InventoryItem'
             text/csv:
               schema: { type: string }
+            application/vnd.cyclonedx+json:
+              schema: { type: object, description: "A CycloneDX 1.6 JSON document." }
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }

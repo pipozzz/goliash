@@ -34,6 +34,7 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := newPublicEnv(t)
+	openapi3filter.RegisterBodyDecoder("application/vnd.cyclonedx+json", openapi3filter.JSONBodyDecoder)
 
 	covered := map[string]bool{}
 	for _, c := range []struct {
@@ -49,6 +50,7 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		{"GET", "/api/v1/vulnerabilities?environment=nowhere", e.token, "", 404},
 		{"GET", "/api/v1/updates", e.token, "", 200},
 		{"GET", "/api/v1/inventory?format=csv", e.token, "", 200},
+		{"GET", "/api/v1/inventory?format=cyclonedx", e.token, "", 200},
 		{"GET", "/api/v1/services", e.token, "", 200},
 		{"GET", "/api/v1/environments", e.token, "", 200},
 		{"GET", "/api/v1/targets", e.token, "", 200},

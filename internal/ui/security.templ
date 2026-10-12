@@ -18,6 +18,7 @@ templ SecurityPage(v SecurityView) {
 			</div>
 			<div class="actions noprint">
 				<a class="button secondary" href="/security.csv" hx-boost="false">Export CSV</a>
+				<a class="button secondary" href="/api/v1/inventory?format=cyclonedx" hx-boost="false" title="CycloneDX 1.6 BOM of what runs, with the packages of each image's SBOM">Export SBOM</a>
 				<button class="secondary" type="button" data-print>Print or save as PDF</button>
 			</div>
 		</div>

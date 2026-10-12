@@ -492,14 +492,35 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 		h.fail(w, r, err)
 		return
 	}
-	if r.URL.Query().Get("format") != "csv" {
+	stamp := ""
+	if at != nil {
+		stamp = "-" + at.UTC().Format("20060102-1504")
+	}
+	switch r.URL.Query().Get("format") {
+	case "csv":
+	case "cyclonedx":
+		sboms, err := h.store.ListImageSBOMs(r.Context(), p.Scope)
+		if err != nil {
+			h.fail(w, r, err)
+			return
+		}
+		workspace := "goliash"
+		if all, err := h.store.ListWorkspaces(r.Context()); err == nil {
+			for _, ws := range all {
+				if ws.ID == p.Scope.WorkspaceID {
+					workspace = ws.Name
+				}
+			}
+		}
+		w.Header().Set("Content-Disposition", `attachment; filename="goliash-inventory`+stamp+`.cdx.json"`)
+		w.Header().Set("Content-Type", "application/vnd.cyclonedx+json; version=1.6")
+		_ = json.NewEncoder(w).Encode(versions.InventoryBOM(items, sboms, workspace, buildinfo.Version, at, time.Now()))
+		return
+	default:
 		writeJSON(w, http.StatusOK, items)
 		return
 	}
-	name := "goliash-inventory.csv"
-	if at != nil {
-		name = "goliash-inventory-" + at.UTC().Format("20060102-1504") + ".csv"
-	}
+	name := "goliash-inventory" + stamp + ".csv"
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	cw := csv.NewWriter(w)

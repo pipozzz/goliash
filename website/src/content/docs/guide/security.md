@@ -95,6 +95,9 @@ The page shows the last environment (production) by default; *Every environment*
 - **Export CSV** gives every exposure with its service, application, environment, targets, running version, the
   version to move to, the exposure date and days, whether the date is known, end of life, accepted risk and the
   release notes link: a ready start for a risk register.
+- **Export SBOM** gives a CycloneDX 1.6 bill of materials of everything that runs, with the packages of each
+  image's SBOM nested inside: for Dependency-Track, a vendor questionnaire or the software inventory NIS2 and the
+  Cyber Resilience Act ask for.
 - **Print or save as PDF** prints the page with the time it was generated, as evidence of patch management for
   frameworks that ask for it (NIS2, DORA, SOC 2, ISO 27001).
 

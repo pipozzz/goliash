@@ -128,13 +128,17 @@ back. Drift and upstream releases describe now, so they are not shown for the pa
 
 **Export CSV** downloads every container that runs (or ran at that time), sidecars included, with environment,
 target, workload, image, tag, digest, replicas and when it was first seen: an asset inventory for ISO 27001 or
-SOC 2 audits. The same is available from the CLI and the API:
+SOC 2 audits. **SBOM** next to it downloads the same as a CycloneDX 1.6 document: one component per image, with an
+OCI package URL and its digest, where it runs as `goliash:` properties (environment, target, service, workload), and
+the packages of the image's SBOM nested inside where the registry holds one. Import it into Dependency-Track or hand
+it to an auditor. The same is available from the CLI and the API:
 
 ```sh
 goliash matrix -at 2026-09-12T14:00
 goliash inventory -csv > inventory.csv
 goliash inventory -at 2026-09-12T14:00 -csv
 curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/v1/inventory?format=csv&at=2026-09-12T14:00"
+curl -H "Authorization: Bearer $GOLIASH_TOKEN" "https://goliash.example.com/api/v1/inventory?format=cyclonedx" > running.cdx.json
 ```
 
 ## Image hygiene

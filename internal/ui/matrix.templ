@@ -62,6 +62,7 @@ templ MatrixPage(v MatrixView) {
 					<a href="/services/new" class="toolbar-link" title="Software Goliash does not collect: a VM, a managed service">Add by hand</a>
 				}
 				<a href={ templ.URL(exportURL(v.At)) } hx-boost="false" class="toolbar-link">Export CSV</a>
+				<a href={ templ.URL(exportFormatURL("cyclonedx", v.At)) } hx-boost="false" class="toolbar-link" title="CycloneDX 1.6 BOM of what runs, with the packages of each image's SBOM: for Dependency-Track or an auditor">SBOM</a>
 				<details class="menu timetravel" open?={ v.At != "" }>
 					<summary>Time travel</summary>
 					<div class="menu-list">
