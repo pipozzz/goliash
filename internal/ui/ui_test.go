@@ -1732,3 +1732,31 @@ func TestUnreadPrivateRegistryHints(t *testing.T) {
 		t.Fatal("ECR credentials accepted on the server")
 	}
 }
+
+func TestTimelineScrubbing(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	code, body := get(t, viewer, e.srv.URL+"/ui/timeline", nil)
+	var tl struct {
+		From, To int64
+		Changes  []int64
+	}
+	if err := json.Unmarshal([]byte(body), &tl); code != 200 || err != nil || tl.From >= tl.To || tl.Changes == nil {
+		t.Fatalf("timeline %d %v: %s", code, err, body)
+	}
+	// The grid alone, as of a moment: no page around it, cells keyed for the animation.
+	soon := time.Now().UTC().Add(time.Minute).Format("2006-01-02T15:04")
+	if code, grid := get(t, viewer, e.srv.URL+"/ui/matrix?group=none&at="+soon, nil); code != 200 || strings.Contains(grid, "<html") || !strings.Contains(grid, `data-key="`) {
+		t.Fatalf("grid at a moment: %d %.300s", code, grid)
+	}
+	if _, grid := get(t, viewer, e.srv.URL+"/ui/matrix?at=2020-01-01T00:00", nil); !strings.Contains(grid, "Nothing Goliash knows of ran then") || strings.Contains(grid, "Get started") {
+		t.Fatalf("empty past: %.300s", grid)
+	}
+	if code, _ := get(t, viewer, e.srv.URL+"/ui/matrix?at=soon", nil); code != http.StatusBadRequest {
+		t.Fatalf("bad moment: %d", code)
+	}
+	_, page := get(t, viewer, e.srv.URL+"/", nil)
+	if !strings.Contains(page, `id="timeline"`) || !strings.Contains(page, "data-tl-open") || !strings.Contains(page, `id="matrix-panel"`) {
+		t.Fatal("no timeline on the matrix")
+	}
+}

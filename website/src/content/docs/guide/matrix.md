@@ -122,8 +122,12 @@ key applies from each target's next snapshot.
 
 ## Looking back, and exporting for audits
 
-Open **Time travel** above the matrix and pick a date and time to see what ran then: "what was in prod on 12 September at
-14:00?". Goliash keeps when each version ran for 400 days, so the answer is right even after versions moved on and
+Open **Time travel** above the matrix to scrub through the past: "what was in prod on 12 September at 14:00?". The
+track marks every deployment, taller where more happened. Drag along it and the matrix redraws as you go, with the
+versions that differ from the moment shown before sliding in and highlighted. **⏮ ⏭** (or ← → on the track) step from
+deployment to deployment, Shift with the arrows moves a day, **Play** (or space) steps through the deployments one by
+one up to now, and the chips jump a day, a week, 30 or 90 days back. While you scroll the matrix the track stays at the
+top. The address follows, so a moment can be shared; **Exact moment** picks one to the minute. Goliash keeps when each version ran for 400 days, so the answer is right even after versions moved on and
 back. Drift and upstream releases describe now, so they are not shown for the past.
 
 **Export CSV** downloads every container that runs (or ran at that time), sidecars included, with environment,

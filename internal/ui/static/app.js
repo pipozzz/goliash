@@ -588,6 +588,215 @@
     if (b) { e.preventDefault(); pushToggle(b); }
   });
 
+  // ---- time travel ----
+  // The timeline scrubs through the past. Dragging redraws only the grid, versions that differ from the
+  // moment shown before slide in, ← → step from deployment to deployment, and Play steps through them all.
+  let tl = null; // this page's timeline
+  const tlFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  const tlDay = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  function tlIso(sec) { return new Date(sec * 1000).toISOString().slice(0, 16); }
+  function tlParse(iso) { return iso ? Math.floor(Date.parse(iso + ":00Z") / 1000) : null; }
+  function tlAgo(sec) {
+    const secs = sec - Date.now() / 1000;
+    for (const [unit, size] of units) {
+      if (Math.abs(secs) >= size) return fmt.format(Math.round(secs / size), unit);
+    }
+    return "just now";
+  }
+
+  document.addEventListener("htmx:beforeRequest", function (e) {
+    // The live refresh shows now; while the timeline shows the past it waits.
+    if (tl && tl.at !== null && e.detail.elt && e.detail.elt.id === "matrix-panel") e.preventDefault();
+  });
+
+  function tlSetup() {
+    if (tl && tl.playing) clearInterval(tl.playing);
+    tl = null;
+    const root = document.getElementById("timeline");
+    if (!root) return;
+    tl = {
+      root: root, range: root.querySelector("[data-tl-range]"), group: root.getAttribute("data-group") || "",
+      at: tlParse(root.getAttribute("data-at")), from: 0, to: 0, changes: [], seq: 0, timer: null, playing: null, loaded: false,
+    };
+    if (!root.hidden) tlLoad();
+  }
+
+  async function tlLoad() {
+    if (!tl || tl.loaded) return;
+    tl.loaded = true;
+    let data;
+    try {
+      data = await (await fetch("/ui/timeline", { headers: { Accept: "application/json" } })).json();
+    } catch (_) { return; } // the form below the track still works
+    if (!tl) return;
+    tl.from = data.from; tl.to = data.to; tl.changes = data.changes || [];
+    const r = tl.range;
+    r.min = String(tl.from); r.max = String(tl.to);
+    r.value = String(tl.at === null ? tl.to : Math.max(tl.from, tl.at));
+    tl.root.querySelector("[data-tl-from]").textContent = tlDay.format(new Date(tl.from * 1000));
+    tlTicks();
+    ["[data-tl-track]", "[data-tl-buttons]", "[data-tl-presets]"].forEach(function (s) { tl.root.querySelector(s).hidden = false; });
+    tlLabel(Number(r.value));
+  }
+
+  // tlTicks draws the deployments on the track: one bar per slice of time, taller where more changed.
+  function tlTicks() {
+    const svg = tl.root.querySelector("[data-tl-ticks]");
+    svg.replaceChildren();
+    const n = 200, span = Math.max(1, tl.to - tl.from), counts = new Array(n).fill(0);
+    tl.changes.forEach(function (c) { counts[Math.min(n - 1, Math.floor((c - tl.from) / span * n))]++; });
+    const most = Math.max(1, ...counts);
+    counts.forEach(function (c, i) {
+      if (!c) return;
+      const h = 6 + 22 * Math.sqrt(c / most);
+      svg.appendChild(svgEl("rect", { x: i * 1000 / n + 1, y: 28 - h, width: 1000 / n - 2, height: h, rx: 1.5 }));
+    });
+  }
+
+  function tlLabel(sec) {
+    const label = tl.root.querySelector("[data-tl-label]"), note = tl.root.querySelector("[data-tl-note]");
+    const now = sec >= tl.to;
+    label.textContent = now ? "Now" : tlFmt.format(new Date(sec * 1000)) + " UTC";
+    tl.root.querySelector("[data-tl-now]").hidden = now;
+    const since = tl.changes.filter(function (c) { return c > sec; }).length;
+    note.textContent = now ? "drag back to see what ran before" : tlAgo(sec) + (since ? " · " + since + (since === 1 ? " deployment" : " deployments") + " since" : "");
+  }
+
+  // tlSnap pulls a dragged moment onto a deployment close by, so the marks are easy to hit.
+  function tlSnap(sec) {
+    const near = (tl.to - tl.from) * 0.005;
+    let best = sec, dist = near;
+    tl.changes.forEach(function (c) { if (Math.abs(c - sec) <= dist) { best = c; dist = Math.abs(c - sec); } });
+    return best;
+  }
+
+  function tlStep(dir) {
+    const cur = Number(tl.range.value);
+    let target = null;
+    if (dir > 0) {
+      target = tl.changes.find(function (c) { return c > cur + 30; });
+      if (target === undefined) target = tl.to;
+    } else {
+      for (let i = tl.changes.length - 1; i >= 0; i--) if (tl.changes[i] < cur - 30) { target = tl.changes[i]; break; }
+      if (target === null) target = tl.from;
+    }
+    tlGo(target);
+    return target < tl.to;
+  }
+
+  function tlGo(sec, later) {
+    sec = Math.min(tl.to, Math.max(tl.from, sec));
+    tl.range.value = String(sec);
+    tlLabel(sec);
+    clearTimeout(tl.timer);
+    if (later) tl.timer = setTimeout(function () { tlShow(sec); }, later);
+    else tlShow(sec);
+  }
+
+  async function tlShow(sec) {
+    const seq = ++tl.seq;
+    const now = sec >= tl.to;
+    const panel = document.getElementById("matrix-panel");
+    const q = new URLSearchParams({ group: tl.group });
+    if (!now) q.set("at", tlIso(sec));
+    panel.classList.add("tl-loading");
+    let html;
+    try {
+      const res = await fetch("/ui/matrix?" + q.toString(), { headers: { "HX-Request": "true" } });
+      if (!res.ok) throw new Error(res.statusText);
+      html = await res.text();
+    } catch (_) { panel.classList.remove("tl-loading"); return; }
+    if (!tl || seq !== tl.seq) return; // a later moment was asked for meanwhile
+    tl.at = now ? null : sec;
+    const before = new Map();
+    panel.querySelectorAll("td[data-key]").forEach(function (td) { before.set(td.getAttribute("data-key"), tlVersions(td)); });
+    panel.innerHTML = html;
+    panel.classList.remove("tl-loading");
+    htmx.process(panel);
+    refreshTimes(panel);
+    filterMatrix();
+    let changed = 0;
+    panel.querySelectorAll("td[data-key]").forEach(function (td) {
+      const old = before.get(td.getAttribute("data-key"));
+      if (old === undefined) { if (before.size) td.classList.add("tl-in"); return; }
+      if (old !== tlVersions(td)) { td.classList.add("tl-changed"); changed++; }
+    });
+    // The address, the heading and the links follow, so the moment can be shared and reloaded.
+    const url = "/?" + q.toString();
+    history.replaceState(history.state, "", url);
+    document.querySelectorAll("[data-tl-asof]").forEach(function (p) { p.hidden = now; });
+    document.querySelectorAll("[data-tl-live]").forEach(function (p) { p.hidden = !now; });
+    const asof = document.querySelector("[data-tl-asof-date]");
+    if (asof && !now) asof.textContent = tlIso(sec).replace("T", " ") + " UTC";
+    const input = tl.root.querySelector("[data-tl-input]");
+    if (input && !now) input.value = tlIso(sec);
+    document.querySelectorAll(".toolbar .segmented a[href^='/?']").forEach(function (a) {
+      const u = new URL(a.href, location.origin);
+      if (now) u.searchParams.delete("at"); else u.searchParams.set("at", tlIso(sec));
+      a.setAttribute("href", u.pathname + "?" + u.searchParams.toString());
+    });
+    const label = tl.root.querySelector("[data-tl-label]");
+    label.classList.remove("tl-pop"); void label.offsetWidth; label.classList.add("tl-pop");
+    if (changed) tl.root.querySelector("[data-tl-note]").textContent += " · " + changed + (changed === 1 ? " version changed" : " versions changed");
+  }
+
+  // tlVersions is what a cell runs, the versions only: badges for drift and releases exist for now alone.
+  function tlVersions(td) {
+    return Array.from(td.querySelectorAll(".ver .tag")).map(function (t) { return t.textContent.trim(); }).join(",");
+  }
+
+  function tlPlay() {
+    const btn = tl.root.querySelector("[data-tl-play]");
+    if (tl.playing) {
+      clearInterval(tl.playing); tl.playing = null; btn.textContent = "▶ Play"; return;
+    }
+    if (Number(tl.range.value) >= tl.to && tl.changes.length) tlGo(tl.changes[Math.max(0, tl.changes.length - 30)]);
+    btn.textContent = "❚❚ Pause";
+    tl.playing = setInterval(function () {
+      if (!tl || !tlStep(1)) { if (tl) { clearInterval(tl.playing); tl.playing = null; btn.textContent = "▶ Play"; } }
+    }, 1200);
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!tl) return;
+    const t = e.target.closest("[data-tl-open], [data-tl-prev], [data-tl-next], [data-tl-play], [data-tl-jump]");
+    if (!t) return;
+    if (t.hasAttribute("data-tl-open")) {
+      e.preventDefault();
+      t.hidden = true;
+      tl.root.hidden = false;
+      tlLoad().then(function () { if (tl) tl.range.focus(); });
+    } else if (t.hasAttribute("data-tl-prev")) tlStep(-1);
+    else if (t.hasAttribute("data-tl-next")) tlStep(1);
+    else if (t.hasAttribute("data-tl-play")) tlPlay();
+    else tlGo(tl.to + Number(t.getAttribute("data-tl-jump")));
+  });
+  // Scrolled down to the grid, the timeline stays at the top, compact, so moving it shows what changes.
+  window.addEventListener("scroll", function () {
+    if (!tl || tl.root.hidden) return;
+    const top = document.querySelector(".top");
+    const h = top ? top.offsetHeight : 0;
+    document.documentElement.style.setProperty("--top-h", h + "px");
+    tl.root.classList.toggle("tl-stuck", tl.root.getBoundingClientRect().top <= h + 1 && window.scrollY > 0);
+  }, { passive: true });
+  document.addEventListener("input", function (e) {
+    if (!tl || e.target !== tl.range) return;
+    const sec = tlSnap(Number(tl.range.value));
+    tlGo(sec, 180);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!tl || e.target !== tl.range) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const dir = e.key === "ArrowRight" ? 1 : -1;
+      if (e.shiftKey) tlGo(Number(tl.range.value) + dir * 86400, 120);
+      else tlStep(dir);
+    } else if (e.key === " ") {
+      e.preventDefault();
+      tlPlay();
+    }
+  });
+
   // ---- every page load ----
 
   // TV mode cycling: after its seconds, follow the next environment's link.
@@ -600,6 +809,7 @@
   }
 
   function init() {
+    tlSetup();
     pushSetup();
     channelFields();
     cycle();

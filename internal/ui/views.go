@@ -62,6 +62,8 @@ type MatrixView struct {
 	Grid    MatrixGrid
 	Hygiene int    // image hygiene warnings
 	At      string // "2006-01-02T15:04" (UTC) when looking back; empty for now
+	// Yesterday is where "Time travel" opens without JavaScript.
+	Yesterday string
 }
 
 // MatrixGrid is the part of the matrix that reloads live.
@@ -77,6 +79,7 @@ type MatrixGrid struct {
 	Steps    []Step           // first-run checklist, while the matrix is empty
 	Explore  bool             // the viewer may open an Example workspace with example data
 	Unread   []UnreadRegistry // private registries whose services have no known release
+	Past     bool             // the matrix as of a moment in the past
 	CanAdmin bool
 }
 

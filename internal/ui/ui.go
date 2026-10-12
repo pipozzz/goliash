@@ -128,6 +128,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	v, m, a := store.RoleViewer, store.RoleMember, store.RoleAdmin
 	mux.Handle("GET /{$}", s.page(v, s.matrix))
 	mux.Handle("GET /ui/matrix", s.page(v, s.matrixGrid))
+	mux.Handle("GET /ui/timeline", s.page(v, s.timeline))
 	mux.Handle("GET /ui/stream", s.page(v, s.stream))
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
@@ -476,7 +477,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 			return s.tiles(w, r, p)
 		}
 	}
-	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r)}
+	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r), Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04")}
 	if q := r.URL.Query().Get("at"); q != "" {
 		at, err := api.ParseAt(q)
 		if err != nil {
@@ -487,6 +488,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 			return err
 		}
 		v.Grid, v.At = buildGrid(o, 0, s.grouping(w, r, matrixGroupCookie)), at.UTC().Format("2006-01-02T15:04")
+		v.Grid.Past = true
 		return render(w, r, MatrixPage(v))
 	}
 	g, err := s.overview(r.Context(), p.Scope, s.grouping(w, r, matrixGroupCookie))
@@ -507,6 +509,21 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 }
 
 func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	// The timeline asks for the matrix as of a moment; only the grid is redrawn.
+	if q := r.URL.Query().Get("at"); q != "" {
+		at, err := api.ParseAt(q)
+		if err != nil {
+			http.Error(w, "at: a date and time like 2026-09-12T14:00", http.StatusBadRequest)
+			return nil
+		}
+		o, err := versions.OverviewAt(r.Context(), s.store, p.Scope, at)
+		if err != nil {
+			return err
+		}
+		g := buildGrid(o, 0, r.URL.Query().Get("group"))
+		g.Past = true
+		return render(w, r, MatrixGridView(g))
+	}
 	g, err := s.overview(r.Context(), p.Scope, r.URL.Query().Get("group"))
 	if err != nil {
 		return err
@@ -2729,4 +2746,39 @@ func unreadRegistries(o versions.Overview) []UnreadRegistry {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
 	return out
+}
+
+// timelineChanges caps the moments the timeline marks, newest kept.
+const timelineChanges = 5000
+
+// timeline tells the time travel bar how far back it reaches and when versions changed, so it can mark
+// deployments on its track and step from one to the next.
+func (s *Server) timeline(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	now := time.Now().UTC().Truncate(time.Minute)
+	evs, err := s.store.ListEvents(r.Context(), p.Scope, store.EventFilter{
+		Types: []string{"deployed", "version_changed", "removed"}, Since: now.Add(-400 * 24 * time.Hour), Limit: timelineChanges,
+	})
+	if err != nil {
+		return err
+	}
+	seen := map[int64]bool{}
+	changes := []int64{}
+	from := now.Add(-30 * 24 * time.Hour)
+	for _, e := range evs {
+		// The first whole minute that shows the change: the matrix "as of" a minute includes what happened before it.
+		t := e.At.UTC().Truncate(time.Minute).Add(time.Minute)
+		if t.After(now) {
+			t = now
+		}
+		if t.Before(from) {
+			from = t
+		}
+		if !seen[t.Unix()] {
+			seen[t.Unix()] = true
+			changes = append(changes, t.Unix())
+		}
+	}
+	slices.Sort(changes)
+	w.Header().Set("Cache-Control", "no-store")
+	return writeJSON(w, http.StatusOK, map[string]any{"from": from.Add(-time.Hour).Unix(), "to": now.Unix(), "changes": changes})
 }

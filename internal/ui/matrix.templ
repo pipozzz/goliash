@@ -10,14 +10,11 @@ templ MatrixPage(v MatrixView) {
 		<div class="head">
 			<div>
 				<h1>Service × environment</h1>
-				if v.At != "" {
-					<p class="sub">As of <strong>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then. Drift and upstream releases describe now, so they are not shown. <a href="/">Back to now</a></p>
-				} else {
-					<p class="sub">What runs where, the newest release upstream, and where versions drift apart.</p>
-				}
+				<p class="sub" data-tl-asof hidden?={ v.At == "" }>As of <strong data-tl-asof-date>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then. Drift and upstream releases describe now, so they are not shown. <a href="/">Back to now</a></p>
+				<p class="sub" data-tl-live hidden?={ v.At != "" }>What runs where, the newest release upstream, and where versions drift apart.</p>
 			</div>
 			if v.At == "" && len(v.Grid.Rows) > 0 {
-				<div class="legend">
+				<div class="legend" data-tl-live>
 					<span class="badge env">behind previous env</span>
 					<span class="badge upstream">upstream newer</span>
 					<span class="badge inconsistent">targets disagree</span>
@@ -63,29 +60,19 @@ templ MatrixPage(v MatrixView) {
 				}
 				<a href={ templ.URL(exportURL(v.At)) } hx-boost="false" class="toolbar-link">Export CSV</a>
 				<a href={ templ.URL(exportFormatURL("cyclonedx", v.At)) } hx-boost="false" class="toolbar-link" title="CycloneDX 1.6 BOM of what runs, with the packages of each image's SBOM: for Dependency-Track or an auditor">SBOM</a>
-				<details class="menu timetravel" open?={ v.At != "" }>
-					<summary>Time travel</summary>
-					<div class="menu-list">
-						<form class="stack" method="get" action="/">
-							<label>Show the matrix as of (UTC)<input type="datetime-local" name="at" value={ v.At } required/></label>
-							<input type="hidden" name="group" value={ v.Grid.GroupBy }/>
-							<div class="actions">
-								<button type="submit">Show</button>
-								if v.At != "" {
-									<a href={ templ.URL(matrixURL(v.Grid.GroupBy, "")) } class="button secondary">Back to now</a>
-								}
-							</div>
-						</form>
-					</div>
-				</details>
+				if v.At == "" {
+					<a href={ templ.URL(matrixURL(v.Grid.GroupBy, v.Yesterday)) } class="toolbar-link timetravel-open" data-tl-open hx-boost="false" title="Scrub through what ran when, deployment by deployment">Time travel</a>
+				}
 			</div>
+			@timeTravel(v)
 		}
 		if v.At != "" {
-			<section class="panel">
+			<section class="panel" id="matrix-panel">
 				@MatrixGridView(v.Grid)
 			</section>
 		} else {
 			<section
+				id="matrix-panel"
 				class="panel"
 				hx-get={ "/ui/matrix?group=" + v.Grid.GroupBy }
 				hx-trigger="goliash:changed from:body, every 60s"
@@ -117,7 +104,9 @@ templ MatrixGridView(g MatrixGrid) {
 			}
 		</div>
 	}
-	if len(g.Rows) == 0 {
+	if len(g.Rows) == 0 && g.Past {
+		<p class="empty-past muted">Nothing Goliash knows of ran then: no target had reported yet, or nothing ran.</p>
+	} else if len(g.Rows) == 0 {
 		@firstRun(g.Steps, g.Explore)
 	} else {
 		<div class="scroll">
@@ -167,7 +156,7 @@ templ MatrixGridView(g MatrixGrid) {
 									}
 								</td>
 								for i, c := range r.Cells {
-									<td data-label={ envLabel(g.Envs, i) }>
+									<td data-label={ envLabel(g.Envs, i) } data-key={ r.Service + "|" + r.App + "|" + envLabel(g.Envs, i) }>
 										@cellView(c)
 									</td>
 								}
@@ -287,4 +276,49 @@ templ firstRun(steps []Step, explore bool) {
 			<p class="hint">Just looking? An organization admin can open an Example workspace with three weeks of example data.</p>
 		}
 	</div>
+}
+
+// timeTravel is the time travel bar: a track of the past with a mark for every deployment, to scrub, step from
+// change to change or play back. Without JavaScript its form picks a moment.
+templ timeTravel(v MatrixView) {
+	<section class="timeline panel" id="timeline" data-group={ v.Grid.GroupBy } data-at={ v.At } hidden?={ v.At == "" } aria-label="Time travel">
+		<div class="tl-head">
+			<div class="tl-when">
+				<span class="tl-kicker">Time travel</span>
+				<strong class="tl-date" data-tl-label aria-live="polite">
+					if v.At != "" {
+						{ strings.Replace(v.At, "T", " ", 1) } UTC
+					} else {
+						Now
+					}
+				</strong>
+				<span class="muted" data-tl-note></span>
+			</div>
+			<div class="tl-presets" data-tl-presets hidden>
+				<button type="button" class="chip" data-tl-jump="-86400">1 day ago</button>
+				<button type="button" class="chip" data-tl-jump="-604800">1 week ago</button>
+				<button type="button" class="chip" data-tl-jump="-2592000">30 days ago</button>
+				<button type="button" class="chip" data-tl-jump="-7776000">90 days ago</button>
+			</div>
+			<a href={ templ.URL(matrixURL(v.Grid.GroupBy, "")) } class="button secondary tl-now" data-tl-now>Back to now</a>
+		</div>
+		<div class="tl-track" data-tl-track hidden>
+			<svg class="tl-ticks" data-tl-ticks viewBox="0 0 1000 28" preserveAspectRatio="none" aria-hidden="true"></svg>
+			<input type="range" class="tl-range" data-tl-range min="0" max="1" step="60" value="1" aria-label="Moment to show"/>
+			<div class="tl-ends"><span data-tl-from></span><span>now</span></div>
+		</div>
+		<div class="tl-controls">
+			<div class="tl-buttons" data-tl-buttons hidden>
+				<button type="button" class="secondary icon" data-tl-prev title="Previous deployment (←)" aria-label="Previous deployment">⏮</button>
+				<button type="button" class="tl-play" data-tl-play title="Play the deployments back (space)">▶ Play</button>
+				<button type="button" class="secondary icon" data-tl-next title="Next deployment (→)" aria-label="Next deployment">⏭</button>
+				<span class="hint">← → step from deployment to deployment, Shift moves a day</span>
+			</div>
+			<form class="inline tl-exact" method="get" action="/">
+				<label>Exact moment (UTC)<input type="datetime-local" name="at" value={ v.At } required data-tl-input/></label>
+				<input type="hidden" name="group" value={ v.Grid.GroupBy }/>
+				<button type="submit" class="secondary">Show</button>
+			</form>
+		</div>
+	</section>
 }
