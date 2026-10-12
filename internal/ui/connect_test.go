@@ -386,5 +386,10 @@ func TestInstallCommandLocalServer(t *testing.T) {
 	}
 	if _, cmd := installCommand("docker", "https://goliash.example.com", "c", nil, "1.29.0"); strings.Contains(cmd, "host.docker.internal") || localServerNote("docker", "https://goliash.example.com") != "" {
 		t.Error("a real address was rewritten")
+
+func TestConnectOffersWatchOnly(t *testing.T) {
+	e := newUIEnv(t)
+	if _, page := get(t, e.as(store.RoleAdmin), e.srv.URL+"/connect", nil); !strings.Contains(page, `href="/services/new"`) || !strings.Contains(page, "Nothing to connect?") {
+		t.Fatal("no way to watch software without an agent")
 	}
 }

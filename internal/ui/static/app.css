@@ -885,3 +885,7 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 /* Matrix: private registries nobody reads yet, one step from credentials. */
 .unread-hint { padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--warn-soft, var(--accent-soft)); }
 .unread-hint p { margin: 2px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+/* Connect: watching releases needs no agent. */
+.watch-only { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  margin-top: 16px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: var(--radius); }
+.watch-only > div { display: grid; gap: 4px; max-width: 70ch; }
