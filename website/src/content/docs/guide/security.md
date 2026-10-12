@@ -74,6 +74,9 @@ marked *exploited* with CISA's due date and *ransomware* when CISA knows of rans
 in the wild* shows just those. Each affected package says the version that fixes it (the lowest above the running
 one, from OSV), or *no fix yet*. The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
 
+A cell of the matrix whose running image has a vulnerability exploited in the wild shows it as a red
+*exploited CVE-…* badge (its tile needs attention), and [Updates](../versions/#updates) puts that upgrade first.
+
 A notification rule with the `vulnerability` event announces each exploited or critical vulnerability as it starts
 running ([Notifications](../notifications/#vulnerabilities)).
 

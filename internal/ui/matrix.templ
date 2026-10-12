@@ -15,6 +15,7 @@ templ MatrixPage(v MatrixView) {
 			</div>
 			if v.At == "" && len(v.Grid.Rows) > 0 {
 				<div class="legend" data-tl-live>
+					<span class="badge exploited">exploited vulnerability</span>
 					<span class="badge env">behind previous env</span>
 					<span class="badge upstream">upstream newer</span>
 					<span class="badge inconsistent">targets disagree</span>

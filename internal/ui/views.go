@@ -1186,3 +1186,50 @@ func pastDrifts(g *MatrixGrid) {
 	}
 	g.Groups = groupRows(g.Rows, g.GroupBy) // the groups count rows by health
 }
+
+// markExploited badges every cell whose running image carries a vulnerability CISA lists as exploited in the
+// wild, from the images' SBOMs: the most urgent thing a matrix can show. It describes now, not the past.
+func markExploited(g *MatrixGrid, r versions.VulnReport) {
+	cves := map[string][]string{} // service + "|" + environment -> CVEs
+	for _, f := range r.Findings {
+		if f.Exploited == nil {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, a := range f.Affected {
+			k := a.Service + "|" + a.Env
+			if !seen[k] {
+				seen[k] = true
+				cves[k] = append(cves[k], f.Key)
+			}
+		}
+	}
+	if len(cves) == 0 {
+		return
+	}
+	for ri := range g.Rows {
+		r := &g.Rows[ri]
+		marked := false
+		for i := range r.Cells {
+			if i >= len(g.Envs) || len(r.Cells[i].Versions) == 0 {
+				continue
+			}
+			list := cves[r.Service+"|"+g.Envs[i].Name]
+			if len(list) == 0 {
+				continue
+			}
+			sort.Strings(list)
+			label := "exploited " + list[0]
+			if len(list) > 1 {
+				label += fmt.Sprintf(" +%d", len(list)-1)
+			}
+			r.Cells[i].Drifts = append([]DriftBadge{{Kind: "exploited", Label: label,
+				Title: "Exploited in the wild (CISA KEV), in the running image: " + strings.Join(list, ", ")}}, r.Cells[i].Drifts...)
+			marked = true
+		}
+		if marked {
+			r.Health = "bad"
+		}
+	}
+	g.Groups = groupRows(g.Rows, g.GroupBy)
+}

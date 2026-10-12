@@ -423,6 +423,9 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 	}
 	g := buildGrid(o, len(agents), groupBy)
 	g.Unread = unreadRegistries(o)
+	if rep, err := versions.LoadVulnReport(ctx, s.store, sc, ""); err == nil {
+		markExploited(&g, rep)
+	}
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
 			return g, err

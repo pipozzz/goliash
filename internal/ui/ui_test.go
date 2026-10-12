@@ -1820,3 +1820,22 @@ func TestPastDrifts(t *testing.T) {
 		t.Fatalf("groups not recounted: %+v", g.Groups)
 	}
 }
+
+func TestMarkExploited(t *testing.T) {
+	g := MatrixGrid{Envs: []EnvHeader{{Name: "staging"}, {Name: "prod"}}, Rows: []MatrixRow{{
+		Service: "payments", Health: "warn",
+		Cells:   []MatrixCell{{Versions: []VersionView{{Tag: "1.6.0"}}}, {Versions: []VersionView{{Tag: "1.4.2"}}}},
+	}}}
+	markExploited(&g, versions.VulnReport{Findings: []versions.VulnFinding{
+		{Key: "CVE-2021-45046", Exploited: &store.Exploited{}, Affected: []versions.Affected{{Service: "payments", Env: "prod"}}},
+		{Key: "CVE-2021-44228", Exploited: &store.Exploited{}, Affected: []versions.Affected{{Service: "payments", Env: "prod"}}},
+		{Key: "CVE-2024-1", Severity: "CRITICAL", Affected: []versions.Affected{{Service: "payments", Env: "staging"}}},
+	}})
+	staging, prod := g.Rows[0].Cells[0].Drifts, g.Rows[0].Cells[1].Drifts
+	if len(staging) != 0 || len(prod) != 1 || prod[0].Label != "exploited CVE-2021-44228 +1" || g.Rows[0].Health != "bad" || g.Groups[0].Bad != 1 {
+		t.Fatalf("staging %+v prod %+v health %s", staging, prod, g.Rows[0].Health)
+	}
+	if envState(g.Rows[0].Cells[1], "1.7.0") != stAttention {
+		t.Fatal("tile not marked for attention")
+	}
+}

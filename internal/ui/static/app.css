@@ -134,7 +134,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font: 600 11px/1.2 var(--sans); padding: 3px 7px; border-radius: 999px; white-space: nowrap; }
 .badge.env, .badge.declared { background: var(--warn-soft); color: var(--warn); }
 .badge.upstream { background: var(--info-soft); color: var(--info); }
-.badge.inconsistent, .badge.failing, .badge.stale, .badge.eol, .badge.revoked { background: var(--bad-soft); color: var(--bad); }
+.badge.inconsistent, .badge.failing, .badge.stale, .badge.eol, .badge.revoked, .badge.exploited { background: var(--bad-soft); color: var(--bad); }
 .badge.ok, .badge.online { background: var(--ok-soft); color: var(--ok); }
 .badge.degraded, .badge.outdated { background: var(--warn-soft); color: var(--warn); }
 .badge.neutral, .badge.never, .badge.declared-only { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
