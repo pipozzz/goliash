@@ -98,6 +98,24 @@ templ MatrixPage(v MatrixView) {
 }
 
 templ MatrixGridView(g MatrixGrid) {
+	if len(g.Unread) > 0 && len(g.Rows) > 0 {
+		<div class="unread-hint" role="status">
+			for _, u := range g.Unread {
+				<p>
+					<strong>{ plural(u.Services, "service", "services") } on <code>{ u.Host }</code></strong>
+					<span class="muted">show no newest release: no agent could read this private registry yet.</span>
+					if u.ECR {
+						<span class="muted">Give the agent's IAM role <code>ecr:ListImages</code> (or AmazonEC2ContainerRegistryReadOnly).</span>
+						<a class="link" href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How</a>
+					} else if g.CanAdmin {
+						<a class="link" href={ templ.URL("/settings?registry=" + u.Host + "#registries") }>Give the server read access</a>
+					} else {
+						<span class="muted">An admin can give the server read access under Settings.</span>
+					}
+				</p>
+			}
+		</div>
+	}
 	if len(g.Rows) == 0 {
 		@firstRun(g.Steps, g.Explore)
 	} else {

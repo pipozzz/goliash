@@ -15,6 +15,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/registry"
+	"github.com/pipozzz/goliash/internal/registry/ecr"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -31,6 +32,13 @@ type RegistryView struct {
 type UnreadRegistry struct {
 	Host     string
 	Services int
+	ECR      bool // Amazon ECR: read by an agent with its IAM role, never with stored credentials
+}
+
+// isECR reports whether host is an Amazon ECR registry.
+func isECR(host string) bool {
+	_, _, _, ok := ecr.Parse(host + "/x")
+	return ok
 }
 
 // registriesView lists the workspace's registry credentials, and the private registries its services
@@ -64,7 +72,7 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 	}
 	var missing []UnreadRegistry
 	for host, n := range unread {
-		missing = append(missing, UnreadRegistry{Host: host, Services: n})
+		missing = append(missing, UnreadRegistry{Host: host, Services: n, ECR: isECR(host)})
 	}
 	sort.Slice(missing, func(i, j int) bool { return missing[i].Host < missing[j].Host })
 	return out, missing, nil
@@ -98,6 +106,8 @@ func (s *Server) saveRegistry(w http.ResponseWriter, r *http.Request, p auth.Pri
 	user := strings.TrimSpace(r.FormValue("username"))
 	secret := strings.TrimSpace(r.FormValue("secret"))
 	switch {
+	case isECR(host):
+		return back(w, r, "/settings#registries", "error", "Amazon ECR tokens expire after 12 hours: an agent reads ECR with its IAM role (ecr:ListImages, or AmazonEC2ContainerRegistryReadOnly).")
 	case !validRegistryHost(host):
 		return back(w, r, "/settings#registries", "error", "Enter the registry host as images name it, e.g. registry.example.com or ghcr.io.")
 	case secret == "":

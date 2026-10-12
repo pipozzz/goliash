@@ -1692,3 +1692,43 @@ func TestRegistryCredentialsSettings(t *testing.T) {
 		t.Fatalf("delete: %s", body)
 	}
 }
+
+func TestUnreadPrivateRegistryHints(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	// Two mapped services on private registries nobody could read: one plain, one on ECR.
+	for name, image := range map[string]string{
+		"billing": "registry.acme.example/team/billing:2.1.0",
+		"orders":  "123456789012.dkr.ecr.eu-west-1.amazonaws.com/orders:1.4.0",
+	} {
+		svc, _ := e.st.EnsureService(ctx, sc, name)
+		snap := store.NewID()
+		_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: snap, Scope: sc, TargetID: e.tgt.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+		_, tag, _ := strings.Cut(image[strings.LastIndex(image, "/"):], ":")
+		if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, SnapshotID: snap, TargetID: e.tgt.ID, At: time.Now(), Upsert: []store.Instance{{
+			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: svc.ID, WorkloadID: name, WorkloadKind: "deployment", WorkloadName: name,
+			ContainerName: "app", Image: image, Tag: tag, Running: 1, IsMain: true,
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	admin := e.as(store.RoleAdmin)
+	_, page := get(t, admin, e.srv.URL+"/ui/matrix", nil)
+	if !strings.Contains(page, "registry.acme.example") || !strings.Contains(page, "/settings?registry=registry.acme.example") {
+		t.Fatal("no hint for the private registry")
+	}
+	if !strings.Contains(page, "ecr:ListImages") || strings.Contains(page, "/settings?registry=123456789012") {
+		t.Fatal("ECR hint should point to the agent's IAM role")
+	}
+	viewer := e.as(store.RoleViewer)
+	if _, page := get(t, viewer, e.srv.URL+"/ui/matrix", nil); strings.Contains(page, "/settings?registry=") || !strings.Contains(page, "An admin can give") {
+		t.Fatal("viewer got the admin link")
+	}
+	if err := e.st.SetSecretKey(bytes.Repeat([]byte{5}, store.SecretKeySize)); err != nil {
+		t.Fatal(err)
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/settings/registries", url.Values{"host": {"123456789012.dkr.ecr.eu-west-1.amazonaws.com"}, "secret": {"x"}}); !strings.Contains(body, "IAM role") {
+		t.Fatal("ECR credentials accepted on the server")
+	}
+}

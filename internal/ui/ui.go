@@ -420,6 +420,7 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 		return MatrixGrid{}, err
 	}
 	g := buildGrid(o, len(agents), groupBy)
+	g.Unread = unreadRegistries(o)
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
 			return g, err
@@ -493,6 +494,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
+	g.CanAdmin = p.Can(store.RoleAdmin)
 	v.Grid = g
 	if findings, err := versions.LoadHygiene(r.Context(), s.store, p.Scope); err == nil {
 		for _, f := range findings {
@@ -510,6 +512,7 @@ func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Princ
 		return err
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
+	g.CanAdmin = p.Can(store.RoleAdmin)
 	return render(w, r, MatrixGridView(g))
 }
 
@@ -2708,4 +2711,22 @@ func (s *Server) exploreExample(w http.ResponseWriter, r *http.Request, p auth.P
 	})
 	return back(w, r, "/", "notice", "This is the Example workspace: three weeks of made-up data to look around. "+
 		"Switch back to your own in the menu at the top; delete Example under Settings → Workspaces when you are done.")
+}
+
+// unreadRegistries lists private registries whose services have no known release yet: neither the server
+// (no credentials) nor an agent could read them.
+func unreadRegistries(o versions.Overview) []UnreadRegistry {
+	count := map[string]int{}
+	for id, ref := range o.Refs {
+		if u, ok := o.Upstreams[id]; (ok && u.HasLatest) || versions.PackageRepo(ref.Repo) || !versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
+			continue
+		}
+		count[versions.RegistryHost(ref.Repo)]++
+	}
+	out := make([]UnreadRegistry, 0, len(count))
+	for host, n := range count {
+		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
+	return out
 }

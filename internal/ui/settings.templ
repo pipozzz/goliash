@@ -599,7 +599,11 @@ templ registriesPanel(v SettingsView) {
 						<li>
 							<code>{ u.Host }</code>
 							<span class="muted">{ plural(u.Services, "service", "services") } only agents can check</span>
-							<a class="link" href={ templ.URL("/settings?registry=" + u.Host + "#registries") }>Add credentials</a>
+							if u.ECR {
+								<span class="muted">Amazon ECR: the agent reads it with its IAM role (<code>ecr:ListImages</code>).</span>
+							} else {
+								<a class="link" href={ templ.URL("/settings?registry=" + u.Host + "#registries") }>Add credentials</a>
+							}
 						</li>
 					}
 				</ul>

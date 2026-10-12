@@ -74,8 +74,10 @@ type MatrixGrid struct {
 	Targets  int
 	Agents   int
 	Updated  time.Time
-	Steps    []Step // first-run checklist, while the matrix is empty
-	Explore  bool   // the viewer may open an Example workspace with example data
+	Steps    []Step           // first-run checklist, while the matrix is empty
+	Explore  bool             // the viewer may open an Example workspace with example data
+	Unread   []UnreadRegistry // private registries whose services have no known release
+	CanAdmin bool
 }
 
 // MatrixGroup is a run of matrix rows under one heading.
