@@ -228,6 +228,39 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/status:
+    get:
+      operationId: getStatus
+      summary: Goliash's own health
+      description: |
+        Whether Goliash itself works and its data is fresh, as Settings → Status shows it: one check per part
+        (agents, targets, upstream releases, private registries, vulnerability data, notifications, Goliash's
+        version) and the worst state. For monitors and assistants deciding whether an answer can be trusted.
+      responses:
+        "200":
+          description: The checks.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checks, state, checked_at]
+                properties:
+                  state: { type: string, enum: [ok, warn, bad, off] }
+                  checked_at: { type: string, format: date-time }
+                  checks:
+                    type: array
+                    items:
+                      type: object
+                      required: [title, state, summary]
+                      properties:
+                        title: { type: string }
+                        state: { type: string, enum: [ok, warn, bad, off] }
+                        summary: { type: string }
+                        details: { type: array, items: { type: string } }
+                        link: { type: string, description: "Where in the UI to look, relative to the server." }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/updates:
     get:
       operationId: getUpdates

@@ -7,7 +7,8 @@ For a quick look without any of that, **Settings → Status** (also the *Live* s
 Goliash itself works and its data is fresh: agents and targets reporting, upstream releases checked, private
 registries accepting their credentials, SBOMs, OSV and CISA's catalog current, notifications going out, and whether a
 newer Goliash is out. Each line
-names what is wrong and links to where to fix it.
+names what is wrong and links to where to fix it. The same is `GET /api/v1/status` for an uptime monitor (alert when
+`state` is `bad`) and the `status` tool for AI assistants.
 
 Goliash fits next to the observability stack you already have in three ways:
 

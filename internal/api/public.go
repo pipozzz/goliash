@@ -28,6 +28,15 @@ type PublicHandler struct {
 	auth     *auth.Auth
 	log      *slog.Logger
 	isLeader func() bool
+	// for /api/v1/status
+	checker     *versions.Checker
+	version     string
+	updateCheck bool
+}
+
+// SetHealth gives /api/v1/status the checker, the server's release and whether it may look for a newer one.
+func (h *PublicHandler) SetHealth(checker *versions.Checker, version string, updateCheck bool) {
+	h.checker, h.version, h.updateCheck = checker, version, updateCheck
 }
 
 // SetLeader reports, in /metrics, whether this server runs the background work.
@@ -51,6 +60,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
 	mux.Handle("GET /api/v1/vulnerabilities", h.with(store.RoleViewer, h.vulnerabilities))
+	mux.Handle("GET /api/v1/status", h.with(store.RoleViewer, h.status))
 	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
@@ -870,4 +880,15 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		out.Findings = append(out.Findings, af)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// status is Goliash's own health for the workspace, as the Status page shows it: one check per part with
+// its state (ok, warn, bad, off) and the worst of them.
+func (h *PublicHandler) status(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	hl, err := versions.LoadHealth(r.Context(), h.store, h.checker, p.Scope, h.version, h.updateCheck)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, hl)
 }

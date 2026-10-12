@@ -540,6 +540,7 @@ func serve(ctx context.Context, args []string) error {
 	authn.Routes(mux)
 	leader := db.NewLeader(log)
 	public := api.NewPublicHandler(db, authn, log)
+	public.SetHealth(checker, buildinfo.Version, os.Getenv("GOLIASH_UPDATE_CHECK") != "off")
 	public.SetLeader(leader.IsLeader)
 	public.Register(mux)
 	ui.New(ui.Options{

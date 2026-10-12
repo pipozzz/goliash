@@ -281,6 +281,17 @@ func NewServer(c *Client) *mcp.Server {
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name: "status", Annotations: readOnly,
+		Description: "Goliash's own health: can its data be trusted right now? One check per part (agents, targets, " +
+			"upstream releases, private registries, vulnerability data, notifications, Goliash's version) with a state " +
+			"(ok, warn, bad, off), a summary and what is wrong. Ask it before trusting an answer that looks stale.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ noIn) (*mcp.CallToolResult, Result, error) {
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/status", nil, nil)
+			return nil, Result{Data: data}, err
+		})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name: "inventory", Annotations: readOnly,
 		Description: "Every running container (sidecars included) with image, tag and digest, now or at a past time.",
 	},

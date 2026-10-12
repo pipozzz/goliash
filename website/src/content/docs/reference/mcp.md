@@ -29,6 +29,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `inventory` | Every running container with image and digest, now or at a past time |
 | `hygiene` | Moving tags, tags pushed again, untrusted registries |
 | `vulnerabilities` | Is a CVE running? Known vulnerabilities of running images, exploited ones first, with the services and the version that fixes each |
+| `status` | Goliash's own health: agents reporting, releases checked, vulnerability data current, notifications going out; whether an answer can be trusted |
 | `acknowledge` | Quiet notifications until a version or a time (needs a member token; the only tool that writes) |
 
 ## Remote (HTTP)
