@@ -206,6 +206,10 @@ paths:
         - name: format
           in: query
           schema: { type: string, enum: [json, csv, cyclonedx], default: json }
+        - name: environment
+          in: query
+          description: Only what runs in this environment, e.g. one Dependency-Track project per environment.
+          schema: { type: string }
       responses:
         "200":
           description: The inventory.
@@ -222,6 +226,7 @@ paths:
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
 
   /api/v1/updates:
     get:

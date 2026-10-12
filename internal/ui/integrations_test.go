@@ -51,7 +51,7 @@ func TestIntegrations(t *testing.T) {
 	}
 
 	admin := e.as("admin")
-	if _, page := get(t, admin, e.srv.URL+"/integrations", nil); strings.Count(page, "Create a viewer token") != 3 {
+	if _, page := get(t, admin, e.srv.URL+"/integrations", nil); strings.Count(page, "Create a viewer token") != 4 {
 		t.Error("admin is not offered tokens")
 	}
 	_, body, _ := post(t, admin, e.srv.URL+"/integrations/token", url.Values{"tool": {"signoz"}})
@@ -200,5 +200,25 @@ func TestManualService(t *testing.T) {
 	}
 	if code, _, _ := post(t, e.as(store.RoleViewer), e.srv.URL+"/services/new", url.Values{"name": {"x"}, "upstream": {"x"}}); code != http.StatusForbidden {
 		t.Errorf("viewer added a service: %d", code)
+	}
+}
+
+func TestDependencyTrackScript(t *testing.T) {
+	s := dependencyTrackScript("https://g.example.com", "glsh_api_x", []string{"staging", "prod eu"})
+	for _, want := range []string{
+		"GOLIASH='https://g.example.com'", "GOLIASH_TOKEN='glsh_api_x'",
+		"inventory?format=cyclonedx&environment=staging", "inventory?format=cyclonedx&environment=prod+eu",
+		"-F projectName='goliash prod eu'", "X-Api-Key: $DTRACK_API_KEY", "set -eu",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("script misses %q:\n%s", want, s)
+		}
+	}
+	if shellQuote("it's") != `'it'\''s'` {
+		t.Fatal("quote")
+	}
+	e := newUIEnv(t)
+	if _, page := get(t, e.as(store.RoleAdmin), e.srv.URL+"/integrations", nil); !strings.Contains(page, "Dependency-Track") || !strings.Contains(page, "environment=prod") {
+		t.Fatal("no Dependency-Track panel with the workspace's environments")
 	}
 }

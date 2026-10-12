@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -22,14 +23,55 @@ type IntegrationsView struct {
 	ServerURL string
 	Tool      string
 	Token     string
+	Envs      []string // the workspace's environments, highest last
 }
 
 // integrationTools are the tools a token can be made for here, with the token's name.
-var integrationTools = map[string]string{"prometheus": "prometheus", "signoz": "signoz", "mcp": "assistant"}
+var integrationTools = map[string]string{"prometheus": "prometheus", "signoz": "signoz", "mcp": "assistant", "dtrack": "dependency-track"}
 
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	return render(w, r, IntegrationsPage(IntegrationsView{Base: withFlash(s.base(r.Context(), p, "integrations", "Integrations"), r), ServerURL: s.publicURL}))
+	v := IntegrationsView{Base: withFlash(s.base(r.Context(), p, "integrations", "Integrations"), r), ServerURL: s.publicURL}
+	v.Envs = s.envNames(r.Context(), p.Scope)
+	return render(w, r, IntegrationsPage(v))
 }
+
+// envNames lists the workspace's environment names in their order.
+func (s *Server) envNames(ctx context.Context, sc store.Scope) []string {
+	envs, err := s.store.ListEnvironments(ctx, sc)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(envs))
+	for _, e := range envs {
+		names = append(names, e.Name)
+	}
+	return names
+}
+
+// dependencyTrackScript uploads what runs in each environment to Dependency-Track as a project of its own,
+// for cron or a CI schedule. token is filled in when it was just made.
+func dependencyTrackScript(serverURL, token string, envs []string) string {
+	if token == "" {
+		token = "glsh_api_…" //nolint:gosec // a placeholder for the reader to replace
+	}
+	if len(envs) == 0 {
+		envs = []string{"production"}
+	}
+	var b strings.Builder
+	b.WriteString("#!/bin/sh\n# Run it every hour, e.g. from cron: 0 * * * * /usr/local/bin/goliash-to-dtrack\nset -eu\n")
+	fmt.Fprintf(&b, "GOLIASH=%s\nGOLIASH_TOKEN=%s\n", shellQuote(serverURL), shellQuote(token))
+	b.WriteString("DTRACK=https://dtrack.example.com   # Dependency-Track's API URL\n")
+	b.WriteString("DTRACK_API_KEY=odt_…                # a team API key with BOM_UPLOAD and PROJECT_CREATION_UPLOAD (401: one is missing)\n")
+	b.WriteString("tmp=$(mktemp)\ntrap 'rm -f \"$tmp\"' EXIT\n")
+	for _, env := range envs {
+		fmt.Fprintf(&b, "\ncurl -fsS -H \"Authorization: Bearer $GOLIASH_TOKEN\" -o \"$tmp\" \\\n  \"$GOLIASH/api/v1/inventory?format=cyclonedx&environment=%s\"\n", url.QueryEscape(env))
+		fmt.Fprintf(&b, "curl -fsS -X POST \"$DTRACK/api/v1/bom\" -H \"X-Api-Key: $DTRACK_API_KEY\" -F autoCreate=true \\\n  -F projectName=%s -F projectVersion=running -F bom=@\"$tmp\" >/dev/null\n", shellQuote("goliash "+env))
+	}
+	return b.String()
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // integrationToken makes a viewer token for one tool and shows the page with it filled in, once.
 func (s *Server) integrationToken(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -44,6 +86,7 @@ func (s *Server) integrationToken(w http.ResponseWriter, r *http.Request, p auth
 	}
 	s.audit(r.Context(), p, "api_token.create", "token", name, "role", store.RoleViewer, "expires", "never")
 	v := IntegrationsView{Base: s.base(r.Context(), p, "integrations", "Integrations"), ServerURL: s.publicURL, Tool: tool, Token: token}
+	v.Envs = s.envNames(r.Context(), p.Scope)
 	v.Notice = "Viewer token " + name + " created. It is in the settings below and shown only now; revoke it under Users and API tokens."
 	w.Header().Set("Cache-Control", "no-store")
 	return render(w, r, IntegrationsPage(v))

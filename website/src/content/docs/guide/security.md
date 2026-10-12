@@ -98,6 +98,10 @@ The page shows the last environment (production) by default; *Every environment*
 - **Export SBOM** gives a CycloneDX 1.6 bill of materials of everything that runs, with the packages of each
   image's SBOM nested inside: for Dependency-Track, a vendor questionnaire or the software inventory NIS2 and the
   Cyber Resilience Act ask for.
+- **Dependency-Track**: Integrations → Dependency-Track gives a script for cron or a scheduled CI job that uploads
+  one project per environment (`goliash prod`, version `running`) from
+  `/api/v1/inventory?format=cyclonedx&environment=…`. Its API key needs `BOM_UPLOAD` and `PROJECT_CREATION_UPLOAD`;
+  the default *Automation* team lacks the second, and the upload answers 401 without it.
 - **Print or save as PDF** prints the page with the time it was generated, as evidence of patch management for
   frameworks that ask for it (NIS2, DORA, SOC 2, ISO 27001).
 

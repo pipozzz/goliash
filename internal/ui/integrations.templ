@@ -52,6 +52,22 @@ templ IntegrationsPage(v IntegrationsView) {
 					</div>
 				</div>
 			</section>
+			<section class="panel integration" id="dtrack">
+				<div class="panel-head"><h2>Dependency-Track</h2><span class="muted">what runs, as an SBOM per environment</span></div>
+				<div class="panel-body stack">
+					<p class="muted">Dependency-Track then tracks every package that runs in each environment against its vulnerability feeds and policies: a project per environment, kept current by a small script.</p>
+					@integrationToken(v, "dtrack", "")
+					<div>
+						<h3>2. Upload on a schedule</h3>
+						<p class="hint">Fill in Dependency-Track's URL and an API key of a team with BOM_UPLOAD and PROJECT_CREATION_UPLOAD, then run it from cron or a scheduled CI job.</p>
+						<pre class="mono install-cmd" id="cfg-dtrack">{ dependencyTrackScript(v.ServerURL, tokenFor(v, "dtrack"), v.Envs) }</pre>
+						<div class="actions">
+							<button type="button" class="secondary" data-copy="cfg-dtrack">Copy</button>
+							<a href="/api/v1/inventory?format=cyclonedx" hx-boost="false">Download the SBOM now</a>
+						</div>
+					</div>
+				</div>
+			</section>
 			<section class="panel integration" id="mcp">
 				<div class="panel-head"><h2>AI assistants</h2><span class="muted">Claude, Cursor and others ask Goliash over MCP</span></div>
 				<div class="panel-body stack">

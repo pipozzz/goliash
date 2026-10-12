@@ -492,6 +492,19 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 		h.fail(w, r, err)
 		return
 	}
+	if name := r.URL.Query().Get("environment"); name != "" {
+		if _, err := h.store.GetEnvironmentByName(r.Context(), p.Scope, name); err != nil {
+			writeProblem(w, http.StatusNotFound, "Unknown environment", name)
+			return
+		}
+		kept := items[:0]
+		for _, i := range items {
+			if i.Environment == name {
+				kept = append(kept, i)
+			}
+		}
+		items = kept
+	}
 	stamp := ""
 	if at != nil {
 		stamp = "-" + at.UTC().Format("20060102-1504")
