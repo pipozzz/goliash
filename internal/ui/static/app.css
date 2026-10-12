@@ -965,3 +965,7 @@ td.tl-in > * { animation: tl-fade .45s ease-out; }
   border-color: transparent transparent transparent currentColor; margin-right: 6px; }
 .tl-play.playing::before { width: 3px; height: 10px; border: 0; border-left: 3px solid currentColor; border-right: 3px solid currentColor;
   box-sizing: content-box; }
+/* Compare with now: past cells that differ from today say what runs now. */
+.tl-compare { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; margin-left: 6px; }
+td.tl-differs { box-shadow: inset 3px 0 0 var(--info); }
+.tl-now-note { margin-top: 4px; font-size: 11.5px; color: var(--info); font-family: var(--mono); }

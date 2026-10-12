@@ -316,6 +316,12 @@ templ timeTravel(t TimeTravel) {
 				<button type="button" class="secondary icon" data-tl-next title="Next deployment (→)" aria-label="Next deployment">
 					<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 3v10M3 3l7 5-7 5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg>
 				</button>
+				if t.Kind == "matrix" {
+					<label class="check tl-compare" title="Each version that is different today shows what runs now">
+						<input type="checkbox" data-tl-compare/>
+						<span>Compare with now</span>
+					</label>
+				}
 				<span class="hint">← → step from deployment to deployment, Shift moves a day</span>
 			</div>
 			<form class="inline tl-exact" method="get" action={ templ.URL(t.Path) }>

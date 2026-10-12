@@ -620,7 +620,11 @@
       kind: root.getAttribute("data-kind") || "matrix", base: root.getAttribute("data-base") || "/",
       at: tlParse(root.getAttribute("data-at")), from: 0, to: 0, changes: [], seq: 0, timer: null, playing: null, loaded: false,
     };
-    if (!root.hidden) tlLoad();
+    const box = root.querySelector("[data-tl-compare]");
+    if (box) {
+      try { box.checked = localStorage.getItem("goliash.compareNow") === "1"; } catch (_) { /* private mode */ }
+    }
+    if (!root.hidden) tlLoad().then(function () { tlCompare(); });
   }
 
   async function tlLoad() {
@@ -765,8 +769,51 @@
     });
     const label = tl.root.querySelector("[data-tl-label]");
     label.classList.remove("tl-pop"); void label.offsetWidth; label.classList.add("tl-pop");
+    if (!tiles) tlCompare();
     if (changed) tl.root.querySelector("[data-tl-note]").textContent += " · " + changed + (tiles ? (changed === 1 ? " cell changed" : " cells changed") : (changed === 1 ? " version changed" : " versions changed"));
   }
+
+  // Compare with now: the matrix of today, fetched once a minute at most, marks every cell of the past whose
+  // versions differ from today's with what runs now. The choice is remembered in this browser.
+  let tlNowGrid = null, tlNowAt = 0;
+  async function tlCompare() {
+    const box = tl && tl.root.querySelector("[data-tl-compare]");
+    const panel = document.getElementById("matrix-panel");
+    if (!box || !panel) return;
+    panel.querySelectorAll(".tl-now-note").forEach(function (n) { n.remove(); });
+    panel.querySelectorAll("td.tl-differs").forEach(function (td) { td.classList.remove("tl-differs"); });
+    if (!box.checked || tl.at === null) return;
+    if (!tlNowGrid || Date.now() - tlNowAt > 60000) {
+      try {
+        const res = await fetch("/ui/matrix?" + new URLSearchParams({ group: tl.group }).toString(), { headers: { "HX-Request": "true" } });
+        if (!res.ok) return;
+        const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+        tlNowGrid = new Map();
+        doc.querySelectorAll("td[data-key]").forEach(function (td) { tlNowGrid.set(td.getAttribute("data-key"), tlVersions(td)); });
+        tlNowAt = Date.now();
+      } catch (_) { return; }
+    }
+    if (!tl || tl.at === null) return;
+    let differ = 0;
+    panel.querySelectorAll("td[data-key]").forEach(function (td) {
+      const then = tlVersions(td), now = tlNowGrid.get(td.getAttribute("data-key")) || "";
+      if (then === now) return;
+      td.classList.add("tl-differs");
+      const note = document.createElement("div");
+      note.className = "tl-now-note";
+      note.textContent = now ? "now " + now.split(",").join(", ") : "not running now";
+      td.appendChild(note);
+      differ++;
+    });
+    const label = tl.root.querySelector(".tl-compare span");
+    if (label) label.textContent = "Compare with now" + (differ ? " · " + differ + (differ === 1 ? " differs" : " differ") : " · nothing differs");
+  }
+  document.addEventListener("change", function (e) {
+    if (!tl || !e.target.matches("[data-tl-compare]")) return;
+    try { localStorage.setItem("goliash.compareNow", e.target.checked ? "1" : ""); } catch (_) { /* private mode */ }
+    if (!e.target.checked) { const l = tl.root.querySelector(".tl-compare span"); if (l) l.textContent = "Compare with now"; }
+    tlCompare();
+  });
 
   // tlVersions is what a cell runs, the versions only: badges for drift and releases exist for now alone.
   function tlVersions(td) {

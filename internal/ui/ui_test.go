@@ -1756,7 +1756,7 @@ func TestTimelineScrubbing(t *testing.T) {
 		t.Fatalf("bad moment: %d", code)
 	}
 	_, page := get(t, viewer, e.srv.URL+"/", nil)
-	if !strings.Contains(page, `id="timeline"`) || !strings.Contains(page, "data-tl-open") || !strings.Contains(page, `id="matrix-panel"`) {
+	if !strings.Contains(page, `id="timeline"`) || !strings.Contains(page, "data-tl-open") || !strings.Contains(page, `id="matrix-panel"`) || !strings.Contains(page, "data-tl-compare") {
 		t.Fatal("no timeline on the matrix")
 	}
 }
