@@ -129,6 +129,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /{$}", s.page(v, s.matrix))
 	mux.Handle("GET /ui/matrix", s.page(v, s.matrixGrid))
 	mux.Handle("GET /ui/timeline", s.page(v, s.timeline))
+	mux.Handle("GET /status", s.page(v, s.status))
 	mux.Handle("GET /ui/stream", s.page(v, s.stream))
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))

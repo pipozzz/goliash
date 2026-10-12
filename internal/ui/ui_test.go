@@ -1862,3 +1862,16 @@ func TestServiceSecurityPanel(t *testing.T) {
 		t.Fatal("no security panel for the service")
 	}
 }
+
+func TestStatusPage(t *testing.T) {
+	e := newUIEnv(t)
+	code, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/status", nil)
+	if code != 200 {
+		t.Fatalf("status %d", code)
+	}
+	for _, want := range []string{"Agents", "Targets", "Upstream releases", "Vulnerability data", `class="status-overall`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("status page misses %q", want)
+		}
+	}
+}

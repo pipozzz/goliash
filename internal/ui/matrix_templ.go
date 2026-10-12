@@ -85,7 +85,7 @@ func MatrixPage(v MatrixView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.At == "" && len(v.Grid.Rows) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"legend\" data-tl-live><span class=\"badge exploited\">exploited vulnerability</span> <span class=\"badge env\">behind previous env</span> <span class=\"badge upstream\">upstream newer</span> <span class=\"badge inconsistent\">targets disagree</span> <span class=\"badge declared\">differs from Git</span> <span class=\"live off\" data-live>Connecting…</span></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"legend\" data-tl-live><span class=\"badge exploited\">exploited vulnerability</span> <span class=\"badge env\">behind previous env</span> <span class=\"badge upstream\">upstream newer</span> <span class=\"badge inconsistent\">targets disagree</span> <span class=\"badge declared\">differs from Git</span> <a class=\"live off\" data-live href=\"/status\" title=\"Live updates; Goliash's own status\">Connecting…</a></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

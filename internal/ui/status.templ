@@ -1,0 +1,55 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ StatusPage(v StatusView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Status</h1>
+				<p class="sub">Whether Goliash itself works and its data is fresh: agents reporting, releases checked, vulnerability data current, notifications going out.</p>
+			</div>
+			<span class={ "status-overall", "st-" + v.Worst }>{ statusWord(v.Worst) }</span>
+		</div>
+		<section class="panel">
+			<ul class="status-list">
+				for _, c := range v.Checks {
+					<li class={ "st-" + c.State }>
+						<span class="status-dot" aria-hidden="true"></span>
+						<div class="status-body">
+							<div class="status-title">
+								<strong>{ c.Title }</strong>
+								<span class="sr-only">{ statusWord(c.State) }</span>
+								if c.Link != "" {
+									<a href={ templ.URL(c.Link) }>{ c.LinkText } →</a>
+								}
+							</div>
+							<span class="muted">{ c.Summary }</span>
+							if len(c.Details) > 0 {
+								<ul class="status-details">
+									for _, d := range c.Details {
+										<li>{ d }</li>
+									}
+								</ul>
+							}
+						</div>
+					</li>
+				}
+			</ul>
+		</section>
+		<p class="hint">Checked <time datetime={ iso(v.Checked) } data-ago>{ short(v.Checked) }</time>. Goliash's own metrics for alerting are under <a href="/integrations">Integrations</a>.</p>
+	}
+}
+
+func statusWord(state string) string {
+	switch state {
+	case "bad":
+		return "Needs attention"
+	case "warn":
+		return "Partly out of date"
+	case "off":
+		return "Not set up"
+	}
+	return "All good"
+}

@@ -969,3 +969,20 @@ td.tl-in > * { animation: tl-fade .45s ease-out; }
 .tl-compare { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; margin-left: 6px; }
 td.tl-differs { box-shadow: inset 3px 0 0 var(--info); }
 .tl-now-note { margin-top: 4px; font-size: 11.5px; color: var(--info); font-family: var(--mono); }
+/* Status: Goliash's own health, one line per part. */
+.status-list { list-style: none; margin: 0; padding: 0; }
+.status-list > li { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.status-list > li:last-child { border-bottom: 0; }
+.status-dot { flex: none; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--faint); }
+.st-ok .status-dot { background: var(--ok); }
+.st-warn .status-dot { background: var(--warn); }
+.st-bad .status-dot { background: var(--bad); }
+.status-body { display: grid; gap: 3px; min-width: 0; }
+.status-title { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.status-details { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.status-overall { align-self: center; padding: 6px 12px; border-radius: 999px; font-weight: 600; font-size: 13px; background: var(--ok-soft); color: var(--ok); }
+.status-overall.st-warn { background: var(--warn-soft); color: var(--warn); }
+.status-overall.st-bad { background: var(--bad-soft); color: var(--bad); }
+.status-overall.st-off { background: var(--surface); color: var(--muted); }
+a.live { text-decoration: none; color: inherit; }
+a.live:hover { text-decoration: underline; }

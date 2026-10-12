@@ -921,7 +921,7 @@ func envLabel(envs []EnvHeader, i int) string {
 // isSettings reports whether a page belongs under the Settings menu.
 func isSettings(page string) bool {
 	switch page {
-	case "agents", "notifications", "settings", "workspaces", "apps", "teams":
+	case "agents", "notifications", "settings", "workspaces", "apps", "teams", "status":
 		return true
 	}
 	return false

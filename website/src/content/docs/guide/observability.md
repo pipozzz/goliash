@@ -3,6 +3,11 @@ title: Grafana and SigNoz
 description: 'Scrape Goliash /metrics with Prometheus or the OpenTelemetry Collector, import the ready-made Grafana and SigNoz dashboards, put deploys on your graphs and alert on drift.'
 ---
 
+For a quick look without any of that, **Settings → Status** (also the *Live* sign above the matrix) says whether
+Goliash itself works and its data is fresh: agents and targets reporting, upstream releases checked, private
+registries accepting their credentials, SBOMs, OSV and CISA's catalog current, notifications going out. Each line
+names what is wrong and links to where to fix it.
+
 Goliash fits next to the observability stack you already have in three ways:
 
 1. **Metrics.** `/metrics` serves what runs where, drift, delivery speed, image hygiene and Goliash's own health in

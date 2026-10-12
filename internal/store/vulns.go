@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -258,4 +259,14 @@ func (s *Store) RecordVulnAlerts(ctx context.Context, sc Scope, alerts []VulnAle
 		}
 		return nil
 	})
+}
+
+// OSVCheckedAt is when OSV last answered about a package, zero before the first answer.
+func (s *Store) OSVCheckedAt(ctx context.Context) (time.Time, error) {
+	var at sql.NullTime
+	err := s.queryRow(ctx, s.db, `SELECT checked_at FROM osv_packages ORDER BY checked_at DESC LIMIT 1`).Scan(&at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, nil
+	}
+	return timeOrZero(at), err
 }
