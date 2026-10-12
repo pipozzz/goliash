@@ -37,8 +37,10 @@ func TestOSVQuery(t *testing.T) {
 		"pkg:deb/debian/openssl@3.0.11-1~deb12u2?os_distro=bookworm&os_name=debian&os_version=12": "Debian:12 openssl 3.0.11-1~deb12u2",
 		"pkg:deb/ubuntu/libxml2@2.9.13%2Bdfsg-1ubuntu0.4?os_version=22.04":                        "Ubuntu:22.04 libxml2 2.9.13+dfsg-1ubuntu0.4",
 		"pkg:apk/alpine/busybox@1.36.1-r29?os_version=3.20.3":                                     "Alpine:v3.20 busybox 1.36.1-r29",
-		"pkg:npm/lodash@4.17.15":                          "purl pkg:npm/lodash@4.17.15",
-		"pkg:golang/golang.org/x/net@v0.17.0?type=module": "purl pkg:golang/golang.org/x/net@v0.17.0",
+		"pkg:npm/lodash@4.17.15":                                                   "purl pkg:npm/lodash@4.17.15",
+		"pkg:golang/golang.org/x/net@v0.17.0?type=module":                          "purl pkg:golang/golang.org/x/net@v0.17.0",
+		"pkg:apk/wolfi/openssl-4.0-libssl@4.0.3-r6?arch=x86_64&origin=openssl-4.0": "Wolfi openssl-4.0 4.0.3-r6",
+		"pkg:apk/chainguard/curl@8.10.1-r0":                                        "Chainguard curl 8.10.1-r0",
 	} {
 		q, ok := osvQueryFor(purl)
 		got := q.Package.Ecosystem + " " + q.Package.Name + " " + q.Version
@@ -51,6 +53,54 @@ func TestOSVQuery(t *testing.T) {
 	}
 	if _, ok := osvQueryFor("pkg:deb/debian/x@1"); ok {
 		t.Error("a deb package without a distribution version")
+	}
+	// Wolfi files advisories under the source package, some under the package itself.
+	var names []string
+	for _, q := range osvQueries("pkg:apk/wolfi/openssl-4.0-libssl@4.0.3-r6?arch=x86_64&origin=openssl-4.0") {
+		names = append(names, q.Package.Name)
+	}
+	if strings.Join(names, " ") != "openssl-4.0 openssl-4.0-libssl" {
+		t.Errorf("wolfi candidates %v", names)
+	}
+	fixes := map[string][]string{"Wolfi|openssl-4.0-libssl": {"4.0.4-r0"}}
+	if f := fixesFor("pkg:apk/wolfi/openssl-4.0-libssl@4.0.3-r6?origin=openssl-4.0", fixes); len(f) != 1 {
+		t.Errorf("fix under the package name: %v", f)
+	}
+}
+
+// A package OSV knows under another name is asked about again under it, in a second round.
+func TestOSVQueryBatchFallback(t *testing.T) {
+	var rounds atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rounds.Add(1)
+		var req struct {
+			Queries []osvQuery `json:"queries"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		res := `{"results":[`
+		for i, q := range req.Queries {
+			if i > 0 {
+				res += ","
+			}
+			if q.Package.Name == "openssl-4.0-libssl" || q.Package.Purl == "pkg:npm/lodash@4.17.15" {
+				res += `{"vulns":[{"id":"CGA-1"}]}`
+			} else {
+				res += `{}`
+			}
+		}
+		_, _ = w.Write([]byte(res + "]}"))
+	}))
+	defer srv.Close()
+	o := &OSV{BaseURL: srv.URL, HTTP: srv.Client()}
+	got, err := o.QueryBatch(context.Background(), []string{"pkg:apk/wolfi/openssl-4.0-libssl@4.0.3-r6?origin=openssl-4.0", "pkg:npm/lodash@4.17.15", "pkg:apk/wolfi/zlib@1.3-r0"})
+	if err != nil || len(got["pkg:apk/wolfi/openssl-4.0-libssl@4.0.3-r6?origin=openssl-4.0"]) != 1 || len(got["pkg:npm/lodash@4.17.15"]) != 1 {
+		t.Fatalf("%v %v", got, err)
+	}
+	if ids, ok := got["pkg:apk/wolfi/zlib@1.3-r0"]; !ok || len(ids) != 0 {
+		t.Fatalf("zlib asked and found nothing: %v %v", ids, ok)
+	}
+	if rounds.Load() != 2 {
+		t.Fatalf("rounds %d", rounds.Load())
 	}
 }
 

@@ -46,9 +46,45 @@ type osvQuery struct {
 	Version string `json:"version,omitempty"`
 }
 
-// osvQueryFor turns a package URL into an OSV query: Debian, Ubuntu and Alpine packages by ecosystem
-// ("Debian:12"), name and version, others (npm, PyPI, Go, Maven …) by their purl without qualifiers.
+// osvQueryFor turns a package URL into an OSV query: Debian, Ubuntu, Alpine, Wolfi and Chainguard packages by
+// ecosystem ("Debian:12"), name and version, others (npm, PyPI, Go, Maven …) by their purl without qualifiers.
 func osvQueryFor(purl string) (osvQuery, bool) {
+	qs := osvQueries(purl)
+	if len(qs) == 0 {
+		return osvQuery{}, false
+	}
+	return qs[0], true
+}
+
+// osvQueries are the queries to try for a package URL, in order, until one finds something. Wolfi and
+// Chainguard advisories are filed under the source package (the origin), some under the package itself. The
+// origin without its release line (openssl for openssl-4.0) is not tried: advisories of another release line,
+// often open-ended, would match every version of this one.
+func osvQueries(purl string) []osvQuery {
+	q, ok := osvPrimary(purl)
+	if !ok {
+		return nil
+	}
+	out := []osvQuery{q}
+	if q.Package.Ecosystem != "Wolfi" && q.Package.Ecosystem != "Chainguard" {
+		return out
+	}
+	u, _ := url.Parse(purl)
+	name := purlName(purl)
+	name, _, _ = strings.Cut(name, " ")
+	seen := map[string]bool{q.Package.Name: true}
+	for _, n := range []string{name, u.Query().Get("origin")} {
+		if n != "" && !seen[n] {
+			seen[n] = true
+			alt := q
+			alt.Package.Name = n
+			out = append(out, alt)
+		}
+	}
+	return out
+}
+
+func osvPrimary(purl string) (osvQuery, bool) {
 	var q osvQuery
 	u, err := url.Parse(purl)
 	if err != nil || u.Scheme != "pkg" {
@@ -93,6 +129,13 @@ func osvQueryFor(purl string) (osvQuery, bool) {
 			q.Package.Name = strings.SplitN(src, "@", 2)[0]
 		}
 	case "apk":
+		if eco := map[string]string{"wolfi": "Wolfi", "chainguard": "Chainguard"}[strings.ToLower(strings.SplitN(rest, "/", 2)[0])]; eco != "" {
+			q.Package.Ecosystem, q.Package.Name, q.Version = eco, name, version
+			if origin := qs.Get("origin"); origin != "" { // the source package OSV files advisories under
+				q.Package.Name = origin
+			}
+			return q, true
+		}
 		if osVersion == "" {
 			return q, false
 		}
@@ -111,15 +154,30 @@ func osvQueryFor(purl string) (osvQuery, bool) {
 // QueryBatch returns the IDs of the vulnerabilities affecting each package URL; packages OSV cannot be asked
 // about are left out.
 func (o *OSV) QueryBatch(ctx context.Context, purls []string) (map[string][]string, error) {
-	var queries []osvQuery
-	var asked []string
-	for _, p := range purls {
-		if q, ok := osvQueryFor(p); ok {
-			queries = append(queries, q)
-			asked = append(asked, p)
+	out := map[string][]string{}
+	// Each round asks the next query of every package the earlier ones found nothing for.
+	for round := 0; ; round++ {
+		var queries []osvQuery
+		var asked []string
+		for _, p := range purls {
+			if ids, done := out[p]; done && len(ids) > 0 {
+				continue
+			}
+			if qs := osvQueries(p); round < len(qs) {
+				queries = append(queries, qs[round])
+				asked = append(asked, p)
+			}
+		}
+		if len(queries) == 0 {
+			return out, nil
+		}
+		if err := o.queryBatch(ctx, queries, asked, out); err != nil {
+			return nil, err
 		}
 	}
-	out := map[string][]string{}
+}
+
+func (o *OSV) queryBatch(ctx context.Context, queries []osvQuery, asked []string, out map[string][]string) error {
 	for start := 0; start < len(queries); start += 1000 {
 		end := min(start+1000, len(queries))
 		body, _ := json.Marshal(map[string]any{"queries": queries[start:end]})
@@ -131,7 +189,7 @@ func (o *OSV) QueryBatch(ctx context.Context, purls []string) (map[string][]stri
 			} `json:"results"`
 		}
 		if err := o.post(ctx, "/querybatch", body, &res); err != nil {
-			return nil, err
+			return err
 		}
 		for i, r := range res.Results {
 			if start+i >= len(asked) {
@@ -144,7 +202,7 @@ func (o *OSV) QueryBatch(ctx context.Context, purls []string) (map[string][]stri
 			out[asked[start+i]] = ids
 		}
 	}
-	return out, nil
+	return nil
 }
 
 // OSVVuln is what Goliash keeps of a vulnerability.
@@ -233,12 +291,18 @@ func (o *OSV) do(req *http.Request, into any) error {
 	return json.Unmarshal(b, into)
 }
 
-// fixKey is the "ecosystem|package" key OSV files a package's fixes under.
-func fixKey(purl string) string {
-	q, ok := osvQueryFor(purl)
-	if !ok {
-		return ""
+// fixesFor finds the versions that fix a vulnerability for purl, under whichever name OSV files the package.
+func fixesFor(purl string, fixes map[string][]string) []string {
+	for _, q := range osvQueries(purl) {
+		if f := fixes[queryKey(q)]; len(f) > 0 {
+			return f
+		}
 	}
+	return nil
+}
+
+// queryKey is the "ecosystem|package" key OSV files a query's package fixes under.
+func queryKey(q osvQuery) string {
 	if q.Package.Ecosystem != "" {
 		return q.Package.Ecosystem + "|" + q.Package.Name
 	}

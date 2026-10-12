@@ -21,7 +21,7 @@ One [CycloneDX 1.6](https://cyclonedx.org/) JSON document, validated against the
 - **Where it runs**, as properties: `goliash:environment`, `goliash:target`, `goliash:platform`, `goliash:service`
   and `goliash:workload`. An image that runs in three clusters lists all three.
 - **Its packages**, nested inside the image, when its registry holds an SBOM attestation (see
-  [Where the packages come from](#where-the-packages-come-from)): Debian, Alpine and RPM packages, npm, PyPI, Maven,
+  [Where the packages come from](#where-the-packages-come-from)): Debian, Alpine, Wolfi and RPM packages, npm, PyPI, Maven,
   Go modules and whatever else the build's SBOM lists, each with its package URL.
 - **Servers watched by the [host collector](../../reference/collectors/#linux-servers)**: the operating system as an
   `operating-system` component and the packages Goliash follows as `application` components.

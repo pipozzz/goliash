@@ -289,7 +289,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			if severityRank(rec.Severity) > severityRank(f.Severity) {
 				f.Severity = rec.Severity
 			}
-			fix := chooseFix(purlVersion(p), rec.Fixes[fixKey(p)])
+			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID}
 				if i := indexAffected(f.Affected, a); i >= 0 {

@@ -62,7 +62,9 @@ vulnerability of the running images:
    [SBOM of what runs](../sbom/#where-the-packages-come-from)), Goliash reads its package list once: package URLs
    such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`.
 2. It asks [OSV](https://osv.dev) which known vulnerabilities affect those packages, again every day, and reads
-   each advisory once for its CVE aliases, summary and severity.
+   each advisory once for its CVE aliases, summary and severity. Debian, Ubuntu and Alpine packages are asked about
+   in their distribution release, Wolfi and Chainguard packages under their source package (Chainguard's own
+   advisories), language packages (npm, PyPI, Go, Maven, crates, RubyGems, NuGet …) by their package URL.
 3. Search by CVE or advisory ID, package or service. A vulnerability shows once, under its CVE, with every advisory
    that names it (`DEBIAN-CVE-…`, `DSA-…`, `GHSA-…`) and each package and service it is in.
 
