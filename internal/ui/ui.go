@@ -28,6 +28,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/demo"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
@@ -231,6 +232,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /settings/tokens/{id}/revoke", s.page(a, s.revokeToken))
 	mux.Handle("POST /workspace", s.page(v, s.switchWorkspace))
 	mux.Handle("GET /workspaces", s.page(a, s.workspaces))
+	mux.Handle("POST /workspaces/example", s.page(a, s.exploreExample))
 	mux.Handle("POST /workspaces", s.page(a, s.createWorkspace))
 }
 
@@ -380,6 +382,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	v := LoginView{
 		Sent: r.URL.Query().Get("sent") == "1", Mail: s.auth.MailEnabled(), OIDC: s.auth.OIDCName(),
 		Password: s.auth.PasswordsEnabled(), NoAccounts: s.auth.NoAccounts(r.Context()), Passkeys: s.auth.PasskeysEnabled(),
+		SetupLink: s.auth.OpenSetupLink(r.Context()),
 	}
 	switch r.URL.Query().Get("error") {
 	case "password":
@@ -434,11 +437,20 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 	}
 	data := g.Unmapped > 0 || len(g.Rows) > 0
 	steps := []Step{
-		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS or Compose files: pick one and get a single command: the agent it starts registers itself and adds what it finds.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
+		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS, Lambda, a Linux server or Compose files: pick one and get a single command: the agent it starts registers itself and adds what it finds.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
 		{Title: "Get the first report", Text: "Start the agent with the command Connect shows. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
 		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, or map their images once in the inbox; new workloads follow.", Href: "/inbox", Action: "Open the inbox", Done: len(g.Rows) > 0},
 		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: len(chans) > 0, Optional: true},
 		{Title: "Invite your team", Text: "Viewers read, members map services and acknowledge, admins configure.", Href: "/settings", Action: "Invite people", Done: users > 1, Optional: true},
+	}
+	// The first step not done, required ones first, is the one to take now.
+	for _, optional := range []bool{false, true} {
+		for i := range steps {
+			if !steps[i].Done && steps[i].Optional == optional {
+				steps[i].Next = true
+				return steps, nil
+			}
+		}
 	}
 	return steps, nil
 }
@@ -473,6 +485,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 	if err != nil {
 		return err
 	}
+	g.Explore = p.OrgWide() && !s.auth.Demo()
 	v.Grid = g
 	if findings, err := versions.LoadHygiene(r.Context(), s.store, p.Scope); err == nil {
 		for _, f := range findings {
@@ -489,6 +502,7 @@ func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return err
 	}
+	g.Explore = p.OrgWide() && !s.auth.Demo()
 	return render(w, r, MatrixGridView(g))
 }
 
@@ -2650,4 +2664,34 @@ func (s *Server) digestHints(ctx context.Context, sc store.Scope) ([]DigestHint,
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Target < out[j].Target })
 	return out, nil
+}
+
+// exploreExample opens an Example workspace filled with three weeks of example data, created the first time,
+// so a new installation can be explored without touching the real workspace.
+func (s *Server) exploreExample(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	if !p.OrgWide() {
+		return back(w, r, "/", "error", "Only organization owners and admins create workspaces.")
+	}
+	ws, err := s.store.GetWorkspaceBySlug(ctx, p.User.OrgID, "example")
+	if errors.Is(err, store.ErrNotFound) {
+		if ws, err = s.store.CreateWorkspace(ctx, p.User.OrgID, "Example", "example"); err != nil {
+			return err
+		}
+		if err := demo.Seed(ctx, s.store, ws, s.log); err != nil && !errors.Is(err, demo.ErrAlreadySeeded) {
+			return err
+		}
+		_ = s.store.Audit(ctx, store.AuditEntry{
+			OrgID: p.User.OrgID, Actor: p.Name(), Action: "workspace.create",
+			Details: map[string]string{"workspace": ws.Slug, "name": ws.Name, "with": "example data"},
+		})
+	} else if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
+		Name: auth.WorkspaceCookie, Value: ws.ID, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
+	})
+	return back(w, r, "/", "notice", "This is the Example workspace: three weeks of made-up data to look around. "+
+		"Switch back to your own in the menu at the top; delete Example under Settings → Workspaces when you are done.")
 }

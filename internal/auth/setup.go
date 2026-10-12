@@ -102,3 +102,25 @@ func (a *Auth) NoAccounts(ctx context.Context) bool {
 	n, err := a.store.CountUsers(ctx, org)
 	return err == nil && n == 0
 }
+
+// OpenSetup lets the login page offer link (the setup link the server just logged) until the given time, so
+// whoever installs Goliash creates the first account without reading the log. After it, only the log has it.
+func (a *Auth) OpenSetup(link string, until time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if u, err := url.Parse(link); err == nil {
+		a.openSetup, a.openUntil = u.RequestURI(), until
+	}
+}
+
+// OpenSetupLink is the setup page's address while nobody has an account and the window after the start is
+// open, else "".
+func (a *Auth) OpenSetupLink(ctx context.Context) string {
+	a.mu.Lock()
+	link, until := a.openSetup, a.openUntil
+	a.mu.Unlock()
+	if link == "" || !time.Now().Before(until) || !a.NoAccounts(ctx) {
+		return ""
+	}
+	return link
+}

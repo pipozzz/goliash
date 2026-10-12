@@ -106,6 +106,13 @@
     });
   }
   document.addEventListener("change", function (e) { if (e.target.id === "matrix-drift") filterMatrix(); });
+  // Forms that take a while (filling the Example workspace) say so on their button, and cannot be sent twice.
+  document.addEventListener("submit", function (e) {
+    const busy = e.target.getAttribute("data-busy");
+    const button = e.target.querySelector("button[type=submit]");
+    if (!busy || !button) return;
+    setTimeout(function () { button.disabled = true; button.textContent = busy; }, 0);
+  });
 
   // Header menus: one open at a time; outside clicks and Escape close them.
   function closeMenus(except) {

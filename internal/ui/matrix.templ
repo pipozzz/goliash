@@ -99,7 +99,7 @@ templ MatrixPage(v MatrixView) {
 
 templ MatrixGridView(g MatrixGrid) {
 	if len(g.Rows) == 0 {
-		@firstRun(g.Steps)
+		@firstRun(g.Steps, g.Explore)
 	} else {
 		<div class="scroll">
 			<table class="matrix">
@@ -232,13 +232,13 @@ templ cellView(c MatrixCell) {
 	}
 }
 
-templ firstRun(steps []Step) {
+templ firstRun(steps []Step, explore bool) {
 	<div class="first-run">
 		<h2>Get started</h2>
 		<p class="muted">The matrix fills in once a target reports and its workloads belong to services.</p>
 		<ol class="steps">
 			for _, st := range steps {
-				<li class={ templ.KV("done", st.Done) }>
+				<li class={ templ.KV("done", st.Done), templ.KV("next", st.Next) }>
 					<span class="step-mark" aria-hidden="true"></span>
 					<div>
 						<strong>{ st.Title }</strong>
@@ -251,11 +251,21 @@ templ firstRun(steps []Step) {
 						<p class="muted">{ st.Text }</p>
 					</div>
 					if !st.Done {
-						<a class="button secondary" href={ templ.URL(st.Href) }>{ st.Action }</a>
+						<a class={ "button", templ.KV("secondary", !st.Next) } href={ templ.URL(st.Href) }>{ st.Action }</a>
 					}
 				</li>
 			}
 		</ol>
-		<p class="hint">Just looking? Run <code>goliash demo</code> on the server to fill this workspace with three weeks of example data.</p>
+		if explore {
+			<form class="explore" method="post" action="/workspaces/example" data-busy="Filling it with example data…">
+				<div>
+					<strong>Just looking?</strong>
+					<span class="muted">Open an Example workspace with three weeks of made-up data; yours stays as it is.</span>
+				</div>
+				<button type="submit" class="secondary">Explore with example data</button>
+			</form>
+		} else {
+			<p class="hint">Just looking? An organization admin can open an Example workspace with three weeks of example data.</p>
+		}
 	</div>
 }

@@ -87,6 +87,7 @@ messages only, not for sign-in links.
 | Variable | Meaning |
 | --- | --- |
 | `GOLIASH_RECOVERY_EMAIL` | Locked out without a shell: every start logs a one-time sign-in link for this person. Remove it once you are back in |
+| `GOLIASH_SETUP_WINDOW` | While nobody has an account, how long after the start the sign-in page offers to create the first one; default `15m`, `0` keeps the setup link in the log only |
 | `GOLIASH_SESSION_TTL` | How long a browser session lasts at most; default `720h` (30 days) |
 | `GOLIASH_SESSION_IDLE` | A session unused this long ends; default `336h` (14 days); `0` turns it off |
 | `GOLIASH_PASSWORD_LOGIN` | `false` turns password sign-in off (for example when everyone uses OIDC); default on |

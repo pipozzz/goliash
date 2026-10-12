@@ -1084,6 +1084,15 @@ func TestSetupPageAndLoginHint(t *testing.T) {
 		t.Fatal("no hint on an empty server")
 	}
 	link, _ := e.auth.SetupLink(ctx)
+	// Right after the start the login page offers the setup itself; the offer expires.
+	e.auth.OpenSetup(link, time.Now().Add(-time.Second))
+	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); strings.Contains(body, "Create the first account") {
+		t.Fatal("expired setup offered")
+	}
+	e.auth.OpenSetup(link, time.Now().Add(time.Minute))
+	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); !strings.Contains(body, "Create the first account") || !strings.Contains(body, "/setup?token=") {
+		t.Fatal("no setup offer within the window")
+	}
 	if code, body := get(t, noFollow, link, nil); code != http.StatusOK || !strings.Contains(body, "Create the account") {
 		t.Fatalf("setup page: %d", code)
 	}
@@ -1094,8 +1103,39 @@ func TestSetupPageAndLoginHint(t *testing.T) {
 	if code, _ := get(t, noFollow, link, nil); code != http.StatusSeeOther {
 		t.Fatal("setup page after the first account")
 	}
-	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); strings.Contains(body, "Nobody has an account yet") {
+	if _, body := get(t, http.DefaultClient, e.srv.URL+"/login", nil); strings.Contains(body, "Nobody has an account yet") || strings.Contains(body, "/setup?token=") {
 		t.Fatal("hint with accounts")
+	}
+}
+
+func TestExploreExampleWorkspace(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	member := e.as(store.RoleMember)
+	post(t, member, e.srv.URL+"/workspaces/example", nil)
+	if _, err := e.st.GetWorkspaceBySlug(ctx, e.ws.OrgID, "example"); err == nil {
+		t.Fatal("member created the example workspace")
+	}
+	admin := e.as(store.RoleAdmin)
+	for range 2 { // the second time opens the same workspace again
+		_, body, _ := post(t, admin, e.srv.URL+"/workspaces/example", nil)
+		if !strings.Contains(body, "This is the Example workspace") {
+			t.Fatalf("explore: %s", body)
+		}
+	}
+	ws, err := e.st.GetWorkspaceBySlug(ctx, e.ws.OrgID, "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if svcs, _ := e.st.ListServices(ctx, ws.Scope()); len(svcs) == 0 {
+		t.Fatal("example workspace has no data")
+	}
+	if all, _ := e.st.ListWorkspaces(ctx); len(all) != 2 {
+		t.Fatalf("workspaces %d", len(all))
+	}
+	// The admin now looks at the example data, the real workspace stays as it was.
+	if _, page := get(t, admin, e.srv.URL+"/", nil); strings.Contains(page, "k8s-prod") {
+		t.Fatal("still in the default workspace")
 	}
 }
 

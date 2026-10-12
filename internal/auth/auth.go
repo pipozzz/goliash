@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -97,6 +98,10 @@ type Auth struct {
 	byEmail    *limiter           // failed password sign-ins per e-mail
 	webauthn   *webauthn.WebAuthn // nil when the public URL cannot carry passkeys
 	demo       *store.User        // a public demo: everyone is signed in as this viewer
+
+	mu        sync.Mutex
+	openSetup string    // the setup page's address the login page may offer
+	openUntil time.Time // until when
 }
 
 // SetDemoUser makes this a public demo: visitors without a session are signed in as

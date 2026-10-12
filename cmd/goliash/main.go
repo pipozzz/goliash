@@ -448,6 +448,7 @@ func serve(ctx context.Context, args []string) error {
 			return fmt.Errorf("bootstrap: %w", err)
 		}
 	}
+	setupLink := ""
 	if n, err := db.CountUsers(ctx, ws.OrgID); err == nil && n == 0 {
 		a, err := auth.New(db, log, *publicURL, nil)
 		if err != nil {
@@ -457,6 +458,7 @@ func serve(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
+		setupLink = link
 		log.Warn("nobody has an account yet: open this link to create the first one (it works once, for 24 hours; restart for a new one)",
 			"link", link)
 	}
@@ -504,6 +506,13 @@ func serve(ctx context.Context, args []string) error {
 		return err
 	}
 	authn, err := newAuth(ctx, db, log, *publicURL)
+	if err == nil && setupLink != "" {
+		// Right after an installation the login page offers the first account itself, for a while: whoever
+		// installed it is the one looking. GOLIASH_SETUP_WINDOW=0 keeps it to the log.
+		if window := envDuration("GOLIASH_SETUP_WINDOW", 15*time.Minute); window > 0 {
+			authn.OpenSetup(setupLink, time.Now().Add(window))
+		}
+	}
 	if err != nil {
 		return err
 	}

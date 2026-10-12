@@ -872,3 +872,10 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 .vuln-use .fix { color: var(--ok); font-size: 12.5px; margin-left: 6px; }
 .vuln-use .muted { font-size: 12.5px; margin-left: 6px; }
 .notice.pending { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+/* Login right after an installation: the first account, one click away. */
+.setup-cta { display: grid; gap: 8px; padding: 14px; border-radius: var(--radius); background: var(--accent-soft); }
+.setup-cta .button { justify-content: center; padding: 11px 14px; font-size: 14px; }
+/* First run: the step to take now stands out, and exploring example data is one click. */
+.steps li.next { background: var(--accent-soft); border-radius: var(--radius); }
+.first-run .explore { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  margin-top: 14px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: var(--radius); }

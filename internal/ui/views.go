@@ -75,6 +75,7 @@ type MatrixGrid struct {
 	Agents   int
 	Updated  time.Time
 	Steps    []Step // first-run checklist, while the matrix is empty
+	Explore  bool   // the viewer may open an Example workspace with example data
 }
 
 // MatrixGroup is a run of matrix rows under one heading.
@@ -218,6 +219,7 @@ type Step struct {
 	Action   string
 	Done     bool
 	Optional bool
+	Next     bool // the step to take now: its button is the primary one
 }
 
 // EnvHeader is a matrix column.
@@ -837,8 +839,9 @@ type LoginView struct {
 	OIDC       string // provider name; empty when OIDC is off
 	Mail       bool
 	Password   bool
-	NoAccounts bool // nobody has an account yet: point to the setup link
-	Passkeys   bool // this server can offer passkeys
+	NoAccounts bool   // nobody has an account yet: point to the setup link
+	SetupLink  string // offered right after an installation, instead of the log
+	Passkeys   bool   // this server can offer passkeys
 }
 
 // relTime formats a time for <time datetime>.

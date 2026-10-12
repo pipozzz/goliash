@@ -28,6 +28,9 @@ description: 'How Goliash stays read-only, protects tokens, sessions and secrets
 - Owners can require two-factor sign-in for everyone who does not use single sign-on or a passkey.
 - Sessions end after 30 days, or 14 days unused (both configurable). Request bodies are capped at 1 MB outside the
   agent protocol, which has its own limits.
+- A server without accounts offers to create the first (owner) account on its sign-in page for 15 minutes after
+  the start, like other self-hosted tools; whoever opens it first owns the organization. Start it where only you
+  can reach it, or set `GOLIASH_SETUP_WINDOW=0` to keep the one-time setup link in the server log only.
 - Sign-in links are single-use and short-lived. Sessions are HttpOnly cookies, marked Secure when
   `GOLIASH_PUBLIC_URL` uses `https://`. Browsers may not send state-changing requests from other origins.
 - OIDC sign-in uses PKCE, state and nonce.

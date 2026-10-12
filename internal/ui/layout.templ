@@ -206,10 +206,21 @@ templ Login(v LoginView) {
 						Goliash
 					</span>
 					<div>
-						<h1>Sign in</h1>
+						if v.SetupLink != "" {
+							<h1>Set up Goliash</h1>
+						} else {
+							<h1>Sign in</h1>
+						}
 						<p class="muted">What runs where, on which version.</p>
 					</div>
-					if v.NoAccounts {
+					if v.NoAccounts && v.SetupLink != "" {
+						<div class="setup-cta">
+							<strong>Welcome.</strong>
+							<span class="muted">Nobody has an account yet: create the first one, the owner of this server. It takes a minute.</span>
+							<a class="button" href={ templ.URL(v.SetupLink) }>Create the first account</a>
+							<span class="hint">Offered for a short while after the server starts; later the link is in its log.</span>
+						</div>
+					} else if v.NoAccounts {
 						<div class="notice" role="status">
 							<strong>Nobody has an account yet.</strong> The server wrote a link to create the first one into its log, e.g.
 							<code>docker compose logs goliash | grep link=</code>
@@ -228,7 +239,7 @@ templ Login(v LoginView) {
 						<button type="button" class={ "passkey-button", templ.KV("secondary", v.OIDC != "") } data-passkey="/auth/passkey" hidden>Sign in with a passkey</button>
 						<p class="notice error" data-passkey-error hidden role="alert"></p>
 					}
-					if v.Password {
+					if v.Password && v.SetupLink == "" {
 						if v.OIDC != "" {
 							<div class="divider">or</div>
 						}
@@ -247,7 +258,7 @@ templ Login(v LoginView) {
 							}
 						</form>
 					}
-					if v.Mail {
+					if v.Mail && v.SetupLink == "" {
 						if v.OIDC != "" || v.Password {
 							<div class="divider">
 								if v.Password {

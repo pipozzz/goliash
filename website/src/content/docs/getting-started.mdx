@@ -27,18 +27,21 @@ The server listens on [http://localhost:8080](http://localhost:8080) and keeps i
 
 ## 2. Create your account
 
-While nobody has an account, the server writes a one-time **setup link** to its log (the last command above shows
-it). Open it, enter your e-mail and a password: you are the owner of the organization and signed in. The link works
-once, for 24 hours; restarting the server writes a new one. Later, invite the others from **Settings → Users**.
+Open [http://localhost:8080](http://localhost:8080): for the first 15 minutes after the start, while nobody has an
+account, the sign-in page offers **Create the first account**. Enter your e-mail and a password: you are the owner of
+the organization and signed in. Later the offer is gone from the page and the one-time **setup link** is only in the
+server log (the last command above shows it); it works once, for 24 hours, and restarting the server writes a new one.
+Invite the others from **Settings → Users**.
 
 ## 3. Look around with example data (optional)
 
-```sh
-docker compose exec goliash goliash demo
-```
+The empty overview shows **Get started** with the next step highlighted. Below it, **Explore with example data**
+opens a separate *Example* workspace with three weeks of realistic history: four targets, seven services, rollouts,
+drift and new upstream releases. Your own workspace stays empty and clean; switch back in the workspace menu at the
+top and delete *Example* under **Settings → Workspaces** when you are done.
 
-This fills the workspace with three weeks of realistic history: four targets, seven services, rollouts, drift and
-new upstream releases. The demo targets are named `demo-*`, so they are easy to tell apart from real ones.
+To put the example data into the current workspace instead, run `docker compose exec goliash goliash demo`; its
+targets are named `demo-*`, so they are easy to tell apart from real ones.
 
 ## 4. Connect what you run
 
