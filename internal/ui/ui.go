@@ -743,6 +743,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if v.CanMember {
 		v.Badges = s.serviceBadges(r.Context(), p.Scope, v.Name, v.Envs)
 	}
+	if v.Security, err = s.serviceSecurity(ctx, p.Scope, svc); err != nil {
+		return err
+	}
 	return render(w, r, ServicePage(v))
 }
 
@@ -2836,4 +2839,121 @@ func (s *Server) mapSuggested(ctx context.Context, p auth.Principal) (images, wo
 	}
 	images, workloads, _, err = s.mapImages(ctx, p, repos, names)
 	return images, workloads, err
+}
+
+// serviceFindingsShown is how many vulnerabilities the service page lists before linking to the rest.
+const serviceFindingsShown = 8
+
+// serviceSecurity gathers the service's running images with their evidence and the vulnerabilities their SBOMs
+// show: exploited ones first, then by severity.
+func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.Service) (ServiceSecurity, error) {
+	var out ServiceSecurity
+	active, err := s.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return out, err
+	}
+	envs, err := s.store.ListEnvironments(ctx, sc)
+	if err != nil {
+		return out, err
+	}
+	envName, envPos := map[string]string{}, map[string]int{}
+	for _, e := range envs {
+		envName[e.ID], envPos[e.ID] = e.Name, e.Position
+	}
+	known, err := s.store.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return out, err
+	}
+	seen := map[string]bool{}
+	type row struct {
+		ImageSecurity
+		pos int
+	}
+	var rows []row
+	for _, in := range active {
+		if in.ServiceID != svc.ID || !in.IsMain || in.Digest == "" {
+			continue
+		}
+		repo := versions.ParseImage(in.Image).Repo()
+		k := in.EnvironmentID + "|" + repo + "@" + in.Digest
+		if seen[k] || versions.PackageRepo(repo) {
+			continue
+		}
+		seen[k] = true
+		ev, ok := known[repo+"@"+in.Digest]
+		rows = append(rows, row{ImageSecurity{
+			Env: envName[in.EnvironmentID], Image: in.Image, Digest: in.Digest,
+			Checked: ok && !ev.CheckedAt.IsZero(), Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance,
+		}, envPos[in.EnvironmentID]})
+		if ev.SBOM {
+			out.WithSBOM++
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].pos != rows[j].pos {
+			return rows[i].pos > rows[j].pos // production first
+		}
+		return rows[i].Image < rows[j].Image
+	})
+	for _, r := range rows {
+		out.Images = append(out.Images, r.ImageSecurity)
+	}
+	if len(out.Images) == 0 {
+		return out, nil
+	}
+	rep, err := versions.LoadVulnReport(ctx, s.store, sc, "")
+	if err != nil {
+		return out, nil // the evidence is still worth showing
+	}
+	rank := map[string]int{"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "MEDIUM": 2, "LOW": 1}
+	var all []ServiceFinding
+	for _, f := range rep.Findings {
+		var pkgs, fixes, where []string
+		var whereIDs []string
+		for _, a := range f.Affected {
+			if a.ServiceID != svc.ID {
+				continue
+			}
+			if !slices.Contains(whereIDs, a.EnvironmentID) {
+				whereIDs = append(whereIDs, a.EnvironmentID)
+			}
+			if !slices.Contains(pkgs, a.Package) {
+				pkgs = append(pkgs, a.Package)
+			}
+			if a.Fix != "" && !slices.Contains(fixes, a.Fix) {
+				fixes = append(fixes, a.Fix)
+			}
+		}
+		if len(pkgs) == 0 {
+			continue
+		}
+		sort.Slice(whereIDs, func(i, j int) bool { return envPos[whereIDs[i]] > envPos[whereIDs[j]] })
+		for _, id := range whereIDs {
+			where = append(where, envName[id])
+		}
+		sf := ServiceFinding{
+			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),
+			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil,
+		}
+		if sf.Exploited {
+			out.Exploited++
+		}
+		all = append(all, sf)
+	}
+	sort.SliceStable(all, func(i, j int) bool {
+		if all[i].Exploited != all[j].Exploited {
+			return all[i].Exploited
+		}
+		if a, b := rank[strings.ToUpper(all[i].Severity)], rank[strings.ToUpper(all[j].Severity)]; a != b {
+			return a > b
+		}
+		return all[i].Key > all[j].Key
+	})
+	out.Total = len(all)
+	if len(all) > serviceFindingsShown {
+		out.More = len(all) - serviceFindingsShown
+		all = all[:serviceFindingsShown]
+	}
+	out.Findings = all
+	return out, nil
 }

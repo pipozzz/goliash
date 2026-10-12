@@ -1839,3 +1839,26 @@ func TestMarkExploited(t *testing.T) {
 		t.Fatal("tile not marked for attention")
 	}
 }
+
+func TestServiceSecurityPanel(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	svc, _ := e.st.EnsureService(ctx, sc, "billing")
+	digest := "sha256:" + strings.Repeat("c", 64)
+	snap := store.NewID()
+	_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: snap, Scope: sc, TargetID: e.tgt.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, SnapshotID: snap, TargetID: e.tgt.ID, At: time.Now(), Upsert: []store.Instance{{
+		TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: svc.ID, WorkloadID: "b", WorkloadKind: "deployment", WorkloadName: "billing",
+		ContainerName: "app", Image: "ghcr.io/acme/billing:1.0.0", Tag: "1.0.0", Digest: digest, Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: "ghcr.io/acme/billing", Digest: digest, Signed: true, SBOM: true}); err != nil {
+		t.Fatal(err)
+	}
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/billing", nil)
+	if !strings.Contains(page, `id="security"`) || !strings.Contains(page, "ghcr.io/acme/billing:1.0.0") || !strings.Contains(page, "no known vulnerabilities in its SBOMs") {
+		t.Fatal("no security panel for the service")
+	}
+}

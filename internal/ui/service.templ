@@ -228,6 +228,9 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 		</div>
+		if len(v.Security.Images) > 0 {
+			@serviceSecurity(v)
+		}
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>History</h2><a href={ templ.URL("/events?service=" + v.Name) }>All events →</a></div>
@@ -496,4 +499,93 @@ templ manualPanel(v ServiceView) {
 			}
 		</div>
 	</section>
+}
+
+// serviceSecurity is what the registry and the images' SBOMs say about the images the service runs.
+templ serviceSecurity(v ServiceView) {
+	{{ sec := v.Security }}
+	<section class="panel" id="security">
+		<div class="panel-head">
+			<h2>Security</h2>
+			<span class="muted">
+				if sec.Exploited > 0 {
+					<span class="badge exploited">{ plural(sec.Exploited, "exploited vulnerability", "exploited vulnerabilities") }</span>
+				}
+				if sec.Total > 0 {
+					{ plural(sec.Total, "known vulnerability", "known vulnerabilities") } · <a href={ templ.URL("/security/vulns?env=all&q=" + v.Name) }>All of them →</a>
+				} else if sec.WithSBOM > 0 {
+					no known vulnerabilities in its SBOMs
+				} else {
+					no SBOM to check
+				}
+			</span>
+		</div>
+		<div class="scroll">
+			<table>
+				<thead><tr><th>Environment</th><th>Image</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
+				<tbody>
+					for _, im := range sec.Images {
+						<tr>
+							<td><strong>{ im.Env }</strong></td>
+							<td><code title={ im.Digest }>{ im.Image }</code></td>
+							if !im.Checked {
+								<td colspan="3" class="muted">not checked yet</td>
+							} else {
+								<td>@evidenceMark(im.Signed)</td>
+								<td>@evidenceMark(im.SBOM)</td>
+								<td>@evidenceMark(im.Provenance)</td>
+							}
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if len(sec.Findings) > 0 {
+			<div class="scroll" style="border-top:1px solid var(--line)">
+				<table>
+					<thead><tr><th>Vulnerability</th><th>Severity</th><th>Package</th><th>Where</th></tr></thead>
+					<tbody>
+						for _, f := range sec.Findings {
+							<tr>
+								<td>
+									<a href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }><strong>{ f.Key }</strong></a>
+									if f.Summary != "" {
+										<div class="targets">{ f.Summary }</div>
+									}
+								</td>
+								<td>
+									if f.Exploited {
+										<span class="badge exploited">exploited</span>
+									}
+									if f.Severity != "" {
+										<span class="muted">{ strings.ToLower(f.Severity) }</span>
+									}
+								</td>
+								<td>
+									<code>{ f.Package }</code>
+									if f.Fix != "" {
+										<div class="targets">{ "fixed in " + f.Fix }</div>
+									} else {
+										<div class="targets">no fix yet</div>
+									}
+								</td>
+								<td>{ f.Envs }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			if sec.More > 0 {
+				<div class="panel-body"><a href={ templ.URL("/security/vulns?env=all&q=" + v.Name) }>{ plural(sec.More, "more", "more") } →</a></div>
+			}
+		}
+	</section>
+}
+
+templ evidenceMark(ok bool) {
+	if ok {
+		<span class="badge ok">yes</span>
+	} else {
+		<span class="muted">no</span>
+	}
 }

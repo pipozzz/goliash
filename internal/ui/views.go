@@ -431,6 +431,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
+	Security       ServiceSecurity
 	Name           string
 	Owner          string
 	OwnerSource    string // "" set by people, "label" or "app" when Goliash set it
@@ -1234,4 +1235,25 @@ func markExploited(g *MatrixGrid, r versions.VulnReport) {
 		}
 	}
 	g.Groups = groupRows(g.Rows, g.GroupBy)
+}
+
+// ServiceSecurity is the service's running images with their supply-chain evidence, and the vulnerabilities their
+// SBOMs show, the most urgent first.
+type ServiceSecurity struct {
+	Images           []ImageSecurity
+	Findings         []ServiceFinding
+	Total, Exploited int
+	WithSBOM, More   int
+}
+
+// ImageSecurity is one running image of the service in one environment.
+type ImageSecurity struct {
+	Env, Image, Digest                string
+	Checked, Signed, SBOM, Provenance bool
+}
+
+// ServiceFinding is one vulnerability in the service's images.
+type ServiceFinding struct {
+	Key, Summary, Severity, Package, Fix, Envs string
+	Exploited                                  bool
 }
