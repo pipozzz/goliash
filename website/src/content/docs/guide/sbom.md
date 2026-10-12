@@ -89,12 +89,16 @@ first but not the second; without it the upload answers 401.
 
 ## Where the packages come from
 
-Goliash does not scan images. It reads the SBOM the build already attached to the image in its registry: the SPDX
-or CycloneDX attestation BuildKit adds with `docker buildx build --sbom=true` (in GitHub Actions,
-`docker/build-push-action` with `sbom: true`). That one build flag is all an image needs.
+Goliash does not scan images. It reads the SBOM the build already attached to the image in its registry, SPDX or
+CycloneDX, wherever it is:
 
-SBOMs attached with `cosign attest` or pushed as OCI referrers count on the Security page as *has an SBOM*, but
-their packages are not read yet; for packages in the export, build with `--sbom=true`.
+- **BuildKit**: `docker buildx build --sbom=true`, or `sbom: true` in GitHub Actions' `docker/build-push-action`.
+  That one flag is all an image needs.
+- **cosign**: `cosign attest --type cyclonedx` or `--type spdxjson`, for example with an SBOM from
+  [Syft](https://github.com/anchore/syft) or Trivy. Chainguard images come with one per platform; Goliash reads the
+  linux/amd64 one when the image index's own SBOM only lists its platforms.
+- **OCI referrers**: an SBOM pushed as an artifact (`oras attach --artifact-type application/vnd.cyclonedx+json`) or
+  a Sigstore bundle with an SBOM predicate.
 
 Images on public registries are read by the server. Images on private registries are read by the agents with the
 credentials they already use, or by the server with read access given under

@@ -58,7 +58,8 @@ vulnerability of the running images:
 
 ![Known vulnerabilities, only those exploited in the wild: two Log4j CVEs marked exploited, ransomware and critical with CISA's due dates, in log4j-core 2.14.1 of payments-api in prod, fixed in 2.15.0 and 2.16.0](../../../assets/vulns.png)
 
-1. For images whose registry holds an SBOM attestation (see above), Goliash reads its package list once: package URLs
+1. For images whose registry holds an SBOM (a BuildKit or cosign attestation, or an OCI referrer, see
+   [SBOM of what runs](../sbom/#where-the-packages-come-from)), Goliash reads its package list once: package URLs
    such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`.
 2. It asks [OSV](https://osv.dev) which known vulnerabilities affect those packages, again every day, and reads
    each advisory once for its CVE aliases, summary and severity.

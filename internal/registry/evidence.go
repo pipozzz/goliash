@@ -35,6 +35,10 @@ type descriptor struct {
 	ArtifactType string            `json:"artifactType"`
 	Digest       string            `json:"digest"`
 	Annotations  map[string]string `json:"annotations"`
+	Platform     *struct {
+		OS           string `json:"os"`
+		Architecture string `json:"architecture"`
+	} `json:"platform"`
 }
 
 type evidenceManifest struct {

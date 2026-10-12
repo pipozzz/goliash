@@ -21,7 +21,7 @@ type SBOMReader interface {
 
 const (
 	sbomsPerRun    = 5              // SBOMs read per workspace and run
-	sbomRetry      = 24 * time.Hour // after a failed read; a read SBOM never changes, its digest does not
+	sbomRetry      = 24 * time.Hour // after a failed or empty read; a read SBOM never changes, its digest does not
 	osvTTL         = 24 * time.Hour // how long OSV's answer for a package is trusted
 	osvPerRun      = 5000           // packages asked per workspace and run
 	detailsPerRun  = 500            // vulnerability records read per run
@@ -65,7 +65,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 		keys[key] = true
 		b, have := sboms[key]
-		if !auth.Reads(repo) || !evidence[key].SBOM || (have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
+		if !auth.Reads(repo) || !evidence[key].SBOM || (have && ((b.Error == "" && len(b.Purls) > 0) || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
 			continue
 		}
 		read++
