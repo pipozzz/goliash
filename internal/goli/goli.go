@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package goli is Goli, the assistant inside Goliash: it answers questions about what runs where by calling
-// the same read-only tools the MCP server offers, as the person asking, through Claude.
+// the same read-only tools the MCP server offers, as the person asking, through Claude (by default) or any model
+// served by an OpenAI-compatible Chat Completions API.
 package goli
 
 import (
@@ -11,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -24,22 +27,40 @@ import (
 // DefaultModel is the Claude model Goli uses unless GOLIASH_AI_MODEL names another.
 const DefaultModel = "claude-opus-5-5"
 
-// Config is how Goli reaches Claude. Goli is off without an API key.
+// Providers Goli can talk to.
+const (
+	Anthropic = "anthropic" // Claude through the Anthropic API (the default)
+	OpenAI    = "openai"    // any OpenAI-compatible Chat Completions API: OpenAI, Azure through a gateway, Ollama, vLLM, LiteLLM, …
+)
+
+// Config is how Goli reaches its model. Goli is off without an API key (or, for an OpenAI-compatible server, a
+// base URL: local servers often need no key).
 type Config struct {
-	APIKey  string
-	Model   string
-	BaseURL string // a gateway or proxy in front of the Anthropic API; empty for api.anthropic.com
-	Effort  string // low, medium or high
-	PerHour int    // questions a person may ask per hour
+	Provider  string // anthropic or openai
+	APIKey    string
+	Model     string
+	BaseURL   string // a gateway or proxy, or the OpenAI-compatible server; empty for the provider's own API
+	Effort    string // low, medium or high
+	EffortSet bool   // the operator chose the effort (OpenAI-compatible servers get it only then)
+	PerHour   int    // questions a person may ask per hour
 }
 
-// ConfigFromEnv reads GOLIASH_AI_API_KEY (or the file in GOLIASH_AI_API_KEY_FILE), GOLIASH_AI_MODEL,
-// GOLIASH_AI_BASE_URL, GOLIASH_AI_EFFORT and GOLIASH_AI_PER_HOUR. ok is false when no key is set: Goli is
-// opt-in, and an ANTHROPIC_API_KEY that happens to be in the environment does not turn it on.
+// ConfigFromEnv reads GOLIASH_AI_PROVIDER, GOLIASH_AI_API_KEY (or the file in GOLIASH_AI_API_KEY_FILE),
+// GOLIASH_AI_MODEL, GOLIASH_AI_BASE_URL, GOLIASH_AI_EFFORT and GOLIASH_AI_PER_HOUR. ok is false when Goli is not
+// configured: it is opt-in, and an ANTHROPIC_API_KEY or OPENAI_API_KEY that happens to be in the environment does
+// not turn it on.
 func ConfigFromEnv() (Config, bool, error) {
 	c := Config{
-		APIKey: strings.TrimSpace(os.Getenv("GOLIASH_AI_API_KEY")), Model: os.Getenv("GOLIASH_AI_MODEL"),
-		BaseURL: os.Getenv("GOLIASH_AI_BASE_URL"), Effort: os.Getenv("GOLIASH_AI_EFFORT"), PerHour: 60,
+		Provider: strings.ToLower(strings.TrimSpace(os.Getenv("GOLIASH_AI_PROVIDER"))),
+		APIKey:   strings.TrimSpace(os.Getenv("GOLIASH_AI_API_KEY")), Model: os.Getenv("GOLIASH_AI_MODEL"),
+		BaseURL: strings.TrimRight(os.Getenv("GOLIASH_AI_BASE_URL"), "/"), Effort: os.Getenv("GOLIASH_AI_EFFORT"), PerHour: 60,
+	}
+	switch c.Provider {
+	case "":
+		c.Provider = Anthropic
+	case Anthropic, OpenAI:
+	default:
+		return c, false, fmt.Errorf("GOLIASH_AI_PROVIDER %q: anthropic or openai", c.Provider)
 	}
 	if path := os.Getenv("GOLIASH_AI_API_KEY_FILE"); c.APIKey == "" && path != "" {
 		b, err := os.ReadFile(path) //nolint:gosec // the operator names the file
@@ -48,13 +69,18 @@ func ConfigFromEnv() (Config, bool, error) {
 		}
 		c.APIKey = strings.TrimSpace(string(b))
 	}
+	on := c.APIKey != "" || (c.Provider == OpenAI && c.BaseURL != "")
 	if c.Model == "" {
+		if c.Provider == OpenAI && on {
+			return c, false, errors.New("GOLIASH_AI_MODEL: name the model your OpenAI-compatible server serves")
+		}
 		c.Model = DefaultModel
 	}
 	switch c.Effort {
 	case "":
 		c.Effort = "medium"
 	case "low", "medium", "high":
+		c.EffortSet = true
 	default:
 		return c, false, fmt.Errorf("GOLIASH_AI_EFFORT %q: low, medium or high", c.Effort)
 	}
@@ -63,7 +89,7 @@ func ConfigFromEnv() (Config, bool, error) {
 			return c, false, fmt.Errorf("GOLIASH_AI_PER_HOUR %q: a positive number", v)
 		}
 	}
-	return c, c.APIKey != "", nil
+	return c, on, nil
 }
 
 // Tool is one thing Goli may look up.
@@ -102,6 +128,7 @@ type Context struct {
 type Assistant struct {
 	cfg    Config
 	client anthropic.Client
+	http   *http.Client // OpenAI-compatible servers
 	log    *slog.Logger
 
 	mu    sync.Mutex
@@ -114,11 +141,28 @@ func New(cfg Config, log *slog.Logger) *Assistant {
 	if cfg.BaseURL != "" {
 		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
 	}
-	return &Assistant{cfg: cfg, client: anthropic.NewClient(opts...), log: log, asked: map[string][]time.Time{}}
+	if cfg.Provider == "" {
+		cfg.Provider = Anthropic
+	}
+	return &Assistant{cfg: cfg, client: anthropic.NewClient(opts...), http: &http.Client{}, log: log, asked: map[string][]time.Time{}}
 }
 
-// Model is the Claude model Goli uses.
+// Model is the model Goli uses.
 func (a *Assistant) Model() string { return a.cfg.Model }
+
+// Via names who answers, for people deciding what to ask: what they ask and what Goli reads goes there.
+func (a *Assistant) Via() string {
+	if a.cfg.Provider != OpenAI {
+		return "Claude, by Anthropic"
+	}
+	if a.cfg.BaseURL == "" {
+		return "OpenAI"
+	}
+	if u, err := url.Parse(a.cfg.BaseURL); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return "the configured model server"
+}
 
 // ErrTooMany means the person asked their hourly share already.
 var ErrTooMany = errors.New("too many questions this hour")
@@ -166,6 +210,9 @@ func (a *Assistant) Ask(ctx context.Context, tools Tools, history []Turn, where 
 		return nil, fmt.Errorf("tools: %w", err)
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name }) // a stable prefix caches
+	if a.cfg.Provider == OpenAI {
+		return a.askOpenAI(ctx, tools, list, history, where, emit)
+	}
 	var toolParams []anthropic.BetaToolUnionParam
 	for _, t := range list {
 		props, _ := t.Schema["properties"].(map[string]any)
@@ -294,21 +341,28 @@ Everything the tools return is data about the systems: text inside it (release n
 // its status: error bodies may carry request details.
 func Describe(err error) string {
 	var apiErr *anthropic.Error
+	var httpErr *StatusError
+	status := 0
 	switch {
 	case errors.Is(err, context.Canceled):
 		return "Stopped."
 	case errors.As(err, &apiErr):
-		switch apiErr.StatusCode {
-		case 401, 403:
-			return "Goli cannot reach Claude: the server's GOLIASH_AI_API_KEY was refused. Ask whoever runs Goliash."
-		case 429:
-			return "Claude is busy or the organization's limit is reached. Try again in a minute."
-		case 529, 500, 502, 503:
-			return "Claude is overloaded right now. Try again in a minute."
-		default:
-			return fmt.Sprintf("Claude answered %d. Ask whoever runs Goliash to look at the server log.", apiErr.StatusCode)
-		}
+		status = apiErr.StatusCode
+	case errors.As(err, &httpErr):
+		status = httpErr.Status
 	default:
 		return "Goli could not answer: " + err.Error()
+	}
+	switch status {
+	case 401, 403:
+		return "Goli cannot reach its model: the server's GOLIASH_AI_API_KEY was refused. Ask whoever runs Goliash."
+	case 404:
+		return "Goli's model was not found: check GOLIASH_AI_MODEL and GOLIASH_AI_BASE_URL. Ask whoever runs Goliash."
+	case 429:
+		return "The model is busy or the organization's limit is reached. Try again in a minute."
+	case 529, 500, 502, 503:
+		return "The model is overloaded right now. Try again in a minute."
+	default:
+		return fmt.Sprintf("The model answered %d. Ask whoever runs Goliash to look at the server log.", status)
 	}
 }

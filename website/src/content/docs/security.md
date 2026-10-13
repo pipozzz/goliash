@@ -48,9 +48,9 @@ See
 
 ## The assistant
 
-[Goli](/guide/goli/) is off unless the server has an Anthropic API key. When on, it reads through the REST API with
+[Goli](/guide/goli/) is off unless the server has a model configured (Anthropic, or an OpenAI-compatible API). When on, it reads through the REST API with
 the asking person's session, so it sees what they may see, and it has no tool that changes anything. What it looks
-up goes to Anthropic with the question; credentials and secrets never do. The log records who asked and which
+up goes to that model's API with the question; credentials and secrets never do. The log records who asked and which
 tools were used, not the question.
 
 ## Audit log

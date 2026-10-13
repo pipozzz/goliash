@@ -27,10 +27,12 @@ secretKey:
   existingSecretKey: secret-key
   generate: true
 
-# Goli, the assistant (https://goliash.dev/guide/goli/): off until existingSecret names a Secret holding an
-# Anthropic API key. Questions and what Goli looks up go to the Anthropic API (or baseURL), so the pods need egress
-# to it. Empty model, effort and baseURL keep the server's defaults (claude-opus-5-5, medium, api.anthropic.com).
+# Goli, the assistant (https://goliash.dev/guide/goli/): off until existingSecret names a Secret holding the
+# provider's API key (or, with provider openai, baseURL names a server that needs none). Questions and what Goli looks
+# up go to that API, so the pods need egress to it. Empty values keep the server's defaults (anthropic,
+# claude-opus-5-5, medium, the provider's own API); with openai, model is required.
 goli:
+  provider: ""        # anthropic (default) or openai, for any OpenAI-compatible API
   existingSecret: ""
   existingSecretKey: anthropic-api-key
   model: ""

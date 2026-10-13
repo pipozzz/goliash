@@ -120,7 +120,7 @@ templ Layout(b Base) {
 							<kbd>⌘K</kbd>
 						</button>
 						if b.Goli {
-							<button type="button" class="goli-open" data-goli title="Ask Goli, the assistant">
+							<button type="button" class="goli-open" data-goli data-goli-via={ b.GoliVia } title="Ask Goli, the assistant">
 								@goliMascot("goli-mini")
 								<span>Ask Goli</span>
 							</button>

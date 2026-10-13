@@ -340,6 +340,9 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(),
 		Workspace: p.Workspace.Name, Demo: s.auth.Demo(), Goli: s.goli != nil && !s.auth.Demo(),
 	}
+	if b.Goli {
+		b.GoliVia = s.goli.Via()
+	}
 	for _, a := range p.Workspaces {
 		b.Workspaces = append(b.Workspaces, WorkspaceOption{ID: a.Workspace.ID, Name: a.Workspace.Name, Current: a.Workspace.ID == p.Scope.WorkspaceID})
 	}

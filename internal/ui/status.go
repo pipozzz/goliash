@@ -27,7 +27,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request, p auth.Principal
 		Summary: "Off. Set GOLIASH_AI_API_KEY on the server to an Anthropic API key to ask questions in plain words.",
 	}
 	if s.goli != nil && !s.auth.Demo() {
-		g.State, g.Summary, g.Link, g.LinkText = "ok", "On, answering with "+s.goli.Model()+".", "", ""
+		g.State, g.Summary, g.Link, g.LinkText = "ok", "On, answering with "+s.goli.Model()+" ("+s.goli.Via()+").", "", ""
 	}
 	h.Checks = append(h.Checks, g)
 	v := StatusView{Base: withFlash(s.base(r.Context(), p, "status", "Status"), r), Health: h}

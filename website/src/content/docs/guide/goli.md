@@ -40,11 +40,29 @@ GOLIASH_AI_API_KEY=sk-ant-… goliash serve
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `GOLIASH_AI_API_KEY` | | Anthropic API key; Goli is off without it. `GOLIASH_AI_API_KEY_FILE` reads it from a file instead |
-| `GOLIASH_AI_MODEL` | `claude-opus-5-5` | The Claude model |
-| `GOLIASH_AI_EFFORT` | `medium` | How hard the model thinks: `low`, `medium` or `high` |
-| `GOLIASH_AI_BASE_URL` | Anthropic's API | A gateway or proxy in front of the Anthropic API |
+| `GOLIASH_AI_PROVIDER` | `anthropic` | `anthropic`, or `openai` for any OpenAI-compatible API (see below) |
+| `GOLIASH_AI_API_KEY` | | The provider's API key; Goli is off without it. `GOLIASH_AI_API_KEY_FILE` reads it from a file instead |
+| `GOLIASH_AI_MODEL` | `claude-opus-5-5` | The model; required with `openai` |
+| `GOLIASH_AI_EFFORT` | `medium` | How hard the model thinks: `low`, `medium` or `high` (sent to OpenAI-compatible servers only when set) |
+| `GOLIASH_AI_BASE_URL` | the provider's API | A gateway or proxy, or the OpenAI-compatible server |
 | `GOLIASH_AI_PER_HOUR` | `60` | Questions one person may ask per hour |
+
+### OpenAI and other models
+
+Goli also talks to any server that speaks the OpenAI Chat Completions API with function calling: OpenAI itself,
+Azure OpenAI or Bedrock through a gateway such as LiteLLM, OpenRouter, Groq, or a model on your own hardware with
+Ollama or vLLM. Name the model it serves:
+
+```sh
+# OpenAI
+GOLIASH_AI_PROVIDER=openai GOLIASH_AI_API_KEY=sk-… GOLIASH_AI_MODEL=<model> goliash serve
+
+# A local model with Ollama: nothing leaves your network, and no key is needed
+GOLIASH_AI_PROVIDER=openai GOLIASH_AI_BASE_URL=http://ollama:11434/v1 GOLIASH_AI_MODEL=<model> goliash serve
+```
+
+Goli is only as good as the model behind it: pick one that handles tool calls well, or answers get vague. The panel
+and the Status page say which provider answers.
 
 With the Helm chart, keep the key in a Secret:
 
@@ -55,17 +73,18 @@ helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash --reuse-values --set g
 
 The pods then need egress to `api.anthropic.com` (or your `goli.baseURL`).
 
-An `ANTHROPIC_API_KEY` that happens to be in the server's environment does not turn Goli on: it is a choice to
+An `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` that happens to be in the server's environment does not turn Goli on: it is a choice to
 make on purpose. The public demo never offers it.
 
 ## What leaves your server
 
 Your question, the last turns of the conversation, the workspace's name, your role, the page you are on and
 **what Goli looks up** (service names, versions, environments, images, vulnerabilities, release notes) go to
-Anthropic's API over TLS. Nothing else does: no credentials, tokens, registry secrets or data of other workspaces.
+the model's API: Anthropic's by default, or the provider you configure. Nothing else does: no credentials, tokens, registry secrets or data of other workspaces.
 Anthropic does not train on API traffic by default; see its
 [commercial terms](https://www.anthropic.com/legal/commercial-terms) and, for zero data retention or a regional
-deployment, talk to Anthropic or put your own gateway in `GOLIASH_AI_BASE_URL`.
+deployment, talk to Anthropic or put your own gateway in `GOLIASH_AI_BASE_URL`. With a local model, nothing leaves
+your network.
 
 The server log records who asked, in which workspace, which tools Goli used and how long it took, never the
 question.

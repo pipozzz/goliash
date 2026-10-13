@@ -551,7 +551,7 @@ func serve(ctx context.Context, args []string) error {
 	var assistant *goli.Assistant
 	if aiOn {
 		assistant = goli.New(aiCfg, log)
-		log.Info("Goli, the assistant, is on", "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
+		log.Info("Goli, the assistant, is on", "provider", aiCfg.Provider, "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
 	}
 	ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,

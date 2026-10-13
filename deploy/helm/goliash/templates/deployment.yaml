@@ -70,6 +70,9 @@ spec:
               valueFrom:
                 secretKeyRef: { name: {{ .existingSecret }}, key: {{ .existingSecretKey }} }
             {{- end }}
+            {{- if .provider }}
+            - { name: GOLIASH_AI_PROVIDER, value: {{ .provider | quote }} }
+            {{- end }}
             {{- if .model }}
             - { name: GOLIASH_AI_MODEL, value: {{ .model | quote }} }
             {{- end }}

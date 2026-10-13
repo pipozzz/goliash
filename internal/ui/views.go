@@ -32,8 +32,9 @@ type Base struct {
 	Kiosk      bool // a full-screen page without the header (the tiles' TV mode)
 	Workspace  string
 	Workspaces []WorkspaceOption
-	Demo       bool // a public, read-only demo
-	Goli       bool // Goli, the assistant, answers questions
+	Demo       bool   // a public, read-only demo
+	Goli       bool   // Goli, the assistant, answers questions
+	GoliVia    string // who answers for Goli: the model's provider, which sees questions and what Goli reads
 }
 
 // WorkspaceOption is one entry of the workspace switcher.

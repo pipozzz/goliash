@@ -681,7 +681,9 @@
       const send = el("button", "goli-send", "Ask");
       send.type = "submit";
       form.appendChild(input); form.appendChild(send);
-      const note = el("p", "goli-note", "Goli reads what you may see here and sends it with your question to Claude, by Anthropic. It changes nothing. Check what matters. ");
+      const viaEl = document.querySelector("[data-goli-via]");
+      const via = (viaEl && viaEl.getAttribute("data-goli-via")) || "its model";
+      const note = el("p", "goli-note", "Goli reads what you may see here and sends it with your question to " + via + ". It changes nothing. Check what matters. ");
       const corner = el("button", "goli-corner link");
       corner.type = "button";
       corner.addEventListener("click", function () { goliCorner(!goliCornerOn()); });
