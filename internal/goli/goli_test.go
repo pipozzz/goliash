@@ -235,8 +235,9 @@ func TestAllowTodayCeiling(t *testing.T) {
 	}
 	a.cfg.PerDay = 2
 	a.today, a.day = 0, ""
-	if !a.AllowToday(now) || !a.AllowToday(now) || a.AllowToday(now) {
-		t.Error("ceiling of 2 not kept")
+	got := []bool{a.AllowToday(now), a.AllowToday(now), a.AllowToday(now)}
+	if !got[0] || !got[1] || got[2] {
+		t.Errorf("ceiling of 2: %v", got)
 	}
 	if !a.AllowToday(now.Add(2 * time.Hour)) {
 		t.Error("refused the next day")
