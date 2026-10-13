@@ -163,6 +163,13 @@ data). When the model cannot be reached, the plan goes without it.
 > Goli's take: Upgrade payments-api in prod first: its log4j-core is exploited in the wild and 2.16.0 fixes it.
 > Postgres 15 reaches end of life next month; the minor updates in staging can wait.
 
+## Ask Goli about an alert
+
+With [Goli](/guide/goli/) on, a single alert (a vulnerability, a drift, an upgrade, a silent agent) carries an
+**Ask Goli** button in Slack, Teams and e-mail. It opens Goliash with Goli's panel and a question about that alert
+ready, e.g. *Explain this vulnerability alert for us, what fixes it and how urgent it is*; pressing **Ask** sends it.
+Opening the link alone asks nothing, so link previews and stray clicks cost nothing.
+
 ## Vulnerabilities
 
 The `vulnerability` event announces a vulnerability exploited in the wild (CISA KEV) or rated critical as soon as it

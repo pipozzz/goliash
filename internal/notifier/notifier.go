@@ -44,6 +44,7 @@ type Message struct {
 	Items     []Item `json:"items"`
 	Link      string `json:"link,omitempty"` // Goliash's public URL, for buttons back to it
 	Take      string `json:"take,omitempty"` // Goli's take on an upgrade plan: what first and why, in a few sentences
+	Goli      bool   `json:"-"`              // Goli answers on the server: alerts offer to ask it
 }
 
 // Title is a one-line summary of the message.
@@ -138,10 +139,14 @@ type Notifier struct {
 	now     func() time.Time
 	link    string // public URL, without a trailing slash
 	take    TakeFunc
+	goli    bool
 }
 
 // TakeFunc writes Goli's take on an upgrade plan: plain text, a few sentences.
 type TakeFunc func(ctx context.Context, workspace string, items []Item) (string, error)
+
+// SetGoli lets single alerts offer an "Ask Goli" button that opens Goliash with the question ready.
+func (n *Notifier) SetGoli(on bool) { n.goli = on }
 
 // SetTake lets upgrade plans open with Goli's take on them.
 func (n *Notifier) SetTake(f TakeFunc) { n.take = f }
@@ -519,7 +524,7 @@ func (n *Notifier) ruleTargets(ctx context.Context, sc store.Scope) (map[string]
 
 func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.QueueItem) {
 	ids := make([]string, len(batch))
-	msg := Message{Workspace: rt.workspace, Digest: rt.rule.Mode != "instant" || len(batch) > 1, Link: n.link}
+	msg := Message{Workspace: rt.workspace, Digest: rt.rule.Mode != "instant" || len(batch) > 1, Link: n.link, Goli: n.goli}
 	attempts := 0
 	for i, it := range batch {
 		ids[i] = it.ID

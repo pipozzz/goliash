@@ -100,6 +100,37 @@ func itemLink(base string, it Item) string {
 	return base + "/?q=" + url.QueryEscape(it.Service)
 }
 
+// goliLink opens Goliash with Goli's panel and a question about a single alert ready to ask: a click away from
+// an explanation, never asked (and paid for) by the click alone.
+func goliLink(msg Message) string {
+	if !msg.Goli || msg.Link == "" || len(msg.Items) != 1 || msg.plan() {
+		return ""
+	}
+	q := goliQuestion(msg.Items[0])
+	if q == "" {
+		return ""
+	}
+	return msg.Link + "/?goli=" + url.QueryEscape(q)
+}
+
+func goliQuestion(it Item) string {
+	where := it.Service
+	if it.Environment != "" {
+		where += " in " + it.Environment
+	}
+	switch {
+	case it.Type == "update" || it.Type == "new_release" && it.From != "" && it.To != "":
+		return "Brief me on upgrading " + where + " from " + it.From + " to " + it.To + ": what breaks or needs migrating, what it fixes (security first), and what to check."
+	case it.Type == "vulnerability":
+		return "Explain this vulnerability alert for us, what fixes it and how urgent it is: " + it.Text
+	case it.Type == "drift_detected":
+		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
+	case it.Type == "agent_stale":
+		return "Which data may be stale because of this, and what should I check? " + it.Text
+	}
+	return ""
+}
+
 // openLink is the button under a whole message.
 func openLink(msg Message) string {
 	if msg.Link == "" {
@@ -178,7 +209,11 @@ func slackBlocks(msg Message) []map[string]any {
 				u = l
 			}
 		}
-		blocks = append(blocks, map[string]any{"type": "actions", "elements": []any{button(label, u, true)}})
+		actions := []any{button(label, u, true)}
+		if g := goliLink(msg); g != "" {
+			actions = append(actions, button("Ask Goli", g, false))
+		}
+		blocks = append(blocks, map[string]any{"type": "actions", "elements": actions})
 	}
 	return blocks
 }
@@ -254,9 +289,9 @@ func emailHTML(msg Message) (string, error) {
 		When, Target, Team string
 	}
 	data := struct {
-		Title, Summary, Workspace, Open, OpenLabel, Take string
-		Rows                                             []row
-	}{Title: msg.Title(), Summary: summary(msg), Workspace: msg.Workspace, Open: openLink(msg), OpenLabel: "Open in Goliash", Take: msg.Take}
+		Title, Summary, Workspace, Open, OpenLabel, Take, Goli string
+		Rows                                                   []row
+	}{Title: msg.Title(), Summary: summary(msg), Workspace: msg.Workspace, Open: openLink(msg), OpenLabel: "Open in Goliash", Take: msg.Take, Goli: goliLink(msg)}
 	if msg.plan() {
 		data.OpenLabel = "Open the Updates page"
 	}
@@ -299,7 +334,7 @@ var emailTemplate = template.Must(template.New("mail").Parse(`<!doctype html>
     <div style="font-size:12px;color:#8a93a6;margin-top:8px">{{.When}}{{if .Target}} · on {{.Target}}{{end}}{{if .Team}} · {{.Team}}{{end}}{{if .Notes}} · <a href="{{.Notes}}" style="color:#3b6cf6">release notes</a>{{end}}</div>
   </td></tr></table>
 {{end}}
-{{if .Open}}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr><td style="background:#1b2a6b;border-radius:9px"><a href="{{.Open}}" style="display:inline-block;padding:11px 20px;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none">{{.OpenLabel}} →</a></td></tr></table>{{end}}
+{{if .Open}}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr><td style="background:#1b2a6b;border-radius:9px"><a href="{{.Open}}" style="display:inline-block;padding:11px 20px;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none">{{.OpenLabel}} →</a></td>{{if .Goli}}<td width="10"></td><td style="background:#e3e9ff;border-radius:9px"><a href="{{.Goli}}" style="display:inline-block;padding:11px 20px;color:#1b2a6b;font-weight:600;font-size:14px;text-decoration:none">Ask Goli</a></td>{{end}}</tr></table>{{end}}
 </td></tr>
 <tr><td style="padding:16px 8px;text-align:center;font-size:12px;color:#8a93a6">Sent by Goliash because a notification rule matched. Change rules on the Notifications page.</td></tr>
 </table></td></tr></table>
