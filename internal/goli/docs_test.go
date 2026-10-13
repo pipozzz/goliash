@@ -117,3 +117,16 @@ func jsonString(v any) (string, error) {
 	b, err := json.Marshal(v)
 	return string(b), err
 }
+
+func TestDocsUseTheirOwnModel(t *testing.T) {
+	docsSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "docs") }))
+	defer docsSrv.Close()
+	a, fc := newTest(t, textTurn("ok"))
+	d := NewDocs(a, DocsConfig{URL: docsSrv.URL, PerHour: 5, PerDay: 5, Model: "claude-haiku-5-5"},
+		func(*http.Request) string { return "1.1.1.1" }, slog.New(slog.DiscardHandler))
+	w := httptest.NewRecorder()
+	d.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/goli/docs", strings.NewReader(`{"history":[{"role":"user","text":"hi"}]}`)))
+	if w.Code != 200 || fc.requests[0]["model"] != "claude-haiku-5-5" || a.Model() != DefaultModel {
+		t.Errorf("%d, docs model %v, Goli's %s", w.Code, fc.requests[0]["model"], a.Model())
+	}
+}

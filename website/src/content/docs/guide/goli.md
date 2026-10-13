@@ -83,7 +83,14 @@ helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash --reuse-values --set g
 The pods then need egress to `api.anthropic.com` (or your `goli.baseURL`).
 
 An `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` that happens to be in the server's environment does not turn Goli on: it is a choice to
-make on purpose. The public demo never offers it.
+make on purpose.
+
+### On a public demo
+
+A public demo (`goliash try -public`) offers Goli only with `GOLIASH_DEMO_GOLI=true`. Everyone there is the same
+viewer, so the hourly limit counts per visitor address instead (set `GOLIASH_TRUST_PROXY=true` behind a proxy), Goli
+reads a third as much of each tool result, and it is told to stay on Goliash and the example data. Give it a daily
+ceiling (`GOLIASH_AI_PER_DAY`) and a key with its own budget: on a demo, anyone pays with your money.
 
 ## What leaves your server
 
@@ -119,6 +126,7 @@ data, only the text you give it. Point a server that has `GOLIASH_AI_API_KEY` at
 | `GOLIASH_DOCS_ASSISTANT_ORIGINS` | `https://goliash.dev` | Comma-separated sites whose pages may ask (CORS) |
 | `GOLIASH_DOCS_ASSISTANT_PER_HOUR` | `20` | Questions one visitor may ask per hour (set `GOLIASH_TRUST_PROXY=true` behind a proxy) |
 | `GOLIASH_DOCS_ASSISTANT_PER_DAY` | `500` | Questions everyone together may ask per day: a ceiling on the cost |
+| `GOLIASH_DOCS_ASSISTANT_MODEL` | Goli's model | A model of its own for the documentation, often a cheaper one |
 
 The endpoint reads no cookies and changes nothing; questions are not stored or logged. The documentation is cached by
 Claude between questions, so each one costs little more than its answer.

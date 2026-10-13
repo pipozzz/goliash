@@ -26,7 +26,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request, p auth.Principal
 		Title: "Goli, the assistant", State: "off", Link: "https://goliash.dev/guide/goli/", LinkText: "How",
 		Summary: "Off. Set GOLIASH_AI_API_KEY on the server to an Anthropic API key to ask questions in plain words.",
 	}
-	if s.goli != nil && !s.auth.Demo() {
+	if s.goliOn() {
 		g.State, g.Summary, g.Link, g.LinkText = "ok", "On, answering with "+s.goli.Model()+" ("+s.goli.Via()+").", "", ""
 	}
 	h.Checks = append(h.Checks, g)

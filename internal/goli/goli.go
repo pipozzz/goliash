@@ -140,6 +140,36 @@ type Event struct {
 type Context struct {
 	Workspace, Role, Now string
 	Page                 string // the path of the page the question was asked on
+	Demo                 bool   // a public demo: example data, anyone asking
+}
+
+// demoNote keeps Goli on topic where anyone may ask.
+const demoNote = " This is Goliash's public demo: the data is generated examples, and anyone on the internet may be asking. " +
+	"Answer only about Goliash and this data; for anything else, say kindly in one sentence that you only know about them."
+
+// whereLine tells the model where it is asked.
+func whereLine(where Context) string {
+	s := fmt.Sprintf("Workspace: %s. The person asking is a %s, looking at %s. Now: %s.", where.Workspace, where.Role, where.Page, where.Now)
+	if where.Demo {
+		s += demoNote
+	}
+	return s
+}
+
+// toolLimit is how much of one tool result Goli reads: less on a public demo, where every token is paid for by
+// whoever runs it.
+func toolLimit(where Context) int {
+	if where.Demo {
+		return maxToolResult / 3
+	}
+	return maxToolResult
+}
+
+func cutResult(out string, limit int) string {
+	if len(out) > limit {
+		return out[:limit] + "\n…(cut: ask about something narrower)"
+	}
+	return out
 }
 
 // Assistant answers questions.
@@ -278,7 +308,7 @@ func (a *Assistant) Ask(ctx context.Context, tools Tools, history []Turn, where 
 	}
 	system := []anthropic.BetaTextBlockParam{
 		{Text: systemPrompt, CacheControl: anthropic.NewBetaCacheControlEphemeralParam()},
-		{Text: fmt.Sprintf("Workspace: %s. The person asking is a %s, looking at %s. Now: %s.", where.Workspace, where.Role, where.Page, where.Now)},
+		{Text: whereLine(where)},
 	}
 	var messages []anthropic.BetaMessageParam
 	for _, t := range history {
@@ -345,10 +375,7 @@ func (a *Assistant) Ask(ctx context.Context, tools Tools, history []Turn, where 
 						results[i] = anthropic.NewBetaToolResultBlock(call.ID, err.Error(), true)
 						return
 					}
-					if len(out) > maxToolResult {
-						out = out[:maxToolResult] + "\n…(cut: ask about something narrower)"
-					}
-					results[i] = anthropic.NewBetaToolResultBlock(call.ID, out, false)
+					results[i] = anthropic.NewBetaToolResultBlock(call.ID, cutResult(out, toolLimit(where)), false)
 				}()
 			}
 			wg.Wait()

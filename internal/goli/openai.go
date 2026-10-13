@@ -211,7 +211,7 @@ func (a *Assistant) askOpenAI(ctx context.Context, tools Tools, list []Tool, his
 	// Servers that cache prompts do so by prefix: the instructions come first, what varies after.
 	msgs := []oaMessage{
 		oaText("system", systemPrompt),
-		oaText("system", fmt.Sprintf("Workspace: %s. The person asking is a %s, looking at %s. Now: %s.", where.Workspace, where.Role, where.Page, where.Now)),
+		oaText("system", whereLine(where)),
 	}
 	msgs = append(msgs, oaHistory(history)...)
 
@@ -235,8 +235,8 @@ func (a *Assistant) askOpenAI(ctx context.Context, tools Tools, list []Tool, his
 					out, err := tools.Call(ctx, call.Function.Name, json.RawMessage(call.Function.Arguments))
 					if err != nil {
 						out = "error: " + err.Error()
-					} else if len(out) > maxToolResult {
-						out = out[:maxToolResult] + "\n…(cut: ask about something narrower)"
+					} else {
+						out = cutResult(out, toolLimit(where))
 					}
 					results[i] = oaText("tool", out)
 					results[i].ToolCallID = call.ID

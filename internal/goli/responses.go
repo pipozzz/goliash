@@ -171,7 +171,7 @@ func (a *Assistant) askResponses(ctx context.Context, tools Tools, list []Tool, 
 		rTools = append(rTools, rTool{Type: "function", Name: t.Name, Description: t.Description, Parameters: params})
 	}
 	// The instructions stay the same for every question (prefix caching); where it is asked comes with the input.
-	input := []json.RawMessage{rMessage("developer", fmt.Sprintf("Workspace: %s. The person asking is a %s, looking at %s. Now: %s.", where.Workspace, where.Role, where.Page, where.Now))}
+	input := []json.RawMessage{rMessage("developer", whereLine(where))}
 	input = append(input, rHistory(history)...)
 
 	var used []string
@@ -194,8 +194,8 @@ func (a *Assistant) askResponses(ctx context.Context, tools Tools, list []Tool, 
 					out, err := tools.Call(ctx, call.Name, json.RawMessage(call.Arguments))
 					if err != nil {
 						out = "error: " + err.Error()
-					} else if len(out) > maxToolResult {
-						out = out[:maxToolResult] + "\n…(cut: ask about something narrower)"
+					} else {
+						out = cutResult(out, toolLimit(where))
 					}
 					results[i], _ = json.Marshal(map[string]string{"type": "function_call_output", "call_id": call.CallID, "output": out})
 				}()

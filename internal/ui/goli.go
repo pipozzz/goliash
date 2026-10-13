@@ -17,10 +17,13 @@ import (
 
 const maxQuestion = 2000 // characters of one question
 
+// goliOn reports whether Goli answers here: configured, and on a public demo only when asked to.
+func (s *Server) goliOn() bool { return s.goli != nil && (!s.auth.Demo() || s.goliDemo) }
+
 // goliAsk answers a question with Goli, as a stream of server-sent events: text as it is written, the tools
 // Goli looks at, then done or error.
 func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	if s.goli == nil || s.auth.Demo() {
+	if !s.goliOn() {
 		http.NotFound(w, r)
 		return nil
 	}
@@ -46,7 +49,12 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 		http.Error(w, fmt.Sprintf("ask in at most %d characters", maxQuestion), http.StatusRequestEntityTooLarge)
 		return nil
 	}
-	if !s.goli.Allow(p.User.ID, time.Now()) {
+	// On the demo everyone is the same viewer: count questions per address instead.
+	who := p.User.ID
+	if s.auth.Demo() {
+		who = "addr:" + s.auth.ClientIP(r)
+	}
+	if !s.goli.Allow(who, time.Now()) {
 		http.Error(w, "You asked Goli a lot this hour; try again later.", http.StatusTooManyRequests)
 		return nil
 	}
@@ -80,7 +88,7 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	start := time.Now()
 	used, err := s.goli.Ask(ctx, tools, in.History, goli.Context{
-		Workspace: p.Workspace.Name, Role: p.Role, Now: start.UTC().Format(time.RFC3339), Page: page,
+		Workspace: p.Workspace.Name, Role: p.Role, Now: start.UTC().Format(time.RFC3339), Page: page, Demo: s.auth.Demo(),
 	}, emit)
 	// Who asked and what Goli looked at, never the question: it may hold anything.
 	s.log.InfoContext(ctx, "goli answered", "user", p.User.Email, "workspace", p.Workspace.Name,

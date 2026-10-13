@@ -557,6 +557,7 @@ func serve(ctx context.Context, args []string) error {
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
+		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true",
 	}).Register(mux)
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
 	// Goli answering questions about Goliash on a website, from its documentation only.

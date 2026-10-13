@@ -26,13 +26,18 @@ type DocsConfig struct {
 	Origins []string // the sites that may ask, e.g. https://goliash.dev
 	PerHour int      // questions one address may ask per hour
 	PerDay  int      // questions everyone together may ask per day: a ceiling on the cost
+	Model   string   // a model of its own (often a cheaper one); empty for Goli's
 }
 
 // DocsConfigFromEnv reads GOLIASH_DOCS_ASSISTANT (the documentation's URL), GOLIASH_DOCS_ASSISTANT_ORIGINS
-// (comma-separated; default https://goliash.dev), GOLIASH_DOCS_ASSISTANT_PER_HOUR (20) and
-// GOLIASH_DOCS_ASSISTANT_PER_DAY (500). ok is false without a URL.
+// (comma-separated; default https://goliash.dev), GOLIASH_DOCS_ASSISTANT_PER_HOUR (20),
+// GOLIASH_DOCS_ASSISTANT_PER_DAY (500) and GOLIASH_DOCS_ASSISTANT_MODEL (Goli's own model when empty). ok is false
+// without a URL.
 func DocsConfigFromEnv() (DocsConfig, bool, error) {
-	c := DocsConfig{URL: strings.TrimSpace(os.Getenv("GOLIASH_DOCS_ASSISTANT")), Origins: []string{"https://goliash.dev"}, PerHour: 20, PerDay: 500}
+	c := DocsConfig{
+		URL: strings.TrimSpace(os.Getenv("GOLIASH_DOCS_ASSISTANT")), Origins: []string{"https://goliash.dev"}, PerHour: 20, PerDay: 500,
+		Model: strings.TrimSpace(os.Getenv("GOLIASH_DOCS_ASSISTANT_MODEL")),
+	}
 	if c.URL == "" {
 		return c, false, nil
 	}
@@ -75,6 +80,11 @@ type Docs struct {
 
 // NewDocs returns the documentation assistant. clientIP tells where a request comes from.
 func NewDocs(a *Assistant, cfg DocsConfig, clientIP func(*http.Request) string, log *slog.Logger) *Docs {
+	if cfg.Model != "" && cfg.Model != a.cfg.Model {
+		own := a.cfg
+		own.Model = cfg.Model
+		a = New(own, log)
+	}
 	return &Docs{
 		a: a, cfg: cfg, clientIP: clientIP, http: &http.Client{Timeout: 20 * time.Second}, log: log,
 		byAddr: &Assistant{cfg: Config{PerHour: cfg.PerHour}, asked: map[string][]time.Time{}},

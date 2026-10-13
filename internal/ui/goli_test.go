@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -130,5 +131,73 @@ func TestGoliRefusesBadQuestions(t *testing.T) {
 		if resp.StatusCode < 400 || resp.StatusCode >= 500 {
 			t.Errorf("%.40s: %d", body, resp.StatusCode)
 		}
+	}
+}
+
+func TestGoliOnThePublicDemo(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer, err := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	e.auth.SetDemoUser(viewer)
+	guarded := httptest.NewServer(DemoGuard(e.srv.Config.Handler))
+	defer guarded.Close()
+
+	var mu sync.Mutex
+	var sent []string
+	claude := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		sent = append(sent, string(b))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, goliTextTurn)
+	}))
+	defer claude.Close()
+	log := slog.New(slog.DiscardHandler)
+	apiMux := http.NewServeMux()
+	api.NewPublicHandler(e.st, e.auth, log).Register(apiMux)
+	e.ui.goli = goli.New(goli.Config{APIKey: "sk-test", Model: goli.DefaultModel, BaseURL: claude.URL, Effort: "medium", PerHour: 1}, log)
+	e.ui.api = apiMux
+
+	jar, _ := cookiejar.New(nil)
+	visitor := &http.Client{Jar: jar}
+	ask := func() int {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, guarded.URL+"/ui/goli",
+			strings.NewReader(`{"history":[{"role":"user","text":"What should we upgrade first?"}],"page":"/updates"}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := visitor.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	// Off on the demo unless asked for.
+	if _, body := get(t, visitor, guarded.URL+"/updates", nil); strings.Contains(body, "data-goli") {
+		t.Error("the demo offers Goli without GOLIASH_DEMO_GOLI")
+	}
+	if code := ask(); code != http.StatusNotFound {
+		t.Errorf("demo without Goli: %d", code)
+	}
+
+	e.ui.goliDemo = true
+	if _, body := get(t, visitor, guarded.URL+"/updates", nil); !strings.Contains(body, "data-goli") {
+		t.Error("the demo does not offer Goli")
+	}
+	if code := ask(); code != http.StatusOK {
+		t.Fatalf("demo with Goli: %d", code)
+	}
+	if len(sent) != 1 || !strings.Contains(sent[0], "public demo") {
+		t.Errorf("Goli was not told it is on the demo: %d requests", len(sent))
+	}
+	// Every visitor is the same viewer: the hourly limit counts per address.
+	if code := ask(); code != http.StatusTooManyRequests {
+		t.Errorf("second question from one address: %d", code)
 	}
 }

@@ -72,6 +72,7 @@ type Server struct {
 	updateCheck bool
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
+	goliDemo    bool // Goli answers on the public demo too
 	api         http.Handler
 
 	favMu    sync.Mutex
@@ -99,6 +100,9 @@ type Options struct {
 	// Goli answers questions when an AI provider is configured; API serves the REST API it reads through.
 	Goli *goli.Assistant
 	API  http.Handler
+	// GoliInDemo lets Goli answer on a public demo, where anyone may ask: per visitor address, not per the one
+	// shared demo user.
+	GoliInDemo bool
 }
 
 // siteDescription is what link previews say about any page.
@@ -114,7 +118,7 @@ func New(o Options) *Server {
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
-		snapshots: o.Snapshots, goli: o.Goli, api: o.API,
+		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo,
 	}
 }
 
@@ -338,7 +342,7 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 	b := Base{
 		Title: title, Page: page, Email: p.User.Email, Role: p.Role,
 		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(),
-		Workspace: p.Workspace.Name, Demo: s.auth.Demo(), Goli: s.goli != nil && !s.auth.Demo(),
+		Workspace: p.Workspace.Name, Demo: s.auth.Demo(), Goli: s.goliOn(),
 	}
 	if b.Goli {
 		b.GoliVia = s.goli.Via()
@@ -2419,7 +2423,7 @@ func DemoGuard(next http.Handler) http.Handler {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
 			// Goli's documentation answers change nothing; the demo may well serve them.
-			if r.URL.Path != "/workspace" && r.URL.Path != "/goli/docs" && !strings.HasPrefix(r.URL.Path, "/agent/") {
+			if r.URL.Path != "/workspace" && r.URL.Path != "/goli/docs" && r.URL.Path != "/ui/goli" && !strings.HasPrefix(r.URL.Path, "/agent/") {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 				if r.Header.Get("HX-Request") == "true" {
 					w.Header().Set("HX-Reswap", "none")
