@@ -540,6 +540,51 @@
     "What drifted between staging and production this week?",
     "Is any of the data stale right now?"
   ];
+  // Questions that fit the page Goli is opened on; the general ones elsewhere.
+  function goliPageIdeas() {
+    const path = location.pathname, params = new URLSearchParams(location.search);
+    const svc = /^\/services\/([^/]+)$/.exec(path);
+    if (svc) {
+      const name = decodeURIComponent(svc[1]);
+      return [
+        "What runs where for " + name + ", and is anything behind?",
+        "What changed in " + name + " this week?",
+        "Brief me on upgrading " + name + " to its newest release.",
+        "Does " + name + " have known vulnerabilities in production?"
+      ];
+    }
+    if (params.get("at")) {
+      return [
+        "What ran in production at " + params.get("at").replace("T", " ") + "?",
+        "What changed in production in the hour before that?",
+        "What drift was open at that moment?"
+      ];
+    }
+    if (path.indexOf("/security") === 0) {
+      return [
+        "Which vulnerabilities exploited in the wild run in production, and what fixes them?",
+        "How long has production run behind an available fix?",
+        "What runs past its end of life?",
+        "Which images have no SBOM, so we cannot see inside them?"
+      ];
+    }
+    if (path === "/updates") {
+      return [
+        "What should we upgrade first, and why?",
+        "Which upgrades are major jumps that need care?",
+        "Which updates fix security problems?",
+        "What is already in staging and waiting for production?"
+      ];
+    }
+    if (path === "/delivery" || path === "/promotions" || path === "/events") {
+      return [
+        "What was deployed to production this week?",
+        "What waits in staging to be promoted?",
+        "What changed in the last two hours?"
+      ];
+    }
+    return goliIdeas;
+  }
   function goliRender() {
     const log = goli.log;
     log.replaceChildren();
@@ -550,7 +595,7 @@
       if (art) empty.appendChild(art);
       empty.appendChild(el("p", "goli-hello", "Hi, I am Goli. Ask me about what runs where."));
       const ideas = el("div", "goli-ideas");
-      goliIdeas.forEach(function (q) {
+      goliPageIdeas().forEach(function (q) {
         const b = el("button", "goli-idea", q);
         b.type = "button";
         b.addEventListener("click", function () { goliAsk(q); });
@@ -762,6 +807,7 @@
     if (!goli || !goli.open) return;
     if (!goli.panel.isConnected) document.body.appendChild(goli.panel);
     document.body.classList.add("goli-on");
+    if (!goli.busy && !goliHistory().length) goliRender(); // suggestions for the new page
   }
   document.body.addEventListener("htmx:afterSwap", goliKeep);
   document.body.addEventListener("htmx:afterSettle", goliKeep);
