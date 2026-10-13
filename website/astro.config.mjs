@@ -18,6 +18,8 @@ export default defineConfig({
       lastUpdated: true,
       customCss: ['./src/styles/theme.css'],
       head: [
+        // Goli, the plushie in the corner, answers questions from these docs.
+        { tag: 'script', attrs: { src: '/goli.js', defer: true } },
         // Sharing previews (Open Graph, X/Twitter, Slack, LinkedIn).
         { tag: 'meta', attrs: { property: 'og:image', content: 'https://goliash.dev/og.png' } },
         { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },

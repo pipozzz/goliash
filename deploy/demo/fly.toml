@@ -12,6 +12,11 @@ primary_region = "fra"
 [experimental]
   cmd = ["try", "-public", "-reset", "1h", "-public-url", "https://demo.goliash.dev"]
 
+# Goli on goliash.dev answers from the documentation through this server: fly secrets set GOLIASH_AI_API_KEY=sk-ant-…
+[env]
+  GOLIASH_DOCS_ASSISTANT = "https://goliash.dev/llms-full.txt"
+  GOLIASH_TRUST_PROXY = "true"
+
 [http_service]
   internal_port = 8080
   force_https = true

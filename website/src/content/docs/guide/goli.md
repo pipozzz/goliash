@@ -78,3 +78,19 @@ question.
   instructions; and since it can only read, a crafted release note cannot make it change anything.
 - **Costs** are per question, on your Anthropic account: a question usually takes two to four model calls. The
   instructions and tool descriptions are cached, which makes follow-ups cheaper.
+
+## Goli on your website
+
+Goli can also answer questions about a product from its documentation, as it does on goliash.dev: no access to any
+data, only the text you give it. Point a server that has `GOLIASH_AI_API_KEY` at the documentation as one plain text
+(an [llms-full.txt](https://llmstxt.org)) and name the sites that may ask:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `GOLIASH_DOCS_ASSISTANT` | | URL of the documentation text; read again every hour. Turns on `POST /goli/docs` |
+| `GOLIASH_DOCS_ASSISTANT_ORIGINS` | `https://goliash.dev` | Comma-separated sites whose pages may ask (CORS) |
+| `GOLIASH_DOCS_ASSISTANT_PER_HOUR` | `20` | Questions one visitor may ask per hour (set `GOLIASH_TRUST_PROXY=true` behind a proxy) |
+| `GOLIASH_DOCS_ASSISTANT_PER_DAY` | `500` | Questions everyone together may ask per day: a ceiling on the cost |
+
+The endpoint reads no cookies and changes nothing; questions are not stored or logged. The documentation is cached by
+Claude between questions, so each one costs little more than its answer.

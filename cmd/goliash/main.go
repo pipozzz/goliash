@@ -559,6 +559,20 @@ func serve(ctx context.Context, args []string) error {
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
 	}).Register(mux)
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
+	// Goli answering questions about Goliash on a website, from its documentation only.
+	csrf := http.NewCrossOriginProtection()
+	docsCfg, docsOn, err := goli.DocsConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	if docsOn && assistant == nil {
+		log.Warn("GOLIASH_DOCS_ASSISTANT needs GOLIASH_AI_API_KEY; the docs assistant is off")
+	} else if docsOn {
+		mux.Handle("/goli/docs", goli.NewDocs(assistant, docsCfg, authn.ClientIP, log))
+		// Only this path takes cross-origin posts; it reads no cookies and checks the origin itself.
+		csrf.AddInsecureBypassPattern("/goli/docs")
+		log.Info("Goli answers questions about Goliash", "docs", docsCfg.URL, "origins", docsCfg.Origins)
+	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
@@ -627,7 +641,7 @@ func serve(ctx context.Context, args []string) error {
 		Addr: *listen,
 		// Browsers may not send state-changing requests from other origins (CSRF);
 		// agents and API clients send no Origin and are unaffected.
-		Handler: ui.SecurityHeaders(ui.Compress(ui.LimitBodies(guard(http.NewCrossOriginProtection().Handler(mux)), 1<<20, "/agent/")),
+		Handler: ui.SecurityHeaders(ui.Compress(ui.LimitBodies(guard(csrf.Handler(mux)), 1<<20, "/agent/")),
 			strings.HasPrefix(*publicURL, "https://")),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,

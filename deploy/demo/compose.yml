@@ -18,6 +18,10 @@ services:
     environment:
       # The same, for platforms that drop `command`.
       GOLIASH_ARGS: try -public -reset 1h -public-url https://demo.goliash.dev
+      # Goli on goliash.dev answers questions from the documentation through this server (optional).
+      # GOLIASH_AI_API_KEY: sk-ant-…   (a secret: set it in the platform's secret settings, not here)
+      GOLIASH_DOCS_ASSISTANT: https://goliash.dev/llms-full.txt
+      GOLIASH_TRUST_PROXY: "true"     # behind the platform's proxy: limit questions per visitor, not per proxy
     ports:
       - "8080"
     restart: always

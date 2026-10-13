@@ -2415,7 +2415,8 @@ func DemoGuard(next http.Handler) http.Handler {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
-			if r.URL.Path != "/workspace" && !strings.HasPrefix(r.URL.Path, "/agent/") {
+			// Goli's documentation answers change nothing; the demo may well serve them.
+			if r.URL.Path != "/workspace" && r.URL.Path != "/goli/docs" && !strings.HasPrefix(r.URL.Path, "/agent/") {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 				if r.Header.Get("HX-Request") == "true" {
 					w.Header().Set("HX-Reswap", "none")
