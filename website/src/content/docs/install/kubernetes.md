@@ -29,8 +29,10 @@ kubectl -n goliash create secret generic goliash-env \
 helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --reuse-values --set envFromSecret=goliash-env
 ```
 
-With SQLite the secret key is otherwise created next to the database on the volume. With PostgreSQL, set it as
-shown.
+With SQLite the secret key is otherwise created next to the database on the volume. With PostgreSQL and no key in
+`envFromSecret`, the chart creates one in a Secret named `<release>-goliash-secret-key` (`secretKey.existingSecret`
+names your own instead). Upgrades keep it, and so does `helm uninstall`: the encrypted channel secrets and private
+registry credentials in the database need it, so back it up with the database.
 
 With PostgreSQL the chart may run several servers: `--set replicaCount=2` (one leads the background work; see
 [Several servers](/install/#several-servers)). Updates then roll one pod at a time and a PodDisruptionBudget keeps

@@ -17,6 +17,16 @@ database:
   existingSecret: ""
   existingSecretKey: database-url
 
+# Encrypts notification channel secrets and private registry credentials at rest (GOLIASH_SECRET_KEY, 32 bytes).
+# With SQLite the server keeps its key next to the database on the volume. With PostgreSQL the chart creates one
+# in a Secret named <release>-secret-key, kept across upgrades and on uninstall (back it up with the database),
+# unless existingSecret names one or envFromSecret sets GOLIASH_SECRET_KEY itself. Without a key the server
+# keeps channel secrets in the clear and does not store registry credentials.
+secretKey:
+  existingSecret: ""
+  existingSecretKey: secret-key
+  generate: true
+
 # Servers. With PostgreSQL more than one may run: they all serve the UI, the API and
 # agents, and one of them (chosen through the database) runs the background work. With
 # SQLite there is exactly one. Several servers share GOLIASH_SECRET_KEY through envFromSecret.

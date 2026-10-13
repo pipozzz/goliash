@@ -55,6 +55,15 @@ spec:
             {{- else }}
             - { name: GOLIASH_DATABASE_URL, value: /data/goliash.db }
             {{- end }}
+            {{- if .Values.secretKey.existingSecret }}
+            - name: GOLIASH_SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secretKey.existingSecret }}, key: {{ .Values.secretKey.existingSecretKey }} }
+            {{- else if include "goliash.generatesSecretKey" . }}
+            - name: GOLIASH_SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ include "goliash.fullname" . }}-secret-key, key: secret-key }
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
             {{- end }}

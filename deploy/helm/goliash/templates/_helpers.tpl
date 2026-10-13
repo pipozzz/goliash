@@ -15,3 +15,13 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
 app.kubernetes.io/name: {{ .Chart.Name }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+
+{{/* usesPostgres is set when the server's database is PostgreSQL. */}}
+{{- define "goliash.usesPostgres" -}}
+{{- if or .Values.database.url .Values.database.existingSecret }}true{{ end -}}
+{{- end }}
+
+{{/* generatesSecretKey is set when the chart creates the secret key: PostgreSQL, no key given, none in envFromSecret. */}}
+{{- define "goliash.generatesSecretKey" -}}
+{{- if and (include "goliash.usesPostgres" .) .Values.secretKey.generate (not .Values.secretKey.existingSecret) (not .Values.envFromSecret) }}true{{ end -}}
+{{- end }}
