@@ -546,6 +546,8 @@
     const h = goliHistory();
     if (!h.length && !goli.busy) {
       const empty = el("div", "goli-empty");
+      const art = goliArt("goli-big");
+      if (art) empty.appendChild(art);
       empty.appendChild(el("p", "goli-hello", "Hi, I am Goli. Ask me about what runs where."));
       const ideas = el("div", "goli-ideas");
       goliIdeas.forEach(function (q) {
@@ -568,13 +570,21 @@
       const m = el("div", "goli-msg goli-a");
       if (goli.answer) m.appendChild(goliMarkdown(goli.answer));
       if (goli.looking.length) m.appendChild(el("p", "goli-looking", "Looked at " + goli.looking.join(", ") + (goli.answer ? "" : "…")));
-      else if (!goli.answer) m.appendChild(el("p", "goli-looking", "Thinking…"));
+      else if (!goli.answer) {
+        const think = el("p", "goli-looking goli-thinking");
+        const art = goliArt("goli-face");
+        if (art) think.appendChild(art);
+        think.appendChild(document.createTextNode("Thinking…"));
+        m.appendChild(think);
+      }
       log.appendChild(m);
     }
     if (window.htmx) htmx.process(log);
     log.scrollTop = log.scrollHeight;
     goli.send.textContent = goli.busy ? "Stop" : "Ask";
     goli.clear.disabled = goli.busy || !h.length;
+    const corner = goli.panel.querySelector(".goli-corner");
+    if (corner) corner.textContent = goliCornerOn() ? "Hide Goli from the corner" : "Show Goli in the corner";
   }
   let goliFrame = 0;
   function goliLater() { if (!goliFrame) goliFrame = requestAnimationFrame(function () { goliFrame = 0; goliRender(); }); }
@@ -586,6 +596,7 @@
     goliSave(h);
     goli.input.value = "";
     goli.busy = true; goli.answer = ""; goli.looking = []; goli.error = "";
+    document.documentElement.classList.add("goli-busy");
     goli.abort = new AbortController();
     goliRender();
     const turns = h.filter(function (t) { return t.text; }).map(function (t) { return { role: t.role, text: t.text }; });
@@ -594,6 +605,10 @@
       done.push({ role: "assistant", text: goli.answer, error: goli.error || undefined, looked: goli.looking.length ? goli.looking : undefined });
       goliSave(done);
       goli.busy = false; goli.abort = null;
+      document.documentElement.classList.remove("goli-busy");
+      // One ding: the answer is there.
+      document.documentElement.classList.add("goli-done");
+      setTimeout(function () { document.documentElement.classList.remove("goli-done"); }, 1400);
       goliRender();
       goli.input.focus();
     }
@@ -635,6 +650,8 @@
       const panel = el("aside", "goli");
       panel.setAttribute("aria-label", "Ask Goli");
       const head = el("div", "goli-top");
+      const face = goliArt("goli-face");
+      if (face) head.appendChild(face);
       head.appendChild(el("strong", "goli-title", "Goli"));
       head.appendChild(el("span", "goli-sub", "reads Goliash for you"));
       const clear = el("button", "goli-clear", "New");
@@ -654,7 +671,11 @@
       const send = el("button", "goli-send", "Ask");
       send.type = "submit";
       form.appendChild(input); form.appendChild(send);
-      const note = el("p", "goli-note", "Goli reads what you may see here and sends it with your question to Claude, by Anthropic. It changes nothing. Check what matters.");
+      const note = el("p", "goli-note", "Goli reads what you may see here and sends it with your question to Claude, by Anthropic. It changes nothing. Check what matters. ");
+      const corner = el("button", "goli-corner link");
+      corner.type = "button";
+      corner.addEventListener("click", function () { goliCorner(!goliCornerOn()); });
+      note.appendChild(corner);
       panel.appendChild(head); panel.appendChild(log); panel.appendChild(form); panel.appendChild(note);
       form.addEventListener("submit", function (e) {
         e.preventDefault();
@@ -671,6 +692,39 @@
     goliKeep();
     goliRender();
     if (question) goliAsk(question); else goli.input.focus();
+  }
+  // Goli in the page's corner; it can be sent away, per browser, and the header button stays.
+  const goliCornerKey = "goliash.goli.corner";
+  function goliCornerOn() { try { return localStorage.getItem(goliCornerKey) !== "off"; } catch (_) { return true; } }
+  function goliCorner(on) {
+    try { if (on) localStorage.removeItem(goliCornerKey); else localStorage.setItem(goliCornerKey, "off"); } catch (_) { /* storage off */ }
+    document.documentElement.classList.toggle("goli-nocorner", !on);
+    if (goli) goliRender();
+  }
+  document.documentElement.classList.toggle("goli-nocorner", !goliCornerOn());
+  // Goli's eyes follow the pointer, a little: CSS moves the pupils by --goli-x and --goli-y.
+  let goliEyeFrame = 0;
+  document.addEventListener("pointermove", function (e) {
+    if (goliEyeFrame || e.pointerType === "touch") return;
+    goliEyeFrame = requestAnimationFrame(function () {
+      goliEyeFrame = 0;
+      document.querySelectorAll(".goli-art").forEach(function (art) {
+        const r = art.getBoundingClientRect();
+        if (!r.width) return;
+        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height * 0.42);
+        const d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 300) * 9 / d; // up to 9 units of 404
+        art.style.setProperty("--goli-x", (dx * k).toFixed(1) + "px");
+        art.style.setProperty("--goli-y", (dy * k).toFixed(1) + "px");
+      });
+    });
+  }, { passive: true });
+  // A copy of the mascot the page carries (in the corner or the header button).
+  function goliArt(cls) {
+    const src = document.querySelector("[data-goli] .goli-art");
+    if (!src) return null;
+    const art = src.cloneNode(true);
+    art.setAttribute("class", "goli-art " + cls);
+    return art;
   }
   function goliClose() {
     if (!goli) return;
