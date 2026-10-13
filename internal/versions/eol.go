@@ -200,12 +200,13 @@ func (e *EOL) Cycles(ctx context.Context, product string) ([]EOLCycle, error) {
 }
 
 func (e *EOL) get(ctx context.Context, path string, v any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.BaseURL+path, nil)
+	// The host is endoflife.date or the mirror the operator configured; only the escaped path varies.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.BaseURL+path, nil) //nolint:gosec // see above
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := e.HTTP.Do(req)
+	resp, err := e.HTTP.Do(req) //nolint:gosec // a fixed host, see above
 	if err != nil {
 		return fmt.Errorf("endoflife.date: %w", err)
 	}
