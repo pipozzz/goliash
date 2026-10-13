@@ -50,6 +50,10 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 		http.Error(w, "You asked Goli a lot this hour; try again later.", http.StatusTooManyRequests)
 		return nil
 	}
+	if !s.goli.AllowToday(time.Now()) {
+		http.Error(w, "Goli answered as many questions today as this server allows; ask again tomorrow.", http.StatusTooManyRequests)
+		return nil
+	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		return errors.New("streaming unsupported")

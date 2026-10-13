@@ -152,7 +152,11 @@ func TestOpenAIConfig(t *testing.T) {
 		t.Error("an OpenAI-compatible server without a model")
 	}
 	t.Setenv("GOLIASH_AI_MODEL", "llama")
+	t.Setenv("GOLIASH_AI_PER_DAY", "300")
 	c, on, err := ConfigFromEnv()
+	if c.PerDay != 300 {
+		t.Errorf("per day %d", c.PerDay)
+	}
 	if err != nil || !on || c.BaseURL != "http://ollama:11434/v1" || c.EffortSet {
 		t.Errorf("%+v %v %v", c, on, err)
 	}

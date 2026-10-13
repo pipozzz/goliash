@@ -43,10 +43,11 @@ type Config struct {
 	Effort    string // low, medium or high
 	EffortSet bool   // the operator chose the effort (OpenAI-compatible servers get it only then)
 	PerHour   int    // questions a person may ask per hour
+	PerDay    int    // questions everyone together may ask per day on this server; 0 for no ceiling
 }
 
 // ConfigFromEnv reads GOLIASH_AI_PROVIDER, GOLIASH_AI_API_KEY (or the file in GOLIASH_AI_API_KEY_FILE),
-// GOLIASH_AI_MODEL, GOLIASH_AI_BASE_URL, GOLIASH_AI_EFFORT and GOLIASH_AI_PER_HOUR. ok is false when Goli is not
+// GOLIASH_AI_MODEL, GOLIASH_AI_BASE_URL, GOLIASH_AI_EFFORT, GOLIASH_AI_PER_HOUR and GOLIASH_AI_PER_DAY. ok is false when Goli is not
 // configured: it is opt-in, and an ANTHROPIC_API_KEY or OPENAI_API_KEY that happens to be in the environment does
 // not turn it on.
 func ConfigFromEnv() (Config, bool, error) {
@@ -87,6 +88,11 @@ func ConfigFromEnv() (Config, bool, error) {
 	if v := os.Getenv("GOLIASH_AI_PER_HOUR"); v != "" {
 		if _, err := fmt.Sscan(v, &c.PerHour); err != nil || c.PerHour < 1 {
 			return c, false, fmt.Errorf("GOLIASH_AI_PER_HOUR %q: a positive number", v)
+		}
+	}
+	if v := os.Getenv("GOLIASH_AI_PER_DAY"); v != "" {
+		if _, err := fmt.Sscan(v, &c.PerDay); err != nil || c.PerDay < 0 {
+			return c, false, fmt.Errorf("GOLIASH_AI_PER_DAY %q: a number, 0 for no ceiling", v)
 		}
 	}
 	return c, on, nil
@@ -133,6 +139,8 @@ type Assistant struct {
 
 	mu    sync.Mutex
 	asked map[string][]time.Time // per person, the times of their questions in the last hour
+	day   string                 // the UTC date today counts
+	today int                    // questions asked on day
 }
 
 // New returns Goli for cfg.
@@ -162,6 +170,24 @@ func (a *Assistant) Via() string {
 		return u.Host
 	}
 	return "the configured model server"
+}
+
+// AllowToday counts a question against the server's daily ceiling (GOLIASH_AI_PER_DAY) and reports whether it is
+// within it. Each server counts its own questions; the count starts over at midnight UTC and on restart.
+func (a *Assistant) AllowToday(now time.Time) bool {
+	if a.cfg.PerDay <= 0 {
+		return true
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if day := now.UTC().Format(time.DateOnly); day != a.day {
+		a.day, a.today = day, 0
+	}
+	if a.today >= a.cfg.PerDay {
+		return false
+	}
+	a.today++
+	return true
 }
 
 // ErrTooMany means the person asked their hourly share already.

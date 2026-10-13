@@ -38,6 +38,8 @@ goli:
   model: ""
   effort: ""
   baseURL: ""
+  perHour: ""         # questions one person may ask per hour (server default 60)
+  perDay: ""          # questions everyone may ask per day, per replica: a cost ceiling (server default none)
 
 # Servers. With PostgreSQL more than one may run: they all serve the UI, the API and
 # agents, and one of them (chosen through the database) runs the background work. With

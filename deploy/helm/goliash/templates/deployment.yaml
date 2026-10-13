@@ -82,6 +82,12 @@ spec:
             {{- if .baseURL }}
             - { name: GOLIASH_AI_BASE_URL, value: {{ .baseURL | quote }} }
             {{- end }}
+            {{- if .perHour }}
+            - { name: GOLIASH_AI_PER_HOUR, value: {{ .perHour | quote }} }
+            {{- end }}
+            {{- if .perDay }}
+            - { name: GOLIASH_AI_PER_DAY, value: {{ .perDay | quote }} }
+            {{- end }}
             {{- end }}
             {{- range $k, $v := .Values.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
