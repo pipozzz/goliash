@@ -26,6 +26,10 @@ export default defineConfig({
         { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://goliash.dev/og.png' } },
         { tag: 'meta', attrs: { name: 'theme-color', content: '#1b2a6b' } },
         { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+        // Browsers and search engines that do not take an SVG icon (Safari, Google results) get these.
+        { tag: 'link', attrs: { rel: 'icon', href: '/favicon.ico', sizes: '32x32' } },
+        { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' } },
+        { tag: 'link', attrs: { rel: 'manifest', href: '/site.webmanifest' } },
         // What search engines show for the project (schema.org).
         {
           tag: 'script',

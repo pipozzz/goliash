@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Where crawlers look first; the pages are listed in the sitemap Astro builds. -->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>https://goliash.dev/sitemap-0.xml</loc></sitemap>
+</sitemapindex>
