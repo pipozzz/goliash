@@ -28,13 +28,16 @@ func TestPlanOpensWithGolisTake(t *testing.T) {
 		t.Fatal(err)
 	}
 	var asked []string
-	e.n.SetTake(func(_ context.Context, workspace string, items []Item) (string, error) {
+	e.n.SetTake(func(_ context.Context, workspace string, plan bool, items []Item) (string, error) {
+		if !plan {
+			t.Error("a plan asked as a digest")
+		}
 		asked = append(asked, workspace)
 		if len(items) != 1 || !strings.Contains(items[0].Text, "15.6") {
 			t.Errorf("items %+v", items)
 		}
 		return "  Upgrade postgres in prod first: it is a major jump.  ", nil
-	})
+	}, TakeOn{Plans: true})
 	if _, err := e.n.SendPlanNow(ctx, e.sc, rules[0].ID); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +46,7 @@ func TestPlanOpensWithGolisTake(t *testing.T) {
 	}
 
 	// Without a take the plan still goes.
-	e.n.SetTake(func(context.Context, string, []Item) (string, error) { return "", errors.New("provider down") })
+	e.n.SetTake(func(context.Context, string, bool, []Item) (string, error) { return "", errors.New("provider down") }, TakeOn{Plans: true})
 	if _, err := e.n.SendPlanNow(ctx, e.sc, rules[0].ID); err != nil {
 		t.Fatal(err)
 	}
@@ -52,14 +55,33 @@ func TestPlanOpensWithGolisTake(t *testing.T) {
 	}
 }
 
-func TestTakeOnlyForPlans(t *testing.T) {
+func TestTakeForPlansAndDigests(t *testing.T) {
 	n := &Notifier{log: slog.New(slog.DiscardHandler)}
-	called := false
-	n.SetTake(func(context.Context, string, []Item) (string, error) { called = true; return "x", nil })
-	msg := Message{Items: []Item{{Type: "new_release", Text: "nginx 1.27.3 is out", At: time.Now()}}}
+	var asked []bool
+	n.SetTake(func(_ context.Context, _ string, plan bool, _ []Item) (string, error) {
+		asked = append(asked, plan)
+		return "x", nil
+	}, TakeOn{Plans: true})
+	release := Item{Type: "new_release", Text: "nginx 1.27.3 is out", At: time.Now()}
+	msg := Message{Digest: true, Items: []Item{release, release, release}}
 	n.addTake(context.Background(), &msg)
-	if called || msg.Take != "" {
-		t.Error("a take on a message that is no plan")
+	if len(asked) != 0 || msg.Take != "" {
+		t.Error("a take on a digest with digests off")
+	}
+	n.takeOn.Digests = true
+	n.addTake(context.Background(), &msg)
+	if len(asked) != 1 || asked[0] || msg.Take != "x" {
+		t.Errorf("digest take: %v %q", asked, msg.Take)
+	}
+	short := Message{Digest: true, Items: []Item{release, release}}
+	n.addTake(context.Background(), &short)
+	if short.Take != "" {
+		t.Error("a take on a two-item digest")
+	}
+	single := Message{Items: []Item{release}}
+	n.addTake(context.Background(), &single)
+	if single.Take != "" {
+		t.Error("a take on a single alert")
 	}
 }
 

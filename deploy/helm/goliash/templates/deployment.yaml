@@ -91,6 +91,9 @@ spec:
             {{- if .planSummary }}
             - { name: GOLIASH_AI_PLAN_SUMMARY, value: "true" }
             {{- end }}
+            {{- if .digestSummary }}
+            - { name: GOLIASH_AI_DIGEST_SUMMARY, value: "true" }
+            {{- end }}
             {{- if .perDay }}
             - { name: GOLIASH_AI_PER_DAY, value: {{ .perDay | quote }} }
             {{- end }}

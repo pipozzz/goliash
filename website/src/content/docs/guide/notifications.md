@@ -160,6 +160,9 @@ With [Goli](/guide/goli/) on and `GOLIASH_AI_PLAN_SUMMARY=true`, the plan opens 
 on what to upgrade first and why, written from the plan's own lines (one model call per plan and channel, no other
 data). When the model cannot be reached, the plan goes without it.
 
+With `GOLIASH_AI_DIGEST_SUMMARY=true`, daily and weekly digests of three or more events open with Goli's take too:
+what in them needs someone's attention and what is routine, or that nothing does.
+
 > Goli's take: Upgrade payments-api in prod first: its log4j-core is exploited in the wild and 2.16.0 fixes it.
 > Postgres 15 reaches end of life next month; the minor updates in staging can wait.
 

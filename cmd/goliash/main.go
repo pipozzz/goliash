@@ -552,16 +552,22 @@ func serve(ctx context.Context, args []string) error {
 	if aiOn {
 		assistant = goli.New(aiCfg, log)
 		log.Info("Goli, the assistant, is on", "provider", aiCfg.Provider, "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
-		if os.Getenv("GOLIASH_AI_PLAN_SUMMARY") == "true" {
-			// Upgrade plans open with Goli's take: one call per plan and channel, the plan's lines only.
-			notify.SetTake(func(ctx context.Context, workspace string, items []notifier.Item) (string, error) {
+		// Upgrade plans and digests open with Goli's take: one call per message and channel, its lines only.
+		if on := (notifier.TakeOn{
+			Plans: os.Getenv("GOLIASH_AI_PLAN_SUMMARY") == "true", Digests: os.Getenv("GOLIASH_AI_DIGEST_SUMMARY") == "true",
+		}); on.Plans || on.Digests {
+			notify.SetTake(func(ctx context.Context, workspace string, plan bool, items []notifier.Item) (string, error) {
 				var b strings.Builder
 				fmt.Fprintf(&b, "Workspace: %s\n", workspace)
 				for _, it := range items {
-					fmt.Fprintf(&b, "- %s\n", it.Text)
+					fmt.Fprintf(&b, "- %s (%s)\n", it.Text, it.At.UTC().Format("2006-01-02 15:04 UTC"))
 				}
-				return assistant.Complete(ctx, goli.TakeInstructions, b.String())
-			})
+				instructions := goli.TakeInstructions
+				if !plan {
+					instructions = goli.DigestInstructions
+				}
+				return assistant.Complete(ctx, instructions, b.String())
+			}, on)
 		}
 	}
 	docsCfg, docsOn, err := goli.DocsConfigFromEnv()

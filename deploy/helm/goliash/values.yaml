@@ -41,6 +41,7 @@ goli:
   api: ""            # with openai: responses (default without baseURL) or chat (default with it)
   perHour: ""         # questions one person may ask per hour (server default 60)
   planSummary: false  # upgrade plans open with Goli's take
+  digestSummary: false  # digests of three or more events open with Goli's take
   perDay: ""          # questions everyone may ask per day, per replica: a cost ceiling (server default none)
 
 # Servers. With PostgreSQL more than one may run: they all serve the UI, the API and

@@ -138,24 +138,41 @@ type Notifier struct {
 	now     func() time.Time
 	link    string // public URL, without a trailing slash
 	take    TakeFunc
+	takeOn  TakeOn
 }
 
-// TakeFunc writes Goli's take on an upgrade plan: plain text, a few sentences.
-type TakeFunc func(ctx context.Context, workspace string, items []Item) (string, error)
+// TakeFunc writes Goli's take on a message: plain text, a few sentences. plan says whether it is an upgrade plan
+// (what to upgrade first) or a digest of events (what matters in it).
+type TakeFunc func(ctx context.Context, workspace string, plan bool, items []Item) (string, error)
 
-// SetTake lets upgrade plans open with Goli's take on them.
-func (n *Notifier) SetTake(f TakeFunc) { n.take = f }
+// TakeOn says which messages open with Goli's take.
+type TakeOn struct {
+	Plans   bool // upgrade plans
+	Digests bool // digests of at least minDigestTake events
+}
 
-// addTake puts Goli's take in an upgrade plan; without one the plan goes as it is.
+// minDigestTake is how many events a digest needs before a summary helps more than it costs.
+const minDigestTake = 3
+
+// SetTake lets upgrade plans and digests open with Goli's take on them.
+func (n *Notifier) SetTake(f TakeFunc, on TakeOn) { n.take, n.takeOn = f, on }
+
+// addTake puts Goli's take in an upgrade plan or a digest; without one the message goes as it is.
 func (n *Notifier) addTake(ctx context.Context, msg *Message) {
-	if n.take == nil || !msg.plan() {
+	plan := msg.plan()
+	switch {
+	case n.take == nil:
+		return
+	case plan && !n.takeOn.Plans:
+		return
+	case !plan && (!n.takeOn.Digests || !msg.Digest || len(msg.Items) < minDigestTake):
 		return
 	}
 	tctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
-	take, err := n.take(tctx, msg.Workspace, msg.Items)
+	take, err := n.take(tctx, msg.Workspace, plan, msg.Items)
 	if err != nil {
-		n.log.Warn("Goli's take on the upgrade plan failed; sending it without", "err", err)
+		n.log.Warn("Goli's take failed; sending the message without it", "err", err)
 		return
 	}
 	msg.Take = strings.TrimSpace(take)
