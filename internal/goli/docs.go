@@ -148,6 +148,7 @@ func (d *Docs) cors(w http.ResponseWriter, r *http.Request) bool {
 			h.Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 			h.Set("Access-Control-Allow-Headers", "Content-Type")
 			h.Set("Access-Control-Max-Age", "86400")
+			h.Set("Access-Control-Expose-Headers", "X-Goli-Via")
 			h.Add("Vary", "Origin")
 			return true
 		}
@@ -164,6 +165,8 @@ func docsError(w http.ResponseWriter, status int, msg string) {
 // ServeHTTP answers POST {"history": [{"role": "user", "text": …}]} as server-sent events, like /ui/goli.
 func (d *Docs) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	allowed := d.cors(w, r)
+	// Who answers, for the site to tell its visitors where their questions go.
+	w.Header().Set("X-Goli-Via", d.a.Via())
 	switch {
 	case r.Method == http.MethodOptions:
 		w.WriteHeader(http.StatusNoContent)

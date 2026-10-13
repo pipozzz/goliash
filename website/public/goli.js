@@ -130,7 +130,10 @@
   // Goli shows up only when the server answers: until then, and wherever it is off, the site stays as it is.
   function reachable() {
     try { const c = sessionStorage.getItem("goli.up"); if (c) return Promise.resolve(c === "1"); } catch (_) { /* storage off */ }
-    return fetch(endpoint, { method: "OPTIONS" }).then(function (r) { return r.status === 204; }, function () { return false; })
+    return fetch(endpoint, { method: "OPTIONS" }).then(function (r) {
+      try { const v = r.headers.get("X-Goli-Via"); if (v) sessionStorage.setItem("goli.via", v); } catch (_) { /* storage off */ }
+      return r.status === 204;
+    }, function () { return false; })
       .then(function (up) { try { sessionStorage.setItem("goli.up", up ? "1" : "0"); } catch (_) { /* storage off */ } return up; });
   }
   reachable().then(function (up) { if (up) start(); });
@@ -280,7 +283,9 @@
       form.appendChild(input); form.appendChild(send);
       form.addEventListener("submit", function (e) { e.preventDefault(); if (state.busy) { if (state.abort) state.abort.abort(); return; } ask(input.value); });
       input.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); } });
-      const foot = el("p", "goli-foot", "Answers come from the documentation through Claude, by Anthropic, and can be wrong. Questions are not stored.");
+      let via = "";
+      try { via = sessionStorage.getItem("goli.via") || ""; } catch (_) { /* storage off */ }
+      const foot = el("p", "goli-foot", "Answers come from the documentation" + (via ? " through " + via : "") + " and can be wrong. Questions are not stored.");
       p.appendChild(top); p.appendChild(log); p.appendChild(form); p.appendChild(foot);
       p.addEventListener("keydown", function (e) { if (e.key === "Escape") shut(); });
       Object.assign(state, { panel: p, log: log, input: input, send: send });

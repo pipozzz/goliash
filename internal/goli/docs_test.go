@@ -91,6 +91,9 @@ func TestDocsAnswersFromTheDocumentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = pre.Body.Close()
+	if pre.Header.Get("X-Goli-Via") != "Claude, by Anthropic" || !strings.Contains(pre.Header.Get("Access-Control-Expose-Headers"), "X-Goli-Via") {
+		t.Errorf("via %q, exposed %q", pre.Header.Get("X-Goli-Via"), pre.Header.Get("Access-Control-Expose-Headers"))
+	}
 	if pre.StatusCode != http.StatusNoContent || pre.Header.Get("Access-Control-Allow-Methods") == "" {
 		t.Errorf("preflight %d %v", pre.StatusCode, pre.Header)
 	}
