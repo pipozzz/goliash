@@ -45,6 +45,7 @@ GOLIASH_AI_API_KEY=sk-ant-… goliash serve
 | `GOLIASH_AI_MODEL` | `claude-opus-5-5` | The model; required with `openai` |
 | `GOLIASH_AI_EFFORT` | `medium` | How hard the model thinks: `low`, `medium` or `high` (sent to OpenAI-compatible servers only when set) |
 | `GOLIASH_AI_BASE_URL` | the provider's API | A gateway or proxy, or the OpenAI-compatible server |
+| `GOLIASH_AI_API` | `responses` for OpenAI, `chat` with a base URL | With `openai`: OpenAI's Responses API, which its newer models need for tool calls, or Chat Completions, which most other servers speak |
 | `GOLIASH_AI_PER_HOUR` | `60` | Questions one person may ask per hour |
 | `GOLIASH_AI_PER_DAY` | `0` (none) | Questions everyone together may ask per day on one server: a ceiling on the cost. Each server of a cluster counts its own; the count starts over at midnight UTC |
 
@@ -65,6 +66,9 @@ GOLIASH_AI_PROVIDER=openai GOLIASH_AI_API_KEY=sk-… GOLIASH_AI_MODEL=<model> go
 # A local model with Ollama: nothing leaves your network, and no key is needed
 GOLIASH_AI_PROVIDER=openai GOLIASH_AI_BASE_URL=http://ollama:11434/v1 GOLIASH_AI_MODEL=<model> goliash serve
 ```
+
+With OpenAI itself Goli uses the Responses API and asks OpenAI to keep nothing (`store: false`). With a base URL it
+speaks Chat Completions; set `GOLIASH_AI_API=responses` for a gateway that passes the Responses API through.
 
 Goli is only as good as the model behind it: pick one that handles tool calls well, or answers get vague. The panel
 and the Status page say which provider answers.

@@ -82,6 +82,9 @@ spec:
             {{- if .baseURL }}
             - { name: GOLIASH_AI_BASE_URL, value: {{ .baseURL | quote }} }
             {{- end }}
+            {{- if .api }}
+            - { name: GOLIASH_AI_API, value: {{ .api | quote }} }
+            {{- end }}
             {{- if .perHour }}
             - { name: GOLIASH_AI_PER_HOUR, value: {{ .perHour | quote }} }
             {{- end }}

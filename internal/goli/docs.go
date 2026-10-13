@@ -252,6 +252,18 @@ func (d *Docs) answer(ctx context.Context, docs string, history []Turn, emit fun
 	if len(messages) == 0 {
 		return errors.New("nothing to answer")
 	}
+	if d.a.cfg.Provider == OpenAI && d.a.cfg.API == "responses" {
+		_, _, finish, err := d.a.respond(ctx, docsPrompt+"\n\n<documentation>\n"+docs+"\n</documentation>", rHistory(history), nil, emit)
+		if err != nil {
+			return err
+		}
+		if finish == "content_filter" {
+			emit(Event{Type: "error", Text: "Goli cannot help with that one."})
+			return nil
+		}
+		emit(Event{Type: "done"})
+		return nil
+	}
 	if d.a.cfg.Provider == OpenAI {
 		msgs := append([]oaMessage{oaText("system", docsPrompt+"\n\n<documentation>\n"+docs+"\n</documentation>")}, oaHistory(history)...)
 		_, finish, err := d.a.chat(ctx, msgs, nil, emit)

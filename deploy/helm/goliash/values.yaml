@@ -38,6 +38,7 @@ goli:
   model: ""
   effort: ""
   baseURL: ""
+  api: ""            # with openai: responses (default without baseURL) or chat (default with it)
   perHour: ""         # questions one person may ask per hour (server default 60)
   perDay: ""          # questions everyone may ask per day, per replica: a cost ceiling (server default none)
 

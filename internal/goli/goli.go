@@ -40,6 +40,7 @@ type Config struct {
 	APIKey    string
 	Model     string
 	BaseURL   string // a gateway or proxy, or the OpenAI-compatible server; empty for the provider's own API
+	API       string // with openai: responses (OpenAI's own API, the default without a base URL) or chat (Chat Completions)
 	Effort    string // low, medium or high
 	EffortSet bool   // the operator chose the effort (OpenAI-compatible servers get it only then)
 	PerHour   int    // questions a person may ask per hour
@@ -69,6 +70,17 @@ func ConfigFromEnv() (Config, bool, error) {
 			return c, false, fmt.Errorf("GOLIASH_AI_API_KEY_FILE: %w", err)
 		}
 		c.APIKey = strings.TrimSpace(string(b))
+	}
+	switch c.API = strings.ToLower(strings.TrimSpace(os.Getenv("GOLIASH_AI_API"))); c.API {
+	case "":
+		// OpenAI's newer models call tools only through the Responses API; other servers mostly speak Chat Completions.
+		c.API = "chat"
+		if c.BaseURL == "" {
+			c.API = "responses"
+		}
+	case "responses", "chat":
+	default:
+		return c, false, fmt.Errorf("GOLIASH_AI_API %q: responses or chat", c.API)
 	}
 	on := c.APIKey != "" || (c.Provider == OpenAI && c.BaseURL != "")
 	if c.Model == "" {
@@ -151,6 +163,12 @@ func New(cfg Config, log *slog.Logger) *Assistant {
 	}
 	if cfg.Provider == "" {
 		cfg.Provider = Anthropic
+	}
+	if cfg.API == "" {
+		cfg.API = "chat"
+		if cfg.BaseURL == "" {
+			cfg.API = "responses"
+		}
 	}
 	return &Assistant{cfg: cfg, client: anthropic.NewClient(opts...), http: &http.Client{}, log: log, asked: map[string][]time.Time{}}
 }
@@ -236,6 +254,9 @@ func (a *Assistant) Ask(ctx context.Context, tools Tools, history []Turn, where 
 		return nil, fmt.Errorf("tools: %w", err)
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name }) // a stable prefix caches
+	if a.cfg.Provider == OpenAI && a.cfg.API == "responses" {
+		return a.askResponses(ctx, tools, list, history, where, emit)
+	}
 	if a.cfg.Provider == OpenAI {
 		return a.askOpenAI(ctx, tools, list, history, where, emit)
 	}
