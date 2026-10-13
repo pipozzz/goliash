@@ -41,7 +41,12 @@ templ ServicePage(v ServiceView) {
 			}
 			<div class="fact">
 				<dt>Latest acceptable</dt>
-				<dd class="mono">{ orDash(v.Latest) }</dd>
+				<dd>
+					<span class="mono">{ orDash(v.Latest) }</span>
+					if v.Goli && v.Latest != "" {
+						<button type="button" class="link ask-goli noprint" data-goli-ask={ "Brief me on upgrading " + v.Name + " to " + v.Latest + " from what runs in each environment: what breaks or needs migrating, what it fixes (security first), and what to check before and after." } title="Goli reads the release notes and briefs you">Brief</button>
+					}
+				</dd>
 			</div>
 			<div class="fact">
 				<dt>Last checked</dt>

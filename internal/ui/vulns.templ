@@ -75,6 +75,9 @@ templ VulnsPage(v VulnsView) {
 										if len(f.Aliases) > 1 {
 											<div class="targets mono">{ "also " + strings.Join(f.Aliases, ", ") }</div>
 										}
+										if v.Goli {
+											<button type="button" class="link ask-goli noprint" data-goli-ask={ explainVuln(f.Key) } title="Goli explains what it means for what runs here">Explain</button>
+										}
 									</td>
 									<td>
 										if f.Exploited != nil {
@@ -133,4 +136,10 @@ func inEnv(v VulnsView) string {
 		return ""
 	}
 	return " in " + v.EnvName
+}
+
+// explainVuln is what the Explain button asks Goli about a vulnerability.
+func explainVuln(id string) string {
+	return "Explain " + id + " for us: what it is in plain words, which running services and environments have it, " +
+		"whether it is exploited in the wild, what fixes it, and how urgent it is here."
 }
