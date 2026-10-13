@@ -25,6 +25,7 @@ type Release struct {
 
 // InsertReleases records versions of a service and returns those not known before.
 func (s *Store) InsertReleases(ctx context.Context, sc Scope, serviceID string, versions []string) ([]string, error) {
+	defer s.releasesGen.Add(1)
 	var added []string
 	now := s.now()
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
@@ -66,8 +67,59 @@ func (s *Store) ListReleases(ctx context.Context, sc Scope, serviceID string) ([
 	return out, rows.Err()
 }
 
+// ReleasesByService returns the known versions of every service of the workspace, keyed by service ID, each in
+// discovery order: one query for what ListReleases does per service.
+func (s *Store) ReleasesByService(ctx context.Context, sc Scope) (map[string][]Release, error) {
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, published_at, changelog_url, discovered_at FROM releases
+		WHERE org_id = ? AND workspace_id = ? ORDER BY service_id, discovered_at, version`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string][]Release{}
+	for rows.Next() {
+		var r Release
+		var published sql.NullTime
+		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &published, &r.ChangelogURL, &r.DiscoveredAt); err != nil {
+			return nil, err
+		}
+		r.PublishedAt, r.DiscoveredAt = timeOrZero(published), r.DiscoveredAt.UTC()
+		out[r.ServiceID] = append(out[r.ServiceID], r)
+	}
+	return out, rows.Err()
+}
+
+// UpstreamCheck is when a service's upstream was last checked and what went wrong, if anything.
+type UpstreamCheck struct {
+	At    time.Time
+	Error string
+}
+
+// UpstreamChecks returns UpstreamStatus for every service of the workspace, keyed by service ID.
+func (s *Store) UpstreamChecks(ctx context.Context, sc Scope) (map[string]UpstreamCheck, error) {
+	rows, err := s.query(ctx, s.db, `SELECT id, upstream_checked_at, upstream_error FROM services WHERE org_id = ? AND workspace_id = ?`,
+		sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]UpstreamCheck{}
+	for rows.Next() {
+		var id string
+		var at sql.NullTime
+		var c UpstreamCheck
+		if err := rows.Scan(&id, &at, &c.Error); err != nil {
+			return nil, err
+		}
+		c.At = timeOrZero(at)
+		out[id] = c
+	}
+	return out, rows.Err()
+}
+
 // SetReleaseInfo stores a release's publication time and changelog link.
 func (s *Store) SetReleaseInfo(ctx context.Context, sc Scope, serviceID, version string, published time.Time, changelogURL string) error {
+	defer s.releasesGen.Add(1)
 	var pub sql.NullTime
 	if !published.IsZero() {
 		pub = sql.NullTime{Time: published.UTC(), Valid: true}

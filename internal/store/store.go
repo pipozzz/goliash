@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
@@ -47,7 +48,14 @@ type Store struct {
 	aead    cipher.AEAD // encrypts secrets at rest; nil without a secret key
 
 	sessionIdle time.Duration // sessions unused this long stop working; 0: never
+
+	// releasesGen counts this process's writes to releases, so a cache of them knows when it is stale.
+	releasesGen atomic.Uint64
 }
+
+// ReleasesGeneration changes whenever this process writes releases: a cache built at one generation is
+// stale at another. Other processes' writes do not count; caches also expire.
+func (s *Store) ReleasesGeneration() uint64 { return s.releasesGen.Load() }
 
 // Open connects to the database named by dsn and applies pending migrations.
 //
@@ -91,7 +99,9 @@ func parseDSN(dsn string) (dialect Dialect, driver, source string, err error) {
 
 	path := strings.TrimPrefix(dsn, "sqlite://")
 	pragmas := url.Values{}
-	for _, p := range []string{"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "synchronous(NORMAL)"} {
+	// A 32 MB page cache and memory-mapped reads keep large workspaces (thousands of services) from reading
+	// the same pages from disk on every page load; mmap shares the OS page cache across connections.
+	for _, p := range []string{"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "synchronous(NORMAL)", "cache_size(-32768)", "mmap_size(268435456)", "temp_store(MEMORY)"} {
 		pragmas.Add("_pragma", p)
 	}
 	pragmas.Set("_txlock", "immediate")

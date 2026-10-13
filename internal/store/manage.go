@@ -91,6 +91,7 @@ func (s *Store) UpdateChannel(ctx context.Context, sc Scope, id, name string, co
 // policy, mapping rules, acknowledgements and drift. History events stay, without
 // the service. It refuses (ErrInUse) while instances still run as the service.
 func (s *Store) DeleteService(ctx context.Context, sc Scope, id string) error {
+	defer s.releasesGen.Add(1)
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		var n int
 		if err := s.queryRow(ctx, tx, `SELECT COUNT(*) FROM instances WHERE workspace_id = ? AND service_id = ? AND removed_at IS NULL`,
@@ -160,6 +161,7 @@ func (s *Store) RenameService(ctx context.Context, sc Scope, id, name string) er
 // keeps its own name, owner and policy. Open drift that into already has is dropped;
 // the rest moves, keeping when it opened and whether it was announced.
 func (s *Store) MergeService(ctx context.Context, sc Scope, from, into string) error {
+	defer s.releasesGen.Add(1)
 	if from == into {
 		return nil
 	}

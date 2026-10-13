@@ -5,6 +5,8 @@ package versions
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/registry"
@@ -126,8 +128,12 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	for _, e := range envs {
 		o.Envs[e.ID] = e
 	}
+	checks, err := st.UpstreamChecks(ctx, sc)
+	if err != nil {
+		return o, err
+	}
 	for id := range o.Refs {
-		if _, msg, err := st.UpstreamStatus(ctx, sc, id); err == nil && msg != "" {
+		if msg := checks[id].Error; msg != "" {
 			o.CheckErrs[id] = msg
 		}
 	}
@@ -162,13 +168,14 @@ func splitApps(m Matrix) map[string]bool {
 // loadUpstreams fills each referenced service's policy and newest acceptable release. With at, only releases
 // out by then count: published by then when the date is known, else seen by Goliash by then.
 func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Overview, at *time.Time) error {
+	all, err := releasesByService(ctx, st, sc)
+	if err != nil {
+		return err
+	}
 	for id, ref := range o.Refs {
 		p, _, _ := PolicyFor(o.Services[id], ref.Repo)
 		o.Policies[id] = p
-		releases, err := st.ListReleases(ctx, sc, id)
-		if err != nil {
-			return err
-		}
+		releases := all[id]
 		var tags []string
 		for _, r := range releases {
 			if at != nil {
@@ -190,4 +197,42 @@ func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Over
 		}
 	}
 	return nil
+}
+
+// releaseCacheTTL bounds how long a workspace's releases are reused; writes in this process drop them sooner.
+const releaseCacheTTL = time.Minute
+
+var releaseCache struct {
+	sync.Mutex
+	m map[string]cachedReleases
+}
+
+type cachedReleases struct {
+	gen  uint64
+	at   time.Time
+	data map[string][]store.Release
+}
+
+// releasesByService is store.ReleasesByService, reused across page loads until releases change: the largest
+// read of a matrix, and the same for a minute at a time.
+func releasesByService(ctx context.Context, st *store.Store, sc store.Scope) (map[string][]store.Release, error) {
+	gen := st.ReleasesGeneration()
+	key := fmt.Sprintf("%p|%s", st, sc.WorkspaceID)
+	releaseCache.Lock()
+	c, ok := releaseCache.m[key]
+	releaseCache.Unlock()
+	if ok && c.gen == gen && time.Since(c.at) < releaseCacheTTL {
+		return c.data, nil
+	}
+	data, err := st.ReleasesByService(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	releaseCache.Lock()
+	if releaseCache.m == nil {
+		releaseCache.m = map[string]cachedReleases{}
+	}
+	releaseCache.m[key] = cachedReleases{gen: gen, at: time.Now(), data: data}
+	releaseCache.Unlock()
+	return data, nil
 }

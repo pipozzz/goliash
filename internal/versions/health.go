@@ -98,14 +98,15 @@ func LoadHealth(ctx context.Context, st *store.Store, checker *Checker, sc store
 	c = HealthCheck{Title: "Upstream releases", State: "ok", Link: "/updates", LinkText: "Updates"}
 	var last time.Time
 	checked, never := 0, 0
+	checks, err := st.UpstreamChecks(ctx, sc)
+	if err != nil {
+		return v, err
+	}
 	for id, ref := range o.Refs {
 		if ref.Repo == "" || PackageRepo(ref.Repo) || CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
 			continue
 		}
-		at, msg, err := st.UpstreamStatus(ctx, sc, id)
-		if err != nil {
-			continue
-		}
+		at, msg := checks[id].At, checks[id].Error
 		if at.IsZero() {
 			never++
 			continue
