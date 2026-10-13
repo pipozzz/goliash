@@ -28,8 +28,16 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request, p auth.Principal
 	}
 	if s.goliOn() {
 		g.State, g.Summary, g.Link, g.LinkText = "ok", "On, answering with "+s.goli.Model()+" ("+s.goli.Via()+").", "", ""
+		g.Details = []string{s.goli.Usage().Summary()}
 	}
 	h.Checks = append(h.Checks, g)
+	if s.goliDocs != nil {
+		h.Checks = append(h.Checks, versions.HealthCheck{
+			Title: "Goli on the website", State: "ok",
+			Summary: "Answering questions about Goliash from its documentation with " + s.goliDocs.Model() + ".",
+			Details: []string{s.goliDocs.Usage().Summary()},
+		})
+	}
 	v := StatusView{Base: withFlash(s.base(r.Context(), p, "status", "Status"), r), Health: h}
 	return render(w, r, StatusPage(v))
 }

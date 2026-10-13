@@ -63,7 +63,7 @@ type oaTool struct {
 // chat streams one completion: text goes to emit as it comes; the assistant message (with its tool calls) and why
 // it stopped come back.
 func (a *Assistant) chat(ctx context.Context, msgs []oaMessage, tools []oaTool, emit func(Event)) (oaMessage, string, error) {
-	body := map[string]any{"model": a.cfg.Model, "messages": msgs, "stream": true}
+	body := map[string]any{"model": a.cfg.Model, "messages": msgs, "stream": true, "stream_options": map[string]bool{"include_usage": true}}
 	if len(tools) > 0 {
 		body["tools"] = tools
 	}
@@ -126,12 +126,22 @@ func (a *Assistant) chat(ctx context.Context, msgs []oaMessage, tools []oaTool, 
 			Error *struct {
 				Message string `json:"message"`
 			} `json:"error"`
+			Usage *struct {
+				PromptTokens        int64 `json:"prompt_tokens"`
+				CompletionTokens    int64 `json:"completion_tokens"`
+				PromptTokensDetails struct {
+					CachedTokens int64 `json:"cached_tokens"`
+				} `json:"prompt_tokens_details"`
+			} `json:"usage"`
 		}
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue
 		}
 		if chunk.Error != nil {
 			return oaMessage{}, "", fmt.Errorf("model server: %s", chunk.Error.Message)
+		}
+		if u := chunk.Usage; u != nil {
+			a.record(u.PromptTokens, u.PromptTokensDetails.CachedTokens, u.CompletionTokens)
 		}
 		for _, ch := range chunk.Choices {
 			if ch.Delta.Content != "" {

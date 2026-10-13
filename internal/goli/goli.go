@@ -183,6 +183,8 @@ type Assistant struct {
 	asked map[string][]time.Time // per person, the times of their questions in the last hour
 	day   string                 // the UTC date today counts
 	today int                    // questions asked on day
+
+	tokIn, tokCached, tokOut int64 // tokens used on day
 }
 
 // New returns Goli for cfg.
@@ -223,15 +225,10 @@ func (a *Assistant) Via() string {
 // AllowToday counts a question against the server's daily ceiling (GOLIASH_AI_PER_DAY) and reports whether it is
 // within it. Each server counts its own questions; the count starts over at midnight UTC and on restart.
 func (a *Assistant) AllowToday(now time.Time) bool {
-	if a.cfg.PerDay <= 0 {
-		return true
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if day := now.UTC().Format(time.DateOnly); day != a.day {
-		a.day, a.today = day, 0
-	}
-	if a.today >= a.cfg.PerDay {
+	a.rollover(now)
+	if a.cfg.PerDay > 0 && a.today >= a.cfg.PerDay {
 		return false
 	}
 	a.today++
@@ -353,6 +350,7 @@ func (a *Assistant) Ask(ctx context.Context, tools Tools, history []Turn, where 
 			return used, err
 		}
 		messages = append(messages, msg.ToParam())
+		a.record(msg.Usage.InputTokens+msg.Usage.CacheCreationInputTokens+msg.Usage.CacheReadInputTokens, msg.Usage.CacheReadInputTokens, msg.Usage.OutputTokens)
 
 		switch msg.StopReason {
 		case anthropic.BetaStopReasonToolUse:

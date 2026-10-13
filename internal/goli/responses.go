@@ -104,6 +104,13 @@ func (a *Assistant) respond(ctx context.Context, instructions string, input []js
 				Error *struct {
 					Message string `json:"message"`
 				} `json:"error"`
+				Usage *struct {
+					InputTokens        int64 `json:"input_tokens"`
+					OutputTokens       int64 `json:"output_tokens"`
+					InputTokensDetails struct {
+						CachedTokens int64 `json:"cached_tokens"`
+					} `json:"input_tokens_details"`
+				} `json:"usage"`
 			} `json:"response"`
 		}
 		if err := json.Unmarshal([]byte(data), &ev); err != nil {
@@ -131,8 +138,14 @@ func (a *Assistant) respond(ctx context.Context, instructions string, input []js
 			}
 		case "response.completed":
 			finish = "completed"
+			if u := ev.Response.Usage; u != nil {
+				a.record(u.InputTokens, u.InputTokensDetails.CachedTokens, u.OutputTokens)
+			}
 		case "response.incomplete":
 			finish = "incomplete"
+			if u := ev.Response.Usage; u != nil {
+				a.record(u.InputTokens, u.InputTokensDetails.CachedTokens, u.OutputTokens)
+			}
 			if d := ev.Response.IncompleteDetails; d != nil {
 				finish = d.Reason // max_output_tokens or content_filter
 			}

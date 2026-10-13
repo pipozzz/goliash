@@ -72,7 +72,8 @@ type Server struct {
 	updateCheck bool
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
-	goliDemo    bool // Goli answers on the public demo too
+	goliDemo    bool       // Goli answers on the public demo too
+	goliDocs    *goli.Docs // Goli on a website, for its usage on the Status page
 	api         http.Handler
 
 	favMu    sync.Mutex
@@ -103,6 +104,8 @@ type Options struct {
 	// GoliInDemo lets Goli answer on a public demo, where anyone may ask: per visitor address, not per the one
 	// shared demo user.
 	GoliInDemo bool
+	// GoliDocs is Goli answering from the documentation for a website, when on.
+	GoliDocs *goli.Docs
 }
 
 // siteDescription is what link previews say about any page.
@@ -118,7 +121,7 @@ func New(o Options) *Server {
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
-		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo,
+		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
 	}
 }
 

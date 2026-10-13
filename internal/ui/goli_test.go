@@ -81,8 +81,8 @@ func TestGoliAnswersFromTheAPIAsTheViewer(t *testing.T) {
 	if _, body := get(t, viewer, e.srv.URL+"/", nil); !strings.Contains(body, "data-goli") || !strings.Contains(body, "goli-fab") {
 		t.Error("the page does not offer Goli")
 	}
-	if _, body := get(t, viewer, e.srv.URL+"/status", nil); !strings.Contains(body, "answering with claude-opus-5-5") {
-		t.Error("the status page does not say Goli is on")
+	if _, body := get(t, viewer, e.srv.URL+"/status", nil); !strings.Contains(body, "answering with claude-opus-5-5") || !strings.Contains(body, "Today: 0 questions") {
+		t.Error("the status page does not say Goli is on and what it used")
 	}
 	code, body := ask()
 	if code != http.StatusOK {

@@ -553,26 +553,30 @@ func serve(ctx context.Context, args []string) error {
 		assistant = goli.New(aiCfg, log)
 		log.Info("Goli, the assistant, is on", "provider", aiCfg.Provider, "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
 	}
-	ui.New(ui.Options{
-		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
-		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
-		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
-		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true",
-	}).Register(mux)
-	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
-	// Goli answering questions about Goliash on a website, from its documentation only.
-	csrf := http.NewCrossOriginProtection()
 	docsCfg, docsOn, err := goli.DocsConfigFromEnv()
 	if err != nil {
 		return err
 	}
+	var docs *goli.Docs
 	if docsOn && assistant == nil {
 		log.Warn("GOLIASH_DOCS_ASSISTANT needs GOLIASH_AI_API_KEY; the docs assistant is off")
 	} else if docsOn {
-		mux.Handle("/goli/docs", goli.NewDocs(assistant, docsCfg, authn.ClientIP, log))
+		docs = goli.NewDocs(assistant, docsCfg, authn.ClientIP, log)
+		log.Info("Goli answers questions about Goliash", "docs", docsCfg.URL, "origins", docsCfg.Origins, "model", docs.Model())
+	}
+	ui.New(ui.Options{
+		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
+		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
+		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
+		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs,
+	}).Register(mux)
+	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
+	// Goli answering questions about Goliash on a website, from its documentation only.
+	csrf := http.NewCrossOriginProtection()
+	if docs != nil {
+		mux.Handle("/goli/docs", docs)
 		// Only this path takes cross-origin posts; it reads no cookies and checks the origin itself.
 		csrf.AddInsecureBypassPattern("/goli/docs")
-		log.Info("Goli answers questions about Goliash", "docs", docsCfg.URL, "origins", docsCfg.Origins)
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := db.Ping(r.Context()); err != nil {

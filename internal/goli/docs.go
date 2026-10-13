@@ -80,11 +80,12 @@ type Docs struct {
 
 // NewDocs returns the documentation assistant. clientIP tells where a request comes from.
 func NewDocs(a *Assistant, cfg DocsConfig, clientIP func(*http.Request) string, log *slog.Logger) *Docs {
-	if cfg.Model != "" && cfg.Model != a.cfg.Model {
-		own := a.cfg
+	// An assistant of its own, so its usage is counted apart from Goli's.
+	own := a.cfg
+	if cfg.Model != "" {
 		own.Model = cfg.Model
-		a = New(own, log)
 	}
+	a = New(own, log)
 	return &Docs{
 		a: a, cfg: cfg, clientIP: clientIP, http: &http.Client{Timeout: 20 * time.Second}, log: log,
 		byAddr: &Assistant{cfg: Config{PerHour: cfg.PerHour}, asked: map[string][]time.Time{}},
@@ -148,6 +149,23 @@ func (d *Docs) allowDay(now time.Time) bool {
 	d.today++
 	return true
 }
+
+// Usage is what the documentation assistant used today.
+func (d *Docs) Usage() Usage {
+	u := d.a.Usage()
+	d.mu.Lock()
+	if d.day == u.Day {
+		u.Questions = d.today
+	} else {
+		u.Questions = 0
+	}
+	d.mu.Unlock()
+	u.PerDay = d.cfg.PerDay
+	return u
+}
+
+// Model is the model the documentation assistant answers with.
+func (d *Docs) Model() string { return d.a.Model() }
 
 func (d *Docs) cors(w http.ResponseWriter, r *http.Request) bool {
 	origin := strings.TrimRight(r.Header.Get("Origin"), "/")
@@ -315,6 +333,7 @@ func (d *Docs) answer(ctx context.Context, docs string, history []Turn, emit fun
 	if err := stream.Err(); err != nil {
 		return err
 	}
+	d.a.record(msg.Usage.InputTokens+msg.Usage.CacheCreationInputTokens+msg.Usage.CacheReadInputTokens, msg.Usage.CacheReadInputTokens, msg.Usage.OutputTokens)
 	if msg.StopReason == anthropic.BetaStopReasonRefusal {
 		emit(Event{Type: "error", Text: "Goli cannot help with that one."})
 		return nil
