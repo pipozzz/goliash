@@ -167,6 +167,7 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 	if len(msg.Items) == 0 {
 		return 0, nil
 	}
+	n.addTake(ctx, &msg)
 	sender, ok := n.senders[rt.channel.Type]
 	if !ok {
 		return 0, fmt.Errorf("no sender for channel type %q", rt.channel.Type)

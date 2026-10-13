@@ -156,6 +156,13 @@ goliash notify create -channel team-payments -events updates_plan -owners team-p
 **Send plan now** on the rule sends its plan at once, to check the channel and the filters without waiting for
 Monday; the scheduled plans are not affected.
 
+With [Goli](/guide/goli/) on and `GOLIASH_AI_PLAN_SUMMARY=true`, the plan opens with **Goli's take**: a few sentences
+on what to upgrade first and why, written from the plan's own lines (one model call per plan and channel, no other
+data). When the model cannot be reached, the plan goes without it.
+
+> Goli's take: Upgrade payments-api in prod first: its log4j-core is exploited in the wild and 2.16.0 fixes it.
+> Postgres 15 reaches end of life next month; the minor updates in staging can wait.
+
 ## Vulnerabilities
 
 The `vulnerability` event announces a vulnerability exploited in the wild (CISA KEV) or rated critical as soon as it

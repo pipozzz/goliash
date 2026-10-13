@@ -90,6 +90,9 @@ func (s Slack) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	var b strings.Builder
 	if msg.Digest || len(msg.Items) > 1 {
 		b.WriteString("*" + msg.Title() + "*\n")
+		if msg.Take != "" {
+			b.WriteString("_Goli's take:_ " + msg.Take + "\n")
+		}
 		for _, it := range msg.Items {
 			b.WriteString("• " + slackLine(it) + "\n")
 		}
@@ -168,6 +171,9 @@ type Email struct{ Config SMTPConfig }
 // Send implements Sender.
 func (e Email) Send(ctx context.Context, ch store.Channel, msg Message) error {
 	var body strings.Builder
+	if msg.Take != "" {
+		fmt.Fprintf(&body, "Goli's take: %s\r\n\r\n", msg.Take)
+	}
 	for _, it := range msg.Items {
 		fmt.Fprintf(&body, "- %s (%s)\r\n", it.Text, it.At.Format("2006-01-02 15:04 MST"))
 		if it.URL != "" {

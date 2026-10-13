@@ -133,8 +133,11 @@ func slackBlocks(msg Message) []map[string]any {
 	if !single {
 		blocks = append(blocks,
 			map[string]any{"type": "header", "text": map[string]any{"type": "plain_text", "text": truncate(msg.Title(), 150), "emoji": true}},
-			map[string]any{"type": "context", "elements": []any{text("mrkdwn", "Workspace *"+slackEscape(msg.Workspace)+"* · "+summary(msg))}},
-			map[string]any{"type": "divider"})
+			map[string]any{"type": "context", "elements": []any{text("mrkdwn", "Workspace *"+slackEscape(msg.Workspace)+"* · "+summary(msg))}})
+		if msg.Take != "" {
+			blocks = append(blocks, map[string]any{"type": "section", "text": text("mrkdwn", "*Goli's take:* "+slackEscape(truncate(msg.Take, 2900)))})
+		}
+		blocks = append(blocks, map[string]any{"type": "divider"})
 	}
 	for i, it := range msg.Items {
 		if i == slackItems {
@@ -251,9 +254,9 @@ func emailHTML(msg Message) (string, error) {
 		When, Target, Team string
 	}
 	data := struct {
-		Title, Summary, Workspace, Open, OpenLabel string
-		Rows                                       []row
-	}{Title: msg.Title(), Summary: summary(msg), Workspace: msg.Workspace, Open: openLink(msg), OpenLabel: "Open in Goliash"}
+		Title, Summary, Workspace, Open, OpenLabel, Take string
+		Rows                                             []row
+	}{Title: msg.Title(), Summary: summary(msg), Workspace: msg.Workspace, Open: openLink(msg), OpenLabel: "Open in Goliash", Take: msg.Take}
 	if msg.plan() {
 		data.OpenLabel = "Open the Updates page"
 	}
@@ -285,6 +288,7 @@ var emailTemplate = template.Must(template.New("mail").Parse(`<!doctype html>
   {{if .Summary}}<div style="color:#aab6e8;font-size:13px;margin-top:4px">{{.Summary}}</div>{{end}}
 </td></tr>
 <tr><td style="background:#ffffff;border-radius:0 0 14px 14px;padding:8px 24px 24px">
+{{if .Take}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:#eef1ff;border-radius:10px"><tr><td style="padding:12px 16px;font-size:14px;line-height:1.5;color:#1c2333"><b style="color:#1b2a6b">Goli's take:</b> {{.Take}}</td></tr></table>{{end}}
 {{range .Rows}}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-left:4px solid {{.Kind.Colour}};background:#f8f9fc;border-radius:0 10px 10px 0">
   <tr><td style="padding:12px 16px">

@@ -63,6 +63,9 @@ func teamsCard(msg Message) map[string]any {
 	if msg.Digest || len(msg.Items) > 1 {
 		body = append(body, text("Workspace "+msg.Workspace+" · "+summary(msg), map[string]any{"isSubtle": true, "spacing": "None"}))
 	}
+	if msg.Take != "" {
+		body = append(body, text("**Goli's take:** "+msg.Take, nil))
+	}
 	for i, it := range msg.Items {
 		if i == cardItems {
 			body = append(body, text("…and "+strconv.Itoa(len(msg.Items)-cardItems)+" more in Goliash", map[string]any{"isSubtle": true}))
@@ -164,6 +167,10 @@ func googleChatCard(msg Message) map[string]any {
 		widgets = append(widgets, map[string]any{"decoratedText": d})
 	}
 	sections := []any{map[string]any{"widgets": widgets}}
+	if msg.Take != "" {
+		take := map[string]any{"widgets": []any{map[string]any{"textParagraph": map[string]any{"text": "<b>Goli's take:</b> " + html.EscapeString(msg.Take)}}}}
+		sections = append([]any{take}, sections...)
+	}
 	if u := openLink(msg); u != "" {
 		label := "Open in Goliash"
 		if msg.plan() {

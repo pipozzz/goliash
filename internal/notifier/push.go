@@ -69,6 +69,9 @@ func pushPayload(msg Message) PushPayload {
 		return PushPayload{Title: title, Body: what(it), URL: itemLink(msg.Link, it), Tag: it.Type + ":" + it.Service + ":" + it.Environment}
 	}
 	var lines []string
+	if msg.Take != "" {
+		lines = append(lines, truncate(msg.Take, 180))
+	}
 	for i, it := range msg.Items {
 		if i == 4 {
 			lines = append(lines, fmt.Sprintf("…and %d more", len(msg.Items)-4))

@@ -43,6 +43,7 @@ type Message struct {
 	Digest    bool   `json:"digest"`
 	Items     []Item `json:"items"`
 	Link      string `json:"link,omitempty"` // Goliash's public URL, for buttons back to it
+	Take      string `json:"take,omitempty"` // Goli's take on an upgrade plan: what first and why, in a few sentences
 }
 
 // Title is a one-line summary of the message.
@@ -136,6 +137,28 @@ type Notifier struct {
 	senders map[string]Sender
 	now     func() time.Time
 	link    string // public URL, without a trailing slash
+	take    TakeFunc
+}
+
+// TakeFunc writes Goli's take on an upgrade plan: plain text, a few sentences.
+type TakeFunc func(ctx context.Context, workspace string, items []Item) (string, error)
+
+// SetTake lets upgrade plans open with Goli's take on them.
+func (n *Notifier) SetTake(f TakeFunc) { n.take = f }
+
+// addTake puts Goli's take in an upgrade plan; without one the plan goes as it is.
+func (n *Notifier) addTake(ctx context.Context, msg *Message) {
+	if n.take == nil || !msg.plan() {
+		return
+	}
+	tctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	take, err := n.take(tctx, msg.Workspace, msg.Items)
+	if err != nil {
+		n.log.Warn("Goli's take on the upgrade plan failed; sending it without", "err", err)
+		return
+	}
+	msg.Take = strings.TrimSpace(take)
 }
 
 // SetPublicURL lets messages link back to Goliash (buttons, item links).
@@ -507,6 +530,7 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 		}
 	}
 	sort.SliceStable(msg.Items, func(i, j int) bool { return msg.Items[i].At.Before(msg.Items[j].At) })
+	n.addTake(ctx, &msg)
 
 	sender, ok := n.senders[rt.channel.Type]
 	var err error

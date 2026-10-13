@@ -21,6 +21,9 @@ func lines(msg Message, link func(text, url string) string) (title string, body 
 	if msg.Digest || len(msg.Items) > 1 {
 		title = msg.Title()
 	}
+	if msg.Take != "" {
+		body = append(body, "Goli's take: "+msg.Take)
+	}
 	for _, it := range msg.Items {
 		line := it.Text
 		if it.URL != "" {

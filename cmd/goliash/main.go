@@ -552,6 +552,17 @@ func serve(ctx context.Context, args []string) error {
 	if aiOn {
 		assistant = goli.New(aiCfg, log)
 		log.Info("Goli, the assistant, is on", "provider", aiCfg.Provider, "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
+		if os.Getenv("GOLIASH_AI_PLAN_SUMMARY") == "true" {
+			// Upgrade plans open with Goli's take: one call per plan and channel, the plan's lines only.
+			notify.SetTake(func(ctx context.Context, workspace string, items []notifier.Item) (string, error) {
+				var b strings.Builder
+				fmt.Fprintf(&b, "Workspace: %s\n", workspace)
+				for _, it := range items {
+					fmt.Fprintf(&b, "- %s\n", it.Text)
+				}
+				return assistant.Complete(ctx, goli.TakeInstructions, b.String())
+			})
+		}
 	}
 	ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,

@@ -47,6 +47,7 @@ GOLIASH_AI_API_KEY=sk-ant-… goliash serve
 | `GOLIASH_AI_BASE_URL` | the provider's API | A gateway or proxy, or the OpenAI-compatible server |
 | `GOLIASH_AI_API` | `responses` for OpenAI, `chat` with a base URL | With `openai`: OpenAI's Responses API, which its newer models need for tool calls, or Chat Completions, which most other servers speak |
 | `GOLIASH_AI_PER_HOUR` | `60` | Questions one person may ask per hour |
+| `GOLIASH_AI_PLAN_SUMMARY` | off | `true` opens each [upgrade plan](/guide/notifications/#upgrade-plan) with Goli's take on it |
 | `GOLIASH_AI_PER_DAY` | `0` (none) | Questions everyone together may ask per day on one server: a ceiling on the cost. Each server of a cluster counts its own; the count starts over at midnight UTC |
 
 For a hard limit on spending, also give Goliash its own key with a budget at the provider: a separate workspace
