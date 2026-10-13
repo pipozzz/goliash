@@ -611,7 +611,7 @@ templ registriesPanel(v SettingsView) {
 		</div>
 		if len(v.Registries) > 0 {
 			<div class="scroll">
-				<table>
+				<table class="cards">
 					<thead><tr><th>Registry</th><th>Username</th><th>Status</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead>
 					<tbody>
 						for _, c := range v.Registries {
@@ -620,8 +620,8 @@ templ registriesPanel(v SettingsView) {
 									<strong><code>{ c.Host }</code></strong>
 									<div class="targets">{ plural(c.Services, "service", "services") }</div>
 								</td>
-								<td><code>{ c.Username }</code></td>
-								<td>
+								<td data-label="Username"><code>{ c.Username }</code></td>
+								<td data-label="Status">
 									if c.Error != "" {
 										<span class="badge revoked" title={ c.Error }>refused</span>
 										<div class="targets">{ c.Error }</div>
@@ -632,13 +632,13 @@ templ registriesPanel(v SettingsView) {
 										<span class="muted">not used yet</span>
 									}
 								</td>
-								<td>
+								<td data-label="Added">
 									@timeAgo(c.CreatedAt)
 									if c.CreatedBy != "" {
 										<div class="targets">by { c.CreatedBy }</div>
 									}
 								</td>
-								<td class="num">
+								<td class="num" data-label="">
 									<form class="inline" method="post" action={ templ.URL("/settings/registries/" + c.ID + "/delete") } hx-confirm={ "Remove the credentials for " + c.Host + "? Its images go back to the agents." }>
 										<button class="link" type="submit" style="color:var(--bad)">Remove</button>
 									</form>

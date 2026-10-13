@@ -986,3 +986,19 @@ td.tl-differs { box-shadow: inset 3px 0 0 var(--info); }
 .status-overall.st-off { background: var(--surface); color: var(--muted); }
 a.live { text-decoration: none; color: inherit; }
 a.live:hover { text-decoration: underline; }
+/* Tables marked "cards" become one card per row on phones: the first cell as its title, the others labelled. */
+@media (max-width: 720px) {
+  table.cards thead { display: none; }
+  table.cards, table.cards tbody, table.cards tr, table.cards td { display: block; width: 100%; }
+  table.cards tr { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  table.cards td { border: 0; padding: 3px 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 2px 10px; align-items: start; justify-items: start; overflow-wrap: anywhere; }
+  table.cards td::before { content: attr(data-label); color: var(--muted); font: 600 11px/1.9 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; }
+  table.cards td > * { grid-column: 2; }
+  table.cards td:first-child { display: block; padding-bottom: 4px; }
+  table.cards td:first-child::before { content: none; }
+  .scroll:has(> table.cards) { overflow: visible; }
+  table.cards td.upgrade { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  table.cards td.upgrade::before { flex: 0 0 96px; margin-right: 4px; }
+  table.cards td.upgrade > * { grid-column: auto; }
+  table.cards td.svc { padding-left: 10px; }
+}

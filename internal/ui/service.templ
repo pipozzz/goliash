@@ -521,19 +521,19 @@ templ serviceSecurity(v ServiceView) {
 			</span>
 		</div>
 		<div class="scroll">
-			<table>
+			<table class="cards">
 				<thead><tr><th>Environment</th><th>Image</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
 				<tbody>
 					for _, im := range sec.Images {
 						<tr>
 							<td><strong>{ im.Env }</strong></td>
-							<td><code title={ im.Digest }>{ im.Image }</code></td>
+							<td data-label="Image"><code title={ im.Digest }>{ im.Image }</code></td>
 							if !im.Checked {
-								<td colspan="3" class="muted">not checked yet</td>
+								<td colspan="3" class="muted" data-label="Evidence">not checked yet</td>
 							} else {
-								<td>@evidenceMark(im.Signed)</td>
-								<td>@evidenceMark(im.SBOM)</td>
-								<td>@evidenceMark(im.Provenance)</td>
+								<td data-label="Signed">@evidenceMark(im.Signed)</td>
+								<td data-label="SBOM">@evidenceMark(im.SBOM)</td>
+								<td data-label="Provenance">@evidenceMark(im.Provenance)</td>
 							}
 						</tr>
 					}
@@ -542,7 +542,7 @@ templ serviceSecurity(v ServiceView) {
 		</div>
 		if len(sec.Findings) > 0 {
 			<div class="scroll" style="border-top:1px solid var(--line)">
-				<table>
+				<table class="cards">
 					<thead><tr><th>Vulnerability</th><th>Severity</th><th>Package</th><th>Where</th></tr></thead>
 					<tbody>
 						for _, f := range sec.Findings {
@@ -553,7 +553,7 @@ templ serviceSecurity(v ServiceView) {
 										<div class="targets">{ f.Summary }</div>
 									}
 								</td>
-								<td>
+								<td data-label="Severity">
 									if f.Exploited {
 										<span class="badge exploited">exploited</span>
 									}
@@ -561,7 +561,7 @@ templ serviceSecurity(v ServiceView) {
 										<span class="muted">{ strings.ToLower(f.Severity) }</span>
 									}
 								</td>
-								<td>
+								<td data-label="Package">
 									<code>{ f.Package }</code>
 									if f.Fix != "" {
 										<div class="targets">{ "fixed in " + f.Fix }</div>
@@ -569,7 +569,7 @@ templ serviceSecurity(v ServiceView) {
 										<div class="targets">no fix yet</div>
 									}
 								</td>
-								<td>{ f.Envs }</td>
+								<td data-label="Where">{ f.Envs }</td>
 							</tr>
 						}
 					</tbody>

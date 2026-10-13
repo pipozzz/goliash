@@ -112,6 +112,9 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.Items = append(v.Items, it)
 		md.WriteString(updateMarkdown(it))
 	}
+	if lv := &v.Levels[versions.UrgencyExploited]; lv.Count != 1 {
+		lv.Label = "exploited vulnerabilities"
+	}
 	v.Teams, v.Envs = sortedSet(teams), sortedSet(envs)
 	if v.Watched, err = s.watched(ctx, p.Scope, o); err != nil {
 		return err

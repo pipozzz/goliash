@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -159,8 +160,14 @@ func LoadHealth(ctx context.Context, st *store.Store, checker *Checker, sc store
 		c.Summary = fmt.Sprintf("SBOMs of %d of %d running images read; OSV last answered %s.", rep.WithSBOM, rep.Images, healthAgoOrNever(now, osvAt))
 		if rep.Unasked > 0 || rep.Pending > 0 {
 			c.State = "warn"
-			c.Details = append(c.Details, fmt.Sprintf("%s and %s still to look up: answers may be incomplete.",
-				healthPlural(rep.Unasked, "package", "packages"), healthPlural(rep.Pending, "advisory", "advisories")))
+			var parts []string
+			if rep.Unasked > 0 {
+				parts = append(parts, healthPlural(rep.Unasked, "package", "packages"))
+			}
+			if rep.Pending > 0 {
+				parts = append(parts, healthPlural(rep.Pending, "advisory", "advisories"))
+			}
+			c.Details = append(c.Details, strings.Join(parts, " and ")+" still to look up: answers may be incomplete.")
 		}
 		if !osvAt.IsZero() && now.Sub(osvAt) > 48*time.Hour {
 			c.State = "warn"
