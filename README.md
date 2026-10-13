@@ -61,6 +61,12 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   screen. The browser tab's icon shows the workspace's state too.
 - **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
   production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
+- **Goli, the assistant inside.** <img align="right" alt="Goli, the Goliash plushie" src="docs/assets/goli.svg" width="90">
+  Ask in plain words: "what will this upgrade break?", "is Log4Shell running anywhere?", "what changed in prod in the
+  last two hours?". Goli looks it up in live data as you, only reads, and links to the pages that show it. **Brief**
+  on every upgrade reads the release notes of every release in between and turns them into a checklist; **Explain**
+  on every vulnerability says what it means here. Claude, OpenAI or a model on your own hardware; off until you
+  choose one. [Try it on the demo](https://demo.goliash.dev/updates).
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself. Scrub a timeline
@@ -83,8 +89,8 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   image hygiene, Goliash's own health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
   PrometheusRule and dashboard from the Helm chart. Settings → Integrations fills in the scrape settings and creates
   the token in one click.
-- **Ask your AI assistant.** A built-in MCP server: "what runs in prod?", "what should we upgrade first?", "what
-  changed in the last two hours?", answered from live data.
+- **Ask your own AI assistant too.** A built-in MCP server gives Claude, Cursor and others the same read-only tools
+  Goli uses: "what runs in prod?", "what should we upgrade first?", answered from live data.
 - **Built for teams and MSPs.** Workspaces per client, roles, passkeys, two-factor, magic-link and OIDC sign-in, audit
   log, REST API and Prometheus metrics.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
