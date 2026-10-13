@@ -42,7 +42,7 @@ func SetupPage(token, problem string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<body><div class=\"login\"><div class=\"card\"><span class=\"brand\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<body><main class=\"login\"><div class=\"card\"><span class=\"brand\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -86,7 +86,7 @@ func SetupPage(token, problem string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"> <label>Your name<input name=\"name\" autocomplete=\"name\" maxlength=\"100\"></label> <label>E-mail<input type=\"email\" name=\"email\" required autocomplete=\"username\" autofocus></label> <label>Password <input type=\"password\" name=\"password\" required minlength=\"12\" autocomplete=\"new-password\"> <span class=\"hint\">At least 12 characters. A few words work well.</span></label> <label>Repeat it<input type=\"password\" name=\"confirm\" required autocomplete=\"new-password\"></label> <button type=\"submit\">Create the account</button></form></div></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"> <label>Your name<input name=\"name\" autocomplete=\"name\" maxlength=\"100\"></label> <label>E-mail<input type=\"email\" name=\"email\" required autocomplete=\"username\" autofocus></label> <label>Password <input type=\"password\" name=\"password\" required minlength=\"12\" autocomplete=\"new-password\"> <span class=\"hint\">At least 12 characters. A few words work well.</span></label> <label>Repeat it<input type=\"password\" name=\"confirm\" required autocomplete=\"new-password\"></label> <button type=\"submit\">Create the account</button></form></div></main></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

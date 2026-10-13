@@ -200,7 +200,7 @@ templ Login(v LoginView) {
 	<html lang="en">
 		@head("Sign in")
 		<body>
-			<div class="login">
+			<main class="login">
 				<div class="card">
 					<span class="brand">
 						@logo()
@@ -291,7 +291,7 @@ templ Login(v LoginView) {
 						</p>
 					}
 				</div>
-			</div>
+			</main>
 			if v.Passkeys {
 				<script src={ templ.URL(asset("passkey.js")) }></script>
 			}

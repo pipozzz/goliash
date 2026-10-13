@@ -9,7 +9,7 @@ templ SecondFactorPage(v SecondFactorView) {
 	<html lang="en">
 		@head("Two-factor sign-in")
 		<body>
-			<div class="login">
+			<main class="login">
 				<div class="card">
 					<span class="brand">
 						@logo()
@@ -49,7 +49,7 @@ templ SecondFactorPage(v SecondFactorView) {
 					}
 					<a href="/login" class="muted">Start over</a>
 				</div>
-			</div>
+			</main>
 			<script src={ templ.URL(asset("passkey.js")) }></script>
 		</body>
 	</html>

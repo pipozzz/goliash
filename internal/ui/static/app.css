@@ -8,7 +8,7 @@
   --surface-2: #f8f9fb;
   --ink: #161b26;
   --muted: #5d6677;
-  --faint: #687184; /* 4.5:1 on white and on --bg, for small text */
+  --faint: #646d80; /* 4.5:1 on white and on --bg, for small text */
   --line: #e1e4ea;
   --accent: #3157d5;      /* links, primary actions */
   --accent-soft: #e8edfc;
@@ -623,6 +623,7 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .board-cell.s-current { background: var(--logo-cell); color: var(--logo-bg); }
 .board-cell.s-behind { background: color-mix(in srgb, var(--logo-cell) 45%, var(--logo-bg)); color: #eef1ff; }
 .board-cell.s-behind .board-sub, .board-cell.s-behind .board-headline { opacity: 1; }
+.board-cell.s-current .board-sub, .board-cell.s-current .board-headline { opacity: 1; }
 .board-cell.s-unknown { background: color-mix(in srgb, var(--logo-cell) 30%, var(--logo-bg)); color: #c9d2ff; }
 .board-cell.s-attention { background: var(--logo-warm); color: #3b2300; box-shadow: 0 0 34px rgb(255 179 71 / 0.45); }
 .board-name { font-weight: 750; font-size: clamp(12px, 1.35vw, 17px); line-height: 1.15; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -848,6 +849,8 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 /* Public demo */
 .demo-banner { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; justify-content: space-between; padding: 10px 14px; margin-bottom: 16px; border-radius: 8px; background: var(--accent-soft, var(--surface-2)); border: 1px solid var(--line); font-size: 13px; }
 .demo-banner code { font-size: 12px; overflow-wrap: anywhere; }
+/* Links inside running text are underlined, not told apart by colour alone. */
+.demo-banner a, .sub a, .hint a, p a:not(.button), a.u, .panel-head .muted a { text-decoration: underline; text-underline-offset: 2px; }
 .inbox-apps { margin: 8px 0 0; max-width: 320px; }
 .split-row { align-items: center; }
 .split-row > span { min-width: 0; flex: 1; }

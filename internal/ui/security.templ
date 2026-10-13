@@ -271,7 +271,7 @@ templ SecurityPage(v SecurityView) {
 
 templ postureRow(label, help string, n int, href string, warn bool) {
 	<tr>
-		<td><a href={ templ.URL(href) }>{ label }</a><div class="targets">{ help }</div></td>
+		<td><a class="u" href={ templ.URL(href) }>{ label }</a><div class="targets">{ help }</div></td>
 		<td class="num">
 			<span class={ "badge", templ.KV("env", warn && n > 0), templ.KV("neutral", !warn || n == 0) }>{ itoa(n) }</span>
 		</td>
