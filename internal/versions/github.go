@@ -21,6 +21,19 @@ type GitHubRelease struct {
 	URL         string    `json:"html_url"`
 	PublishedAt time.Time `json:"published_at"`
 	Draft       bool      `json:"draft"`
+	Body        string    `json:"body"` // the release notes, Markdown; cut at maxNotes
+}
+
+// maxNotes is how much of one release's notes Goliash keeps: enough for any changelog worth reading, bounded so
+// a hundred cached releases of many repositories stay small.
+const maxNotes = 16 << 10
+
+func cutNotes(rs []GitHubRelease) {
+	for i := range rs {
+		if len(rs[i].Body) > maxNotes {
+			rs[i].Body = rs[i].Body[:maxNotes] + "\n…"
+		}
+	}
 }
 
 // GitHub lists releases of public repositories. Responses are cached for an hour and
@@ -86,6 +99,7 @@ func (g *GitHub) Releases(ctx context.Context, repo string) ([]GitHubRelease, er
 	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 		return nil, fmt.Errorf("github: %w", err)
 	}
+	cutNotes(releases)
 	g.store(repo, ghCache{etag: resp.Header.Get("ETag"), releases: releases, at: time.Now()})
 	return releases, nil
 }

@@ -5,6 +5,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -57,6 +58,7 @@ type UpdateItem struct {
 	Skip                                 string // the version after Target: "skip this version" holds until a newer one
 	Exploited                            []string
 	Critical                             int
+	Brief                                string // what to ask Goli for a briefing on this upgrade; empty without Goli
 }
 
 var levelClasses = []string{"eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
@@ -99,6 +101,10 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 			Exploited: u.Exploited, Critical: u.Critical,
+		}
+		if s.goli != nil && !s.auth.Demo() && u.Running != "" && u.Target != "" {
+			it.Brief = fmt.Sprintf("Brief me on upgrading %s in %s from %s to %s: what breaks or needs migrating, "+
+				"what it fixes (security first), and what to check before and after.", u.Service.Name, u.Environment.Name, u.Running, u.Target)
 		}
 		if u.Acked {
 			v.Acked = append(v.Acked, it)

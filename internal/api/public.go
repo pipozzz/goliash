@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -51,6 +52,7 @@ func NewPublicHandler(st *store.Store, a *auth.Auth, log *slog.Logger) *PublicHa
 func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/matrix", h.with(store.RoleViewer, h.matrix))
 	mux.Handle("GET /api/v1/services", h.with(store.RoleViewer, h.services))
+	mux.Handle("GET /api/v1/services/{name}/release-notes", h.with(store.RoleViewer, h.releaseNotes))
 	mux.Handle("GET /api/v1/environments", h.with(store.RoleViewer, h.environments))
 	mux.Handle("GET /api/v1/targets", h.with(store.RoleViewer, h.targets))
 	mux.Handle("GET /api/v1/events", h.with(store.RoleViewer, h.events))
@@ -217,6 +219,48 @@ func (h *PublicHandler) services(w http.ResponseWriter, r *http.Request, p auth.
 		out = append(out, apiService{ID: s.ID, Name: s.Name, Owner: s.Owner, Kind: s.Kind, Upstream: s.Upstream, Policy: s.VersionPolicy})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// releaseNotes answers what changed between two versions of a service, from its GitHub or GitLab releases.
+func (h *PublicHandler) releaseNotes(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	ctx := r.Context()
+	svc, err := h.store.GetServiceByName(ctx, p.Scope, r.PathValue("name"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeProblem(w, http.StatusNotFound, "Not found", "no such service")
+		return
+	}
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	o, err := versions.LoadOverview(ctx, h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+	if u, ok := o.Upstreams[svc.ID]; to == "" && ok && u.HasLatest {
+		to = u.Latest.Raw
+	}
+	if to == "" {
+		writeProblem(w, http.StatusBadRequest, "Bad request", "no newest release is known yet: name the version in to")
+		return
+	}
+	notes, err := h.checker.ReleaseNotes(ctx, svc, o.Refs[svc.ID].Repo, from, to)
+	if errors.Is(err, versions.ErrBadVersion) {
+		writeProblem(w, http.StatusBadRequest, "Bad request", "from and to must be versions, e.g. 1.27.2")
+		return
+	}
+	if err != nil {
+		writeProblem(w, http.StatusBadGateway, "Release notes unavailable", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Service string `json:"service"`
+		From    string `json:"from,omitempty"`
+		To      string `json:"to"`
+		versions.ReleaseNotes
+	}{svc.Name, from, to, notes})
 }
 
 func (h *PublicHandler) environments(w http.ResponseWriter, r *http.Request, p auth.Principal) {

@@ -100,6 +100,7 @@ func (g *GitLab) Releases(ctx context.Context, project string) ([]GitHubRelease,
 		Tag        string    `json:"tag_name"`
 		ReleasedAt time.Time `json:"released_at"`
 		Upcoming   bool      `json:"upcoming_release"`
+		Notes      string    `json:"description"`
 		Links      struct {
 			Self string `json:"self"`
 		} `json:"_links"`
@@ -113,8 +114,9 @@ func (g *GitLab) Releases(ctx context.Context, project string) ([]GitHubRelease,
 		if link == "" {
 			link = "https://" + hostName + "/" + path + "/-/releases/" + url.PathEscape(r.Tag)
 		}
-		releases = append(releases, GitHubRelease{Tag: r.Tag, URL: link, PublishedAt: r.ReleasedAt, Draft: r.Upcoming})
+		releases = append(releases, GitHubRelease{Tag: r.Tag, URL: link, PublishedAt: r.ReleasedAt, Draft: r.Upcoming, Body: r.Notes})
 	}
+	cutNotes(releases)
 	g.mu.Lock()
 	g.cache[project] = glCache{releases: releases, at: time.Now()}
 	g.mu.Unlock()

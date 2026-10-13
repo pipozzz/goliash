@@ -166,6 +166,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 					<span class="tag">{ it.Target }</span>
 				}
 			}
+			if it.Brief != "" {
+				<button type="button" class="link brief" data-goli-ask={ it.Brief } title="Goli reads the release notes in between and briefs you">Brief</button>
+			}
 		</td>
 		<td data-label="Why">
 			<div class="badges">

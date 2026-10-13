@@ -23,6 +23,13 @@ question and pick **Ask Goli**. The panel stays open while you move between page
 on, so "why is this red?" works. The conversation lives in the browser tab until you start a new one; Goliash keeps
 no copy of it.
 
+## Brief me on this upgrade
+
+On the [Updates](/guide/versions/) page every upgrade has a **Brief** button: Goli reads the release notes of every
+release between what runs and the version to move to, from the project's GitHub or GitLab releases, and tells you
+what breaks or needs migrating, what it fixes (security first) and what to check. It says so when the notes are
+silent about something, and it never calls an upgrade safe: the decision stays yours.
+
 ## Turn it on
 
 Goli is off until the server has an API key for Claude, by [Anthropic](https://www.anthropic.com):

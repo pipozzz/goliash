@@ -59,6 +59,48 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/services/{name}/release-notes:
+    get:
+      operationId: getReleaseNotes
+      summary: What changed between two versions of a service
+      description: >-
+        The release notes of every release after `from` up to and including `to`, newest first, read from the
+        GitHub or GitLab releases the service's policy, its image's source label or the catalog names. At most
+        25 releases and 80 KiB of notes; `omitted` counts the rest.
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+        - { name: from, in: query, description: "The version running now; notes start after it. Empty: only to's notes.", schema: { type: string, example: "1.27.2" } }
+        - { name: to, in: query, description: "The version to move to; default the newest upstream release.", schema: { type: string } }
+      responses:
+        "200":
+          description: The notes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, to, releases]
+                properties:
+                  service: { type: string }
+                  from: { type: string }
+                  to: { type: string }
+                  source: { type: string, description: "github:owner/repo or gitlab:host/project; absent when none is known", example: "github:nginx/nginx" }
+                  changelog: { type: string, description: "The changelog of to, when its notes live outside a forge." }
+                  omitted: { type: integer }
+                  releases:
+                    type: array
+                    items:
+                      type: object
+                      required: [version, notes]
+                      properties:
+                        version: { type: string }
+                        url: { type: string }
+                        published_at: { type: string, format: date-time }
+                        notes: { type: string, description: "Markdown, as the project wrote it." }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
   /api/v1/environments:
     get:
       operationId: listEnvironments

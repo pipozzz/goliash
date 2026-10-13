@@ -1049,3 +1049,6 @@ a.live:hover { text-decoration: underline; }
 .goli-input { flex: 1; resize: none; font: inherit; font-size: 14px; max-height: 160px; }
 .goli-note { margin: 0; padding: 0 16px 12px; font-size: 11.5px; color: var(--muted); }
 @media (max-width: 720px) { .goli-open span { display: none; } .goli { width: 100vw; border-left: 0; } }
+
+/* Ask Goli for a briefing on one upgrade. */
+.upgrade .brief { margin-left: 8px; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }

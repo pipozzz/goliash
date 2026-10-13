@@ -100,7 +100,7 @@ func TestTools(t *testing.T) {
 			t.Errorf("%s must be read-only", tl.Name)
 		}
 	}
-	if len(names) != 12 {
+	if len(names) != 13 {
 		t.Fatalf("tools %v", names)
 	}
 

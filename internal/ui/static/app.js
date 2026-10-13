@@ -680,6 +680,11 @@
     const btn = document.querySelector("[data-goli]");
     if (btn) btn.focus();
   }
+  // A question ready to ask, e.g. the Brief button of an upgrade.
+  document.addEventListener("click", function (e) {
+    const ask = e.target.closest && e.target.closest("[data-goli-ask]");
+    if (ask) { e.preventDefault(); goliOpen(ask.getAttribute("data-goli-ask")); }
+  });
   document.addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("[data-goli]")) {
       e.preventDefault();
