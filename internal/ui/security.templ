@@ -6,6 +6,8 @@ package ui
 import (
 	"strings"
 	"time"
+
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // SecurityPage is the security posture: patch latency, end of life, supply-chain findings and blind spots.
@@ -95,6 +97,9 @@ templ SecurityPage(v SecurityView) {
 											<a href={ templ.URL(ex.TargetURL) } target="_blank" rel="noopener noreferrer">{ ex.Target }</a>
 										} else {
 											{ orDash(ex.Target) }
+										}
+										if v.Goli && ex.Target != "" && ex.Running != "" {
+											<div><button type="button" class="link ask-goli noprint" data-goli-ask={ explainExposure(ex) } title="Goli explains what this exposure means and what to do first">Explain</button></div>
 										}
 									</td>
 									<td>
@@ -287,3 +292,10 @@ func days(n int) string {
 }
 
 var _ = time.Now
+
+// explainExposure is what the Explain button asks Goli about a service running behind an available fix.
+func explainExposure(ex versions.Exposure) string {
+	return "Explain the exposure of " + ex.Service.Name + " in " + ex.Environment.Name + ": it runs " + ex.Running +
+		" while " + ex.Target + " is out, for " + days(ex.Days) + ". What do the releases in between fix (security first), " +
+		"what would the upgrade break, and what should we do first?"
+}

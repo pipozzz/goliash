@@ -5,6 +5,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,10 +14,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/goli"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/tokens"
 )
 
 const goliToolTurn = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"content\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n" +
@@ -165,9 +168,10 @@ func TestGoliOnThePublicDemo(t *testing.T) {
 
 	jar, _ := cookiejar.New(nil)
 	visitor := &http.Client{Jar: jar}
+	question := "What should we upgrade first?"
 	ask := func() int {
 		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, guarded.URL+"/ui/goli",
-			strings.NewReader(`{"history":[{"role":"user","text":"What should we upgrade first?"}],"page":"/updates"}`))
+			strings.NewReader(`{"history":[{"role":"user","text":"`+question+`"}],"page":"/updates"}`))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := visitor.Do(req)
 		if err != nil {
@@ -196,8 +200,93 @@ func TestGoliOnThePublicDemo(t *testing.T) {
 	if len(sent) != 1 || !strings.Contains(sent[0], "public demo") {
 		t.Errorf("Goli was not told it is on the demo: %d requests", len(sent))
 	}
+	// The same first question again is answered from the cache: no model call, no limit spent.
+	if code := ask(); code != http.StatusOK || len(sent) != 1 {
+		t.Errorf("asked again: %d, %d model calls", code, len(sent))
+	}
 	// Every visitor is the same viewer: the hourly limit counts per address.
+	question = "Something else?"
 	if code := ask(); code != http.StatusTooManyRequests {
-		t.Errorf("second question from one address: %d", code)
+		t.Errorf("another question from one address: %d", code)
+	}
+}
+
+func TestGoliCache(t *testing.T) {
+	var c goliCache
+	now := time.Now()
+	k := goliCacheKey("ws", "  What   runs?  ")
+	if k != goliCacheKey("ws", "what runs?") || k == goliCacheKey("other", "what runs?") {
+		t.Error("keys")
+	}
+	c.put(k, []goli.Event{{Type: "text", Text: "x"}, {Type: "done"}}, now)
+	if ev, ok := c.get(k, now.Add(time.Hour)); !ok || len(ev) != 2 {
+		t.Error("miss within the hour")
+	}
+	if _, ok := c.get(k, now.Add(goliCacheTTL+time.Minute)); ok {
+		t.Error("hit after the TTL")
+	}
+	for i := range goliCacheSize + 5 {
+		c.put(fmt.Sprint(i), nil, now.Add(time.Duration(i)*time.Second))
+	}
+	if len(c.m) > goliCacheSize {
+		t.Errorf("%d entries", len(c.m))
+	}
+}
+
+func TestGoliForScripts(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	raw, hash := tokens.New(tokens.API)
+	if _, err := e.st.CreateAPIToken(ctx, e.ws.Scope(), store.APIToken{Name: "cli", Role: store.RoleViewer}, hash); err != nil {
+		t.Fatal(err)
+	}
+	ask := func(token string) (int, string) {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodPost, e.srv.URL+"/goli/ask", strings.NewReader(`{"history":[{"role":"user","text":"What runs?"}]}`))
+		req.Header.Set("Content-Type", "application/json")
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	if code, _ := ask(raw); code != http.StatusNotFound {
+		t.Errorf("Goli off: %d", code)
+	}
+
+	var mu sync.Mutex
+	var sent []string
+	turns := []string{goliToolTurn, goliTextTurn}
+	claude := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		sent = append(sent, string(b))
+		turn := turns[0]
+		turns = turns[1:]
+		mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, turn)
+	}))
+	defer claude.Close()
+	log := slog.New(slog.DiscardHandler)
+	apiMux := http.NewServeMux()
+	api.NewPublicHandler(e.st, e.auth, log).Register(apiMux)
+	e.ui.goli = goli.New(goli.Config{APIKey: "sk-test", Model: goli.DefaultModel, BaseURL: claude.URL, Effort: "medium", PerHour: 5}, log)
+	e.ui.api = apiMux
+
+	if code, _ := ask(""); code != http.StatusUnauthorized {
+		t.Errorf("without a token: %d", code)
+	}
+	code, body := ask(raw)
+	if code != http.StatusOK || !strings.Contains(body, "nginx runs 1.27.2 in prod.") {
+		t.Fatalf("%d %s", code, body)
+	}
+	// The tools read the API with the token: the workspace's data reached the model.
+	if len(sent) != 2 || !strings.Contains(sent[1], "1.27.2") || !strings.Contains(sent[0], "Workspace: "+e.ws.Name) {
+		t.Errorf("%d requests; workspace or data missing", len(sent))
 	}
 }

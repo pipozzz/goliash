@@ -34,8 +34,12 @@ type MCPTools struct {
 // NewMCPTools connects to an in-process MCP server whose API calls api serves with the cookies of from.
 // Close it when the question is answered.
 func NewMCPTools(ctx context.Context, api http.Handler, from *http.Request) (*MCPTools, error) {
-	cookies := from.Cookies()
-	hc := &http.Client{Transport: inProcess{api: api, cookies: cookies}}
+	// A browser asks with its session cookie; a script with its API token.
+	in := inProcess{api: api, cookies: from.Cookies()}
+	if a := from.Header.Get("Authorization"); strings.HasPrefix(a, "Bearer ") {
+		in.auth = a
+	}
+	hc := &http.Client{Transport: in}
 	server := mcpserver.NewServer(&mcpserver.Client{BaseURL: "http://goli.internal", HTTP: hc})
 	st, ct := mcp.NewInMemoryTransports()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -108,6 +112,7 @@ func (t *MCPTools) Call(ctx context.Context, name string, input json.RawMessage)
 type inProcess struct {
 	api     http.Handler
 	cookies []*http.Cookie
+	auth    string // the asking script's Authorization header
 }
 
 func (p inProcess) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -116,6 +121,9 @@ func (p inProcess) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	r = r.Clone(r.Context())
 	r.Header.Del("Authorization")
+	if p.auth != "" {
+		r.Header.Set("Authorization", p.auth)
+	}
 	for _, c := range p.cookies {
 		r.AddCookie(c)
 	}

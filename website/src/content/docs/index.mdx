@@ -36,6 +36,7 @@ import security from '../../assets/security.png';
 import vulns from '../../assets/vulns.png';
 import timeline from '../../assets/timeline-tiles.png';
 import goli from '../../assets/goli.svg';
+import goliBrief from '../../assets/goli-brief.webp';
 
 <Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
 
@@ -149,6 +150,19 @@ Then <strong>postgres 15</strong>, end of life in a month…</p>
 
 </div>
 </div>
+
+### What will this upgrade break?
+
+Every upgrade on the Updates page has a **Brief** button. Goli reads the release notes of **every release between what
+runs and the target**, straight from the project's GitHub or GitLab releases, and turns them into a checklist:
+breaking changes and migrations first, then what it fixes (security first), then what to check before and after.
+Keycloak 24 → 26 is three major versions of release notes; Goli reads them in half a minute and starts with what will
+stop your login page from working.
+
+<Image src={goliBrief} alt="The Updates page with Goli's panel open: asked to brief keycloak 24.0.5 to 26.0.0 in prod, Goli says to treat it as a migration and lists the breaking changes: hostname v1 removed, proxy option removed, the JavaScript adapter no longer served, GELF logging removed, sessions persisted to the database, login theme changes" class="screenshot" />
+
+It never calls an upgrade safe, and it says so when the notes are silent: the decision stays yours. Try it on the
+[live demo](https://demo.goliash.dev/updates).
 
 ### An SBOM of what actually runs
 

@@ -63,6 +63,23 @@ Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db) and
 
 Changes made with the CLI are recorded in the audit log like changes in the UI.
 
+## Ask Goli from a terminal
+
+`goliash ask` works from anywhere, not on the database: it asks a server's [Goli](/guide/goli/) with an API token
+and prints the answer as it is written. What Goli looks at goes to stderr, so the answer alone can be piped into a
+ticket, a commit message or a chat.
+
+```sh
+export GOLIASH_URL=https://goliash.example.com GOLIASH_TOKEN=glsh_api_…   # goliash token create -name cli
+goliash ask "what changed in prod in the last two hours?"
+goliash ask "brief me on upgrading postgres in prod to 17" > postgres-17.md
+```
+
+Goli sees what the token may see: a viewer token is enough. Scripts and bots can do the same with
+`POST /goli/ask` and `Authorization: Bearer glsh_api_…`: the body is
+`{"history": [{"role": "user", "text": "…"}]}`, and the answer comes back as server-sent events (`text`, `tool`,
+`done`, `error`). The hourly and daily limits count per token.
+
 ## Examples
 
 ```sh

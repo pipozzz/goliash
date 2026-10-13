@@ -72,6 +72,7 @@ type Server struct {
 	updateCheck bool
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
+	goliCache   goliCache
 	goliDemo    bool       // Goli answers on the public demo too
 	goliDocs    *goli.Docs // Goli on a website, for its usage on the Status page
 	api         http.Handler
@@ -173,6 +174,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
+	mux.HandleFunc("POST /goli/ask", s.goliAPI)
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
