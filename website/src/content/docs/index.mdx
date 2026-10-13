@@ -35,6 +35,7 @@ import tilesEnvs from '../../assets/tiles-envs.png';
 import security from '../../assets/security.png';
 import vulns from '../../assets/vulns.png';
 import timeline from '../../assets/timeline-tiles.png';
+import goli from '../../assets/goli.svg';
 
 <Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
 
@@ -120,6 +121,33 @@ with the service, the package and the version that fixes it.
 
 **Time travel**: scrub back through 400 days, step from deployment to deployment or press Play, and watch the
 matrix or the tiles change, coloured as things stood then. "What ran in prod when the incident started?" in seconds.
+
+## Meet Goli
+
+<div class="goli-intro">
+<Image src={goli} alt="Goli, the Goliash plushie: a round periwinkle giant with big round glasses, one raised eyebrow, a release bell on its antenna, a version tag on its belly and a stack of containers in its arm" class="goli-mascot" width="220" height="291" />
+<div>
+
+**Goli** is the assistant inside Goliash, the gentle giant with the release bell. Ask it in plain words and it
+looks things up for you, live, as you:
+
+<div class="goli-chat">
+<p class="goli-q">What should we upgrade first, and why?</p>
+<p class="goli-a"><strong>payments-api in prod</strong>: it runs log4j-core 2.14.1, exploited in the wild; 2.16.0 fixes it.
+Then <strong>postgres 15</strong>, end of life in a month…</p>
+</div>
+
+- **Answers from live data**, with links to the pages that show the details: what runs where, drift, updates,
+  vulnerabilities, what changed, any moment in the past.
+- **Briefs you on an upgrade**: it reads the release notes between what runs and the target and tells you what
+  breaks, what it fixes and what to check.
+- **Only reads, as you**: it sees what you may see and cannot change anything.
+- **Opt-in and yours**: off until you give your server a Claude API key; no data leaves your server before that.
+
+[Ask Goli →](/guide/goli/)
+
+</div>
+</div>
 
 ### An SBOM of what actually runs
 

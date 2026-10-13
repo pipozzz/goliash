@@ -30,3 +30,19 @@
 @media (min-width: 50rem) {
   .hero { grid-template-columns: 5fr 6fr; }
 }
+
+/* Meet Goli on the home page: the mascot beside what it does. */
+.goli-intro { display: flex; gap: 2rem; align-items: flex-start; }
+.goli-intro > div { flex: 1; min-width: 0; }
+.goli-intro > div > :first-child { margin-top: 0; }
+.goli-mascot { flex: none; width: 200px; height: auto; margin-top: 0.5rem; animation: goli-sway 5s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes goli-sway { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-2deg); } 70% { transform: rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .goli-mascot { animation: none; } }
+.goli-chat { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0; }
+.goli-chat p { margin: 0; padding: 0.6rem 0.9rem; border-radius: 14px; max-width: 34rem; font-size: 0.95rem; }
+.goli-chat .goli-q { align-self: flex-end; background: var(--sl-color-accent-low); border-bottom-right-radius: 4px; }
+.goli-chat .goli-a { background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-gray-5); border-bottom-left-radius: 4px; }
+@media (max-width: 50rem) {
+  .goli-intro { flex-direction: column; align-items: center; }
+  .goli-mascot { width: 150px; }
+}
