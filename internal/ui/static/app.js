@@ -343,6 +343,7 @@
     try { const r = JSON.parse(localStorage.getItem(recentKey) || "[]"); return Array.isArray(r) ? r.slice(0, 5) : []; } catch (_) { return []; }
   }
   function paletteRemember(url) {
+    if (url.indexOf("#goli:") === 0) return;
     try { localStorage.setItem(recentKey, JSON.stringify([url].concat(paletteRecent().filter(function (u) { return u !== url; })).slice(0, 5))); } catch (_) { /* storage off */ }
   }
   function paletteRender() {
@@ -360,6 +361,12 @@
         .map(function (x) { return x.e; });
     }
     items = items.slice(0, 50);
+    // With Goli on, what was typed can be a question too: last, or first when nothing else matches.
+    const raw = palette.input.value.trim();
+    if (raw && paletteData && document.querySelector("[data-goli]")) {
+      const ask = { label: "Ask Goli: " + raw, kind: "goli", url: "#goli:" + raw };
+      if (items.length && raw.indexOf(" ") < 0) items.push(ask); else items.unshift(ask);
+    }
     palette.list.replaceChildren();
     if (!paletteData) { palette.list.appendChild(el("li", "palette-empty", "Loading…")); return; }
     if (!items.length) { palette.list.appendChild(el("li", "palette-empty", "Nothing matches.")); return; }
@@ -393,6 +400,7 @@
   function paletteGo(url) {
     paletteClose();
     if (url === "#shortcuts") { shortcutsOpen(); return; }
+    if (url.indexOf("#goli:") === 0) { goliOpen(url.slice(6)); return; }
     // A link clicked like any other: hx-boost swaps the page, sets the title and history.
     const a = document.createElement("a");
     a.href = url;
@@ -458,6 +466,234 @@
   });
   document.body.addEventListener("goliash:changed", function () { paletteData = null; });
   document.body.addEventListener("htmx:beforeSwap", function (e) { if (e.detail.target === document.body) paletteClose(); });
+
+  // Goli, the assistant: a panel beside the page. A question goes to /ui/goli, which streams
+  // the answer as server-sent events. The conversation stays in this tab until cleared.
+  // Answers are rendered from a little Markdown into DOM nodes, never markup: they quote
+  // names, labels and release notes, which are anyone's input.
+  const goliKey = "goliash.goli";
+  let goli = null;
+  function goliHistory() {
+    try { const h = JSON.parse(sessionStorage.getItem(goliKey) || "[]"); return Array.isArray(h) ? h : []; } catch (_) { return []; }
+  }
+  function goliSave(h) { try { sessionStorage.setItem(goliKey, JSON.stringify(h.slice(-20))); } catch (_) { /* storage off */ } }
+  function goliInline(parent, text) {
+    const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const t = m[0];
+      if (t[0] === "*") parent.appendChild(el("strong", "", t.slice(2, -2)));
+      else if (t[0] === "`") parent.appendChild(el("code", "", t.slice(1, -1)));
+      else {
+        const label = t.slice(1, t.indexOf("]("));
+        const href = t.slice(t.indexOf("](") + 2, -1);
+        // Pages of this Goliash, or https links; nothing else is a link.
+        if ((href[0] === "/" && href[1] !== "/" && href[1] !== "\\") || /^https:\/\//.test(href)) {
+          const a = el("a", "", label);
+          a.href = href;
+          if (href[0] !== "/") { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+          parent.appendChild(a);
+        } else parent.appendChild(document.createTextNode(label));
+      }
+      last = m.index + t.length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+  function goliMarkdown(text) {
+    const out = document.createDocumentFragment();
+    let list = null, para = null, code = null;
+    text.split("\n").forEach(function (line) {
+      if (code) {
+        if (/^```/.test(line)) { code = null; return; }
+        code.textContent += (code.textContent ? "\n" : "") + line;
+        return;
+      }
+      if (/^```/.test(line)) { list = para = null; code = el("code"); const pre = el("pre"); pre.appendChild(code); out.appendChild(pre); return; }
+      const item = /^\s*(?:[-*•]|(\d+)\.)\s+(.*)$/.exec(line);
+      if (item) {
+        para = null;
+        const tag = item[1] ? "ol" : "ul";
+        if (!list || list.tagName.toLowerCase() !== tag) { list = el(tag); out.appendChild(list); }
+        const li = el("li");
+        goliInline(li, item[2]);
+        list.appendChild(li);
+        return;
+      }
+      list = null;
+      if (!line.trim()) { para = null; return; }
+      const head = /^#{1,6}\s+(.*)$/.exec(line);
+      if (head) { para = null; const h = el("p", "goli-head"); goliInline(h, head[1]); out.appendChild(h); return; }
+      if (para) para.appendChild(document.createElement("br")); else { para = el("p"); out.appendChild(para); }
+      goliInline(para, line);
+    });
+    return out;
+  }
+  const goliTools = {
+    matrix: "the matrix", service: "a service", drifts: "drift", updates: "updates", changes: "history",
+    vulnerabilities: "vulnerabilities", status: "data freshness", inventory: "the inventory", hygiene: "hygiene",
+    delivery: "delivery", promotions: "promotions"
+  };
+  const goliIdeas = [
+    "What should we upgrade first, and why?",
+    "Which running images have vulnerabilities exploited in the wild?",
+    "What drifted between staging and production this week?",
+    "Is any of the data stale right now?"
+  ];
+  function goliRender() {
+    const log = goli.log;
+    log.replaceChildren();
+    const h = goliHistory();
+    if (!h.length && !goli.busy) {
+      const empty = el("div", "goli-empty");
+      empty.appendChild(el("p", "goli-hello", "Hi, I am Goli. Ask me about what runs where."));
+      const ideas = el("div", "goli-ideas");
+      goliIdeas.forEach(function (q) {
+        const b = el("button", "goli-idea", q);
+        b.type = "button";
+        b.addEventListener("click", function () { goliAsk(q); });
+        ideas.appendChild(b);
+      });
+      empty.appendChild(ideas);
+      log.appendChild(empty);
+    }
+    h.forEach(function (t) {
+      const m = el("div", "goli-msg " + (t.role === "user" ? "goli-q" : "goli-a"));
+      if (t.role === "user") m.textContent = t.text; else m.appendChild(goliMarkdown(t.text));
+      if (Array.isArray(t.looked)) m.appendChild(el("p", "goli-looking", "Looked at " + t.looked.join(", ")));
+      if (t.error) m.appendChild(el("p", "goli-error", t.error));
+      log.appendChild(m);
+    });
+    if (goli.busy) {
+      const m = el("div", "goli-msg goli-a");
+      if (goli.answer) m.appendChild(goliMarkdown(goli.answer));
+      if (goli.looking.length) m.appendChild(el("p", "goli-looking", "Looked at " + goli.looking.join(", ") + (goli.answer ? "" : "…")));
+      else if (!goli.answer) m.appendChild(el("p", "goli-looking", "Thinking…"));
+      log.appendChild(m);
+    }
+    if (window.htmx) htmx.process(log);
+    log.scrollTop = log.scrollHeight;
+    goli.send.textContent = goli.busy ? "Stop" : "Ask";
+    goli.clear.disabled = goli.busy || !h.length;
+  }
+  let goliFrame = 0;
+  function goliLater() { if (!goliFrame) goliFrame = requestAnimationFrame(function () { goliFrame = 0; goliRender(); }); }
+  function goliAsk(text) {
+    text = (text || "").trim();
+    if (!text || goli.busy) return;
+    const h = goliHistory();
+    h.push({ role: "user", text: text });
+    goliSave(h);
+    goli.input.value = "";
+    goli.busy = true; goli.answer = ""; goli.looking = []; goli.error = "";
+    goli.abort = new AbortController();
+    goliRender();
+    const turns = h.filter(function (t) { return t.text; }).map(function (t) { return { role: t.role, text: t.text }; });
+    function finish() {
+      const done = goliHistory();
+      done.push({ role: "assistant", text: goli.answer, error: goli.error || undefined, looked: goli.looking.length ? goli.looking : undefined });
+      goliSave(done);
+      goli.busy = false; goli.abort = null;
+      goliRender();
+      goli.input.focus();
+    }
+    fetch("/ui/goli", {
+      method: "POST", credentials: "same-origin", signal: goli.abort.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history: turns, page: location.pathname + location.search })
+    }).then(function (r) {
+      if (!r.ok || !r.body) return r.text().then(function (t) { goli.error = t.trim() || "Goli could not answer (" + r.status + ")."; });
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      function pump() {
+        return reader.read().then(function (x) {
+          if (x.done) return;
+          buf += dec.decode(x.value, { stream: true });
+          let i;
+          while ((i = buf.indexOf("\n\n")) >= 0) {
+            const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+            if (chunk.indexOf("data: ") !== 0) continue;
+            let ev;
+            try { ev = JSON.parse(chunk.slice(6)); } catch (_) { continue; }
+            if (ev.type === "text") goli.answer += ev.text;
+            else if (ev.type === "tool") { const n = goliTools[ev.tool] || ev.tool; if (goli.looking.indexOf(n) < 0) goli.looking.push(n); }
+            else if (ev.type === "error") goli.error = ev.text;
+          }
+          goliLater();
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") goli.error = "Stopped.";
+      else goli.error = "Goli could not be reached. Check your connection.";
+    }).then(finish);
+  }
+  function goliOpen(question) {
+    if (!goli) {
+      const panel = el("aside", "goli");
+      panel.setAttribute("aria-label", "Ask Goli");
+      const head = el("div", "goli-top");
+      head.appendChild(el("strong", "goli-title", "Goli"));
+      head.appendChild(el("span", "goli-sub", "reads Goliash for you"));
+      const clear = el("button", "goli-clear", "New");
+      clear.type = "button"; clear.title = "Start a new conversation";
+      clear.addEventListener("click", function () { goliSave([]); goliRender(); goli.input.focus(); });
+      const close = el("button", "goli-close", "×");
+      close.type = "button"; close.setAttribute("aria-label", "Close Goli");
+      close.addEventListener("click", goliClose);
+      head.appendChild(clear); head.appendChild(close);
+      const log = el("div", "goli-log");
+      log.setAttribute("aria-live", "polite");
+      const form = el("form", "goli-form");
+      const input = el("textarea", "goli-input");
+      input.rows = 2; input.maxLength = 2000;
+      input.placeholder = "Ask about versions, drift, updates, vulnerabilities…";
+      input.setAttribute("aria-label", "Your question");
+      const send = el("button", "goli-send", "Ask");
+      send.type = "submit";
+      form.appendChild(input); form.appendChild(send);
+      const note = el("p", "goli-note", "Goli reads what you may see here and sends it with your question to Claude, by Anthropic. It changes nothing. Check what matters.");
+      panel.appendChild(head); panel.appendChild(log); panel.appendChild(form); panel.appendChild(note);
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (goli.busy) { if (goli.abort) goli.abort.abort(); return; }
+        goliAsk(input.value);
+      });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+      });
+      panel.addEventListener("keydown", function (e) { if (e.key === "Escape") { e.stopPropagation(); goliClose(); } });
+      goli = { panel: panel, log: log, input: input, send: send, clear: clear, busy: false, answer: "", looking: [], error: "", abort: null };
+    }
+    goli.open = true;
+    goliKeep();
+    goliRender();
+    if (question) goliAsk(question); else goli.input.focus();
+  }
+  function goliClose() {
+    if (!goli) return;
+    goli.open = false;
+    goli.panel.remove();
+    document.body.classList.remove("goli-on");
+    const btn = document.querySelector("[data-goli]");
+    if (btn) btn.focus();
+  }
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-goli]")) {
+      e.preventDefault();
+      if (goli && goli.open) goliClose(); else goliOpen();
+    }
+  });
+  // A boosted navigation replaces the body; the panel and its conversation stay.
+  function goliKeep() {
+    if (!goli || !goli.open) return;
+    if (!goli.panel.isConnected) document.body.appendChild(goli.panel);
+    document.body.classList.add("goli-on");
+  }
+  document.body.addEventListener("htmx:afterSwap", goliKeep);
+  document.body.addEventListener("htmx:afterSettle", goliKeep);
 
   // Keyboard shortcuts: "?" lists them; "g" then a letter goes to a page, as on GitHub.
   const goKeys = { m: ["/?view=table", "Matrix"], t: ["/tiles", "Tiles"], u: ["/updates", "Updates"], i: ["/inbox", "Inbox"], d: ["/delivery", "Delivery"], h: ["/events", "History"], n: ["/notifications", "Notifications"] };

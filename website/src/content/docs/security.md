@@ -46,6 +46,13 @@ See
 [Install](/install/#secrets-at-rest). Webhook deliveries can be signed with HMAC-SHA256; see
 [Notifications](/guide/notifications/#webhook-payload).
 
+## The assistant
+
+[Goli](/guide/goli/) is off unless the server has an Anthropic API key. When on, it reads through the REST API with
+the asking person's session, so it sees what they may see, and it has no tool that changes anything. What it looks
+up goes to Anthropic with the question; credentials and secrets never do. The log records who asked and which
+tools were used, not the question.
+
 ## Audit log
 
 Every change to configuration, tokens and roles, and every sign-in, is recorded with who made it. Secrets never

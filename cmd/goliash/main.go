@@ -56,6 +56,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
 	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/demo"
+	"github.com/pipozzz/goliash/internal/goli"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/mcpserver"
@@ -543,10 +544,19 @@ func serve(ctx context.Context, args []string) error {
 	public.SetHealth(checker, buildinfo.Version, os.Getenv("GOLIASH_UPDATE_CHECK") != "off")
 	public.SetLeader(leader.IsLeader)
 	public.Register(mux)
+	aiCfg, aiOn, err := goli.ConfigFromEnv()
+	if err != nil {
+		return err
+	}
+	var assistant *goli.Assistant
+	if aiOn {
+		assistant = goli.New(aiCfg, log)
+		log.Info("Goli, the assistant, is on", "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
+	}
 	ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
-		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off",
+		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
 	}).Register(mux)
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

@@ -33,6 +33,7 @@ type Base struct {
 	Workspace  string
 	Workspaces []WorkspaceOption
 	Demo       bool // a public, read-only demo
+	Goli       bool // Goli, the assistant, answers questions
 }
 
 // WorkspaceOption is one entry of the workspace switcher.

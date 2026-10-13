@@ -29,6 +29,7 @@ import (
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/demo"
+	"github.com/pipozzz/goliash/internal/goli"
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/registry"
@@ -70,6 +71,8 @@ type Server struct {
 	version     string
 	updateCheck bool
 	snapshots   SnapshotSink
+	goli        *goli.Assistant
+	api         http.Handler
 
 	favMu    sync.Mutex
 	favicons map[string]cachedFavicon // per workspace
@@ -93,6 +96,9 @@ type Options struct {
 	PushSubject string
 	// Snapshots processes the versions people enter by hand like collected ones.
 	Snapshots SnapshotSink
+	// Goli answers questions when an AI provider is configured; API serves the REST API it reads through.
+	Goli *goli.Assistant
+	API  http.Handler
 }
 
 // siteDescription is what link previews say about any page.
@@ -108,7 +114,7 @@ func New(o Options) *Server {
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
-		snapshots: o.Snapshots,
+		snapshots: o.Snapshots, goli: o.Goli, api: o.API,
 	}
 }
 
@@ -159,6 +165,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /teams/assign", s.page(m, s.assignTeam))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
+	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -331,7 +338,7 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 	b := Base{
 		Title: title, Page: page, Email: p.User.Email, Role: p.Role,
 		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(),
-		Workspace: p.Workspace.Name, Demo: s.auth.Demo(),
+		Workspace: p.Workspace.Name, Demo: s.auth.Demo(), Goli: s.goli != nil && !s.auth.Demo(),
 	}
 	for _, a := range p.Workspaces {
 		b.Workspaces = append(b.Workspaces, WorkspaceOption{ID: a.Workspace.ID, Name: a.Workspace.Name, Current: a.Workspace.ID == p.Scope.WorkspaceID})

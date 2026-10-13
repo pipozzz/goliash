@@ -119,6 +119,12 @@ templ Layout(b Base) {
 							<span>Search</span>
 							<kbd>⌘K</kbd>
 						</button>
+						if b.Goli {
+							<button type="button" class="goli-open" data-goli title="Ask Goli, the assistant">
+								@goliMark()
+								<span>Ask Goli</span>
+							</button>
+						}
 						<div class="who">
 							if len(b.Workspaces) > 1 {
 								<form method="post" action="/workspace" hx-boost="false" class="switcher">
@@ -297,4 +303,9 @@ templ Login(v LoginView) {
 			}
 		</body>
 	</html>
+}
+
+// goliMark is Goli's small face for the header button.
+templ goliMark() {
+	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8v4a6 6 0 0 0 6 6h4a6 6 0 0 0 6-6v-4a8 8 0 0 0-8-8Z"></path><circle cx="9" cy="12" r="1" fill="currentColor"></circle><circle cx="15" cy="12" r="1" fill="currentColor"></circle><path d="M10 16c1.2.8 2.8.8 4 0"></path></svg>
 }
