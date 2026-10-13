@@ -10,7 +10,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Goliash',
-      description: 'What runs where, on which version — across Kubernetes, ECS, Nomad, Docker Swarm and Docker.',
+      description: 'What runs where, on which version, across Kubernetes, ECS, Lambda, Nomad, Swarm and Docker: upstream releases, drift, exploited vulnerabilities and an SBOM of what actually runs.',
       logo: { src: './src/assets/logo.svg', alt: 'Goliash' },
       favicon: '/favicon.svg',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/pipozzz/goliash' }],
@@ -40,7 +40,8 @@ export default defineConfig({
             name: 'Goliash',
             url: 'https://goliash.dev/',
             description:
-              'Self-hosted, open-source version tracking: one matrix of services × environments across Kubernetes, Amazon ECS, Nomad, Docker Swarm and Compose, with upstream releases, drift and end-of-life.',
+              'Self-hosted, open-source version tracking: one matrix of services × environments across Kubernetes, Amazon ECS, AWS Lambda, Nomad, Docker Swarm and Compose, with upstream releases, drift, end-of-life, vulnerabilities exploited in the wild and a CycloneDX SBOM of what actually runs.',
+            keywords: 'version tracking, drift detection, SBOM, CycloneDX, Dependency-Track, CISA KEV, Kubernetes, ECS, Nomad, self-hosted',
             applicationCategory: 'DeveloperApplication',
             operatingSystem: 'Linux, macOS, Windows',
             license: 'https://github.com/pipozzz/goliash/blob/main/LICENSING.md',
