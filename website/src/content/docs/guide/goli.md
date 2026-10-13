@@ -39,6 +39,15 @@ GOLIASH_AI_API_KEY=sk-ant-… goliash serve
 | `GOLIASH_AI_BASE_URL` | Anthropic's API | A gateway or proxy in front of the Anthropic API |
 | `GOLIASH_AI_PER_HOUR` | `60` | Questions one person may ask per hour |
 
+With the Helm chart, keep the key in a Secret:
+
+```sh
+kubectl create secret generic goliash-ai --from-literal=anthropic-api-key=sk-ant-…
+helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash --reuse-values --set goli.existingSecret=goliash-ai
+```
+
+The pods then need egress to `api.anthropic.com` (or your `goli.baseURL`).
+
 An `ANTHROPIC_API_KEY` that happens to be in the server's environment does not turn Goli on: it is a choice to
 make on purpose. The public demo never offers it.
 

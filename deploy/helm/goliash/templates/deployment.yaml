@@ -64,6 +64,22 @@ spec:
               valueFrom:
                 secretKeyRef: { name: {{ include "goliash.fullname" . }}-secret-key, key: secret-key }
             {{- end }}
+            {{- with .Values.goli }}
+            {{- if .existingSecret }}
+            - name: GOLIASH_AI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: {{ .existingSecret }}, key: {{ .existingSecretKey }} }
+            {{- end }}
+            {{- if .model }}
+            - { name: GOLIASH_AI_MODEL, value: {{ .model | quote }} }
+            {{- end }}
+            {{- if .effort }}
+            - { name: GOLIASH_AI_EFFORT, value: {{ .effort | quote }} }
+            {{- end }}
+            {{- if .baseURL }}
+            - { name: GOLIASH_AI_BASE_URL, value: {{ .baseURL | quote }} }
+            {{- end }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
             {{- end }}
