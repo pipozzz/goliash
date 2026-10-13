@@ -562,6 +562,16 @@
     h.forEach(function (t) {
       const m = el("div", "goli-msg " + (t.role === "user" ? "goli-q" : "goli-a"));
       if (t.role === "user") m.textContent = t.text; else m.appendChild(goliMarkdown(t.text));
+      if (t.role !== "user" && t.text) {
+        // The answer as Goli wrote it, Markdown and links, for a ticket or a chat.
+        const copy = el("button", "goli-copy link", "Copy");
+        copy.type = "button";
+        copy.addEventListener("click", function () {
+          const text = t.text.replace(/\]\(\//g, "](" + location.origin + "/");
+          navigator.clipboard.writeText(text).then(function () { copy.textContent = "Copied"; }, function () { copy.textContent = "Copy failed"; });
+        });
+        m.appendChild(copy);
+      }
       if (Array.isArray(t.looked)) m.appendChild(el("p", "goli-looking", "Looked at " + t.looked.join(", ")));
       if (t.error) m.appendChild(el("p", "goli-error", t.error));
       log.appendChild(m);

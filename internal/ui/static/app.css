@@ -1094,3 +1094,4 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 }
 @media (max-width: 720px) { .goli-fab { width: 46px; height: 60px; right: 12px; bottom: 12px; } }
 @media print { .goli-fab, .goli { display: none; } }
+.goli-copy { float: right; font-size: 12px; margin-left: 8px; }
