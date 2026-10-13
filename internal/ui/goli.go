@@ -49,6 +49,14 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 		http.Error(w, fmt.Sprintf("ask in at most %d characters", maxQuestion), http.StatusRequestEntityTooLarge)
 		return nil
 	}
+	// On the demo everyone sees the same data: a first question asked before gets the answer given before.
+	cacheKey := ""
+	if s.auth.Demo() && len(in.History) == 1 {
+		cacheKey = goliCacheKey(p.Scope.WorkspaceID, in.History[0].Text)
+		if events, ok := s.goliCache.get(cacheKey, time.Now()); ok {
+			return s.goliReplay(w, events)
+		}
+	}
 	// On the demo everyone is the same viewer: count questions per address instead.
 	who := p.User.ID
 	if s.auth.Demo() {
@@ -81,7 +89,11 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
+	var recorded []goli.Event
 	emit := func(e goli.Event) {
+		if cacheKey != "" {
+			recorded = append(recorded, e)
+		}
 		b, _ := json.Marshal(e)
 		_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
 		flusher.Flush()
@@ -95,6 +107,32 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 		"tools", used, "took", time.Since(start).Round(time.Millisecond), "err", err)
 	if err != nil {
 		emit(goli.Event{Type: "error", Text: goli.Describe(err)})
+		return nil
+	}
+	if n := len(recorded); cacheKey != "" && n > 0 && recorded[n-1].Type == "done" {
+		s.goliCache.put(cacheKey, recorded, time.Now())
+	}
+	return nil
+}
+
+// goliReplay streams an answer given before, a little paced so it reads like one being written.
+func (s *Server) goliReplay(w http.ResponseWriter, events []goli.Event) error {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return errors.New("streaming unsupported")
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	pace := time.Duration(0)
+	if n := len(events); n > 0 {
+		pace = min(15*time.Millisecond, 2*time.Second/time.Duration(n))
+	}
+	for _, e := range events {
+		b, _ := json.Marshal(e)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
+		flusher.Flush()
+		time.Sleep(pace)
 	}
 	return nil
 }

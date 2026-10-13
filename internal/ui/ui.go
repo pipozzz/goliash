@@ -72,6 +72,7 @@ type Server struct {
 	updateCheck bool
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
+	goliCache   goliCache
 	goliDemo    bool       // Goli answers on the public demo too
 	goliDocs    *goli.Docs // Goli on a website, for its usage on the Status page
 	api         http.Handler
