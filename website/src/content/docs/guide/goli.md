@@ -229,6 +229,8 @@ internet asks with your money. Then:
   behind a proxy);
 - Goli reads a third as much of each tool result;
 - it is told it is a demo with generated data, and to stay on Goliash and that data.
+- a first question answered in the last six hours (the Brief and Explain buttons ask the same ones over and over) gets
+  that answer replayed at once, with no model call and no limit spent.
 
 Give it a low `GOLIASH_AI_PER_DAY` and a key with its own budget.
 [deploy/demo](https://github.com/pipozzz/goliash/tree/main/deploy/demo) has a Compose file with every setting.
