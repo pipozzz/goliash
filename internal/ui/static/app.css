@@ -1049,3 +1049,45 @@ a.live:hover { text-decoration: underline; }
 .goli-input { flex: 1; resize: none; font: inherit; font-size: 14px; max-height: 160px; }
 .goli-note { margin: 0; padding: 0 16px 12px; font-size: 11.5px; color: var(--muted); }
 @media (max-width: 720px) { .goli-open span { display: none; } .goli { width: 100vw; border-left: 0; } }
+/* Goli, the plushie: in the corner, in the header button and in the panel. In the corner it sways a little,
+   waves when pointed at and follows the pointer with its eyes; it blinks now and then, raises its eyebrow and
+   rings its release bell while it works on an answer, and dings once when done. It never pops up by itself. */
+.goli-art { display: block; overflow: visible; }
+.goli-mini { width: 17px; height: 22px; margin: -3px 0; }
+.goli-face { width: 24px; height: 31px; align-self: center; }
+.goli-big { width: 84px; height: 110px; margin-bottom: 4px; }
+.goli-top { align-items: center; }
+.goli-fab {
+  position: fixed; right: 22px; bottom: 18px; z-index: 80; width: 62px; height: 81px; padding: 0; border: 0;
+  background: transparent; cursor: pointer; filter: drop-shadow(0 8px 12px rgb(10 14 30 / 0.22));
+  transition: transform 0.18s ease-out;
+}
+.goli-fab .goli-art { width: 100%; height: 100%; transform-origin: 50% 100%; animation: goli-sway 5s ease-in-out infinite; }
+.goli-fab:hover { transform: translateY(-4px); }
+.goli-fab:hover .goli-arm { animation: goli-wave 0.7s ease-in-out 2; }
+.goli-fab:active { transform: translateY(-1px) scale(0.96); }
+.goli-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 14px; }
+body.goli-on .goli-fab, html.goli-nocorner .goli-fab { display: none; }
+@keyframes goli-sway { 0%, 100% { transform: rotate(0) translateY(0); } 30% { transform: rotate(-2.5deg) translateY(-1px); } 70% { transform: rotate(2.5deg) translateY(-1px); } }
+.goli-arm { transform-box: fill-box; transform-origin: 80% 15%; }
+@keyframes goli-wave { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(38deg); } }
+.goli-eyes { transform-box: fill-box; transform-origin: center; animation: goli-blink 7s infinite; }
+@keyframes goli-blink { 0%, 94%, 100% { transform: none; } 96% { transform: scaleY(0.12); } }
+.goli-pupils { transform: translate(var(--goli-x, 0), var(--goli-y, 0)); transition: transform 0.12s ease-out; }
+.goli-brow { transition: transform 0.25s ease-out; }
+html.goli-busy .goli-brow { transform: translateY(-10px); }
+.goli-bell { transform-box: fill-box; transform-origin: 36% 100%; }
+.goli-ding { opacity: 0; transition: opacity 0.2s; }
+html.goli-busy .goli-bell { animation: goli-ring 0.9s ease-in-out infinite; }
+html.goli-busy .goli-ding, html.goli-done .goli-ding { opacity: 1; }
+html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
+@keyframes goli-ring { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(14deg); } 75% { transform: rotate(-14deg); } }
+.goli-corner { font-size: inherit; }
+.goli-thinking { display: flex; align-items: center; gap: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .goli-fab .goli-art, .goli-fab:hover .goli-arm, .goli-eyes, html.goli-busy .goli-bell, html.goli-done .goli-bell { animation: none; }
+  .goli-fab, .goli-pupils, .goli-brow { transition: none; }
+  .goli-pupils { transform: none; }
+}
+@media (max-width: 720px) { .goli-fab { width: 46px; height: 60px; right: 12px; bottom: 12px; } }
+@media print { .goli-fab, .goli { display: none; } }

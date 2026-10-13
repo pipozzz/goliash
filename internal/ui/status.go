@@ -21,6 +21,15 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request, p auth.Principal
 	if err != nil {
 		return err
 	}
+	// Goli is optional: whether it is on never makes the status worse.
+	g := versions.HealthCheck{
+		Title: "Goli, the assistant", State: "off", Link: "https://goliash.dev/guide/goli/", LinkText: "How",
+		Summary: "Off. Set GOLIASH_AI_API_KEY on the server to an Anthropic API key to ask questions in plain words.",
+	}
+	if s.goli != nil && !s.auth.Demo() {
+		g.State, g.Summary, g.Link, g.LinkText = "ok", "On, answering with "+s.goli.Model()+".", "", ""
+	}
+	h.Checks = append(h.Checks, g)
 	v := StatusView{Base: withFlash(s.base(r.Context(), p, "status", "Status"), r), Health: h}
 	return render(w, r, StatusPage(v))
 }

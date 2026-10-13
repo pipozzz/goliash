@@ -50,8 +50,11 @@ func TestGoliAnswersFromTheAPIAsTheViewer(t *testing.T) {
 	if code, _ := ask(); code != http.StatusNotFound {
 		t.Fatalf("without Goli: %d", code)
 	}
-	if _, body := get(t, viewer, e.srv.URL+"/", nil); strings.Contains(body, "data-goli") {
-		t.Error("the header offers Goli while it is off")
+	if _, body := get(t, viewer, e.srv.URL+"/", nil); strings.Contains(body, "data-goli") || strings.Contains(body, "goli-fab") {
+		t.Error("the page offers Goli while it is off")
+	}
+	if _, body := get(t, viewer, e.srv.URL+"/status", nil); !strings.Contains(body, "GOLIASH_AI_API_KEY") {
+		t.Error("the status page does not say how to turn Goli on")
 	}
 
 	var mu sync.Mutex
@@ -74,8 +77,11 @@ func TestGoliAnswersFromTheAPIAsTheViewer(t *testing.T) {
 	e.ui.goli = goli.New(goli.Config{APIKey: "sk-test", Model: goli.DefaultModel, BaseURL: claude.URL, Effort: "medium", PerHour: 1}, log)
 	e.ui.api = apiMux
 
-	if _, body := get(t, viewer, e.srv.URL+"/", nil); !strings.Contains(body, "data-goli") {
-		t.Error("the header does not offer Goli")
+	if _, body := get(t, viewer, e.srv.URL+"/", nil); !strings.Contains(body, "data-goli") || !strings.Contains(body, "goli-fab") {
+		t.Error("the page does not offer Goli")
+	}
+	if _, body := get(t, viewer, e.srv.URL+"/status", nil); !strings.Contains(body, "answering with claude-opus-5-5") {
+		t.Error("the status page does not say Goli is on")
 	}
 	code, body := ask()
 	if code != http.StatusOK {
