@@ -13,12 +13,43 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/goli"
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 const maxQuestion = 2000 // characters of one question
 
 // goliOn reports whether Goli answers here: configured, and on a public demo only when asked to.
 func (s *Server) goliOn() bool { return s.goli != nil && (!s.auth.Demo() || s.goliDemo) }
+
+// goliAPI is Goli for scripts and the CLI (goliash ask): POST /goli/ask with an API token, the same body and
+// stream as the panel. Goli then sees what the token may see.
+func (s *Server) goliAPI(w http.ResponseWriter, r *http.Request) {
+	p, ok, err := s.auth.Authenticate(r)
+	switch {
+	case err != nil:
+		s.fail(w, r, err)
+		return
+	case !ok || p.Scope.WorkspaceID == "":
+		w.Header().Set("WWW-Authenticate", `Bearer realm="goliash"`)
+		http.Error(w, "send an API token: Authorization: Bearer glsh_api_…", http.StatusUnauthorized)
+		return
+	case !p.Can(store.RoleViewer):
+		http.Error(w, "this needs the viewer role", http.StatusForbidden)
+		return
+	}
+	if p.Workspace.Name == "" {
+		if wss, err := s.store.ListWorkspaces(r.Context()); err == nil {
+			for _, ws := range wss {
+				if ws.ID == p.Scope.WorkspaceID {
+					p.Workspace = ws
+				}
+			}
+		}
+	}
+	if err := s.goliAsk(w, r, p); err != nil {
+		s.fail(w, r, err)
+	}
+}
 
 // goliAsk answers a question with Goli, as a stream of server-sent events: text as it is written, the tools
 // Goli looks at, then done or error.
@@ -51,6 +82,9 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	// On the demo everyone is the same viewer: count questions per address instead.
 	who := p.User.ID
+	if p.Via == "token" {
+		who = "token:" + p.Scope.WorkspaceID + ":" + p.TokenName
+	}
 	if s.auth.Demo() {
 		who = "addr:" + s.auth.ClientIP(r)
 	}
@@ -91,7 +125,7 @@ func (s *Server) goliAsk(w http.ResponseWriter, r *http.Request, p auth.Principa
 		Workspace: p.Workspace.Name, Role: p.Role, Now: start.UTC().Format(time.RFC3339), Page: page, Demo: s.auth.Demo(),
 	}, emit)
 	// Who asked and what Goli looked at, never the question: it may hold anything.
-	s.log.InfoContext(ctx, "goli answered", "user", p.User.Email, "workspace", p.Workspace.Name,
+	s.log.InfoContext(ctx, "goli answered", "user", p.Name(), "workspace", p.Workspace.Name,
 		"tools", used, "took", time.Since(start).Round(time.Millisecond), "err", err)
 	if err != nil {
 		emit(goli.Event{Type: "error", Text: goli.Describe(err)})
