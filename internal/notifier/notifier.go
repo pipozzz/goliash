@@ -44,6 +44,7 @@ type Message struct {
 	Items     []Item `json:"items"`
 	Link      string `json:"link,omitempty"` // Goliash's public URL, for buttons back to it
 	Take      string `json:"take,omitempty"` // Goli's take on an upgrade plan: what first and why, in a few sentences
+	Goli      bool   `json:"-"`              // Goli answers on the server: alerts offer to ask it
 }
 
 // Title is a one-line summary of the message.
@@ -139,6 +140,7 @@ type Notifier struct {
 	link    string // public URL, without a trailing slash
 	take    TakeFunc
 	takeOn  TakeOn
+	goli    bool
 }
 
 // TakeFunc writes Goli's take on a message: plain text, a few sentences. plan says whether it is an upgrade plan
@@ -156,6 +158,9 @@ const minDigestTake = 3
 
 // SetTake lets upgrade plans and digests open with Goli's take on them.
 func (n *Notifier) SetTake(f TakeFunc, on TakeOn) { n.take, n.takeOn = f, on }
+
+// SetGoli lets single alerts offer an "Ask Goli" button that opens Goliash with the question ready.
+func (n *Notifier) SetGoli(on bool) { n.goli = on }
 
 // addTake puts Goli's take in an upgrade plan or a digest; without one the message goes as it is.
 func (n *Notifier) addTake(ctx context.Context, msg *Message) {
@@ -536,7 +541,7 @@ func (n *Notifier) ruleTargets(ctx context.Context, sc store.Scope) (map[string]
 
 func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.QueueItem) {
 	ids := make([]string, len(batch))
-	msg := Message{Workspace: rt.workspace, Digest: rt.rule.Mode != "instant" || len(batch) > 1, Link: n.link}
+	msg := Message{Workspace: rt.workspace, Digest: rt.rule.Mode != "instant" || len(batch) > 1, Link: n.link, Goli: n.goli}
 	attempts := 0
 	for i, it := range batch {
 		ids[i] = it.ID

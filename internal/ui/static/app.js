@@ -783,6 +783,20 @@
     art.setAttribute("class", "goli-art " + cls);
     return art;
   }
+  // A link from an alert (?goli=question) opens Goli with the question ready; asking stays a click away, so a
+  // link opened by a preview bot or by mistake costs nothing.
+  function goliFromLink() {
+    const params = new URLSearchParams(location.search);
+    const q = params.get("goli");
+    if (q === null) return;
+    params.delete("goli");
+    const rest = params.toString();
+    history.replaceState(history.state, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    if (!document.querySelector("[data-goli]")) return;
+    goliOpen();
+    goli.input.value = q.slice(0, 2000);
+    goli.input.focus();
+  }
   function goliClose() {
     if (!goli) return;
     goli.open = false;
@@ -1238,6 +1252,7 @@
   }
 
   function init() {
+    goliFromLink();
     tlSetup();
     pushSetup();
     channelFields();

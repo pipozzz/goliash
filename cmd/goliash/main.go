@@ -551,6 +551,7 @@ func serve(ctx context.Context, args []string) error {
 	var assistant *goli.Assistant
 	if aiOn {
 		assistant = goli.New(aiCfg, log)
+		notify.SetGoli(true) // single alerts offer to ask Goli about them
 		log.Info("Goli, the assistant, is on", "provider", aiCfg.Provider, "model", aiCfg.Model, "base_url", aiCfg.BaseURL)
 		// Upgrade plans and digests open with Goli's take: one call per message and channel, its lines only.
 		if on := (notifier.TakeOn{

@@ -113,7 +113,11 @@ func teamsCard(msg Message) map[string]any {
 		if msg.plan() {
 			title = "Open the Updates page"
 		}
-		card["actions"] = []any{map[string]any{"type": "Action.OpenUrl", "title": title, "url": u}}
+		actions := []any{map[string]any{"type": "Action.OpenUrl", "title": title, "url": u}}
+		if g := goliLink(msg); g != "" {
+			actions = append(actions, map[string]any{"type": "Action.OpenUrl", "title": "Ask Goli", "url": g})
+		}
+		card["actions"] = actions
 	}
 	return map[string]any{
 		"type": "message",
