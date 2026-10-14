@@ -865,6 +865,16 @@ p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; t
 .split-row > span { min-width: 0; flex: 1; }
 /* Integrations: one card per tool, numbered steps. */
 .integrations { display: grid; gap: 16px; }
+details.integration { scroll-margin-top: 72px; }
+details.integration > summary { cursor: pointer; list-style: none; }
+.integration details.script { margin-top: 8px; }
+.integration details.script > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+details.integration > summary::-webkit-details-marker { display: none; }
+details.integration > summary h2::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--muted); transition: transform 0.15s; }
+details.integration[open] > summary h2::before { transform: rotate(90deg); }
+details.integration:not([open]) > summary { border-bottom: 0; }
+details.integration > summary:hover h2 { color: var(--accent); }
+@media print { details.integration { display: block; } }
 .integration h3 { font-size: 14px; margin: 0 0 8px; }
 .integration .install-cmd { white-space: pre; overflow-x: auto; }
 /* Service page: an environment running several versions spans several rows. */

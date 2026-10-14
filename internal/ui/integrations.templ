@@ -9,13 +9,13 @@ templ IntegrationsPage(v IntegrationsView) {
 		<div class="head">
 			<div>
 				<h1>Integrations</h1>
-				<p class="sub">Goliash on the dashboards and in the tools you already use. The settings below are filled in for this server.</p>
+				<p class="sub">Goliash on the dashboards and in the tools you already use. Open one for its steps, filled in for this server.</p>
 			</div>
 			<a class="button secondary" href="https://goliash.dev/guide/observability/" target="_blank" rel="noopener noreferrer">Guide</a>
 		</div>
 		<div class="integrations">
-			<section class="panel integration" id="prometheus">
-				<div class="panel-head"><h2>Prometheus and Grafana</h2><span class="muted">scrape /metrics, import the dashboard</span></div>
+			<details class="panel integration" id="prometheus" open?={ v.Tool == "prometheus" }>
+				<summary class="panel-head"><h2>Prometheus and Grafana</h2><span class="muted">scrape /metrics, import the dashboard</span></summary>
 				<div class="panel-body stack">
 					@integrationToken(v, "prometheus", "/etc/prometheus/goliash-token")
 					<div>
@@ -33,9 +33,9 @@ templ IntegrationsPage(v IntegrationsView) {
 						</div>
 					</div>
 				</div>
-			</section>
-			<section class="panel integration" id="signoz">
-				<div class="panel-head"><h2>SigNoz</h2><span class="muted">the OpenTelemetry Collector reads /metrics</span></div>
+			</details>
+			<details class="panel integration" id="signoz" open?={ v.Tool == "signoz" }>
+				<summary class="panel-head"><h2>SigNoz</h2><span class="muted">the OpenTelemetry Collector reads /metrics</span></summary>
 				<div class="panel-body stack">
 					@integrationToken(v, "signoz", "/etc/otelcol/goliash-token")
 					<div>
@@ -51,9 +51,9 @@ templ IntegrationsPage(v IntegrationsView) {
 						</div>
 					</div>
 				</div>
-			</section>
-			<section class="panel integration" id="dtrack">
-				<div class="panel-head"><h2>Dependency-Track</h2><span class="muted">what runs, as an SBOM per environment</span></div>
+			</details>
+			<details class="panel integration" id="dtrack" open?={ v.Tool == "dtrack" }>
+				<summary class="panel-head"><h2>Dependency-Track</h2><span class="muted">what runs, as an SBOM per environment</span></summary>
 				<div class="panel-body stack">
 					<p class="muted">Dependency-Track then tracks every package that runs in each environment against its vulnerability feeds and policies: a project per environment, kept current by a small script.</p>
 					@integrationToken(v, "dtrack", "")
@@ -67,9 +67,35 @@ templ IntegrationsPage(v IntegrationsView) {
 						</div>
 					</div>
 				</div>
-			</section>
-			<section class="panel integration" id="mcp">
-				<div class="panel-head"><h2>AI assistants</h2><span class="muted">Claude, Cursor and others ask Goliash over MCP</span></div>
+			</details>
+			<details class="panel integration" id="widgets" open?={ v.Tool == "widget" }>
+				<summary class="panel-head"><h2>Widgets</h2><span class="muted">the numbers on an iPhone or the Windows 11 Widgets board</span></summary>
+				<div class="panel-body stack">
+					<div>
+						<h3>iPhone and iPad</h3>
+						<p class="muted">A home or lock screen widget made with <a href="https://scriptable.app" target="_blank" rel="noopener noreferrer">Scriptable</a>, a free app: drift, updates, exploited vulnerabilities, how long production runs behind and end of life. It refreshes about every 15 minutes, as iOS allows, and a tap opens the Security page.</p>
+					</div>
+					@integrationToken(v, "widget", "")
+					<div>
+						<h3>2. Add it to Scriptable</h3>
+						<p class="hint">On the iPhone, open this page and download the widget, then open the file in Scriptable (Share → Scriptable). Long-press the home screen, add a Scriptable widget of any size, tap it and pick <strong>Goliash</strong>. The server's address and the token are already in it.</p>
+						<div class="actions">
+							<button type="button" data-download="cfg-widget" data-filename="Goliash.js">Download Goliash.js</button>
+							<button type="button" class="secondary" data-copy="cfg-widget">Copy</button>
+						</div>
+						<details class="script">
+							<summary>What it runs</summary>
+							<pre class="mono install-cmd" id="cfg-widget">{ scriptableWidget(v.ServerURL, tokenFor(v, "widget")) }</pre>
+						</details>
+					</div>
+					<div>
+						<h3>Windows 11</h3>
+						<p class="hint">Install Goliash as an app from Microsoft Edge (the app icon in the address bar), sign in there, then open the Widgets board (Win+W), choose <strong>Add widgets</strong> and add <strong>Goliash</strong>. It uses the app's sign-in, so no token is needed.</p>
+					</div>
+				</div>
+			</details>
+			<details class="panel integration" id="mcp" open?={ v.Tool == "mcp" }>
+				<summary class="panel-head"><h2>AI assistants</h2><span class="muted">Claude, Cursor and others ask Goliash over MCP</span></summary>
 				<div class="panel-body stack">
 					@integrationToken(v, "mcp", "")
 					<div>
@@ -81,7 +107,7 @@ templ IntegrationsPage(v IntegrationsView) {
 						</div>
 					</div>
 				</div>
-			</section>
+			</details>
 		</div>
 	}
 }
@@ -99,7 +125,11 @@ templ integrationToken(v IntegrationsView, tool, file string) {
 			<pre class="mono install-cmd" id={ "token-" + tool }>{ v.Token }</pre>
 			<div class="actions">
 				<button type="button" class="secondary" data-copy={ "token-" + tool }>Copy</button>
-				<span class="hint">Check it: <code>{ checkCommand(v.ServerURL, v.Token) }</code> prints how many samples it reads.</span>
+				if tool == "widget" {
+					<span class="hint">Check it: <code>{ summaryCommand(v.ServerURL, v.Token) }</code> prints the widget's numbers.</span>
+				} else {
+					<span class="hint">Check it: <code>{ checkCommand(v.ServerURL, v.Token) }</code> prints how many samples it reads.</span>
+				}
 			</div>
 		} else if v.CanAdmin && !v.Demo {
 			<form class="inline" method="post" action="/integrations/token">

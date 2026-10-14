@@ -46,6 +46,15 @@ func (s *Server) manifest(w http.ResponseWriter, _ *http.Request) {
 			{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
 			{"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
 		},
+		// Windows 11 Widgets board, for the app installed from Edge; the service worker fills it.
+		"widgets": []map[string]any{{
+			"name": "Goliash", "short_name": "Goliash", "tag": "goliash-summary", "template": "goliash-summary",
+			"description":    "Drift, updates, exploited vulnerabilities and how long production runs behind.",
+			"ms_ac_template": "/static/widgets/summary.json", "data": "/api/v1/summary", "type": "application/json",
+			"auth": false, "update": 900,
+			"icons":       []map[string]string{{"src": "/static/icon-192.png", "sizes": "192x192"}},
+			"screenshots": []map[string]string{{"src": "/static/widgets/screenshot.png", "sizes": "600x400", "label": "Goliash on the Widgets board"}},
+		}},
 	})
 }
 

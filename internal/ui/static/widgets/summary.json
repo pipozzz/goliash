@@ -1,0 +1,73 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Goliash · ${workspace}",
+      "weight": "Bolder",
+      "size": "Medium",
+      "$when": "${ok}"
+    },
+    {
+      "type": "ColumnSet",
+      "$when": "${ok}",
+      "columns": [
+        { "type": "Column", "width": "stretch", "items": [
+          { "type": "TextBlock", "text": "${string(drifting)}", "size": "ExtraLarge", "weight": "Bolder", "color": "${if(drifting > 0, 'Warning', 'Default')}" },
+          { "type": "TextBlock", "text": "drifting", "isSubtle": true, "spacing": "None" }
+        ] },
+        { "type": "Column", "width": "stretch", "items": [
+          { "type": "TextBlock", "text": "${string(updates)}", "size": "ExtraLarge", "weight": "Bolder" },
+          { "type": "TextBlock", "text": "updates", "isSubtle": true, "spacing": "None" }
+        ] },
+        { "type": "Column", "width": "stretch", "items": [
+          { "type": "TextBlock", "text": "${string(exploited)}", "size": "ExtraLarge", "weight": "Bolder", "color": "${if(exploited > 0, 'Attention', 'Default')}" },
+          { "type": "TextBlock", "text": "exploited", "isSubtle": true, "spacing": "None" }
+        ] }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "$when": "${ok}",
+      "columns": [
+        { "type": "Column", "width": "stretch", "items": [
+          { "type": "TextBlock", "text": "${string(median_exposure_days)}d", "size": "ExtraLarge", "weight": "Bolder", "color": "${if(median_exposure_days > 30, 'Warning', 'Default')}" },
+          { "type": "TextBlock", "text": "median behind", "isSubtle": true, "spacing": "None" }
+        ] },
+        { "type": "Column", "width": "stretch", "items": [
+          { "type": "TextBlock", "text": "${string(behind_90_days)}", "size": "ExtraLarge", "weight": "Bolder", "color": "${if(behind_90_days > 0, 'Warning', 'Default')}" },
+          { "type": "TextBlock", "text": "90+ days", "isSubtle": true, "spacing": "None" }
+        ] },
+        { "type": "Column", "width": "stretch", "items": [
+          { "type": "TextBlock", "text": "${string(end_of_life_passed)}", "size": "ExtraLarge", "weight": "Bolder", "color": "${if(end_of_life_passed > 0, 'Attention', 'Default')}" },
+          { "type": "TextBlock", "text": "end of life", "isSubtle": true, "spacing": "None" }
+        ] }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "${generated}",
+      "isSubtle": true,
+      "size": "Small",
+      "$when": "${ok}"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Goliash",
+      "weight": "Bolder",
+      "size": "Medium",
+      "$when": "${!ok}"
+    },
+    {
+      "type": "TextBlock",
+      "text": "${message}",
+      "wrap": true,
+      "$when": "${!ok}"
+    }
+  ],
+  "actions": [
+    { "type": "Action.Execute", "title": "Open Goliash", "verb": "open" }
+  ]
+}

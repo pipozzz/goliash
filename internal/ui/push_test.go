@@ -8,6 +8,7 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -84,5 +85,24 @@ func TestWebPushChannel(t *testing.T) {
 	}
 	if code, body := get(t, http.DefaultClient, e.srv.URL+"/manifest.webmanifest", nil); code != http.StatusOK || !strings.Contains(body, `"display":"standalone"`) {
 		t.Fatalf("manifest: %d %s", code, body)
+	}
+	// The Windows 11 widget: its template and picker image are served, and the template binds the summary's fields.
+	var m struct {
+		Widgets []struct {
+			Tag, Data, Template string
+			MsAcTemplate        string `json:"ms_ac_template"`
+			Screenshots         []struct{ Src string }
+		}
+	}
+	_, body := get(t, http.DefaultClient, e.srv.URL+"/manifest.webmanifest", nil)
+	if err := json.Unmarshal([]byte(body), &m); err != nil || len(m.Widgets) != 1 || m.Widgets[0].Data != "/api/v1/summary" {
+		t.Fatalf("widgets: %s", body)
+	}
+	code, tmpl := get(t, http.DefaultClient, e.srv.URL+m.Widgets[0].MsAcTemplate, nil)
+	if code != http.StatusOK || !strings.Contains(tmpl, `"AdaptiveCard"`) || !strings.Contains(tmpl, "${string(median_exposure_days)}") {
+		t.Errorf("widget template: %d", code)
+	}
+	if code, _ := get(t, http.DefaultClient, e.srv.URL+m.Widgets[0].Screenshots[0].Src, nil); code != http.StatusOK {
+		t.Errorf("widget screenshot: %d", code)
 	}
 }

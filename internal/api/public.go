@@ -67,6 +67,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/status", h.with(store.RoleViewer, h.status))
 	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
 	mux.Handle("GET /api/v1/posture", h.with(store.RoleViewer, h.posture))
+	mux.Handle("GET /api/v1/summary", h.with(store.RoleViewer, h.summary))
 	mux.Handle("GET /api/v1/notifications/sent", h.with(store.RoleViewer, h.notificationsSent))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
@@ -622,6 +623,7 @@ func (h *PublicHandler) notificationsSent(w http.ResponseWriter, r *http.Request
 		h.fail(w, r, err)
 		return
 	}
+	name := h.workspaceName(r.Context(), p)
 	type sent struct {
 		SentAt time.Time       `json:"sent_at"`
 		Title  string          `json:"title"`
@@ -630,7 +632,7 @@ func (h *PublicHandler) notificationsSent(w http.ResponseWriter, r *http.Request
 	}
 	out := []sent{}
 	for _, m := range feed {
-		msg := notifier.Message{Workspace: p.Workspace.Name, Digest: m.Mode != "instant" || len(m.Items) > 1}
+		msg := notifier.Message{Workspace: name, Digest: m.Mode != "instant" || len(m.Items) > 1}
 		for _, raw := range m.Items {
 			var it notifier.Item
 			if json.Unmarshal(raw, &it) == nil {
@@ -643,6 +645,81 @@ func (h *PublicHandler) notificationsSent(w http.ResponseWriter, r *http.Request
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// workspaceName names the request's workspace; an API token's principal carries only its ID.
+func (h *PublicHandler) workspaceName(ctx context.Context, p auth.Principal) string {
+	if p.Workspace.Name != "" {
+		return p.Workspace.Name
+	}
+	wss, err := h.store.ListWorkspaces(ctx)
+	if err != nil {
+		return ""
+	}
+	for _, ws := range wss {
+		if ws.ID == p.Scope.WorkspaceID {
+			return ws.Name
+		}
+	}
+	return ""
+}
+
+// summary is Goliash in a dozen numbers, for widgets on a phone, a desktop or a wall screen.
+func (h *PublicHandler) summary(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	ctx := r.Context()
+	now := time.Now()
+	o, err := versions.LoadOverview(ctx, h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	pos, err := versions.LoadPosture(ctx, h.store, p.Scope, o, now)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	acks, err := h.store.ListAcks(ctx, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	drifting := map[string]bool{}
+	for key, ds := range o.Drifts {
+		if len(ds) > 0 {
+			svc, _, _ := strings.Cut(key, "|")
+			drifting[svc] = true
+		}
+	}
+	updates, exploited := 0, 0
+	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, now) {
+		if u.Acked {
+			continue
+		}
+		updates++
+		if len(u.Exploited) > 0 {
+			exploited++
+		}
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Workspace  string    `json:"workspace"`
+		Production string    `json:"production"`
+		Services   int       `json:"services"`
+		Drifting   int       `json:"drifting"`
+		Updates    int       `json:"updates"`
+		Exploited  int       `json:"exploited"`
+		Behind     int       `json:"behind"`
+		Median     int       `json:"median_exposure_days"`
+		Behind90   int       `json:"behind_90_days"`
+		EOLPassed  int       `json:"end_of_life_passed"`
+		Stale      int       `json:"stale_targets"`
+		At         time.Time `json:"generated_at"`
+		AtText     string    `json:"generated"` // for widgets that cannot format a time
+	}{
+		Workspace: h.workspaceName(ctx, p), Production: pos.Prod.Name, Services: len(o.Services), Drifting: len(drifting),
+		Updates: updates, Exploited: exploited, Behind: pos.ProdExposed(), Median: pos.ProdMedian,
+		Behind90: pos.Prod90, EOLPassed: pos.EOLPassed, Stale: len(o.Stale), At: now.UTC(),
+		AtText: now.UTC().Format("Jan 2, 15:04 UTC"),
+	})
 }
 
 // apiReading is production's posture on one day of its trend.

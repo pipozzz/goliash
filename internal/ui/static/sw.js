@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Goliash's service worker: it shows web push notifications, keeps the installed app's icon badge at the
-// number of unread notifications, and opens Goliash when one is clicked. It caches nothing.
+// number of unread notifications, opens Goliash when one is clicked, and fills the Windows 11 widget. It caches
+// nothing.
 "use strict";
 
 self.addEventListener("install", function () { self.skipWaiting(); });
@@ -44,4 +45,48 @@ self.addEventListener("notificationclick", function (e) {
     }
     return self.clients.openWindow(target.href);
   }));
+});
+
+// Windows 11 Widgets (the app installed from Edge): Goliash's numbers on the Widgets board, from
+// /api/v1/summary with the app's sign-in, refreshed every 15 minutes and when the board opens.
+function renderWidget(widget) {
+  const def = widget.definition;
+  return Promise.all([
+    fetch(def.msAcTemplate).then(function (r) { return r.text(); }),
+    fetch(def.data, { credentials: "same-origin" })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) return { ok: false, message: "Open Goliash and sign in to see its numbers here." };
+        if (!r.ok) return { ok: false, message: "Goliash answered " + r.status + "." };
+        return r.json().then(function (d) { d.ok = true; return d; });
+      })
+      .catch(function () { return { ok: false, message: "Goliash cannot be reached." }; }),
+  ]).then(function (parts) {
+    return self.widgets.updateByTag(def.tag, { template: parts[0], data: JSON.stringify(parts[1]) });
+  });
+}
+
+self.addEventListener("widgetinstall", function (e) {
+  const def = e.widget.definition;
+  e.waitUntil((self.registration.periodicSync && def.update
+    ? self.registration.periodicSync.getTags().then(function (tags) {
+      if (tags.indexOf(def.tag) < 0) return self.registration.periodicSync.register(def.tag, { minInterval: def.update * 1000 });
+    }).catch(function () { /* refreshed when the board opens */ })
+    : Promise.resolve()).then(function () { return renderWidget(e.widget); }));
+});
+
+self.addEventListener("widgetuninstall", function (e) {
+  if (e.widget.instances.length <= 1 && self.registration.periodicSync) {
+    e.waitUntil(self.registration.periodicSync.unregister(e.widget.definition.tag).catch(function () {}));
+  }
+});
+
+self.addEventListener("widgetresume", function (e) { e.waitUntil(renderWidget(e.widget)); });
+
+self.addEventListener("periodicsync", function (e) {
+  if (!self.widgets) return;
+  e.waitUntil(self.widgets.getByTag(e.tag).then(function (w) { if (w) return renderWidget(w); }));
+});
+
+self.addEventListener("widgetclick", function (e) {
+  if (e.action === "open") e.waitUntil(self.clients.openWindow("/security"));
 });

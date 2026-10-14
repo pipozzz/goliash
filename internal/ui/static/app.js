@@ -173,6 +173,21 @@
     );
   });
 
+  // Download buttons: save an element's text as a file (the widget's script, with its token, never leaves the page).
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-download]");
+    if (!btn) return;
+    const src = document.getElementById(btn.getAttribute("data-download"));
+    const url = URL.createObjectURL(new Blob([src.textContent], { type: "text/javascript" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = btn.getAttribute("data-filename") || "goliash.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
   // Chart hover, SigNoz-style: a crosshair at the nearest point and a tooltip with
   // every series' value there. The server puts what it needs in data-chart.
   const chartData = new WeakMap();
@@ -1373,7 +1388,20 @@
     cycleTimer = setTimeout(function () { if (next.isConnected) next.click(); }, Number(next.getAttribute("data-cycle")) * 1000);
   }
 
+  // The service worker shows web push and fills the Windows 11 widget of the installed app; it caches nothing.
+  function swRegister() {
+    if (window.isSecureContext && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function () {});
+  }
+  // A link to one integration (#widgets) opens it.
+  function openFromHash() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const el = id && document.getElementById(id);
+    if (el && el.tagName === "DETAILS") { el.open = true; el.scrollIntoView({ block: "start" }); }
+  }
+  window.addEventListener("hashchange", openFromHash);
   function init() {
+    swRegister();
+    openFromHash();
     bellInit();
     goliFromLink();
     tlSetup();

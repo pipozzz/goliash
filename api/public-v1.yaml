@@ -143,6 +143,36 @@ paths:
                           text: { type: string }
                           url: { type: string }
         "400": { $ref: '#/components/responses/BadRequest' }
+  /api/v1/summary:
+    get:
+      operationId: getSummary
+      summary: Goliash in a dozen numbers
+      description: >-
+        What the tiles show, for widgets (iPhone with Scriptable, Windows 11 Widgets, wall screens): services,
+        drifting, updates waiting and how many have exploited vulnerabilities, production's exposure and end of life,
+        stale targets.
+      responses:
+        "200":
+          description: The numbers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workspace, production, services, drifting, updates, exploited, behind, median_exposure_days, behind_90_days, end_of_life_passed, stale_targets, generated_at, generated]
+                properties:
+                  workspace: { type: string }
+                  production: { type: string, description: "The last environment." }
+                  services: { type: integer }
+                  drifting: { type: integer, description: "Services with open drift." }
+                  updates: { type: integer, description: "Updates waiting, not put off by an acknowledgement." }
+                  exploited: { type: integer, description: "Of them, how many run an image with a vulnerability exploited in the wild." }
+                  behind: { type: integer, description: "Production services behind a newer release, not counting accepted risk." }
+                  median_exposure_days: { type: integer }
+                  behind_90_days: { type: integer }
+                  end_of_life_passed: { type: integer }
+                  stale_targets: { type: integer }
+                  generated_at: { type: string, format: date-time }
+                  generated: { type: string, description: "generated_at as text, e.g. Oct 14, 13:05 UTC." }
   /api/v1/posture:
     get:
       operationId: getPosture

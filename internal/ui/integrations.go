@@ -27,7 +27,7 @@ type IntegrationsView struct {
 }
 
 // integrationTools are the tools a token can be made for here, with the token's name.
-var integrationTools = map[string]string{"prometheus": "prometheus", "signoz": "signoz", "mcp": "assistant", "dtrack": "dependency-track"}
+var integrationTools = map[string]string{"prometheus": "prometheus", "signoz": "signoz", "mcp": "assistant", "dtrack": "dependency-track", "widget": "widget"}
 
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	v := IntegrationsView{Base: withFlash(s.base(r.Context(), p, "integrations", "Integrations"), r), ServerURL: s.publicURL}
@@ -183,6 +183,11 @@ func indent(s, by string) string {
 func mcpCommand(serverURL, token string) string {
 	return fmt.Sprintf(`claude mcp add --transport http goliash %s/mcp \
   --header "Authorization: Bearer %s"`, serverURL, tokenOr(token))
+}
+
+// summaryCommand reads what the widget shows, to check its token.
+func summaryCommand(serverURL, token string) string {
+	return fmt.Sprintf(`curl -s -H "Authorization: Bearer %s" %s/api/v1/summary`, tokenOr(token), serverURL)
 }
 
 func checkCommand(serverURL, token string) string {

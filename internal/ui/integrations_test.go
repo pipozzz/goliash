@@ -51,8 +51,14 @@ func TestIntegrations(t *testing.T) {
 	}
 
 	admin := e.as("admin")
-	if _, page := get(t, admin, e.srv.URL+"/integrations", nil); strings.Count(page, "Create a viewer token") != 4 {
+	if _, page := get(t, admin, e.srv.URL+"/integrations", nil); strings.Count(page, "Create a viewer token") != 5 {
 		t.Error("admin is not offered tokens")
+	}
+	// The widget's script comes with the server and the new token filled in.
+	_, wbody, _ := post(t, admin, e.srv.URL+"/integrations/token", url.Values{"tool": {"widget"}})
+	wtoken := regexp.MustCompile(`glsh_api_[A-Za-z0-9_-]{20,}`).FindString(wbody)
+	if wtoken == "" || !strings.Contains(wbody, `const TOKEN = &#34;`+wtoken) || !strings.Contains(wbody, "/api/v1/summary") {
+		t.Errorf("widget script without its token")
 	}
 	_, body, _ := post(t, admin, e.srv.URL+"/integrations/token", url.Values{"tool": {"signoz"}})
 	token := regexp.MustCompile(`glsh_api_[A-Za-z0-9_-]{20,}`).FindString(body)
@@ -60,7 +66,7 @@ func TestIntegrations(t *testing.T) {
 		t.Fatalf("token not shown: %s", body)
 	}
 	toks, _ := e.st.ListAPITokens(t.Context(), e.ws.Scope())
-	if len(toks) != 1 || toks[0].Name != "signoz" || toks[0].Role != "viewer" {
+	if len(toks) != 2 || toks[0].Name != "signoz" || toks[0].Role != "viewer" || toks[1].Name != "widget" {
 		t.Fatalf("tokens %+v", toks)
 	}
 	if _, body, _ := post(t, admin, e.srv.URL+"/integrations/token", url.Values{"tool": {"admin"}}); !strings.Contains(body, "Unknown integration.") {
