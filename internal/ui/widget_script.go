@@ -112,3 +112,58 @@ if (config.runsInWidget) Script.setWidget(w)
 else await w.presentMedium()
 Script.complete()
 `
+
+// menuBarPlugin is a SwiftBar or xbar plugin: Goliash in the macOS menu bar, from /api/v1/summary, with only
+// what every Mac has (curl, plutil).
+func menuBarPlugin(serverURL, token string) string {
+	if serverURL == "" {
+		serverURL = "https://goliash.example.com"
+	}
+	if token == "" {
+		token = "glsh_api_…" //nolint:gosec // a placeholder for the reader to replace
+	}
+	return strings.NewReplacer("$SERVER_URL", shellQuote(strings.TrimRight(serverURL, "/")), "$API_TOKEN", shellQuote(token)).Replace(menuBarSource)
+}
+
+const menuBarSource = `#!/bin/sh
+# Goliash in the macOS menu bar, for SwiftBar or xbar: save it in the plugin folder as goliash.15m.sh (the 15m
+# is how often it refreshes) and run chmod +x on it.
+# <xbar.title>Goliash</xbar.title>
+# <xbar.desc>Drift, updates, exploited vulnerabilities and how long production runs behind.</xbar.desc>
+# <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
+# <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
+GOLIASH=$SERVER_URL
+GOLIASH_TOKEN=$API_TOKEN # a viewer token: it can only read
+
+if ! json=$(curl -fsS --max-time 20 -H "Authorization: Bearer $GOLIASH_TOKEN" "$GOLIASH/api/v1/summary" 2>&1); then
+  echo "Goliash ?"
+  echo "---"
+  echo "Goliash cannot be read: $json | color=#e5484d"
+  echo "Open Goliash | href=$GOLIASH"
+  exit 0
+fi
+get() { printf '%s' "$json" | plutil -extract "$1" raw -o - - 2>/dev/null; }
+drift=$(get drifting); updates=$(get updates); exploited=$(get exploited); eol=$(get end_of_life_passed)
+median=$(get median_exposure_days); old=$(get behind_90_days); stale=$(get stale_targets)
+: "${drift:=0}" "${updates:=0}" "${exploited:=0}" "${eol:=0}" "${median:=0}" "${old:=0}" "${stale:=0}"
+
+if [ "$exploited" -gt 0 ] || [ "$eol" -gt 0 ]; then
+  echo "Goliash $((exploited + eol)) | color=#e5484d"
+elif [ "$drift" -gt 0 ]; then
+  echo "Goliash $drift | color=#d9822b"
+else
+  echo "Goliash ✓"
+fi
+echo "---"
+echo "$(get workspace) · $(get production)"
+echo "$drift services drifting | href=$GOLIASH/"
+echo "$updates updates waiting | href=$GOLIASH/updates"
+echo "$exploited with a vulnerability exploited in the wild | href=$GOLIASH/security"
+echo "$median days median behind, $old for 90+ days | href=$GOLIASH/security"
+echo "$eol past end of life | href=$GOLIASH/security"
+echo "$stale stale targets | href=$GOLIASH/status"
+echo "---"
+echo "Updated $(get generated)"
+echo "Open Goliash | href=$GOLIASH"
+echo "Refresh | refresh=true"
+`

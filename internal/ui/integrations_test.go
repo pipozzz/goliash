@@ -60,6 +60,9 @@ func TestIntegrations(t *testing.T) {
 	if wtoken == "" || !strings.Contains(wbody, `const TOKEN = &#34;`+wtoken) || !strings.Contains(wbody, "/api/v1/summary") {
 		t.Errorf("widget script without its token")
 	}
+	if !strings.Contains(wbody, "GOLIASH_TOKEN=&#39;"+wtoken+"&#39;") || !strings.Contains(wbody, "goliash.15m.sh") {
+		t.Errorf("menu bar plugin without its token")
+	}
 	_, body, _ := post(t, admin, e.srv.URL+"/integrations/token", url.Values{"tool": {"signoz"}})
 	token := regexp.MustCompile(`glsh_api_[A-Za-z0-9_-]{20,}`).FindString(body)
 	if token == "" || !strings.Contains(body, "/etc/otelcol/goliash-token") || strings.Count(body, token) < 2 {
