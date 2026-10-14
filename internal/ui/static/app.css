@@ -50,6 +50,11 @@ h2 { font-size: 1.05rem; font-weight: 650; }
 h3 { font-size: 0.95rem; font-weight: 600; }
 p { margin: 0; }
 
+/* Skip link: off screen until it takes focus, then over the sticky top bar. */
+.skip-link { position: fixed; left: 12px; top: -100px; z-index: 40; padding: 10px 14px; background: var(--surface); color: var(--accent); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); font-weight: 600; white-space: nowrap; }
+.skip-link:focus { top: 12px; }
+main:focus { outline: none; }
+
 /* Top bar */
 .top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
 .top-inner { max-width: 1400px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 22px; min-height: 52px; flex-wrap: wrap; }
@@ -207,7 +212,7 @@ details[open] > summary { margin-bottom: 12px; }
 .report-stats strong { font-size: 26px; }
 .report-stats span { color: var(--muted); font-size: 12.5px; }
 @media print {
-  header.top, .noprint, .flash { display: none !important; }
+  header.top, .skip-link, .noprint, .flash { display: none !important; }
   .print-only { display: block !important; }
   body { background: #fff; }
   .panel { box-shadow: none; break-inside: avoid; border-color: #ddd; }

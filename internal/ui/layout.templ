@@ -61,7 +61,6 @@ templ menuLink(b Base, page, href, label string) {
 	<a
 		href={ templ.URL(href) }
 		class="menu-item"
-		role="menuitem"
 		if b.Page == page {
 			aria-current="page"
 		}
@@ -99,6 +98,9 @@ templ Layout(b Base) {
 		}
 		<body hx-boost="true" class={ templ.KV("kiosk", b.Kiosk) }>
 			if !b.Kiosk {
+				<!-- The keyboard's first stop, ahead of a header of a dozen links. htmx leaves a
+				     fragment-only href alone, so it jumps to the page instead of swapping it. -->
+				<a class="skip-link" href="#content">Skip to content</a>
 				<header class="top">
 					<div class="top-inner">
 						<a class="brand" href="/">
@@ -143,7 +145,9 @@ templ Layout(b Base) {
 									@gear()
 									<span class="menu-label">Settings</span>
 								</summary>
-								<div class="menu-list" role="menu">
+								<!-- A disclosure, not an ARIA menu: role="menu" would promise arrow-key
+								     navigation that a <details> of plain links does not have. -->
+								<div class="menu-list">
 									@menuLink(b, "apps", "/apps", "Applications")
 									@menuLink(b, "teams", "/teams", "Teams")
 									@menuLink(b, "agents", "/agents", "Agents and targets")
@@ -163,7 +167,7 @@ templ Layout(b Base) {
 									<span class="avatar" aria-hidden="true">{ initial(b.Email) }</span>
 									<span class="menu-label who-email">{ b.Email }</span>
 								</summary>
-								<div class="menu-list" role="menu">
+								<div class="menu-list">
 									<div class="menu-head">
 										<strong>{ b.Email }</strong>
 										<span class="muted">{ b.Role }</span>
@@ -171,7 +175,7 @@ templ Layout(b Base) {
 									if !b.Demo {
 										@menuLink(b, "account", "/account", "Your account")
 										<form method="post" action="/auth/logout" hx-boost="false">
-											<button class="menu-item" type="submit" role="menuitem">Sign out</button>
+											<button class="menu-item" type="submit">Sign out</button>
 										</form>
 									}
 								</div>
@@ -180,7 +184,7 @@ templ Layout(b Base) {
 					</div>
 				</header>
 			}
-			<main>
+			<main id="content" tabindex="-1">
 				if b.Demo {
 					<div class="demo-banner" role="note">
 						<span><strong>Live demo</strong> with three weeks of example data: read-only, and the data starts over regularly.</span>
