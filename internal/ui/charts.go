@@ -491,8 +491,16 @@ type SegLabel struct {
 	X       float64
 	Anchor  string // start or end
 	Outside bool
+	Now     bool // in the column after the timeline: the version running now
 	Show    bool
 }
+
+// nowW is the column after a timeline where a lane's current version is written when its bar is too short.
+const nowW = 78.0
+
+// sparseLane is how many versions a lane may have for older ones to be labelled beside their bars: in a busy
+// lane a label beside a cluster would read as the lane's version.
+const sparseLane = 3
 
 func segLabel(lane Lane, i int, labelW float64) SegLabel {
 	span := chartW - labelW
@@ -501,6 +509,14 @@ func segLabel(lane Lane, i int, labelW float64) SegLabel {
 	text := float64(len(sg.Version))*7 + 10
 	if w > text {
 		return SegLabel{X: x + 6, Anchor: "start", Show: true}
+	}
+	current := i == len(lane.Segments)-1 && sg.End >= 0.999
+	if current {
+		// What runs now matters most: it is always written, after the timeline if not in its bar.
+		return SegLabel{X: chartW + 8, Anchor: "start", Outside: true, Now: true, Show: true}
+	}
+	if len(lane.Segments) > sparseLane {
+		return SegLabel{}
 	}
 	free := func(from, to float64) bool { // nothing else of the lane between from and to
 		if from < labelW || to > chartW {
@@ -521,4 +537,22 @@ func segLabel(lane Lane, i int, labelW float64) SegLabel {
 		return SegLabel{X: x - 4, Anchor: "end", Outside: true, Show: true}
 	}
 	return SegLabel{}
+}
+
+// laneCount says how many versions a busy lane ran, before its first bar, in place of labels that do not fit.
+func laneCount(lane Lane, labelW float64) (x float64, text string, ok bool) {
+	if len(lane.Segments) <= sparseLane {
+		return 0, "", false
+	}
+	text = fmt.Sprintf("%d versions", len(lane.Segments))
+	x = labelW + lane.Segments[0].Start*(chartW-labelW) - 6
+	return x, text, x-float64(len(text))*6.5 > labelW
+}
+
+// nowText fits a version into the column after the timeline.
+func nowText(v string) string {
+	if r := []rune(v); len(r) > 10 {
+		return string(r[:9]) + "…"
+	}
+	return v
 }

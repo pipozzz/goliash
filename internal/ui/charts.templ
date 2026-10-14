@@ -122,7 +122,7 @@ templ versionChart(t Timeline) {
 	{{ labelW := 150.0 }}
 	{{ h := laneH*float64(len(t.Lanes)) + 22 }}
 	<figure class="chart timeline">
-		<svg viewBox={ "0 0 " + f(chartW) + " " + f(h) } role="img" aria-label="Versions per environment over time">
+		<svg viewBox={ "0 0 " + f(chartW+nowW) + " " + f(h) } role="img" aria-label="Versions per environment over time">
 			<defs>
 				for _, c := range []string{"c0", "c1", "c2", "c3", "c4", "c5"} {
 					<linearGradient id={ "tl-" + c } x1="0" y1="0" x2="1" y2="0">
@@ -139,6 +139,9 @@ templ versionChart(t Timeline) {
 			for li, lane := range t.Lanes {
 				{{ y := float64(li) * laneH }}
 				<text class="lane" x="0" y={ f(y + laneH/2 + 4) }>{ lane.Env }</text>
+				if cx, ct, ok := laneCount(lane, labelW); ok {
+					<text class="seg-label outside count" x={ f(cx) } y={ f(y + laneH/2 + 4) } text-anchor="end">{ ct }</text>
+				}
 				for si, sg := range lane.Segments {
 					{{ x := labelW + sg.Start*(chartW-labelW) }}
 					{{ w := max((sg.End-sg.Start)*(chartW-labelW), 2) }}
@@ -146,7 +149,12 @@ templ versionChart(t Timeline) {
 						<title>{ sg.Title }</title>
 					</rect>
 					{{ lb := segLabel(lane, si, labelW) }}
-					if lb.Show {
+					if lb.Now {
+						<text class="seg-label outside now" x={ f(lb.X) } y={ f(y + laneH/2 + 4) } text-anchor="start">
+							<title>{ sg.Title }</title>
+							{ nowText(sg.Version) }
+						</text>
+					} else if lb.Show {
 						<text class={ "seg-label", templ.KV("outside", lb.Outside) } x={ f(lb.X) } y={ f(y + laneH/2 + 4) } text-anchor={ lb.Anchor }>{ sg.Version }</text>
 					}
 				}

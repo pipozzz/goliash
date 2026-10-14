@@ -336,6 +336,8 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .chart .lane { fill: var(--muted); font: 600 11px var(--sans); }
 .chart .seg-label { fill: #fff; font: 600 11px var(--mono); pointer-events: none; }
 .chart .seg-label.outside { fill: var(--ink); }
+.chart .seg-label.now { pointer-events: auto; font-weight: 700; }
+.chart .seg-label.count { fill: var(--muted); font: 500 11px var(--sans); }
 .chart .bar { transition: opacity 0.15s; }
 .chart.hovering .bar { opacity: 0.45; }
 .chart.hovering .bar.active { opacity: 1; }

@@ -171,3 +171,31 @@ func TestHoverData(t *testing.T) {
 		t.Error("an empty sparkline draws a line")
 	}
 }
+
+// A busy lane does not label its first version beside the cluster, as if it ran now; the version running now is
+// always written, after the timeline when its bar is too short.
+func TestSegLabelBusyLane(t *testing.T) {
+	busy := Lane{Env: "prod · goliash"}
+	for i := range 12 {
+		start := 0.8 + float64(i)*0.0166
+		busy.Segments = append(busy.Segments, Segment{Version: fmt.Sprintf("1.%d.0", 40+i), Start: start, End: start + 0.0166})
+	}
+	busy.Segments[11].End = 1
+	if lb := segLabel(busy, 0, 150); lb.Show {
+		t.Errorf("the first of a busy lane is labelled: %+v", lb)
+	}
+	if lb := segLabel(busy, 11, 150); !lb.Show || !lb.Now || lb.X <= chartW {
+		t.Errorf("the version running now: %+v", lb)
+	}
+	if _, text, ok := laneCount(busy, 150); !ok || text != "12 versions" {
+		t.Errorf("busy lane count: %q %v", text, ok)
+	}
+	// A sparse lane keeps its labels beside short bars.
+	sparse := Lane{Env: "prod · default", Segments: []Segment{{Version: "1.1.1", Start: 0.79, End: 0.8}, {Version: "1.3.0", Start: 0.8, End: 1}}}
+	if lb := segLabel(sparse, 0, 150); !lb.Show || !lb.Outside || lb.Now {
+		t.Errorf("a short bar in a sparse lane: %+v", lb)
+	}
+	if lb := segLabel(sparse, 1, 150); !lb.Show || lb.Outside {
+		t.Errorf("a long current bar is labelled inside: %+v", lb)
+	}
+}
