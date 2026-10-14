@@ -24,6 +24,7 @@ type Base struct {
 	Email      string
 	Role       string
 	InboxCount int
+	Unread     int // notifications not seen yet
 	Notice     string
 	Error      string
 	CanMember  bool

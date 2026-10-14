@@ -174,7 +174,24 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return len(msg.Items), sender.Send(sendCtx, rt.channel, msg)
+	if err := sender.Send(sendCtx, rt.channel, msg); err != nil {
+		return 0, err
+	}
+	payloads := make([]json.RawMessage, 0, len(msg.Items))
+	for _, it := range msg.Items {
+		p, err := json.Marshal(it)
+		if err != nil {
+			return 0, err
+		}
+		payloads = append(payloads, p)
+	}
+	if err := n.store.RecordSent(ctx, sc, ruleID, payloads); err != nil {
+		return 0, err
+	}
+	if n.onSent != nil {
+		n.onSent(sc)
+	}
+	return len(msg.Items), nil
 }
 
 // planItem is one update as a notification item.

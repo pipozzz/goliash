@@ -98,7 +98,7 @@ const usage = `Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|webhook|email|push -name NAME [-url URL] [-secret S]
+  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
@@ -497,6 +497,7 @@ func serve(ctx context.Context, args []string) error {
 	notify := notifier.New(db, log, senders(db, *publicURL))
 	notify.SetPublicURL(*publicURL)
 	hub := ui.NewHub()
+	notify.OnSent(func(sc store.Scope) { hub.Publish(sc.WorkspaceID) }) // the bell updates on open pages
 	svc.OnEvents(func(sc store.Scope, evs []store.Event) {
 		hub.Publish(sc.WorkspaceID)
 		notify.Handle(sc, evs)
@@ -2010,7 +2011,7 @@ func splitList(s string) []string {
 
 func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("channel create")
-	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email or push")
+	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push or inapp")
 	name := fs.String("name", "", "channel name")
 	url := fs.String("url", "", "webhook URL (Slack, Teams workflow, Google Chat, Discord, webhook), or an ntfy topic URL")
 	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
@@ -2047,8 +2048,8 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("-token and -chat-id are required")
 		}
 		cfg["bot_token"], cfg["chat_id"] = *token, *chatID
-	case "push":
-		// Browsers subscribe from the Notifications page.
+	case "push", "inapp":
+		// Browsers subscribe from the Notifications page; inapp only feeds the bell.
 	case "email":
 		if *to == "" {
 			return errors.New("-to is required")
@@ -2068,7 +2069,7 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			}
 		}
 	default:
-		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email or push")
+		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push or inapp")
 	}
 	if *name == "" {
 		return errors.New("-name is required")

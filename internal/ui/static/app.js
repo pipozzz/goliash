@@ -826,6 +826,113 @@
   document.body.addEventListener("htmx:afterSwap", goliKeep);
   document.body.addEventListener("htmx:afterSettle", goliKeep);
 
+  // The bell: what Goliash sent in this workspace, newest first, and how many the person has not seen. The
+  // count is on the bell and, in the installed app, on its icon. Built from DOM nodes: texts are anyone's input.
+  let bellPanel = null;
+  function bellSet(n) {
+    const c = document.querySelector("[data-unread]");
+    if (c) {
+      c.textContent = n > 98 ? "99+" : String(n);
+      c.hidden = n === 0;
+    }
+    const b = document.querySelector("[data-bell]");
+    if (b) b.setAttribute("aria-label", n ? "Notifications, " + n + " unread" : "Notifications");
+    try {
+      if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n).catch(function () { /* not installed */ });
+      else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(function () { /* not installed */ });
+    } catch (_) { /* no badging */ }
+  }
+  let bellTimer = 0;
+  function bellRefresh() {
+    clearTimeout(bellTimer);
+    bellTimer = setTimeout(function () {
+      if (!document.querySelector("[data-bell]")) return;
+      fetch("/ui/notifications/unread", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d) bellSet(d.unread); }).catch(function () { /* offline */ });
+    }, 800);
+  }
+  function bellClose() {
+    if (!bellPanel || !bellPanel.isConnected) return;
+    bellPanel.remove();
+    const b = document.querySelector("[data-bell]");
+    if (b) { b.setAttribute("aria-expanded", "false"); b.focus(); }
+  }
+  function bellOpen(btn) {
+    if (bellPanel && bellPanel.isConnected) { bellClose(); return; }
+    bellPanel = el("div", "bell-panel");
+    bellPanel.setAttribute("role", "dialog");
+    bellPanel.setAttribute("aria-label", "Notifications");
+    const head = el("div", "bell-head");
+    head.appendChild(el("strong", null, "Notifications"));
+    const settings = el("a", null, "Settings");
+    settings.href = "/notifications";
+    head.appendChild(settings);
+    const list = el("ul", "bell-list");
+    list.appendChild(el("li", "bell-empty", "Loading…"));
+    bellPanel.appendChild(head);
+    bellPanel.appendChild(list);
+    const r = btn.getBoundingClientRect();
+    bellPanel.style.top = (r.bottom + 8) + "px";
+    bellPanel.style.right = Math.max(8, window.innerWidth - r.right - 8) + "px";
+    document.body.appendChild(bellPanel);
+    btn.setAttribute("aria-expanded", "true");
+    if (window.htmx) htmx.process(bellPanel);
+    fetch("/ui/notifications", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : { items: [] }; }).then(function (d) {
+      list.replaceChildren();
+      if (!d.items.length) {
+        const empty = el("li", "bell-empty");
+        empty.appendChild(el("p", null, "Nothing yet."));
+        const p = el("p", "muted", "Notifications show up here when a rule sends something. Add a rule to the channel In Goliash to get them here only. ");
+        const a = el("a", null, "Set up notifications");
+        a.href = "/notifications";
+        p.appendChild(a);
+        empty.appendChild(p);
+        list.appendChild(empty);
+      }
+      d.items.forEach(function (it) {
+        const li = el("li", "bell-item" + (it.unread ? " unread" : ""));
+        const a = el("a", "bell-link");
+        a.href = it.url;
+        a.appendChild(el("span", "bell-mark kind-" + it.kind));
+        const body = el("span", "bell-body");
+        body.appendChild(el("span", "bell-title", it.title));
+        (it.lines || []).forEach(function (l) { body.appendChild(el("span", "bell-line", l)); });
+        if (it.more) body.appendChild(el("span", "bell-line", "and " + it.more + " more"));
+        const t = el("time", "bell-time");
+        t.setAttribute("datetime", it.at);
+        t.setAttribute("data-ago", "");
+        t.textContent = new Date(it.at).toLocaleString();
+        body.appendChild(t);
+        a.appendChild(body);
+        a.addEventListener("click", bellClose);
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+      refreshTimes(list);
+      if (window.htmx) htmx.process(list);
+      if (d.unread > 0) {
+        fetch("/ui/notifications/seen", { method: "POST", credentials: "same-origin" }).then(function () { bellSet(0); });
+      }
+    }).catch(function () {
+      list.replaceChildren(el("li", "bell-empty", "Notifications could not be loaded."));
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest && e.target.closest("[data-bell]");
+    if (btn) { e.preventDefault(); bellOpen(btn); return; }
+    if (bellPanel && bellPanel.isConnected && !bellPanel.contains(e.target)) bellClose();
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && bellPanel && bellPanel.isConnected) { e.stopPropagation(); bellClose(); } }, true);
+  document.body.addEventListener("htmx:beforeSwap", function (e) { if (e.detail.target === document.body && bellPanel) bellPanel.remove(); });
+  document.body.addEventListener("goliash:changed", bellRefresh);
+  setInterval(function () { if (!document.hidden) bellRefresh(); }, 120000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) bellRefresh(); });
+  // The installed app's icon follows the count the page came with.
+  function bellInit() {
+    const c = document.querySelector("[data-unread]");
+    if (c) bellSet(c.hidden ? 0 : parseInt(c.textContent, 10) || 0);
+  }
+
   // Keyboard shortcuts: "?" lists them; "g" then a letter goes to a page, as on GitHub.
   const goKeys = { m: ["/?view=table", "Matrix"], t: ["/tiles", "Tiles"], u: ["/updates", "Updates"], i: ["/inbox", "Inbox"], d: ["/delivery", "Delivery"], h: ["/events", "History"], n: ["/notifications", "Notifications"] };
   let shortcuts = null;
@@ -1254,6 +1361,7 @@
   }
 
   function init() {
+    bellInit();
     goliFromLink();
     tlSetup();
     pushSetup();

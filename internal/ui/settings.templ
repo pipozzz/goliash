@@ -25,7 +25,7 @@ templ NotificationsPage(v NotificationsView) {
 				if len(v.Channels) == 0 {
 					<div class="empty">
 						<p><strong>No channels yet.</strong></p>
-						<p>A channel is where notifications go: Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail or browsers (web push).</p>
+						<p>A channel is where notifications go: Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail, browsers (web push) or only the bell in Goliash.</p>
 					</div>
 				} else {
 					<div class="scroll">
@@ -82,6 +82,7 @@ templ NotificationsPage(v NotificationsView) {
 											<option value="webhook">Webhook</option>
 											<option value="email">E-mail</option>
 											<option value="push">Web push (browsers)</option>
+											<option value="inapp">In Goliash (the bell)</option>
 										</select>
 									</label>
 								</div>
@@ -96,6 +97,7 @@ templ NotificationsPage(v NotificationsView) {
 									<span class="hint">Comma-separated.</span>
 								</label>
 								<p class="hint" data-for="push">Nothing to set up here: after adding the channel, press <strong>Notify this browser</strong> next to it in each browser that should get its notifications (on phones, add Goliash to the home screen first).</p>
+								<p class="hint" data-for="inapp">Nothing to set up: messages show under the bell at the top of every page, for everyone in the workspace, and on the app icon when Goliash is installed.</p>
 								<details class="smtp" data-for="email" open?={ !v.SMTP }>
 									<summary>
 										if v.SMTP {
