@@ -119,6 +119,11 @@ templ Layout(b Base) {
 							<span>Search</span>
 							<kbd>⌘K</kbd>
 						</button>
+						<button type="button" class="bell" data-bell aria-haspopup="true" aria-expanded="false" title="Notifications">
+							<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+							<span class="sr-only">Notifications</span>
+							<span class="bell-count" data-unread hidden?={ b.Unread == 0 }>{ bellBadge(b.Unread) }</span>
+						</button>
 						if b.Goli {
 							<button type="button" class="goli-open" data-goli data-goli-via={ b.GoliVia } title="Ask Goli, the assistant">
 								@goliMascot("goli-mini")
@@ -308,3 +313,10 @@ templ Login(v LoginView) {
 	</html>
 }
 
+// bellBadge is the unread count as the badge shows it.
+func bellBadge(n int) string {
+	if n >= bellMax {
+		return "99+"
+	}
+	return itoa(n)
+}

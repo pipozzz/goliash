@@ -1095,3 +1095,29 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 @media (max-width: 720px) { .goli-fab { width: 46px; height: 60px; right: 12px; bottom: 12px; } }
 @media print { .goli-fab, .goli { display: none; } }
 .goli-copy { float: right; font-size: 12px; margin-left: 8px; }
+
+/* The bell: notifications Goliash sent, with the unread count. */
+.bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; padding: 0; margin-left: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.bell svg { flex: none; }
+.bell:hover, .bell[aria-expanded="true"] { color: var(--ink); border-color: var(--faint); }
+.bell-count { position: absolute; top: -6px; right: -7px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
+.bell-count[hidden] { display: none; }
+.bell-panel { position: fixed; z-index: 95; width: min(400px, calc(100vw - 16px)); max-height: min(560px, calc(100vh - 80px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 60px rgb(10 14 30 / 0.25); overflow: hidden; animation: palette-in 0.14s ease-out; }
+.bell-head { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.bell-list { list-style: none; margin: 0; padding: 4px; overflow-y: auto; }
+.bell-item a { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--ink); text-decoration: none; }
+.bell-item a:hover, .bell-item a:focus-visible { background: var(--surface-2); }
+.bell-item.unread a { background: var(--accent-soft); }
+.bell-mark { flex: none; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--faint); }
+.bell-mark.kind-vulnerability, .bell-mark.kind-drift_detected { background: var(--bad); }
+.bell-mark.kind-update, .bell-mark.kind-new_release { background: var(--accent); }
+.bell-mark.kind-agent_stale { background: #d9822b; }
+.bell-mark.kind-drift_resolved, .bell-mark.kind-agent_back { background: var(--ok, #2f9e6b); }
+.bell-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bell-title { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.bell-line { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.bell-time { font-size: 12px; color: var(--faint); }
+.bell-empty { padding: 18px 16px; color: var(--muted); }
+.bell-empty p { margin: 0 0 6px; }
+@media (prefers-reduced-motion: reduce) { .bell-panel { animation: none; } }
+@media print { .bell, .bell-panel { display: none; } }

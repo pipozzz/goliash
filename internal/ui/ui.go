@@ -180,6 +180,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
+	mux.Handle("GET /ui/notifications", s.page(v, s.bellList))
+	mux.Handle("GET /ui/notifications/unread", s.page(v, s.bellCount))
+	mux.Handle("POST /ui/notifications/seen", s.page(v, s.bellSeen))
 	mux.HandleFunc("POST /goli/ask", s.goliAPI)
 	mux.HandleFunc("POST /integrations/slack/goli", s.goliSlack)
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
@@ -366,6 +369,7 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 	if items, err := s.inboxItems(ctx, p.Scope); err == nil {
 		b.InboxCount = len(items)
 	}
+	b.Unread = s.bellUnread(ctx, p.Scope, p.User.ID)
 	return b
 }
 
@@ -1633,8 +1637,8 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter the bot token and the chat ID."
 		}
 		cfg["bot_token"], cfg["chat_id"] = token, chat
-	case "push":
-		// Nothing to set: browsers subscribe from the Notifications page.
+	case "push", "inapp":
+		// Nothing to set: browsers subscribe from the Notifications page; the bell is Goliash itself.
 	case "email":
 		var to []string
 		for _, a := range strings.Split(r.FormValue("to"), ",") {

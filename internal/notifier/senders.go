@@ -41,8 +41,16 @@ func DefaultSenders(hc *http.Client, smtpCfg SMTPConfig) map[string]Sender {
 		"grafana":  Grafana{HTTP: hc},
 		"teams":    Teams{HTTP: hc},
 		"gchat":    GoogleChat{HTTP: hc},
+		"inapp":    InApp{},
 	}
 }
+
+// InApp keeps notifications in Goliash itself: sending is recording them as sent, which the queue does; people
+// read them under the bell, and installed apps show the count on their icon.
+type InApp struct{}
+
+// Send implements Sender.
+func (InApp) Send(context.Context, store.Channel, Message) error { return nil }
 
 func post(ctx context.Context, hc *http.Client, url string, body []byte, headers map[string]string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))

@@ -1,8 +1,8 @@
 // Copyright 2026 The Goliash Authors
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Goliash's service worker: it shows web push notifications and opens Goliash when
-// one is clicked. It caches nothing.
+// Goliash's service worker: it shows web push notifications, keeps the installed app's icon badge at the
+// number of unread notifications, and opens Goliash when one is clicked. It caches nothing.
 "use strict";
 
 self.addEventListener("install", function () { self.skipWaiting(); });
@@ -11,15 +11,27 @@ self.addEventListener("activate", function (e) { e.waitUntil(self.clients.claim(
 self.addEventListener("push", function (e) {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { body: e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(d.title || "Goliash", {
-    body: d.body || "",
-    tag: d.tag || undefined,
-    renotify: Boolean(d.tag),
-    icon: "/static/icon-192.png",
-    badge: "/static/icon-192.png",
-    data: { url: d.url || "/" },
-  }));
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(d.title || "Goliash", {
+      body: d.body || "",
+      tag: d.tag || undefined,
+      renotify: Boolean(d.tag),
+      icon: "/static/icon-192.png",
+      badge: "/static/icon-192.png",
+      data: { url: d.url || "/" },
+    }),
+    updateBadge(),
+  ]));
 });
+
+// The installed app's icon shows how many notifications wait under the bell.
+function updateBadge() {
+  if (!self.navigator.setAppBadge) return Promise.resolve();
+  return fetch("/ui/notifications/unread", { credentials: "same-origin" })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d) return d.unread > 0 ? self.navigator.setAppBadge(d.unread) : self.navigator.clearAppBadge(); })
+    .catch(function () { /* offline or signed out */ });
+}
 
 self.addEventListener("notificationclick", function (e) {
   e.notification.close();

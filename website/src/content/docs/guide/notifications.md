@@ -22,6 +22,7 @@ often). Both are managed on the Notifications page or with the CLI.
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients, and optionally the channel's own mail server (see below). |
 | Web push | Nothing: each person adds their browsers from the Notifications page (see below). |
+| In Goliash | Nothing: messages only show under the bell (see below). |
 
 ```sh
 goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
@@ -73,6 +74,20 @@ show the first lines. Browsers that unsubscribed or expired are forgotten at the
 - Messages are encrypted for each browser (RFC 8291) and signed with a key pair the server makes on first use and
   keeps with the other secrets (encrypted at rest with `GOLIASH_SECRET_KEY`). The server sends only to the push
   services of browsers (Google, Mozilla, Apple, Microsoft).
+
+## The bell
+
+The bell at the top of every page lists what Goliash sent you in the last 30 days, newest first, like the
+notifications of any app. Each message has its title, its first lines and a link to where it points: the upgrade
+plan opens **Updates**, an alert about one service opens that service, the rest open **History**.
+
+- The red count on the bell is how many came since you last opened it; opening it marks them read. Each person has
+  their own count.
+- Every rule counts: a message sent to Slack, e-mail and push shows once. To have messages only in Goliash, add an
+  **In Goliash** channel and point rules at it.
+- Installed as an app (**Install** in Chrome or Edge, **Add to Home Screen** on iPhone), the app icon carries the
+  same count, and a web push updates it even with Goliash closed.
+- The count updates live while a page is open; **Send plan now** shows up there too.
 
 ## How messages look
 
