@@ -73,6 +73,7 @@ ticket, a commit message or a chat.
 export GOLIASH_URL=https://goliash.example.com GOLIASH_TOKEN=glsh_api_…   # goliash token create -name cli
 goliash ask "what changed in prod in the last two hours?"
 goliash ask "brief me on upgrading postgres in prod to 17" > postgres-17.md
+goliash ask -i                  # a conversation: ask, then ask on; an empty line or Ctrl-D ends it
 ```
 
 Goli sees what the token may see: a viewer token is enough. Scripts and bots can do the same with

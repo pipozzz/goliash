@@ -88,8 +88,9 @@ const usage = `Usage:
                                           every running container with image and digest (audits, SBOM)
   goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
   goliash mcp [-server URL] [-token T]    MCP server on stdin/stdout for AI assistants (env GOLIASH_URL, GOLIASH_TOKEN)
-  goliash ask [-server URL] [-token T] QUESTION
-                                          ask Goli, the assistant; the answer streams to stdout (env GOLIASH_URL, GOLIASH_TOKEN)
+  goliash ask [-server URL] [-token T] [-i] QUESTION
+                                          ask Goli, the assistant; the answer streams to stdout (env GOLIASH_URL, GOLIASH_TOKEN);
+                                          -i keeps the conversation going
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash promotions                      versions waiting for the next environment, with their releases
@@ -220,7 +221,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	case "hygiene":
 		return hygieneCmd(ctx, args, out)
 	case "ask":
-		return askCmd(ctx, args, os.Stdout, os.Stderr)
+		return askCmd(ctx, args, os.Stdin, os.Stdout, os.Stderr)
 	case "mcp":
 		return mcpCmd(ctx, args)
 	case "check":
@@ -2422,43 +2423,78 @@ func mcpCmd(ctx context.Context, args []string) error {
 }
 
 // askCmd asks the server's Goli a question with an API token and prints the answer as it is written; what Goli
-// looks at goes to stderr, so the answer alone can be piped.
-func askCmd(ctx context.Context, args []string, out, errOut io.Writer) error {
+// looks at goes to stderr, so the answer alone can be piped. With -i it keeps asking: each line read is a question,
+// with the conversation so far, until an empty line or the end of the input.
+func askCmd(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) error {
 	fs := flag.NewFlagSet("ask", flag.ContinueOnError)
 	server := fs.String("server", envOr("GOLIASH_URL", "http://localhost:8080"), "Goliash server URL (env GOLIASH_URL)")
 	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN)")
+	chat := fs.Bool("i", false, "a conversation: ask, then ask on, until an empty line or Ctrl-D")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	question := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if question == "" {
-		return errors.New(`ask something: goliash ask "what changed in prod in the last two hours?"`)
+	if question == "" && !*chat {
+		return errors.New(`ask something: goliash ask "what changed in prod in the last two hours?" (or goliash ask -i)`)
 	}
 	if *token == "" {
 		return errors.New("set GOLIASH_TOKEN (goliash token create -name cli) or -token")
 	}
-	body, _ := json.Marshal(map[string]any{"history": []map[string]string{{"role": "user", "text": question}}})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(*server, "/")+"/goli/ask", bytes.NewReader(body))
-	if err != nil {
+	if !*chat {
+		_, err := askGoli(ctx, *server, *token, []map[string]string{{"role": "user", "text": question}}, out, errOut)
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+*token)
+	var history []map[string]string
+	lines := bufio.NewScanner(in)
+	for {
+		if question == "" {
+			_, _ = io.WriteString(errOut, "goli> ")
+			if !lines.Scan() {
+				_, _ = fmt.Fprintln(errOut)
+				return lines.Err()
+			}
+			if question = strings.TrimSpace(lines.Text()); question == "" {
+				return nil
+			}
+		}
+		history = append(history, map[string]string{"role": "user", "text": question})
+		answer, err := askGoli(ctx, *server, *token, history, out, errOut)
+		if err != nil {
+			_, _ = fmt.Fprintln(errOut, "goli:", err)
+			history = history[:len(history)-1]
+		} else {
+			history = append(history, map[string]string{"role": "assistant", "text": answer})
+		}
+		_, _ = fmt.Fprintln(out)
+		question = ""
+	}
+}
+
+// askGoli asks once with the conversation so far, streaming the answer to out, and returns it.
+func askGoli(ctx context.Context, server, token string, history []map[string]string, out, errOut io.Writer) (string, error) {
+	body, _ := json.Marshal(map[string]any{"history": history})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(server, "/")+"/goli/ask", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
-		return errors.New("the server has Goli off: it needs an AI model (see https://goliash.dev/guide/goli/)")
+		return "", errors.New("the server has Goli off: it needs an AI model (see https://goliash.dev/guide/goli/)")
 	}
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("goliash answered %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		return "", fmt.Errorf("goliash answered %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 64<<10), 4<<20)
 	looked := map[string]bool{}
+	var answer strings.Builder
 	for sc.Scan() {
 		data, ok := strings.CutPrefix(sc.Text(), "data: ")
 		if !ok {
@@ -2470,6 +2506,7 @@ func askCmd(ctx context.Context, args []string, out, errOut io.Writer) error {
 		}
 		switch ev.Type {
 		case "text":
+			answer.WriteString(ev.Text)
 			_, _ = io.WriteString(out, ev.Text)
 		case "tool":
 			if !looked[ev.Tool] {
@@ -2478,16 +2515,16 @@ func askCmd(ctx context.Context, args []string, out, errOut io.Writer) error {
 			}
 		case "error":
 			_, _ = fmt.Fprintln(out)
-			return errors.New(ev.Text)
+			return answer.String(), errors.New(ev.Text)
 		case "done":
 			_, _ = fmt.Fprintln(out)
-			return nil
+			return answer.String(), nil
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return err
+		return answer.String(), err
 	}
-	return errors.New("the answer ended early")
+	return answer.String(), errors.New("the answer ended early")
 }
 
 // newLogger logs as text (people) or JSON (log collectors such as Loki or Elasticsearch).
