@@ -65,12 +65,13 @@ func (l *Leader) Run(ctx context.Context, work func(ctx context.Context)) {
 		return
 	}
 	for ctx.Err() == nil {
+		sent := time.Now()
 		got, err := l.acquire(ctx)
 		if err != nil && ctx.Err() == nil {
 			l.log.Warn("leader election", "err", err)
 		}
 		if got {
-			l.lead(ctx, work)
+			l.lead(ctx, work, sent)
 			continue // lost the lease: compete again at once
 		}
 		select {
@@ -93,14 +94,17 @@ func (l *Leader) acquire(ctx context.Context) (bool, error) {
 }
 
 // lead runs work and renews the lease until ctx ends or the lease is lost.
-func (l *Leader) lead(ctx context.Context, work func(ctx context.Context)) {
+// sent is when the query that took the lease was sent.
+func (l *Leader) lead(ctx context.Context, work func(ctx context.Context), sent time.Time) {
 	l.log.Info("this server is the leader: it runs the background work")
 	// The local deadline is the lease's end as seen from here, a little early, so the
-	// work stops before the lease can pass to another server, even after a freeze.
+	// work stops before the lease can pass to another server, even after a freeze. It
+	// counts from when the query was sent: the database may have set the lease's end
+	// long before its answer arrived.
 	deadline := &l.until
-	extend := func() { deadline.Store(time.Now().Add(l.ttl - l.renew/2).UnixNano()) }
+	extend := func(sent time.Time) { deadline.Store(sent.Add(l.ttl - l.renew/2).UnixNano()) }
 	expired := func() bool { return time.Now().UnixNano() > deadline.Load() }
-	extend()
+	extend(sent)
 	workCtx, stopWork := context.WithCancel(ctx)
 	l.leader.Store(true)
 	defer func() {
@@ -146,6 +150,7 @@ func (l *Leader) lead(ctx context.Context, work func(ctx context.Context)) {
 			return
 		}
 		rctx, rcancel := context.WithTimeout(ctx, l.renew)
+		sent := time.Now()
 		res, err := l.store.db.ExecContext(rctx, `UPDATE leases SET expires_at = now() + $2::interval WHERE name = 'leader' AND holder = $1`,
 			l.id, l.ttl.String())
 		rcancel()
@@ -157,7 +162,7 @@ func (l *Leader) lead(ctx context.Context, work func(ctx context.Context)) {
 			l.log.Warn("another server holds the leader lease now; stopping the background work")
 			return
 		}
-		extend()
+		extend(sent)
 	}
 }
 
