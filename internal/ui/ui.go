@@ -2469,7 +2469,7 @@ func DemoGuard(next http.Handler) http.Handler {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
 		default:
 			// Goli's documentation answers change nothing; the demo may well serve them.
-			if r.URL.Path != "/workspace" && r.URL.Path != "/goli/docs" && r.URL.Path != "/ui/goli" && !strings.HasPrefix(r.URL.Path, "/agent/") {
+			if !demoWritable(r.URL.Path) {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 				if r.Header.Get("HX-Request") == "true" {
 					w.Header().Set("HX-Reswap", "none")
@@ -2481,6 +2481,17 @@ func DemoGuard(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// demoWritable are the requests a public demo accepts besides reading: switching workspaces, what agents
+// send, Goli's answers, and MCP with its OAuth sign-in, so visitors can connect their AI assistant to the demo.
+// None of them change the data or the shared account: an app gets the demo viewer's read-only access.
+func demoWritable(path string) bool {
+	switch path {
+	case "/workspace", "/goli/docs", "/ui/goli", "/mcp", "/oauth/register", "/oauth/authorize", "/oauth/token", "/oauth/revoke":
+		return true
+	}
+	return strings.HasPrefix(path, "/agent/")
 }
 
 // demoBrowsable reports whether a public demo shows a page to its viewers although

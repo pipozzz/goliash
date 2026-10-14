@@ -98,8 +98,11 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 			CreatedAt: x.CreatedAt, LastSeen: x.LastSeen, Current: x.ID == cur.ID,
 		})
 	}
-	if v.Apps, err = s.store.ListOAuthGrants(r.Context(), p.User.ID); err != nil {
-		return err
+	// The demo's visitors share one account: none sees the apps the others connected.
+	if !s.auth.Demo() {
+		if v.Apps, err = s.store.ListOAuthGrants(r.Context(), p.User.ID); err != nil {
+			return err
+		}
 	}
 	return render(w, r, AccountPage(v))
 }

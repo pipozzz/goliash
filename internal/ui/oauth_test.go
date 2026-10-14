@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -21,6 +22,7 @@ import (
 type oauthApp struct {
 	t                   *testing.T
 	e                   *uiEnv
+	base                string // where the app talks to Goliash
 	clientID, redirect  string
 	verifier, challenge string
 }
@@ -29,13 +31,13 @@ func newOAuthApp(t *testing.T, e *uiEnv, clientID, redirect string) *oauthApp {
 	verifier := strings.Repeat("v3r1f13r-", 6) // 54 characters
 	sum := sha256.Sum256([]byte(verifier))
 	return &oauthApp{
-		t: t, e: e, clientID: clientID, redirect: redirect, verifier: verifier,
+		t: t, e: e, base: e.srv.URL, clientID: clientID, redirect: redirect, verifier: verifier,
 		challenge: base64.RawURLEncoding.EncodeToString(sum[:]),
 	}
 }
 
 func (a *oauthApp) authorizeURL(state string) string {
-	return a.e.srv.URL + "/oauth/authorize?" + url.Values{
+	return a.base + "/oauth/authorize?" + url.Values{
 		"response_type": {"code"}, "client_id": {a.clientID}, "redirect_uri": {a.redirect}, "state": {state},
 		"code_challenge": {a.challenge}, "code_challenge_method": {"S256"}, "resource": {a.e.srv.URL + "/mcp"},
 		"scope": {"goliash:read"},
@@ -54,7 +56,7 @@ func (a *oauthApp) allow(browser *http.Client, decision string) *url.URL {
 	form.Set("workspace", a.e.ws.ID)
 	noFollow := *browser
 	noFollow.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, a.e.srv.URL+"/oauth/authorize", strings.NewReader(form.Encode()))
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, a.base+"/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := noFollow.Do(req)
 	if err != nil {
@@ -71,7 +73,7 @@ func (a *oauthApp) allow(browser *http.Client, decision string) *url.URL {
 func (a *oauthApp) token(form url.Values) (int, map[string]any) {
 	a.t.Helper()
 	form.Set("client_id", a.clientID)
-	resp, err := http.PostForm(a.e.srv.URL+"/oauth/token", form) //nolint:noctx // test
+	resp, err := http.PostForm(a.base+"/oauth/token", form) //nolint:noctx // test
 	if err != nil {
 		a.t.Fatal(err)
 	}
@@ -278,5 +280,50 @@ func TestPublicOnlyClient(t *testing.T) {
 	}
 	if err == nil || !strings.Contains(err.Error(), "non-public") {
 		t.Errorf("reached a loopback address: %v", err)
+	}
+}
+
+// On the public demo, a visitor connects an AI assistant as the demo viewer, without an account: the guard lets
+// MCP and its sign-in through, and nobody sees the apps others connected.
+func TestOAuthOnPublicDemo(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	viewer, _ := e.st.CreateUser(ctx, e.ws.OrgID, "demo@goliash.dev", "", store.RoleViewer)
+	_ = e.st.SetMembership(ctx, viewer.ID, e.ws.ID, store.RoleViewer)
+	e.auth.SetDemoUser(viewer)
+	guarded := httptest.NewServer(DemoGuard(e.srv.Config.Handler))
+	defer guarded.Close()
+
+	resp, err := http.Post(guarded.URL+"/oauth/register", "application/json", //nolint:noctx // test
+		strings.NewReader(`{"client_name":"Claude Code","redirect_uris":["http://localhost:4000/callback"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reg map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&reg)
+	_ = resp.Body.Close()
+	clientID, _ := reg["client_id"].(string)
+	if resp.StatusCode != http.StatusCreated || clientID == "" {
+		t.Fatalf("register on the demo: %d %v", resp.StatusCode, reg)
+	}
+	app := newOAuthApp(t, e, clientID, "http://localhost:4000/callback")
+	app.base = guarded.URL
+	jar, _ := cookiejar.New(nil)
+	visitor := &http.Client{Jar: jar} // no account: the demo signs them in
+	back := app.allow(visitor, "allow")
+	code, tok := app.token(url.Values{"grant_type": {"authorization_code"}, "code": {back.Query().Get("code")}, "redirect_uri": {app.redirect}, "code_verifier": {app.verifier}})
+	access, _ := tok["access_token"].(string)
+	if code != http.StatusOK || access == "" {
+		t.Fatalf("token on the demo: %d %v", code, tok)
+	}
+	if role, _, ok := e.whoami(access); !ok || role != store.RoleViewer {
+		t.Errorf("demo app reads as %s %v", role, ok)
+	}
+	if _, page := get(t, visitor, guarded.URL+"/account", nil); strings.Contains(page, "Apps with access") {
+		t.Error("the demo lists the apps visitors connected")
+	}
+	grants, _ := e.st.ListOAuthGrants(ctx, viewer.ID)
+	if c, _, _ := post(t, visitor, guarded.URL+"/account/apps/"+grants[0].ID+"/revoke", nil); c != http.StatusForbidden {
+		t.Errorf("a visitor revoked another's app: %d", c)
 	}
 }

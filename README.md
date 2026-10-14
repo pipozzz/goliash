@@ -92,7 +92,8 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   PrometheusRule and dashboard from the Helm chart. Settings → Integrations fills in the scrape settings and creates
   the token in one click.
 - **Ask your own AI assistant too.** A built-in MCP server gives Claude, Cursor and others the same read-only tools
-  Goli uses: "what runs in prod?", "what should we upgrade first?", answered from live data.
+  Goli uses: "what runs in prod?", "what should we upgrade first?", answered from live data. They sign in with OAuth,
+  no token to copy; try it on the demo: `claude mcp add --transport http goliash https://demo.goliash.dev/mcp`.
 - **Built for teams and MSPs.** Workspaces per client, roles, passkeys, two-factor, magic-link and OIDC sign-in, audit
   log, REST API and Prometheus metrics.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay

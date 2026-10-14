@@ -59,6 +59,18 @@ For Cursor, in `.cursor/mcp.json`, the URL is enough:
 { "mcpServers": { "goliash": { "url": "https://goliash.example.com/mcp" } } }
 ```
 
+### Try it on the demo
+
+The [live demo](https://demo.goliash.dev) takes AI assistants too, with no account:
+
+```sh
+claude mcp add --transport http goliash-demo https://demo.goliash.dev/mcp
+```
+
+Then `/mcp` → **Authenticate**, **Allow** on the page that opens, and ask: *"What should we upgrade first in
+prod, and why?"*, *"What changed in staging this week?"*, *"Which services run past their end of life?"* The
+assistant reads the demo's example data as its read-only viewer.
+
 ### With an API token
 
 Scripts, CI jobs and apps without OAuth send a viewer (or member) API token instead; **Integrations → AI
