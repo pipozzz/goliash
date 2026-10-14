@@ -3595,14 +3595,14 @@
                 },
                 {
                   "dataType": "string",
-                  "id": "kind--string--tag--false",
+                  "id": "app--string--tag--false",
                   "isColumn": false,
                   "isJSON": false,
-                  "key": "kind",
+                  "key": "app",
                   "type": "tag"
                 }
               ],
-              "legend": "Days open",
+              "legend": "Days behind",
               "reduceTo": "last"
             }
           ],

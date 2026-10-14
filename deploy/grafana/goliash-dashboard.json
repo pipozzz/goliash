@@ -1718,15 +1718,15 @@
             },
             "indexByName": {
               "service": 0,
-              "environment": 1,
-              "kind": 2,
+              "app": 1,
+              "environment": 2,
               "Value": 3
             },
             "renameByName": {
-              "Value": "Days open",
+              "Value": "Days behind",
               "service": "Service",
               "environment": "Environment",
-              "kind": "Kind"
+              "app": "Application"
             }
           }
         }
@@ -1735,7 +1735,7 @@
         "showHeader": true,
         "sortBy": [
           {
-            "displayName": "Days open",
+            "displayName": "Days behind",
             "desc": true
           }
         ],
@@ -1746,13 +1746,14 @@
           "custom": {
             "minWidth": 60,
             "align": "auto"
-          }
+          },
+          "decimals": 0
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Days open"
+              "options": "Days behind"
             },
             "properties": [
               {
