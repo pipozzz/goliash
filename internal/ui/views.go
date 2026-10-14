@@ -417,7 +417,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
-	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan",
+	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
@@ -746,6 +746,7 @@ type RuleView struct {
 	ID      string
 	Paused  bool
 	Plan    bool // it sends the upgrade plan
+	Report  bool // it sends the security posture report
 	Channel string
 	Events  string
 	Mode    string
@@ -1108,6 +1109,9 @@ func hasString(list []string, s string) bool {
 func eventTitle(kind string) string {
 	if kind == "updates_plan" {
 		return "The Updates list, what to upgrade first, at the digest time: daily, or on Mondays"
+	}
+	if kind == "posture_report" {
+		return "The Security page in one message for production: exposure days, end of life, accepted risk, the longest exposures; at the digest time, daily or on Mondays"
 	}
 	return ""
 }

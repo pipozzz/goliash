@@ -184,6 +184,26 @@ what in them needs someone's attention and what is routine, or that nothing does
 > Goli's take: Upgrade payments-api in prod first: its log4j-core is exploited in the wild and 2.16.0 fixes it.
 > Postgres 15 reaches end of life next month; the minor updates in staging can wait.
 
+## Security posture report
+
+A rule with the event type `posture_report` (*security posture report* in the form) sends the
+[Security page](/guide/security/) as one message at the same times as the plan: daily, or on Mondays. It is the
+weekly line a security officer follows: how many production services run behind a newer release, the median and
+90th percentile of days behind, how many are 30+ and 90+ days behind, end of life passed and near, accepted risk,
+blind spots, and the three longest exposures. It links to the Security page and, with Goli on, offers **Ask Goli**.
+
+```sh
+goliash notify create -channel ciso -events posture_report -mode weekly
+```
+
+> 🛡️ Goliash security posture for Default<br>
+> prod runs 24 services, 6 behind a newer release: median 41 days, 90th percentile 212; 4 behind 30+ days, 2 behind
+> 90+. End of life: 1 passed, 1 soon. Accepted risk: 2. Longest: keycloak 24.0.5 → 26.0.0 (212 days); …
+
+It covers production, so the rule's filters do not apply, and a rule for every event does not get it: ask for it by
+name. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
+[metrics](/guide/observability/).
+
 ## Ask Goli about an alert
 
 With [Goli](/guide/goli/) on, a single alert (a vulnerability, a drift, an upgrade, a silent agent) carries an

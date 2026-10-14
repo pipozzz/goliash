@@ -52,6 +52,9 @@ func (m Message) Title() string {
 	if m.plan() {
 		return fmt.Sprintf("Goliash upgrade plan for %s: %d to upgrade", m.Workspace, len(m.Items))
 	}
+	if len(m.Items) == 1 && m.Items[0].Type == "posture" {
+		return "Goliash security posture for " + m.Workspace
+	}
 	if len(m.Items) == 1 && !m.Digest {
 		return m.Items[0].Text
 	}
@@ -621,6 +624,8 @@ func Describe(it Item) string {
 		on = " on " + it.Target
 	}
 	switch it.Type {
+	case "posture":
+		return it.Text
 	case "deployed":
 		return fmt.Sprintf("%s: %s deployed%s", where, it.To, on)
 	case "version_changed":

@@ -1116,6 +1116,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bell-mark.kind-vulnerability, .bell-mark.kind-drift_detected { background: var(--bad); }
 .bell-mark.kind-update, .bell-mark.kind-new_release { background: var(--accent); }
 .bell-mark.kind-agent_stale { background: #d9822b; }
+.bell-mark.kind-posture { background: #1b2a6b; }
 .bell-mark.kind-drift_resolved, .bell-mark.kind-agent_back { background: var(--ok, #2f9e6b); }
 .bell-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bell-title { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }

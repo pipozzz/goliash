@@ -116,6 +116,8 @@ func bellLink(msg notifier.Message) string {
 	switch {
 	case plan:
 		return "/updates"
+	case len(msg.Items) == 1 && msg.Items[0].Type == "posture":
+		return "/security"
 	case len(msg.Items) == 1 && msg.Items[0].Service != "":
 		return "/services/" + url.PathEscape(msg.Items[0].Service)
 	}
