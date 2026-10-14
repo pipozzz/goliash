@@ -52,6 +52,7 @@ type bellItem struct {
 	URL    string    `json:"url"`
 	Kind   string    `json:"kind"` // the first item's type, for its mark
 	Unread bool      `json:"unread"`
+	Ask    string    `json:"ask,omitempty"` // a question for Goli about it, when Goli is on
 }
 
 // bellList answers the bell: the latest messages, which are unread, and the count.
@@ -81,6 +82,9 @@ func (s *Server) bellList(w http.ResponseWriter, r *http.Request, p auth.Princip
 			continue
 		}
 		b := bellItem{At: m.SentAt, Title: msg.Title(), URL: bellLink(msg), Kind: msg.Items[0].Type, Unread: m.SentAt.After(seen)}
+		if s.goliOn() {
+			b.Ask = notifier.GoliQuestion(msg)
+		}
 		if b.Unread {
 			out.Unread++
 		}

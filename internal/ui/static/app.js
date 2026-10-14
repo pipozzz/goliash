@@ -906,6 +906,19 @@
         a.appendChild(body);
         a.addEventListener("click", bellClose);
         li.appendChild(a);
+        if (it.ask && document.querySelector("[data-goli]")) {
+          // Ready to ask, not asked: the question waits in Goli's box for a click.
+          const ask = el("button", "bell-ask", "Ask Goli");
+          ask.type = "button";
+          ask.addEventListener("click", function () {
+            bellClose();
+            goliOpen();
+            goli.input.value = it.ask;
+            goli.input.focus();
+          });
+          li.appendChild(ask);
+          li.classList.add("has-ask");
+        }
         list.appendChild(li);
       });
       refreshTimes(list);

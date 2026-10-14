@@ -6,12 +6,14 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/goli"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -58,6 +60,15 @@ func TestBell(t *testing.T) {
 	}
 	if list.Unread != 2 || len(list.Items) != 2 || !list.Items[0].Unread || list.Items[0].URL != "/services/web" || !strings.Contains(list.Items[1].Title, "CVE-2021-44228") {
 		t.Errorf("list %+v", list)
+	}
+	if strings.Contains(body, `"ask"`) {
+		t.Error("a question for Goli while Goli is off")
+	}
+	// With Goli on, each alert comes with a question ready to ask.
+	e.ui.goli = goli.New(goli.Config{APIKey: "sk-test", Model: goli.DefaultModel, BaseURL: "http://127.0.0.1:1"}, slog.New(slog.DiscardHandler))
+	_, body = get(t, member, e.srv.URL+"/ui/notifications", nil)
+	if !strings.Contains(body, `"ask":"Explain this drift alert: why web in prod`) || !strings.Contains(body, `"ask":"Explain this vulnerability alert`) {
+		t.Errorf("questions for Goli: %s", body)
 	}
 	if code, _, _ := post(t, member, e.srv.URL+"/ui/notifications/seen", nil); code != http.StatusNoContent && code != http.StatusOK {
 		t.Errorf("seen: %d", code)

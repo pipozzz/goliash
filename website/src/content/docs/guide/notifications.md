@@ -88,6 +88,9 @@ plan opens **Updates**, an alert about one service opens that service, the rest 
 - Installed as an app (**Install** in Chrome or Edge, **Add to Home Screen** on iPhone), the app icon carries the
   same count, and a web push updates it even with Goliash closed.
 - The count updates live while a page is open; **Send plan now** shows up there too.
+- With [Goli](/guide/goli/) on, an alert or an upgrade plan has **Ask Goli**: Goli opens with a question about it ready
+  to send (what the alert means and what to do first, or which upgrades come first). Nothing is asked until you
+  press **Ask**.
 
 ## How messages look
 

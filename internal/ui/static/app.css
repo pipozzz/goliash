@@ -1108,6 +1108,10 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bell-item a { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--ink); text-decoration: none; }
 .bell-item a:hover, .bell-item a:focus-visible { background: var(--surface-2); }
 .bell-item.unread a { background: var(--accent-soft); }
+.bell-item { position: relative; }
+.bell-item.has-ask a { padding-bottom: 34px; }
+.bell-ask { position: absolute; right: 10px; bottom: 8px; padding: 2px 9px; font-size: 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); cursor: pointer; }
+.bell-ask:hover, .bell-ask:focus-visible { border-color: var(--accent); }
 .bell-mark { flex: none; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--faint); }
 .bell-mark.kind-vulnerability, .bell-mark.kind-drift_detected { background: var(--bad); }
 .bell-mark.kind-update, .bell-mark.kind-new_release { background: var(--accent); }

@@ -113,6 +113,18 @@ func goliLink(msg Message) string {
 	return msg.Link + "/?goli=" + url.QueryEscape(q)
 }
 
+// GoliQuestion is what to ask Goli about a message, for the bell: about its one alert, or which of an upgrade
+// plan's updates to do first. Empty when there is nothing to ask.
+func GoliQuestion(msg Message) string {
+	if msg.plan() {
+		return "Which of the upgrades in my upgrade plan should we do first, and why? Breaking changes and security fixes first."
+	}
+	if len(msg.Items) != 1 {
+		return ""
+	}
+	return goliQuestion(msg.Items[0])
+}
+
 func goliQuestion(it Item) string {
 	where := it.Service
 	if it.Environment != "" {
