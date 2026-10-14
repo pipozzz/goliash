@@ -44,6 +44,9 @@ templ PromotionsPage(v PromotionsView) {
 									<td>
 										<span class="mono">{ p.Version }</span>
 										<div class="targets">{ p.From } → { p.To } (runs <span class="mono">{ p.Running }</span>)</div>
+										if v.Goli && p.Running != "" && p.Version != p.Running {
+											<button type="button" class="link ask-goli noprint" data-goli-ask={ promotionBrief(p) } title="Goli reads the release notes between the two versions and briefs you">Brief</button>
+										}
 									</td>
 									<td>@timeAgo(p.Since)</td>
 									<td>
@@ -113,4 +116,10 @@ templ PromotionsPage(v PromotionsView) {
 			}
 		</section>
 	}
+}
+
+// promotionBrief is what the Brief button asks Goli before promoting a version to the next environment.
+func promotionBrief(p PromotionView) string {
+	return "Brief me on promoting " + p.Service + " " + p.Version + " from " + p.From + " to " + p.To + ", where " + p.Running +
+		" runs: what changes between the two versions, what could break or needs migrating, and what to check after."
 }

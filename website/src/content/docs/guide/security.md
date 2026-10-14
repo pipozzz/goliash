@@ -117,5 +117,11 @@ The page shows the last environment (production) by default; *Every environment*
 - **Print or save as PDF** prints the page with the time it was generated, as evidence of patch management for
   frameworks that ask for it (NIS2, DORA, SOC 2, ISO 27001).
 
-The same data is available from the [REST API](../../reference/api/) and to AI assistants over
-[MCP](../../reference/mcp/).
+- **Trends and alerts**: `/metrics` serves the posture (`goliash_exposure_median_days`, `goliash_exposure_p90_days`,
+  `goliash_exposures`, `goliash_end_of_life`, `goliash_accepted_risk`, `goliash_exposure_days`), the Grafana and SigNoz
+  dashboards chart it over time (is patching getting faster?), and the Prometheus rules alert on production past its
+  end of life and on 90+ days behind. See [Grafana and SigNoz](../observability/).
+
+The same data is available from the REST API (`GET /api/v1/posture`, for GRC tools and risk registers; see the
+[API reference](../../reference/api/)), to AI assistants over [MCP](../../reference/mcp/) (`posture`), and to
+[Goli](../goli/): **Explain** on every exposure asks what the releases in between fix and what to do first.
