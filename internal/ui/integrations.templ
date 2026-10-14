@@ -97,15 +97,26 @@ templ IntegrationsPage(v IntegrationsView) {
 			<details class="panel integration" id="mcp" open?={ v.Tool == "mcp" }>
 				<summary class="panel-head"><h2>AI assistants</h2><span class="muted">Claude, Cursor and others ask Goliash over MCP</span></summary>
 				<div class="panel-body stack">
-					@integrationToken(v, "mcp", "")
 					<div>
-						<h3>2. Add the server</h3>
-						<pre class="mono install-cmd" id="cfg-mcp">{ mcpCommand(v.ServerURL, tokenFor(v, "mcp")) }</pre>
+						<h3>Sign in from the app</h3>
+						<p class="hint">Add the server without a token: the first time, the app opens Goliash in the browser, you sign in and allow it, and it reads as you, read only, until you revoke it under Your account → Apps with access. Claude Code, Claude Desktop, Cursor and VS Code do this.</p>
+						<pre class="mono install-cmd" id="cfg-mcp-oauth">{ mcpOAuthCommand(v.ServerURL) }</pre>
 						<div class="actions">
-							<button type="button" class="secondary" data-copy="cfg-mcp">Copy</button>
-							<a href="https://goliash.dev/reference/mcp/" target="_blank" rel="noopener noreferrer">Cursor, Claude Desktop and more</a>
+							<button type="button" class="secondary" data-copy="cfg-mcp-oauth">Copy</button>
+							<span class="hint">then <code>/mcp</code> in Claude Code and <strong>Authenticate</strong></span>
 						</div>
 					</div>
+					<details class="script">
+						<summary>With an API token instead (scripts, apps without OAuth)</summary>
+						<div class="stack">
+							@integrationToken(v, "mcp", "")
+							<pre class="mono install-cmd" id="cfg-mcp">{ mcpCommand(v.ServerURL, tokenFor(v, "mcp")) }</pre>
+							<div class="actions">
+								<button type="button" class="secondary" data-copy="cfg-mcp">Copy</button>
+								<a href="https://goliash.dev/reference/mcp/" target="_blank" rel="noopener noreferrer">Cursor, Claude Desktop and more</a>
+							</div>
+						</div>
+					</details>
 				</div>
 			</details>
 		</div>

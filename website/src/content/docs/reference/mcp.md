@@ -37,25 +37,51 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 
 ## Remote (HTTP)
 
-Every Goliash server serves MCP at `/mcp` (Streamable HTTP), authenticated with the token.
+Every Goliash server serves MCP at `/mcp` (Streamable HTTP). Apps sign in with **OAuth**, the way the MCP
+specification describes, so no token is copied anywhere:
+
+```sh
+claude mcp add --transport http goliash https://goliash.example.com/mcp
+```
+
+The first time, `/mcp` → **Authenticate** in Claude Code (Claude Desktop, Cursor and VS Code do the same) opens
+Goliash in the browser: sign in as usual, pick the workspace and **Allow**. The app then reads Goliash as you:
+
+- **Read only**, whatever your role; tools that change something (`acknowledge`) are refused.
+- What you can see in that workspace, and only while you are a member of it.
+- Access tokens last an hour and the app renews them; after 30 days without use it has to ask again.
+- **Your account → Apps with access** lists every app with the workspace and when it last read, and **Revoke** ends
+  it at once.
+
+For Cursor, in `.cursor/mcp.json`, the URL is enough:
+
+```json
+{ "mcpServers": { "goliash": { "url": "https://goliash.example.com/mcp" } } }
+```
+
+### With an API token
+
+Scripts, CI jobs and apps without OAuth send a viewer (or member) API token instead; **Integrations → AI
+assistants** makes one and fills in the command:
 
 ```sh
 claude mcp add --transport http goliash https://goliash.example.com/mcp \
   --header "Authorization: Bearer glsh_api_…"
 ```
 
-For Cursor, in `.cursor/mcp.json`:
+### How the sign-in works
 
-```json
-{
-  "mcpServers": {
-    "goliash": {
-      "url": "https://goliash.example.com/mcp",
-      "headers": { "Authorization": "Bearer glsh_api_…" }
-    }
-  }
-}
-```
+Goliash is both the MCP server and its OAuth 2.1 authorization server:
+
+| | |
+| --- | --- |
+| Discovery | `/mcp` answers 401 with `resource_metadata`; `/.well-known/oauth-protected-resource` (RFC 9728) names the server, `/.well-known/oauth-authorization-server` (RFC 8414) its endpoints |
+| App identity | Client ID Metadata Documents (the app's `client_id` is an https URL Goliash fetches, from the public internet only), or Dynamic Client Registration (RFC 7591) for older apps |
+| Sign-in | `/oauth/authorize`: your usual sign-in (password, passkey, single sign-on, two-factor), then a consent page; authorization codes with PKCE (S256) only, ten minutes, single use; `iss` in the answer (RFC 9207) |
+| Tokens | `/oauth/token`: bound to `https://…/mcp` (`resource`, RFC 8707), access one hour, refresh 30 days and rotated on every use; `/oauth/revoke` (RFC 7009) |
+| Redirects | https, or http on a loopback address (any port, RFC 8252); anything else is refused, and an unregistered one is never followed |
+
+`GOLIASH_PUBLIC_URL` should be set: it is the issuer apps check, and the address in every link.
 
 ## Local (stdio)
 

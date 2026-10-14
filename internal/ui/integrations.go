@@ -180,6 +180,11 @@ func indent(s, by string) string {
 	return "\n" + by + s[1:]
 }
 
+// mcpOAuthCommand adds Goliash to Claude Code with no token: it signs in with OAuth on first use.
+func mcpOAuthCommand(serverURL string) string {
+	return fmt.Sprintf(`claude mcp add --transport http goliash %s/mcp`, serverURL)
+}
+
 func mcpCommand(serverURL, token string) string {
 	return fmt.Sprintf(`claude mcp add --transport http goliash %s/mcp \
   --header "Authorization: Bearer %s"`, serverURL, tokenOr(token))

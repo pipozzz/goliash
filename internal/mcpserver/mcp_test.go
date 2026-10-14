@@ -141,14 +141,14 @@ func TestTools(t *testing.T) {
 }
 
 func TestHTTPHandlerNeedsAToken(t *testing.T) {
-	srv := httptest.NewServer(HTTPHandler("http://127.0.0.1:1"))
+	srv := httptest.NewServer(HTTPHandler("http://127.0.0.1:1", func(*http.Request) string { return "https://g.example/.well-known/oauth-protected-resource/mcp" }))
 	defer srv.Close()
 	resp, err := http.Post(srv.URL, "application/json", strings.NewReader(`{}`)) //nolint:noctx // test
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusUnauthorized || resp.Header.Get("WWW-Authenticate") == "" {
+	if resp.StatusCode != http.StatusUnauthorized || !strings.Contains(resp.Header.Get("WWW-Authenticate"), `resource_metadata="https://g.example/.well-known/oauth-protected-resource/mcp"`) {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
 }

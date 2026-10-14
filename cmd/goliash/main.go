@@ -589,13 +589,15 @@ func serve(ctx context.Context, args []string) error {
 		docs = goli.NewDocs(assistant, docsCfg, authn.ClientIP, log)
 		log.Info("Goli answers questions about Goliash", "docs", docsCfg.URL, "origins", docsCfg.Origins, "model", docs.Model())
 	}
-	ui.New(ui.Options{
+	uiServer := ui.New(ui.Options{
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
 		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs, Slack: slackFromEnv(log),
-	}).Register(mux)
-	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
+	})
+	uiServer.Register(mux)
+	// An API token, or an OAuth access token an app got when someone allowed it (the 401 tells apps where).
+	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen), uiServer.OAuthResourceMetadataURL))
 	// Goli answering questions about Goliash on a website, from its documentation only.
 	csrf := http.NewCrossOriginProtection()
 	if docs != nil {

@@ -27,6 +27,11 @@ const (
 	API   Kind = "api"
 	// Enroll codes let agents register themselves; they are not tokens of any agent.
 	Enroll Kind = "enroll"
+	// OAuthAccess and OAuthRefresh are what an app (an MCP client) gets after someone lets it read Goliash.
+	OAuthAccess  Kind = "oat"
+	OAuthRefresh Kind = "ort"
+	OAuthClient  Kind = "cli" // a dynamically registered client's ID; not a secret
+	OAuthCode    Kind = "oac" // an authorization code, exchanged once for tokens
 )
 
 const (

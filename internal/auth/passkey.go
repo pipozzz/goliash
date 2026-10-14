@@ -190,7 +190,7 @@ func (a *Auth) passkeyLogin(w http.ResponseWriter, r *http.Request) {
 		passkeyError(w, http.StatusInternalServerError, "Could not sign in.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"redirect": "/"})
+	writeJSON(w, http.StatusOK, map[string]string{"redirect": a.landing(w, r)})
 }
 
 // usedPasskey stores a passkey's record after a sign-in (its sign count).
@@ -268,7 +268,7 @@ func (a *Auth) secondPasskey(w http.ResponseWriter, r *http.Request) {
 		passkeyError(w, http.StatusInternalServerError, "Could not sign in.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"redirect": "/"})
+	writeJSON(w, http.StatusOK, map[string]string{"redirect": a.landing(w, r)})
 }
 
 // PasskeyRegistrationOptions starts adding a passkey for a signed-in person and

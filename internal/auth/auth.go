@@ -258,6 +258,9 @@ func (a *Auth) workspaceFor(r *http.Request, u store.User) (store.Access, []stor
 // bearer API token. ok is false for anonymous requests.
 func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 	if token, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
+		if tokens.Valid(token, tokens.OAuthAccess) {
+			return a.oauthPrincipal(r, token)
+		}
 		if !tokens.Valid(token, tokens.API) {
 			return Principal{}, false, nil
 		}
@@ -289,6 +292,38 @@ func (a *Auth) Authenticate(r *http.Request) (Principal, bool, error) {
 		User: u, Scope: cur.Workspace.Scope(), Role: cur.Role, Via: "session", Method: method,
 		Workspace: cur.Workspace, Workspaces: all,
 	}, true, nil
+}
+
+// oauthPrincipal is the person an app reads Goliash as, with an access token they granted it: their current
+// membership of the workspace, read only, whatever their role.
+func (a *Auth) oauthPrincipal(r *http.Request, token string) (Principal, bool, error) {
+	g, err := a.store.OAuthAccess(r.Context(), tokens.Hash(token))
+	if errors.Is(err, store.ErrNotFound) {
+		return Principal{}, false, nil
+	}
+	if err != nil {
+		return Principal{}, false, err
+	}
+	u, err := a.store.GetUser(r.Context(), g.UserID)
+	if errors.Is(err, store.ErrNotFound) {
+		return Principal{}, false, nil
+	}
+	if err != nil {
+		return Principal{}, false, err
+	}
+	all, err := a.store.UserWorkspaces(r.Context(), u)
+	if err != nil {
+		return Principal{}, false, err
+	}
+	for _, acc := range all {
+		if acc.Workspace.ID == g.WorkspaceID && acc.Role != "" {
+			return Principal{
+				User: u, Scope: acc.Workspace.Scope(), Role: store.RoleViewer, Via: "oauth", TokenName: g.ClientName,
+				Workspace: acc.Workspace,
+			}, true, nil
+		}
+	}
+	return Principal{}, false, nil // no longer a member
 }
 
 // startSession signs a user in on this browser.
@@ -389,7 +424,7 @@ func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, a.landing(w, r), http.StatusSeeOther) //nolint:gosec // landing is a path on this server (localPath)
 }
 
 // passwordLogin signs in with e-mail and password. Every failure answers the same
@@ -430,7 +465,7 @@ func (a *Auth) passwordLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, a.landing(w, r), http.StatusSeeOther) //nolint:gosec // landing is a path on this server (localPath)
 }
 
 // passwordOf finds a user by e-mail and their password hash; hash is empty when

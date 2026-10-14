@@ -26,6 +26,7 @@ type AccountView struct {
 	TOTP             store.TOTP
 	PasskeysEnabled  bool
 	Passkeys         []PasskeyView
+	Apps             []store.OAuthGrant // apps that read Goliash as this person (MCP clients over OAuth)
 }
 
 // SessionView is one signed-in browser.
@@ -96,6 +97,9 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 			ID: x.ID, Device: device(x.UserAgent), IP: x.IP, Method: methodLabel(x.Method),
 			CreatedAt: x.CreatedAt, LastSeen: x.LastSeen, Current: x.ID == cur.ID,
 		})
+	}
+	if v.Apps, err = s.store.ListOAuthGrants(r.Context(), p.User.ID); err != nil {
+		return err
 	}
 	return render(w, r, AccountPage(v))
 }

@@ -68,6 +68,40 @@ templ AccountPage(v AccountView) {
 		</div>
 		@twoFactorPanel(v)
 		@passkeysPanel(v)
+		if len(v.Apps) > 0 {
+			<section class="panel" id="apps">
+				<div class="panel-head">
+					<h2>Apps with access</h2>
+					<span class="muted">AI assistants you let read Goliash as you, read only</span>
+				</div>
+				<div class="scroll">
+					<table>
+						<thead><tr><th>App</th><th>Workspace</th><th>Allowed</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
+						<tbody>
+							for _, a := range v.Apps {
+								<tr>
+									<td><strong>{ a.ClientName }</strong></td>
+									<td>{ a.Workspace }</td>
+									<td>@timeAgo(a.CreatedAt)</td>
+									<td>
+										if a.LastUsedAt.IsZero() {
+											—
+										} else {
+											@timeAgo(a.LastUsedAt)
+										}
+									</td>
+									<td class="num">
+										<form class="inline" method="post" action={ templ.URL("/account/apps/" + a.ID + "/revoke") } hx-confirm={ "Revoke " + a.ClientName + "'s access?" }>
+											<button class="link" type="submit" style="color:var(--bad)">Revoke</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		<section class="panel">
 			<div class="panel-head">
 				<h2>Where you are signed in</h2>

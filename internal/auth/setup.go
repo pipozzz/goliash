@@ -89,7 +89,7 @@ func (a *Auth) setup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, a.landing(w, r), http.StatusSeeOther) //nolint:gosec // landing is a path on this server (localPath)
 }
 
 // NoAccounts reports whether nobody can sign in yet (the login page then points to

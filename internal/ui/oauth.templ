@@ -1,0 +1,63 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import (
+	"net/url"
+
+	"github.com/pipozzz/goliash/internal/store"
+)
+
+// OAuthConsentView asks someone whether an app may read Goliash as them.
+type OAuthConsentView struct {
+	Base
+	App        string
+	Verified   string // where the app's identity comes from
+	Params     url.Values
+	Workspaces []store.Access
+	Current    string
+}
+
+// oauthParams are the authorization request's fields, carried through the form and checked again on submit.
+var oauthParams = []string{"response_type", "client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "resource", "scope"}
+
+templ OAuthConsentPage(v OAuthConsentView) {
+	@Layout(v.Base) {
+		<section class="panel consent">
+			<div class="panel-body stack">
+				<h1>{ "Allow " + v.App + " to read Goliash?" }</h1>
+				<p class="muted">{ v.App } ({ v.Verified }) asks to read Goliash as you, <strong>{ v.Email }</strong>.</p>
+				<ul class="consent-list">
+					<li>It can read what you can read in the workspace you pick: versions, drift, updates, vulnerabilities, the security posture and what Goliash sent.</li>
+					<li>It <strong>cannot change anything</strong>, whatever your role.</li>
+					<li>It keeps access for 30 days of disuse at most; revoke it any time under <a href="/account#apps">Your account → Apps with access</a>.</li>
+				</ul>
+				<form method="post" action="/oauth/authorize" class="stack" hx-boost="false">
+					for _, k := range oauthParams {
+						if v.Params.Get(k) != "" {
+							<input type="hidden" name={ k } value={ v.Params.Get(k) }/>
+						}
+					}
+					if len(v.Workspaces) > 1 {
+						<label>
+							Workspace
+							<select name="workspace">
+								for _, a := range v.Workspaces {
+									<option value={ a.Workspace.ID } selected?={ a.Workspace.ID == v.Current }>{ a.Workspace.Name }</option>
+								}
+							</select>
+						</label>
+					} else {
+						<input type="hidden" name="workspace" value={ v.Current }/>
+					}
+					<p class="hint">Only allow apps you started yourself just now. If you did not ask for this, deny it.</p>
+					<div class="actions">
+						<button type="submit" name="decision" value="allow">Allow</button>
+						<button type="submit" name="decision" value="deny" class="secondary">Deny</button>
+					</div>
+				</form>
+			</div>
+		</section>
+	}
+}

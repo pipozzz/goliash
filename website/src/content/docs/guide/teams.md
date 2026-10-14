@@ -19,6 +19,13 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
   viewers on first sign-in; others need an invitation.
 
+## Apps with access
+
+AI assistants (Claude, Cursor, VS Code) connect to Goliash's MCP server by signing in as the person who adds them:
+a consent page names the app, the person picks a workspace and allows it, and the app reads Goliash as them, read
+only. **Your account → Apps with access** lists them, with when each last read, and **Revoke** ends one. An app
+loses access when its person leaves the workspace, and after 30 days unused. See [MCP](/reference/mcp/#remote-http).
+
 ## Two-factor sign-in
 
 On their account page, anyone can turn on codes from an authenticator app (1Password, Bitwarden, Google

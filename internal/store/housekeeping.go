@@ -52,6 +52,11 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 		{&r.LoginTokens, `DELETE FROM signin_failures WHERE at < ?`, []any{now.Add(-24 * time.Hour)}},
 		{&r.LoginTokens, `DELETE FROM setup_tokens WHERE expires_at < ?`, []any{now.Add(-24 * time.Hour)}},
 		{&r.History, `DELETE FROM instance_history WHERE until < ?`, []any{now.Add(-historyKept)}},
+		{&r.LoginTokens, `DELETE FROM oauth_codes WHERE expires_at < ?`, []any{now}},
+		{&r.Sessions, `DELETE FROM oauth_grants WHERE refresh_expires_at < ?`, []any{now}},
+		// Self-registered apps nobody let in within a day of registering.
+		{&r.LoginTokens, `DELETE FROM oauth_clients WHERE metadata_url = '' AND created_at < ? AND id NOT IN
+			(SELECT client_id FROM oauth_grants)`, []any{now.Add(-24 * time.Hour)}},
 		{&r.History, `DELETE FROM posture_history WHERE day < ?`, []any{now.Add(-postureKept).UTC().Format(time.DateOnly)}},
 	}
 	for _, step := range steps {

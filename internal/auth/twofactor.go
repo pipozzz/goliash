@@ -111,5 +111,5 @@ func (a *Auth) verifySecondFactor(w http.ResponseWriter, r *http.Request) {
 	if how == "recovery code" {
 		a.log.WarnContext(ctx, "signed in with a recovery code", "user", u.Email, "left", t.Codes-1)
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, a.landing(w, r), http.StatusSeeOther) //nolint:gosec // landing is a path on this server (localPath)
 }

@@ -79,6 +79,7 @@ type Server struct {
 	goliDemo    bool       // Goli answers on the public demo too
 	goliDocs    *goli.Docs // Goli on a website, for its usage on the Status page
 	api         http.Handler
+	oauthHTTP   *http.Client // fetches apps' client metadata documents, from the internet only
 
 	favMu    sync.Mutex
 	favicons map[string]cachedFavicon // per workspace
@@ -128,7 +129,8 @@ func New(o Options) *Server {
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
-		slack: o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
+		oauthHTTP: publicOnlyClient(),
+		slack:     o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
 	}
 }
 
@@ -143,6 +145,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sw.js", s.serviceWorker)
 	mux.HandleFunc("GET /badge/{ws}/{file}", s.badge)
 	mux.HandleFunc("GET /manifest.webmanifest", s.manifest)
+	s.oauthRoutes(mux)
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
 	mux.HandleFunc("GET /setup", s.setupPage)
@@ -305,6 +308,9 @@ func (s *Server) page(role string, h handler) http.Handler {
 				w.Header().Set("HX-Redirect", "/login")
 				w.WriteHeader(http.StatusUnauthorized)
 				return
+			}
+			if r.Method == http.MethodGet {
+				s.auth.RememberLanding(w, r)
 			}
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return

@@ -399,7 +399,7 @@ func NewServer(c *Client) *mcp.Server {
 // HTTPHandler serves MCP over Streamable HTTP. Every session uses the caller's bearer
 // token against the REST API at apiURL (the server itself), so it can do what the
 // token can.
-func HTTPHandler(apiURL string) http.Handler {
+func HTTPHandler(apiURL string, resourceMetadata func(*http.Request) string) http.Handler {
 	h := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		return NewServer(&Client{BaseURL: apiURL, Token: token})
@@ -409,9 +409,12 @@ func HTTPHandler(apiURL string) http.Handler {
 		Stateless: true,
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer glsh_api_") {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="goliash"`)
-			http.Error(w, "send an API token: Authorization: Bearer glsh_api_…", http.StatusUnauthorized)
+		a := r.Header.Get("Authorization")
+		if !strings.HasPrefix(a, "Bearer glsh_api_") && !strings.HasPrefix(a, "Bearer glsh_oat_") {
+			// Where to get a token (RFC 9728): apps that speak OAuth send the person to allow them.
+			w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+resourceMetadata(r)+`", scope="goliash:read"`)
+			http.Error(w, "sign in: an MCP client with OAuth does it for you, or send an API token (Authorization: Bearer glsh_api_…)",
+				http.StatusUnauthorized)
 			return
 		}
 		h.ServeHTTP(w, r)
