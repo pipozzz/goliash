@@ -180,6 +180,48 @@ egress to the provider's API.
 An `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` that happens to be in the server's environment does not turn Goli on: it
 is a choice to make on purpose.
 
+## Goli in Slack
+
+A Slack app's `/goli` command asks Goli from any channel:
+
+```text
+/goli what changed in prod in the last two hours?
+```
+
+Slack shows *Goli is looking* at once, and the answer follows in Slack's formatting, with links back to Goliash. Only
+the asker sees it, unless `GOLIASH_SLACK_IN_CHANNEL=true`.
+
+1. Create a Goliash API token for Goli in Slack; viewer is enough, and Goli sees what the token may see:
+   `goliash token create -name slack-goli`.
+2. Create the Slack app at [api.slack.com/apps](https://api.slack.com/apps) → *From a manifest*:
+
+   ```yaml
+   display_information:
+     name: Goli
+     description: Asks Goliash what runs where
+   features:
+     bot_user: { display_name: Goli }
+     slash_commands:
+       - command: /goli
+         url: https://goliash.example.com/integrations/slack/goli
+         description: Ask Goli about what runs where
+         usage_hint: what changed in prod in the last two hours?
+   oauth_config:
+     scopes:
+       bot: [commands]
+   ```
+
+3. Install it to the workspace and set on the server:
+
+| Variable | Meaning |
+| --- | --- |
+| `GOLIASH_SLACK_SIGNING_SECRET` | The app's *Signing Secret* (Basic Information): every request is checked against it, and requests older than five minutes are refused |
+| `GOLIASH_SLACK_GOLI_TOKEN` | The API token from step 1 |
+| `GOLIASH_SLACK_IN_CHANNEL` | `true` posts answers to the channel; otherwise only the asker sees them |
+
+The hourly limit counts per Slack user, the daily ceiling with everyone else's questions. Answers go only to Slack's
+own response URL (`hooks.slack.com`), and the log names the workspace and the tools Goli used, never the question.
+
 ## Costs and limits
 
 Goli costs what the provider charges for its tokens, on your account. A question usually takes two to four model

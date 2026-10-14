@@ -591,7 +591,7 @@ func serve(ctx context.Context, args []string) error {
 		Store: db, Auth: authn, Checker: checker, Notifier: notify, Hub: hub, Log: log, PublicURL: *publicURL,
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
-		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs,
+		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs, Slack: slackFromEnv(log),
 	}).Register(mux)
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen)))
 	// Goli answering questions about Goliash on a website, from its documentation only.
@@ -2715,4 +2715,19 @@ func backupCmd(ctx context.Context, args []string, out io.Writer) error {
 	}
 	_, _ = fmt.Fprintf(out, "backup written to %s\n", path)
 	return nil
+}
+
+// slackFromEnv turns on Goli's /goli command for a Slack app: GOLIASH_SLACK_SIGNING_SECRET checks Slack's
+// requests and GOLIASH_SLACK_GOLI_TOKEN is the API token Goli reads with; GOLIASH_SLACK_IN_CHANNEL=true posts
+// answers to the channel instead of to the asker alone.
+func slackFromEnv(log *slog.Logger) *ui.SlackConfig {
+	secret, token := os.Getenv("GOLIASH_SLACK_SIGNING_SECRET"), os.Getenv("GOLIASH_SLACK_GOLI_TOKEN")
+	if secret == "" && token == "" {
+		return nil
+	}
+	if secret == "" || token == "" {
+		log.Warn("Goli in Slack needs both GOLIASH_SLACK_SIGNING_SECRET and GOLIASH_SLACK_GOLI_TOKEN; it is off")
+		return nil
+	}
+	return &ui.SlackConfig{SigningSecret: secret, Token: token, InChannel: os.Getenv("GOLIASH_SLACK_IN_CHANNEL") == "true"}
 }

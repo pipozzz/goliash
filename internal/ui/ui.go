@@ -73,6 +73,9 @@ type Server struct {
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
+	slack       *SlackConfig // Goli answers Slack's /goli command
+	slackHooks  string       // where Slack response URLs may point
+	slackHTTP   *http.Client
 	goliDemo    bool       // Goli answers on the public demo too
 	goliDocs    *goli.Docs // Goli on a website, for its usage on the Status page
 	api         http.Handler
@@ -107,6 +110,8 @@ type Options struct {
 	GoliInDemo bool
 	// GoliDocs is Goli answering from the documentation for a website, when on.
 	GoliDocs *goli.Docs
+	// Slack lets a Slack app's /goli command ask Goli; nil keeps it off.
+	Slack *SlackConfig
 }
 
 // siteDescription is what link previews say about any page.
@@ -123,6 +128,7 @@ func New(o Options) *Server {
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
+		slack: o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
 	}
 }
 
@@ -175,6 +181,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
 	mux.HandleFunc("POST /goli/ask", s.goliAPI)
+	mux.HandleFunc("POST /integrations/slack/goli", s.goliSlack)
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
