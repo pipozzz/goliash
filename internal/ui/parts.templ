@@ -27,6 +27,9 @@ templ timeline(events []EventView, showService bool) {
 						if showService && e.ServiceURL != "" {
 							<a class="where" href={ templ.URL(e.ServiceURL) }>{ e.Service }</a>
 						}
+						if e.Ask != "" {
+							<button type="button" class="link ask-goli noprint" data-goli-ask={ e.Ask } title="Goli looks at everything else that changed around this time">Around this</button>
+						}
 					</div>
 				</li>
 			}

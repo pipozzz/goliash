@@ -846,6 +846,7 @@
         [["Esc"], "Close a panel, a card or a menu"],
         [["?"], "This list"],
       ];
+      if (document.querySelector("[data-goli]")) rows.splice(1, 0, [["."], "Ask Goli, or close its panel"]);
       Object.keys(goKeys).forEach(function (k) { rows.push([["g", k], "Go to " + goKeys[k][1]]); });
       rows.forEach(function (r) {
         const dt = el("dt");
@@ -868,6 +869,7 @@
     if (e.key === "Escape" && shortcutsClose()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
     if (typing || e.ctrlKey || e.metaKey || e.altKey || !document.querySelector("[data-palette]")) return;
     if (e.key === "?") { e.preventDefault(); if (!shortcutsClose()) shortcutsOpen(); return; }
+    if (e.key === "." && document.querySelector("[data-goli]")) { e.preventDefault(); shortcutsClose(); if (goli && goli.open) goliClose(); else goliOpen(); return; }
     if (goPending && Date.now() - goPending < 1500 && goKeys[e.key]) { goPending = 0; e.preventDefault(); shortcutsClose(); paletteGo(goKeys[e.key][0]); return; }
     goPending = e.key === "g" ? Date.now() : 0;
   }, true);

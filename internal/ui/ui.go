@@ -742,6 +742,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		return err
 	}
 	v.Events = eventViews(evs, o)
+	if s.goliOn() {
+		askAround(v.Events)
+	}
 
 	acks, err := s.store.ListAcks(ctx, p.Scope)
 	if err != nil {
@@ -921,6 +924,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	v.Events = eventViews(evs, o)
+	if s.goliOn() {
+		askAround(v.Events)
+	}
 	if len(evs) == f.Limit {
 		more := url.Values{"before": {evs[len(evs)-1].At.Format(time.RFC3339Nano)}}
 		for k, val := range map[string]string{"service": v.Service, "environment": v.Env, "type": v.Type, "since": v.Since} {

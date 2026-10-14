@@ -392,6 +392,19 @@ type EventView struct {
 	ServiceURL string
 	Env        string
 	Target     string
+	Ask        string // what to ask Goli about what happened around this event; empty without Goli
+}
+
+// askAround fills in, for changes that can start an incident, what to ask Goli about everything else that changed
+// around the same time.
+func askAround(events []EventView) {
+	for i, e := range events {
+		switch e.Type {
+		case "deployed", "version_changed", "removed", "drift_detected":
+			events[i].Ask = "What else changed in the hour before and after " + e.At.UTC().Format("2006-01-02 15:04 UTC") +
+				", when this happened: " + e.Text + "? Could any of it be related, and what should I check first?"
+		}
+	}
 }
 
 var eventLabels = map[string]string{
