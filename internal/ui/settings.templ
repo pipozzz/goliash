@@ -10,6 +10,7 @@ templ NotificationsPage(v NotificationsView) {
 				<h1>Notifications</h1>
 				<p class="sub">Rules send events to channels, right away or as a daily or weekly digest.</p>
 			</div>
+			<span class="actions"><a href="/notifications/deliveries">Delivery log</a></span>
 		</div>
 		<div class="notif-panels">
 			<section class="panel">
@@ -195,40 +196,8 @@ templ NotificationsPage(v NotificationsView) {
 		</div>
 		if len(v.Deliveries) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Recent deliveries</h2><span class="muted">the last { itoa(len(v.Deliveries)) }, newest first</span></div>
-				<div class="scroll">
-					<table class="deliveries">
-						<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
-						<tbody>
-							for _, d := range v.Deliveries {
-								<tr>
-									<td class="muted nowrap">@timeAgo(d.At)</td>
-									<td><strong>{ d.Channel }</strong> <span class="muted">{ d.Type }</span></td>
-									<td class="delivery-text">{ d.Text }</td>
-									<td>
-										<span class={ "delivery-status " + d.Status }>{ d.Label }</span>
-										if d.Error != "" && d.Status != "sent" {
-											<div class="delivery-error mono">{ d.Error }</div>
-										}
-									</td>
-									<td class="num">
-										if d.Retry && v.CanMember {
-											<form method="post" action={ templ.URL("/notifications/deliveries/" + d.ID + "/retry") }>
-												<button class="link" type="submit">
-													if d.Status == "waiting" {
-														Send now
-													} else {
-														Retry now
-													}
-												</button>
-											</form>
-										}
-									</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
+				<div class="panel-head"><h2>Recent deliveries</h2><span class="muted">the last { itoa(len(v.Deliveries)) }, newest first · <a href="/notifications/deliveries">all of the last 30 days</a></span></div>
+				@deliveriesTable(v.Deliveries, v.CanMember, "/notifications")
 			</section>
 		}
 	}
@@ -663,4 +632,93 @@ templ registriesPanel(v SettingsView) {
 			}
 		</div>
 	</section>
+}
+
+// deliveriesTable lists notifications with how their delivery went, and a retry where it helps.
+templ deliveriesTable(ds []DeliveryView, canRetry bool, ret string) {
+				<div class="scroll">
+					<table class="deliveries">
+						<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+						<tbody>
+							for _, d := range ds {
+								<tr>
+									<td class="muted nowrap">@timeAgo(d.At)</td>
+									<td><strong>{ d.Channel }</strong> <span class="muted">{ d.Type }</span></td>
+									<td class="delivery-text">{ d.Text }</td>
+									<td>
+										<span class={ "delivery-status " + d.Status }>{ d.Label }</span>
+										if d.Error != "" && d.Status != "sent" {
+											<div class="delivery-error mono">{ d.Error }</div>
+										}
+									</td>
+									<td class="num">
+										if d.Retry && canRetry {
+											<form method="post" action={ templ.URL("/notifications/deliveries/" + d.ID + "/retry") }>
+												<input type="hidden" name="return" value={ ret }/>
+												<button class="link" type="submit">
+													if d.Status == "waiting" {
+														Send now
+													} else {
+														Retry now
+													}
+												</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+}
+
+// DeliveryLogPage lists every notification of the last 30 days, sent or not.
+templ DeliveryLogPage(v SentView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p><a href="/notifications">Notifications</a> / delivery log</p>
+				<h1>Delivery log</h1>
+				<p class="sub">Every notification of the last 30 days: what went out through which channel, what waits for its digest or quiet hours, and what failed.</p>
+			</div>
+		</div>
+		<form class="row" method="get" action="/notifications/deliveries">
+			<label>
+				Status
+				<select name="status" data-autosubmit>
+					for _, st := range []string{"all", "sent", "waiting", "retrying", "failed"} {
+						<option value={ st } selected?={ st == v.Status }>{ st + " (" + itoa(v.Counts[st]) + ")" }</option>
+					}
+				</select>
+			</label>
+			<label>
+				Channel
+				<select name="channel" data-autosubmit>
+					<option value="">every channel</option>
+					for _, c := range v.Channels {
+						<option value={ c.ID } selected?={ c.ID == v.Channel }>{ c.Name }</option>
+					}
+				</select>
+			</label>
+			<label class="grow">
+				<span class="sr-only">Service or text</span>
+				<input type="search" name="q" value={ v.Query } placeholder="Service, version or text"/>
+			</label>
+			<button type="submit" class="secondary">Show</button>
+		</form>
+		<section class="panel">
+			if len(v.Deliveries) == 0 {
+				<div class="empty">
+					<p><strong>Nothing here.</strong></p>
+					<p>Notifications appear when a rule sends an event to its channel; set up channels and rules under <a href="/notifications">Notifications</a>.</p>
+				</div>
+			} else {
+				@deliveriesTable(v.Deliveries, v.CanMember, v.Return)
+				if v.Hidden > 0 {
+					<p class="hint" style="padding:0 16px 12px">{ "and " + itoa(v.Hidden) + " older; narrow the filter to see them" }</p>
+				}
+			}
+		</section>
+		<p class="hint">Notifications are kept for 30 days.</p>
+	}
 }

@@ -205,6 +205,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /environments", s.page(a, s.createEnvironment))
 	mux.Handle("POST /targets", s.page(a, s.createTarget))
 	mux.Handle("GET /notifications", s.page(v, s.notifications))
+	mux.Handle("GET /notifications/deliveries", s.page(v, s.sentNotifications))
 	mux.Handle("GET /integrations", s.page(v, s.integrations))
 	mux.Handle("GET /integrations/dashboards/{file}", s.page(v, s.dashboard))
 	mux.Handle("POST /integrations/token", s.page(a, s.integrationToken))

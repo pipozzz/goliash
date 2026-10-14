@@ -6,6 +6,8 @@ package ui
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -63,11 +65,11 @@ func (s *Server) retryDelivery(w http.ResponseWriter, r *http.Request, p auth.Pr
 		return err
 	}
 	if !ok {
-		return back(w, r, "/notifications", "notice", "That notification was already sent.")
+		return back(w, r, notificationsReturn(r), "notice", "That notification was already sent.")
 	}
 	s.audit(ctx, p, "notification.retry", "delivery", r.PathValue("id"))
 	if err := s.notify.DeliverDue(ctx); err != nil {
-		return back(w, r, "/notifications", "error", "Sending failed: "+err.Error())
+		return back(w, r, notificationsReturn(r), "error", "Sending failed: "+err.Error())
 	}
 	ds, err := s.store.RecentDeliveries(ctx, p.Scope, 100)
 	if err != nil {
@@ -78,9 +80,86 @@ func (s *Server) retryDelivery(w http.ResponseWriter, r *http.Request, p auth.Pr
 			continue
 		}
 		if d.SentAt != nil {
-			return back(w, r, "/notifications", "notice", "Sent to "+d.ChannelName+".")
+			return back(w, r, notificationsReturn(r), "notice", "Sent to "+d.ChannelName+".")
 		}
-		return back(w, r, "/notifications", "error", "Sending to "+d.ChannelName+" failed again: "+d.LastError)
+		return back(w, r, notificationsReturn(r), "error", "Sending to "+d.ChannelName+" failed again: "+d.LastError)
 	}
-	return back(w, r, "/notifications", "notice", "Sent.")
+	return back(w, r, notificationsReturn(r), "notice", "Sent.")
+}
+
+// SentView is every notification of the last 30 days, filtered.
+type SentView struct {
+	Base
+	Deliveries []DeliveryView
+	Hidden     int // matching notifications not shown
+	Status     string
+	Channel    string
+	Query      string
+	Channels   []ChannelView
+	Counts     map[string]int // per status, before filtering by status
+	Return     string         // this page with its filter, for retries to come back to
+}
+
+const sentShown = 300
+
+// sentNotifications lists every notification of the last 30 days (they are kept that long), filtered by status,
+// channel and text.
+func (s *Server) sentNotifications(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	q := r.URL.Query()
+	v := SentView{
+		Base: withFlash(s.base(ctx, p, "notifications", "Delivery log"), r), Status: q.Get("status"),
+		Channel: q.Get("channel"), Query: strings.TrimSpace(q.Get("q")), Counts: map[string]int{},
+	}
+	switch v.Status {
+	case "sent", "waiting", "retrying", "failed":
+	default:
+		v.Status = "all"
+	}
+	chans, err := s.store.ListChannels(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	for _, c := range chans {
+		v.Channels = append(v.Channels, ChannelView{ID: c.ID, Name: c.Name, Type: c.Type})
+	}
+	ds, err := s.store.RecentDeliveries(ctx, p.Scope, 5000)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	needle := strings.ToLower(v.Query)
+	for _, d := range ds {
+		if v.Channel != "" && d.ChannelID != v.Channel {
+			continue
+		}
+		dv := deliveryView(d, now)
+		if needle != "" && !strings.Contains(strings.ToLower(dv.Text+" "+dv.Channel+" "+dv.Error), needle) {
+			continue
+		}
+		v.Counts["all"]++
+		v.Counts[dv.Status]++
+		if v.Status != "all" && dv.Status != v.Status {
+			continue
+		}
+		if len(v.Deliveries) < sentShown {
+			v.Deliveries = append(v.Deliveries, dv)
+		} else {
+			v.Hidden++
+		}
+	}
+	v.Return = "/notifications/deliveries"
+	if r.URL.RawQuery != "" {
+		v.Return += "?" + r.URL.RawQuery
+	}
+	return render(w, r, DeliveryLogPage(v))
+}
+
+// notificationsReturn is where a form asks to come back to, when it is a notifications page; else the Notifications page.
+func notificationsReturn(r *http.Request) string {
+	ret := r.FormValue("return")
+	if u, err := url.Parse(ret); err == nil && u.Host == "" && u.Scheme == "" && strings.HasPrefix(u.Path, "/notifications") {
+		return ret
+	}
+	return "/notifications"
 }
