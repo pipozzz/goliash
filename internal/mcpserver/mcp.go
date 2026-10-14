@@ -273,6 +273,24 @@ func NewServer(c *Client) *mcp.Server {
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name: "notifications", Annotations: readOnly,
+		Description: "What Goliash sent (alerts, digests, upgrade plans), newest first, each message once however many " +
+			"channels it went to: what is under the bell. Use it for \"what did Goliash tell me this week?\" and, with " +
+			"drifts, updates or vulnerabilities, to say which of those are still open. Default: the last 7 days.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+			Since string `json:"since,omitempty" jsonschema:"how far back: a duration like 24h or 30d, or an RFC 3339 time"`
+		},
+		) (*mcp.CallToolResult, Result, error) {
+			q := url.Values{}
+			if in.Since != "" {
+				q.Set("since", in.Since)
+			}
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/notifications/sent", q, nil)
+			return nil, Result{Data: data}, err
+		})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name: "changes", Annotations: readOnly,
 		Description: "What changed, newest first: deploys, version changes, removals, new releases and drift. " +
 			"Use it when something broke: \"what changed in prod in the last 2 hours?\"; for a moment in the past, " +

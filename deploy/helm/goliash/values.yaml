@@ -40,6 +40,12 @@ goli:
   baseURL: ""
   api: ""            # with openai: responses (default without baseURL) or chat (default with it)
   perHour: ""         # questions one person may ask per hour (server default 60)
+  # Goli's /goli command for a Slack app: a Secret with the app's signing secret and a Goliash API token.
+  slack:
+    existingSecret: ""
+    signingSecretKey: signing-secret
+    tokenKey: goli-token
+    inChannel: false
   planSummary: false  # upgrade plans open with Goli's take
   digestSummary: false  # digests of three or more events open with Goli's take
   perDay: ""          # questions everyone may ask per day, per replica: a cost ceiling (server default none)

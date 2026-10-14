@@ -64,9 +64,11 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Goli, the assistant inside.** <img align="right" alt="Goli, the Goliash plushie" src="docs/assets/goli.svg" width="90">
   Ask in plain words: "what will this upgrade break?", "is Log4Shell running anywhere?", "what changed in prod in the
   last two hours?". Goli looks it up in live data as you, only reads, and links to the pages that show it. **Brief**
-  on every upgrade reads the release notes of every release in between and turns them into a checklist; **Explain**
-  on every vulnerability says what it means here. Claude, OpenAI or a model on your own hardware; off until you
-  choose one. [Try it on the demo](https://demo.goliash.dev/updates).
+  on every upgrade and promotion reads the release notes of every release in between and turns them into a checklist;
+  **Explain** on every vulnerability, exposure and hygiene finding says what it means here; **Around this** in History
+  finds what else changed when something broke. Ask in the app, with `/goli` in Slack, from an alert, or with
+  `goliash ask` in a terminal. Claude, OpenAI or a model on your own hardware; off until you choose one.
+  [Try it on the demo](https://demo.goliash.dev/updates).
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself. Scrub a timeline

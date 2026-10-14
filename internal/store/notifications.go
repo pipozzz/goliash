@@ -23,7 +23,7 @@ type Channel struct {
 }
 
 // ChannelTypes are the notification channel types the server can send to.
-var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email", "grafana", "push", "teams", "gchat"}
+var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email", "grafana", "push", "teams", "gchat", "inapp"}
 
 // CreateChannel adds a channel.
 func (s *Store) CreateChannel(ctx context.Context, c Channel) (Channel, error) {
@@ -201,6 +201,23 @@ func (s *Store) Enqueue(ctx context.Context, q QueueItem) (bool, error) {
 	}
 	n, err := res.RowsAffected()
 	return n > 0, err
+}
+
+// RecordSent stores items already delivered outside the queue, such as a plan sent
+// at once from the Notifications page, so they show in the bell and the delivery log.
+func (s *Store) RecordSent(ctx context.Context, sc Scope, ruleID string, payloads []json.RawMessage) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		now := s.now()
+		for _, p := range payloads {
+			id := NewID()
+			if _, err := s.exec(ctx, tx, `INSERT INTO notification_queue (id, org_id, workspace_id, rule_id, payload,
+				dedup_key, due_at, created_at, sent_at, attempts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+				id, sc.OrgID, sc.WorkspaceID, ruleID, string(p), "sent|"+id, now, now, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // DueItems returns unsent items due by now with fewer than maxAttempts attempts, across workspaces.

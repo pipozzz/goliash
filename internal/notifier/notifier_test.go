@@ -486,6 +486,10 @@ func TestSendPlanNow(t *testing.T) {
 	if n, err := e.n.SendPlanNow(ctx, e.sc, planRule); n != 1 || err != nil || slack.count() != 1 || !strings.Contains(slack.last(), "15.6 → 16.4") {
 		t.Fatalf("plan: %d %v %s", n, err, slack.last())
 	}
+	// The plan is recorded as sent, so it shows in the bell and the delivery log.
+	if feed, err := e.st.NotificationFeed(ctx, e.sc, time.Time{}, 10); err != nil || len(feed) != 1 || len(feed[0].Items) != 1 {
+		t.Fatalf("feed after plan now: %+v %v", feed, err)
+	}
 	if _, err := e.n.SendPlanNow(ctx, e.sc, otherRule); !errors.Is(err, ErrNotAPlanRule) {
 		t.Errorf("not a plan rule: %v", err)
 	}

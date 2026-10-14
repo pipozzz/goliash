@@ -117,6 +117,9 @@ The page shows the last environment (production) by default; *Every environment*
 - **Print or save as PDF** prints the page with the time it was generated, as evidence of patch management for
   frameworks that ask for it (NIS2, DORA, SOC 2, ISO 27001).
 
+- **Weekly report**: a notification rule with the *security posture report* event sends these numbers and the
+  longest exposures every Monday (or day) to Slack, Teams, e-mail or any channel. See
+  [Notifications](../notifications/#security-posture-report).
 - **Trends and alerts**: `/metrics` serves the posture (`goliash_exposure_median_days`, `goliash_exposure_p90_days`,
   `goliash_exposures`, `goliash_end_of_life`, `goliash_accepted_risk`, `goliash_exposure_days`), the Grafana and SigNoz
   dashboards chart it over time (is patching getting faster?), and the Prometheus rules alert on production past its

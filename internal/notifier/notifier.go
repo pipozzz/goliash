@@ -52,6 +52,9 @@ func (m Message) Title() string {
 	if m.plan() {
 		return fmt.Sprintf("Goliash upgrade plan for %s: %d to upgrade", m.Workspace, len(m.Items))
 	}
+	if len(m.Items) == 1 && m.Items[0].Type == "posture" {
+		return "Goliash security posture for " + m.Workspace
+	}
 	if len(m.Items) == 1 && !m.Digest {
 		return m.Items[0].Text
 	}
@@ -139,6 +142,7 @@ type Notifier struct {
 	now     func() time.Time
 	link    string // public URL, without a trailing slash
 	take    TakeFunc
+	onSent  func(sc store.Scope)
 	takeOn  TakeOn
 	goli    bool
 }
@@ -155,6 +159,9 @@ type TakeOn struct {
 
 // minDigestTake is how many events a digest needs before a summary helps more than it costs.
 const minDigestTake = 3
+
+// OnSent is called after a message went out, so open pages can show the new notification.
+func (n *Notifier) OnSent(f func(sc store.Scope)) { n.onSent = f }
 
 // SetTake lets upgrade plans and digests open with Goli's take on them.
 func (n *Notifier) SetTake(f TakeFunc, on TakeOn) { n.take, n.takeOn = f, on }
@@ -578,6 +585,9 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 			n.log.Error("marking notifications sent failed", "err", err)
 		}
 		n.log.Info("notification sent", "channel", rt.channel.Name, "items", len(ids), "digest", msg.Digest)
+		if n.onSent != nil {
+			n.onSent(rt.rule.Scope)
+		}
 		return
 	}
 	retry := n.now().Add(time.Duration(1<<min(attempts, 6)) * time.Minute) // 1, 2, 4 … 64 min
@@ -614,6 +624,8 @@ func Describe(it Item) string {
 		on = " on " + it.Target
 	}
 	switch it.Type {
+	case "posture":
+		return it.Text
 	case "deployed":
 		return fmt.Sprintf("%s: %s deployed%s", where, it.To, on)
 	case "version_changed":

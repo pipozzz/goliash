@@ -50,6 +50,8 @@ func kindOf(it Item) kind {
 		return kind{"🔌", "#e5484d", "Agent silent"}
 	case "agent_back":
 		return kind{"✅", "#30a46c", "Agent back"}
+	case "posture":
+		return kind{"🛡️", "#1b2a6b", "Security posture"}
 	}
 	return kind{"👋", "#1b2a6b", "Goliash"}
 }
@@ -94,6 +96,9 @@ func itemLink(base string, it Item) string {
 	if base == "" {
 		return ""
 	}
+	if it.Type == "posture" {
+		return base + "/security"
+	}
 	if it.Service == "" {
 		return base + "/"
 	}
@@ -113,6 +118,18 @@ func goliLink(msg Message) string {
 	return msg.Link + "/?goli=" + url.QueryEscape(q)
 }
 
+// GoliQuestion is what to ask Goli about a message, for the bell: about its one alert, or which of an upgrade
+// plan's updates to do first. Empty when there is nothing to ask.
+func GoliQuestion(msg Message) string {
+	if msg.plan() {
+		return "Which of the upgrades in my upgrade plan should we do first, and why? Breaking changes and security fixes first."
+	}
+	if len(msg.Items) != 1 {
+		return ""
+	}
+	return goliQuestion(msg.Items[0])
+}
+
 func goliQuestion(it Item) string {
 	where := it.Service
 	if it.Environment != "" {
@@ -125,6 +142,8 @@ func goliQuestion(it Item) string {
 		return "Explain this vulnerability alert for us, what fixes it and how urgent it is: " + it.Text
 	case it.Type == "drift_detected":
 		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
+	case it.Type == "posture":
+		return "Walk me through our security posture: what to fix first to cut production exposure, what is past its end of life, and which accepted risks to review."
 	case it.Type == "agent_stale":
 		return "Which data may be stale because of this, and what should I check? " + it.Text
 	}
@@ -138,6 +157,9 @@ func openLink(msg Message) string {
 	}
 	if msg.plan() {
 		return msg.Link + "/updates"
+	}
+	if len(msg.Items) == 1 && msg.Items[0].Type == "posture" {
+		return msg.Link + "/security"
 	}
 	return msg.Link + "/"
 }
@@ -220,6 +242,9 @@ func slackBlocks(msg Message) []map[string]any {
 
 // summary counts a message's items by kind: "2 new releases · 1 drift".
 func summary(msg Message) string {
+	if len(msg.Items) == 1 && msg.Items[0].Type == "posture" {
+		return "production"
+	}
 	var order []string
 	counts := map[string]int{}
 	for _, it := range msg.Items {

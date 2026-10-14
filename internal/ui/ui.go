@@ -73,6 +73,9 @@ type Server struct {
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
+	slack       *SlackConfig // Goli answers Slack's /goli command
+	slackHooks  string       // where Slack response URLs may point
+	slackHTTP   *http.Client
 	goliDemo    bool       // Goli answers on the public demo too
 	goliDocs    *goli.Docs // Goli on a website, for its usage on the Status page
 	api         http.Handler
@@ -107,6 +110,8 @@ type Options struct {
 	GoliInDemo bool
 	// GoliDocs is Goli answering from the documentation for a website, when on.
 	GoliDocs *goli.Docs
+	// Slack lets a Slack app's /goli command ask Goli; nil keeps it off.
+	Slack *SlackConfig
 }
 
 // siteDescription is what link previews say about any page.
@@ -123,6 +128,7 @@ func New(o Options) *Server {
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
+		slack: o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
 	}
 }
 
@@ -174,7 +180,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
+	mux.Handle("GET /ui/notifications", s.page(v, s.bellList))
+	mux.Handle("GET /ui/notifications/unread", s.page(v, s.bellCount))
+	mux.Handle("POST /ui/notifications/seen", s.page(v, s.bellSeen))
 	mux.HandleFunc("POST /goli/ask", s.goliAPI)
+	mux.HandleFunc("POST /integrations/slack/goli", s.goliSlack)
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
@@ -198,6 +208,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /environments", s.page(a, s.createEnvironment))
 	mux.Handle("POST /targets", s.page(a, s.createTarget))
 	mux.Handle("GET /notifications", s.page(v, s.notifications))
+	mux.Handle("GET /notifications/deliveries", s.page(v, s.sentNotifications))
 	mux.Handle("GET /integrations", s.page(v, s.integrations))
 	mux.Handle("GET /integrations/dashboards/{file}", s.page(v, s.dashboard))
 	mux.Handle("POST /integrations/token", s.page(a, s.integrationToken))
@@ -216,6 +227,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /workspaces/{id}/rename", s.page(a, s.renameWorkspace))
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
 	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
+	mux.Handle("POST /notifications/rules/{id}/posture", s.page(m, s.sendPostureNow))
 	mux.Handle("POST /notifications/deliveries/{id}/retry", s.page(m, s.retryDelivery))
 	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
 	mux.Handle("GET /notifications/rules/{id}", s.page(m, s.editRule))
@@ -358,6 +370,7 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 	if items, err := s.inboxItems(ctx, p.Scope); err == nil {
 		b.InboxCount = len(items)
 	}
+	b.Unread = s.bellUnread(ctx, p.Scope, p.User.ID)
 	return b
 }
 
@@ -1544,6 +1557,7 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		v.Rules = append(v.Rules, RuleView{
 			ID: rule.ID, Paused: rule.Paused, Channel: chName[rule.ChannelID], Events: events, Mode: mode,
 			Plan:   slices.Contains(rule.EventTypes, notifier.EventUpdatesPlan),
+			Report: slices.Contains(rule.EventTypes, notifier.EventPostureReport),
 			Filter: orDash(strings.Join(parts, "; ")),
 		})
 	}
@@ -1625,8 +1639,8 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter the bot token and the chat ID."
 		}
 		cfg["bot_token"], cfg["chat_id"] = token, chat
-	case "push":
-		// Nothing to set: browsers subscribe from the Notifications page.
+	case "push", "inapp":
+		// Nothing to set: browsers subscribe from the Notifications page; the bell is Goliash itself.
 	case "email":
 		var to []string
 		for _, a := range strings.Split(r.FormValue("to"), ",") {
@@ -1699,6 +1713,21 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, "/notifications", "notice", "Test sent to "+c.Name+".")
 	}
 	return back(w, r, "/notifications", "error", "Unknown channel.")
+}
+
+// sendPostureNow sends a rule's security posture report at once, to check the channel without waiting.
+func (s *Server) sendPostureNow(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	err := s.notify.SendPostureNow(r.Context(), p.Scope, r.PathValue("id"))
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return back(w, r, "/notifications", "error", "That rule is gone.")
+	case errors.Is(err, notifier.ErrNotAReportRule):
+		return back(w, r, "/notifications", "error", "That rule does not send the security posture report.")
+	case err != nil:
+		return back(w, r, "/notifications", "error", "Sending the report failed: "+err.Error())
+	}
+	s.audit(r.Context(), p, "rule.posture_now", "rule", r.PathValue("id"))
+	return back(w, r, "/notifications", "notice", "Security posture report sent.")
 }
 
 // sendPlanNow sends a rule's upgrade plan at once, to check it without waiting.

@@ -67,6 +67,9 @@ templ HygienePage(v HygieneView) {
 									<td>
 										<span class={ "badge", findingClass(f) }>{ findingLabel(f.Kind) }</span>
 										<div class="targets">{ f.Detail }</div>
+										if v.Goli {
+											<button type="button" class="link ask-goli noprint" data-goli-ask={ explainFinding(f) } title="Goli explains the risk and how to fix it here">Explain</button>
+										}
 									</td>
 									<td>
 										for _, w := range f.Where {
@@ -96,4 +99,18 @@ func findingLabel(kind string) string {
 		return "digest unknown"
 	}
 	return strings.ReplaceAll(kind, "-", " ")
+}
+
+// explainFinding is what the Explain button asks Goli about an image hygiene finding.
+func explainFinding(f versions.Finding) string {
+	where := ""
+	if len(f.Where) > 0 {
+		where = " It runs at " + f.Where[0]
+		if len(f.Where) > 1 {
+			where += " and " + itoa(len(f.Where)-1) + " more places"
+		}
+		where += "."
+	}
+	return "Explain this image hygiene finding: " + f.Image + " is flagged " + findingLabel(f.Kind) + " (" + f.Detail + ")." + where +
+		" Why is it a risk, and how do we fix it in the deployment, step by step?"
 }

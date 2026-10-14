@@ -22,6 +22,7 @@ often). Both are managed on the Notifications page or with the CLI.
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients, and optionally the channel's own mail server (see below). |
 | Web push | Nothing: each person adds their browsers from the Notifications page (see below). |
+| In Goliash | Nothing: messages only show under the bell (see below). |
 
 ```sh
 goliash channel create -type slack -name ops -url https://hooks.slack.com/services/…
@@ -73,6 +74,23 @@ show the first lines. Browsers that unsubscribed or expired are forgotten at the
 - Messages are encrypted for each browser (RFC 8291) and signed with a key pair the server makes on first use and
   keeps with the other secrets (encrypted at rest with `GOLIASH_SECRET_KEY`). The server sends only to the push
   services of browsers (Google, Mozilla, Apple, Microsoft).
+
+## The bell
+
+The bell at the top of every page lists what Goliash sent you in the last 30 days, newest first, like the
+notifications of any app. Each message has its title, its first lines and a link to where it points: the upgrade
+plan opens **Updates**, an alert about one service opens that service, the rest open **History**.
+
+- The red count on the bell is how many came since you last opened it; opening it marks them read. Each person has
+  their own count.
+- Every rule counts: a message sent to Slack, e-mail and push shows once. To have messages only in Goliash, add an
+  **In Goliash** channel and point rules at it.
+- Installed as an app (**Install** in Chrome or Edge, **Add to Home Screen** on iPhone), the app icon carries the
+  same count, and a web push updates it even with Goliash closed.
+- The count updates live while a page is open; **Send plan now** shows up there too.
+- With [Goli](/guide/goli/) on, an alert or an upgrade plan has **Ask Goli**: Goli opens with a question about it ready
+  to send (what the alert means and what to do first, or which upgrades come first). Nothing is asked until you
+  press **Ask**.
 
 ## How messages look
 
@@ -165,6 +183,26 @@ what in them needs someone's attention and what is routine, or that nothing does
 
 > Goli's take: Upgrade payments-api in prod first: its log4j-core is exploited in the wild and 2.16.0 fixes it.
 > Postgres 15 reaches end of life next month; the minor updates in staging can wait.
+
+## Security posture report
+
+A rule with the event type `posture_report` (*security posture report* in the form) sends the
+[Security page](/guide/security/) as one message at the same times as the plan: daily, or on Mondays. It is the
+weekly line a security officer follows: how many production services run behind a newer release, the median and
+90th percentile of days behind, how many are 30+ and 90+ days behind, end of life passed and near, accepted risk,
+blind spots, and the three longest exposures. It links to the Security page and, with Goli on, offers **Ask Goli**.
+
+```sh
+goliash notify create -channel ciso -events posture_report -mode weekly
+```
+
+> 🛡️ Goliash security posture for Default<br>
+> prod runs 24 services, 6 behind a newer release: median 41 days, 90th percentile 212; 4 behind 30+ days, 2 behind
+> 90+. End of life: 1 passed, 1 soon. Accepted risk: 2. Longest: keycloak 24.0.5 → 26.0.0 (212 days); …
+
+It covers production, so the rule's filters do not apply, and a rule for every event does not get it: ask for it by
+name. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
+[metrics](/guide/observability/).
 
 ## Ask Goli about an alert
 

@@ -88,6 +88,19 @@ spec:
             {{- if .perHour }}
             - { name: GOLIASH_AI_PER_HOUR, value: {{ .perHour | quote }} }
             {{- end }}
+            {{- with .slack }}
+            {{- if .existingSecret }}
+            - name: GOLIASH_SLACK_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ .existingSecret }}, key: {{ .signingSecretKey }} }
+            - name: GOLIASH_SLACK_GOLI_TOKEN
+              valueFrom:
+                secretKeyRef: { name: {{ .existingSecret }}, key: {{ .tokenKey }} }
+            {{- if .inChannel }}
+            - { name: GOLIASH_SLACK_IN_CHANNEL, value: "true" }
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .planSummary }}
             - { name: GOLIASH_AI_PLAN_SUMMARY, value: "true" }
             {{- end }}

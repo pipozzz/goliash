@@ -57,9 +57,10 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var due []store.Rule
+		var due, reports []store.Rule
 		for _, r := range rules {
-			if !contains(r.EventTypes, EventUpdatesPlan) {
+			plan, report := contains(r.EventTypes, EventUpdatesPlan), contains(r.EventTypes, EventPostureReport)
+			if !plan && !report {
 				continue
 			}
 			var f Filter
@@ -67,14 +68,23 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 				continue
 			}
 			if at := lastPlanTime(r.Mode, f, now); now.Sub(at) < planWindow {
-				due = append(due, r)
+				if plan {
+					due = append(due, r)
+				}
+				if report {
+					reports = append(reports, r)
+				}
 			}
 		}
-		if len(due) == 0 {
-			continue
+		if len(due) > 0 {
+			if err := n.planWorkspace(ctx, sc, due, now); err != nil {
+				return err
+			}
 		}
-		if err := n.planWorkspace(ctx, sc, due, now); err != nil {
-			return err
+		if len(reports) > 0 {
+			if err := n.reportPosture(ctx, sc, reports, now); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -168,13 +178,39 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 		return 0, nil
 	}
 	n.addTake(ctx, &msg)
+	if err := n.sendNow(ctx, sc, rt, msg); err != nil {
+		return 0, err
+	}
+	return len(msg.Items), nil
+}
+
+// sendNow sends a message through a rule's channel at once, and records it as sent so it shows
+// under the bell and in the delivery log.
+func (n *Notifier) sendNow(ctx context.Context, sc store.Scope, rt ruleTarget, msg Message) error {
 	sender, ok := n.senders[rt.channel.Type]
 	if !ok {
-		return 0, fmt.Errorf("no sender for channel type %q", rt.channel.Type)
+		return fmt.Errorf("no sender for channel type %q", rt.channel.Type)
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return len(msg.Items), sender.Send(sendCtx, rt.channel, msg)
+	if err := sender.Send(sendCtx, rt.channel, msg); err != nil {
+		return err
+	}
+	payloads := make([]json.RawMessage, 0, len(msg.Items))
+	for _, it := range msg.Items {
+		p, err := json.Marshal(it)
+		if err != nil {
+			return err
+		}
+		payloads = append(payloads, p)
+	}
+	if err := n.store.RecordSent(ctx, sc, rt.rule.ID, payloads); err != nil {
+		return err
+	}
+	if n.onSent != nil {
+		n.onSent(sc)
+	}
+	return nil
 }
 
 // planItem is one update as a notification item.

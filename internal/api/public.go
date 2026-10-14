@@ -18,6 +18,7 @@ import (
 
 	spec "github.com/pipozzz/goliash/api"
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 	"github.com/pipozzz/goliash/pkg/buildinfo"
@@ -65,6 +66,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/status", h.with(store.RoleViewer, h.status))
 	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
 	mux.Handle("GET /api/v1/posture", h.with(store.RoleViewer, h.posture))
+	mux.Handle("GET /api/v1/notifications/sent", h.with(store.RoleViewer, h.notificationsSent))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -600,6 +602,46 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 		})
 	}
 	cw.Flush()
+}
+
+// notificationsSent is what Goliash sent, newest first: each message once however many channels it went to,
+// as the bell lists it (the last 7 days, or since ?since=).
+func (h *PublicHandler) notificationsSent(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	since := time.Now().Add(-7 * 24 * time.Hour)
+	if s := r.URL.Query().Get("since"); s != "" {
+		t, err := parseSince(s, time.Now())
+		if err != nil {
+			writeProblem(w, http.StatusBadRequest, "Invalid since", "use a duration like 2h or 7d, or RFC 3339")
+			return
+		}
+		since = t
+	}
+	feed, err := h.store.NotificationFeed(r.Context(), p.Scope, since, 100)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type sent struct {
+		SentAt time.Time       `json:"sent_at"`
+		Title  string          `json:"title"`
+		Mode   string          `json:"mode"`
+		Items  []notifier.Item `json:"items"`
+	}
+	out := []sent{}
+	for _, m := range feed {
+		msg := notifier.Message{Workspace: p.Workspace.Name, Digest: m.Mode != "instant" || len(m.Items) > 1}
+		for _, raw := range m.Items {
+			var it notifier.Item
+			if json.Unmarshal(raw, &it) == nil {
+				it.Apps = nil // only for rule filters
+				msg.Items = append(msg.Items, it)
+			}
+		}
+		if len(msg.Items) > 0 {
+			out = append(out, sent{SentAt: m.SentAt, Title: msg.Title(), Mode: m.Mode, Items: msg.Items})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // posture is the security posture: how long production has run behind available releases, end of life, accepted

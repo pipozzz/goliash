@@ -101,6 +101,48 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/notifications/sent:
+    get:
+      operationId: listSentNotifications
+      summary: What Goliash sent
+      description: >-
+        Alerts, digests and upgrade plans sent by any rule, newest first, each message once however many channels it
+        went to: what the bell lists. At most 100 messages.
+      parameters:
+        - { name: since, in: query, description: "How far back: a duration like 24h or 30d, or an RFC 3339 time. Default: 7 days.", schema: { type: string } }
+      responses:
+        "200":
+          description: The messages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [sent_at, title, mode, items]
+                  properties:
+                    sent_at: { type: string, format: date-time }
+                    title: { type: string }
+                    mode: { type: string, enum: [instant, daily, weekly], description: "The rule's delivery: at once or in a digest." }
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        required: [type, at, text]
+                        properties:
+                          type: { type: string, description: "An event type, update (upgrade plan), agent_stale or agent_back." }
+                          service: { type: string }
+                          app: { type: string }
+                          owner: { type: string }
+                          environment: { type: string }
+                          target: { type: string }
+                          from: { type: string }
+                          to: { type: string }
+                          note: { type: string }
+                          at: { type: string, format: date-time }
+                          text: { type: string }
+                          url: { type: string }
+        "400": { $ref: '#/components/responses/BadRequest' }
   /api/v1/posture:
     get:
       operationId: getPosture

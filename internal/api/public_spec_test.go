@@ -51,6 +51,8 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		{"GET", "/api/v1/updates", e.token, "", 200},
 		{"GET", "/api/v1/posture", e.token, "", 200},
 		{"GET", "/api/v1/posture?all=true", e.token, "", 200},
+		{"GET", "/api/v1/notifications/sent?since=30d", e.token, "", 200},
+		{"GET", "/api/v1/notifications/sent?since=yesterday", e.token, "", 400},
 		{"GET", "/api/v1/status", e.token, "", 200},
 		{"GET", "/api/v1/inventory?format=csv", e.token, "", 200},
 		{"GET", "/api/v1/inventory?format=cyclonedx", e.token, "", 200},
