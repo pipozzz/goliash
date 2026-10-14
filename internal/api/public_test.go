@@ -209,6 +209,11 @@ func TestMetrics(t *testing.T) {
 			t.Errorf("missing %s\n%s", want, body)
 		}
 	}
+	for _, want := range []string{`goliash_exposure_median_days{environment="prod"}`, `goliash_exposures{environment="prod",over_days="90"}`, `goliash_end_of_life{environment="prod",state="passed"}`, `goliash_accepted_risk{environment="prod"}`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("posture metric missing: %s", want)
+		}
+	}
 	if !regexp.MustCompile(`goliash_drift_days\{service="web",environment="prod",kind="env"\} 2\.\d\d`).MatchString(body) {
 		t.Errorf("drift days missing\n%s", body)
 	}
@@ -248,7 +253,7 @@ func TestDashboardsUseServedMetrics(t *testing.T) {
 			t.Fatalf("%s is not JSON", f)
 		}
 		used := map[string]bool{}
-		for _, m := range regexp.MustCompile(`goliash_[a-z_]+`).FindAllString(string(b), -1) {
+		for _, m := range regexp.MustCompile(`goliash_[a-z0-9_]+`).FindAllString(string(b), -1) {
 			used[m] = true
 		}
 		for m := range used {
@@ -266,7 +271,7 @@ func TestDashboardsUseServedMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range regexp.MustCompile(`goliash_[a-z_]+`).FindAllString(string(rules), -1) {
+	for _, m := range regexp.MustCompile(`goliash_[a-z0-9_]+`).FindAllString(string(rules), -1) {
 		if !served[m] {
 			t.Errorf("the alerts read %s, which /metrics does not serve", m)
 		}

@@ -257,6 +257,11 @@ If you alert from Prometheus, scrape `GET /metrics` with an API token instead:
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
 | `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry or no digest |
+| `goliash_exposure_days` | service, environment (and app) | days a service has run behind an available release |
+| `goliash_exposure_median_days`, `goliash_exposure_p90_days` | environment (production) | median and 90th percentile of those days in production |
+| `goliash_exposures` | environment, over_days (30, 90) | production services behind an available release that long |
+| `goliash_end_of_life` | environment, state (passed, soon) | production services on a release cycle past or near its end of life |
+| `goliash_accepted_risk` | environment | production exposures quieted by an acknowledgement |
 | `goliash_build_info` | version | 1 |
 | `goliash_leader` | | 1 on the server that runs the background work |
 | `goliash_snapshots_pending` | | snapshots received and not processed yet |

@@ -50,3 +50,17 @@ groups:
         annotations:
           summary: "{{ $labels.service }} in {{ $labels.environment }}: {{ $labels.kind }} drift open for {{ $value | humanize }} days"
           description: Upgrade, or acknowledge it in Goliash if it is on purpose.
+      - alert: GoliashEndOfLifeInProduction
+        expr: goliash_end_of_life{state="passed"} > 0
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} services in {{ $labels.environment }} run a release cycle past its end of life"
+          description: They get no more fixes. See Security in Goliash for which ones and what to move to.
+      - alert: GoliashExposedLong
+        expr: goliash_exposures{over_days="90"} > 0
+        for: 1h
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $value }} services in {{ $labels.environment }} have run behind an available release for 90+ days"
+          description: Security in Goliash lists them with the version that fixes each; Explain asks Goli what it would take.

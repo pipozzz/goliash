@@ -94,6 +94,9 @@ Both have the same parts, filterable by environment and service:
 - **Delivery (last 30 days):** deploys, the median and slowest lead time from one environment to the next, deploys
   per service and the lead time table. Lead time needs at least two environments; with only one, its panels stay
   empty (SigNoz says it cannot find `goliash_lead_time_seconds`).
+- **Security posture:** how long production has run behind available releases (median and 90th percentile, and
+  over time: is patching getting faster?), services behind for 30 and 90 days, past end of life, accepted risk, and
+  the longest exposed services.
 - **Image hygiene:** moving tags, tags pushed again, untrusted registries and images without a digest.
 - **Goliash itself:** agents online and stale, snapshots waiting, failing notifications, the server running the
   background work and the running version.
@@ -125,12 +128,15 @@ Ready-made Prometheus rules are in
 [`deploy/prometheus/goliash-alerts.yaml`](https://github.com/pipozzz/goliash/blob/main/deploy/prometheus/goliash-alerts.yaml)
 (also a download on the Integrations page): add the file to `rule_files` in `prometheus.yml`. They cover a missing
 scrape, the background work not running exactly once, stale agents, a growing snapshot queue, failing notifications
-and drift open for more than two weeks. The same queries work in Grafana alerting and SigNoz alerts:
+drift open for more than two weeks, production on a release past its end of life, and production behind an available
+release for 90+ days. The same queries work in Grafana alerting and SigNoz alerts:
 
 | Alert | Query |
 |---|---|
 | Behind upstream in prod | `sum(goliash_outdated{environment="prod"}) > 0` |
 | Drift open for a week | `max(goliash_drift_days) > 7` |
+| Production past end of life | `goliash_end_of_life{state="passed"} > 0` |
+| Production patched slower than a month | `max(goliash_exposure_median_days) > 30` |
 | Agent stopped reporting | `goliash_agents{status="stale"} > 0` |
 | Goliash falls behind | `goliash_snapshots_pending > 20` for 10 minutes |
 | Notifications failing | `goliash_notifications_failing > 0` |
@@ -167,6 +173,11 @@ carries `grafana_dashboard: "1"`, which the sidecar of kube-prometheus-stack loo
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
 | `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry or no digest |
+| `goliash_exposure_days` | service, environment (and app) | days a service has run behind an available release |
+| `goliash_exposure_median_days`, `goliash_exposure_p90_days` | environment (production) | median and 90th percentile of those days in production |
+| `goliash_exposures` | environment, over_days (30, 90) | production services behind an available release that long |
+| `goliash_end_of_life` | environment, state (passed, soon) | production services on a release cycle past or near its end of life |
+| `goliash_accepted_risk` | environment | production exposures quieted by an acknowledgement |
 | `goliash_build_info` | version | 1 |
 | `goliash_leader` | | 1 on the server that runs the background work |
 | `goliash_snapshots_pending` | | snapshots received and not processed yet |

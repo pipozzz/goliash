@@ -802,6 +802,9 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 	}
 	h.serverMetrics(r.Context(), &b, p.Scope)
+	if pos, err := versions.LoadPosture(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
+		postureMetrics(&b, pos)
+	}
 	b.WriteString("# HELP goliash_drift_days How long a drift has been open, in days.\n")
 	b.WriteString("# TYPE goliash_drift_days gauge\n")
 	for _, l := range days {
@@ -809,6 +812,31 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// postureMetrics is the security posture as metrics: what a CISO's dashboard trends and alerts on.
+func postureMetrics(b *strings.Builder, pos versions.Posture) {
+	prod := pos.Prod.Name
+	b.WriteString("# HELP goliash_exposure_median_days Median days production has run behind an available release (known release dates).\n# TYPE goliash_exposure_median_days gauge\n")
+	fmt.Fprintf(b, "goliash_exposure_median_days{environment=%q} %d\n", prod, pos.ProdMedian)
+	b.WriteString("# HELP goliash_exposure_p90_days 90th percentile of days production has run behind an available release.\n# TYPE goliash_exposure_p90_days gauge\n")
+	fmt.Fprintf(b, "goliash_exposure_p90_days{environment=%q} %d\n", prod, pos.ProdP90)
+	b.WriteString("# HELP goliash_exposures Production services behind an available release for at least the given days.\n# TYPE goliash_exposures gauge\n")
+	fmt.Fprintf(b, "goliash_exposures{environment=%q,over_days=\"30\"} %d\n", prod, pos.Prod30)
+	fmt.Fprintf(b, "goliash_exposures{environment=%q,over_days=\"90\"} %d\n", prod, pos.Prod90)
+	b.WriteString("# HELP goliash_end_of_life Production services on a release cycle past or near its end of life.\n# TYPE goliash_end_of_life gauge\n")
+	fmt.Fprintf(b, "goliash_end_of_life{environment=%q,state=\"passed\"} %d\n", prod, pos.EOLPassed)
+	fmt.Fprintf(b, "goliash_end_of_life{environment=%q,state=\"soon\"} %d\n", prod, pos.EOLSoon)
+	b.WriteString("# HELP goliash_accepted_risk Production exposures quieted by an acknowledgement.\n# TYPE goliash_accepted_risk gauge\n")
+	fmt.Fprintf(b, "goliash_accepted_risk{environment=%q} %d\n", prod, pos.Accepted)
+	b.WriteString("# HELP goliash_exposure_days Days a service has run behind an available release.\n# TYPE goliash_exposure_days gauge\n")
+	for _, ex := range pos.Exposures {
+		app := ""
+		if ex.App != "" {
+			app = fmt.Sprintf(",app=%q", ex.App)
+		}
+		fmt.Fprintf(b, "goliash_exposure_days{service=%q,environment=%q%s} %d\n", ex.Service.Name, ex.Environment.Name, app, ex.Days)
+	}
 }
 
 // serverMetrics describes this server and the workspace's work in flight: what to
