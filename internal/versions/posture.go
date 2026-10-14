@@ -164,3 +164,23 @@ func percentile(values []int, p int) int {
 	i := (p*len(s) + 99) / 100
 	return s[max(i-1, 0)]
 }
+
+// ProdExposed counts production exposures not quieted by an acknowledgement.
+func (p Posture) ProdExposed() int {
+	n := 0
+	for _, e := range p.Exposures {
+		if e.Environment.ID == p.Prod.ID && !e.Acked {
+			n++
+		}
+	}
+	return n
+}
+
+// Sample is the posture as a day of its trend.
+func (p Posture) Sample(now time.Time) store.PostureSample {
+	return store.PostureSample{
+		Day: now.UTC().Format(time.DateOnly), Running: p.ProdRunning, Exposed: p.ProdExposed(), Median: p.ProdMedian,
+		P90: p.ProdP90, Behind30: p.Prod30, Behind90: p.Prod90, EOLPassed: p.EOLPassed, EOLSoon: p.EOLSoon,
+		Accepted: p.Accepted,
+	}
+}

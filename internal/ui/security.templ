@@ -51,6 +51,36 @@ templ SecurityPage(v SecurityView) {
 				<small>stale targets, targets without digests, services without a known upstream</small>
 			</div>
 		</div>
+		if len(v.Trend) > 0 {
+			<section class="panel">
+				<div class="panel-head">
+					<h2>{ "Trend in " + v.Prod.Name }</h2>
+					<span class="muted">{ "since " + v.Since + ", recorded daily" }</span>
+				</div>
+				<div class="panel-body trend-grid">
+					for i, t := range v.Trend {
+						{{ line, area := sparkPaths(t.Values, t.Max, 150, 40) }}
+						<div class="spark">
+							<span class="spark-label">{ t.Label }</span>
+							<svg viewBox="0 0 150 40" preserveAspectRatio="none" role="img" aria-label={ t.Label + " since " + v.Since + ": " + trendText(t) }>
+								<defs>
+									<linearGradient id={ "trend-g" + itoa(i) } x1="0" y1="0" x2="0" y2="1">
+										<stop offset="0%" class="st-c0" stop-opacity="0.38"></stop>
+										<stop offset="100%" class="st-c0" stop-opacity="0"></stop>
+									</linearGradient>
+								</defs>
+								<line x1="0" x2="150" y1="39.5" y2="39.5"></line>
+								if area != "" {
+									<path class="spark-area" fill={ "url(#trend-g" + itoa(i) + ")" } d={ area }></path>
+									<path class="spark-line" d={ line } vector-effect="non-scaling-stroke"></path>
+								}
+							</svg>
+							<small class={ templ.KV("trend-better", t.Now < t.Was), templ.KV("trend-worse", t.Now > t.Was) }>{ trendText(t) }</small>
+						</div>
+					}
+				</div>
+			</section>
+		}
 		<section class="panel">
 			<div class="panel-head">
 				<h2>

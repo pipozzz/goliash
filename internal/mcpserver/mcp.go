@@ -257,8 +257,8 @@ func NewServer(c *Client) *mcp.Server {
 		Name: "posture", Annotations: readOnly,
 		Description: "The security posture: how long production has run behind available releases (median, 90th " +
 			"percentile, 30+ and 90+ days), what is past or near its end of life, accepted risk, blind spots (stale " +
-			"targets, services without a known upstream), and every exposure with the version that fixes it. Use it " +
-			"for risk questions and audits.",
+			"targets, services without a known upstream), every exposure with the version that fixes it, and a weekly " +
+			"history of the last 90 days. Use it for risk questions, audits and \"is patching getting faster?\".",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 			All bool `json:"all,omitempty" jsonschema:"every environment, not only production"`

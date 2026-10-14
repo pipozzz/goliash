@@ -160,7 +160,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [production, services_running, median_exposure_days, p90_exposure_days, behind_30_days, behind_90_days, end_of_life_passed, end_of_life_soon, accepted_risk, stale_targets, no_known_upstream, exposures]
+                required: [production, services_running, median_exposure_days, p90_exposure_days, behind_30_days, behind_90_days, end_of_life_passed, end_of_life_soon, accepted_risk, stale_targets, no_known_upstream, exposures, history]
                 properties:
                   production: { type: string, description: "The last environment, where exposure counts most." }
                   services_running: { type: integer }
@@ -173,6 +173,21 @@ paths:
                   accepted_risk: { type: integer, description: "Production exposures quieted by an acknowledgement." }
                   stale_targets: { type: array, items: { type: string } }
                   no_known_upstream: { type: array, items: { type: string }, description: "Services whose exposure cannot be measured." }
+                  history:
+                    type: array
+                    description: "Production's posture once a week over the last 90 days, oldest first: is patching getting faster?"
+                    items:
+                      type: object
+                      required: [day, behind, median_exposure_days, p90_exposure_days, behind_30_days, behind_90_days, end_of_life_passed, accepted_risk]
+                      properties:
+                        day: { type: string, format: date }
+                        behind: { type: integer, description: "Production services behind a newer release, not counting accepted risk." }
+                        median_exposure_days: { type: integer }
+                        p90_exposure_days: { type: integer }
+                        behind_30_days: { type: integer }
+                        behind_90_days: { type: integer }
+                        end_of_life_passed: { type: integer }
+                        accepted_risk: { type: integer }
                   exposures:
                     type: array
                     items:

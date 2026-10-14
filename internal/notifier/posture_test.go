@@ -59,8 +59,22 @@ func TestPostureReport(t *testing.T) {
 			other = r.ID
 		}
 	}
+	// With a reading from a week before, the report says where the numbers were.
+	if err := e.st.RecordPosture(ctx, e.sc, store.PostureSample{Day: "2026-09-28", Exposed: 4, Median: 70, Behind90: 3, EOLPassed: 2}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.n.SendPostureNow(ctx, e.sc, report); err != nil || ciso.count() != 2 {
 		t.Fatalf("send now: %v, sent %d", err, ciso.count())
+	}
+	if !strings.Contains(ciso.last(), "A week ago (2026-09-28): 4 behind, median 70 days, 3 behind 90+, 2 past end of life.") {
+		t.Errorf("no week-ago numbers: %s", ciso.last())
+	}
+	// And the hourly reading records today's.
+	if err := e.n.RecordPostures(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if hist, _ := e.st.PostureHistory(ctx, e.sc, "2026-10-05"); len(hist) != 1 || hist[0].EOLPassed != 1 {
+		t.Errorf("recorded %+v", hist)
 	}
 	if feed, _ := e.st.NotificationFeed(ctx, e.sc, time.Time{}, 10); len(feed) == 0 {
 		t.Error("the report sent now is not under the bell")

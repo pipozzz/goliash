@@ -31,6 +31,61 @@ type SecurityView struct {
 	Vulns    versions.VulnReport
 	NoDigest int // targets reporting no digest at all
 	At       time.Time
+	Trend    []TrendLine // production over the last 90 days; empty until there are two days
+	Since    string      // the first day of the trend
+}
+
+// TrendLine is one number of the posture over time.
+type TrendLine struct {
+	Label    string
+	Values   []int
+	Max      int
+	Now, Was int
+	Days     bool // the number is days, not a count
+}
+
+// trendKept is how far back the Security page draws the posture.
+const trendKept = 90
+
+// postureTrend draws the posture's history: fewer behind, for less long, is better.
+func postureTrend(hist []store.PostureSample) ([]TrendLine, string) {
+	if len(hist) < 2 {
+		return nil, ""
+	}
+	pick := []struct {
+		label string
+		days  bool
+		get   func(store.PostureSample) int
+	}{
+		{"Median exposure", true, func(p store.PostureSample) int { return p.Median }},
+		{"Behind a newer release", false, func(p store.PostureSample) int { return p.Exposed }},
+		{"Behind for 90+ days", false, func(p store.PostureSample) int { return p.Behind90 }},
+		{"Past end of life", false, func(p store.PostureSample) int { return p.EOLPassed }},
+	}
+	out := make([]TrendLine, len(pick))
+	for i, k := range pick {
+		t := TrendLine{Label: k.label, Days: k.days}
+		for _, p := range hist {
+			v := k.get(p)
+			t.Values = append(t.Values, v)
+			t.Max = max(t.Max, v)
+		}
+		t.Now, t.Was = t.Values[len(t.Values)-1], t.Values[0]
+		out[i] = t
+	}
+	return out, hist[0].Day
+}
+
+// trendText says where a number went: "43 days, was 51".
+func trendText(t TrendLine) string {
+	now, was := itoa(t.Now), itoa(t.Was)
+	if t.Days {
+		now, was = days(t.Now), days(t.Was)
+	}
+	if t.Now == t.Was {
+		return now + ", unchanged"
+	}
+	return now + ", was " + was
 }
 
 func (s *Server) loadPosture(r *http.Request, p auth.Principal) (versions.Posture, map[string]int, error) {
@@ -68,6 +123,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	}
 	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
 		return err
+	}
+	if hist, err := s.store.PostureHistory(r.Context(), p.Scope, time.Now().AddDate(0, 0, -trendKept).UTC().Format(time.DateOnly)); err == nil {
+		v.Trend, v.Since = postureTrend(hist)
 	}
 	if hints, err := s.digestHints(r.Context(), p.Scope); err == nil {
 		v.DigestOK, v.NoDigest = len(hints) == 0, len(hints)

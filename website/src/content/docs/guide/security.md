@@ -92,6 +92,15 @@ advisories are still being looked up it says so, and does not answer "not runnin
 Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
 lookups at a mirror, or turns them off (`off`).
 
+## Trend
+
+Goliash records production's posture every hour (the day's last reading stays) and keeps a little over a year of
+it. Under the tiles, **Trend** draws the last 90 days of the median exposure, how many services run behind a newer
+release, how many for 90+ days and how many past end of life, each with where it started: green when it went down.
+The [weekly report](../notifications/#security-posture-report) adds the numbers from a week before, and
+`GET /api/v1/posture` returns them once a week as `history`, so [Goli](../goli/) can answer "is patching getting
+faster?".
+
 ## How exposure is counted
 
 Exposure starts when the first release newer than the running one was **published** (GitHub or GitLab release

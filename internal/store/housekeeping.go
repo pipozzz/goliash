@@ -52,6 +52,7 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 		{&r.LoginTokens, `DELETE FROM signin_failures WHERE at < ?`, []any{now.Add(-24 * time.Hour)}},
 		{&r.LoginTokens, `DELETE FROM setup_tokens WHERE expires_at < ?`, []any{now.Add(-24 * time.Hour)}},
 		{&r.History, `DELETE FROM instance_history WHERE until < ?`, []any{now.Add(-historyKept)}},
+		{&r.History, `DELETE FROM posture_history WHERE day < ?`, []any{now.Add(-postureKept).UTC().Format(time.DateOnly)}},
 	}
 	for _, step := range steps {
 		res, err := s.exec(ctx, s.db, step.query, step.args...)

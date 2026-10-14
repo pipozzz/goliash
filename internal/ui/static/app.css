@@ -439,6 +439,10 @@ details.advanced[open] > summary { margin-bottom: 10px; }
 .spark line { stroke: var(--line); }
 .spark .spark-line { fill: none; stroke: var(--c0); stroke-width: 1.8; stroke-linejoin: round; }
 .spark .spark-hit { fill: transparent; }
+.trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+.trend-grid small { font-size: 12px; color: var(--muted); }
+.trend-grid .trend-better { color: var(--ok); }
+.trend-grid .trend-worse { color: var(--bad); }
 .spark .spark-hit:hover { fill: var(--c0); opacity: 0.12; }
 .badge.env-tag { background: var(--accent-soft); color: var(--accent); }
 .legend-dots { display: inline-flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }

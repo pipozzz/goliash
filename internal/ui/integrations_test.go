@@ -129,6 +129,23 @@ func TestSecurityPage(t *testing.T) {
 			t.Errorf("security page misses %q", want)
 		}
 	}
+	if strings.Contains(page, "Trend in") {
+		t.Error("a trend without history")
+	}
+	// Two days recorded: the trend shows where the numbers went.
+	today := time.Now().UTC()
+	for i, p := range []store.PostureSample{{Median: 60, Exposed: 9}, {Median: 40, Exposed: 11}} {
+		p.Day = today.AddDate(0, 0, i-1).Format(time.DateOnly)
+		if err := e.st.RecordPosture(t.Context(), e.ws.Scope(), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, page = get(t, viewer, e.srv.URL+"/security", nil)
+	for _, want := range []string{"Trend in", `class="trend-better">40 days, was 60 days`, `class="trend-worse">11, was 9`, "Behind for 90+ days"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("trend misses %q", want)
+		}
+	}
 	code, body := get(t, viewer, e.srv.URL+"/security.csv", nil)
 	if code != 200 || !strings.HasPrefix(body, "service,application,environment,targets,running,fix,behind_since,days_exposed,date_known") {
 		t.Errorf("csv %d: %.120s", code, body)

@@ -50,6 +50,30 @@ func (n *Notifier) reportPosture(ctx context.Context, sc store.Scope, rules []st
 	return nil
 }
 
+// RecordPostures stores today's posture of every workspace, for its trend.
+func (n *Notifier) RecordPostures(ctx context.Context) error {
+	wss, err := n.store.ListWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	now := n.now()
+	for _, ws := range wss {
+		sc := ws.Scope()
+		o, err := versions.LoadOverview(ctx, n.store, sc)
+		if err != nil {
+			return err
+		}
+		pos, err := versions.LoadPosture(ctx, n.store, sc, o, now)
+		if err != nil {
+			return err
+		}
+		if err := n.store.RecordPosture(ctx, sc, pos.Sample(now)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SendPostureNow sends a rule's posture report at once, to check the channel without waiting.
 func (n *Notifier) SendPostureNow(ctx context.Context, sc store.Scope, ruleID string) error {
 	targets, err := n.ruleTargets(ctx, sc)
@@ -79,12 +103,28 @@ func (n *Notifier) postureItem(ctx context.Context, sc store.Scope, now time.Tim
 	if err != nil {
 		return Item{}, err
 	}
-	return PostureItem(pos, now), nil
+	return PostureItem(pos, n.weekAgo(ctx, sc, now), now), nil
 }
 
-// PostureItem is the posture as a notification item: the numbers a security officer follows week to week, and
-// the longest production exposures.
-func PostureItem(pos versions.Posture, now time.Time) Item {
+// weekAgo is the posture a week before now, or nil when there is no reading from 7 to 14 days back.
+func (n *Notifier) weekAgo(ctx context.Context, sc store.Scope, now time.Time) *store.PostureSample {
+	hist, err := n.store.PostureHistory(ctx, sc, now.AddDate(0, 0, -14).UTC().Format(time.DateOnly))
+	if err != nil {
+		return nil
+	}
+	cutoff := now.AddDate(0, 0, -7).UTC().Format(time.DateOnly)
+	var prev *store.PostureSample
+	for i := range hist {
+		if hist[i].Day <= cutoff {
+			prev = &hist[i]
+		}
+	}
+	return prev
+}
+
+// PostureItem is the posture as a notification item: the numbers a security officer follows week to week, the
+// longest production exposures, and the same numbers a week ago when known.
+func PostureItem(pos versions.Posture, prev *store.PostureSample, now time.Time) Item {
 	prod := pos.Prod.Name
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s runs %s", orDash(prod), plural(pos.ProdRunning, "service", "services"))
@@ -123,6 +163,10 @@ func PostureItem(pos versions.Posture, now time.Time) Item {
 	}
 	if len(worst) > 0 {
 		b.WriteString(" Longest: " + strings.Join(worst, "; ") + ".")
+	}
+	if prev != nil {
+		fmt.Fprintf(&b, " A week ago (%s): %d behind, median %d days, %d behind 90+, %d past end of life.",
+			prev.Day, prev.Exposed, prev.Median, prev.Behind90, prev.EOLPassed)
 	}
 	// No environment on the item: the text names production, and channels show it whole.
 	return Item{Type: "posture", At: now, Text: b.String()}

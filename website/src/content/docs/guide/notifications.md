@@ -190,7 +190,7 @@ A rule with the event type `posture_report` (*security posture report* in the fo
 [Security page](/guide/security/) as one message at the same times as the plan: daily, or on Mondays. It is the
 weekly line a security officer follows: how many production services run behind a newer release, the median and
 90th percentile of days behind, how many are 30+ and 90+ days behind, end of life passed and near, accepted risk,
-blind spots, and the three longest exposures. It links to the Security page and, with Goli on, offers **Ask Goli**.
+blind spots, the three longest exposures, and the same numbers a week before. It links to the Security page and, with Goli on, offers **Ask Goli**.
 
 ```sh
 goliash notify create -channel ciso -events posture_report -mode weekly

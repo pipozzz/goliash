@@ -465,12 +465,18 @@ func dueAt(mode string, f Filter, now time.Time) time.Time {
 func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	var planned time.Time
+	var planned, recorded time.Time
 	for {
 		if time.Since(planned) >= 5*time.Minute {
 			planned = time.Now()
 			if err := n.PlanUpdates(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("queueing upgrade plans failed", "err", err)
+			}
+		}
+		if time.Since(recorded) >= time.Hour {
+			recorded = time.Now()
+			if err := n.RecordPostures(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("recording the security posture failed", "err", err)
 			}
 		}
 		if err := n.DeliverDue(ctx); err != nil && ctx.Err() == nil {

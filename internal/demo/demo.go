@@ -284,7 +284,40 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	if err := seedEvidence(ctx, st, sc); err != nil {
 		return err
 	}
-	return backdateDrift(ctx, st, sc)
+	if err := backdateDrift(ctx, st, sc); err != nil {
+		return err
+	}
+	return seedPostureHistory(ctx, st, sc)
+}
+
+// seedPostureHistory gives the Security page two months of trend ending at today's real posture: a team that
+// patched faster week by week, which is the story the trend is for.
+func seedPostureHistory(ctx context.Context, st *store.Store, sc store.Scope) error {
+	o, err := versions.LoadOverview(ctx, st, sc)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	pos, err := versions.LoadPosture(ctx, st, sc, o, now)
+	if err != nil {
+		return err
+	}
+	today := pos.Sample(now)
+	for back := 60; back >= 0; back-- {
+		d := today
+		d.Day = now.AddDate(0, 0, -back).UTC().Format(time.DateOnly)
+		worse := func(v, per int) int { return v + back/per }
+		d.Median = today.Median + today.Median*back/90 + back/4
+		d.P90 = today.P90 + today.P90*back/60 + back/2
+		d.Exposed, d.Behind30, d.Behind90 = worse(today.Exposed, 12), worse(today.Behind30, 10), worse(today.Behind90, 15)
+		if back > 35 {
+			d.EOLPassed = today.EOLPassed + 1
+		}
+		if err := st.RecordPosture(ctx, sc, d); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // seedEvidence records what the registries would hold beside the demo's images: the team's own images

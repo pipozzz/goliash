@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -644,6 +645,37 @@ func (h *PublicHandler) notificationsSent(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, out)
 }
 
+// apiReading is production's posture on one day of its trend.
+type apiReading struct {
+	Day       string `json:"day"`
+	Behind    int    `json:"behind"`
+	Median    int    `json:"median_exposure_days"`
+	P90       int    `json:"p90_exposure_days"`
+	Behind30  int    `json:"behind_30_days"`
+	Behind90  int    `json:"behind_90_days"`
+	EOLPassed int    `json:"end_of_life_passed"`
+	Accepted  int    `json:"accepted_risk"`
+}
+
+// weekly keeps one reading a week, counted back from the newest, oldest first: the trend without the daily noise.
+func weekly(hist []store.PostureSample) []store.PostureSample {
+	var out []store.PostureSample
+	next := ""
+	for i := len(hist) - 1; i >= 0; i-- {
+		if next != "" && hist[i].Day > next {
+			continue
+		}
+		out = append(out, hist[i])
+		day, err := time.Parse(time.DateOnly, hist[i].Day)
+		if err != nil {
+			break
+		}
+		next = day.AddDate(0, 0, -7).Format(time.DateOnly)
+	}
+	slices.Reverse(out)
+	return out
+}
+
 // posture is the security posture: how long production has run behind available releases, end of life, accepted
 // risk and blind spots, with every exposure (production only, or every environment with ?all=true).
 func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.Principal) {
@@ -685,10 +717,23 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Stale      []string      `json:"stale_targets"`
 		NoUpstream []string      `json:"no_known_upstream"`
 		Exposures  []apiExposure `json:"exposures"`
+		History    []apiReading  `json:"history"`
 	}{
 		Production: pos.Prod.Name, Running: pos.ProdRunning, Median: pos.ProdMedian, P90: pos.ProdP90,
 		Behind30: pos.Prod30, Behind90: pos.Prod90, EOLPassed: pos.EOLPassed, EOLSoon: pos.EOLSoon, Accepted: pos.Accepted,
 		Stale: append([]string{}, pos.Stale...), NoUpstream: append([]string{}, pos.NoUpstream...), Exposures: []apiExposure{},
+		History: []apiReading{},
+	}
+	hist, err := h.store.PostureHistory(ctx, p.Scope, time.Now().AddDate(0, 0, -91).UTC().Format(time.DateOnly))
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	for _, s := range weekly(hist) {
+		out.History = append(out.History, apiReading{
+			Day: s.Day, Behind: s.Exposed, Median: s.Median, P90: s.P90,
+			Behind30: s.Behind30, Behind90: s.Behind90, EOLPassed: s.EOLPassed, Accepted: s.Accepted,
+		})
 	}
 	all := r.URL.Query().Get("all") == "true"
 	for _, ex := range pos.Exposures {
