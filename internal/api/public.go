@@ -64,6 +64,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/vulnerabilities", h.with(store.RoleViewer, h.vulnerabilities))
 	mux.Handle("GET /api/v1/status", h.with(store.RoleViewer, h.status))
 	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
+	mux.Handle("GET /api/v1/posture", h.with(store.RoleViewer, h.posture))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
@@ -599,6 +600,66 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 		})
 	}
 	cw.Flush()
+}
+
+// posture is the security posture: how long production has run behind available releases, end of life, accepted
+// risk and blind spots, with every exposure (production only, or every environment with ?all=true).
+func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	pos, err := versions.LoadPosture(ctx, h.store, p.Scope, o, time.Now())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiExposure struct {
+		Service      string    `json:"service"`
+		App          string    `json:"app,omitempty"`
+		Environment  string    `json:"environment"`
+		Running      string    `json:"running"`
+		Fix          string    `json:"fix,omitempty"`
+		ReleaseNotes string    `json:"release_notes,omitempty"`
+		Days         int       `json:"exposed_days"`
+		Since        time.Time `json:"since"`
+		SinceKnown   bool      `json:"since_known"` // false: when Goliash first saw the release, a lower bound
+		Why          string    `json:"why"`
+		EOL          string    `json:"end_of_life,omitempty"`
+		Accepted     bool      `json:"accepted"`
+	}
+	out := struct {
+		Production string        `json:"production"`
+		Running    int           `json:"services_running"`
+		Median     int           `json:"median_exposure_days"`
+		P90        int           `json:"p90_exposure_days"`
+		Behind30   int           `json:"behind_30_days"`
+		Behind90   int           `json:"behind_90_days"`
+		EOLPassed  int           `json:"end_of_life_passed"`
+		EOLSoon    int           `json:"end_of_life_soon"`
+		Accepted   int           `json:"accepted_risk"`
+		Stale      []string      `json:"stale_targets"`
+		NoUpstream []string      `json:"no_known_upstream"`
+		Exposures  []apiExposure `json:"exposures"`
+	}{
+		Production: pos.Prod.Name, Running: pos.ProdRunning, Median: pos.ProdMedian, P90: pos.ProdP90,
+		Behind30: pos.Prod30, Behind90: pos.Prod90, EOLPassed: pos.EOLPassed, EOLSoon: pos.EOLSoon, Accepted: pos.Accepted,
+		Stale: append([]string{}, pos.Stale...), NoUpstream: append([]string{}, pos.NoUpstream...), Exposures: []apiExposure{},
+	}
+	all := r.URL.Query().Get("all") == "true"
+	for _, ex := range pos.Exposures {
+		if !all && ex.Environment.ID != pos.Prod.ID {
+			continue
+		}
+		out.Exposures = append(out.Exposures, apiExposure{
+			Service: ex.Service.Name, App: ex.App, Environment: ex.Environment.Name, Running: ex.Running, Fix: ex.Target,
+			ReleaseNotes: ex.TargetURL, Days: ex.Days, Since: ex.BehindSince, SinceKnown: ex.Known,
+			Why: versions.UrgencyLabels[ex.Urgency], EOL: ex.EOL, Accepted: ex.Acked,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.Principal) {

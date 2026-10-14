@@ -101,6 +101,57 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/posture:
+    get:
+      operationId: getPosture
+      summary: The security posture
+      description: >-
+        How long production has run behind available releases, what is past or near its end of life, accepted risk
+        and blind spots, with every exposure and the version that fixes it: the Security page as data, for risk
+        registers, GRC tools and AI assistants.
+      parameters:
+        - { name: all, in: query, description: "true: exposures in every environment, not only production", schema: { type: boolean } }
+      responses:
+        "200":
+          description: The posture.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [production, services_running, median_exposure_days, p90_exposure_days, behind_30_days, behind_90_days, end_of_life_passed, end_of_life_soon, accepted_risk, stale_targets, no_known_upstream, exposures]
+                properties:
+                  production: { type: string, description: "The last environment, where exposure counts most." }
+                  services_running: { type: integer }
+                  median_exposure_days: { type: integer, description: "Over production exposures whose release dates are known." }
+                  p90_exposure_days: { type: integer }
+                  behind_30_days: { type: integer }
+                  behind_90_days: { type: integer }
+                  end_of_life_passed: { type: integer }
+                  end_of_life_soon: { type: integer }
+                  accepted_risk: { type: integer, description: "Production exposures quieted by an acknowledgement." }
+                  stale_targets: { type: array, items: { type: string } }
+                  no_known_upstream: { type: array, items: { type: string }, description: "Services whose exposure cannot be measured." }
+                  exposures:
+                    type: array
+                    items:
+                      type: object
+                      required: [service, environment, running, exposed_days, since, since_known, why, accepted]
+                      properties:
+                        service: { type: string }
+                        app: { type: string }
+                        environment: { type: string }
+                        running: { type: string }
+                        fix: { type: string, description: "The version to move to." }
+                        release_notes: { type: string }
+                        exposed_days: { type: integer }
+                        since: { type: string, format: date-time }
+                        since_known: { type: boolean, description: "false: counted from when Goliash first saw the newer release, a lower bound." }
+                        why: { type: string }
+                        end_of_life: { type: string }
+                        accepted: { type: boolean }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/environments:
     get:
       operationId: listEnvironments

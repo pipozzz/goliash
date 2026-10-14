@@ -253,6 +253,25 @@ func NewServer(c *Client) *mcp.Server {
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name: "posture", Annotations: readOnly,
+		Description: "The security posture: how long production has run behind available releases (median, 90th " +
+			"percentile, 30+ and 90+ days), what is past or near its end of life, accepted risk, blind spots (stale " +
+			"targets, services without a known upstream), and every exposure with the version that fixes it. Use it " +
+			"for risk questions and audits.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+			All bool `json:"all,omitempty" jsonschema:"every environment, not only production"`
+		},
+		) (*mcp.CallToolResult, Result, error) {
+			q := url.Values{}
+			if in.All {
+				q.Set("all", "true")
+			}
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/posture", q, nil)
+			return nil, Result{Data: data}, err
+		})
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name: "changes", Annotations: readOnly,
 		Description: "What changed recently, newest first: deploys, version changes, removals, new releases and drift. " +
 			"Use it when something broke: \"what changed in prod in the last 2 hours?\"",
