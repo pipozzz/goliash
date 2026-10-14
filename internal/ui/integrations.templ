@@ -69,7 +69,7 @@ templ IntegrationsPage(v IntegrationsView) {
 				</div>
 			</details>
 			<details class="panel integration" id="widgets" open?={ v.Tool == "widget" }>
-				<summary class="panel-head"><h2>Widgets</h2><span class="muted">the numbers on an iPhone or the Windows 11 Widgets board</span></summary>
+				<summary class="panel-head"><h2>Widgets</h2><span class="muted">the numbers on an iPhone, the Mac menu bar or the Windows 11 Widgets board</span></summary>
 				<div class="panel-body stack">
 					<div>
 						<h3>iPhone and iPad</h3>
@@ -86,6 +86,18 @@ templ IntegrationsPage(v IntegrationsView) {
 						<details class="script">
 							<summary>What it runs</summary>
 							<pre class="mono install-cmd" id="cfg-widget">{ scriptableWidget(v.ServerURL, tokenFor(v, "widget")) }</pre>
+						</details>
+					</div>
+					<div>
+						<h3>Mac menu bar</h3>
+						<p class="hint">A plugin for <a href="https://swiftbar.app" target="_blank" rel="noopener noreferrer">SwiftBar</a> or <a href="https://xbarapp.com" target="_blank" rel="noopener noreferrer">xbar</a> (both free): Goliash and a count in the menu bar, red for exploited vulnerabilities or end of life, amber for drift, with the numbers and links in its menu. Download it into the plugin folder and run <code>chmod +x goliash.15m.sh</code>; it uses the same token.</p>
+						<div class="actions">
+							<button type="button" data-download="cfg-menubar" data-filename="goliash.15m.sh">Download goliash.15m.sh</button>
+							<button type="button" class="secondary" data-copy="cfg-menubar">Copy</button>
+						</div>
+						<details class="script">
+							<summary>What it runs</summary>
+							<pre class="mono install-cmd" id="cfg-menubar">{ menuBarPlugin(v.ServerURL, tokenFor(v, "widget")) }</pre>
 						</details>
 					</div>
 					<div>
