@@ -121,6 +121,10 @@ func TestTools(t *testing.T) {
 	if q := f.queries["/api/v1/events"]; !strings.Contains(q, "since=2h") || !strings.Contains(q, "environment=prod") {
 		t.Fatalf("changes query %q", q)
 	}
+	call(t, cs, "changes", map[string]any{"since": "2026-10-02T07:00:00Z", "before": "2026-10-02T09:00:00Z"})
+	if q := f.queries["/api/v1/events"]; !strings.Contains(q, "before=2026-10-02T09%3A00%3A00Z") || !strings.Contains(q, "since=2026-10-02T07%3A00%3A00Z") {
+		t.Fatalf("changes window query %q", q)
+	}
 	if _, isErr := call(t, cs, "service", map[string]any{"name": "missing"}); !isErr {
 		t.Fatal("unknown service is not an error")
 	}

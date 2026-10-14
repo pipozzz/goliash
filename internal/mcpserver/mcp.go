@@ -92,7 +92,8 @@ type (
 		Urgency     string `json:"urgency,omitempty" jsonschema:"only this urgency: end of life, end of life soon, major, minor, behind previous env or patch"`
 	}
 	changesIn struct {
-		Since       string `json:"since,omitempty" jsonschema:"how far back, e.g. 2h, 30m or 7d; default 24h"`
+		Since       string `json:"since,omitempty" jsonschema:"how far back, e.g. 2h, 30m or 7d, or from a time (RFC 3339, e.g. 2026-10-02T07:00:00Z); default 24h"`
+		Before      string `json:"before,omitempty" jsonschema:"only changes before this time (RFC 3339): with since, a window in the past, e.g. the hour around an incident"`
 		Environment string `json:"environment,omitempty"`
 		Service     string `json:"service,omitempty"`
 	}
@@ -254,13 +255,17 @@ func NewServer(c *Client) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "changes", Annotations: readOnly,
-		Description: "What changed recently, newest first: deploys, version changes, removals, new releases and drift. " +
-			"Use it when something broke: \"what changed in prod in the last 2 hours?\"",
+		Description: "What changed, newest first: deploys, version changes, removals, new releases and drift. " +
+			"Use it when something broke: \"what changed in prod in the last 2 hours?\"; for a moment in the past, " +
+			"give since and before as times around it.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in changesIn) (*mcp.CallToolResult, Result, error) {
 			q := url.Values{"since": {"24h"}, "limit": {"200"}}
 			if in.Since != "" {
 				q.Set("since", in.Since)
+			}
+			if in.Before != "" {
+				q.Set("before", in.Before)
 			}
 			if in.Environment != "" {
 				q.Set("environment", in.Environment)
