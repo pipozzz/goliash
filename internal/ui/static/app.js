@@ -1108,6 +1108,28 @@
     return "just now";
   }
 
+  // The page loader: only for navigations and forms (boosted requests), and only when they take a moment, so a
+  // fast page does not flash it; live refreshes never show it.
+  let loaderTimer = null;
+  function loaderOn() {
+    if (loaderTimer) return;
+    loaderTimer = setTimeout(function () {
+      const l = document.querySelector("[data-loader]");
+      if (l) l.classList.add("on");
+    }, 250);
+  }
+  function loaderOff() {
+    clearTimeout(loaderTimer);
+    loaderTimer = null;
+    const l = document.querySelector("[data-loader]");
+    if (l) l.classList.remove("on");
+  }
+  document.addEventListener("htmx:beforeRequest", function (e) { if (e.detail.boosted) loaderOn(); });
+  ["htmx:afterSettle", "htmx:responseError", "htmx:sendError", "htmx:timeout", "htmx:afterRequest"].forEach(function (ev) {
+    document.addEventListener(ev, function (e) { if (ev === "htmx:afterSettle" || e.detail.boosted || !e.detail.successful) loaderOff(); });
+  });
+  window.addEventListener("pageshow", loaderOff);
+
   document.addEventListener("htmx:beforeRequest", function (e) {
     // The live refresh shows now; while the timeline shows the past it waits.
     const elt = e.detail.elt;
