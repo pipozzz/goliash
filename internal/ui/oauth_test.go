@@ -140,6 +140,27 @@ func TestOAuthForMCP(t *testing.T) {
 		t.Errorf("not signed in: %d %s %s", resp.StatusCode, resp.Header.Get("Location"), resp.Header.Get("Set-Cookie"))
 	}
 
+	// Only a page someone opens is remembered: not the live stream reconnecting, nor htmx's partial requests.
+	for _, h := range []map[string]string{{"Sec-Fetch-Dest": "empty"}, {"HX-Request": "true"}} {
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, e.srv.URL+"/updates", nil)
+		for k, v := range h {
+			req.Header.Set(k, v)
+		}
+		if resp, err := noFollow.Do(req); err == nil {
+			_ = resp.Body.Close()
+			if strings.Contains(resp.Header.Get("Set-Cookie"), "goliash_next=") {
+				t.Errorf("remembered a request with %v", h)
+			}
+		}
+	}
+	sreq, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, e.srv.URL+"/ui/stream", nil)
+	if resp, err := noFollow.Do(sreq); err == nil {
+		_ = resp.Body.Close()
+		if strings.Contains(resp.Header.Get("Set-Cookie"), "goliash_next=") {
+			t.Error("remembered the live stream")
+		}
+	}
+
 	// An admin allows it: the app gets a code, its state and the issuer back. The consent page lets its form
 	// redirect to the app's registered address, and only there.
 	browser := e.as(store.RoleAdmin)

@@ -1115,15 +1115,29 @@
     if (loaderTimer) return;
     loaderTimer = setTimeout(function () {
       const l = document.querySelector("[data-loader]");
-      if (l) l.classList.add("on");
+      if (!l) return;
+      l.hidden = false;
+      requestAnimationFrame(function () { l.classList.add("on"); });
     }, 250);
   }
   function loaderOff() {
     clearTimeout(loaderTimer);
     loaderTimer = null;
     const l = document.querySelector("[data-loader]");
-    if (l) l.classList.remove("on");
+    if (l) { l.classList.remove("on"); l.hidden = true; }
   }
+
+  // A boosted navigation swaps the body and keeps the head: after an upgrade, the new page would run on the old
+  // stylesheet and script. When the page's assets changed, load it whole instead.
+  document.addEventListener("htmx:beforeSwap", function (e) {
+    if (!e.detail.boosted || !e.detail.xhr) return;
+    const cur = document.querySelector('link[rel="stylesheet"][href*="app.css"]');
+    const next = /href="([^"]*app\.css\?v=[^"]*)"/.exec(e.detail.xhr.responseText || "");
+    if (cur && next && next[1] !== cur.getAttribute("href")) {
+      e.detail.shouldSwap = false;
+      location.assign(e.detail.xhr.responseURL || location.href);
+    }
+  });
   document.addEventListener("htmx:beforeRequest", function (e) { if (e.detail.boosted) loaderOn(); });
   ["htmx:afterSettle", "htmx:responseError", "htmx:sendError", "htmx:timeout", "htmx:afterRequest"].forEach(function (ev) {
     document.addEventListener(ev, function (e) { if (ev === "htmx:afterSettle" || e.detail.boosted || !e.detail.successful) loaderOff(); });

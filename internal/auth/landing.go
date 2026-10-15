@@ -35,7 +35,8 @@ func (a *Auth) landing(w http.ResponseWriter, r *http.Request) string {
 		Name: landingCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.publicURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode,
 	})
-	if !localPath(c.Value) {
+	// Not the UI's own endpoints (the live stream, partials): earlier releases could remember those.
+	if !localPath(c.Value) || strings.HasPrefix(c.Value, "/ui/") {
 		return "/"
 	}
 	return c.Value

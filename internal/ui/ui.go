@@ -310,7 +310,7 @@ func (s *Server) page(role string, h handler) http.Handler {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			if r.Method == http.MethodGet {
+			if pageOpened(r) {
 				s.auth.RememberLanding(w, r)
 			}
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -2487,6 +2487,17 @@ func DemoGuard(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// pageOpened reports whether a request opens a page in the browser, worth coming back to after signing in: not
+// htmx's partial requests, the live stream reconnecting or a fetch (the browser says so in Sec-Fetch-Dest), and
+// none of the UI's own endpoints under /ui/.
+func pageOpened(r *http.Request) bool {
+	if r.Method != http.MethodGet || r.Header.Get("HX-Request") != "" || strings.HasPrefix(r.URL.Path, "/ui/") {
+		return false
+	}
+	dest := r.Header.Get("Sec-Fetch-Dest")
+	return dest == "" || dest == "document"
 }
 
 // demoWritable are the requests a public demo accepts besides reading: switching workspaces, what agents

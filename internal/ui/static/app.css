@@ -1156,6 +1156,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 /* The page loader: the logo's tiles light up in a diagonal wave while a page loads. */
 .page-loader { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .18s ease, visibility 0s linear .18s; }
 .page-loader.on { opacity: 1; visibility: visible; transition: opacity .18s ease; }
+.page-loader[hidden] { display: none; }
 .page-loader-card { padding: 16px; border-radius: 26px; background: color-mix(in srgb, var(--surface) 82%, transparent); box-shadow: 0 18px 50px rgb(10 14 30 / .22); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .page-loader-card svg { display: block; }
 .page-loader g rect { transform-box: fill-box; transform-origin: center; animation: glsh-wave 1.15s ease-in-out infinite; }
