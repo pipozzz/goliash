@@ -101,7 +101,7 @@ templ SecurityPage(v SecurityView) {
 			if len(v.Exposures) == 0 {
 				<div class="empty">Nothing runs behind a newer release{ " " }{ "in " + v.Prod.Name }.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Running</th><th>Fix</th><th>Exposed</th><th>Why</th></tr></thead>
 						<tbody>
@@ -168,7 +168,7 @@ templ SecurityPage(v SecurityView) {
 		if len(v.Bases) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Built on an unsupported base</h2><span class="muted">rebuild on a newer base image</span></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Base image</th><th>End of life</th></tr></thead>
 						<tbody>
@@ -244,7 +244,7 @@ templ SecurityPage(v SecurityView) {
 				if len(v.Evidence.Unsigned) > 0 {
 					<details class="unsigned">
 						<summary>{ plural(len(v.Evidence.Unsigned), "unsigned image", "unsigned images") }</summary>
-						<div class="scroll">
+						<div class="scroll" tabindex="0">
 							<table>
 								<thead><tr><th>Image</th><th>Found</th></tr></thead>
 								<tbody>
@@ -270,7 +270,7 @@ templ SecurityPage(v SecurityView) {
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Supply chain</h2><span class="muted">what runs, as images</span></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<tbody>
 							@postureRow("Moving tags", "latest, stable: the version cannot be known", v.Hygiene["moving-tag"], "/hygiene?kind=moving-tag", true)

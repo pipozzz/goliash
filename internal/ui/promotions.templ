@@ -29,7 +29,7 @@ templ PromotionsPage(v PromotionsView) {
 			if len(v.Promotions) == 0 {
 				<div class="empty">Nothing waits: every environment runs what the one before it runs.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Promote</th><th>Waiting</th><th>Releases it brings</th></tr></thead>
 						<tbody>
@@ -77,7 +77,7 @@ templ PromotionsPage(v PromotionsView) {
 			if len(v.Delivery) == 0 {
 				<div class="empty">No services yet.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead>
 							<tr>

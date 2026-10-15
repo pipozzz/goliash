@@ -267,7 +267,7 @@ func AccountPage(v AccountView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(v.Apps) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<section class=\"panel\" id=\"apps\"><div class=\"panel-head\"><h2>Apps with access</h2><span class=\"muted\">AI assistants you let read Goliash as you, read only</span></div><div class=\"scroll\"><table><thead><tr><th>App</th><th>Workspace</th><th>Allowed</th><th>Last used</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<section class=\"panel\" id=\"apps\"><div class=\"panel-head\"><h2>Apps with access</h2><span class=\"muted\">AI assistants you let read Goliash as you, read only</span></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>App</th><th>Workspace</th><th>Allowed</th><th>Last used</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -367,7 +367,7 @@ func AccountPage(v AccountView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</div><div class=\"scroll\"><table><thead><tr><th>Device</th><th>Address</th><th>Signed in</th><th>With</th><th>Last active</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Device</th><th>Address</th><th>Signed in</th><th>With</th><th>Last active</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

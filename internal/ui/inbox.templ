@@ -33,7 +33,7 @@ templ InboxPage(v InboxView) {
 						<option value={ s }></option>
 					}
 				</datalist>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Image</th><th>Workloads</th><th>Service</th></tr></thead>
 						<tbody>
@@ -86,7 +86,7 @@ templ InboxPage(v InboxView) {
 			if len(v.Rules) == 0 {
 				<div class="empty">No rules yet. Mapping or ignoring an image above creates one.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead>
 							<tr>

@@ -181,7 +181,7 @@ func HygienePage(v HygieneView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(v.DigestHints) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<section class=\"panel\"><div class=\"panel-head\"><h2>Why digests are unknown</h2><span class=\"muted\">these targets report none at all</span></div><div class=\"scroll\"><table><thead><tr><th>Target</th><th>Images</th><th>What to do</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<section class=\"panel\"><div class=\"panel-head\"><h2>Why digests are unknown</h2><span class=\"muted\">these targets report none at all</span></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Target</th><th>Images</th><th>What to do</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -263,7 +263,7 @@ func HygienePage(v HygieneView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<div class=\"scroll\"><table><thead><tr><th>Image</th><th>Problem</th><th>Where</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Image</th><th>Problem</th><th>Where</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

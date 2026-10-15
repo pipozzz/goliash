@@ -29,7 +29,7 @@ templ NotificationsPage(v NotificationsView) {
 						<p>A channel is where notifications go: Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana annotations, a webhook, e-mail, browsers (web push) or only the bell in Goliash.</p>
 					</div>
 				} else {
-					<div class="scroll">
+					<div class="scroll" tabindex="0">
 						<table>
 							<thead><tr><th>Name</th><th>Type</th><th>Where</th><th><span class="sr-only">Actions</span></th></tr></thead>
 							<tbody>
@@ -127,7 +127,7 @@ templ NotificationsPage(v NotificationsView) {
 						}
 					</div>
 				} else {
-					<div class="scroll">
+					<div class="scroll" tabindex="0">
 						<table>
 							<thead>
 								<tr>
@@ -223,7 +223,7 @@ templ SettingsPage(v SettingsView) {
 		}
 		<section class="panel">
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
-			<div class="scroll">
+			<div class="scroll" tabindex="0">
 				<table>
 					<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th><span class="sr-only">Actions</span></th></tr></thead>
 					<tbody>
@@ -361,7 +361,7 @@ templ SettingsPage(v SettingsView) {
 		<section class="panel">
 			<div class="panel-head"><h2>API tokens</h2><span class="muted">{ "for " + v.Workspace }</span></div>
 			if len(v.Tokens) > 0 {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th>Expires</th><th><span class="sr-only">Actions</span></th></tr></thead>
 						<tbody>
@@ -425,7 +425,7 @@ templ SettingsPage(v SettingsView) {
 			if len(v.Apps) == 0 {
 				<div class="empty">No app reads this workspace. People connect Claude, Cursor or the CLI with <code>/mcp</code> or <code>goliash login</code>, and allow it on a consent page.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table class="cards">
 						<thead><tr><th>App</th><th>Person</th><th>Allowed</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
 						<tbody>
@@ -458,7 +458,7 @@ templ SettingsPage(v SettingsView) {
 			if len(v.Audit) == 0 {
 				<div class="empty">Nothing recorded yet.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
 						<tbody>
@@ -619,7 +619,7 @@ templ registriesPanel(v SettingsView) {
 			}
 		</div>
 		if len(v.Registries) > 0 {
-			<div class="scroll">
+			<div class="scroll" tabindex="0">
 				<table class="cards">
 					<thead><tr><th>Registry</th><th>Username</th><th>Status</th><th>Added</th><th><span class="sr-only">Actions</span></th></tr></thead>
 					<tbody>
@@ -676,7 +676,7 @@ templ registriesPanel(v SettingsView) {
 
 // deliveriesTable lists notifications with how their delivery went, and a retry where it helps.
 templ deliveriesTable(ds []DeliveryView, canRetry bool, ret string) {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table class="deliveries">
 						<thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
 						<tbody>

@@ -335,7 +335,7 @@ func UpdatesPage(v UpdatesView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div class=\"scroll\"><table class=\"updates cards\"><thead><tr><th>Service</th><th>Environment</th><th>Upgrade</th><th>Why</th><th>Open for</th>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<div class=\"scroll\" tabindex=\"0\"><table class=\"updates cards\"><thead><tr><th>Service</th><th>Environment</th><th>Upgrade</th><th>Why</th><th>Open for</th>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -365,7 +365,7 @@ func UpdatesPage(v UpdatesView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(v.Watched) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<section class=\"panel\"><div class=\"panel-head\"><h2>Watching</h2><span class=\"muted\">releases of software that runs nowhere Goliash knows</span></div><div class=\"scroll\"><table><thead><tr><th>Service</th><th>Newest release</th><th>Published</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<section class=\"panel\"><div class=\"panel-head\"><h2>Watching</h2><span class=\"muted\">releases of software that runs nowhere Goliash knows</span></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Service</th><th>Newest release</th><th>Published</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -498,7 +498,7 @@ func UpdatesPage(v UpdatesView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, " put off on purpose</span></summary><div class=\"scroll\"><table class=\"updates cards\"><tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, " put off on purpose</span></summary><div class=\"scroll\" tabindex=\"0\"><table class=\"updates cards\"><tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

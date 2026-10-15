@@ -85,7 +85,7 @@ templ ServicePage(v ServiceView) {
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>Running</h2></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead>
 						<tbody>
@@ -141,7 +141,7 @@ templ ServicePage(v ServiceView) {
 					if len(v.Releases) == 0 {
 						<p class="muted">No releases known yet.</p>
 					} else {
-						<div class="scroll">
+						<div class="scroll" tabindex="0">
 							<table>
 								<tbody>
 									for _, r := range v.Releases {
@@ -194,7 +194,7 @@ templ ServicePage(v ServiceView) {
 						</details>
 					}
 					if len(v.Acks) > 0 {
-						<div class="scroll">
+						<div class="scroll" tabindex="0">
 							<table>
 								<thead>
 									<tr>
@@ -459,7 +459,7 @@ templ manualPanel(v ServiceView) {
 		<div class="panel-head"><h2>Runs outside Goliash</h2><span class="muted">versions entered by hand: a VM, a managed service</span></div>
 		<div class="panel-body stack">
 			if len(v.Manual) > 0 {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Environment</th><th>Where</th><th>Version</th><th><span class="sr-only">Remove</span></th></tr></thead>
 						<tbody>
@@ -525,7 +525,7 @@ templ serviceSecurity(v ServiceView) {
 				}
 			</span>
 		</div>
-		<div class="scroll">
+		<div class="scroll" tabindex="0">
 			<table class="cards">
 				<thead><tr><th>Environment</th><th>Image</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
 				<tbody>

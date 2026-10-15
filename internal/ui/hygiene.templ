@@ -35,7 +35,7 @@ templ HygienePage(v HygieneView) {
 		if len(v.DigestHints) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Why digests are unknown</h2><span class="muted">these targets report none at all</span></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Target</th><th>Images</th><th>What to do</th></tr></thead>
 						<tbody>
@@ -57,7 +57,7 @@ templ HygienePage(v HygieneView) {
 			} else if len(v.Findings) == 0 {
 				<div class="empty">Nothing found: every image has a version tag and a known digest.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Image</th><th>Problem</th><th>Where</th></tr></thead>
 						<tbody>

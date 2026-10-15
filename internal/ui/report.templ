@@ -32,7 +32,7 @@ templ ReportPage(v ReportView) {
 			if len(v.Attention) == 0 {
 				<div class="empty">Nothing: every environment runs a supported version that matches Git and upstream.</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Environment</th><th>Issue</th><th>Since</th></tr></thead>
 						<tbody>
@@ -51,7 +51,7 @@ templ ReportPage(v ReportView) {
 		</section>
 		<section class="panel">
 			<div class="panel-head"><h2>Delivered</h2><span class="hint">Versions that arrived per environment, and median lead time to the next one</span></div>
-			<div class="scroll">
+			<div class="scroll" tabindex="0">
 				<table>
 					<thead>
 						<tr>
@@ -83,7 +83,7 @@ templ ReportPage(v ReportView) {
 		if len(v.Releases) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>New upstream releases</h2></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Version</th><th>First seen</th></tr></thead>
 						<tbody>

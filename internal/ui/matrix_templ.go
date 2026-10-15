@@ -460,7 +460,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"scroll\"><table class=\"matrix\"><thead><tr><th>Service</th>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"scroll\" tabindex=\"0\"><table class=\"matrix\"><thead><tr><th>Service</th>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

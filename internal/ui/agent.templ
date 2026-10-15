@@ -27,7 +27,7 @@ templ AgentPage(v AgentPageView) {
 				<div class="panel-body stack">
 					if v.UpgradeCmd != "" {
 						<p>{ v.UpgradeTitle }:</p>
-						<pre class="mono install-cmd" id="upgrade-cmd">{ v.UpgradeCmd }</pre>
+						<pre tabindex="0" class="mono install-cmd" id="upgrade-cmd">{ v.UpgradeCmd }</pre>
 						<div class="actions"><button type="button" class="secondary" data-copy="upgrade-cmd">Copy</button></div>
 						<p class="hint">It keeps its targets and history; with an enrollment code it registers again as the same agent.</p>
 					} else {
@@ -163,7 +163,7 @@ templ AgentPage(v AgentPageView) {
 
 // targetsTable lists targets; admins move them to another collector or delete them.
 templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, from string) {
-	<div class="scroll">
+	<div class="scroll" tabindex="0">
 		<table>
 			<thead>
 				<tr>

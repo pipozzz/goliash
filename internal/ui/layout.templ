@@ -175,7 +175,7 @@ templ Layout(b Base) {
 								<span class="ws-name">{ b.Workspace }</span>
 							}
 							<details class="menu">
-								<summary class={ templ.KV("current", isSettings(b.Page)) }>
+								<summary class={ templ.KV("current", isSettings(b.Page)) } aria-label="Settings">
 									@gear()
 									<span class="menu-label">Settings</span>
 								</summary>
@@ -197,7 +197,7 @@ templ Layout(b Base) {
 								</div>
 							</details>
 							<details class="menu">
-								<summary class={ templ.KV("current", b.Page == "account") } title={ b.Email + " · " + b.Role }>
+								<summary class={ templ.KV("current", b.Page == "account") } title={ b.Email + " · " + b.Role } aria-label={ "Your account: " + b.Email }>
 									<span class="avatar" aria-hidden="true">{ initial(b.Email) }</span>
 									<span class="menu-label who-email">{ b.Email }</span>
 								</summary>

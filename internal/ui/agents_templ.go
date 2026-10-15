@@ -75,7 +75,7 @@ func AgentsPage(v AgentsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"scroll\"><table><thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Platforms</th><th>Last seen</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Platforms</th><th>Last seen</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -238,7 +238,7 @@ func AgentsPage(v AgentsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.CanAdmin && len(v.Codes) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<section class=\"panel\"><div class=\"panel-head\"><h2>Enrollment codes</h2><span class=\"muted\">agents started with one register themselves</span></div><div class=\"scroll\"><table><thead><tr><th>Environment</th><th>For</th><th>Agents</th><th>New agents until</th><th>Last used</th><th>Created by</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<section class=\"panel\"><div class=\"panel-head\"><h2>Enrollment codes</h2><span class=\"muted\">agents started with one register themselves</span></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Environment</th><th>For</th><th>Agents</th><th>New agents until</th><th>Last used</th><th>Created by</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -368,7 +368,7 @@ func AgentsPage(v AgentsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if len(v.Envs) > 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"scroll\"><table class=\"envs\"><thead><tr><th>Name</th><th>Order</th><th>Targets</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"scroll\" tabindex=\"0\"><table class=\"envs\"><thead><tr><th>Name</th><th>Order</th><th>Targets</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

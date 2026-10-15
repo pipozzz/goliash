@@ -78,7 +78,7 @@ func PromotionsPage(v PromotionsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"scroll\"><table><thead><tr><th>Service</th><th>Promote</th><th>Waiting</th><th>Releases it brings</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Service</th><th>Promote</th><th>Waiting</th><th>Releases it brings</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -296,7 +296,7 @@ func PromotionsPage(v PromotionsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"scroll\"><table><thead><tr><th>Service</th>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Service</th>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

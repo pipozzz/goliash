@@ -1227,14 +1227,14 @@ func ConnectDonePage(v ConnectDoneView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "</h2><span class=\"muted\">the token is in it and shown only now</span></div><div class=\"panel-body stack\"><pre class=\"mono install-cmd\" id=\"install-main\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "</h2><span class=\"muted\">the token is in it and shown only now</span></div><div class=\"panel-body stack\"><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"install-main\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(cmd)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `connect.templ`, Line: 305, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `connect.templ`, Line: 305, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
@@ -1733,14 +1733,14 @@ func ConnectCodePage(v ConnectCodeView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 172, "</h2><span class=\"muted\">the code is in it and shown only now</span></div><div class=\"panel-body stack\"><pre class=\"mono install-cmd\" id=\"install-main\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 172, "</h2><span class=\"muted\">the code is in it and shown only now</span></div><div class=\"panel-body stack\"><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"install-main\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var83 string
 			templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(v.Command)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `connect.templ`, Line: 417, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `connect.templ`, Line: 417, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 			if templ_7745c5c3_Err != nil {
@@ -1856,14 +1856,14 @@ func codeStatusView(st CodeStatus) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if st.Slow {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 183, "<div class=\"notice\"><strong>Nothing yet?</strong> The agent's log says why:<pre class=\"mono install-cmd\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 183, "<div class=\"notice\"><strong>Nothing yet?</strong> The agent's log says why:<pre tabindex=\"0\" class=\"mono install-cmd\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var88 string
 				templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(agentLogs(st.Platform))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `connect.templ`, Line: 464, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `connect.templ`, Line: 464, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 				if templ_7745c5c3_Err != nil {

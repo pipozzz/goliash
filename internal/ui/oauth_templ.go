@@ -116,7 +116,7 @@ func OAuthConsentPage(v OAuthConsentView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</strong>.</p><ul class=\"consent-list\"><li>It can read what you can read in the workspace you pick: versions, drift, updates, vulnerabilities, the security posture and what Goliash sent.</li><li>It <strong>cannot change anything</strong>, whatever your role.</li><li>It keeps access for 30 days of disuse at most; revoke it any time under <a href=\"/account#apps\">Your account → Apps with access</a>.</li></ul><form method=\"post\" action=\"/oauth/authorize\" class=\"stack\" hx-boost=\"false\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</strong>.</p><ul class=\"consent-list\"><li>It can read what you can read in the workspace you pick: versions, drift, updates, vulnerabilities, the security posture and what Goliash sent.</li><li>It <strong>cannot change anything</strong>, whatever your role.</li><li>It keeps access for 30 days of disuse at most; revoke it any time under <a class=\"u\" href=\"/account#apps\">Your account → Apps with access</a>.</li></ul><form method=\"post\" action=\"/oauth/authorize\" class=\"stack\" hx-boost=\"false\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

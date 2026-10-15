@@ -314,7 +314,7 @@ func VulnsPage(v VulnsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else if len(v.Shown) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<section class=\"panel\"><div class=\"scroll\"><table><thead><tr><th>Vulnerability</th><th>Severity</th><th>Running in</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<section class=\"panel\"><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Vulnerability</th><th>Severity</th><th>Running in</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

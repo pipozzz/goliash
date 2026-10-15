@@ -373,7 +373,7 @@ func ServicePage(v ServiceView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, " <div class=\"grid-2\"><section class=\"panel\"><div class=\"panel-head\"><h2>Running</h2></div><div class=\"scroll\"><table><thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, " <div class=\"grid-2\"><section class=\"panel\"><div class=\"panel-head\"><h2>Running</h2></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Environment</th><th>Version</th><th>Drift</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -535,7 +535,7 @@ func ServicePage(v ServiceView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<div class=\"scroll\"><table><tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<div class=\"scroll\" tabindex=\"0\"><table><tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -621,7 +621,7 @@ func ServicePage(v ServiceView) templ.Component {
 				}
 			}
 			if len(v.Acks) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"scroll\"><table><thead><tr><th>Quiet</th><th>Until</th><th>By</th>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Quiet</th><th>Until</th><th>By</th>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1874,7 +1874,7 @@ func manualPanel(v ServiceView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(v.Manual) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 180, "<div class=\"scroll\"><table><thead><tr><th>Environment</th><th>Where</th><th>Version</th><th><span class=\"sr-only\">Remove</span></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 180, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Environment</th><th>Where</th><th>Version</th><th><span class=\"sr-only\">Remove</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2129,7 +2129,7 @@ func serviceSecurity(v ServiceView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 206, "</span></div><div class=\"scroll\"><table class=\"cards\"><thead><tr><th>Environment</th><th>Image</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 206, "</span></div><div class=\"scroll\" tabindex=\"0\"><table class=\"cards\"><thead><tr><th>Environment</th><th>Image</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

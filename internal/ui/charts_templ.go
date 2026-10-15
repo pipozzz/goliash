@@ -469,14 +469,14 @@ func stackedBars(c BarChart, label string) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		id := chartID(label)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<figure class=\"chart\" data-chart=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<figure class=\"chart\" tabindex=\"0\" data-chart=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(hoverData(c.Labels, c.Series, c.Max, true))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `charts.templ`, Line: 58, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `charts.templ`, Line: 58, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 		if templ_7745c5c3_Err != nil {
@@ -752,14 +752,14 @@ func lines(c LineChart, label string) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		id := chartID(label)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<figure class=\"chart\" data-chart=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<figure class=\"chart\" tabindex=\"0\" data-chart=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(hoverData(c.Labels, c.Series, c.Max, false))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `charts.templ`, Line: 87, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `charts.templ`, Line: 87, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 		if templ_7745c5c3_Err != nil {
@@ -1104,7 +1104,7 @@ func versionChart(t Timeline) templ.Component {
 		laneH := 30.0
 		labelW := 150.0
 		h := laneH*float64(len(t.Lanes)) + 22
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<figure class=\"chart timeline\"><svg viewBox=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<figure class=\"chart timeline\" tabindex=\"0\"><svg viewBox=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

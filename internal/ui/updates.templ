@@ -68,7 +68,7 @@ templ UpdatesPage(v UpdatesView) {
 					}
 				</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table class="updates cards">
 						<thead>
 							<tr>
@@ -94,7 +94,7 @@ templ UpdatesPage(v UpdatesView) {
 		if len(v.Watched) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Watching</h2><span class="muted">releases of software that runs nowhere Goliash knows</span></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Newest release</th><th>Published</th></tr></thead>
 						<tbody>
@@ -125,7 +125,7 @@ templ UpdatesPage(v UpdatesView) {
 		if len(v.Acked) > 0 {
 			<details class="panel acked">
 				<summary class="panel-head"><h2>Acknowledged</h2><span class="muted">{ plural(len(v.Acked), "update", "updates") } put off on purpose</span></summary>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table class="updates cards">
 						<tbody>
 							for _, it := range v.Acked {

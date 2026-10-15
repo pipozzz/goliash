@@ -98,13 +98,14 @@ main:focus { outline: none; }
 
 /* Page */
 main { max-width: 1400px; margin: 0 auto; padding: 24px 20px 64px; display: grid; gap: 22px; }
-main > *, .grid-2 > * { min-width: 0; } /* wide tables scroll inside their panel, not the page */
+main > *, .grid-2 > *, .panel-body > *, .stack > * { min-width: 0; } /* wide tables and commands scroll inside their panel, not the page */
+p code, .hint code, li code { overflow-wrap: anywhere; } /* a long flag or address in a sentence breaks on a phone */
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .head .sub { color: var(--muted); margin-top: 4px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .panel > .panel-head { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .panel > .panel-body { padding: 16px; display: grid; gap: 14px; }
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px; align-items: start; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 22px; align-items: start; }
 .notice { padding: 10px 14px; border-radius: var(--radius); background: var(--ok-soft); color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
 .notice.error { background: var(--bad-soft); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
 .secret { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 14px; background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: var(--radius); }
@@ -819,7 +820,7 @@ details.smtp summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 .embed-badges { display: flex; flex-direction: column; gap: 10px; }
 .embed-badges p { margin: 0 0 4px; }
 .badge-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.badge-row img { display: block; }
+.badge-row img { display: block; max-width: 100%; height: auto; }
 
 /* Links inside running text are underlined, not told apart by colour alone. */
 p a, .hint a, .sub a { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }

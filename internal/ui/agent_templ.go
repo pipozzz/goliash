@@ -179,14 +179,14 @@ func AgentPage(v AgentPageView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, ":</p><pre class=\"mono install-cmd\" id=\"upgrade-cmd\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, ":</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"upgrade-cmd\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(v.UpgradeCmd)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agent.templ`, Line: 30, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `agent.templ`, Line: 30, Col: 80}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -651,7 +651,7 @@ func targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, from
 			templ_7745c5c3_Var29 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"scroll\"><table><thead><tr><th>Target</th><th>Platform</th><th>Environment</th><th>Collected by</th><th>Collector</th><th>Last snapshot</th>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Target</th><th>Platform</th><th>Environment</th><th>Collected by</th><th>Collector</th><th>Last snapshot</th>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

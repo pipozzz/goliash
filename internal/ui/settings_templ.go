@@ -80,7 +80,7 @@ func NotificationsPage(v NotificationsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"scroll\"><table><thead><tr><th>Name</th><th>Type</th><th>Where</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Name</th><th>Type</th><th>Where</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -292,7 +292,7 @@ func NotificationsPage(v NotificationsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"scroll\"><table><thead><tr><th>Events</th><th>Filter</th><th>Mode</th><th>Channel</th>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Events</th><th>Filter</th><th>Mode</th><th>Channel</th>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -627,7 +627,7 @@ func SettingsPage(v SettingsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</h2></div><div class=\"scroll\"><table><thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</h2></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1046,7 +1046,7 @@ func SettingsPage(v SettingsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(v.Tokens) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "<div class=\"scroll\"><table><thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th>Expires</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 124, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Name</th><th>Role</th><th>Created</th><th>Last used</th><th>Expires</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1204,7 +1204,7 @@ func SettingsPage(v SettingsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "<div class=\"scroll\"><table class=\"cards\"><thead><tr><th>App</th><th>Person</th><th>Allowed</th><th>Last used</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "<div class=\"scroll\" tabindex=\"0\"><table class=\"cards\"><thead><tr><th>App</th><th>Person</th><th>Allowed</th><th>Last used</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1304,7 +1304,7 @@ func SettingsPage(v SettingsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 155, "<div class=\"scroll\"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 155, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2019,7 +2019,7 @@ func registriesPanel(v SettingsView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(v.Registries) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 234, "<div class=\"scroll\"><table class=\"cards\"><thead><tr><th>Registry</th><th>Username</th><th>Status</th><th>Added</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 234, "<div class=\"scroll\" tabindex=\"0\"><table class=\"cards\"><thead><tr><th>Registry</th><th>Username</th><th>Status</th><th>Added</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2248,7 +2248,7 @@ func deliveriesTable(ds []DeliveryView, canRetry bool, ret string) templ.Compone
 			templ_7745c5c3_Var93 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 259, "<div class=\"scroll\"><table class=\"deliveries\"><thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 259, "<div class=\"scroll\" tabindex=\"0\"><table class=\"deliveries\"><thead><tr><th>When</th><th>Channel</th><th>What</th><th>Status</th><th><span class=\"sr-only\">Actions</span></th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

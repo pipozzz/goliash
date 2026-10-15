@@ -55,7 +55,7 @@ templ gradients(id string, series []Series, top, bottom string) {
 // tooltip on hover (app.js), and native titles without script.
 templ stackedBars(c BarChart, label string) {
 	{{ id := chartID(label) }}
-	<figure class="chart" data-chart={ hoverData(c.Labels, c.Series, c.Max, true) }>
+	<figure class="chart" tabindex="0" data-chart={ hoverData(c.Labels, c.Series, c.Max, true) }>
 		<svg viewBox={ "0 0 " + f(chartW) + " " + f(chartH+chartBot) } role="img" aria-label={ label }>
 			@gradients(id, c.Series, "1", "0.55")
 			@yGrid(c.Max)
@@ -84,7 +84,7 @@ templ stackedBars(c BarChart, label string) {
 // a tooltip of every series on hover (app.js).
 templ lines(c LineChart, label string) {
 	{{ id := chartID(label) }}
-	<figure class="chart" data-chart={ hoverData(c.Labels, c.Series, c.Max, false) }>
+	<figure class="chart" tabindex="0" data-chart={ hoverData(c.Labels, c.Series, c.Max, false) }>
 		<svg viewBox={ "0 0 " + f(chartW) + " " + f(chartH+chartBot) } role="img" aria-label={ label }>
 			@gradients(id, nonZeroSeries(c.Series), "0.32", "0")
 			@yGrid(c.Max)
@@ -121,7 +121,7 @@ templ versionChart(t Timeline) {
 	{{ laneH := 30.0 }}
 	{{ labelW := 150.0 }}
 	{{ h := laneH*float64(len(t.Lanes)) + 22 }}
-	<figure class="chart timeline">
+	<figure class="chart timeline" tabindex="0">
 		<svg viewBox={ "0 0 " + f(chartW+nowW) + " " + f(h) } role="img" aria-label="Versions per environment over time">
 			<defs>
 				for _, c := range []string{"c0", "c1", "c2", "c3", "c4", "c5"} {

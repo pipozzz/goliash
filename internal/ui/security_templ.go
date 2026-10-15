@@ -508,7 +508,7 @@ func SecurityPage(v SecurityView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<div class=\"scroll\"><table><thead><tr><th>Service</th><th>Running</th><th>Fix</th><th>Exposed</th><th>Why</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Service</th><th>Running</th><th>Fix</th><th>Exposed</th><th>Why</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -872,7 +872,7 @@ func SecurityPage(v SecurityView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(v.Bases) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "<section class=\"panel\"><div class=\"panel-head\"><h2>Built on an unsupported base</h2><span class=\"muted\">rebuild on a newer base image</span></div><div class=\"scroll\"><table><thead><tr><th>Service</th><th>Base image</th><th>End of life</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "<section class=\"panel\"><div class=\"panel-head\"><h2>Built on an unsupported base</h2><span class=\"muted\">rebuild on a newer base image</span></div><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Service</th><th>Base image</th><th>End of life</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1280,7 +1280,7 @@ func SecurityPage(v SecurityView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, "</summary><div class=\"scroll\"><table><thead><tr><th>Image</th><th>Found</th></tr></thead> <tbody>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 122, "</summary><div class=\"scroll\" tabindex=\"0\"><table><thead><tr><th>Image</th><th>Found</th></tr></thead> <tbody>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1333,7 +1333,7 @@ func SecurityPage(v SecurityView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, " <div class=\"grid-2\"><section class=\"panel\"><div class=\"panel-head\"><h2>Supply chain</h2><span class=\"muted\">what runs, as images</span></div><div class=\"scroll\"><table><tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, " <div class=\"grid-2\"><section class=\"panel\"><div class=\"panel-head\"><h2>Supply chain</h2><span class=\"muted\">what runs, as images</span></div><div class=\"scroll\" tabindex=\"0\"><table><tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

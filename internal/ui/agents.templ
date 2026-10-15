@@ -24,7 +24,7 @@ templ AgentsPage(v AgentsView) {
 					}
 				</div>
 			} else {
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Platforms</th><th>Last seen</th></tr></thead>
 						<tbody>
@@ -64,7 +64,7 @@ templ AgentsPage(v AgentsView) {
 		if v.CanAdmin && len(v.Codes) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Enrollment codes</h2><span class="muted">agents started with one register themselves</span></div>
-				<div class="scroll">
+				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Environment</th><th>For</th><th>Agents</th><th>New agents until</th><th>Last used</th><th>Created by</th><th><span class="sr-only">Actions</span></th></tr></thead>
 						<tbody>
@@ -107,7 +107,7 @@ templ AgentsPage(v AgentsView) {
 			<section class="panel">
 				<div class="panel-head"><h2>Environments</h2><span class="muted">in promotion order</span></div>
 				if len(v.Envs) > 0 {
-					<div class="scroll">
+					<div class="scroll" tabindex="0">
 						<table class="envs">
 							<thead><tr><th>Name</th><th>Order</th><th>Targets</th><th><span class="sr-only">Actions</span></th></tr></thead>
 							<tbody>

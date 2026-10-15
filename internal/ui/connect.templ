@@ -302,7 +302,7 @@ templ ConnectDonePage(v ConnectDoneView) {
 			<section class="panel">
 				<div class="panel-head"><h2>{ title }</h2><span class="muted">the token is in it and shown only now</span></div>
 				<div class="panel-body stack">
-					<pre class="mono install-cmd" id="install-main">{ cmd }</pre>
+					<pre tabindex="0" class="mono install-cmd" id="install-main">{ cmd }</pre>
 					if note := localServerNote(v.Platform.Key, v.ServerURL); note != "" {
 						<p class="notice" role="status">{ note }</p>
 					}
@@ -414,7 +414,7 @@ templ ConnectCodePage(v ConnectCodeView) {
 		<section class="panel">
 			<div class="panel-head"><h2>{ v.Title }</h2><span class="muted">the code is in it and shown only now</span></div>
 			<div class="panel-body stack">
-				<pre class="mono install-cmd" id="install-main">{ v.Command }</pre>
+				<pre tabindex="0" class="mono install-cmd" id="install-main">{ v.Command }</pre>
 				if note := localServerNote(v.Platform.Key, v.ServerURL); note != "" {
 					<p class="notice" role="status">{ note }</p>
 				}
@@ -461,7 +461,7 @@ templ codeStatusView(st CodeStatus) {
 			if st.Slow {
 				<div class="notice">
 					<strong>Nothing yet?</strong> The agent's log says why:
-					<pre class="mono install-cmd">{ agentLogs(st.Platform) }</pre>
+					<pre tabindex="0" class="mono install-cmd">{ agentLogs(st.Platform) }</pre>
 					<ul class="tight">
 						<li>It has to reach this server's address from where it runs (outbound HTTPS).</li>
 						<li>A code for one agent belongs to the first agent that used it; a code expires for new agents after its limit.</li>

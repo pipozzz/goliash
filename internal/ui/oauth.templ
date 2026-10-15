@@ -31,7 +31,7 @@ templ OAuthConsentPage(v OAuthConsentView) {
 				<ul class="consent-list">
 					<li>It can read what you can read in the workspace you pick: versions, drift, updates, vulnerabilities, the security posture and what Goliash sent.</li>
 					<li>It <strong>cannot change anything</strong>, whatever your role.</li>
-					<li>It keeps access for 30 days of disuse at most; revoke it any time under <a href="/account#apps">Your account → Apps with access</a>.</li>
+					<li>It keeps access for 30 days of disuse at most; revoke it any time under <a class="u" href="/account#apps">Your account → Apps with access</a>.</li>
 				</ul>
 				<form method="post" action="/oauth/authorize" class="stack" hx-boost="false">
 					for _, k := range oauthParams {

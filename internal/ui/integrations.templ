@@ -20,7 +20,7 @@ templ IntegrationsPage(v IntegrationsView) {
 					@integrationToken(v, "prometheus", "/etc/prometheus/goliash-token")
 					<div>
 						<h3>2. Scrape</h3>
-						<pre class="mono install-cmd" id="cfg-prometheus">{ prometheusConfig(v.ServerURL) }</pre>
+						<pre tabindex="0" class="mono install-cmd" id="cfg-prometheus">{ prometheusConfig(v.ServerURL) }</pre>
 						<div class="actions"><button type="button" class="secondary" data-copy="cfg-prometheus">Copy</button></div>
 					</div>
 					<div>
@@ -40,7 +40,7 @@ templ IntegrationsPage(v IntegrationsView) {
 					@integrationToken(v, "signoz", "/etc/otelcol/goliash-token")
 					<div>
 						<h3>2. Add to the collector</h3>
-						<pre class="mono install-cmd" id="cfg-signoz">{ collectorConfig(v.ServerURL) }</pre>
+						<pre tabindex="0" class="mono install-cmd" id="cfg-signoz">{ collectorConfig(v.ServerURL) }</pre>
 						<div class="actions"><button type="button" class="secondary" data-copy="cfg-signoz">Copy</button></div>
 					</div>
 					<div>
@@ -60,7 +60,7 @@ templ IntegrationsPage(v IntegrationsView) {
 					<div>
 						<h3>2. Upload on a schedule</h3>
 						<p class="hint">Fill in Dependency-Track's URL and an API key of a team with BOM_UPLOAD and PROJECT_CREATION_UPLOAD, then run it from cron or a scheduled CI job.</p>
-						<pre class="mono install-cmd" id="cfg-dtrack">{ dependencyTrackScript(v.ServerURL, tokenFor(v, "dtrack"), v.Envs) }</pre>
+						<pre tabindex="0" class="mono install-cmd" id="cfg-dtrack">{ dependencyTrackScript(v.ServerURL, tokenFor(v, "dtrack"), v.Envs) }</pre>
 						<div class="actions">
 							<button type="button" class="secondary" data-copy="cfg-dtrack">Copy</button>
 							<a href="/api/v1/inventory?format=cyclonedx" hx-boost="false">Download the SBOM now</a>
@@ -74,12 +74,12 @@ templ IntegrationsPage(v IntegrationsView) {
 					<div>
 						<h3>Install and sign in</h3>
 						<p class="hint">The CLI of this server's release; <code>goliash login</code> opens the browser: sign in and allow it. It reads as you, read only, until <code>goliash logout</code>. Windows and other systems: <a href="https://github.com/pipozzz/goliash/releases" target="_blank" rel="noopener noreferrer">releases</a>.</p>
-						<pre class="mono install-cmd" id="cfg-cli">{ cliInstall(v.ServerURL, v.Version) }</pre>
+						<pre tabindex="0" class="mono install-cmd" id="cfg-cli">{ cliInstall(v.ServerURL, v.Version) }</pre>
 						<div class="actions"><button type="button" class="secondary" data-copy="cfg-cli">Copy</button></div>
 					</div>
 					<div>
 						<h3>Then</h3>
-						<pre class="mono install-cmd">goliash ask "what changed in prod in the last two hours?"
+						<pre tabindex="0" class="mono install-cmd">goliash ask "what changed in prod in the last two hours?"
 goliash ask -i                 # a conversation
 goliash mcp                    # MCP over stdio, for apps that start local servers</pre>
 					</div>
@@ -102,7 +102,7 @@ goliash mcp                    # MCP over stdio, for apps that start local serve
 						</div>
 						<details class="script">
 							<summary>What it runs</summary>
-							<pre class="mono install-cmd" id="cfg-widget">{ scriptableWidget(v.ServerURL, tokenFor(v, "widget")) }</pre>
+							<pre tabindex="0" class="mono install-cmd" id="cfg-widget">{ scriptableWidget(v.ServerURL, tokenFor(v, "widget")) }</pre>
 						</details>
 					</div>
 					<div>
@@ -114,7 +114,7 @@ goliash mcp                    # MCP over stdio, for apps that start local serve
 						</div>
 						<details class="script">
 							<summary>What it runs</summary>
-							<pre class="mono install-cmd" id="cfg-menubar">{ menuBarPlugin(v.ServerURL, tokenFor(v, "widget")) }</pre>
+							<pre tabindex="0" class="mono install-cmd" id="cfg-menubar">{ menuBarPlugin(v.ServerURL, tokenFor(v, "widget")) }</pre>
 						</details>
 					</div>
 					<div>
@@ -129,7 +129,7 @@ goliash mcp                    # MCP over stdio, for apps that start local serve
 					<div>
 						<h3>Sign in from the app</h3>
 						<p class="hint">Add the server without a token: the first time, the app opens Goliash in the browser, you sign in and allow it, and it reads as you, read only, until you revoke it under Your account → Apps with access. Claude Code, Claude Desktop, Cursor and VS Code do this.</p>
-						<pre class="mono install-cmd" id="cfg-mcp-oauth">{ mcpOAuthCommand(v.ServerURL) }</pre>
+						<pre tabindex="0" class="mono install-cmd" id="cfg-mcp-oauth">{ mcpOAuthCommand(v.ServerURL) }</pre>
 						<div class="actions">
 							<button type="button" class="secondary" data-copy="cfg-mcp-oauth">Copy</button>
 							<span class="hint">then <code>/mcp</code> in Claude Code and <strong>Authenticate</strong></span>
@@ -139,7 +139,7 @@ goliash mcp                    # MCP over stdio, for apps that start local serve
 						<summary>With an API token instead (scripts, apps without OAuth)</summary>
 						<div class="stack">
 							@integrationToken(v, "mcp", "")
-							<pre class="mono install-cmd" id="cfg-mcp">{ mcpCommand(v.ServerURL, tokenFor(v, "mcp")) }</pre>
+							<pre tabindex="0" class="mono install-cmd" id="cfg-mcp">{ mcpCommand(v.ServerURL, tokenFor(v, "mcp")) }</pre>
 							<div class="actions">
 								<button type="button" class="secondary" data-copy="cfg-mcp">Copy</button>
 								<a href="https://goliash.dev/reference/mcp/" target="_blank" rel="noopener noreferrer">Cursor, Claude Desktop and more</a>
@@ -162,7 +162,7 @@ templ integrationToken(v IntegrationsView, tool, file string) {
 			} else {
 				<p class="hint">It is in the command below. Shown only now.</p>
 			}
-			<pre class="mono install-cmd" id={ "token-" + tool }>{ v.Token }</pre>
+			<pre tabindex="0" class="mono install-cmd" id={ "token-" + tool }>{ v.Token }</pre>
 			<div class="actions">
 				<button type="button" class="secondary" data-copy={ "token-" + tool }>Copy</button>
 				if tool == "widget" {
