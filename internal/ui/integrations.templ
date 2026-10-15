@@ -68,6 +68,23 @@ templ IntegrationsPage(v IntegrationsView) {
 					</div>
 				</div>
 			</details>
+			<details class="panel integration" id="cli" open?={ v.Tool == "cli" }>
+				<summary class="panel-head"><h2>Terminal</h2><span class="muted">goliash ask and goliash mcp, signed in through the browser</span></summary>
+				<div class="panel-body stack">
+					<div>
+						<h3>Install and sign in</h3>
+						<p class="hint">The CLI of this server's release; <code>goliash login</code> opens the browser: sign in and allow it. It reads as you, read only, until <code>goliash logout</code>. Windows and other systems: <a href="https://github.com/pipozzz/goliash/releases" target="_blank" rel="noopener noreferrer">releases</a>.</p>
+						<pre class="mono install-cmd" id="cfg-cli">{ cliInstall(v.ServerURL, v.Version) }</pre>
+						<div class="actions"><button type="button" class="secondary" data-copy="cfg-cli">Copy</button></div>
+					</div>
+					<div>
+						<h3>Then</h3>
+						<pre class="mono install-cmd">goliash ask "what changed in prod in the last two hours?"
+goliash ask -i                 # a conversation
+goliash mcp                    # MCP over stdio, for apps that start local servers</pre>
+					</div>
+				</div>
+			</details>
 			<details class="panel integration" id="widgets" open?={ v.Tool == "widget" }>
 				<summary class="panel-head"><h2>Widgets</h2><span class="muted">the numbers on an iPhone, the Mac menu bar or the Windows 11 Widgets board</span></summary>
 				<div class="panel-body stack">

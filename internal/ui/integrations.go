@@ -24,13 +24,14 @@ type IntegrationsView struct {
 	Tool      string
 	Token     string
 	Envs      []string // the workspace's environments, highest last
+	Version   string   // this server's release, for the CLI to download
 }
 
 // integrationTools are the tools a token can be made for here, with the token's name.
 var integrationTools = map[string]string{"prometheus": "prometheus", "signoz": "signoz", "mcp": "assistant", "dtrack": "dependency-track", "widget": "widget"}
 
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	v := IntegrationsView{Base: withFlash(s.base(r.Context(), p, "integrations", "Integrations"), r), ServerURL: s.publicURL}
+	v := IntegrationsView{Base: withFlash(s.base(r.Context(), p, "integrations", "Integrations"), r), ServerURL: s.publicURL, Version: s.version}
 	v.Envs = s.envNames(r.Context(), p.Scope)
 	return render(w, r, IntegrationsPage(v))
 }
@@ -178,6 +179,18 @@ func indent(s, by string) string {
 		return ""
 	}
 	return "\n" + by + s[1:]
+}
+
+// cliInstall downloads this server's release of the goliash CLI and signs it in, for macOS and Linux.
+func cliInstall(serverURL, version string) string {
+	v := strings.TrimPrefix(version, "v")
+	if v == "" || v == "dev" || strings.ContainsAny(v, " /") {
+		return "# Download goliash for your system from https://github.com/pipozzz/goliash/releases\ngoliash login " + serverURL
+	}
+	return fmt.Sprintf(`os=$(uname -s | tr A-Z a-z); arch=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+curl -fsSL "https://github.com/pipozzz/goliash/releases/download/v%[1]s/goliash_%[1]s_${os}_${arch}.tar.gz" | tar xz goliash
+sudo mv goliash /usr/local/bin/
+goliash login %[2]s`, v, serverURL)
 }
 
 // mcpOAuthCommand adds Goliash to Claude Code with no token: it signs in with OAuth on first use.

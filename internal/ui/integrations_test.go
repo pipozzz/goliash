@@ -248,3 +248,13 @@ func TestDependencyTrackScript(t *testing.T) {
 		t.Fatal("no Dependency-Track panel with the workspace's environments")
 	}
 }
+
+func TestCLIInstall(t *testing.T) {
+	got := cliInstall("https://g.example", "1.58.0")
+	if !strings.Contains(got, "/v1.58.0/goliash_1.58.0_${os}_${arch}.tar.gz") || !strings.HasSuffix(got, "goliash login https://g.example") {
+		t.Errorf("install: %s", got)
+	}
+	if got := cliInstall("https://g.example", "dev"); strings.Contains(got, "curl") || !strings.Contains(got, "releases") {
+		t.Errorf("a development build: %s", got)
+	}
+}
