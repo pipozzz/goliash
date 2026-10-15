@@ -25,9 +25,38 @@
     if (!window.EventSource) return;
     const es = new EventSource("/ui/stream");
     es.addEventListener("changed", function () { htmx.trigger(document.body, "goliash:changed"); });
+    es.addEventListener("version", function (e) { if (e.data && e.data !== pageVersion()) upgraded(); });
     es.onopen = function () { online = true; showLive(); };
     es.onerror = function () { online = false; showLive(); };
   }
+  // After an upgrade the page still runs the old release's code. In the background (another tab, the installed
+  // app out of sight) it reloads when it is looked at again; in front of someone, it offers to, without taking
+  // the page away from them.
+  function pageVersion() {
+    const css = document.querySelector('link[rel="stylesheet"][href*="app.css"]');
+    const m = css && /[?&]v=([^&]+)/.exec(css.getAttribute("href"));
+    return m ? m[1] : "";
+  }
+  let upgradeShown = false;
+  function upgraded() {
+    if (document.visibilityState === "hidden") {
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") location.reload();
+      }, { once: true });
+      return;
+    }
+    if (upgradeShown) return;
+    upgradeShown = true;
+    const bar = el("div", "update-bar");
+    bar.setAttribute("role", "status");
+    bar.appendChild(el("span", "", "Goliash was updated."));
+    const btn = el("button", "", "Reload");
+    btn.type = "button";
+    btn.addEventListener("click", function () { location.reload(); });
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+
   // Connect once the page has settled, so the long-lived stream does not delay loading.
   setTimeout(connect, 1500);
 

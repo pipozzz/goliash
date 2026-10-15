@@ -1167,3 +1167,8 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 @keyframes glsh-wave { 0%, 100% { opacity: .28; transform: scale(.8); } 45% { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .page-loader g rect { animation: none; opacity: 1; transform: none; } }
 @media print { .page-loader { display: none; } }
+
+/* After an upgrade: an offer to load the new release, out of the way. */
+.update-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 110; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--ink); color: var(--surface); box-shadow: 0 12px 34px rgb(10 14 30 / .3); font-size: 14px; animation: palette-in .2s ease-out; }
+.update-bar button { padding: 5px 14px; border-radius: 999px; border: 0; background: #8aa4ff; color: #0e1530; font-weight: 600; cursor: pointer; }
+@media print { .update-bar { display: none; } }

@@ -635,7 +635,8 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, p auth.Principal
 	w.Header().Set("X-Accel-Buffering", "no")
 	ch, cancel := s.hub.Subscribe(p.Scope.WorkspaceID)
 	defer cancel()
-	_, _ = fmt.Fprint(w, "retry: 5000\n\n")
+	// The release's assets: a page that reconnects after an upgrade learns it runs old code.
+	_, _ = fmt.Fprintf(w, "retry: 5000\n\nevent: version\ndata: %s\n\n", assetVersion)
 	flusher.Flush()
 	ping := time.NewTicker(25 * time.Second)
 	defer ping.Stop()

@@ -340,23 +340,28 @@ func TestStream(t *testing.T) {
 		e.hub.Publish(e.ws.ID)
 	}()
 	deadline := time.After(5 * time.Second)
-	got := make(chan string, 1)
+	got := make(chan []string, 1)
 	go func() {
+		var events []string
 		for {
 			line, err := r.ReadString('\n')
 			if err != nil {
 				return
 			}
-			if strings.HasPrefix(line, "event:") {
-				got <- strings.TrimSpace(line)
+			if strings.HasPrefix(line, "event:") || (len(events) == 1 && strings.HasPrefix(line, "data:")) {
+				events = append(events, strings.TrimSpace(line))
+			}
+			if strings.TrimSpace(line) == "event: changed" {
+				got <- events
 				return
 			}
 		}
 	}()
 	select {
-	case ev := <-got:
-		if ev != "event: changed" {
-			t.Fatalf("event %q", ev)
+	case evs := <-got:
+		// First the release's assets, so a page running older code learns it; then the change.
+		if len(evs) != 3 || evs[0] != "event: version" || evs[1] != "data: "+assetVersion || evs[2] != "event: changed" {
+			t.Fatalf("events %q", evs)
 		}
 	case <-deadline:
 		t.Fatal("no event")
