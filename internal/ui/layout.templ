@@ -54,6 +54,11 @@ templ headIcon(title, icon string) {
 		<link rel="manifest" href="/manifest.webmanifest"/>
 		<link rel="apple-touch-icon" href="/static/icon-192.png"/>
 		<meta name="theme-color" content="#1b2a6b"/>
+		<!-- What the app installed on an iPhone or iPad shows while it starts, instead of white. -->
+		<meta name="apple-mobile-web-app-capable" content="yes"/>
+		for _, sc := range splashScreens {
+			<link rel="apple-touch-startup-image" media={ splashMedia(sc) } href={ templ.URL(splashHref(sc)) }/>
+		}
 	</head>
 }
 

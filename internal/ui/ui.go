@@ -145,6 +145,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sw.js", s.serviceWorker)
 	mux.HandleFunc("GET /badge/{ws}/{file}", s.badge)
 	mux.HandleFunc("GET /manifest.webmanifest", s.manifest)
+	mux.HandleFunc("GET /splash/{size}", s.splash)
 	s.oauthRoutes(mux)
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
