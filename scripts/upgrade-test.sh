@@ -39,14 +39,23 @@ fi
 "$work/new" events -limit 5 > /dev/null
 "$work/new" drift > /dev/null
 
-port=$((20000 + RANDOM % 20000))
-GOLIASH_LISTEN=127.0.0.1:$port GOLIASH_PUBLIC_URL=http://127.0.0.1:$port "$work/new" serve > "$work/serve.log" 2>&1 &
-pid=$!
-for _ in $(seq 50); do
-  curl -fsS "http://127.0.0.1:$port/readyz" > /dev/null 2>&1 && break
-  sleep 0.2
+# A port below Linux's ephemeral range (32768+), where outgoing connections (to PostgreSQL, say) take theirs;
+# if it is taken anyway, another.
+ready=
+for _ in 1 2 3 4 5; do
+  port=$((20000 + RANDOM % 12000))
+  GOLIASH_LISTEN=127.0.0.1:$port GOLIASH_PUBLIC_URL=http://127.0.0.1:$port "$work/new" serve > "$work/serve.log" 2>&1 &
+  pid=$!
+  for _ in $(seq 50); do
+    curl -fsS "http://127.0.0.1:$port/readyz" > /dev/null 2>&1 && { ready=1; break; }
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.2
+  done
+  [[ -n $ready ]] && break
+  grep -q "address already in use" "$work/serve.log" || break
+  wait "$pid" 2>/dev/null || true
 done
-if ! curl -fsS "http://127.0.0.1:$port/readyz" > /dev/null; then
+if [[ -z $ready ]]; then
   echo "the upgraded server is not ready:"; cat "$work/serve.log"; exit 1
 fi
 # The channel secret written by the old release still opens (CheckSecrets on start).
