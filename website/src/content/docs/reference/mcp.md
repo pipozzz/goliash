@@ -97,8 +97,9 @@ Goliash is both the MCP server and its OAuth 2.1 authorization server:
 
 ## Local (stdio)
 
-`goliash mcp` runs an MCP server on stdin and stdout that talks to your Goliash server. For Claude Desktop, in
-`claude_desktop_config.json`:
+`goliash mcp` runs an MCP server on stdin and stdout that talks to your Goliash server, for apps that only start
+local MCP servers. After `goliash login https://goliash.example.com` it needs nothing else (`"args": ["mcp"]`); with
+an API token instead, for Claude Desktop, in `claude_desktop_config.json`:
 
 ```json
 {

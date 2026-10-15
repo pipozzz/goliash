@@ -26,7 +26,9 @@ import (
 type Client struct {
 	BaseURL string // e.g. https://goliash.example.com
 	Token   string // glsh_api_…
-	HTTP    *http.Client
+	// TokenFunc, when set, gives the token for each call instead: a signed-in CLI's, renewed as it expires.
+	TokenFunc func(context.Context) (string, error)
+	HTTP      *http.Client
 }
 
 func (c *Client) do(ctx context.Context, method, path string, q url.Values, body any) (any, error) {
@@ -43,7 +45,13 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, body
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	token := c.Token
+	if c.TokenFunc != nil {
+		if token, err = c.TokenFunc(ctx); err != nil {
+			return nil, err
+		}
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

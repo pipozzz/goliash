@@ -87,6 +87,8 @@ const usage = `Usage:
   goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
                                           every running container with image and digest (audits, SBOM)
   goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
+  goliash login [-no-browser] URL         sign the CLI in through the browser (OAuth, read only) for ask and mcp
+  goliash logout [URL]                    end that sign-in
   goliash mcp [-server URL] [-token T]    MCP server on stdin/stdout for AI assistants (env GOLIASH_URL, GOLIASH_TOKEN)
   goliash ask [-server URL] [-token T] [-i] QUESTION
                                           ask Goli, the assistant; the answer streams to stdout (env GOLIASH_URL, GOLIASH_TOKEN);
@@ -222,6 +224,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return hygieneCmd(ctx, args, out)
 	case "ask":
 		return askCmd(ctx, args, os.Stdin, os.Stdout, os.Stderr)
+	case "login":
+		return loginCmd(ctx, args, out)
+	case "logout":
+		return logoutCmd(ctx, args, out)
 	case "mcp":
 		return mcpCmd(ctx, args)
 	case "check":
@@ -2414,15 +2420,16 @@ func loopbackURL(listen string) string {
 
 func mcpCmd(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
-	server := fs.String("server", envOr("GOLIASH_URL", "http://localhost:8080"), "Goliash server URL (env GOLIASH_URL)")
-	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN)")
+	server := fs.String("server", defaultServer(), "Goliash server URL (env GOLIASH_URL; default: the one signed in to)")
+	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN; default: goliash login's)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *token == "" {
-		return errors.New("set GOLIASH_TOKEN (goliash token create -name mcp) or -token")
+	tok := tokenFor(*server, *token)
+	if tok == nil {
+		return errors.New("sign in first: goliash login " + *server + " (or set GOLIASH_TOKEN)")
 	}
-	return mcpserver.NewServer(&mcpserver.Client{BaseURL: *server, Token: *token}).Run(ctx, &mcp.StdioTransport{})
+	return mcpserver.NewServer(&mcpserver.Client{BaseURL: *server, TokenFunc: tok}).Run(ctx, &mcp.StdioTransport{})
 }
 
 // askCmd asks the server's Goli a question with an API token and prints the answer as it is written; what Goli
@@ -2430,8 +2437,8 @@ func mcpCmd(ctx context.Context, args []string) error {
 // with the conversation so far, until an empty line or the end of the input.
 func askCmd(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) error {
 	fs := flag.NewFlagSet("ask", flag.ContinueOnError)
-	server := fs.String("server", envOr("GOLIASH_URL", "http://localhost:8080"), "Goliash server URL (env GOLIASH_URL)")
-	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN)")
+	server := fs.String("server", defaultServer(), "Goliash server URL (env GOLIASH_URL; default: the one signed in to)")
+	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN; default: goliash login's)")
 	chat := fs.Bool("i", false, "a conversation: ask, then ask on, until an empty line or Ctrl-D")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -2440,11 +2447,19 @@ func askCmd(ctx context.Context, args []string, in io.Reader, out, errOut io.Wri
 	if question == "" && !*chat {
 		return errors.New(`ask something: goliash ask "what changed in prod in the last two hours?" (or goliash ask -i)`)
 	}
-	if *token == "" {
-		return errors.New("set GOLIASH_TOKEN (goliash token create -name cli) or -token")
+	tok := tokenFor(*server, *token)
+	if tok == nil {
+		return errors.New("sign in first: goliash login " + *server + " (or set GOLIASH_TOKEN)")
+	}
+	ask := func(history []map[string]string) (string, error) {
+		t, err := tok(ctx)
+		if err != nil {
+			return "", err
+		}
+		return askGoli(ctx, *server, t, history, out, errOut)
 	}
 	if !*chat {
-		_, err := askGoli(ctx, *server, *token, []map[string]string{{"role": "user", "text": question}}, out, errOut)
+		_, err := ask([]map[string]string{{"role": "user", "text": question}})
 		return err
 	}
 	var history []map[string]string
@@ -2461,7 +2476,7 @@ func askCmd(ctx context.Context, args []string, in io.Reader, out, errOut io.Wri
 			}
 		}
 		history = append(history, map[string]string{"role": "user", "text": question})
-		answer, err := askGoli(ctx, *server, *token, history, out, errOut)
+		answer, err := ask(history)
 		if err != nil {
 			_, _ = fmt.Fprintln(errOut, "goli:", err)
 			history = history[:len(history)-1]

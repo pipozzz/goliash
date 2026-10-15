@@ -65,21 +65,37 @@ Changes made with the CLI are recorded in the audit log like changes in the UI.
 
 ## Ask Goli from a terminal
 
-`goliash ask` works from anywhere, not on the database: it asks a server's [Goli](/guide/goli/) with an API token
-and prints the answer as it is written. What Goli looks at goes to stderr, so the answer alone can be piped into a
-ticket, a commit message or a chat.
+`goliash ask` works from anywhere, not on the database: it asks a server's [Goli](/guide/goli/) and prints the
+answer as it is written. What Goli looks at goes to stderr, so the answer alone can be piped into a ticket, a commit
+message or a chat.
+
+Sign in once through the browser; no token to create or copy:
 
 ```sh
-export GOLIASH_URL=https://goliash.example.com GOLIASH_TOKEN=glsh_api_…   # goliash token create -name cli
+goliash login https://goliash.example.com   # opens the browser: sign in, Allow
 goliash ask "what changed in prod in the last two hours?"
 goliash ask "brief me on upgrading postgres in prod to 17" > postgres-17.md
 goliash ask -i                  # a conversation: ask, then ask on; an empty line or Ctrl-D ends it
+goliash logout                  # ends the sign-in, on the server too
 ```
 
-Goli sees what the token may see: a viewer token is enough. Scripts and bots can do the same with
-`POST /goli/ask` and `Authorization: Bearer glsh_api_…`: the body is
-`{"history": [{"role": "user", "text": "…"}]}`, and the answer comes back as server-sent events (`text`, `tool`,
-`done`, `error`). The hourly and daily limits count per token.
+`goliash login` signs the CLI in with the server's OAuth, as you and read only: it shows under **Your account →
+Apps with access** like any app. The tokens are kept in your config directory (`~/.config/goliash/credentials.json`
+on Linux, `~/Library/Application Support/goliash/` on macOS; `GOLIASH_CREDENTIALS` moves it), readable by you
+only, and renewed as they run out; the last server signed in to is the default. On a machine without a browser,
+`-no-browser` prints the address to open elsewhere (the answer still comes back to this machine's loopback, so
+open it on the same machine, e.g. through SSH port forwarding).
+
+Scripts and CI use an API token instead, which wins over a sign-in:
+
+```sh
+export GOLIASH_URL=https://goliash.example.com GOLIASH_TOKEN=glsh_api_…   # goliash token create -name cli
+```
+
+Goli sees what you, or the token, may see. Scripts and bots can do the same with `POST /goli/ask` and
+`Authorization: Bearer glsh_api_…`: the body is `{"history": [{"role": "user", "text": "…"}]}`, and the answer
+comes back as server-sent events (`text`, `tool`, `done`, `error`). The hourly and daily limits count per person or
+token.
 
 ## Examples
 
