@@ -27,6 +27,7 @@ type AccountView struct {
 	PasskeysEnabled  bool
 	Passkeys         []PasskeyView
 	Apps             []store.OAuthGrant // apps that read Goliash as this person (MCP clients over OAuth)
+	HomeView         string             // what "/" opens: "" by device, table or tiles
 }
 
 // SessionView is one signed-in browser.
@@ -75,7 +76,7 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 		Base: withFlash(s.base(r.Context(), p, "account", "Your account"), r),
 		Name: p.User.Name, HasPassword: p.User.HasPassword, PasswordChanged: p.User.PasswordChangedAt,
 		PasswordsEnabled: s.auth.PasswordsEnabled(), MinLength: auth.MinPasswordLength,
-		NeedCurrent: p.User.HasPassword && !mayResetPassword(cur, time.Now()),
+		NeedCurrent: p.User.HasPassword && !mayResetPassword(cur, time.Now()), HomeView: p.User.HomeView,
 	}
 	if v.TOTP, err = s.store.UserTOTP(r.Context(), p.User.ID); err != nil {
 		return err
@@ -105,6 +106,19 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	return render(w, r, AccountPage(v))
+}
+
+// saveHomeView sets what "/" opens for the person.
+func (s *Server) saveHomeView(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	view := r.FormValue("home_view")
+	if view != "" && view != "table" && view != "tiles" {
+		return back(w, r, "/account", "error", "Pick a home page.")
+	}
+	if err := s.store.SetHomeView(r.Context(), p.User.ID, view); err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{Name: "goliash_view", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode}) //nolint:gosec // deleting
+	return back(w, r, "/account", "notice", "Home page saved.")
 }
 
 func (s *Server) saveName(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

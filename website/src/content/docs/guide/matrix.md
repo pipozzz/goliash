@@ -85,7 +85,8 @@ to compare with, and warm means it needs attention: end of life, or targets disa
   side, 30 seconds each (`?tv=1&cycle=60` for another pace).
 - The browser tab's icon is the logo coloured by the workspace: as many of its nine cells as needed turn warm or dim,
   so a pinned tab tells you when something needs attention.
-- The view you used last is remembered: `/` opens the tiles until you choose **Table** again.
+- `/` opens your home view, on every device you sign in on: the view you switched to last, or the one picked under
+  **Your account → Home page**. Until you pick, it goes by device: the tiles on a phone, the table elsewhere.
 
 ## One target at a glance
 

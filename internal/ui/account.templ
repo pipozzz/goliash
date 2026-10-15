@@ -20,6 +20,20 @@ templ AccountPage(v AccountView) {
 						<label>E-mail<input value={ v.Email } disabled/></label>
 						<div><button type="submit">Save</button></div>
 					</form>
+					if !v.Demo {
+						<form class="stack" method="post" action="/account/home" style="margin-top:18px">
+							<label>
+								Home page
+								<select name="home_view">
+									<option value="" selected?={ v.HomeView == "" }>Automatic: tiles on a phone, the table elsewhere</option>
+									<option value="table" selected?={ v.HomeView == "table" }>The table</option>
+									<option value="tiles" selected?={ v.HomeView == "tiles" }>The tiles</option>
+								</select>
+								<span class="hint">What Goliash opens with, on every device. Switching between table and tiles on the matrix changes it too.</span>
+							</label>
+							<div><button type="submit" class="secondary">Save</button></div>
+						</form>
+					}
 				</div>
 			</section>
 			<section class="panel">

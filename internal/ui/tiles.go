@@ -231,11 +231,10 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	if v.Env != "side" && !slices.Contains(v.Envs, v.Env) {
 		v.Env = ""
 	}
-	// Remember the tiles as this browser's home view.
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
-		Name: "goliash_view", Value: "tiles", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
-		Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
-	})
+	// Opened on purpose (not as the home view): remember the tiles as the person's home view.
+	if r.URL.Path == "/tiles" && (r.Header.Get("HX-Request") == "" || r.Header.Get("HX-Boosted") != "") {
+		s.rememberView(w, r, p, "tiles")
+	}
 
 	env := v.Env
 	if env == "side" {

@@ -264,6 +264,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
 	mux.Handle("POST /settings/app-label", s.page(a, s.setAppLabel))
 	mux.Handle("POST /account/name", s.page(v, s.saveName))
+	mux.Handle("POST /account/home", s.page(v, s.saveHomeView))
 	mux.Handle("POST /account/password", s.page(v, s.changePassword))
 	mux.Handle("POST /account/sessions/others", s.page(v, s.signOutOthers))
 	mux.Handle("POST /account/sessions/{id}/delete", s.page(v, s.signOutSession))
@@ -511,16 +512,57 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 	return steps, nil
 }
 
+// homeView is what "/" opens: the person's choice; on the public demo, where everyone shares one account,
+// this browser's; else by device: tiles on a phone, where the table does not fit, the table elsewhere.
+func (s *Server) homeView(r *http.Request, p auth.Principal) string {
+	if !s.auth.Demo() && p.User.HomeView != "" {
+		return p.User.HomeView
+	}
+	if c, err := r.Cookie("goliash_view"); err == nil && (c.Value == "tiles" || c.Value == "table") {
+		return c.Value // chosen in this browser (on the demo, or before views were kept per person)
+	}
+	if phone(r) {
+		return "tiles"
+	}
+	return "table"
+}
+
+// phone reports whether the request comes from a phone: the browser says so (Chromium's client hint), or its
+// user agent does.
+func phone(r *http.Request) bool {
+	if r.Header.Get("Sec-CH-UA-Mobile") == "?1" {
+		return true
+	}
+	ua := r.UserAgent()
+	return strings.Contains(ua, "iPhone") || (strings.Contains(ua, "Android") && strings.Contains(ua, "Mobile"))
+}
+
+// rememberView keeps the view someone switched to: on their account, or in this browser on the demo.
+func (s *Server) rememberView(w http.ResponseWriter, r *http.Request, p auth.Principal, view string) {
+	if !s.auth.Demo() && p.User.ID != "" {
+		if p.User.HomeView == view {
+			return
+		}
+		if err := s.store.SetHomeView(r.Context(), p.User.ID, view); err != nil {
+			s.log.WarnContext(r.Context(), "saving the home view failed", "err", err)
+		}
+		// The old per-browser choice would override nothing now; drop it.
+		http.SetCookie(w, &http.Cookie{Name: "goliash_view", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode}) //nolint:gosec // deleting
+		return
+	}
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
+		Name: "goliash_view", Value: view, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
+	})
+}
+
 func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	// The tiles may be this browser's home view; ?view=table asks for the table.
+	// "/" opens the person's home view; ?view=table asks for the table, and remembers it.
 	switch view := r.URL.Query().Get("view"); {
 	case view == "table":
-		http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme
-			Name: "goliash_view", Value: "table", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
-			Secure: strings.HasPrefix(s.publicURL, "https://"), MaxAge: 365 * 24 * 3600,
-		})
+		s.rememberView(w, r, p, "table")
 	case view == "" && r.URL.Query().Get("at") == "":
-		if c, err := r.Cookie("goliash_view"); err == nil && c.Value == "tiles" {
+		if s.homeView(r, p) == "tiles" {
 			return s.tiles(w, r, p)
 		}
 	}
