@@ -1915,6 +1915,11 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 	if err != nil {
 		return v, err
 	}
+	if !s.auth.Demo() {
+		if v.Apps, err = s.store.ListWorkspaceOAuthGrants(ctx, p.Scope.WorkspaceID); err != nil {
+			return v, err
+		}
+	}
 	roles, err := s.store.WorkspaceRoles(ctx, p.Scope.WorkspaceID)
 	if err != nil {
 		return v, err

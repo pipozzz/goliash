@@ -52,6 +52,7 @@ Goliash in the browser: sign in as usual, pick the workspace and **Allow**. The 
 - Access tokens last an hour and the app renews them; after 30 days without use it has to ask again.
 - **Your account → Apps with access** lists every app with the workspace and when it last read, and **Revoke** ends
   it at once.
+- Admins see every app in the workspace, and whose it is, under **Users → Apps with access**, and can revoke any.
 
 For Cursor, in `.cursor/mcp.json`, the URL is enough:
 

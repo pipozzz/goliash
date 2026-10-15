@@ -26,6 +26,10 @@ a consent page names the app, the person picks a workspace and allows it, and th
 only. **Your account → Apps with access** lists them, with when each last read, and **Revoke** ends one. An app
 loses access when its person leaves the workspace, and after 30 days unused. See [MCP](/reference/mcp/#remote-http).
 
+Admins see every app reading the workspace under **Users → Apps with access**: the app, whose it is, when it was
+allowed and last read; **Revoke** ends anyone's. Allowing and revoking are in the audit log. One address can
+register at most twenty apps an hour.
+
 ## Two-factor sign-in
 
 On their account page, anyone can turn on codes from an authenticator app (1Password, Bitwarden, Google

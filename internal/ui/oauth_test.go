@@ -327,3 +327,58 @@ func TestOAuthOnPublicDemo(t *testing.T) {
 		t.Errorf("a visitor revoked another's app: %d", c)
 	}
 }
+
+// Admins see every app reading the workspace, whose it is, and can revoke it; one address registers only so
+// many apps an hour.
+func TestOAuthAdminsAndRegistrationLimit(t *testing.T) {
+	e := newUIEnv(t)
+	var lastClient string
+	register := func() int {
+		resp, err := http.Post(e.srv.URL+"/oauth/register", "application/json", //nolint:noctx // test
+			strings.NewReader(`{"client_name":"Cursor","redirect_uris":["http://127.0.0.1/cb"]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		_ = resp.Body.Close()
+		if id, _ := out["client_id"].(string); id != "" {
+			lastClient = id
+		}
+		return resp.StatusCode
+	}
+	if code := register(); code != http.StatusCreated {
+		t.Fatalf("register: %d", code)
+	}
+	app := newOAuthApp(t, e, lastClient, "http://127.0.0.1:9000/cb")
+	member := e.as(store.RoleMember)
+	back := app.allow(member, "allow")
+	if _, tok := app.token(url.Values{"grant_type": {"authorization_code"}, "code": {back.Query().Get("code")}, "redirect_uri": {app.redirect}, "code_verifier": {app.verifier}}); tok["access_token"] == nil {
+		t.Fatalf("token: %v", tok)
+	}
+
+	admin := e.as(store.RoleAdmin)
+	_, page := get(t, admin, e.srv.URL+"/settings", nil)
+	if !strings.Contains(page, "Apps with access") || !strings.Contains(page, "Cursor") || !strings.Contains(page, "member@example.com") {
+		t.Fatal("the admin does not see the member's app")
+	}
+	grants, _ := e.st.ListWorkspaceOAuthGrants(context.Background(), e.ws.ID)
+	post(t, member, e.srv.URL+"/settings/apps/"+grants[0].ID+"/revoke", nil)
+	if left, _ := e.st.ListWorkspaceOAuthGrants(context.Background(), e.ws.ID); len(left) != 1 {
+		t.Fatal("a member revoked through the admins' page")
+	}
+	post(t, admin, e.srv.URL+"/settings/apps/"+grants[0].ID+"/revoke", nil)
+	if left, _ := e.st.ListWorkspaceOAuthGrants(context.Background(), e.ws.ID); len(left) != 0 {
+		t.Fatal("the admin could not revoke it")
+	}
+
+	// Twenty registrations an hour per address.
+	for range 19 {
+		if code := register(); code != http.StatusCreated {
+			t.Fatalf("within the limit: %d", code)
+		}
+	}
+	if code := register(); code != http.StatusTooManyRequests {
+		t.Errorf("over the limit: %d", code)
+	}
+}

@@ -96,6 +96,7 @@ type Auth struct {
 	trustProxy bool
 	byClient   *limiter           // failed password sign-ins per client address
 	byEmail    *limiter           // failed password sign-ins per e-mail
+	byRegister *limiter           // OAuth client registrations per client address
 	webauthn   *webauthn.WebAuthn // nil when the public URL cannot carry passkeys
 	demo       *store.User        // a public demo: everyone is signed in as this viewer
 
@@ -138,8 +139,20 @@ func New(st *store.Store, log *slog.Logger, publicURL string, mail MailFunc) (*A
 	return &Auth{
 		store: st, log: log, publicURL: u, mail: mail, passwords: true, sessionTTL: sessionTTL,
 		byClient: newLimiter(st, "client", 30, 15*time.Minute), byEmail: newLimiter(st, "email", 8, 15*time.Minute),
-		webauthn: newWebAuthn(u.Scheme+"://"+u.Host, u.Hostname(), u.Scheme),
+		byRegister: newLimiter(st, "oauth-register", 20, time.Hour),
+		webauthn:   newWebAuthn(u.Scheme+"://"+u.Host, u.Hostname(), u.Scheme),
 	}, nil
+}
+
+// AllowRegistration counts an app registering itself from the request's address, and reports whether it may:
+// twenty an hour per address, so nobody fills the server's room for apps waiting to be allowed.
+func (a *Auth) AllowRegistration(r *http.Request) bool {
+	ip := a.ClientIP(r)
+	if a.byRegister.blocked(r.Context(), ip) {
+		return false
+	}
+	a.byRegister.fail(r.Context(), ip)
+	return true
 }
 
 // SetSessionTTL sets how long a session lasts at most, however much it is used.

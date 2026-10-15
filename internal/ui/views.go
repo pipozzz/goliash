@@ -845,6 +845,7 @@ type AuditView struct {
 // SettingsView is the users and tokens page.
 type SettingsView struct {
 	Base
+	Apps          []store.OAuthGrant // apps people let read this workspace
 	CanGrantOwner bool
 	Require2FA    bool
 	SelfHas2FA    bool

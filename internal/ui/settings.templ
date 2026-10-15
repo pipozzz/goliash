@@ -420,6 +420,39 @@ templ SettingsPage(v SettingsView) {
 				<p class="hint">Send it as <code>Authorization: Bearer glsh_api_…</code>. It works with <code>/api/v1</code> (<a href="/api/v1/openapi.yaml" hx-boost="false">OpenAPI</a>) , <code>/metrics</code> and <code>/mcp</code>. Viewer tokens read; member tokens also acknowledge.</p>
 			</div>
 		</section>
+		<section class="panel" id="apps">
+			<div class="panel-head"><h2>Apps with access</h2><span class="muted">AI assistants and CLIs people let read this workspace as them, read only</span></div>
+			if len(v.Apps) == 0 {
+				<div class="empty">No app reads this workspace. People connect Claude, Cursor or the CLI with <code>/mcp</code> or <code>goliash login</code>, and allow it on a consent page.</div>
+			} else {
+				<div class="scroll">
+					<table class="cards">
+						<thead><tr><th>App</th><th>Person</th><th>Allowed</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
+						<tbody>
+							for _, a := range v.Apps {
+								<tr>
+									<td data-label="App"><strong>{ a.ClientName }</strong></td>
+									<td data-label="Person">{ a.Email }</td>
+									<td data-label="Allowed">@timeAgo(a.CreatedAt)</td>
+									<td data-label="Last used">
+										if a.LastUsedAt.IsZero() {
+											—
+										} else {
+											@timeAgo(a.LastUsedAt)
+										}
+									</td>
+									<td class="num">
+										<form class="inline" method="post" action={ templ.URL("/settings/apps/" + a.ID + "/revoke") } hx-confirm={ "Revoke " + a.ClientName + " for " + a.Email + "?" }>
+											<button class="link" type="submit" style="color:var(--bad)">Revoke</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
 		<section class="panel">
 			<div class="panel-head"><h2>Audit log</h2><span class="muted">changes to configuration, tokens and roles, newest first</span></div>
 			if len(v.Audit) == 0 {

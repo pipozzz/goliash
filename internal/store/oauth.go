@@ -32,6 +32,7 @@ type OAuthGrant struct {
 	AccessHash, RefreshHash                                        string
 	AccessExpiresAt, RefreshExpiresAt, CreatedAt, LastUsedAt       time.Time
 	Workspace                                                      string // its name, for the account page
+	Email                                                          string // whose it is, for admins
 }
 
 // SaveOAuthClient adds a client or refreshes one fetched from its metadata document.
@@ -196,4 +197,39 @@ func (s *Store) RevokeOAuthToken(ctx context.Context, hash, clientID string) err
 	_, err := s.exec(ctx, s.db, `DELETE FROM oauth_grants WHERE (access_hash = ? OR refresh_hash = ?) AND client_id = ?`,
 		hash, hash, clientID)
 	return err
+}
+
+// ListWorkspaceOAuthGrants returns every app reading a workspace, with whose it is, newest first: for its admins.
+func (s *Store) ListWorkspaceOAuthGrants(ctx context.Context, workspaceID string) ([]OAuthGrant, error) {
+	rows, err := s.query(ctx, s.db, `SELECT `+grantColumns+`, u.email FROM oauth_grants g
+		JOIN workspaces w ON w.id = g.workspace_id JOIN users u ON u.id = g.user_id
+		WHERE g.workspace_id = ? AND g.refresh_expires_at > ? ORDER BY g.created_at DESC`, workspaceID, s.now())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []OAuthGrant
+	for rows.Next() {
+		var g OAuthGrant
+		var used sql.NullTime
+		if err := rows.Scan(&g.ID, &g.UserID, &g.WorkspaceID, &g.ClientID, &g.ClientName, &g.Scope, &g.Resource,
+			&g.AccessExpiresAt, &g.RefreshExpiresAt, &g.CreatedAt, &used, &g.Workspace, &g.Email); err != nil {
+			return nil, err
+		}
+		g.LastUsedAt = used.Time
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// RevokeWorkspaceOAuthGrant ends a grant in a workspace, whoever's it is.
+func (s *Store) RevokeWorkspaceOAuthGrant(ctx context.Context, workspaceID, id string) error {
+	res, err := s.exec(ctx, s.db, `DELETE FROM oauth_grants WHERE id = ? AND workspace_id = ?`, id, workspaceID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

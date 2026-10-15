@@ -74,6 +74,12 @@ func TestOAuthStore(t *testing.T) {
 		if grants, _ := s.ListOAuthGrants(ctx, u.ID); len(grants) != 1 {
 			t.Fatalf("grants %d", len(grants))
 		}
+		if ws, err := s.ListWorkspaceOAuthGrants(ctx, f.ws.ID); err != nil || len(ws) != 1 || ws[0].Email != "app-user@example.com" {
+			t.Fatalf("workspace grants %+v %v", ws, err)
+		}
+		if err := s.RevokeWorkspaceOAuthGrant(ctx, "another-workspace", g.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("revoked from another workspace: %v", err)
+		}
 		if err := s.RevokeOAuthToken(ctx, "r2", c.ID); err != nil {
 			t.Fatal(err)
 		}

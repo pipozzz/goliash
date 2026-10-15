@@ -85,6 +85,7 @@ func (s *Server) oauthRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /oauth/token", s.oauthToken)
 	mux.HandleFunc("POST /oauth/revoke", s.oauthRevoke)
 	mux.Handle("POST /account/apps/{id}/revoke", s.page(store.RoleViewer, s.oauthRevokeApp))
+	mux.Handle("POST /settings/apps/{id}/revoke", s.page(store.RoleAdmin, s.oauthRevokeWorkspaceApp))
 }
 
 func (s *Server) oauthResourceMetadata(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +236,11 @@ func (s *Server) oauthRegister(w http.ResponseWriter, r *http.Request) {
 			code = "invalid_redirect_uri"
 		}
 		oauthError(w, http.StatusBadRequest, code, err.Error())
+		return
+	}
+	if !s.auth.AllowRegistration(r) {
+		w.Header().Set("Retry-After", "3600")
+		oauthError(w, http.StatusTooManyRequests, "temporarily_unavailable", "too many registrations from this address; try again in an hour")
 		return
 	}
 	if n, err := s.store.CountOAuthClients(r.Context()); err != nil || n >= oauthMaxClients {
@@ -541,4 +547,15 @@ func (s *Server) oauthRevokeApp(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	s.audit(r.Context(), p, "oauth.revoke", "grant", r.PathValue("id"))
 	return back(w, r, "/account", "notice", "The app's access is revoked.")
+}
+
+// oauthRevokeWorkspaceApp ends anyone's grant in the workspace: an admin's answer to an app they do not trust.
+func (s *Server) oauthRevokeWorkspaceApp(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	if err := s.store.RevokeWorkspaceOAuthGrant(r.Context(), p.Scope.WorkspaceID, r.PathValue("id")); errors.Is(err, store.ErrNotFound) {
+		return back(w, r, "/settings", "error", "That app no longer has access.")
+	} else if err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "oauth.revoke", "grant", r.PathValue("id"))
+	return back(w, r, "/settings", "notice", "The app's access is revoked.")
 }
