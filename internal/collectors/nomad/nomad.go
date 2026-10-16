@@ -223,7 +223,10 @@ func (c *Collector) workload(ctx context.Context, s jobStub) (*agentproto.Worklo
 	for _, g := range current.TaskGroups {
 		desired += g.Count
 	}
-	if s.Type != "system" && s.Type != "sysbatch" {
+	// Only a service job keeps its allocations running. A system job runs one per node
+	// (its count says nothing), and a batch job's allocations finish: none running is
+	// how it ends, not a service down.
+	if s.Type == "service" || s.Type == "" {
 		w.DesiredReplicas = &desired
 	}
 

@@ -21,6 +21,7 @@ func fakeNomad(t *testing.T, token string) *httptest.Server {
 			{"ID":"logs","Namespace":"prod","Type":"system","Status":"running"},
 			{"ID":"old","Namespace":"prod","Type":"service","Status":"dead"},
 			{"ID":"script","Namespace":"default","Type":"batch","Status":"running"},
+			{"ID":"compress","Namespace":"default","Type":"batch","Status":"running"},
 			{"ID":"secret","Namespace":"default","Type":"service","Status":"running"}
 		]`,
 		// Mid-deployment: version 3 (1.5.0) replacing version 2 (1.4.2).
@@ -46,6 +47,10 @@ func fakeNomad(t *testing.T, token string) *httptest.Server {
 		"/v1/job/script/versions": `{"Versions":[{"ID":"script","Namespace":"default","Version":0,"TaskGroups":[
 			{"Name":"run","Count":1,"Tasks":[{"Name":"sh","Driver":"raw_exec","Config":{"command":"/bin/true"}}]}]}]}`,
 		"/v1/job/script/allocations": `[]`,
+		// A batch job whose run has finished: nothing running is not a service down.
+		"/v1/job/compress/versions": `{"Versions":[{"ID":"compress","Namespace":"default","Version":0,"TaskGroups":[
+			{"Name":"driver","Count":1,"Tasks":[{"Name":"pg","Driver":"docker","Config":{"image":"postgres:18"}}]}]}]}`,
+		"/v1/job/compress/allocations": `[{"TaskGroup":"driver","JobVersion":0,"ClientStatus":"complete"}]`,
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -93,11 +98,15 @@ func TestCollect(t *testing.T) {
 	if res.Complete || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "default/secret") {
 		t.Fatalf("complete=%v errors=%v", res.Complete, res.Errors)
 	}
-	if len(res.Workloads) != 2 {
+	if len(res.Workloads) != 3 {
 		t.Fatalf("workloads %+v", res.Workloads)
 	}
 
-	api := res.Workloads[0]
+	byName := map[string]agentproto.Workload{}
+	for _, w := range res.Workloads {
+		byName[w.Name] = w
+	}
+	api := byName["api"]
 	if api.ID != "prod/api" || api.Kind != agentproto.NomadJob || *api.Namespace != "prod" || *api.DesiredReplicas != 3 ||
 		api.Labels["goliash.service"] != "payments-api" {
 		t.Fatalf("api %+v", api)
@@ -111,9 +120,12 @@ func TestCollect(t *testing.T) {
 		t.Fatalf("containers\n got: %s\nwant: %s", strings.Join(got, " "), want)
 	}
 
-	logs := res.Workloads[1]
+	logs := byName["logs"]
 	if logs.Name != "logs" || logs.DesiredReplicas != nil || logs.Containers[0].Running != 2 {
 		t.Fatalf("system job %+v", logs)
+	}
+	if compress, ok := byName["compress"]; !ok || compress.DesiredReplicas != nil {
+		t.Fatalf("batch job %+v", byName["compress"])
 	}
 }
 
