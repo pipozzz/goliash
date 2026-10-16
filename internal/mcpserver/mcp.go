@@ -389,7 +389,7 @@ func NewServer(c *Client) *mcp.Server {
 		Name: "images", Annotations: readOnly,
 		Description: "What one service's images are made of. Per environment: the running image's size against the " +
 			"service's size budget, its base and how many days the base tag has had a newer build, and whether it is " +
-			"signed and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
+			"signed (and by whom, as keyless signatures' certificates name it) and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
 			"the last deploy changed in the layers, biggest first, with the Dockerfile step that made each. Use it to " +
 			"explain why an image grew or what a rebuild would fix.",
 	},

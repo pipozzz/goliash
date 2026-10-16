@@ -63,7 +63,7 @@ For every image running in production, Goliash asks its registry what it holds b
 - **Provenance**: a SLSA provenance attestation (`--provenance=true`, GitHub artifact attestations).
 
 The Security page shows the share of production images with each, and lists the unsigned ones. Goliash records that
-these **exist**; it does not verify who signed them. Images on public registries are looked up by the server, at
+these **exist**; it does not verify the signatures. Images on public registries are looked up by the server, at
 most 40 per workspace and check, again after a week when something was found and after a day when nothing was.
 Images on private registries are looked up by the agents, with the credentials they already use for private tags
 (up to 20 digests per repository and round), and they send the packages of the SBOM along; this needs agent 1.27 or
@@ -80,6 +80,25 @@ section show it in Grafana and SigNoz, next to each service's size budget, outda
 the image's layers: the new ones and the gone ones, biggest first, with the Dockerfile step that made each, read from
 the image config's history (`RUN apt-get install -y chromium`, +145 MB). Layers both versions share, the base and
 unchanged steps, are left out: what is listed is what grew. Agents read it for private images from agent 1.61.
+
+### Who signed it
+
+A keyless signature (`cosign sign` in CI, GitHub artifact attestations, Chainguard and many official images) carries
+a short-lived certificate from Sigstore's Fulcio naming who signed: the CI workflow
+(`https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main`), a service account or a person's email,
+and the identity provider that vouched for it (GitHub Actions, GitLab, Google). Goliash reads it from cosign's
+signature and from Sigstore bundles, for public images and, from agent 1.70, for private ones:
+
+- each service's **Security** panel shows who signed each running image;
+- the Security page lists **Signed by**: every signer of production images and how many images each signed, so a
+  person's email among workflows stands out;
+- a service's version policy can name its **expected signer**, exactly or as a prefix (`https://github.com/acme/*`);
+  an image that is not signed by it (unsigned, signed by someone else, or signed with a key that names nobody)
+  shows as *unexpected signer* on [Image hygiene](/guide/matrix/#image-hygiene).
+
+Goliash reads the identity as the certificate states it; it does not check the certificate's chain to Fulcio or the
+signature itself. Use `cosign verify --certificate-identity … --certificate-oidc-issuer …` (or a policy controller
+in the cluster) to enforce it; Goliash shows whether what runs matches what you expect.
 
 ## Is it running?
 

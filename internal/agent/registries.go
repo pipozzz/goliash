@@ -258,6 +258,17 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 			continue
 		}
 		in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
+		for _, s := range ev.Signers {
+			signer := struct {
+				Identity string  `json:"identity"`
+				Issuer   *string `json:"issuer,omitempty"`
+			}{Identity: s.Identity}
+			if s.Issuer != "" {
+				issuer := s.Issuer
+				signer.Issuer = &issuer
+			}
+			in.Signers = append(in.Signers, signer)
+		}
 		if ev.Size > 0 {
 			in.Size = &ev.Size
 		}

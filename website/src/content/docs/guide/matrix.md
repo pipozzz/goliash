@@ -164,6 +164,7 @@ runs" hard to know or to trust, sidecars included:
 | untrusted registry | The image comes from outside `GOLIASH_ALLOWED_REGISTRIES` (e.g. `ghcr.io/acme,docker.io/library`). |
 | outdated base | Built on an older build of its `FROM` image than the base's tag has now (a build cache, no `--pull`): the base's fixes are missing. See [Security](/guide/security/#built-on-an-outdated-base). |
 | over budget | Bigger than the **Image size budget** set in the service's version policy. |
+| unexpected signer | Not signed by the **Expected signer** in the service's version policy: unsigned, signed by someone else, or signed with a key that names nobody. See [Security](/guide/security/#who-signed-it). |
 | unpinned (info) | No digest is known for the image. |
 
 `goliash hygiene`, `GET /api/v1/hygiene` and `goliash_image_hygiene_findings{kind}` in `/metrics` show the same.

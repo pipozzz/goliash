@@ -81,3 +81,19 @@ func TestLiveImageSBOM(t *testing.T) {
 		t.Fatalf("%d purls: %v", len(purls), err)
 	}
 }
+
+// Chainguard signs its images keylessly from GitHub Actions: Goliash reads who.
+func TestLiveSigners(t *testing.T) {
+	if os.Getenv("GOLIASH_LIVE_REGISTRY_TEST") == "" {
+		t.Skip("set GOLIASH_LIVE_REGISTRY_TEST=1")
+	}
+	digest, err := New().TagDigest(context.Background(), "cgr.dev/chainguard/static", "latest", Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := New().ImageEvidence(context.Background(), "cgr.dev/chainguard/static", digest, Credentials{})
+	t.Logf("signed %v, found %v, signers %+v", ev.Signed, ev.Found, ev.Signers)
+	if err != nil || !ev.Signed || len(ev.Signers) == 0 || ev.Signers[0].Identity == "" {
+		t.Fatalf("signers %+v: %v", ev.Signers, err)
+	}
+}

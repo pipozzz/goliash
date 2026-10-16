@@ -323,6 +323,11 @@ templ ServicePage(v ServiceView) {
 								<input name="max_size_mb" inputmode="numeric" value={ v.Policy.MaxSizeMB } placeholder="e.g. 300"/>
 								<span class="hint">What pulling the image may download. Over it, Image hygiene lists it and the image over budget alert fires. Empty: no budget.</span>
 							</label>
+							<label>
+								Expected signer
+								<input name="signer" value={ v.Policy.Signer } placeholder="https://github.com/acme/*"/>
+								<span class="hint">Who should sign its images, as keyless signatures' certificates name it: a workflow URI or email, or a prefix ending in *. An image not signed by it shows under Image hygiene.</span>
+							</label>
 							<label class="check">
 								<input type="checkbox" name="prerelease" value="1" checked?={ v.Policy.Prerelease }/>
 								Consider alpha, beta and rc tags
@@ -569,7 +574,12 @@ templ serviceSecurity(v ServiceView) {
 							if !im.Checked {
 								<td colspan="3" class="muted" data-label="Evidence">not checked yet</td>
 							} else {
-								<td data-label="Signed">@evidenceMark(im.Signed)</td>
+								<td data-label="Signed">
+									@evidenceMark(im.Signed)
+									if im.Signer != "" {
+										<div class="targets mono" title={ im.SignerFull }>{ im.Signer }</div>
+									}
+								</td>
 								<td data-label="SBOM">@evidenceMark(im.SBOM)</td>
 								<td data-label="Provenance">@evidenceMark(im.Provenance)</td>
 							}

@@ -146,6 +146,15 @@ paths:
                             signed: { type: boolean }
                             sbom: { type: boolean }
                             provenance: { type: boolean }
+                            signers:
+                              type: array
+                              description: Who signed it, as its keyless signatures' certificates name them (not verified).
+                              items:
+                                type: object
+                                required: [identity]
+                                properties:
+                                  identity: { type: string, example: "https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main" }
+                                  issuer: { type: string, example: "https://token.actions.githubusercontent.com" }
                   history:
                     type: array
                     items:

@@ -249,7 +249,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		case "payments-api": // size budgets: one over, two under
 			s.VersionPolicy = json.RawMessage(`{"max_size_mb":350}`)
 		case "checkout":
-			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400}`)
+			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400,"signer":"https://github.com/acme/*"}`)
 		case "notifications":
 			s.VersionPolicy = json.RawMessage(`{"max_size_mb":100}`)
 		}
@@ -403,6 +403,15 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 		case strings.HasPrefix(ev.Repo, "ghcr.io/acme/") && ev.Repo != "ghcr.io/acme/report" && ev.Repo != "ghcr.io/acme/image-resizer":
 			ev.Signed, ev.SBOM, ev.Provenance = true, true, true
 			ev.Found = []string{"sigstore bundle", "buildkit sbom", "buildkit provenance"}
+			// Signed by the release workflow; checkout 2.4.0 by hand, by a developer, which its policy does not expect.
+			signer := store.ImageSigner{
+				Identity: "https://github.com/acme/" + strings.TrimPrefix(ev.Repo, "ghcr.io/acme/") + "/.github/workflows/release.yml@refs/heads/main",
+				Issuer:   "https://token.actions.githubusercontent.com",
+			}
+			if ev.Repo == "ghcr.io/acme/checkout" && in.Tag == "2.4.0" {
+				signer = store.ImageSigner{Identity: "dev@acme.example", Issuer: "https://accounts.google.com"}
+			}
+			ev.Signers = []store.ImageSigner{signer}
 		case strings.HasPrefix(ev.Repo, "docker.io/library/"):
 			ev.SBOM, ev.Provenance = true, true
 			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
