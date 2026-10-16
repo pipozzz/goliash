@@ -448,6 +448,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 type ServiceView struct {
 	Base
 	Security       ServiceSecurity
+	Sizes          LineChart // the image's size per environment over the last 90 days, in MB; empty when unknown
 	Name           string
 	Owner          string
 	OwnerSource    string // "" set by people, "label" or "app" when Goliash set it

@@ -323,3 +323,37 @@ func (s *Store) LatestProcessedAt(ctx context.Context, sc Scope, targetID string
 	}
 	return t.UTC(), err
 }
+
+// ImagePeriod is one image of a service running in an environment, from Since until Until (zero: still).
+type ImagePeriod struct {
+	EnvironmentID, Image, Digest string
+	Since, Until                 time.Time
+}
+
+// ServiceImagePeriods returns when each main image of a service ran, per environment, for periods that end after
+// since: the history behind a chart of its image's size.
+func (s *Store) ServiceImagePeriods(ctx context.Context, sc Scope, serviceID string, since time.Time) ([]ImagePeriod, error) {
+	rows, err := s.query(ctx, s.db, `SELECT i.environment_id, i.image, i.digest, h.since, h.until
+		FROM instance_history h JOIN instances i ON i.id = h.instance_id
+		WHERE i.workspace_id = ? AND i.service_id = ? AND i.is_main AND i.digest <> '' AND i.environment_id IS NOT NULL
+			AND (h.until IS NULL OR h.until > ?)
+		ORDER BY h.since`, sc.WorkspaceID, serviceID, since.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []ImagePeriod
+	for rows.Next() {
+		var p ImagePeriod
+		var until sql.NullTime
+		if err := rows.Scan(&p.EnvironmentID, &p.Image, &p.Digest, &p.Since, &until); err != nil {
+			return nil, err
+		}
+		p.Since, p.Until = p.Since.UTC(), until.Time.UTC()
+		if !until.Valid {
+			p.Until = time.Time{}
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}

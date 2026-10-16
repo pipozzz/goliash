@@ -73,9 +73,10 @@ digest count as *not checked*.
 
 The same lookup reads the image's **size**: what pulling it downloads, its compressed layers and config, as
 registries show it (linux/amd64, or the first platform, of a multi-platform image). A service's page lists it per
-environment, with how much each differs from production (*76 MB +32 MB*): what promoting that version adds. The
-metric `goliash_image_size_bytes` and the dashboards' *Image size* graph show it over time, so a heavier base or a
-new dependency stands out. Agents read it for private images from agent 1.61.
+environment, with how much each differs from production (*76 MB +32 MB*): what promoting that version adds, and
+**Image size** charts it per environment over the last 90 days, from the deploy history: each step is a deploy, so
+a heavier base or a new dependency stands out. The metric `goliash_image_size_bytes` and the dashboards' *Image
+size* graph show it in Grafana and SigNoz. Agents read it for private images from agent 1.61.
 
 ## Is it running?
 

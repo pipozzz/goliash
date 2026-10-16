@@ -833,6 +833,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if v.CanMember {
 		v.Badges = s.serviceBadges(r.Context(), p.Scope, v.Name, v.Envs)
 	}
+	if v.Sizes, err = s.serviceSizes(ctx, p.Scope, svc, time.Now()); err != nil {
+		return err
+	}
 	if v.Security, err = s.serviceSecurity(ctx, p.Scope, svc); err != nil {
 		return err
 	}

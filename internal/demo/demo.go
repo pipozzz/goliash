@@ -343,6 +343,27 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 	if err != nil {
 		return err
 	}
+	// The images that ran earlier have a size too, so a service's size chart shows how it changed.
+	running := map[string]bool{}
+	for _, in := range active {
+		running[in.Image+"@"+in.Digest] = true
+	}
+	for back := 1; back <= 21; back++ {
+		past, err := st.InstancesAt(ctx, sc, time.Now().AddDate(0, 0, -back))
+		if err != nil {
+			return err
+		}
+		for _, in := range past {
+			if in.Digest == "" || running[in.Image+"@"+in.Digest] {
+				continue
+			}
+			running[in.Image+"@"+in.Digest] = true
+			repo := versions.ParseImage(in.Image).Repo()
+			if err := st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: repo, Digest: in.Digest, Size: demoSize(repo, in.Tag)}); err != nil {
+				return err
+			}
+		}
+	}
 	for _, in := range active {
 		if in.Digest == "" {
 			continue

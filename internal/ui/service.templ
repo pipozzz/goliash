@@ -236,6 +236,14 @@ templ ServicePage(v ServiceView) {
 		if len(v.Security.Images) > 0 {
 			@serviceSecurity(v)
 		}
+		if len(v.Sizes.Series) > 0 {
+			<section class="panel" id="sizes">
+				<div class="panel-head"><h2>Image size</h2><span class="muted">MB pulled, per environment, last 90 days</span></div>
+				<div class="panel-body">
+					@lines(v.Sizes, "Image size in MB per environment, last 90 days")
+				</div>
+			</section>
+		}
 		<div class="grid-2">
 			<section class="panel">
 				<div class="panel-head"><h2>History</h2><a href={ templ.URL("/events?service=" + v.Name) }>All events →</a></div>
