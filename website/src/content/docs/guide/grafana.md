@@ -54,13 +54,15 @@ then in Grafana open **Dashboards → New → Import**, upload the file and pick
 
 - **Versions and drift:** services behind upstream, open drifts and the oldest, what runs where, services running
   more than one version.
-- **Delivery (last 30 days):** deploys, rollbacks and the change failure rate, the median and slowest lead time from one environment to the next, deploys
+- **Delivery (last 30 days):** rollouts stuck or down (and a table of them), deploys, rollbacks and the change failure rate, the median and slowest lead time from one environment to the next, deploys
   per service and the lead time table. Lead time needs at least two environments; with only one, its panels stay
   empty.
 - **Security posture:** how long production has run behind available releases (median and 90th percentile, and
   over time: is patching getting faster?), services behind for 30 and 90 days, past end of life, accepted risk, and
   the longest exposed services, and packages by license class (copyleft, source-available and unknown ones that
   need a look).
+- **Vulnerabilities:** exploited ones (CISA KEV), those past CISA's due date, how long the oldest exploited one has
+  run, critical ones, and vulnerabilities by severity over time.
 - **Image hygiene:** moving tags, tags pushed again, untrusted registries, outdated bases, sizes over budget and
   images without a digest.
 - **Images:** what pulling each service's image downloads over time and against its size budget, bases with a newer

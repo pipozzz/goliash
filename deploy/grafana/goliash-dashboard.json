@@ -1221,6 +1221,141 @@
       }
     },
     {
+      "id": 150,
+      "type": "stat",
+      "title": "Rollouts stuck or down",
+      "description": "Workloads running none of the replicas they ask for, or two versions side by side for more than 30 minutes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(goliash_rollout_issues{kind=~\"down|stuck\"}) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 151,
+      "type": "table",
+      "title": "Rollouts that do not finish",
+      "description": "Each workload whose replicas are not where they should be: down, stuck or short of replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 18,
+        "x": 6,
+        "y": 38
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "goliash_rollout_problem{environment=~\"$environment\", service=~\"$service\"}",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": true
+            },
+            "indexByName": {
+              "service": 0,
+              "environment": 1,
+              "target": 2,
+              "workload": 3,
+              "kind": 4,
+              "running": 5,
+              "desired": 6
+            },
+            "renameByName": {
+              "service": "Service",
+              "environment": "Environment",
+              "target": "Target",
+              "workload": "Workload",
+              "kind": "Problem",
+              "running": "Running",
+              "desired": "Asked for"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60,
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 108,
       "type": "row",
       "title": "Image hygiene",
@@ -1229,7 +1364,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 45
       },
       "panels": []
     },
@@ -1246,7 +1381,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 39
+        "y": 46
       },
       "targets": [
         {
@@ -1307,7 +1442,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 39
+        "y": 46
       },
       "targets": [
         {
@@ -1361,7 +1496,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 52
       },
       "panels": []
     },
@@ -1378,7 +1513,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 46
+        "y": 53
       },
       "targets": [
         {
@@ -1439,7 +1574,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 46
+        "y": 53
       },
       "targets": [
         {
@@ -1500,7 +1635,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 46
+        "y": 53
       },
       "targets": [
         {
@@ -1561,7 +1696,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 46
+        "y": 53
       },
       "targets": [
         {
@@ -1622,7 +1757,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 50
+        "y": 57
       },
       "targets": [
         {
@@ -1670,7 +1805,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 50
+        "y": 57
       },
       "targets": [
         {
@@ -1744,7 +1879,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 58
+        "y": 65
       },
       "targets": [
         {
@@ -1861,7 +1996,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 58
+        "y": 65
       },
       "targets": [
         {
@@ -1942,7 +2077,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 58
+        "y": 65
       },
       "targets": [
         {
@@ -1987,7 +2122,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 66
+        "y": 73
       }
     },
     {
@@ -2003,7 +2138,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 67
+        "y": 74
       },
       "targets": [
         {
@@ -2068,7 +2203,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 67
+        "y": 74
       },
       "targets": [
         {
@@ -2133,7 +2268,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 67
+        "y": 74
       },
       "targets": [
         {
@@ -2194,7 +2329,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 67
+        "y": 74
       },
       "targets": [
         {
@@ -2255,7 +2390,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 67
+        "y": 74
       },
       "targets": [
         {
@@ -2316,7 +2451,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 67
+        "y": 74
       },
       "targets": [
         {
@@ -2376,7 +2511,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 71
+        "y": 78
       },
       "targets": [
         {
@@ -2442,7 +2577,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 71
+        "y": 78
       },
       "targets": [
         {
@@ -2560,7 +2695,7 @@
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 79
+        "y": 86
       },
       "targets": [
         {
@@ -2621,7 +2756,7 @@
         "h": 7,
         "w": 18,
         "x": 6,
-        "y": 79
+        "y": 86
       },
       "targets": [
         {
@@ -2667,6 +2802,319 @@
       }
     },
     {
+      "id": 141,
+      "type": "row",
+      "title": "Vulnerabilities",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 93
+      },
+      "panels": []
+    },
+    {
+      "id": 142,
+      "type": "stat",
+      "title": "Exploited in the wild",
+      "description": "Known vulnerabilities in running images that CISA lists as exploited (KEV), in the selected environments.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(goliash_vulnerabilities{exploited=\"true\", environment=~\"$environment\"}) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 143,
+      "type": "stat",
+      "title": "Past CISA due date",
+      "description": "Exploited vulnerabilities still running after the date CISA set for fixing them (BOD 22-01).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(goliash_vulnerabilities_past_due{environment=~\"$environment\"}) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 144,
+      "type": "stat",
+      "title": "Oldest exploited",
+      "description": "How long the longest-running exploited vulnerability has run.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(goliash_exploited_vulnerability_days{environment=~\"$environment\"}) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 7
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 145,
+      "type": "stat",
+      "title": "Critical",
+      "description": "Known critical vulnerabilities in running images.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 94
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(goliash_vulnerabilities{severity=\"critical\", environment=~\"$environment\"}) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 146,
+      "type": "timeseries",
+      "title": "Vulnerabilities by severity",
+      "description": "Known vulnerabilities in running images over time, from their SBOMs and OSV: a drop is a fix deployed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 98
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (severity) (goliash_vulnerabilities{environment=~\"$environment\"})",
+          "refId": "A",
+          "legendFormat": "{{severity}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "id": 111,
       "type": "row",
       "title": "Goliash itself",
@@ -2675,7 +3123,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 86
+        "y": 106
       },
       "panels": []
     },
@@ -2692,7 +3140,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 87
+        "y": 107
       },
       "targets": [
         {
@@ -2749,7 +3197,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 87
+        "y": 107
       },
       "targets": [
         {
@@ -2810,7 +3258,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 87
+        "y": 107
       },
       "targets": [
         {
@@ -2875,7 +3323,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 87
+        "y": 107
       },
       "targets": [
         {
@@ -2936,7 +3384,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 87
+        "y": 107
       },
       "targets": [
         {
@@ -3001,7 +3449,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 87
+        "y": 107
       },
       "targets": [
         {

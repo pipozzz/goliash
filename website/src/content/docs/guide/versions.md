@@ -68,6 +68,7 @@ page, with `goliash service set`, or through the catalog.
 | `changelog` | A release notes URL template with `{version}`. | none |
 | `base_image` | The image the service's image is built `FROM`, when it does not declare it; `none` turns base tracking off. | as the image declares |
 | `max_size_mb` | The image size budget in MB: over it, Image hygiene lists it and `image_over_budget` alerts. | none |
+| `signer` | Who should sign its images: a keyless signature's identity (`https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main`), or a prefix ending in `*` (`https://github.com/acme/*`). Otherwise Image hygiene lists it as *unexpected signer*. | none |
 
 Without a `tag_filter`, tags are compared **like with like**: a service running `1.27.2-alpine` is compared with
 other `-alpine` tags with three version parts, so `latest`, `mainline` or `1.27-bookworm` do not count. A tag that is no
@@ -184,6 +185,18 @@ new one*, with their IDs one click away. It is the list to go through before a r
 ```sh
 goliash promotions
 ```
+
+**Rollouts that do not finish** come first on the page. Kubernetes, ECS, Nomad, Swarm and Compose say how many
+replicas a workload asks for, and Goliash compares that with what runs:
+
+- **down**: none of the replicas runs;
+- **stuck**: two versions side by side for more than 30 minutes (*traefik v3.1.6 on 1, v3.1.2 on 1 of 2 replicas
+  asked for*), a rolling update that stopped half way;
+- **short**: fewer replicas than asked for.
+
+The service page shows the same in red, `GET /api/v1/rollouts` and the `rollouts` tool for AI assistants list them,
+and a notification rule with the `rollout` event announces stuck rollouts and services down (not short ones: a pod
+restarting is not news).
 
 ```text
 SERVICE        PROMOTE           FROM → TO        WAITING   VULNERABILITIES   RELEASES

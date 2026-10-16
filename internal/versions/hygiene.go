@@ -11,13 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 )
 
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unpinned
+	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
@@ -153,6 +154,7 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 		return nil, err
 	}
 	out := append(OutdatedBases(running, evidence, envName, targetName, time.Now()), OverBudget(running, evidence, services, envName, targetName)...)
+	out = append(out, UnexpectedSigners(running, evidence, services, envName, targetName)...)
 	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
 	return out, nil
@@ -225,6 +227,65 @@ func OverBudget(active []store.Instance, evidence map[string]store.ImageEvidence
 				Kind: "over-budget", Severity: "warning",
 				Image:  strings.TrimPrefix(strings.TrimPrefix(key, "docker.io/library/"), "docker.io/"),
 				Detail: fmt.Sprintf("%d MB, over its %d MB budget by %d MB", size/1_000_000, b/1_000_000, (size-b+999_999)/1_000_000),
+			}
+			byImage[key] = f
+			order = append(order, key)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	sort.Strings(order)
+	out := make([]Finding, 0, len(order))
+	for _, k := range order {
+		sort.Strings(byImage[k].Where)
+		out = append(out, *byImage[k])
+	}
+	return out
+}
+
+// UnexpectedSigners finds images of services whose policy names who should sign them, and that are not signed, are
+// signed by someone else, or are signed without a certificate naming who (a key-based signature).
+func UnexpectedSigners(active []store.Instance, evidence map[string]store.ImageEvidence, services []store.Service, envName, targetName map[string]string) []Finding {
+	expected := map[string]string{}
+	for _, s := range services {
+		if e := ExpectedSigner(s); e != "" {
+			expected[s.ID] = e
+		}
+	}
+	byImage := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		want := expected[i.ServiceID]
+		if want == "" || i.Digest == "" || !i.IsMain {
+			continue
+		}
+		ref := ParseImage(i.Image)
+		ev, ok := evidence[ref.Repo()+"@"+i.Digest]
+		if !ok || ev.CheckedAt.IsZero() || ev.Error != "" || (ev.Signed && !ev.SignersRead) {
+			continue // not looked up (yet), or not who signed it
+		}
+		detail := ""
+		switch {
+		case !ev.Signed:
+			detail = "not signed; " + want + " should sign it"
+		case len(ev.Signers) == 0:
+			detail = "signed without a certificate naming who (a key); " + want + " should sign it"
+		default:
+			match := false
+			for _, s := range ev.Signers {
+				match = match || registry.SignerMatches(s.Identity, want)
+			}
+			if match {
+				continue
+			}
+			detail = "signed by " + ev.Signers[0].Identity + "; " + want + " should sign it"
+		}
+		key := ref.Repo() + "@" + i.Digest
+		f := byImage[key]
+		if f == nil {
+			f = &Finding{
+				Kind: "unexpected-signer", Severity: "warning",
+				Image:  strings.TrimPrefix(strings.TrimPrefix(ref.Repo()+":"+ref.Tag, "docker.io/library/"), "docker.io/"),
+				Detail: detail,
 			}
 			byImage[key] = f
 			order = append(order, key)

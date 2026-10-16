@@ -407,6 +407,8 @@ When asked about an upgrade, read the release notes between the running version 
 
 When asked why an image grew, how big it is or what it is built on, read images for the service: name the biggest new layers with the Dockerfile step that made each, the size against its budget, an outdated base (rebuild with --pull) and missing signature, SBOM or provenance.
 
+When asked whether a deploy went out or what is wrong during an incident, read rollouts: a stuck rollout or a service down comes before anything else.
+For vulnerabilities, say how long they have run (running_since) and call out exploited ones past CISA's due date (exploited.past_due) first.
 When asked whether to promote a version, read promotions: besides the releases it brings, say which known vulnerabilities it fixes and which new ones it brings, exploited ones first.
 When asked about licenses or license compliance, read licenses (class=attention first): name the network copyleft and source-available packages and where they run, then strong copyleft and unknown ones; say it reflects what the SBOMs declare and is not legal advice.
 A version change whose note is rollback went back to an older version: in "what changed?" answers, call rollbacks out first, since someone undid a deploy.

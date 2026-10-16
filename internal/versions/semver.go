@@ -177,6 +177,18 @@ type Policy struct {
 	// MaxSizeMB is the service's image size budget: what pulling it may download, in MB (1,000,000 bytes);
 	// 0: none.
 	MaxSizeMB int `json:"max_size_mb,omitempty"`
+	// Signer is who should sign the service's images: the identity in their keyless signatures' certificates,
+	// exactly, or a prefix ending in * (https://github.com/acme/*). Empty: no expectation.
+	Signer string `json:"signer,omitempty"`
+}
+
+// ExpectedSigner is who should sign a service's images, empty when its policy names nobody.
+func ExpectedSigner(svc store.Service) string {
+	p, err := ParsePolicy(svc.VersionPolicy)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(p.Signer)
 }
 
 // SizeBudget is a service's image size budget in bytes, 0 when it has none.

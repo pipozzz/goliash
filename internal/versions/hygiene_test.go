@@ -4,7 +4,10 @@
 package versions
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -41,5 +44,44 @@ func TestHygiene(t *testing.T) {
 	}
 	if n := len(Hygiene(active, envs, targets, nil)); n != len(got)-1 {
 		t.Fatalf("without an allowed list there is no registry finding: %d", n)
+	}
+}
+
+func TestUnexpectedSigners(t *testing.T) {
+	now := time.Now()
+	svc := store.Service{ID: "s1", Name: "api", VersionPolicy: json.RawMessage(`{"signer":"https://github.com/acme/*"}`)}
+	other := store.Service{ID: "s2", Name: "web"} // no expectation
+	run := func(service, image, digest string) store.Instance {
+		return store.Instance{ServiceID: service, EnvironmentID: "e", TargetID: "t", WorkloadName: "w", ContainerName: "c", Image: image, Digest: digest, IsMain: true}
+	}
+	active := []store.Instance{
+		run("s1", "ghcr.io/acme/api:1.0.0", "sha256:good"),
+		run("s1", "ghcr.io/acme/api:1.1.0", "sha256:evil"),
+		run("s1", "ghcr.io/acme/api:1.2.0", "sha256:unsigned"),
+		run("s1", "ghcr.io/acme/api:1.3.0", "sha256:key"),
+		run("s1", "ghcr.io/acme/api:1.4.0", "sha256:old"), // looked up before signers were read
+		run("s2", "nginx:1.27", "sha256:web"),
+	}
+	gh := store.ImageSigner{Identity: "https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main", Issuer: "https://token.actions.githubusercontent.com"}
+	evidence := map[string]store.ImageEvidence{
+		"ghcr.io/acme/api@sha256:good":       {CheckedAt: now, Signed: true, SignersRead: true, Signers: []store.ImageSigner{gh}},
+		"ghcr.io/acme/api@sha256:evil":       {CheckedAt: now, Signed: true, SignersRead: true, Signers: []store.ImageSigner{{Identity: "mallory@example.com"}}},
+		"ghcr.io/acme/api@sha256:unsigned":   {CheckedAt: now, SignersRead: true},
+		"ghcr.io/acme/api@sha256:key":        {CheckedAt: now, Signed: true, SignersRead: true},
+		"ghcr.io/acme/api@sha256:old":        {CheckedAt: now, Signed: true},
+		"docker.io/library/nginx@sha256:web": {CheckedAt: now},
+	}
+	got := UnexpectedSigners(active, evidence, []store.Service{svc, other}, map[string]string{"e": "prod"}, map[string]string{"t": "k8s"})
+	if len(got) != 3 {
+		t.Fatalf("findings %+v", got)
+	}
+	details := got[0].Detail + " | " + got[1].Detail + " | " + got[2].Detail
+	for _, want := range []string{"signed by mallory@example.com", "not signed", "without a certificate naming who"} {
+		if !strings.Contains(details, want) {
+			t.Errorf("missing %q in %s", want, details)
+		}
+	}
+	if got[0].Kind != "unexpected-signer" || got[0].Where[0] != "prod / k8s / w / c" {
+		t.Errorf("finding %+v", got[0])
 	}
 }

@@ -87,8 +87,30 @@ func TestPostureReport(t *testing.T) {
 
 func TestPostureItemOutdatedBases(t *testing.T) {
 	pos := versions.Posture{Prod: store.Environment{Name: "prod"}, ProdRunning: 9, OutdatedBase: []string{"api", "checkout", "web", "worker"}}
-	it := PostureItem(pos, nil, time.Now())
+	it := PostureItem(pos, SupplyChain{}, nil, time.Now())
 	if !strings.Contains(it.Text, "Built on an outdated base (rebuild with --pull): api, checkout, web, 1 more.") {
 		t.Errorf("text: %s", it.Text)
+	}
+}
+
+func TestPostureItemSupplyChain(t *testing.T) {
+	pos := versions.Posture{Prod: store.Environment{Name: "prod"}, ProdRunning: 9}
+	supply := SupplyChain{
+		Vulns: versions.VulnReport{WithSBOM: 6, Exploited: 1, Fixable: 4, Findings: []versions.VulnFinding{
+			{Key: "CVE-2021-44228", Exploited: &store.Exploited{CVE: "CVE-2021-44228"}}, {Key: "CVE-2024-1"}, {Key: "CVE-2024-2"},
+		}},
+		Licenses: versions.LicenseReport{WithSBOM: 6, Counts: map[versions.LicenseClass]int{versions.NetworkCopyleft: 1, versions.UnknownLicense: 2, versions.Permissive: 40}},
+	}
+	it := PostureItem(pos, supply, nil, time.Now())
+	for _, want := range []string{
+		"Known vulnerabilities in 6 images with an SBOM: 3, 1 exploited in the wild (CVE-2021-44228); 4 with a fix out.",
+		"Licenses that need a look: 1 network copyleft, 2 unknown.",
+	} {
+		if !strings.Contains(it.Text, want) {
+			t.Errorf("missing %q in %s", want, it.Text)
+		}
+	}
+	if strings.Contains(PostureItem(pos, SupplyChain{}, nil, time.Now()).Text, "vulnerabilities") {
+		t.Error("no SBOM, no vulnerability sentence")
 	}
 }
