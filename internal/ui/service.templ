@@ -23,7 +23,24 @@ templ ServicePage(v ServiceView) {
 			}
 		</div>
 		<dl class="facts">
-			<div class="fact"><dt>Owner</dt><dd>{ orDash(v.Owner) }</dd></div>
+			<div class="fact">
+				<dt>Team</dt>
+				<dd>
+					if v.CanMember {
+						<form method="post" action={ templ.URL("/services/" + v.Name + "/team") } class="inline team-set">
+							<input name="team" data-combo="service-teams" data-combo-new="Create team" value={ v.Owner } placeholder="no team" aria-label={ "Team of " + v.Name } size="14"/>
+							<button type="submit" class="secondary">Set</button>
+						</form>
+						<datalist id="service-teams">
+							for _, t := range v.TeamNames {
+								<option value={ t }></option>
+							}
+						</datalist>
+					} else {
+						{ orDash(v.Owner) }
+					}
+				</dd>
+			</div>
 			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.Kind) }</dd></div>
 			<div class="fact"><dt>Upstream</dt><dd class="mono">{ orDash(v.RefRepo) }</dd></div>
 			if v.BuiltOn != nil {

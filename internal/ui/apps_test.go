@@ -55,7 +55,7 @@ func TestAppsAndTeams(t *testing.T) {
 	if _, body, _ := post(t, member, e.srv.URL+"/apps/rename", url.Values{"app": {"shop"}, "to": {"<b>"}}); !strings.Contains(body, "Give the application a name") {
 		t.Fatal("a bad name was accepted")
 	}
-	if _, body, _ := post(t, member, e.srv.URL+"/apps/team", url.Values{"app": {"shop"}, "team": {"team-shop"}}); !strings.Contains(body, "now belong to team-shop") {
+	if _, body, _ := post(t, member, e.srv.URL+"/apps/team", url.Values{"app": {"shop"}, "team": {"team-shop"}}); !strings.Contains(body, "to team-shop;") {
 		t.Fatalf("app team: %s", body)
 	}
 	got, _ := e.st.GetServiceByName(ctx, sc, svc)
@@ -85,11 +85,38 @@ func TestAppsAndTeams(t *testing.T) {
 	if _, body, _ := post(t, member, e.srv.URL+"/teams/rename", url.Values{"team": {"team-shop"}, "to": {"shop-squad"}}); !strings.Contains(body, "team-shop is shop-squad now") {
 		t.Fatalf("team rename: %s", body)
 	}
-	if _, body, _ := post(t, member, e.srv.URL+"/teams/assign", url.Values{"service": {"api"}, "team": {"platform"}}); !strings.Contains(body, "1 service now belong to platform") {
+	if _, body, _ := post(t, member, e.srv.URL+"/teams/assign", url.Values{"service": {"api"}, "team": {"platform"}}); !strings.Contains(body, "1 service now belongs to platform") {
 		t.Fatalf("assign: %s", body)
 	}
 	if got, _ := e.st.GetServiceByName(ctx, sc, "api"); got.Owner != "platform" {
 		t.Fatalf("assigned owner %q", got.Owner)
+	}
+	// Out of the team again, then back with a team's own button: the button wins over the empty field.
+	if _, body, _ := post(t, member, e.srv.URL+"/teams/unassign", url.Values{"service": {"api"}, "team": {"platform"}}); !strings.Contains(body, "api is not in platform any more") {
+		t.Fatalf("unassign: %s", body)
+	}
+	if got, _ := e.st.GetServiceByName(ctx, sc, "api"); got.Owner != "" {
+		t.Fatalf("still owned by %q", got.Owner)
+	}
+	if _, page = get(t, member, e.srv.URL+"/teams", nil); !strings.Contains(page, `data-combo="team-names" data-combo-new="Create team"`) || !strings.Contains(page, `<option value="shop-squad">`) ||
+		!strings.Contains(page, `action="/teams/unassign"`) || !strings.Contains(page, `<summary class="button secondary">Rename</summary>`) {
+		t.Fatalf("teams page misses the team picker: %s", page)
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/teams/assign", url.Values{"service": {"api"}, "team": {""}, "pick": {"shop-squad"}}); !strings.Contains(body, "1 service now belongs to shop-squad") {
+		t.Fatalf("pick: %s", body)
+	}
+	// From the service's own page.
+	if _, page = get(t, member, e.srv.URL+"/services/api", nil); !strings.Contains(page, `action="/services/api/team"`) || !strings.Contains(page, `<option value="shop-squad">`) {
+		t.Fatalf("service page misses the team field: %s", page)
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/services/api/team", url.Values{"team": {"platform"}}); !strings.Contains(body, "api belongs to platform now") {
+		t.Fatalf("service team: %s", body)
+	}
+	if got, _ := e.st.GetServiceByName(ctx, sc, "api"); got.Owner != "platform" || got.OwnerSource != "" {
+		t.Fatalf("service page set %q (%s)", got.Owner, got.OwnerSource)
+	}
+	if code, _, _ := post(t, viewer, e.srv.URL+"/services/api/team", url.Values{"team": {"x"}}); code != 403 {
+		t.Fatalf("viewer set a team: %d", code)
 	}
 	if code, _, _ := post(t, viewer, e.srv.URL+"/teams/rename", url.Values{"team": {"platform"}, "to": {"x"}}); code != 403 {
 		t.Fatalf("viewer renamed a team: %d", code)

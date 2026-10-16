@@ -450,6 +450,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
+	TeamNames      []string // the workspace's teams, to pick one
 	Security       ServiceSecurity
 	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
 	SizeChange     *SizeChange // what the last deploy changed in the image, when its layers are known

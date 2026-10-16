@@ -160,6 +160,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/stream", s.page(v, s.stream))
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
+	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
 	mux.Handle("GET /services/new", s.page(m, s.newService))
 	mux.Handle("POST /services/new", s.page(m, s.createService))
@@ -182,6 +183,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /teams", s.page(v, s.teams))
 	mux.Handle("POST /teams/rename", s.page(m, s.renameTeam))
 	mux.Handle("POST /teams/assign", s.page(m, s.assignTeam))
+	mux.Handle("POST /teams/unassign", s.page(m, s.unassignTeam))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
@@ -673,6 +675,16 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		return err
 	}
 	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, OwnerSource: svc.OwnerSource, App: svc.App, Kind: svc.Kind, Upstream: svc.Upstream}
+	if all, err := s.store.ListServices(ctx, p.Scope); err == nil {
+		seen := map[string]bool{}
+		for _, x := range all {
+			if x.Owner != "" && !seen[x.Owner] {
+				seen[x.Owner] = true
+				v.TeamNames = append(v.TeamNames, x.Owner)
+			}
+		}
+		sort.Strings(v.TeamNames)
+	}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
 	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)

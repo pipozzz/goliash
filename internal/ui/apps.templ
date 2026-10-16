@@ -3,6 +3,8 @@
 
 package ui
 
+import "strings"
+
 templ AppsPage(v AppsView) {
 	@Layout(v.Base) {
 		<div class="head">
@@ -85,18 +87,25 @@ templ AppsPage(v AppsView) {
 							}
 						</ul>
 						if v.CanMember {
-							<div class="app-actions">
-								<form method="post" action="/apps/rename" class="inline">
+							<details class="card-edit">
+								<summary class="button secondary">Edit</summary>
+								<form method="post" action="/apps/rename" class="app-actions">
 									<input type="hidden" name="app" value={ a.Name }/>
-									<input name="to" list="app-names" placeholder={ "rename or merge into…" } aria-label={ "New name for " + a.Name } required/>
-									<button class="secondary" type="submit">Rename</button>
+									<label class="grow">
+										<span class="hint">Name (another application's merges the two)</span>
+										<input name="to" list="app-names" value={ a.Name } aria-label={ "New name for " + a.Name } required data-focus-open/>
+									</label>
+									<button type="submit">Rename</button>
 								</form>
-								<form method="post" action="/apps/team" class="inline">
+								<form method="post" action="/apps/team" class="app-actions">
 									<input type="hidden" name="app" value={ a.Name }/>
-									<input name="team" list="team-names" placeholder="team for all its services" aria-label={ "Team for " + a.Name } required/>
-									<button class="secondary" type="submit">Set team</button>
+									<label class="grow">
+										<span class="hint">Team for all its services</span>
+										<input name="team" data-combo="team-names" data-combo-new="Create team" placeholder="pick or type a team" aria-label={ "Team for " + a.Name } required/>
+									</label>
+									<button type="submit">Set team</button>
 								</form>
-							</div>
+							</details>
 						}
 					</div>
 				</section>
@@ -128,17 +137,28 @@ templ TeamsPage(v TeamsView) {
 						}
 						<ul class="app-services">
 							for _, svc := range t.Services {
-								<li><span class={ "tcell " + svc.State } title={ tileLabel(svc.State) }></span> <a href={ templ.URL(svc.URL) }>{ svc.Name }</a></li>
+								<li>
+									<span class={ "tcell " + svc.State } title={ tileLabel(svc.State) }></span> <a href={ templ.URL(svc.URL) }>{ svc.Name }</a>
+									if v.CanMember {
+										<form method="post" action="/teams/unassign" class="inline unassign">
+											<input type="hidden" name="service" value={ svc.Name }/>
+											<input type="hidden" name="team" value={ t.Name }/>
+											<button type="submit" class="link" title={ "Take " + svc.Name + " out of " + t.Name } aria-label={ "Take " + svc.Name + " out of " + t.Name }>×</button>
+										</form>
+									}
+								</li>
 							}
 						</ul>
 						if v.CanMember {
-							<div class="app-actions">
-								<form method="post" action="/teams/rename" class="inline">
+							<details class="card-edit">
+								<summary class="button secondary">Rename</summary>
+								<form method="post" action="/teams/rename" class="app-actions">
 									<input type="hidden" name="team" value={ t.Name }/>
-									<input name="to" list="team-names" placeholder="new name" aria-label={ "New name for " + t.Name } required/>
-									<button class="secondary" type="submit">Rename</button>
+									<input name="to" data-combo="team-names" value={ t.Name } aria-label={ "New name for " + t.Name } required data-focus-open/>
+									<button type="submit">Save</button>
 								</form>
-							</div>
+								<p class="hint">Another team's name merges the two.</p>
+							</details>
 						}
 					</div>
 				</section>
@@ -149,9 +169,15 @@ templ TeamsPage(v TeamsView) {
 				<div class="panel-head"><h2>Without a team</h2><span class="muted">{ plural(len(v.Unowned), "service", "services") }</span></div>
 				<div class="panel-body">
 					<form method="post" action="/teams/assign" class="stack">
+						if v.CanMember && len(v.Unowned) > 8 {
+							<div class="row pick-tools">
+								<input type="search" class="search grow" data-filter=".pick li" placeholder="Filter services" aria-label="Filter the services without a team" autocomplete="off"/>
+								<label class="check"><input type="checkbox" data-check-shown=".pick li:not([hidden]) input[name=service]"/> Select all shown</label>
+							</div>
+						}
 						<ul class="app-services pick">
 							for _, svc := range v.Unowned {
-								<li>
+								<li data-search={ strings.ToLower(svc.Name) }>
 									<label class="check">
 										if v.CanMember {
 											<input type="checkbox" name="service" value={ svc.Name }/>
@@ -164,7 +190,7 @@ templ TeamsPage(v TeamsView) {
 						</ul>
 						if v.CanMember {
 							<div class="app-actions">
-								<input name="team" list="team-names" placeholder="team" aria-label="Team for the picked services" required/>
+								<input name="team" data-combo="team-names" data-combo-new="Create team" placeholder={ newTeamHint(len(v.Teams)) } aria-label="Team for the picked services" required/>
 								<button type="submit">Give them this team</button>
 							</div>
 						}
