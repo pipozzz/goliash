@@ -159,6 +159,7 @@ type Affected struct {
 	Service, Env, Image, Package string
 	Fix                          string // the version of the package that fixes it, when known
 	ServiceID, EnvironmentID     string
+	Since                        time.Time // since when the image has run there (its earliest target)
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -171,7 +172,34 @@ type VulnFinding struct {
 	Affected []Affected
 	// Exploited is set when CISA lists the CVE as exploited in the wild.
 	Exploited *store.Exploited
-	Fixable   bool // a fixed version exists for at least one affected package
+	Fixable   bool      // a fixed version exists for at least one affected package
+	Since     time.Time // since when it has run: the earliest of its affected images
+}
+
+// DueDate is the date CISA set for fixing an exploited vulnerability (BOD 22-01); zero when none is set.
+func (f VulnFinding) DueDate() time.Time {
+	if f.Exploited == nil || f.Exploited.DueDate == "" {
+		return time.Time{}
+	}
+	d, err := time.Parse("2006-01-02", f.Exploited.DueDate)
+	if err != nil {
+		return time.Time{}
+	}
+	return d
+}
+
+// PastDue tells whether CISA's due date for an exploited vulnerability has passed while it still runs.
+func (f VulnFinding) PastDue(now time.Time) bool {
+	d := f.DueDate()
+	return !d.IsZero() && now.After(d.AddDate(0, 0, 1))
+}
+
+// DaysRunning is how many whole days the vulnerability has run in the report's scope.
+func (f VulnFinding) DaysRunning(now time.Time) int {
+	if f.Since.IsZero() {
+		return 0
+	}
+	return int(now.Sub(f.Since).Hours() / 24)
 }
 
 // VulnReport is what the SBOMs and OSV say about the running images.
@@ -184,6 +212,7 @@ type VulnReport struct {
 	Pending   int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
 	Exploited int // findings CISA lists as exploited in the wild
 	Fixable   int // findings with a fixed version for an affected package
+	PastDue   int // exploited findings still running after CISA's due date
 }
 
 // LoadVulnReport builds the report for the running images, envID limiting it to one environment ("" for all).
@@ -212,7 +241,10 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	for _, e := range envs {
 		envName[e.ID] = e.Name
 	}
-	type use struct{ service, env, image, serviceID, envID string }
+	type use struct {
+		service, env, image, serviceID, envID string
+		since                                 time.Time
+	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
 	for _, in := range active {
@@ -232,7 +264,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, in.FirstSeenAt})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -291,10 +323,13 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
 			for _, u := range byPurl[p] {
-				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID}
+				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since}
 				if i := indexAffected(f.Affected, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
+					}
+					if !u.since.IsZero() && (f.Affected[i].Since.IsZero() || u.since.Before(f.Affected[i].Since)) {
+						f.Affected[i].Since = u.since
 					}
 				} else {
 					f.Affected = append(f.Affected, a)
@@ -314,9 +349,15 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		}
 		for _, a := range f.Affected {
 			f.Fixable = f.Fixable || a.Fix != ""
+			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
+				f.Since = a.Since
+			}
 		}
 		if f.Exploited != nil {
 			r.Exploited++
+		}
+		if f.PastDue(time.Now()) {
+			r.PastDue++
 		}
 		if f.Fixable {
 			r.Fixable++

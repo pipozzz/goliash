@@ -630,7 +630,9 @@ paths:
                             due_date: { type: string }
                             date_added: { type: string }
                             ransomware: { type: boolean }
+                            past_due: { type: boolean, description: "It still runs after the due date CISA set for fixing it (BOD 22-01)." }
                         fixable: { type: boolean }
+                        running_since: { type: string, format: date-time, description: "Since when it has run: the earliest of the affected images." }
                         affected:
                           type: array
                           items:
@@ -642,6 +644,7 @@ paths:
                               image: { type: string }
                               package: { type: string, example: log4j-core 2.14.1 }
                               fix: { type: string, example: 2.15.0 }
+                              since: { type: string, format: date-time, description: "Since when the image has run in the environment." }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
