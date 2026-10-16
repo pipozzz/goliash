@@ -275,7 +275,7 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 		}
 		item := Item{
 			Type: e.Type, Service: svc.Name, App: e.App, Apps: itemApps(e.App, nm.apps[e.ServiceID]), Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
-			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, At: e.At,
+			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: versions.EventNote(e), At: e.At,
 		}
 		item.Text = Describe(item)
 		if e.Type == "new_release" {
@@ -382,7 +382,8 @@ func matches(r store.Rule, f Filter, it Item) bool {
 	if it.Type == "agent_back" { // the all clear goes where the alarm went
 		return len(r.EventTypes) == 0 || contains(r.EventTypes, "agent_stale")
 	}
-	if len(r.EventTypes) > 0 && !contains(r.EventTypes, it.Type) {
+	rollback := it.Type == "version_changed" && it.Note == versions.RollbackNote
+	if len(r.EventTypes) > 0 && !contains(r.EventTypes, it.Type) && (!rollback || !contains(r.EventTypes, versions.RollbackNote)) {
 		return false
 	}
 	if it.Type == "agent_stale" { // not tied to a service or environment
@@ -656,6 +657,9 @@ func Describe(it Item) string {
 	case "version_changed":
 		if it.Note == "retag" {
 			return fmt.Sprintf("%s: %s was re-pushed (new digest)%s", where, it.To, on)
+		}
+		if it.Note == versions.RollbackNote {
+			return fmt.Sprintf("%s: rolled back from %s to %s%s", where, it.From, it.To, on)
 		}
 		return fmt.Sprintf("%s: %s → %s%s", where, it.From, it.To, on)
 	case "removed":

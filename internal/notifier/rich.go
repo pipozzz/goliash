@@ -27,6 +27,9 @@ func kindOf(it Item) kind {
 		if it.Note == "retag" {
 			return kind{"♻️", "#ffb347", "Re-pushed"}
 		}
+		if it.Note == "rollback" {
+			return kind{"⏪", "#e5484d", "Rolled back"}
+		}
 		return kind{"🔁", "#3b6cf6", "Version changed"}
 	case EventRollout:
 		if it.Note == "down" {

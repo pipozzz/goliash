@@ -200,7 +200,9 @@ postgres       15.6 → 15.7       staging → prod   26h       15.7
 
 Below it, the page shows how versions moved over the last 30 days, read from what ran when rather than from CI:
 how many versions arrived in each environment, and the median time a version took from one environment to the
-next (its *lead time*, e.g. staging → prod).
+next (its *lead time*, e.g. staging → prod). A change back to an older version counts as a **rollback**, not a
+deploy: rollbacks against deploys are DORA's change failure rate, counting a rollback as a failed change. The
+history marks them *rolled back*, and `GET /api/v1/delivery` and the metric `goliash_rollbacks` have them.
 
 ```sh
 goliash delivery -window 720h

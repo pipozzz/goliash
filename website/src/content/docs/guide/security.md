@@ -122,6 +122,30 @@ advisories are still being looked up it says so, and does not answer "not runnin
 Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
 lookups at a mirror, or turns them off (`off`).
 
+## Licenses
+
+The same SBOMs say which license each package is under. **Security → Licenses** sorts the packages of running
+images by what their licenses ask, most demanding first:
+
+| Class | Examples | What it asks |
+| --- | --- | --- |
+| Network copyleft | AGPL, SSPL, OSL | offering the software as a service can oblige you to publish your source |
+| Source-available | BUSL, Elastic, PolyForm, non-commercial | limits on production, commercial or competing use |
+| Strong copyleft | GPL, EUPL | shipping it with your code can oblige you to publish that code |
+| Weak copyleft | LGPL, MPL, EPL | changes to the package itself must be shared |
+| Unknown | | the SBOM names no license, or one Goliash does not know |
+| Permissive | MIT, Apache, BSD | attribution only |
+
+The page opens on the packages that **need a look** (network copyleft, source-available, strong copyleft and unknown),
+each with the services and environments it runs in. An expression with OR counts as its least demanding choice
+(`MIT OR GPL-2.0` is permissive); one with AND as its most demanding part. Operating system packages (Debian,
+Alpine, RPM) are left out unless asked for: copyleft is the norm there (glibc, bash) and comes with the base image.
+
+The same is `GET /api/v1/licenses` (`?class=attention`, `?environment=prod`, `?os=false`, `?q=AGPL`), the
+`licenses` tool for AI assistants and Goli, the metric `goliash_license_packages{class,kind}`, and licenses per
+package in the [CycloneDX inventory](../sbom/). Goliash reads licenses as the SBOMs declare them: it is a map, not
+legal advice.
+
 ## Trend
 
 Goliash records production's posture every hour (the day's last reading stays) and keeps a little over a year of

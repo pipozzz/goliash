@@ -43,8 +43,30 @@ type BOMComponent struct {
 	Version    string         `json:"version,omitempty"`
 	Purl       string         `json:"purl,omitempty"`
 	Hashes     []BOMHash      `json:"hashes,omitempty"`
+	Licenses   []BOMLicense   `json:"licenses,omitempty"`
 	Properties []BOMProperty  `json:"properties,omitempty"`
 	Components []BOMComponent `json:"components,omitempty"`
+}
+
+// BOMLicense is a package's license: an SPDX expression when it combines licenses, else the license by name.
+type BOMLicense struct {
+	Expression string `json:"expression,omitempty"`
+	License    *struct {
+		Name string `json:"name"`
+	} `json:"license,omitempty"`
+}
+
+func bomLicenses(l string) []BOMLicense {
+	switch {
+	case l == "":
+		return nil
+	case strings.ContainsAny(l, " ()"):
+		return []BOMLicense{{Expression: l}}
+	}
+	one := BOMLicense{License: &struct {
+		Name string `json:"name"`
+	}{l}}
+	return []BOMLicense{one}
 }
 
 // BOMHash is a component's digest.
@@ -93,9 +115,11 @@ func InventoryBOM(items []InventoryItem, sboms map[string]store.ImageSBOM, works
 				if alg, sum, ok := strings.Cut(i.Digest, ":"); ok && alg == "sha256" {
 					c.Hashes = []BOMHash{{Alg: "SHA-256", Content: sum}}
 				}
-				for _, p := range sboms[repo+"@"+i.Digest].Purls {
+				sbom := sboms[repo+"@"+i.Digest]
+				for _, p := range sbom.Purls {
 					c.Components = append(c.Components, BOMComponent{
 						Type: "library", BOMRef: key + "|" + p, Name: purlPackage(p), Version: purlVersion(p), Purl: p,
+						Licenses: bomLicenses(sbom.Licenses[p]),
 					})
 				}
 			}

@@ -374,8 +374,11 @@ type ImageInspection struct {
 	} `json:"layer_details,omitempty"`
 
 	// Layers The image's layer digests, bottom first (linux/amd64 or the first platform), to tell whether it is built on its base as the base is now.
-	Layers     []string `json:"layers,omitempty"`
-	Provenance *bool    `json:"provenance,omitempty"`
+	Layers []string `json:"layers,omitempty"`
+
+	// Licenses The license each package declares, by package URL, as SPDX expressions (MIT, Apache-2.0 OR MIT), for the packages whose license the SBOM names.
+	Licenses   map[string]string `json:"licenses,omitempty"`
+	Provenance *bool             `json:"provenance,omitempty"`
 
 	// Purls The package URLs the SBOM attestation lists, when there is one.
 	Purls  []string `json:"purls,omitempty"`

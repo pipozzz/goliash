@@ -69,7 +69,12 @@ templ ReportPage(v ReportView) {
 							<tr>
 								<td><strong>{ d.Service }</strong></td>
 								for _, c := range d.Envs {
-									<td class="num">{ itoa(c.Deploys) }</td>
+									<td class="num">
+										{ itoa(c.Deploys) }
+										if c.Rollbacks > 0 {
+											<div class="targets error-text">{ plural(c.Rollbacks, "rollback", "rollbacks") }</div>
+										}
+									</td>
 								}
 								for _, l := range d.Leads {
 									<td class="num mono">{ l }</td>

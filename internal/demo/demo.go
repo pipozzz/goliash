@@ -114,6 +114,8 @@ var targets = []demoTarget{
 	{name: "demo-prod-us", env: "prod", platform: "ecs", steps: []step{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.8.0", "notifications": "0.14.0", "rabbitmq": "3.12.14"}},
 		{9, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.9.0", "notifications": "0.14.0", "rabbitmq": "3.12.14"}},
+		// 3.10.0 went out and was rolled back two days later.
+		{11, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.10.0", "notifications": "0.14.0", "rabbitmq": "3.12.14"}},
 		{13, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.9.0", "notifications": "0.15.2", "rabbitmq": "3.12.14"}},
 	}},
 	// The commerce side in staging, a step ahead of production.
@@ -430,7 +432,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 		}
 		// A short SBOM: real package versions, so the live lookup on OSV answers with their real vulnerabilities.
 		if purls := demoSBOM(ev.Repo); len(purls) > 0 && ev.SBOM {
-			if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: ev.Repo, Digest: ev.Digest, Purls: purls}); err != nil {
+			if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: ev.Repo, Digest: ev.Digest, Purls: purls, Licenses: demoLicenses(purls)}); err != nil {
 				return err
 			}
 		}
@@ -455,11 +457,33 @@ func demoSBOM(repo string) []string {
 	case "docker.io/library/nginx":
 		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
 	case "ghcr.io/acme/payments-api":
-		return []string{"pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.13.2"}
+		return []string{
+			"pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.13.2",
+			"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",
+		}
 	case "ghcr.io/acme/checkout":
 		return []string{"pkg:npm/lodash@4.17.15", "pkg:npm/express@4.17.1", "pkg:npm/axios@0.21.1", "pkg:npm/jsonwebtoken@8.5.1"}
 	}
 	return nil
+}
+
+// demoLicenses are the licenses the demo SBOMs declare, as the real packages do. iText 5 is AGPL: the kind of
+// package a license review looks for. jsonwebtoken's SBOM entry names none.
+func demoLicenses(purls []string) map[string]string {
+	known := map[string]string{
+		"openssl": "Apache-2.0", "libc6": "GPL-2.0-or-later AND LGPL-2.1-or-later", "zlib1g": "Zlib",
+		"libgnutls30": "LGPL-2.1-or-later", "libexpat1": "MIT", "curl": "curl", "libxml2": "MIT",
+		"log4j-core": "Apache-2.0", "jackson-databind": "Apache-2.0", "itextpdf": "AGPL-3.0-only",
+		"lodash": "MIT", "express": "MIT", "axios": "MIT",
+	}
+	out := map[string]string{}
+	for _, p := range purls {
+		name, _, _ := strings.Cut(p[strings.LastIndex(p, "/")+1:], "@")
+		if l := known[name]; l != "" {
+			out[p] = l
+		}
+	}
+	return out
 }
 
 // backdateReleases gives the example releases publication dates, newest a few days ago and each older one

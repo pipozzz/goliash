@@ -89,6 +89,7 @@ Goli uses the same read-only tools as the [MCP server](/reference/mcp/), through
 | `updates` | What to upgrade, most urgent first, and why |
 | `release_notes` | The release notes between two versions, from GitHub or GitLab |
 | `changes` | What changed recently: deploys, new releases, drift |
+| `licenses` | Licenses of packages in running images, copyleft and unknown ones first |
 | `rollouts` | Rollouts that do not finish: services down, stuck with two versions, short of replicas |
 | `vulnerabilities` | Known vulnerabilities in running images, exploited ones first |
 | `posture` | The security posture: how long production runs behind fixes, end of life, accepted risk, blind spots |
