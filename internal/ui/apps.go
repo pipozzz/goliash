@@ -346,3 +346,10 @@ func b2i(b bool) int {
 	}
 	return 0
 }
+
+// teamBrief is what the Brief button on a team's card asks Goli.
+func teamBrief(team string) string {
+	return "Brief the team " + team + " for this week: of the services it owns, what to upgrade first and why " +
+		"(exploited vulnerabilities, end of life, majors), any rollout stuck or service down, and what can wait. " +
+		"Keep it to a short to-do list with links."
+}
