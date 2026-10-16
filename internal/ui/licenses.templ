@@ -1,0 +1,131 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import "github.com/pipozzz/goliash/internal/versions"
+
+// LicensesPage lists the licenses of the packages in running images: copyleft, source-available and unknown
+// ones first, for a license review before shipping.
+templ LicensesPage(v LicensesView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p><a href="/security">Security</a> / licenses</p>
+				<h1>Licenses</h1>
+				<p class="sub">{ "From the SBOMs of " + itoa(v.WithSBOM) + " of " + itoa(v.Images) + " running images" + licensesIn(v) + ". Images without an SBOM are not covered." }</p>
+			</div>
+			<span class="noprint actions">
+				if v.All {
+					<a href={ templ.URL(licensesHref(v, "env", "")) }>{ "Only " + v.EnvName }</a>
+				} else {
+					<a href={ templ.URL(licensesHref(v, "env", "all")) }>Every environment</a>
+				}
+				if v.WithOS {
+					<a href={ templ.URL(licensesHref(v, "os", "")) }>Without OS packages</a>
+				} else {
+					<a href={ templ.URL(licensesHref(v, "os", "1")) }>With OS packages</a>
+				}
+			</span>
+		</div>
+		<div class="tiles licenses">
+			for _, c := range versions.LicenseClasses {
+				<a class={ "tile", templ.KV("warn", c.Attention() && v.Counts[c] > 0), templ.KV("current", v.Class == string(c)) } href={ templ.URL(licensesHref(v, "class", string(c))) }>
+					<strong>{ itoa(v.Counts[c]) }</strong>
+					<span>{ licenseLabels[c] }</span>
+					<small>{ licenseHints[c] }</small>
+				</a>
+			}
+		</div>
+		<form class="row vuln-search" method="get" action="/security/licenses">
+			if v.All {
+				<input type="hidden" name="env" value="all"/>
+			}
+			if v.WithOS {
+				<input type="hidden" name="os" value="1"/>
+			}
+			<input type="hidden" name="class" value={ v.Class }/>
+			<label class="grow"><span class="sr-only">Package, license or service</span><input name="q" value={ v.Query } placeholder="itextpdf, AGPL, payments-api"/></label>
+			<button type="submit">Search</button>
+		</form>
+		if v.LicensesUnread > 0 {
+			<div class="notice pending">{ plural(v.LicensesUnread, "image's SBOM was", "images' SBOMs were") + " read before Goliash kept licenses; they are read again within the hour." }</div>
+		}
+		<section class="panel">
+			<div class="panel-head">
+				<h2>
+					switch v.Class {
+						case "":
+							Need a look
+						case "all":
+							Every package
+						default:
+							{ capitalize(licenseLabels[versions.LicenseClass(v.Class)]) }
+					}
+				</h2>
+				<span class="muted">
+					if v.Class == "" {
+						copyleft that reaches your code, source-available terms and unknown licenses;
+						<a class="u" href={ templ.URL(licensesHref(v, "class", "all")) }>every package</a>
+					} else {
+						<a class="u" href={ templ.URL(licensesHref(v, "class", "")) }>only those that need a look</a>
+					}
+				</span>
+			</div>
+			if len(v.Shown) == 0 {
+				<div class="panel-body">
+					if v.WithSBOM == 0 {
+						<p class="hint">No running image has an SBOM Goliash could read yet. Build with <code>docker buildx build --sbom=true</code> (official images have one) and Goliash reads it from the registry.</p>
+					} else {
+						<p class="muted">Nothing here.</p>
+					}
+				</div>
+			} else {
+				<div class="scroll" tabindex="0">
+					<table class="cards">
+						<thead><tr><th>Package</th><th>License</th><th>Running in</th></tr></thead>
+						<tbody>
+							for _, p := range v.Shown {
+								<tr>
+									<td data-label="Package">
+										<span class="mono"><strong>{ p.Name }</strong></span>
+										<div class="targets mono">
+											{ p.Version }
+											if p.OS {
+												{ " · OS package" }
+											}
+										</div>
+									</td>
+									<td data-label="License">
+										<span class={ "badge", "lic-" + string(p.Class) }>{ licenseLabels[p.Class] }</span>
+										if p.License != "" {
+											<div class="targets mono">{ p.License }</div>
+										}
+									</td>
+									<td data-label="Running in">{ whereRuns(p) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				if v.Hidden > 0 {
+					<p class="hint panel-note">{ plural(v.Hidden, "more package", "more packages") } not shown; search to narrow the list.</p>
+				}
+			}
+			if v.OSShown > 0 {
+				<p class="hint panel-note">
+					{ plural(v.OSShown, "operating system package", "operating system packages") + " left out: copyleft is the norm there (glibc, bash) and comes from the base image. " }
+					<a class="u" href={ templ.URL(licensesHref(v, "os", "1")) }>Show them</a>
+				</p>
+			}
+		</section>
+		<p class="hint">Goliash reads licenses as the SBOMs declare them and sorts them by what they ask; it is not legal advice. An expression with OR lets you pick the least demanding license, one with AND binds you to all of them.</p>
+	}
+}
+
+func licensesIn(v LicensesView) string {
+	if v.All {
+		return ""
+	}
+	return " in " + v.EnvName
+}

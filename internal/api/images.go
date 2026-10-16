@@ -31,9 +31,10 @@ type apiImage struct {
 }
 
 type apiEvidence struct {
-	Signed     bool `json:"signed"`
-	SBOM       bool `json:"sbom"`
-	Provenance bool `json:"provenance"`
+	Signed     bool                `json:"signed"`
+	SBOM       bool                `json:"sbom"`
+	Provenance bool                `json:"provenance"`
+	Signers    []store.ImageSigner `json:"signers,omitempty"`
 }
 
 type apiImagePeriod struct {
@@ -132,7 +133,7 @@ func (h *PublicHandler) serviceImages(w http.ResponseWriter, r *http.Request, p 
 					img.BaseBehindDays = int(now.Sub(x.BaseSince).Hours() / 24)
 				}
 				if !x.CheckedAt.IsZero() && x.Error == "" {
-					img.Evidence = &apiEvidence{Signed: x.Signed, SBOM: x.SBOM, Provenance: x.Provenance}
+					img.Evidence = &apiEvidence{Signed: x.Signed, SBOM: x.SBOM, Provenance: x.Provenance, Signers: x.Signers}
 				}
 			}
 			images = append(images, img)

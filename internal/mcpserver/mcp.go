@@ -323,7 +323,8 @@ func NewServer(c *Client) *mcp.Server {
 		})
 
 	for _, t := range []struct{ name, path, desc string }{
-		{"promotions", "/api/v1/promotions", "Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring."},
+		{"promotions", "/api/v1/promotions", "Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring and the known vulnerabilities it would fix and bring (when both images have an SBOM)."},
+		{"rollouts", "/api/v1/rollouts", "Rollouts that do not finish, worst first: workloads running none of the replicas they ask for (down), two versions side by side for more than 30 minutes (stuck), or fewer replicas than asked for (short), with the versions and replicas on each target. Use it for \"did the deploy go out?\" and incidents."},
 		{"delivery", "/api/v1/delivery", "Per service, versions that arrived in each environment in the last 30 days and the median lead time between environments."},
 		{"hygiene", "/api/v1/hygiene", "Image hygiene: moving tags like latest, tags pushed again, untrusted registries, images built on an outdated base (an older build of their FROM image: rebuild with --pull), missing digests."},
 	} {
@@ -389,7 +390,7 @@ func NewServer(c *Client) *mcp.Server {
 		Name: "images", Annotations: readOnly,
 		Description: "What one service's images are made of. Per environment: the running image's size against the " +
 			"service's size budget, its base and how many days the base tag has had a newer build, and whether it is " +
-			"signed and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
+			"signed (and by whom, as keyless signatures' certificates name it) and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
 			"the last deploy changed in the layers, biggest first, with the Dockerfile step that made each. Use it to " +
 			"explain why an image grew or what a rebuild would fix.",
 	},
@@ -398,6 +399,38 @@ func NewServer(c *Client) *mcp.Server {
 		},
 		) (*mcp.CallToolResult, Result, error) {
 			data, err := c.do(ctx, http.MethodGet, "/api/v1/services/"+url.PathEscape(in.Service)+"/images", nil, nil)
+			if err != nil {
+				return nil, Result{}, err
+			}
+			return nil, Result{Data: data}, nil
+		})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "licenses", Annotations: readOnly,
+		Description: "Licenses of the packages in running images, from their SBOMs, most demanding first: network copyleft " +
+			"(AGPL, SSPL), source-available (BUSL, Elastic), strong copyleft (GPL), weak copyleft (LGPL, MPL), unknown, " +
+			"permissive; each with the services and environments it runs in. class=attention gives those that need a look; " +
+			"os=false leaves out operating system packages, where copyleft is the norm. Use it for license reviews and " +
+			"\"does anything AGPL run?\". Not legal advice.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+			Class       string `json:"class,omitempty" jsonschema:"attention, network-copyleft, source-available, strong-copyleft, weak-copyleft, unknown or permissive"`
+			Environment string `json:"environment,omitempty" jsonschema:"only this environment"`
+			Q           string `json:"q,omitempty" jsonschema:"a package name, purl, license or service"`
+			OS          *bool  `json:"os,omitempty" jsonschema:"false leaves out operating system packages (default: false)"`
+		},
+		) (*mcp.CallToolResult, Result, error) {
+			q := url.Values{}
+			for k, v := range map[string]string{"class": in.Class, "environment": in.Environment, "q": in.Q} {
+				if v != "" {
+					q.Set(k, v)
+				}
+			}
+			q.Set("os", "false")
+			if in.OS != nil && *in.OS {
+				q.Set("os", "true")
+			}
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/licenses", q, nil)
 			if err != nil {
 				return nil, Result{}, err
 			}

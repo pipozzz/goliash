@@ -796,6 +796,16 @@ components:
           description: What was found, for people ("cosign signature", "buildkit sbom" …).
           items:
             type: string
+        signers:
+          type: array
+          maxItems: 8
+          description: Who signed the image, as the certificates of its keyless (Sigstore) signatures name them.
+          items:
+            type: object
+            required: [identity]
+            properties:
+              identity: { type: string, maxLength: 300, description: "A CI workflow URI, a service account or an email." }
+              issuer: { type: string, maxLength: 200, description: "The OIDC issuer that vouched for it." }
         size:
           type: integer
           format: int64

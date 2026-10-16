@@ -29,6 +29,7 @@ type SecurityView struct {
 	Bases    []BaseRow
 	Evidence EvidenceSummary
 	Vulns    versions.VulnReport
+	Licenses versions.LicenseReport
 	NoDigest int // targets reporting no digest at all
 	At       time.Time
 	Trend    []TrendLine // production over the last 90 days; empty until there are two days
@@ -119,6 +120,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	if v.Evidence, err = s.evidenceSummary(r, p, v.Prod.ID); err != nil {
+		return err
+	}
+	if v.Licenses, err = versions.LoadLicenseReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
 		return err
 	}
 	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
@@ -217,6 +221,14 @@ type EvidenceSummary struct {
 	Signed, SBOM, Provenance int
 	Unchecked                int            // private registries or no digest: not looked up by the server
 	Unsigned                 []EvidenceItem // checked images without a signature
+	Signers                  []SignerCount  // who signed the signed images, most images first
+	NoSigner                 int            // signed images whose signatures name nobody (a key)
+}
+
+// SignerCount is a signer and how many production images it signed.
+type SignerCount struct {
+	Identity, Issuer string
+	Images           int
 }
 
 // EvidenceItem is one production image and what was found for it.
@@ -257,6 +269,21 @@ func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID strin
 		out.Checked++
 		if ev.Signed {
 			out.Signed++
+			if len(ev.Signers) == 0 && ev.SignersRead {
+				out.NoSigner++
+			}
+			for _, sg := range ev.Signers {
+				counted := false
+				for i := range out.Signers {
+					if out.Signers[i].Identity == sg.Identity {
+						out.Signers[i].Images++
+						counted = true
+					}
+				}
+				if !counted {
+					out.Signers = append(out.Signers, SignerCount{Identity: sg.Identity, Issuer: sg.Issuer, Images: 1})
+				}
+			}
 		} else {
 			out.Unsigned = append(out.Unsigned, EvidenceItem{Image: strings.TrimPrefix(in.Image, "docker.io/"), Found: ev.Found})
 		}
@@ -268,6 +295,12 @@ func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID strin
 		}
 	}
 	sort.Slice(out.Unsigned, func(i, j int) bool { return out.Unsigned[i].Image < out.Unsigned[j].Image })
+	sort.Slice(out.Signers, func(i, j int) bool {
+		if out.Signers[i].Images != out.Signers[j].Images {
+			return out.Signers[i].Images > out.Signers[j].Images
+		}
+		return out.Signers[i].Identity < out.Signers[j].Identity
+	})
 	return out, nil
 }
 
@@ -382,4 +415,172 @@ func vulnsHref(v VulnsView, key, value string) string {
 		return "/security/vulns"
 	}
 	return "/security/vulns?" + q.Encode()
+}
+
+// LicensesView lists the licenses of the packages in running images, those that need a look first.
+type LicensesView struct {
+	Base
+	versions.LicenseReport
+	Query   string
+	All     bool   // every environment, not only the last one
+	EnvName string // the environment shown when not All
+	Class   string // "" packages that need a look, "all", or one class
+	WithOS  bool   // operating system packages too
+	Shown   []versions.LicensedPackage
+	Hidden  int // packages not shown (the list is long)
+	OSShown int // operating system packages left out, when WithOS is off
+}
+
+// licenseLabels name the license classes as people read them.
+var licenseLabels = map[versions.LicenseClass]string{
+	versions.NetworkCopyleft: "network copyleft", versions.SourceAvailable: "source-available",
+	versions.StrongCopyleft: "strong copyleft", versions.WeakCopyleft: "weak copyleft",
+	versions.UnknownLicense: "unknown", versions.Permissive: "permissive",
+}
+
+// licenseHints say what a license class asks.
+var licenseHints = map[versions.LicenseClass]string{
+	versions.NetworkCopyleft: "AGPL, SSPL: offering it as a service can oblige you to publish your source",
+	versions.SourceAvailable: "BUSL, Elastic, PolyForm: limits on production, commercial or competing use",
+	versions.StrongCopyleft:  "GPL: shipping it with your code can oblige you to publish that code",
+	versions.WeakCopyleft:    "LGPL, MPL, EPL: changes to the package itself must be shared",
+	versions.UnknownLicense:  "the SBOM names no license, or one Goliash does not know",
+	versions.Permissive:      "MIT, Apache, BSD: attribution only",
+}
+
+func (s *Server) licenses(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	envs, err := s.store.ListEnvironments(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	q := r.URL.Query()
+	v := LicensesView{
+		Base: s.base(ctx, p, "security", "Licenses"), Query: strings.TrimSpace(q.Get("q")),
+		All: q.Get("env") == "all", Class: q.Get("class"), WithOS: q.Get("os") == "1",
+	}
+	envID := ""
+	for _, e := range envs {
+		if envID == "" || e.Position >= positionOf(envs, envID) {
+			envID, v.EnvName = e.ID, e.Name
+		}
+	}
+	if v.All {
+		envID = ""
+	}
+	if v.LicenseReport, err = versions.LoadLicenseReport(ctx, s.store, p.Scope, envID); err != nil {
+		return err
+	}
+	for _, pkg := range v.Packages {
+		switch {
+		case v.Class == "" && !pkg.Class.Attention(),
+			v.Class != "" && v.Class != "all" && string(pkg.Class) != v.Class,
+			!versions.LicenseMatches(pkg, v.Query):
+			continue
+		case pkg.OS && !v.WithOS:
+			v.OSShown++
+			continue
+		}
+		if len(v.Shown) >= 500 {
+			v.Hidden++
+			continue
+		}
+		v.Shown = append(v.Shown, pkg)
+	}
+	return render(w, r, LicensesPage(v))
+}
+
+// licensesHref links the licenses page with one parameter changed.
+func licensesHref(v LicensesView, key, value string) string {
+	q := url.Values{}
+	for k, val := range map[string]string{"q": v.Query, "class": v.Class} {
+		if val != "" {
+			q.Set(k, val)
+		}
+	}
+	if v.All {
+		q.Set("env", "all")
+	}
+	if v.WithOS {
+		q.Set("os", "1")
+	}
+	if value == "" {
+		q.Del(key)
+	} else {
+		q.Set(key, value)
+	}
+	if len(q) == 0 {
+		return "/security/licenses"
+	}
+	return "/security/licenses?" + q.Encode()
+}
+
+// licenseNeedsLook counts the application packages whose license needs a look before shipping.
+func licenseNeedsLook(r versions.LicenseReport) int {
+	n := 0
+	for c, k := range r.Counts {
+		if c.Attention() {
+			n += k
+		}
+	}
+	return n
+}
+
+// whereRuns lists the services and environments a package runs in, each once.
+func whereRuns(p versions.LicensedPackage) string {
+	var out []string
+	for _, u := range p.Where {
+		out = append(out, u.Service+" ("+u.Environment+")")
+	}
+	return strings.Join(out, ", ")
+}
+
+// capitalize upper-cases a label's first letter.
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// licenseSummary says how many application packages of each demanding class there are: "1 network copyleft,
+// 2 unknown".
+func licenseSummary(r versions.LicenseReport) string {
+	var parts []string
+	for _, c := range versions.LicenseClasses {
+		if c.Attention() && r.Counts[c] > 0 {
+			parts = append(parts, itoa(r.Counts[c])+" "+licenseLabels[c])
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// shortSigner is a signer's identity as people read it: a GitHub or GitLab workflow as repository · file @ ref.
+func shortSigner(identity string) string {
+	s := identity
+	for _, p := range []string{"https://github.com/", "https://gitlab.com/"} {
+		s = strings.TrimPrefix(s, p)
+	}
+	s = strings.Replace(s, "/.github/workflows/", " · ", 1)
+	s = strings.Replace(s, "//.gitlab-ci.yml", " · .gitlab-ci.yml", 1)
+	s = strings.Replace(s, "@refs/heads/", " @ ", 1)
+	s = strings.Replace(s, "@refs/tags/", " @ ", 1)
+	return s
+}
+
+// issuerName names an OIDC issuer: GitHub Actions, GitLab, Google, or its URL.
+func issuerName(issuer string) string {
+	switch {
+	case issuer == "https://token.actions.githubusercontent.com":
+		return "GitHub Actions"
+	case strings.HasPrefix(issuer, "https://gitlab."):
+		return "GitLab"
+	case issuer == "https://accounts.google.com":
+		return "Google"
+	case issuer == "https://github.com/login/oauth":
+		return "GitHub"
+	case strings.Contains(issuer, "login.microsoftonline.com"):
+		return "Microsoft"
+	}
+	return issuer
 }

@@ -31,6 +31,11 @@ func kindOf(it Item) kind {
 			return kind{"⏪", "#e5484d", "Rolled back"}
 		}
 		return kind{"🔁", "#3b6cf6", "Version changed"}
+	case EventRollout:
+		if it.Note == "down" {
+			return kind{"🛑", "#e5484d", "Down"}
+		}
+		return kind{"⏳", "#ffb347", "Rollout stuck"}
 	case "removed":
 		return kind{"🗑️", "#8a93a6", "Removed"}
 	case "new_release":

@@ -200,7 +200,18 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 				CollectedAt: start.Add(time.Duration(day)*24*time.Hour + time.Duration(len(t.name))*time.Minute),
 			}
 			for _, name := range sortedKeys(running) {
-				snap.Workloads = append(snap.Workloads, demoWorkload(t, name, running[name]))
+				w := demoWorkload(t, name, running[name])
+				// The last day, traefik v3.1.6 went out to one of prod-eu's two replicas and the other kept v3.1.2: a
+				// stuck rollout.
+				if day == 21 && t.name == "demo-prod-eu" && name == "traefik" {
+					next := w.Containers[0]
+					next.Image, next.Running = images["traefik"]+":v3.1.6", 1
+					d := demoDigest(next.Image)
+					next.Digest = &d
+					w.Containers[0].Running = 1
+					w.Containers = append(w.Containers, next)
+				}
+				snap.Workloads = append(snap.Workloads, w)
 			}
 			if t.name == "demo-prod-eu" {
 				ns := "reports"
@@ -249,7 +260,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		case "payments-api": // size budgets: one over, two under
 			s.VersionPolicy = json.RawMessage(`{"max_size_mb":350}`)
 		case "checkout":
-			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400}`)
+			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400,"signer":"https://github.com/acme/*"}`)
 		case "notifications":
 			s.VersionPolicy = json.RawMessage(`{"max_size_mb":100}`)
 		}
@@ -403,6 +414,15 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 		case strings.HasPrefix(ev.Repo, "ghcr.io/acme/") && ev.Repo != "ghcr.io/acme/report" && ev.Repo != "ghcr.io/acme/image-resizer":
 			ev.Signed, ev.SBOM, ev.Provenance = true, true, true
 			ev.Found = []string{"sigstore bundle", "buildkit sbom", "buildkit provenance"}
+			// Signed by the release workflow; checkout 2.4.0 by hand, by a developer, which its policy does not expect.
+			signer := store.ImageSigner{
+				Identity: "https://github.com/acme/" + strings.TrimPrefix(ev.Repo, "ghcr.io/acme/") + "/.github/workflows/release.yml@refs/heads/main",
+				Issuer:   "https://token.actions.githubusercontent.com",
+			}
+			if ev.Repo == "ghcr.io/acme/checkout" && in.Tag == "2.4.0" {
+				signer = store.ImageSigner{Identity: "dev@acme.example", Issuer: "https://accounts.google.com"}
+			}
+			ev.Signers = []store.ImageSigner{signer}
 		case strings.HasPrefix(ev.Repo, "docker.io/library/"):
 			ev.SBOM, ev.Provenance = true, true
 			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
@@ -420,7 +440,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			return err
 		}
 		// A short SBOM: real package versions, so the live lookup on OSV answers with their real vulnerabilities.
-		if purls := demoSBOM(ev.Repo); len(purls) > 0 && ev.SBOM {
+		if purls := demoSBOM(ev.Repo, in.Tag); len(purls) > 0 && ev.SBOM {
 			if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: ev.Repo, Digest: ev.Digest, Purls: purls, Licenses: demoLicenses(purls)}); err != nil {
 				return err
 			}
@@ -431,7 +451,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 
 // demoSBOM lists some packages of an example image, as its SBOM would: Debian 12 packages of the official
 // images, npm packages of the shop's Node application.
-func demoSBOM(repo string) []string {
+func demoSBOM(repo, tag string) []string {
 	deb := func(pkgs ...string) []string {
 		var out []string
 		for _, p := range pkgs {
@@ -446,6 +466,12 @@ func demoSBOM(repo string) []string {
 	case "docker.io/library/nginx":
 		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
 	case "ghcr.io/acme/payments-api":
+		if tag == "1.6.0" { // the release that upgraded log4j: promoting it fixes Log4Shell
+			return []string{
+				"pkg:maven/org.apache.logging.log4j/log4j-core@2.17.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2",
+				"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",
+			}
+		}
 		return []string{
 			"pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.13.2",
 			"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",
