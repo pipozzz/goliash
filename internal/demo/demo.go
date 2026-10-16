@@ -447,8 +447,10 @@ func demoSBOM(repo, tag string) []string {
 		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
 	case "ghcr.io/acme/payments-api":
 		if tag == "1.6.0" { // the release that upgraded log4j: promoting it fixes Log4Shell
-			return []string{"pkg:maven/org.apache.logging.log4j/log4j-core@2.17.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2",
-				"pkg:maven/com.itextpdf/itextpdf@5.5.13.3"}
+			return []string{
+				"pkg:maven/org.apache.logging.log4j/log4j-core@2.17.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2",
+				"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",
+			}
 		}
 		return []string{
 			"pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.13.2",
