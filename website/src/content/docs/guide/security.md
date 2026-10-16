@@ -121,6 +121,11 @@ A cell of the matrix whose running image has a vulnerability exploited in the wi
 A notification rule with the `vulnerability` event announces each exploited or critical vulnerability as it starts
 running ([Notifications](../notifications/#vulnerabilities)).
 
+**Export CSV** on the vulnerabilities page downloads what it shows (all of it, not only the first 300), one row per
+vulnerability and affected image, with CISA's exploited flag and due date, whether it is past due, the fix and since
+when it runs there: for an audit, or to import into a ticket system. `GET /api/v1/vulnerabilities?format=csv` gives
+the same. Cells that start like a formula are quoted, so a package name cannot run in a spreadsheet.
+
 The answer covers only images with an SBOM Goliash could read, and the page says how many those are. While
 advisories are still being looked up it says so, and does not answer "not running".
 
@@ -146,7 +151,8 @@ each with the services and environments it runs in. An expression with OR counts
 (`MIT OR GPL-2.0` is permissive); one with AND as its most demanding part. Operating system packages (Debian,
 Alpine, RPM) are left out unless asked for: copyleft is the norm there (glibc, bash) and comes with the base image.
 
-The same is `GET /api/v1/licenses` (`?class=attention`, `?environment=prod`, `?os=false`, `?q=AGPL`), the
+**Export CSV** on the page downloads what it shows, one row per package and where it runs, for a license review;
+`GET /api/v1/licenses?format=csv` gives the same. The same list is `GET /api/v1/licenses` (`?class=attention`, `?environment=prod`, `?os=false`, `?q=AGPL`), the
 `licenses` tool for AI assistants and Goli, the metric `goliash_license_packages{class,kind}`, and licenses per
 package in the [CycloneDX inventory](../sbom/). Goliash reads licenses as the SBOMs declare them: it is a map, not
 legal advice.

@@ -18,6 +18,7 @@ templ VulnsPage(v VulnsView) {
 				<p class="sub">{ "From the SBOMs of " + itoa(v.WithSBOM) + " of " + itoa(v.Images) + " running images" + inEnv(v) + ", looked up on OSV. Images without an SBOM are not covered." }</p>
 			</div>
 			<span class="noprint actions">
+				<a class="button secondary" href={ templ.URL(vulnsCSVHref(v)) } hx-boost="false">Export CSV</a>
 				if v.OnlyKEV {
 					<a href={ templ.URL(vulnsHref(v, "kev", "")) }>Every vulnerability</a>
 				} else {

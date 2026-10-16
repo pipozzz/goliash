@@ -185,6 +185,7 @@ paths:
         copyleft (LGPL, MPL), unknown, permissive. An OR in a license expression counts as its least demanding
         choice, an AND as its most demanding part. Operating system packages (deb, apk, rpm) are marked `os`.
       parameters:
+        - { name: format, in: query, description: "csv: one row per package and where it runs, for a license review.", schema: { type: string, enum: [json, csv], default: json } }
         - { name: environment, in: query, description: Only this environment., schema: { type: string } }
         - name: class
           in: query
@@ -196,6 +197,8 @@ paths:
         "200":
           description: The packages.
           content:
+            text/csv:
+              schema: { type: string }
             application/json:
               schema:
                 type: object
@@ -652,6 +655,7 @@ paths:
         still being looked up: an empty answer then does not mean "not running". Only images with an SBOM are
         covered (`images_with_sbom` of `images`).
       parameters:
+        - { name: format, in: query, description: "csv: one row per vulnerability and affected image, with CISA due dates and fixes.", schema: { type: string, enum: [json, csv], default: json } }
         - { name: q, in: query, schema: { type: string }, description: 'A CVE or advisory ID, package or service; part of it matches' }
         - { name: environment, in: query, schema: { type: string }, description: Only this environment }
         - { name: exploited, in: query, schema: { type: boolean }, description: Only vulnerabilities exploited in the wild (CISA KEV) }
@@ -659,6 +663,8 @@ paths:
         "200":
           description: Findings, exploited first, then by severity.
           content:
+            text/csv:
+              schema: { type: string }
             application/json:
               schema:
                 type: object

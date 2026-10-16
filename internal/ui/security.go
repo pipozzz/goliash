@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/csv"
 	"net/http"
 	"net/url"
@@ -524,4 +525,86 @@ func licenseSummary(r versions.LicenseReport) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+// licensesCSV downloads the packages the licenses page shows, with its filters but without its length limit.
+func (s *Server) licensesCSV(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	q := r.URL.Query()
+	envID, _, err := s.lastEnv(ctx, p, q.Get("env") == "all")
+	if err != nil {
+		return err
+	}
+	rep, err := versions.LoadLicenseReport(ctx, s.store, p.Scope, envID)
+	if err != nil {
+		return err
+	}
+	class, withOS, query := q.Get("class"), q.Get("os") == "1", strings.TrimSpace(q.Get("q"))
+	var pkgs []versions.LicensedPackage
+	for _, pkg := range rep.Packages {
+		if (class == "" && !pkg.Class.Attention()) || (class != "" && class != "all" && string(pkg.Class) != class) ||
+			(pkg.OS && !withOS) || !versions.LicenseMatches(pkg, query) {
+			continue
+		}
+		pkgs = append(pkgs, pkg)
+	}
+	csvHeaders(w, "licenses")
+	return versions.WriteLicensesCSV(w, pkgs)
+}
+
+// vulnsCSV downloads the vulnerabilities the vulnerabilities page shows, with its filters but without its limit.
+func (s *Server) vulnsCSV(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	q := r.URL.Query()
+	envID, _, err := s.lastEnv(ctx, p, q.Get("env") == "all")
+	if err != nil {
+		return err
+	}
+	rep, err := versions.LoadVulnReport(ctx, s.store, p.Scope, envID)
+	if err != nil {
+		return err
+	}
+	query, onlyKEV := strings.ToUpper(strings.TrimSpace(q.Get("q"))), q.Get("kev") == "1"
+	var findings []versions.VulnFinding
+	for _, f := range rep.Findings {
+		if (query != "" && !versions.FindingMatches(f, query)) || (onlyKEV && f.Exploited == nil) {
+			continue
+		}
+		findings = append(findings, f)
+	}
+	csvHeaders(w, "vulnerabilities")
+	return versions.WriteVulnsCSV(w, findings, time.Now())
+}
+
+// lastEnv is the last environment (production) unless all is asked for: its ID ("" for all) and name.
+func (s *Server) lastEnv(ctx context.Context, p auth.Principal, all bool) (string, string, error) {
+	envs, err := s.store.ListEnvironments(ctx, p.Scope)
+	if err != nil {
+		return "", "", err
+	}
+	id, name := "", ""
+	for _, e := range envs {
+		if id == "" || e.Position >= positionOf(envs, id) {
+			id, name = e.ID, e.Name
+		}
+	}
+	if all {
+		return "", "", nil
+	}
+	return id, name, nil
+}
+
+func csvHeaders(w http.ResponseWriter, what string) {
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="goliash-`+what+`-`+time.Now().UTC().Format("20060102")+`.csv"`)
+}
+
+// licensesCSVHref downloads what the licenses page shows.
+func licensesCSVHref(v LicensesView) string {
+	return strings.Replace(licensesHref(v, "", ""), "/security/licenses", "/security/licenses.csv", 1)
+}
+
+// vulnsCSVHref downloads what the vulnerabilities page shows.
+func vulnsCSVHref(v VulnsView) string {
+	return strings.Replace(vulnsHref(v, "", ""), "/security/vulns", "/security/vulns.csv", 1)
 }
