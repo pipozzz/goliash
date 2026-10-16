@@ -19,8 +19,10 @@ func TestImagePeriods(t *testing.T) {
 			t.Fatal(err)
 		}
 		in := func(digest string) Instance {
-			return Instance{TargetID: f.tgt.ID, EnvironmentID: f.env.ID, ServiceID: svc.ID, WorkloadID: "w", WorkloadName: "api",
-				ContainerName: "api", Image: "ghcr.io/acme/api:" + digest[7:], Tag: digest[7:], Digest: digest, Running: 1, IsMain: true}
+			return Instance{
+				TargetID: f.tgt.ID, EnvironmentID: f.env.ID, ServiceID: svc.ID, WorkloadID: "w", WorkloadName: "api",
+				ContainerName: "api", Image: "ghcr.io/acme/api:" + digest[7:], Tag: digest[7:], Digest: digest, Running: 1, IsMain: true,
+			}
 		}
 		now := time.Now()
 		if err := s.ApplySnapshot(ctx, SnapshotChanges{Scope: sc, SnapshotID: NewID(), TargetID: f.tgt.ID, At: now.Add(-48 * time.Hour), Upsert: []Instance{in("sha256:1")}}); err != nil {
