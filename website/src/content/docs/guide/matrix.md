@@ -72,6 +72,9 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 - **Open a cell** and its board is laid over the global one like a card, one cell per service; the global board stays
   behind, dimmed, with the application marked, and its cells open the other applications directly. × or Escape lays
   the card down again. Arrow keys move between cells, Enter opens one.
+- **Only this team** (or application) on the card shows it alone, as the whole board: its services as large cells,
+  nothing else behind (`/tiles?group=team&app=payments&only=1`). With *Env* and **TV mode** it is a team's own wall
+  screen (`&env=prod&tv=1`); save it as a [view](#saved-views) to keep it a click away.
 
 ![An application's card laid over the global board: webshop's services as cells, the board behind dimmed with webshop marked](../../../assets/tiles-card.png) Open a service for its versions per environment, the newest release with its notes, its drift and a link to
   its page; Escape closes it.

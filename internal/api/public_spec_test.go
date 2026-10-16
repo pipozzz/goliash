@@ -61,6 +61,8 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		{"GET", "/api/v1/inventory?environment=nowhere", e.token, "", 404},
 		{"GET", "/api/v1/services", e.token, "", 200},
 		{"GET", "/api/v1/licenses", e.token, "", 200},
+		{"GET", "/api/v1/licenses?format=csv", e.token, "", 200},
+		{"GET", "/api/v1/vulnerabilities?format=csv", e.token, "", 200},
 		{"GET", "/api/v1/licenses?class=attention&os=false&environment=prod&q=agpl", e.token, "", 200},
 		{"GET", "/api/v1/licenses?class=nasty", e.token, "", 400},
 		{"GET", "/api/v1/licenses?environment=nowhere", e.token, "", 404},

@@ -75,7 +75,9 @@ templ TilesPage(v TilesView) {
 			if v.App == "" {
 				@tileLegend(v.Counts)
 			}
-			if v.App != "" {
+			if v.App != "" && v.Only {
+				@alone(v)
+			} else if v.App != "" {
 				@stack(v)
 			} else if len(v.Items) == 0 {
 				<section class="panel"><div class="empty">Nothing runs here yet.</div></section>
@@ -131,6 +133,7 @@ templ stack(v TilesView) {
 					</span>
 				</div>
 				@envStrip(v.AppItem.Envs)
+				<a class="stack-only" href={ templ.URL(tilesWith(v, "only", "1")) } title={ "Only " + v.App + ", as the whole board: for a team's page or wall screen" }>{ "Only this " + singularWord(v.GroupBy) }</a>
 				<a class="stack-close" href={ templ.URL(up) } hx-swap="innerHTML transition:true" aria-label="Close" title="Back (Escape)">×</a>
 			</header>
 			if len(v.Items) == 0 {
@@ -145,6 +148,36 @@ templ stack(v TilesView) {
 			}
 		</section>
 	</div>
+}
+
+// alone draws one application (or team) as the whole board: its services as the cells, in full colour, without
+// the other applications behind; for a team's own page or wall screen.
+templ alone(v TilesView) {
+	<section class={ "tile-alone", "s-" + v.AppItem.State } aria-label={ v.App }>
+		<header class="alone-head">
+			if len(v.AppItem.Dots) > 0 {
+				@miniLogo(v.AppItem.Dots)
+			}
+			<div class="stack-title">
+				<h2>{ v.App }</h2>
+				<span class="muted">{ itoa(v.AppItem.OK) } of { itoa(v.AppItem.Total) } up to date</span>
+			</div>
+			@envStrip(v.AppItem.Envs)
+			if !v.TV {
+				<a class="toolbar-link" href={ templ.URL(tilesWith(v, "only", "")) } title="Back to the board of all of them">{ "With all " + groupWord(v.GroupBy) }</a>
+			}
+		</header>
+		if len(v.Items) == 0 {
+			<div class="empty">Nothing runs here in this environment.</div>
+		} else if v.Env == "side" {
+			@envBoards(v)
+		} else {
+			<div style={ "--rows:" + itoa(v.Rows) }>
+				@board(v.Items, v.Cols, false)
+			</div>
+			@tileLegend(v.Counts)
+		}
+	</section>
 }
 
 // envBoards draws one board per environment, side by side, with the same cells in the
