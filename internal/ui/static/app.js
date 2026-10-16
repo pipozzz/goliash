@@ -134,7 +134,30 @@
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
   }
-  document.addEventListener("change", function (e) { if (e.target.id === "matrix-drift") filterMatrix(); });
+  // Opening a card's edit form puts the cursor in its first field, its text selected.
+  document.addEventListener("toggle", function (e) {
+    if (!e.target.matches || !e.target.matches("details.card-edit") || !e.target.open) return;
+    const f = e.target.querySelector("[data-focus-open]");
+    if (f) { f.focus(); if (f.select) f.select(); }
+  }, true);
+  document.addEventListener("change", function (e) {
+    if (e.target.id === "matrix-drift") filterMatrix();
+    // "Select all shown": ticks (or unticks) the checkboxes its selector finds, e.g. those a filter left visible.
+    const sel = e.target.getAttribute && e.target.getAttribute("data-check-shown");
+    if (sel) document.querySelectorAll(sel).forEach(function (c) { c.checked = e.target.checked; });
+  });
+  // Saving a view keeps the address as it is now, the matrix's filters typed in this page included.
+  document.addEventListener("submit", function (e) {
+    if (!e.target.matches("form[data-save-view]")) return;
+    const url = e.target.querySelector("input[name=url]");
+    if (url) url.value = window.location.pathname + window.location.search;
+  });
+  // Opening "Save view" puts the cursor in its name.
+  document.addEventListener("toggle", function (e) {
+    if (!e.target.matches || !e.target.matches("details.view-save") || !e.target.open) return;
+    const f = e.target.querySelector("[data-focus-open]");
+    if (f) f.focus();
+  }, true);
   // Forms that take a while (filling the Example workspace) say so on their button, and cannot be sent twice.
   document.addEventListener("submit", function (e) {
     const busy = e.target.getAttribute("data-busy");
@@ -1550,6 +1573,106 @@
       filterMatrix();
     }
   }
+  // A combobox for names (data-combo names the datalist of existing ones): as you type it lists the existing names
+  // that match and, for a name not among them, offers to create it (data-combo-new: "Create team"). Arrow keys
+  // move, Enter picks, Escape closes; screen readers follow aria-activedescendant.
+  let comboSeq = 0;
+  function comboList(input) {
+    let list = document.getElementById(input.getAttribute("aria-controls") || "");
+    if (!list) {
+      const wrap = document.createElement("span");
+      wrap.className = "combo";
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+      list = document.createElement("ul");
+      list.id = "combo-" + (++comboSeq);
+      list.className = "combo-list";
+      list.setAttribute("role", "listbox");
+      list.hidden = true;
+      wrap.appendChild(list);
+      input.setAttribute("role", "combobox");
+      input.setAttribute("aria-autocomplete", "list");
+      input.setAttribute("aria-controls", list.id);
+      input.setAttribute("aria-expanded", "false");
+      input.setAttribute("autocomplete", "off");
+    }
+    return list;
+  }
+  function comboOpen(input) {
+    const list = comboList(input);
+    const source = document.getElementById(input.getAttribute("data-combo"));
+    const names = source ? Array.prototype.map.call(source.options, function (o) { return o.value; }) : [];
+    const q = input.value.trim().toLowerCase();
+    const shown = names.filter(function (n) { return !q || n.toLowerCase().indexOf(q) >= 0; }).slice(0, 50);
+    list.textContent = "";
+    shown.forEach(function (n) { comboOption(list, n, n, false); });
+    const create = input.getAttribute("data-combo-new");
+    if (create && q && !names.some(function (n) { return n.toLowerCase() === q; })) {
+      comboOption(list, input.value.trim(), create + " \u201c" + input.value.trim() + "\u201d", true);
+    }
+    list.hidden = list.children.length === 0;
+    input.setAttribute("aria-expanded", String(!list.hidden));
+    input.removeAttribute("aria-activedescendant");
+  }
+  function comboOption(list, value, label, isNew) {
+    const li = document.createElement("li");
+    li.id = list.id + "-" + list.children.length;
+    li.setAttribute("role", "option");
+    li.setAttribute("data-value", value);
+    li.textContent = label;
+    if (isNew) li.className = "combo-new";
+    list.appendChild(li);
+  }
+  function comboClose(input) {
+    const list = document.getElementById(input.getAttribute("aria-controls") || "");
+    if (list) list.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+  }
+  function comboPick(input, li) {
+    input.value = li.getAttribute("data-value");
+    comboClose(input);
+    input.focus();
+  }
+  document.addEventListener("focusin", function (e) {
+    if (e.target.matches && e.target.matches("input[data-combo]")) comboOpen(e.target);
+  });
+  document.addEventListener("input", function (e) {
+    if (e.target.matches && e.target.matches("input[data-combo]")) comboOpen(e.target);
+  });
+  document.addEventListener("focusout", function (e) {
+    if (e.target.matches && e.target.matches("input[data-combo]")) setTimeout(function () { comboClose(e.target); }, 120);
+  });
+  document.addEventListener("mousedown", function (e) {
+    const li = e.target.closest && e.target.closest(".combo-list [role=option]");
+    if (!li) return;
+    e.preventDefault();
+    comboPick(li.closest(".combo").querySelector("input[data-combo]"), li);
+  });
+  document.addEventListener("keydown", function (e) {
+    const input = e.target;
+    if (!input.matches || !input.matches("input[data-combo]")) return;
+    const list = document.getElementById(input.getAttribute("aria-controls") || "");
+    if (!list || list.hidden) {
+      if (e.key === "ArrowDown") { comboOpen(input); e.preventDefault(); }
+      return;
+    }
+    const opts = Array.prototype.slice.call(list.children);
+    const cur = opts.findIndex(function (o) { return o.id === input.getAttribute("aria-activedescendant"); });
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = e.key === "ArrowDown" ? Math.min(cur + 1, opts.length - 1) : Math.max(cur - 1, 0);
+      opts.forEach(function (o, i) { o.setAttribute("aria-selected", String(i === next)); });
+      input.setAttribute("aria-activedescendant", opts[next].id);
+      opts[next].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter" && cur >= 0) {
+      e.preventDefault(); // pick, do not send the form yet
+      comboPick(input, opts[cur]);
+    } else if (e.key === "Escape") {
+      comboClose(input);
+    }
+  });
+
   window.goliash = { init: init };
   init();
 })();

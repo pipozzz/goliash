@@ -16,6 +16,7 @@ templ LicensesPage(v LicensesView) {
 				<p class="sub">{ "From the SBOMs of " + itoa(v.WithSBOM) + " of " + itoa(v.Images) + " running images" + licensesIn(v) + ". Images without an SBOM are not covered." }</p>
 			</div>
 			<span class="noprint actions">
+				<a class="button secondary" href={ templ.URL(licensesCSVHref(v)) } hx-boost="false">Export CSV</a>
 				if v.All {
 					<a href={ templ.URL(licensesHref(v, "env", "")) }>{ "Only " + v.EnvName }</a>
 				} else {

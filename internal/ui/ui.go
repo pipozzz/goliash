@@ -160,6 +160,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/stream", s.page(v, s.stream))
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
+	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
 	mux.Handle("GET /services/new", s.page(m, s.newService))
 	mux.Handle("POST /services/new", s.page(m, s.createService))
@@ -174,14 +175,20 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /security.csv", s.page(v, s.securityCSV))
 	mux.Handle("GET /security/vulns", s.page(v, s.vulns))
 	mux.Handle("GET /security/licenses", s.page(v, s.licenses))
+	mux.Handle("GET /security/licenses.csv", s.page(v, s.licensesCSV))
+	mux.Handle("GET /security/vulns.csv", s.page(v, s.vulnsCSV))
 	mux.Handle("GET /updates", s.page(v, s.updates))
 	mux.Handle("GET /tiles", s.page(v, s.tiles))
+	mux.Handle("POST /views", s.page(v, s.saveView))
+	mux.Handle("POST /views/{id}/delete", s.page(v, s.deleteView))
+	mux.Handle("POST /views/{id}/home", s.page(v, s.homeOnView))
 	mux.Handle("GET /apps", s.page(v, s.apps))
 	mux.Handle("POST /apps/rename", s.page(m, s.renameApp))
 	mux.Handle("POST /apps/team", s.page(m, s.appTeam))
 	mux.Handle("GET /teams", s.page(v, s.teams))
 	mux.Handle("POST /teams/rename", s.page(m, s.renameTeam))
 	mux.Handle("POST /teams/assign", s.page(m, s.assignTeam))
+	mux.Handle("POST /teams/unassign", s.page(m, s.unassignTeam))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
@@ -545,8 +552,8 @@ func phone(r *http.Request) bool {
 // rememberView keeps the view someone switched to: on their account, or in this browser on the demo.
 func (s *Server) rememberView(w http.ResponseWriter, r *http.Request, p auth.Principal, view string) {
 	if !s.auth.Demo() && p.User.ID != "" {
-		if p.User.HomeView == view {
-			return
+		if p.User.HomeView == view || strings.HasPrefix(p.User.HomeView, homeViewPref) {
+			return // the same, or a saved view chosen on purpose: switching table and tiles keeps it
 		}
 		if err := s.store.SetHomeView(r.Context(), p.User.ID, view); err != nil {
 			s.log.WarnContext(r.Context(), "saving the home view failed", "err", err)
@@ -567,11 +574,16 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 	case view == "table":
 		s.rememberView(w, r, p, "table")
 	case view == "" && r.URL.Query().Get("at") == "":
+		if home := viewURL(s.homeViewURL(r.Context(), p)); home != "" && r.URL.RawQuery == "" {
+			http.Redirect(w, r, home, http.StatusFound) //nolint:gosec // viewURL keeps only this site's "/" and "/tiles"
+			return nil
+		}
 		if s.homeView(r, p) == "tiles" {
 			return s.tiles(w, r, p)
 		}
 	}
 	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r), Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04")}
+	v.Views = s.viewTabs(r.Context(), r, p, "/?view=table")
 	if q := r.URL.Query().Get("at"); q != "" {
 		at, err := api.ParseAt(q)
 		if err != nil {
@@ -676,6 +688,16 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		return err
 	}
 	v := ServiceView{Base: withFlash(s.base(ctx, p, "matrix", svc.Name), r), Name: svc.Name, Owner: svc.Owner, OwnerSource: svc.OwnerSource, App: svc.App, Kind: svc.Kind, Upstream: svc.Upstream}
+	if all, err := s.store.ListServices(ctx, p.Scope); err == nil {
+		seen := map[string]bool{}
+		for _, x := range all {
+			if x.Owner != "" && !seen[x.Owner] {
+				seen[x.Owner] = true
+				v.TeamNames = append(v.TeamNames, x.Owner)
+			}
+		}
+		sort.Strings(v.TeamNames)
+	}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
 	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)

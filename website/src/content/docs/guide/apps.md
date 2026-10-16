@@ -107,8 +107,17 @@ A service's team is its **owner**. Goliash takes it from, in this order:
    label changes within a minute;
 3. **the application's team** (*Set team* on the Applications page), for services in it without either.
 
+Each team's card on **Settings → Teams** is a small scorecard: how many of its services are up to date, and how many
+run a vulnerability exploited in the wild, a release past its end of life, a rollout that does not finish, or a
+version behind; each links to its [Updates](/guide/versions/#updates), filtered to the team.
+
 A service whose workloads name different teams, or whose applications have different teams, is left for people.
 The service page says where its owner came from; changing it there takes over from labels for good.
+
+To give a team by hand, start typing in the **Team** field at the top of a service's page, or under *Without a team*
+on **Settings → Teams** (tick the services; *Select all shown* after filtering ticks many at once): it lists the
+existing teams that match, and *Create team "…"* for a new name. **Rename** on a team's card renames it (another
+team's name merges the two), and the × beside a service takes it out of its team.
 
 **Settings → Teams** lists every team with its applications and services, renames a team on all its services, and
 lists services **without a team** to give them one in a few clicks.

@@ -230,6 +230,10 @@ runs somewhere, once per service and environment, with the package and the versi
 
 > payments-api @ prod: CVE-2021-44228 (exploited, ransomware, critical) in log4j-core 2.14.1, fixed in 2.15.0
 
+When CISA's due date for fixing an exploited vulnerability ([BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01))
+passes while it still runs, it is announced once more, *past CISA's due date*; one that is already past due when it
+starts running says so in its first alert.
+
 ```sh
 goliash notify create -channel security -events vulnerability -envs prod -mode instant
 ```
@@ -240,7 +244,7 @@ an installation does not hear about every vulnerability it runs on day one; the 
 
 ## Image alerts
 
-Five events watch the running images, each once per image and environment (rules for every event get them too,
+Six events watch the running images, each once per image and environment (rules for every event get them too,
 and Goli can explain each):
 
 | Event | When |
@@ -250,6 +254,7 @@ and Goli can explain each):
 | `outdated_base` | An image is built on a build of its base that has had a newer one for over two weeks: [rebuild with `--pull`](../security/#built-on-an-outdated-base). |
 | `evidence_lost` | A deploy's image has no signature, SBOM or provenance though the one it replaced had: the build or its CI changed. |
 | `license` (*AGPL or source-available packages*) | A deploy's image brings an application package under a network copyleft (AGPL, SSPL) or source-available license (BUSL, Elastic) that the image it replaced did not have, as its SBOM declares; see [Licenses](../security/#licenses). |
+| `unexpected_signer` (*not signed by the expected signer*) | A deploy's image is not signed by the **Expected signer** in its service's version policy: unsigned, signed by someone else, or signed with a key that names nobody; see [Who signed it](../security/#who-signed-it). |
 
 > api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0; biggest new layer 145 MB: RUN apt-get install -y chromium)<br>
 > api @ prod: 2.0.0 image is 240 MB, over its 200 MB budget<br>

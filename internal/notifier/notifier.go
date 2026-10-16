@@ -288,8 +288,11 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			dedup = "new_release|" + e.ServiceID + "|" + e.ToVersion // once per service and version
 		}
 		if e.Type == "vulnerability" { // once per vulnerability, service and environment
-			cve, _, _ := strings.Cut(e.Note, " ")
+			cve, flags, _ := strings.Cut(e.Note, " ")
 			dedup = "vulnerability|" + cve + "|" + e.ServiceID + "|" + e.EnvironmentID
+			if strings.Contains(" "+flags+" ", " "+versions.PastDueFlag+" ") {
+				dedup += "|" + versions.PastDueFlag // the reminder once the due date passed, apart from the first alert
+			}
 		}
 		if dedup == "" {
 			dedup = fmt.Sprintf("%s|%s|%s|%s|%d", e.Type, e.ServiceID, e.EnvironmentID, e.ToVersion, e.At.UnixNano())
@@ -647,6 +650,8 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s is built on an older %s than its tag has had for %s: rebuild with --pull", where, orDash(it.To), it.From, it.Note)
 	case EventLicense:
 		return fmt.Sprintf("%s: %s brings %s", where, orDash(it.To), it.Note)
+	case EventUnexpectedSigner:
+		return fmt.Sprintf("%s: %s is %s", where, orDash(it.To), it.Note)
 	case EventEvidenceLost:
 		return fmt.Sprintf("%s: %s has no %s, though %s had", where, orDash(it.To), it.Note, orDash(it.From))
 	case EventRollout:
@@ -701,7 +706,13 @@ func Describe(it Item) string {
 		}
 		cve, flags, _ := strings.Cut(it.Note, " ")
 		if flags != "" {
-			flags = " (" + strings.ReplaceAll(flags, " ", ", ") + ")"
+			words := strings.Fields(flags)
+			for i, w := range words {
+				if w == versions.PastDueFlag {
+					words[i] = "past CISA's due date"
+				}
+			}
+			flags = " (" + strings.Join(words, ", ") + ")"
 		}
 		return fmt.Sprintf("%s: %s%s in %s%s", where, cve, flags, it.From, fix)
 	case "agent_stale":

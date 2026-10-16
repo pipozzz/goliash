@@ -47,6 +47,7 @@ func worse(a, b string) string {
 // TilesView is the tiles page.
 type TilesView struct {
 	Base
+	Views   ViewTabs
 	GroupBy string
 	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
 	Envs    []string
@@ -67,7 +68,8 @@ type TilesView struct {
 	Cols           int
 	Rows           int // how many rows of cells the board has, for TV mode to fit the screen
 	TV             bool
-	Cycle          int // TV mode: seconds before the next environment; 0 stays put
+	Only           bool // the application (or team) drilled into alone, as the whole board: no others behind
+	Cycle          int  // TV mode: seconds before the next environment; 0 stays put
 	Updated        string
 	At             string // "2006-01-02T15:04" (UTC) when looking back; empty for now
 	Yesterday      string // where "Time travel" opens without JavaScript
@@ -214,11 +216,12 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		}
 	}
 	v := TilesView{
-		Base: s.base(r.Context(), p, "matrix", "Tiles"), GroupBy: g.GroupBy, Env: q.Get("env"),
-		App: q.Get("app"), TV: q.Get("tv") == "1", Updated: time.Now().UTC().Format("15:04 UTC"),
+		Base: withFlash(s.base(r.Context(), p, "matrix", "Tiles"), r), GroupBy: g.GroupBy, Env: q.Get("env"),
+		App: q.Get("app"), TV: q.Get("tv") == "1", Only: q.Get("only") == "1" && q.Get("app") != "", Updated: time.Now().UTC().Format("15:04 UTC"),
 		At: at, Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04"),
 	}
 	v.Kiosk = v.TV
+	v.Views = s.viewTabs(r.Context(), r, p, "/tiles")
 	if c, err := strconv.Atoi(q.Get("cycle")); err == nil && v.TV && c > 0 {
 		v.Cycle = min(max(c, 10), 3600)
 	}
@@ -366,6 +369,9 @@ func tilesHref(v TilesView, app string) string {
 	if v.TV {
 		q.Set("tv", "1")
 	}
+	if v.Only && app != "" {
+		q.Set("only", "1")
+	}
 	if v.Cycle > 0 {
 		q.Set("cycle", strconv.Itoa(v.Cycle))
 	}
@@ -400,6 +406,8 @@ func tilesWith(v TilesView, key, value string) string {
 		}
 	case "cycle":
 		v.Cycle, _ = strconv.Atoi(value)
+	case "only":
+		v.Only = value == "1"
 	}
 	return tilesHref(v, v.App)
 }
@@ -791,4 +799,9 @@ func partItems(v TilesView, parts map[string][]MatrixRow, envs []EnvHeader, env 
 func tilesWithAt(v TilesView, at string) string {
 	v.At = at
 	return tilesHref(v, v.App)
+}
+
+// singularWord names one of what the board groups by.
+func singularWord(by string) string {
+	return map[string]string{"app": "application", "team": "team", "status": "state"}[by]
 }

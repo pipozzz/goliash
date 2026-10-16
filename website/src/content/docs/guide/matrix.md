@@ -72,6 +72,9 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 - **Open a cell** and its board is laid over the global one like a card, one cell per service; the global board stays
   behind, dimmed, with the application marked, and its cells open the other applications directly. × or Escape lays
   the card down again. Arrow keys move between cells, Enter opens one.
+- **Only this team** (or application) on the card shows it alone, as the whole board: its services as large cells,
+  nothing else behind (`/tiles?group=team&app=payments&only=1`). With *Env* and **TV mode** it is a team's own wall
+  screen (`&env=prod&tv=1`); save it as a [view](#saved-views) to keep it a click away.
 
 ![An application's card laid over the global board: webshop's services as cells, the board behind dimmed with webshop marked](../../../assets/tiles-card.png) Open a service for its versions per environment, the newest release with its notes, its drift and a link to
   its page; Escape closes it.
@@ -87,6 +90,21 @@ to compare with, and warm means it needs attention: end of life, or targets disa
   so a pinned tab tells you when something needs attention.
 - `/` opens your home view, on every device you sign in on: the view you switched to last, or the one picked under
   **Your account → Home page**. Until you pick, it goes by device: the tiles on a phone, the table elsewhere.
+
+## Saved views
+
+Set up the matrix or the tiles the way you look at them (a team's applications, production only, grouped by status,
+the TV board for the wall screen) and **+ Save view** keeps it under a name. Saved views are tabs above the matrix and
+the tiles: one click opens a team's board, and each has its own address to bookmark, share or open on a wall screen.
+
+- **Yours or everyone's**: a view is yours unless a member saves it *For everyone*; then the whole workspace sees the
+  tab, and members can delete it.
+- **Your home**: *Make it my home* on a view's tab, or the home page setting on **Your account**, makes Goliash open
+  with it on every device. Switching between table and tiles does not change a view home.
+- **Search**: views are in the search (⌘K) too.
+- **Updates** has views of its own (a team's upgrade list, production only), as tabs above it.
+
+A view keeps the page's grouping, team or application, environment, filters and TV mode, not a point in time.
 
 ## One target at a glance
 

@@ -176,3 +176,41 @@ func TestLicenseAlert(t *testing.T) {
 		t.Errorf("announced again: %s", slack.last())
 	}
 }
+
+// A deploy whose image is not signed by who the service's policy names is announced once.
+func TestUnexpectedSignerAlert(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "sec", map[string]any{"url": slack.srv.URL}), "instant", []string{EventUnexpectedSigner}, Filter{})
+	e.svc.VersionPolicy = json.RawMessage(`{"signer":"https://github.com/acme/*"}`)
+	if err := e.st.UpdateService(ctx, e.svc); err != nil {
+		t.Fatal(err)
+	}
+	tgt, _ := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s"})
+	now := time.Now()
+	e.clock = now
+	in := store.Instance{
+		TargetID: tgt.ID, EnvironmentID: e.prod.ID, ServiceID: e.svc.ID, WorkloadID: "w", WorkloadName: "api",
+		ContainerName: "api", Image: "ghcr.io/acme/api:2.0.0", Tag: "2.0.0", Digest: "sha256:02", Running: 1, IsMain: true,
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: store.NewID(), TargetID: tgt.ID, At: now.Add(-time.Hour), Upsert: []store.Instance{in}}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
+		Repo: "ghcr.io/acme/api", Digest: "sha256:02", Signed: true,
+		Signers: []store.ImageSigner{{Identity: "dev@acme.example", Issuer: "https://accounts.google.com"}},
+	})
+	for range 2 {
+		if err := e.n.CheckImages(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	if slack.count() != 1 || !strings.Contains(slack.last(), "2.0.0 is signed by dev@acme.example; https://github.com/acme/* should sign it") {
+		t.Fatalf("alerts %d: %s", slack.count(), strings.Join(slack.all(), "\n"))
+	}
+	if strings.Contains(slack.last(), "→") {
+		t.Errorf("a version arrow: %s", slack.last())
+	}
+}

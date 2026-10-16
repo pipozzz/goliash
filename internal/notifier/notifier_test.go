@@ -582,6 +582,10 @@ func TestDescribeVulnerability(t *testing.T) {
 	if got, want := Describe(it), "payments-api @ prod: CVE-2021-44228 (exploited, ransomware, critical) in log4j-core 2.14.1, fixed in 2.15.0"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
+	it.Note = "CVE-2021-44228 exploited critical past-due"
+	if got, want := Describe(it), "payments-api @ prod: CVE-2021-44228 (exploited, critical, past CISA's due date) in log4j-core 2.14.1, fixed in 2.15.0"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
 	it.To, it.Note = "", "CVE-2026-1 critical"
 	if got, want := Describe(it), "payments-api @ prod: CVE-2026-1 (critical) in log4j-core 2.14.1, no fix yet"; got != want {
 		t.Errorf("got %q, want %q", got, want)

@@ -62,6 +62,7 @@ type WorkspacesView struct {
 // MatrixView is the home page.
 type MatrixView struct {
 	Base
+	Views   ViewTabs
 	Grid    MatrixGrid
 	Hygiene int    // image hygiene warnings
 	At      string // "2006-01-02T15:04" (UTC) when looking back; empty for now
@@ -417,7 +418,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents", "rollout": "stuck rollouts",
-	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "license": "AGPL or source-available packages",
+	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "license": "AGPL or source-available packages",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
@@ -451,6 +452,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 type ServiceView struct {
 	Base
 	Rollouts       []versions.RolloutIssue // its workloads whose replicas are not where they should be
+	TeamNames      []string                // the workspace's teams, to pick one
 	Security       ServiceSecurity
 	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
 	SizeChange     *SizeChange // what the last deploy changed in the image, when its layers are known

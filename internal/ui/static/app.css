@@ -1200,6 +1200,60 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .signers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .signers li { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
 
+/* Saved views: tabs above the matrix and the tiles. */
+.view-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 4px 0 12px; }
+.view-tab-list { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.view-tab { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.view-tab:hover { border-color: var(--accent); text-decoration: none; }
+.view-tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.view-home { margin-right: 3px; }
+.view-actions { display: inline-flex; gap: 10px; font-size: 13px; }
+.view-save > summary { list-style: none; cursor: pointer; font-size: 13px; }
+.view-save > summary::-webkit-details-marker { display: none; }
+.view-save[open] { flex-basis: 100%; }
+.view-save form { margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.view-save input[name=name] { flex: 1 1 220px; min-width: 0; }
+/* One application or team alone, as the whole board (?only=1): its services as the cells, nothing behind. */
+.tile-alone { display: grid; gap: 14px; }
+.alone-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.alone-head .stack-title { flex: 1 1 auto; min-width: 0; }
+.alone-head h2 { margin: 0; }
+.stack-head .stack-only { font-size: 13px; white-space: nowrap; }
+
+/* Teams: quick team buttons, the filter of services without a team, taking a service out of its team. */
+.team-picks { flex-wrap: wrap; gap: 6px; align-items: center; }
+.pick-tools { align-items: center; gap: 12px; flex-wrap: wrap; }
+.pick-tools .search { min-width: 0; flex: 1 1 220px; }
+.app-services li .unassign { display: inline; margin-left: 4px; }
+.app-services li .unassign button { padding: 0 4px; color: var(--muted); font-size: 15px; line-height: 1; opacity: 0; }
+.app-services li:hover .unassign button, .app-services li .unassign button:focus-visible { opacity: 1; }
+@media (hover: none) { .app-services li .unassign button { opacity: 1; } }
+.fact .team-set { display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; max-width: 100%; }
+.fact .team-set input { flex: 1 1 auto; width: 100%; min-width: 0; padding: 3px 7px; font: inherit; }
+.fact .team-set button { flex: none; padding: 3px 8px; }
+
+/* Editing a card (rename, set a team) waits behind a button, so the cards read clean. */
+.card-edit { margin-top: 10px; }
+.card-edit > summary { list-style: none; display: inline-flex; cursor: pointer; font-size: 13px; padding: 5px 12px; }
+.card-edit > summary::-webkit-details-marker { display: none; }
+.card-edit[open] > summary { margin-bottom: 8px; }
+.card-edit form + form { margin-top: 8px; }
+.card-edit .app-actions label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.card-edit .app-actions { align-items: flex-end; }
+
+/* Combobox: existing names as you type, or a new one. */
+.combo { position: relative; display: block; flex: 1 1 auto; min-width: 0; }
+.combo > input { width: 100%; }
+.combo-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 2px); max-height: 240px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+.combo-list [role=option] { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13.5px; overflow-wrap: anywhere; }
+.combo-list [role=option]:hover, .combo-list [role=option][aria-selected=true] { background: var(--accent-soft); color: var(--accent); }
+.combo-list .combo-new { color: var(--accent); font-weight: 600; border-top: 1px solid var(--line); margin-top: 2px; }
+.combo-list .combo-new:first-child { border-top: 0; margin-top: 0; }
+/* The team picker's list must reach out of the facts box, which otherwise clips its corners. */
+.facts:has(.team-set) { overflow: visible; }
+.facts:has(.team-set) > .fact:first-child { border-top-left-radius: calc(var(--radius) - 1px); border-bottom-left-radius: calc(var(--radius) - 1px); }
+.facts:has(.team-set) > .fact:last-child { border-top-right-radius: calc(var(--radius) - 1px); border-bottom-right-radius: calc(var(--radius) - 1px); }
+
 /* Touch screens: a finger needs about 28px. The links and small buttons get a taller hit
    area from padding, given back as negative margin, so the layout stays where it was. */
 @media (pointer: coarse) {

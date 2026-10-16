@@ -47,6 +47,9 @@ type TeamView struct {
 	Apps     []string
 	State    string
 	OK       int
+	// The team's scorecard: services running something exploited in the wild, past end of life, with a rollout
+	// stuck or down, and behind (upstream or the previous environment), each service once.
+	Exploited, EOL, Rollouts, Behind int
 }
 
 // AppsView is the Applications page.
@@ -206,7 +209,7 @@ func (s *Server) appTeam(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
 	s.audit(ctx, p, "app.team", "app", app, "team", team, "services", itoa(n))
-	return back(w, r, "/apps", "notice", plural(n, "service", "services")+" of "+app+" now belong to "+team+"; services that appear in it later get it too.")
+	return back(w, r, "/apps", "notice", plural(n, "service", "services")+" of "+app+" now "+belongs(n)+" to "+team+"; services that appear in it later get it too.")
 }
 
 func (s *Server) teams(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -243,6 +246,16 @@ func (s *Server) teams(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		}
 		t.Services = append(t.Services, svc)
 		t.State = worse(t.State, c.State)
+		kinds := map[string]bool{}
+		for _, cell := range row.Cells {
+			for _, d := range cell.Drifts {
+				kinds[d.Kind] = true
+			}
+		}
+		t.Exploited += b2i(kinds["exploited"])
+		t.EOL += b2i(kinds["eol"])
+		t.Rollouts += b2i(kinds["rollout"])
+		t.Behind += b2i(kinds["upstream"] || kinds["env"])
 		if c.State == stCurrent {
 			t.OK++
 		}
@@ -287,9 +300,12 @@ func (s *Server) assignTeam(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
-	team := strings.TrimSpace(r.FormValue("team"))
+	team := strings.TrimSpace(r.FormValue("pick")) // one of the existing teams' buttons
 	if team == "" {
-		return back(w, r, "/teams", "error", "Name the team.")
+		team = strings.TrimSpace(r.FormValue("team"))
+	}
+	if team == "" {
+		return back(w, r, "/teams", "error", "Name the team, or pick one of the teams.")
 	}
 	var ids []string
 	for _, name := range r.Form["service"] {
@@ -306,7 +322,39 @@ func (s *Server) assignTeam(w http.ResponseWriter, r *http.Request, p auth.Princ
 	}
 	s.hub.Publish(p.Scope.WorkspaceID)
 	s.audit(ctx, p, "team.assign", "team", team, "services", itoa(n))
-	return back(w, r, "/teams", "notice", plural(n, "service", "services")+" now belong to "+team+".")
+	return back(w, r, "/teams", "notice", plural(n, "service", "services")+" now "+belongs(n)+" to "+team+".")
+}
+
+// unassignTeam takes a service out of its team.
+func (s *Server) unassignTeam(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	name, team := r.FormValue("service"), r.FormValue("team")
+	svc, err := s.store.GetServiceByName(ctx, p.Scope, name)
+	if err != nil || svc.Owner != team {
+		return back(w, r, "/teams", "error", "That service is not in "+team+" any more.")
+	}
+	if _, err := s.store.SetOwners(ctx, p.Scope, []string{svc.ID}, "", ""); err != nil {
+		return err
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	s.audit(ctx, p, "team.unassign", "team", team, "service", name)
+	return back(w, r, "/teams", "notice", name+" is not in "+team+" any more.")
+}
+
+// belongs agrees with a count: 1 service belongs, 2 services belong.
+func belongs(n int) string {
+	if n == 1 {
+		return "belongs"
+	}
+	return "belong"
+}
+
+// newTeamHint is the placeholder of the team field: a new team when there are teams to pick.
+func newTeamHint(teams int) string {
+	if teams > 0 {
+		return "pick a team, or type a new one"
+	}
+	return "name a new team"
 }
 
 // reevaluate recomputes drift after applications changed, so it follows the new names.
@@ -326,3 +374,42 @@ func teamNames(ts []TeamView) []string {
 }
 
 func joinComma(s []string) string { return strings.Join(s, ", ") }
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// teamBrief is what the Brief button on a team's card asks Goli.
+func teamBrief(team string) string {
+	return "Brief the team " + team + " for this week: of the services it owns, what to upgrade first and why " +
+		"(exploited vulnerabilities, end of life, majors), any rollout stuck or service down, and what can wait. " +
+		"Keep it to a short to-do list with links."
+}
+
+// setServiceTeam gives one service a team from its page, or takes it out of its team when the name is empty.
+func (s *Server) setServiceTeam(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	name := r.PathValue("name")
+	path := "/services/" + url.PathEscape(name)
+	svc, err := s.store.GetServiceByName(ctx, p.Scope, name)
+	if err != nil {
+		http.NotFound(w, r)
+		return nil
+	}
+	team := strings.TrimSpace(r.FormValue("team"))
+	if team == svc.Owner {
+		return back(w, r, path, "notice", "Nothing changed.")
+	}
+	if _, err := s.store.SetOwners(ctx, p.Scope, []string{svc.ID}, team, ""); err != nil {
+		return err
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	s.audit(ctx, p, "team.assign", "team", team, "service", name)
+	if team == "" {
+		return back(w, r, path, "notice", name+" has no team now.")
+	}
+	return back(w, r, path, "notice", name+" belongs to "+team+" now.")
+}
