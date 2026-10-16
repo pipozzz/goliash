@@ -244,6 +244,12 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 			s.VersionPolicy = json.RawMessage(`{"track":"minor","pin_major":15}`)
 		case "keycloak":
 			s.VersionPolicy = json.RawMessage(`{"track":"major"}`)
+		case "payments-api": // size budgets: one over, two under
+			s.VersionPolicy = json.RawMessage(`{"max_size_mb":350}`)
+		case "checkout":
+			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400}`)
+		case "notifications":
+			s.VersionPolicy = json.RawMessage(`{"max_size_mb":100}`)
 		}
 		if err := st.UpdateService(ctx, s); err != nil {
 			return err

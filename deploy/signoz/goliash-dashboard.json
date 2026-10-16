@@ -221,7 +221,7 @@
     {
       "i": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "x": 0,
-      "y": 55,
+      "y": 73,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -233,7 +233,7 @@
     {
       "i": "w16",
       "x": 0,
-      "y": 56,
+      "y": 74,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -242,7 +242,7 @@
     {
       "i": "w25",
       "x": 2,
-      "y": 56,
+      "y": 74,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -251,7 +251,7 @@
     {
       "i": "w17",
       "x": 4,
-      "y": 56,
+      "y": 74,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -260,7 +260,7 @@
     {
       "i": "w18",
       "x": 6,
-      "y": 56,
+      "y": 74,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -269,7 +269,7 @@
     {
       "i": "w19",
       "x": 8,
-      "y": 56,
+      "y": 74,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -278,7 +278,7 @@
     {
       "i": "w20",
       "x": 10,
-      "y": 56,
+      "y": 74,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -287,7 +287,7 @@
     {
       "i": "6d3a9c2a-12d6-54a5-a6af-630f15d128ea",
       "x": 0,
-      "y": 43,
+      "y": 61,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -299,7 +299,7 @@
     {
       "i": "w26",
       "x": 0,
-      "y": 44,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -308,7 +308,7 @@
     {
       "i": "w27",
       "x": 2,
-      "y": 44,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -317,7 +317,7 @@
     {
       "i": "w28",
       "x": 4,
-      "y": 44,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -326,7 +326,7 @@
     {
       "i": "w29",
       "x": 6,
-      "y": 44,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -335,7 +335,7 @@
     {
       "i": "w30",
       "x": 8,
-      "y": 44,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -344,7 +344,7 @@
     {
       "i": "w31",
       "x": 10,
-      "y": 44,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -353,7 +353,7 @@
     {
       "i": "w32",
       "x": 0,
-      "y": 47,
+      "y": 65,
       "w": 6,
       "h": 8,
       "moved": false,
@@ -362,18 +362,102 @@
     {
       "i": "w33",
       "x": 6,
-      "y": 47,
+      "y": 65,
       "w": 6,
       "h": 8,
       "moved": false,
       "static": false
     },
     {
+      "i": "f287c707-77d5-52c1-bb00-dde8d04cd803",
+      "x": 0,
+      "y": 43,
+      "w": 12,
+      "h": 1,
+      "minH": 1,
+      "maxH": 1,
+      "minW": 12,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w34",
+      "x": 0,
+      "y": 44,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w35",
+      "x": 3,
+      "y": 44,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w36",
+      "x": 6,
+      "y": 44,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w37",
+      "x": 9,
+      "y": 44,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
       "i": "w-image-size",
       "x": 0,
-      "y": 59,
-      "w": 12,
-      "h": 6,
+      "y": 47,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w38",
+      "x": 6,
+      "y": 47,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w39",
+      "x": 0,
+      "y": 54,
+      "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w40",
+      "x": 4,
+      "y": 54,
+      "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w41",
+      "x": 8,
+      "y": 54,
+      "w": 4,
+      "h": 7,
       "moved": false,
       "static": false
     }
@@ -2697,6 +2781,1122 @@
       "legendPosition": "bottom"
     },
     {
+      "id": "f287c707-77d5-52c1-bb00-dde8d04cd803",
+      "panelTypes": "row",
+      "title": "Images",
+      "description": ""
+    },
+    {
+      "id": "w34",
+      "panelTypes": "value",
+      "title": "Over budget",
+      "description": "Images larger than the max_size_mb in their service's version policy.",
+      "query": {
+        "queryType": "builder",
+        "id": "896a7ae0-c752-5ddb-8432-ebb69fd0203d",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_hygiene_findings",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "kind = 'over-budget'"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w35",
+      "panelTypes": "value",
+      "title": "Outdated bases",
+      "description": "Images built on an older build of their base than the base tag has today: rebuild with --pull.",
+      "query": {
+        "queryType": "builder",
+        "id": "60606bea-1531-59e7-ba31-c117165bef34",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_hygiene_findings",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "kind = 'outdated-base'"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w36",
+      "panelTypes": "value",
+      "title": "Oldest base lag",
+      "description": "Longest a base tag has had a newer build than an image running on it.",
+      "query": {
+        "queryType": "builder",
+        "id": "5f057659-1138-5dc8-9ecf-b9a68a8bf820",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_base_behind_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "d",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w37",
+      "panelTypes": "value",
+      "title": "Largest image",
+      "description": "What pulling the largest running image downloads.",
+      "query": {
+        "queryType": "builder",
+        "id": "de5129e9-6cbc-50d0-aefe-50f390be2e2e",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_size_bytes",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "decbytes",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w-image-size",
+      "panelTypes": "graph",
+      "title": "Image size",
+      "description": "What pulling each service's image downloads, the largest per service: a jump is a heavier base or new dependencies.",
+      "query": {
+        "queryType": "builder",
+        "id": "948ce474-f9aa-55ce-8f78-bb1d61210b4f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_size_bytes",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                }
+              ],
+              "legend": "{{service}}",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "decbytes",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w38",
+      "panelTypes": "table",
+      "title": "Size against budget",
+      "description": "Each service's largest image next to its size budget (max_size_mb).",
+      "query": {
+        "queryType": "builder",
+        "id": "f893893a-d06a-5faa-8931-05834d7a631c",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_size_bytes",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                }
+              ],
+              "legend": "Size",
+              "reduceTo": "last"
+            },
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "B",
+              "queryName": "B",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_size_budget_bytes",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                }
+              ],
+              "legend": "Budget",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          },
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "B",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          },
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "B",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "columnUnits": {
+        "A": "decbytes",
+        "B": "decbytes"
+      }
+    },
+    {
+      "id": "w39",
+      "panelTypes": "table",
+      "title": "Outdated bases",
+      "description": "How long each image's base tag has had a newer build than the image is built on.",
+      "query": {
+        "queryType": "builder",
+        "id": "5077df42-15a0-55cc-bcf9-93ed12b008b8",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_base_behind_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                },
+                {
+                  "key": "environment",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "environment--string--tag--false"
+                }
+              ],
+              "legend": "Days behind",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "columnUnits": {
+        "A": "d"
+      }
+    },
+    {
+      "id": "w40",
+      "panelTypes": "table",
+      "title": "Image evidence",
+      "description": "1 when every running image has the evidence, 0 when one lacks it.",
+      "query": {
+        "queryType": "builder",
+        "id": "3e480d95-4ad5-5cb8-abc5-8074f30d8b92",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_evidence",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "min",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                },
+                {
+                  "key": "environment",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "environment--string--tag--false"
+                },
+                {
+                  "key": "kind",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "kind--string--tag--false"
+                }
+              ],
+              "legend": "Has it",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w41",
+      "panelTypes": "graph",
+      "title": "Layers",
+      "description": "Layers in each service's largest image: a jump often means a Dockerfile lost its multi-stage build.",
+      "query": {
+        "queryType": "builder",
+        "id": "405e821c-9fd9-53da-b879-e745ccf39096",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_layers",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                }
+              ],
+              "legend": "{{service}}",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
       "id": "6d3a9c2a-12d6-54a5-a6af-630f15d128ea",
       "panelTypes": "row",
       "title": "Security posture",
@@ -4391,120 +5591,6 @@
           "signal": "traces"
         }
       ]
-    },
-    {
-      "id": "w-image-size",
-      "panelTypes": "graph",
-      "title": "Image size",
-      "description": "What pulling each service's image downloads, the largest per service: a jump is a heavier base or new dependencies.",
-      "query": {
-        "queryType": "builder",
-        "id": "948ce474-f9aa-55ce-8f78-bb1d61210b4f",
-        "builder": {
-          "queryData": [
-            {
-              "dataSource": "metrics",
-              "disabled": false,
-              "expression": "A",
-              "queryName": "A",
-              "stepInterval": 60,
-              "aggregations": [
-                {
-                  "metricName": "goliash_image_size_bytes",
-                  "temporality": "unspecified",
-                  "timeAggregation": "latest",
-                  "spaceAggregation": "max",
-                  "reduceTo": "last"
-                }
-              ],
-              "filter": {
-                "expression": ""
-              },
-              "functions": [],
-              "having": {
-                "expression": ""
-              },
-              "limit": null,
-              "orderBy": [],
-              "selectColumns": [],
-              "groupBy": [
-                {
-                  "key": "service",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "service--string--tag--false"
-                }
-              ],
-              "legend": "{{service}}",
-              "reduceTo": "last"
-            }
-          ],
-          "queryFormulas": []
-        },
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ],
-        "promql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ]
-      },
-      "yAxisUnit": "decbytes",
-      "timePreferance": "GLOBAL_TIME",
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "softMax": 0,
-      "thresholds": [],
-      "fillSpans": false,
-      "isStacked": false,
-      "contextLinks": {
-        "linksData": []
-      },
-      "selectedLogFields": [
-        {
-          "fieldContext": "log",
-          "name": "timestamp",
-          "signal": "logs",
-          "type": "log"
-        },
-        {
-          "fieldContext": "log",
-          "name": "body",
-          "signal": "logs",
-          "type": "log"
-        }
-      ],
-      "selectedTracesFields": [
-        {
-          "fieldContext": "resource",
-          "fieldDataType": "string",
-          "name": "service.name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "fieldDataType": "string",
-          "name": "name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "name": "duration_nano",
-          "signal": "traces"
-        }
-      ]
     }
   ],
   "panelMap": {
@@ -4700,7 +5786,7 @@
         {
           "i": "w16",
           "x": 0,
-          "y": 56,
+          "y": 74,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4709,7 +5795,7 @@
         {
           "i": "w25",
           "x": 2,
-          "y": 56,
+          "y": 74,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4718,7 +5804,7 @@
         {
           "i": "w17",
           "x": 4,
-          "y": 56,
+          "y": 74,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4727,7 +5813,7 @@
         {
           "i": "w18",
           "x": 6,
-          "y": 56,
+          "y": 74,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4736,7 +5822,7 @@
         {
           "i": "w19",
           "x": 8,
-          "y": 56,
+          "y": 74,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4745,7 +5831,7 @@
         {
           "i": "w20",
           "x": 10,
-          "y": 56,
+          "y": 74,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4759,7 +5845,7 @@
         {
           "i": "w26",
           "x": 0,
-          "y": 44,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4768,7 +5854,7 @@
         {
           "i": "w27",
           "x": 2,
-          "y": 44,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4777,7 +5863,7 @@
         {
           "i": "w28",
           "x": 4,
-          "y": 44,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4786,7 +5872,7 @@
         {
           "i": "w29",
           "x": 6,
-          "y": 44,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4795,7 +5881,7 @@
         {
           "i": "w30",
           "x": 8,
-          "y": 44,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4804,7 +5890,7 @@
         {
           "i": "w31",
           "x": 10,
-          "y": 44,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -4813,7 +5899,7 @@
         {
           "i": "w32",
           "x": 0,
-          "y": 47,
+          "y": 65,
           "w": 6,
           "h": 8,
           "moved": false,
@@ -4822,9 +5908,95 @@
         {
           "i": "w33",
           "x": 6,
-          "y": 47,
+          "y": 65,
           "w": 6,
           "h": 8,
+          "moved": false,
+          "static": false
+        }
+      ]
+    },
+    "f287c707-77d5-52c1-bb00-dde8d04cd803": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w34",
+          "x": 0,
+          "y": 44,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w35",
+          "x": 3,
+          "y": 44,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w36",
+          "x": 6,
+          "y": 44,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w37",
+          "x": 9,
+          "y": 44,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w-image-size",
+          "x": 0,
+          "y": 47,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w38",
+          "x": 6,
+          "y": 47,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w39",
+          "x": 0,
+          "y": 54,
+          "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w40",
+          "x": 4,
+          "y": 54,
+          "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w41",
+          "x": 8,
+          "y": 54,
+          "w": 4,
+          "h": 7,
           "moved": false,
           "static": false
         }

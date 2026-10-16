@@ -73,3 +73,24 @@ groups:
         annotations:
           summary: "The {{ $labels.service }} image in {{ $labels.environment }} grew by a quarter or more in a day"
           description: A heavier base, a new dependency or build tools left in the image. The service page in Goliash charts its size per deploy; Ask Goli what changed.
+      - alert: GoliashImageOverBudget
+        expr: goliash_image_size_bytes > on (service) group_left max by (service) (goliash_image_size_budget_bytes)
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "The {{ $labels.service }} image in {{ $labels.environment }} is over its size budget"
+          description: The image is larger than max_size_mb in the service's version policy. The service page in Goliash shows which layers made it bigger.
+      - alert: GoliashImageBaseOutdated
+        expr: goliash_image_base_behind_days > 30
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "The {{ $labels.service }} image in {{ $labels.environment }} is built on a base {{ $value | humanize }} days old"
+          description: Its base tag has had a newer build for over a month, so fixes in the base are not in the image even though the image itself may be new. Rebuild with --pull.
+      - alert: GoliashImageEvidenceLost
+        expr: goliash_image_evidence == 0 and (goliash_image_evidence offset 1d) == 1
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "The {{ $labels.service }} image in {{ $labels.environment }} lost its {{ $labels.kind }}"
+          description: The running image has no {{ $labels.kind }} though the one a day earlier had. Check the build pipeline's signing, SBOM or provenance step.
