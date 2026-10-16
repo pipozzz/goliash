@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -27,7 +28,8 @@ type AccountView struct {
 	PasskeysEnabled  bool
 	Passkeys         []PasskeyView
 	Apps             []store.OAuthGrant // apps that read Goliash as this person (MCP clients over OAuth)
-	HomeView         string             // what "/" opens: "" by device, table or tiles
+	HomeView         string             // what "/" opens: "" by device, table, tiles or view:<id>
+	Views            []store.SavedView  // the saved views the home can be
 }
 
 // SessionView is one signed-in browser.
@@ -77,6 +79,7 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 		Name: p.User.Name, HasPassword: p.User.HasPassword, PasswordChanged: p.User.PasswordChangedAt,
 		PasswordsEnabled: s.auth.PasswordsEnabled(), MinLength: auth.MinPasswordLength,
 		NeedCurrent: p.User.HasPassword && !mayResetPassword(cur, time.Now()), HomeView: p.User.HomeView,
+		Views: s.visibleViews(r.Context(), p),
 	}
 	if v.TOTP, err = s.store.UserTOTP(r.Context(), p.User.ID); err != nil {
 		return err
@@ -111,7 +114,13 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 // saveHomeView sets what "/" opens for the person.
 func (s *Server) saveHomeView(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	view := r.FormValue("home_view")
-	if view != "" && view != "table" && view != "tiles" {
+	ok := view == "" || view == "table" || view == "tiles"
+	if id, isView := strings.CutPrefix(view, homeViewPref); isView {
+		for _, v := range s.visibleViews(r.Context(), p) {
+			ok = ok || v.ID == id
+		}
+	}
+	if !ok {
 		return back(w, r, "/account", "error", "Pick a home page.")
 	}
 	if err := s.store.SetHomeView(r.Context(), p.User.ID, view); err != nil {
@@ -270,4 +279,13 @@ func device(ua string) string {
 		}
 	}
 	return browser
+}
+
+// visibleViews are the saved views a person sees: the workspace's and their own.
+func (s *Server) visibleViews(ctx context.Context, p auth.Principal) []store.SavedView {
+	views, err := s.store.ListSavedViews(ctx, p.Scope, p.User.ID)
+	if err != nil {
+		return nil
+	}
+	return views
 }

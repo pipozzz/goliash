@@ -146,6 +146,18 @@
     const sel = e.target.getAttribute && e.target.getAttribute("data-check-shown");
     if (sel) document.querySelectorAll(sel).forEach(function (c) { c.checked = e.target.checked; });
   });
+  // Saving a view keeps the address as it is now, the matrix's filters typed in this page included.
+  document.addEventListener("submit", function (e) {
+    if (!e.target.matches("form[data-save-view]")) return;
+    const url = e.target.querySelector("input[name=url]");
+    if (url) url.value = window.location.pathname + window.location.search;
+  });
+  // Opening "Save view" puts the cursor in its name.
+  document.addEventListener("toggle", function (e) {
+    if (!e.target.matches || !e.target.matches("details.view-save") || !e.target.open) return;
+    const f = e.target.querySelector("[data-focus-open]");
+    if (f) f.focus();
+  }, true);
   // Forms that take a while (filling the Example workspace) say so on their button, and cannot be sent twice.
   document.addEventListener("submit", function (e) {
     const busy = e.target.getAttribute("data-busy");

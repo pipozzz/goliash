@@ -62,6 +62,7 @@ type WorkspacesView struct {
 // MatrixView is the home page.
 type MatrixView struct {
 	Base
+	Views   ViewTabs
 	Grid    MatrixGrid
 	Hygiene int    // image hygiene warnings
 	At      string // "2006-01-02T15:04" (UTC) when looking back; empty for now

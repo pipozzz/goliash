@@ -179,6 +179,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /security/vulns.csv", s.page(v, s.vulnsCSV))
 	mux.Handle("GET /updates", s.page(v, s.updates))
 	mux.Handle("GET /tiles", s.page(v, s.tiles))
+	mux.Handle("POST /views", s.page(v, s.saveView))
+	mux.Handle("POST /views/{id}/delete", s.page(v, s.deleteView))
+	mux.Handle("POST /views/{id}/home", s.page(v, s.homeOnView))
 	mux.Handle("GET /apps", s.page(v, s.apps))
 	mux.Handle("POST /apps/rename", s.page(m, s.renameApp))
 	mux.Handle("POST /apps/team", s.page(m, s.appTeam))
@@ -549,8 +552,8 @@ func phone(r *http.Request) bool {
 // rememberView keeps the view someone switched to: on their account, or in this browser on the demo.
 func (s *Server) rememberView(w http.ResponseWriter, r *http.Request, p auth.Principal, view string) {
 	if !s.auth.Demo() && p.User.ID != "" {
-		if p.User.HomeView == view {
-			return
+		if p.User.HomeView == view || strings.HasPrefix(p.User.HomeView, homeViewPref) {
+			return // the same, or a saved view chosen on purpose: switching table and tiles keeps it
 		}
 		if err := s.store.SetHomeView(r.Context(), p.User.ID, view); err != nil {
 			s.log.WarnContext(r.Context(), "saving the home view failed", "err", err)
@@ -571,11 +574,16 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 	case view == "table":
 		s.rememberView(w, r, p, "table")
 	case view == "" && r.URL.Query().Get("at") == "":
+		if home := viewURL(s.homeViewURL(r.Context(), p)); home != "" && r.URL.RawQuery == "" {
+			http.Redirect(w, r, home, http.StatusFound) //nolint:gosec // viewURL keeps only this site's "/" and "/tiles"
+			return nil
+		}
 		if s.homeView(r, p) == "tiles" {
 			return s.tiles(w, r, p)
 		}
 	}
 	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r), Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04")}
+	v.Views = s.viewTabs(r.Context(), r, p, "/?view=table")
 	if q := r.URL.Query().Get("at"); q != "" {
 		at, err := api.ParseAt(q)
 		if err != nil {
