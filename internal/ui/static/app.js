@@ -1491,6 +1491,43 @@
     if (el && el.tagName === "DETAILS") { el.open = true; el.scrollIntoView({ block: "start" }); }
   }
   window.addEventListener("hashchange", openFromHash);
+  // The top navigation scrolls sideways when it does not fit (phones, tablets): the
+  // current page is scrolled into view, and a fade at the edge says there is more.
+  function navFit() {
+    const nav = document.querySelector(".nav");
+    if (!nav) return;
+    const more = function () {
+      nav.toggleAttribute("data-more-right", nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 2);
+      nav.toggleAttribute("data-more-left", nav.scrollLeft > 2);
+    };
+    const cur = nav.querySelector('[aria-current="page"]');
+    if (cur && nav.scrollWidth > nav.clientWidth) {
+      const r = cur.getBoundingClientRect(), n = nav.getBoundingClientRect();
+      if (r.right > n.right || r.left < n.left) nav.scrollLeft += r.left - n.left - (n.width - r.width) / 2;
+    }
+    more();
+    nav.addEventListener("scroll", more, { passive: true });
+  }
+  window.addEventListener("resize", function () { const nav = document.querySelector(".nav"); if (nav) nav.dispatchEvent(new Event("scroll")); });
+  // On phones a table of three or more columns reads better as one card per row
+  // (table.cards in app.css). Tables written without the cards class get it here,
+  // each cell labelled with its column's heading.
+  function cardTables(root) {
+    (root || document).querySelectorAll("main table:not(.cards):not(.matrix):not(.keep-table)").forEach(function (t) {
+      const heads = Array.from(t.querySelectorAll("thead th")).map(function (th) { return th.textContent.trim(); });
+      if (heads.length < 3 || t.querySelector("thead th[colspan]")) return;
+      t.querySelectorAll("tbody tr").forEach(function (tr) {
+        let col = 0;
+        Array.from(tr.children).forEach(function (td) {
+          if (!td.hasAttribute("data-label")) td.setAttribute("data-label", heads[col] || "");
+          if (!td.textContent.trim() && !td.querySelector("input, select, button, a, img, svg")) td.classList.add("card-empty");
+          col += td.colSpan || 1;
+        });
+      });
+      t.classList.add("cards");
+    });
+  }
+  document.body.addEventListener("htmx:afterSwap", function (e) { cardTables(e.target); });
   function init() {
     swRegister();
     openFromHash();
@@ -1502,6 +1539,8 @@
     cycle();
     refreshTimes();
     showLive();
+    cardTables();
+    navFit();
     const q = document.getElementById("matrix-q");
     const drift = document.getElementById("matrix-drift");
     if (q && drift) {

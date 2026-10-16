@@ -1199,3 +1199,20 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .sub-head { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
 .signers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .signers li { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+
+/* Touch screens: a finger needs about 28px. The links and small buttons get a taller hit
+   area from padding, given back as negative margin, so the layout stays where it was. */
+@media (pointer: coarse) {
+  :where(main :not(.segmented) > a:not(.button):not([class*="cell"]):not([class*="tile"])), .brand, button.link, .toolbar-link { padding-block: 7px; margin-block: -7px; }
+  :where(main td a:not(.button)), button.link { padding-inline: 4px; margin-inline: -4px; }
+  main summary { padding-block: 5px; }
+  main input[type="checkbox"], main input[type="radio"] { width: 20px; height: 20px; }
+}
+@media (max-width: 720px) {
+  table.cards td[data-label=""], table.cards td[colspan] { display: block; }
+  table.cards td[data-label=""]::before, table.cards td[colspan]::before { content: none; }
+  table.cards td.card-empty { display: none; }
+}
+.nav[data-more-right] { mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.nav[data-more-left] { mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.nav[data-more-left][data-more-right] { mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
