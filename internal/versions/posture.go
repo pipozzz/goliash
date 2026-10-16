@@ -34,6 +34,9 @@ type Posture struct {
 	Stale       []string
 	NoUpstream  []string // services whose newest release is unknown, so exposure cannot be measured
 	ProdRunning int      // services running in production
+	// OutdatedBase names the production services whose image is built on an older build of its base than the
+	// base's tag has now: fixes the base shipped since are missing.
+	OutdatedBase []string
 }
 
 // LoadPosture computes the posture from the overview, the releases and the acknowledgements.
@@ -123,7 +126,41 @@ func LoadPosture(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 		}
 	}
 	sort.Strings(p.NoUpstream)
+	if err := p.findOutdatedBases(ctx, st, sc); err != nil {
+		return p, err
+	}
 	return p, nil
+}
+
+func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc store.Scope) error {
+	active, err := st.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return err
+	}
+	evidence, err := st.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return err
+	}
+	services, err := st.ListServices(ctx, sc)
+	if err != nil {
+		return err
+	}
+	name := map[string]string{}
+	for _, s := range services {
+		name[s.ID] = s.Name
+	}
+	seen := map[string]bool{}
+	for _, in := range active {
+		if in.EnvironmentID != p.Prod.ID || !in.IsMain || in.Digest == "" || name[in.ServiceID] == "" || seen[in.ServiceID] {
+			continue
+		}
+		if evidence[ParseImage(in.Image).Repo()+"@"+in.Digest].BaseStatus == "outdated" {
+			seen[in.ServiceID] = true
+			p.OutdatedBase = append(p.OutdatedBase, name[in.ServiceID])
+		}
+	}
+	sort.Strings(p.OutdatedBase)
+	return nil
 }
 
 // behindSince is when the first release newer than running came out: its publication date when known,

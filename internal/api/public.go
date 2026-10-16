@@ -794,12 +794,14 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Accepted   int           `json:"accepted_risk"`
 		Stale      []string      `json:"stale_targets"`
 		NoUpstream []string      `json:"no_known_upstream"`
+		OldBase    []string      `json:"outdated_base"`
 		Exposures  []apiExposure `json:"exposures"`
 		History    []apiReading  `json:"history"`
 	}{
 		Production: pos.Prod.Name, Running: pos.ProdRunning, Median: pos.ProdMedian, P90: pos.ProdP90,
 		Behind30: pos.Prod30, Behind90: pos.Prod90, EOLPassed: pos.EOLPassed, EOLSoon: pos.EOLSoon, Accepted: pos.Accepted,
 		Stale: append([]string{}, pos.Stale...), NoUpstream: append([]string{}, pos.NoUpstream...), Exposures: []apiExposure{},
+		OldBase: append([]string{}, pos.OutdatedBase...),
 		History: []apiReading{},
 	}
 	hist, err := h.store.PostureHistory(ctx, p.Scope, time.Now().AddDate(0, 0, -91).UTC().Format(time.DateOnly))

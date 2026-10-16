@@ -203,6 +203,7 @@ paths:
                   accepted_risk: { type: integer, description: "Production exposures quieted by an acknowledgement." }
                   stale_targets: { type: array, items: { type: string } }
                   no_known_upstream: { type: array, items: { type: string }, description: "Services whose exposure cannot be measured." }
+                  outdated_base: { type: array, items: { type: string }, description: "Production services whose image is built on an older build of its base than the base's tag has now: rebuild with --pull." }
                   history:
                     type: array
                     description: "Production's posture once a week over the last 90 days, oldest first: is patching getting faster?"
