@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,5 +77,32 @@ func TestLicenseReport(t *testing.T) {
 	}
 	if !LicenseMatches(first, "agpl") || !LicenseMatches(first, "itextpdf") || LicenseMatches(first, "lodash") {
 		t.Error("search")
+	}
+}
+
+// The CSV exports keep spreadsheet formulas out: package names and summaries come from anyone's SBOMs.
+func TestCSVExports(t *testing.T) {
+	var b strings.Builder
+	pkgs := []LicensedPackage{{
+		Purl: "pkg:npm/%3Devil@1", Name: "=HYPERLINK(\"x\")", Version: "1", License: "MIT", Class: Permissive,
+		Where: []LicenseUse{{Service: "web", Environment: "prod"}, {Service: "web", Environment: "dev"}},
+	}}
+	if err := WriteLicensesCSV(&b, pkgs); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(b.String()), "\n")
+	if len(lines) != 3 || !strings.HasPrefix(lines[1], "permissive,\"'=HYPERLINK") || !strings.Contains(lines[1], ",web,prod,") {
+		t.Errorf("licenses csv:\n%s", b.String())
+	}
+	b.Reset()
+	f := VulnFinding{
+		Key: "CVE-2021-44228", Severity: "CRITICAL", Summary: "-1+1", Exploited: &store.Exploited{DueDate: "2021-12-24"},
+		Affected: []Affected{{Service: "pay", Env: "prod", Image: "ghcr.io/acme/pay:1", Package: "log4j-core 2.14.1", Fix: "2.15.0"}},
+	}
+	if err := WriteVulnsCSV(&b, []VulnFinding{f}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), "CVE-2021-44228,,critical,true,false,2021-12-24,true,pay,prod,ghcr.io/acme/pay:1,log4j-core 2.14.1,2.15.0,,'-1+1") {
+		t.Errorf("vulns csv:\n%s", b.String())
 	}
 }

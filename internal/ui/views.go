@@ -1281,6 +1281,51 @@ func markExploited(g *MatrixGrid, r versions.VulnReport) {
 	g.Groups = groupRows(g.Rows, g.GroupBy)
 }
 
+// markRollouts badges the cells whose workloads' replicas are not where they should be: a rollout stuck or a
+// service down needs attention now; fewer replicas than asked for is a warning.
+func markRollouts(g *MatrixGrid, issues []versions.RolloutIssue) {
+	byCell := map[string][]versions.RolloutIssue{} // service + "|" + environment
+	for _, is := range issues {
+		byCell[is.Service+"|"+is.Environment] = append(byCell[is.Service+"|"+is.Environment], is)
+	}
+	if len(byCell) == 0 {
+		return
+	}
+	for ri := range g.Rows {
+		r := &g.Rows[ri]
+		for i := range r.Cells {
+			if i >= len(g.Envs) || len(r.Cells[i].Versions) == 0 {
+				continue
+			}
+			list := byCell[r.Service+"|"+g.Envs[i].Name]
+			if len(list) == 0 {
+				continue
+			}
+			worst := list[0] // issues come worst first
+			var details []string
+			for _, is := range list {
+				details = append(details, is.Target+": "+rolloutDetail(is))
+			}
+			b := DriftBadge{Kind: "rollout", Label: rolloutLabel(worst.Kind), Title: upperFirst(rolloutLabel(worst.Kind)) + " — " + strings.Join(details, "; ")}
+			if worst.Kind == versions.RolloutShort {
+				b.Kind, b.Label = "degraded", fmt.Sprintf("%d of %d replicas", worst.Running, worst.Desired)
+			}
+			r.Cells[i].Drifts = append([]DriftBadge{b}, r.Cells[i].Drifts...)
+			r.Health = worseHealth(r.Health, healthOf([]DriftBadge{b}, true))
+		}
+	}
+	g.Groups = groupRows(g.Rows, g.GroupBy)
+}
+
+// worseHealth is the worse of two row healths.
+func worseHealth(a, b string) string {
+	rank := map[string]int{"ok": 0, "warn": 1, "bad": 2}
+	if rank[b] > rank[a] {
+		return b
+	}
+	return a
+}
+
 // ServiceSecurity is the service's running images with their supply-chain evidence, and the vulnerabilities their
 // SBOMs show, the most urgent first.
 type ServiceSecurity struct {

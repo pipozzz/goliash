@@ -1310,6 +1310,17 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		Complete bool         `json:"complete"`
 		Findings []apiFinding `json:"findings"`
 	}{Images: rep.Images, WithSBOM: rep.WithSBOM, Packages: rep.Packages, Complete: rep.Pending == 0 && rep.Unasked == 0, Findings: []apiFinding{}}
+	if q.Get("format") == "csv" {
+		var shown []versions.VulnFinding
+		for _, f := range rep.Findings {
+			if (!onlyExploited || f.Exploited != nil) && (query == "" || versions.FindingMatches(f, query)) {
+				shown = append(shown, f)
+			}
+		}
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		_ = versions.WriteVulnsCSV(w, shown, time.Now())
+		return
+	}
 	for _, f := range rep.Findings {
 		if onlyExploited && f.Exploited == nil {
 			continue

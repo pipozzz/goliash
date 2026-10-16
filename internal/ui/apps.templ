@@ -3,6 +3,8 @@
 
 package ui
 
+import "net/url"
+
 import "strings"
 
 templ AppsPage(v AppsView) {
@@ -128,12 +130,31 @@ templ TeamsPage(v TeamsView) {
 			for _, t := range v.Teams {
 				<section class={ "panel app-card s-" + t.State }>
 					<div class="panel-head">
-						<h2><a href={ templ.URL("/tiles?group=team&app=" + t.Name) }>{ t.Name }</a></h2>
+						<h2><a href={ templ.URL("/tiles?group=team&only=1&app=" + url.QueryEscape(t.Name)) } title={ t.Name + "'s services as their own board" }>{ t.Name }</a></h2>
 						<span class="muted">{ itoa(t.OK) } of { plural(len(t.Services), "service", "services") } up to date</span>
+						if v.Goli {
+							<button type="button" class="link ask-goli noprint" data-goli-ask={ teamBrief(t.Name) } title={ "Goli looks at what " + t.Name + " runs and says what to do first" }>Brief</button>
+						}
 					</div>
 					<div class="panel-body app-body">
 						if len(t.Apps) > 0 {
 							<p class="app-meta"><span class="muted">Applications</span> { joinComma(t.Apps) }</p>
+						}
+						if t.Exploited+t.EOL+t.Rollouts+t.Behind > 0 {
+							<div class="badges team-score">
+								if t.Exploited > 0 {
+									<a class="badge exploited" href={ templ.URL("/updates?team=" + url.QueryEscape(t.Name)) } title="Services running a vulnerability exploited in the wild (CISA KEV)">{ plural(t.Exploited, "exploited", "exploited") }</a>
+								}
+								if t.EOL > 0 {
+									<a class="badge eol" href={ templ.URL("/updates?team=" + url.QueryEscape(t.Name)) } title="Services on a release cycle past or near its end of life">{ plural(t.EOL, "end of life", "end of life") }</a>
+								}
+								if t.Rollouts > 0 {
+									<a class="badge rollout" href="/delivery" title="Services with a rollout stuck, or none of their replicas running">{ plural(t.Rollouts, "rollout stuck", "rollouts stuck") }</a>
+								}
+								if t.Behind > 0 {
+									<a class="badge upstream" href={ templ.URL("/updates?team=" + url.QueryEscape(t.Name)) } title="Services behind upstream or the previous environment">{ itoa(t.Behind) + " behind" }</a>
+								}
+							</div>
 						}
 						<ul class="app-services">
 							for _, svc := range t.Services {

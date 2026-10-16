@@ -309,4 +309,51 @@ func TestAlertVulnerabilities(t *testing.T) {
 	if len(announced) != 1 {
 		t.Fatalf("announced again: %+v", announced)
 	}
+	// CISA's due date passes while it still runs: one reminder, then quiet.
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228", Ransomware: true, DueDate: "2021-12-24"}})
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	if len(announced) != 2 || announced[1].Note != "CVE-2021-44228 exploited ransomware critical past-due" {
+		t.Fatalf("past-due reminder %+v", announced)
+	}
+	// A vulnerability already past due when it starts running is announced once, saying so.
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-old", "GHSA-jfh8-c2jp-5v3q", "GHSA-7rjr"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "GHSA-7rjr", Aliases: []string{"CVE-2021-45046"}, Severity: "CRITICAL"})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{
+		{CVE: "CVE-2021-44228", Ransomware: true, DueDate: "2021-12-24"}, {CVE: "CVE-2021-45046", DueDate: "2021-12-31"},
+	})
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	if len(announced) != 3 || announced[2].Note != "CVE-2021-45046 exploited critical past-due" {
+		t.Fatalf("already past due %+v", announced)
+	}
+}
+
+// After an upgrade from a Goliash without past-due reminders, vulnerabilities already alerted and already past due
+// are not announced again: the reminders start with the next due date to pass.
+func TestPastDueAfterUpgrade(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	l.checker.SetOSV(NewOSV("http://osv.invalid"))
+	var announced []store.Event
+	l.checker.OnEvents(func(_ store.Scope, evs []store.Event) { announced = append(announced, evs...) })
+	tgt := l.targets["prod-a"]
+	_ = l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "w", WorkloadName: "pay", ContainerName: "app",
+		Image: "ghcr.io/acme/pay:1", Tag: "1", Digest: "sha256:pay", Running: 1, IsMain: true,
+	}}})
+	log4j := "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "ghcr.io/acme/pay", Digest: "sha256:pay", Purls: []string{log4j}})
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-jfh8-c2jp-5v3q"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "GHSA-jfh8-c2jp-5v3q", Aliases: []string{"CVE-2021-44228"}, Severity: "CRITICAL"})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228", DueDate: "2021-12-24"}})
+	// The older Goliash announced it already: its alert is recorded, with no past-due marker.
+	if err := l.st.RecordVulnAlerts(ctx, l.sc, []store.VulnAlert{{CVE: "CVE-2021-44228", ServiceID: l.svc.ID, EnvironmentID: tgt.EnvironmentID}}, true); err != nil {
+		t.Fatal(err)
+	}
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	if len(announced) != 0 {
+		t.Fatalf("announced after the upgrade: %+v", announced)
+	}
 }

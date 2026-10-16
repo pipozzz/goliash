@@ -194,7 +194,8 @@ replicas a workload asks for, and Goliash compares that with what runs:
   asked for*), a rolling update that stopped half way;
 - **short**: fewer replicas than asked for.
 
-The service page shows the same in red, `GET /api/v1/rollouts` and the `rollouts` tool for AI assistants list them,
+The matrix marks the cell too: a red *rollout stuck* or *down* badge (its tile needs attention), or *2 of 3 replicas*
+when it is short. The service page shows the same in red, `GET /api/v1/rollouts` and the `rollouts` tool for AI assistants list them,
 and a notification rule with the `rollout` event announces stuck rollouts and services down (not short ones: a pod
 restarting is not news).
 
