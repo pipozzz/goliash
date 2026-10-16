@@ -12,19 +12,25 @@ import (
 	"strings"
 )
 
-// ImageSBOM returns the package URLs (purls) the SBOM of digest lists, from the first of: the SPDX or
+// SBOM is what an image's SBOM lists: its packages, and the license each declares when the SBOM says.
+type SBOM struct {
+	Purls    []string          // sorted
+	Licenses map[string]string // purl -> SPDX license expression, for packages whose license the SBOM names
+}
+
+// ImageSBOM returns the package URLs (purls) and licenses the SBOM of digest lists, from the first of: the SPDX or
 // CycloneDX attestation BuildKit attaches to an image index (docker buildx build --sbom=true), a cosign
 // attestation (cosign attest --type cyclonedx|spdxjson, the sha256-<hex>.att tag), or an OCI referrer: an
 // SBOM pushed as an artifact (oras attach) or a Sigstore bundle with an SBOM predicate. It returns nil
 // without error when the image has none.
-func (c *Client) ImageSBOM(ctx context.Context, repository, digest string, creds Credentials) ([]string, error) {
+func (c *Client) ImageSBOM(ctx context.Context, repository, digest string, creds Credentials) (SBOM, error) {
 	return c.imageSBOM(ctx, repository, digest, creds, true)
 }
 
-func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds Credentials, descend bool) ([]string, error) {
+func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds Credentials, descend bool) (SBOM, error) {
 	host, repo, err := splitRepository(repository)
 	if err != nil {
-		return nil, err
+		return SBOM{}, err
 	}
 	base := fmt.Sprintf("%s://%s/v2/%s", c.Scheme, host, repo)
 	accept := strings.Join([]string{mediaIndex, mediaDockerList, mediaManifest, mediaDockerImage}, ", ")
@@ -38,12 +44,16 @@ func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds
 	}
 	img, err := get(digest)
 	if err != nil {
-		return nil, err
+		return SBOM{}, err
 	}
 	seen := map[string]bool{}
-	add := func(purls []string) {
-		for _, p := range purls {
-			seen[p] = true
+	licenses := map[string]string{}
+	add := func(pkgs []sbomPackage) {
+		for _, p := range pkgs {
+			seen[p.purl] = true
+			if p.license != "" {
+				licenses[p.purl] = p.license
+			}
 		}
 	}
 	blob := func(d string) ([]byte, error) {
@@ -65,9 +75,9 @@ func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds
 			}
 			body, err := blob(l.Digest)
 			if err != nil {
-				return nil, err
+				return SBOM{}, err
 			}
-			add(sbomPurls(body))
+			add(sbomPackages(body))
 		}
 		if len(seen) > 0 {
 			break // one platform's SBOM stands for the image
@@ -82,9 +92,9 @@ func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds
 				}
 				body, err := blob(l.Digest)
 				if err != nil {
-					return nil, err
+					return SBOM{}, err
 				}
-				add(sbomPurls(body))
+				add(sbomPackages(body))
 			}
 		}
 	}
@@ -105,7 +115,7 @@ func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds
 				}
 				for _, l := range m.Layers {
 					if body, err := blob(l.Digest); err == nil {
-						add(sbomPurls(body))
+						add(sbomPackages(body))
 					}
 				}
 				if len(seen) > 0 {
@@ -121,11 +131,11 @@ func (c *Client) imageSBOM(ctx context.Context, repository, digest string, creds
 			return c.imageSBOM(ctx, repository, child, creds, false)
 		}
 	}
-	out := make([]string, 0, len(seen))
+	out := SBOM{Purls: make([]string, 0, len(seen)), Licenses: licenses}
 	for p := range seen {
-		out = append(out, p)
+		out.Purls = append(out.Purls, p)
 	}
-	sort.Strings(out)
+	sort.Strings(out.Purls)
 	return out, nil
 }
 
@@ -162,12 +172,15 @@ func sbomPredicate(p string) bool {
 	return strings.Contains(p, "spdx") || strings.Contains(p, "cyclonedx")
 }
 
-// sbomPurls reads the package URLs of an SBOM in any of the shapes registries hold it in: an in-toto
+// sbomPackage is one package an SBOM lists, with its license when the SBOM names one.
+type sbomPackage struct{ purl, license string }
+
+// sbomPackages reads the packages of an SBOM in any of the shapes registries hold it in: an in-toto
 // statement with the document as its predicate, a DSSE envelope (cosign) or Sigstore bundle around such a
 // statement, or the bare SPDX or CycloneDX JSON document.
-func sbomPurls(body []byte) []string { return sbomPurlsIn(body, 0) }
+func sbomPackages(body []byte) []sbomPackage { return sbomPackagesIn(body, 0) }
 
-func sbomPurlsIn(body []byte, depth int) []string {
+func sbomPackagesIn(body []byte, depth int) []sbomPackage {
 	if depth > 3 {
 		return nil
 	}
@@ -190,20 +203,23 @@ func sbomPurlsIn(body []byte, depth int) []string {
 		if err != nil {
 			return nil
 		}
-		return sbomPurlsIn(inner, depth+1)
+		return sbomPackagesIn(inner, depth+1)
 	}
 	if len(v.Predicate) > 0 && v.Predicate[0] == '{' {
-		return documentPurls(v.Predicate)
+		return documentPackages(v.Predicate)
 	}
-	return documentPurls(body)
+	return documentPackages(body)
 }
 
-// documentPurls reads the package URLs of an SPDX document (packages' purl external references) or a
-// CycloneDX BOM (components' purl, nested ones included).
-func documentPurls(doc []byte) []string {
+// documentPackages reads the packages of an SPDX document (packages' purl external references, with the
+// concluded license, else the declared one) or a CycloneDX BOM (components' purl and licenses, nested ones
+// included).
+func documentPackages(doc []byte) []sbomPackage {
 	var st struct {
 		Packages []struct {
-			ExternalRefs []struct {
+			LicenseConcluded string `json:"licenseConcluded"`
+			LicenseDeclared  string `json:"licenseDeclared"`
+			ExternalRefs     []struct {
 				ReferenceType    string `json:"referenceType"`
 				ReferenceLocator string `json:"referenceLocator"`
 			} `json:"externalRefs"`
@@ -213,11 +229,15 @@ func documentPurls(doc []byte) []string {
 	if json.Unmarshal(doc, &st) != nil {
 		return nil
 	}
-	var out []string
+	var out []sbomPackage
 	for _, p := range st.Packages {
+		lic := spdxLicense(p.LicenseConcluded)
+		if lic == "" {
+			lic = spdxLicense(p.LicenseDeclared)
+		}
 		for _, r := range p.ExternalRefs {
 			if r.ReferenceType == "purl" && strings.HasPrefix(r.ReferenceLocator, "pkg:") {
-				out = append(out, r.ReferenceLocator)
+				out = append(out, sbomPackage{r.ReferenceLocator, lic})
 			}
 		}
 	}
@@ -225,7 +245,7 @@ func documentPurls(doc []byte) []string {
 	walk = func(cs []cycloneComponent) {
 		for _, c := range cs {
 			if strings.HasPrefix(c.Purl, "pkg:") {
-				out = append(out, c.Purl)
+				out = append(out, sbomPackage{c.Purl, c.license()})
 			}
 			walk(c.Components)
 		}
@@ -234,7 +254,57 @@ func documentPurls(doc []byte) []string {
 	return out
 }
 
+// spdxLicense is an SPDX license field, empty when it says nothing (NOASSERTION, NONE).
+func spdxLicense(l string) string {
+	l = strings.TrimSpace(l)
+	if l == "NOASSERTION" || l == "NONE" {
+		return ""
+	}
+	return truncate(l, maxLicense)
+}
+
+// maxLicense bounds a license expression's length.
+const maxLicense = 200
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
+
 type cycloneComponent struct {
-	Purl       string             `json:"purl"`
+	Purl     string `json:"purl"`
+	Licenses []struct {
+		Expression string `json:"expression"`
+		License    *struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"license"`
+	} `json:"licenses"`
 	Components []cycloneComponent `json:"components"`
+}
+
+// license is a component's licenses as one SPDX expression: an expression as given, else its licenses' IDs (or
+// names) joined with AND, since a component listing several is under all of them.
+func (c cycloneComponent) license() string {
+	var parts []string
+	for _, l := range c.Licenses {
+		switch {
+		case l.Expression != "":
+			parts = append(parts, l.Expression)
+		case l.License != nil && l.License.ID != "":
+			parts = append(parts, l.License.ID)
+		case l.License != nil && l.License.Name != "":
+			parts = append(parts, l.License.Name)
+		}
+	}
+	if len(parts) > 1 {
+		for i, p := range parts {
+			if strings.Contains(p, " ") {
+				parts[i] = "(" + p + ")"
+			}
+		}
+	}
+	return truncate(strings.Join(parts, " AND "), maxLicense)
 }

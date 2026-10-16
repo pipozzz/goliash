@@ -16,7 +16,12 @@ import (
 
 // SBOMReader reads the package URLs of an image's SBOM attestation. registry.Client implements it.
 type SBOMReader interface {
-	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) ([]string, error)
+	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
+}
+
+// NeedsLicenses reports whether an SBOM was read before licenses were kept, and so is read once more for them.
+func NeedsLicenses(b store.ImageSBOM) bool {
+	return b.Error == "" && len(b.Purls) > 0 && !b.LicensesRead
 }
 
 const (
@@ -65,16 +70,16 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 		keys[key] = true
 		b, have := sboms[key]
-		if !auth.Reads(repo) || !evidence[key].SBOM || (have && ((b.Error == "" && len(b.Purls) > 0) || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
+		if !auth.Reads(repo) || !evidence[key].SBOM || (have && ((b.Error == "" && len(b.Purls) > 0 && !NeedsLicenses(b)) || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
 			continue
 		}
 		read++
 		creds, _ := auth.For(repo)
-		purls, err := reader.ImageSBOM(ctx, repo, in.Digest, creds)
+		sbom, err := reader.ImageSBOM(ctx, repo, in.Digest, creds)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: purls}
+		rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: sbom.Purls, Licenses: sbom.Licenses}
 		if err != nil {
 			rec.Error = err.Error()
 		}

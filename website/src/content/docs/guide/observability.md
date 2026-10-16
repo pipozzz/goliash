@@ -80,6 +80,7 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
 | `goliash_rollbacks` | service, environment | changes back to an older version in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
+| `goliash_license_packages` | class, kind (app, os) | packages in running images per license class, from their SBOMs |
 | `goliash_vulnerabilities` | environment, severity, exploited | known vulnerabilities in running images, from SBOMs and OSV |
 | `goliash_vulnerabilities_past_due` | environment | exploited vulnerabilities running past CISA's due date for fixing them |
 | `goliash_exploited_vulnerability_days` | environment | days the longest-running exploited vulnerability has run |

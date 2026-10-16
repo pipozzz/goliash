@@ -24,13 +24,15 @@ type sbomTags struct {
 	reads atomic.Int32
 }
 
-func (s *sbomTags) ImageSBOM(_ context.Context, _, _ string, _ registry.Credentials) ([]string, error) {
+func (s *sbomTags) ImageSBOM(_ context.Context, _, _ string, _ registry.Credentials) (registry.SBOM, error) {
 	s.reads.Add(1)
-	return []string{
+	return registry.SBOM{Purls: []string{
 		"pkg:deb/debian/openssl@3.0.11-1~deb12u2?os_distro=bookworm&os_name=debian&os_version=12",
 		"pkg:npm/lodash@4.17.15",
-	}, nil
+	}, Licenses: map[string]string{"pkg:npm/lodash@4.17.15": "MIT"}}, nil
 }
+
+var _ SBOMReader = (*sbomTags)(nil)
 
 func TestOSVQuery(t *testing.T) {
 	for purl, want := range map[string]string{
@@ -173,6 +175,9 @@ func TestCheckVulnerabilities(t *testing.T) {
 	}
 	if reg.reads.Load() != 1 || batches.Load() != 1 {
 		t.Fatalf("sbom reads %d, osv batches %d", reg.reads.Load(), batches.Load())
+	}
+	if sboms, _ := l.st.ListImageSBOMs(ctx, l.sc); sboms["docker.io/library/nginx@sha256:abc"].Licenses["pkg:npm/lodash@4.17.15"] != "MIT" {
+		t.Fatalf("licenses not kept: %+v", sboms)
 	}
 	// Within the TTLs, neither the SBOM nor OSV is asked again.
 	_ = l.checker.CheckVulnerabilities(ctx, l.sc)

@@ -408,6 +408,7 @@ When asked about an upgrade, read the release notes between the running version 
 When asked why an image grew, how big it is or what it is built on, read images for the service: name the biggest new layers with the Dockerfile step that made each, the size against its budget, an outdated base (rebuild with --pull) and missing signature, SBOM or provenance.
 
 For vulnerabilities, say how long they have run (running_since) and call out exploited ones past CISA's due date (exploited.past_due) first.
+When asked about licenses or license compliance, read licenses (class=attention first): name the network copyleft and source-available packages and where they run, then strong copyleft and unknown ones; say it reflects what the SBOMs declare and is not legal advice.
 A version change whose note is rollback went back to an older version: in "what changed?" answers, call rollbacks out first, since someone undid a deploy.
 
 When asked what Goliash sent or notified ("what did I miss?", "what came this week?"), read notifications, then check with drifts, updates or vulnerabilities which of those are still open, and lead with those.

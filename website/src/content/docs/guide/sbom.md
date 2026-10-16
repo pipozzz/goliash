@@ -22,7 +22,8 @@ One [CycloneDX 1.6](https://cyclonedx.org/) JSON document, validated against the
   and `goliash:workload`. An image that runs in three clusters lists all three.
 - **Its packages**, nested inside the image, when its registry holds an SBOM attestation (see
   [Where the packages come from](#where-the-packages-come-from)): Debian, Alpine, Wolfi and RPM packages, npm, PyPI, Maven,
-  Go modules and whatever else the build's SBOM lists, each with its package URL.
+  Go modules and whatever else the build's SBOM lists, each with its package URL and, when the SBOM names it, its
+  license (`MIT`, or an SPDX expression such as `GPL-2.0-or-later OR MIT`).
 - **Servers watched by the [host collector](../../reference/collectors/#linux-servers)**: the operating system as an
   `operating-system` component and the packages Goliash follows as `application` components.
 - **Software added by hand** (a managed database, an appliance) as `application` components.

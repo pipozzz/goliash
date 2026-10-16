@@ -220,6 +220,21 @@ templ SecurityPage(v SecurityView) {
 				}
 			</div>
 		</section>
+		if v.Licenses.WithSBOM > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Licenses</h2><span class="muted">{ "packages in " + v.Prod.Name + ", as the images' SBOMs declare them" }</span></div>
+				<div class="panel-body stack">
+					if n := licenseNeedsLook(v.Licenses); n > 0 {
+						<p>
+							<a href="/security/licenses"><strong>{ plural(n, "package needs", "packages need") } a look</strong></a>
+							{ ": " + licenseSummary(v.Licenses) + "." }
+						</p>
+					} else {
+						<p>Every application package with a license Goliash knows is under a permissive or weak copyleft license. <a class="u" href="/security/licenses?class=all">See them</a></p>
+					}
+				</div>
+			</section>
+		}
 		if v.Evidence.Images > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Supply-chain evidence</h2><span class="muted">{ "images running in " + v.Prod.Name + ": what their registry holds beside them" }</span></div>
