@@ -44,8 +44,8 @@ Ready-made Prometheus rules are in
 [`deploy/prometheus/goliash-alerts.yaml`](https://github.com/pipozzz/goliash/blob/main/deploy/prometheus/goliash-alerts.yaml)
 (also a download on the Integrations page): add the file to `rule_files` in `prometheus.yml`. They cover a missing
 scrape, the background work not running exactly once, stale agents, a growing snapshot queue, failing notifications
-drift open for more than two weeks, production on a release past its end of life, and production behind an available
-release for 90+ days. The same queries work in Grafana alerting and SigNoz alerts:
+drift open for more than two weeks, production on a release past its end of life, production behind an available
+release for 90+ days, and an image that grew by a quarter (and 20 MB) in a day. The same queries work in Grafana alerting and SigNoz alerts:
 
 | Alert | Query |
 |---|---|
@@ -57,6 +57,7 @@ release for 90+ days. The same queries work in Grafana alerting and SigNoz alert
 | Goliash falls behind | `goliash_snapshots_pending > 20` for 10 minutes |
 | Notifications failing | `goliash_notifications_failing > 0` |
 | Background work not running exactly once | `sum(goliash_leader) != 1` |
+| Image grew a lot | `goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)` |
 
 Alerts about versions themselves (new releases, drift, removed services) are better sent by Goliash directly; see
 [Notifications](../notifications/).

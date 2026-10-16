@@ -326,18 +326,29 @@ func (s *Store) LatestProcessedAt(ctx context.Context, sc Scope, targetID string
 
 // ImagePeriod is one image of a service running in an environment, from Since until Until (zero: still).
 type ImagePeriod struct {
-	EnvironmentID, Image, Digest string
-	Since, Until                 time.Time
+	ServiceID, EnvironmentID, Image, Digest string
+	Tag                                     string
+	Since, Until                            time.Time
 }
 
 // ServiceImagePeriods returns when each main image of a service ran, per environment, for periods that end after
 // since: the history behind a chart of its image's size.
 func (s *Store) ServiceImagePeriods(ctx context.Context, sc Scope, serviceID string, since time.Time) ([]ImagePeriod, error) {
-	rows, err := s.query(ctx, s.db, `SELECT i.environment_id, i.image, i.digest, h.since, h.until
+	return s.imagePeriods(ctx, sc, serviceID, since)
+}
+
+// ImagePeriods returns when each main image of every service ran, per environment, for periods that end after
+// since.
+func (s *Store) ImagePeriods(ctx context.Context, sc Scope, since time.Time) ([]ImagePeriod, error) {
+	return s.imagePeriods(ctx, sc, "", since)
+}
+
+func (s *Store) imagePeriods(ctx context.Context, sc Scope, serviceID string, since time.Time) ([]ImagePeriod, error) {
+	rows, err := s.query(ctx, s.db, `SELECT i.service_id, i.environment_id, i.image, i.tag, i.digest, h.since, h.until
 		FROM instance_history h JOIN instances i ON i.id = h.instance_id
-		WHERE i.workspace_id = ? AND i.service_id = ? AND i.is_main AND i.digest <> '' AND i.environment_id IS NOT NULL
-			AND (h.until IS NULL OR h.until > ?)
-		ORDER BY h.since`, sc.WorkspaceID, serviceID, since.UTC())
+		WHERE i.workspace_id = ? AND (? = '' OR i.service_id = ?) AND i.service_id IS NOT NULL AND i.is_main
+			AND i.digest <> '' AND i.environment_id IS NOT NULL AND (h.until IS NULL OR h.until > ?)
+		ORDER BY h.since`, sc.WorkspaceID, serviceID, serviceID, since.UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +357,7 @@ func (s *Store) ServiceImagePeriods(ctx context.Context, sc Scope, serviceID str
 	for rows.Next() {
 		var p ImagePeriod
 		var until sql.NullTime
-		if err := rows.Scan(&p.EnvironmentID, &p.Image, &p.Digest, &p.Since, &until); err != nil {
+		if err := rows.Scan(&p.ServiceID, &p.EnvironmentID, &p.Image, &p.Tag, &p.Digest, &p.Since, &until); err != nil {
 			return nil, err
 		}
 		p.Since, p.Until = p.Since.UTC(), until.Time.UTC()

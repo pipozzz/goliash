@@ -52,6 +52,8 @@ func kindOf(it Item) kind {
 		return kind{"✅", "#30a46c", "Agent back"}
 	case "posture":
 		return kind{"🛡️", "#1b2a6b", "Security posture"}
+	case EventImageGrew:
+		return kind{"📦", "#d9822b", "Image grew"}
 	}
 	return kind{"👋", "#1b2a6b", "Goliash"}
 }
@@ -142,6 +144,8 @@ func goliQuestion(it Item) string {
 		return "Explain this vulnerability alert for us, what fixes it and how urgent it is: " + it.Text
 	case it.Type == "drift_detected":
 		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
+	case it.Type == EventImageGrew:
+		return "Why did the " + it.Service + " image in " + it.Environment + " grow from " + it.From + " to " + it.To + "? Brief me on what changed between the versions (base image, dependencies, build) and how the image could get smaller."
 	case it.Type == "posture":
 		return "Walk me through our security posture: what to fix first to cut production exposure, what is past its end of life, and which accepted risks to review."
 	case it.Type == "agent_stale":

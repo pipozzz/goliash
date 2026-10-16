@@ -64,3 +64,12 @@ groups:
         annotations:
           summary: "{{ $value }} services in {{ $labels.environment }} have run behind an available release for 90+ days"
           description: Security in Goliash lists them with the version that fixes each; Explain asks Goli what it would take.
+      - alert: GoliashImageGrew
+        expr: |
+          goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)
+          and goliash_image_size_bytes - (goliash_image_size_bytes offset 1d) > 20e6
+        for: 30m
+        labels: { severity: info }
+        annotations:
+          summary: "The {{ $labels.service }} image in {{ $labels.environment }} grew by a quarter or more in a day"
+          description: A heavier base, a new dependency or build tools left in the image. The service page in Goliash charts its size per deploy; Ask Goli what changed.

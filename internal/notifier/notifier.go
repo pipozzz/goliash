@@ -472,6 +472,9 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			if err := n.PlanUpdates(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("queueing upgrade plans failed", "err", err)
 			}
+			if err := n.CheckImageGrowth(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("checking image growth failed", "err", err)
+			}
 		}
 		if time.Since(recorded) >= time.Hour {
 			recorded = time.Now()
@@ -632,6 +635,8 @@ func Describe(it Item) string {
 	switch it.Type {
 	case "posture":
 		return it.Text
+	case EventImageGrew:
+		return fmt.Sprintf("%s: image grew from %s to %s (%s)", where, it.From, it.To, it.Note)
 	case "deployed":
 		return fmt.Sprintf("%s: %s deployed%s", where, it.To, on)
 	case "version_changed":

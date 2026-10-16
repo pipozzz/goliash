@@ -226,6 +226,22 @@ The first time a workspace's SBOMs are looked up completely, what already runs i
 an installation does not hear about every vulnerability it runs on day one; the Security page lists those. See
 [Security posture](../security/#is-it-running).
 
+## Image growth
+
+The `image_grew` event (*image growth* in the form) announces a deploy whose image is at least a quarter and 20 MB
+bigger than the one it replaced in that environment: a heavier base, a dependency pulled in by accident, build tools
+left in the final image. It comes once per new image and environment, for deploys of the last week, and Goli can
+explain it:
+
+> api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0)
+
+```sh
+goliash notify create -channel platform -events image_grew -envs prod -mode instant
+```
+
+Sizes are read from the registry with the [supply-chain evidence](../security/#supply-chain-evidence); the service
+page charts them per deploy.
+
 ## Deploys on your dashboards
 
 A Grafana channel turns events into annotations, so a deploy shows up on the graphs it may have changed:
