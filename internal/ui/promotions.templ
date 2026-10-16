@@ -3,6 +3,8 @@
 
 package ui
 
+import "github.com/pipozzz/goliash/internal/versions"
+
 templ PromotionsPage(v PromotionsView) {
 	@Layout(v.Base) {
 		<div class="head">
@@ -44,6 +46,9 @@ templ PromotionsPage(v PromotionsView) {
 									<td>
 										<span class="mono">{ p.Version }</span>
 										<div class="targets">{ p.From } → { p.To } (runs <span class="mono">{ p.Running }</span>)</div>
+										if p.Vulns.Known && (len(p.Vulns.Fixed) > 0 || len(p.Vulns.New) > 0) {
+											@promotionVulns(p.Vulns)
+										}
 										if v.Goli && p.Running != "" && p.Version != p.Running {
 											<button type="button" class="link ask-goli noprint" data-goli-ask={ promotionBrief(p) } title="Goli reads the release notes between the two versions and briefs you">Brief</button>
 										}
@@ -125,4 +130,29 @@ templ PromotionsPage(v PromotionsView) {
 func promotionBrief(p PromotionView) string {
 	return "Brief me on promoting " + p.Service + " " + p.Version + " from " + p.From + " to " + p.To + ", where " + p.Running +
 		" runs: what changes between the two versions, what could break or needs migrating, and what to check after."
+}
+
+// promotionVulns says what a promotion does to the known vulnerabilities of the environment behind.
+templ promotionVulns(d versions.VulnDelta) {
+	<details class="promo-vulns">
+		<summary>
+			if len(d.Fixed) > 0 {
+				<span class="fix">{ "fixes " + plural(len(d.Fixed), "vulnerability", "vulnerabilities") + exploitedNote(d.Fixed) }</span>
+			}
+			if len(d.Fixed) > 0 && len(d.New) > 0 {
+				{ " · " }
+			}
+			if len(d.New) > 0 {
+				<span class="error-text">{ "brings " + plural(len(d.New), "new one", "new ones") + exploitedNote(d.New) }</span>
+			}
+		</summary>
+		<div class="targets mono">
+			if len(d.Fixed) > 0 {
+				<div>{ "fixed: " + vulnIDs(d.Fixed) }</div>
+			}
+			if len(d.New) > 0 {
+				<div>{ "new: " + vulnIDs(d.New) }</div>
+			}
+		</div>
+	</details>
 }

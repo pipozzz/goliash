@@ -542,6 +542,7 @@ type PromotionView struct {
 	Service, App, From, To, Version, Running string
 	Since                                    time.Time
 	Releases                                 []ReleaseView
+	Vulns                                    versions.VulnDelta
 }
 
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
@@ -1299,4 +1300,24 @@ type ImageSecurity struct {
 type ServiceFinding struct {
 	Key, Summary, Severity, Package, Fix, Envs string
 	Exploited                                  bool
+}
+
+// exploitedNote counts the exploited vulnerabilities among some: " (1 exploited)", or nothing.
+func exploitedNote(list []versions.VulnRef) string {
+	if n := versions.Exploited(list); n > 0 {
+		return " (" + itoa(n) + " exploited)"
+	}
+	return ""
+}
+
+// vulnIDs lists vulnerabilities by ID, the first twelve.
+func vulnIDs(list []versions.VulnRef) string {
+	ids := make([]string, 0, min(len(list), 12))
+	for _, v := range list[:min(len(list), 12)] {
+		ids = append(ids, v.ID)
+	}
+	if len(list) > 12 {
+		ids = append(ids, "…")
+	}
+	return strings.Join(ids, ", ")
 }
