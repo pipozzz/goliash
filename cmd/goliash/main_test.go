@@ -329,7 +329,8 @@ func TestTry(t *testing.T) {
 	var out syncBuffer
 	done := make(chan error, 1)
 	go func() { done <- tryCmd(ctx, []string{"-listen", "127.0.0.1:0"}, &out) }()
-	deadline := time.Now().Add(20 * time.Second)
+	// The demo's three weeks take a few seconds, several times that under -race on a busy CI runner.
+	deadline := time.Now().Add(60 * time.Second)
 	for !strings.Contains(out.String(), "/auth/magic?token=") {
 		if time.Now().After(deadline) {
 			t.Fatalf("no sign-in link: %s", out.String())
