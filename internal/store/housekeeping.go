@@ -47,6 +47,7 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 				FROM snapshots WHERE processed_at IS NOT NULL
 			) ranked WHERE rn > ?)`, []any{keepSnapshots}},
 		{&r.Notifications, `DELETE FROM notification_queue WHERE created_at < ? AND (sent_at IS NOT NULL OR attempts > 0)`, []any{monthAgo}},
+		{&r.Notifications, `DELETE FROM notification_item_reads WHERE read_at < ?`, []any{monthAgo.Add(-48 * time.Hour)}},
 		{&r.Sessions, `DELETE FROM sessions WHERE expires_at < ?`, []any{now}},
 		{&r.LoginTokens, `DELETE FROM login_tokens WHERE expires_at < ?`, []any{now.Add(-24 * time.Hour)}},
 		{&r.LoginTokens, `DELETE FROM signin_failures WHERE at < ?`, []any{now.Add(-24 * time.Hour)}},

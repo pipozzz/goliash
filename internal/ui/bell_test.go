@@ -50,8 +50,8 @@ func TestBell(t *testing.T) {
 	var list struct {
 		Unread int
 		Items  []struct {
-			Title, URL string
-			Unread     bool
+			ID, Title, URL string
+			Unread         bool
 		}
 	}
 	_, body := get(t, member, e.srv.URL+"/ui/notifications", nil)
@@ -69,6 +69,23 @@ func TestBell(t *testing.T) {
 	_, body = get(t, member, e.srv.URL+"/ui/notifications", nil)
 	if !strings.Contains(body, `"ask":"Explain this drift alert: why web in prod`) || !strings.Contains(body, `"ask":"Explain this vulnerability alert`) {
 		t.Errorf("questions for Goli: %s", body)
+	}
+	// Opening one reads that one only; listing them reads nothing.
+	_, body = get(t, member, e.srv.URL+"/ui/notifications", nil)
+	_ = json.Unmarshal([]byte(body), &list)
+	if list.Unread != 2 {
+		t.Fatalf("listing read something: %d", list.Unread)
+	}
+	if _, body, _ := post(t, member, e.srv.URL+"/ui/notifications/read", url.Values{"id": {list.Items[0].ID}}); !strings.Contains(body, `"unread":1`) {
+		t.Errorf("after reading one: %s", body)
+	}
+	_, body = get(t, member, e.srv.URL+"/ui/notifications", nil)
+	_ = json.Unmarshal([]byte(body), &list)
+	if list.Unread != 1 || list.Items[0].Unread || !list.Items[1].Unread {
+		t.Errorf("one read, one not: %+v", list)
+	}
+	if code, _, _ := post(t, member, e.srv.URL+"/ui/notifications/read", url.Values{"id": {""}}); code != http.StatusBadRequest {
+		t.Errorf("no id: %d", code)
 	}
 	if code, _, _ := post(t, member, e.srv.URL+"/ui/notifications/seen", nil); code != http.StatusNoContent && code != http.StatusOK {
 		t.Errorf("seen: %d", code)

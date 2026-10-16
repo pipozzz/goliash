@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -41,10 +42,27 @@ func (s *Server) bellUnread(ctx context.Context, sc store.Scope, userID string) 
 	if err != nil {
 		return 0
 	}
-	return len(feed)
+	reads, err := s.store.NotificationReads(ctx, sc, userID)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, m := range feed {
+		if !reads[bellID(m)] {
+			n++
+		}
+	}
+	return n
+}
+
+// bellID names one message under the bell: what it holds and when it was sent, so the same alert sent again
+// another day is new again.
+func bellID(m store.FeedMessage) string {
+	return m.Key + "|" + strconv.FormatInt(m.SentAt.UnixMilli(), 10)
 }
 
 type bellItem struct {
+	ID     string    `json:"id"`
 	At     time.Time `json:"at"`
 	Title  string    `json:"title"`
 	Lines  []string  `json:"lines"`
@@ -66,6 +84,10 @@ func (s *Server) bellList(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil {
 		return err
 	}
+	reads, err := s.store.NotificationReads(ctx, p.Scope, p.User.ID)
+	if err != nil {
+		return err
+	}
 	out := struct {
 		Unread int        `json:"unread"`
 		Items  []bellItem `json:"items"`
@@ -81,7 +103,10 @@ func (s *Server) bellList(w http.ResponseWriter, r *http.Request, p auth.Princip
 		if len(msg.Items) == 0 {
 			continue
 		}
-		b := bellItem{At: m.SentAt, Title: msg.Title(), URL: bellLink(msg), Kind: msg.Items[0].Type, Unread: m.SentAt.After(seen)}
+		b := bellItem{
+			ID: bellID(m), At: m.SentAt, Title: msg.Title(), URL: bellLink(msg), Kind: msg.Items[0].Type,
+			Unread: m.SentAt.After(seen) && !reads[bellID(m)],
+		}
 		if s.goliOn() {
 			b.Ask = notifier.GoliQuestion(msg)
 		}
@@ -126,6 +151,21 @@ func bellLink(msg notifier.Message) string {
 
 // bellCount is the unread count alone, for the badge and the installed app's icon.
 func (s *Server) bellCount(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	return json.NewEncoder(w).Encode(map[string]int{"unread": s.bellUnread(r.Context(), p.Scope, p.User.ID)})
+}
+
+// bellRead records that the person opened one notification, and answers how many are still unread.
+func (s *Server) bellRead(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	id := r.FormValue("id")
+	if id == "" || len(id) > 200 {
+		http.Error(w, "which notification?", http.StatusBadRequest)
+		return nil
+	}
+	if err := s.store.ReadNotification(r.Context(), p.Scope, p.User.ID, id); err != nil {
+		return err
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	return json.NewEncoder(w).Encode(map[string]int{"unread": s.bellUnread(r.Context(), p.Scope, p.User.ID)})

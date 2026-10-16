@@ -98,3 +98,29 @@ func (s *Store) SeeNotifications(ctx context.Context, sc Scope, userID string) e
 		ON CONFLICT (user_id, workspace_id) DO UPDATE SET seen_at = excluded.seen_at`, userID, sc.WorkspaceID, s.now())
 	return err
 }
+
+// ReadNotification records that a person opened one notification under the bell.
+func (s *Store) ReadNotification(ctx context.Context, sc Scope, userID, message string) error {
+	_, err := s.exec(ctx, s.db, `INSERT INTO notification_item_reads (user_id, workspace_id, message, read_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT (user_id, workspace_id, message) DO NOTHING`, userID, sc.WorkspaceID, message, s.now())
+	return err
+}
+
+// NotificationReads returns the notifications a person opened one by one.
+func (s *Store) NotificationReads(ctx context.Context, sc Scope, userID string) (map[string]bool, error) {
+	rows, err := s.query(ctx, s.db, `SELECT message FROM notification_item_reads WHERE user_id = ? AND workspace_id = ?`,
+		userID, sc.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]bool{}
+	for rows.Next() {
+		var m string
+		if err := rows.Scan(&m); err != nil {
+			return nil, err
+		}
+		out[m] = true
+	}
+	return out, rows.Err()
+}

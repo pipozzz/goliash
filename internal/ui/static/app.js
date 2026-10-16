@@ -908,9 +908,22 @@
     bellPanel.setAttribute("aria-label", "Notifications");
     const head = el("div", "bell-head");
     head.appendChild(el("strong", null, "Notifications"));
+    const tools = el("span", "bell-tools");
+    const all = el("button", "link bell-all", "Mark all read");
+    all.type = "button";
+    all.hidden = true;
+    all.addEventListener("click", function () {
+      fetch("/ui/notifications/seen", { method: "POST", credentials: "same-origin" }).then(function () {
+        bellSet(0);
+        bellPanel.querySelectorAll(".bell-item.unread").forEach(function (li) { li.classList.remove("unread"); });
+        all.hidden = true;
+      });
+    });
+    tools.appendChild(all);
     const settings = el("a", null, "Settings");
     settings.href = "/notifications";
-    head.appendChild(settings);
+    tools.appendChild(settings);
+    head.appendChild(tools);
     const list = el("ul", "bell-list");
     list.appendChild(el("li", "bell-empty", "Loading…"));
     bellPanel.appendChild(head);
@@ -948,13 +961,26 @@
         t.textContent = new Date(it.at).toLocaleString();
         body.appendChild(t);
         a.appendChild(body);
-        a.addEventListener("click", bellClose);
+        // Opening one reads that one only, so nothing else slips by unseen.
+        const read = function () {
+          if (!li.classList.contains("unread")) return;
+          li.classList.remove("unread");
+          fetch("/ui/notifications/read", {
+            method: "POST", credentials: "same-origin", keepalive: true,
+            headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ id: it.id }),
+          }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+            if (d) bellSet(d.unread);
+            if (d && !d.unread) all.hidden = true;
+          }).catch(function () { /* the next refresh corrects the count */ });
+        };
+        a.addEventListener("click", function () { read(); bellClose(); });
         li.appendChild(a);
         if (it.ask && document.querySelector("[data-goli]")) {
           // Ready to ask, not asked: the question waits in Goli's box for a click.
           const ask = el("button", "bell-ask", "Ask Goli");
           ask.type = "button";
           ask.addEventListener("click", function () {
+            read();
             bellClose();
             goliOpen();
             goli.input.value = it.ask;
@@ -967,9 +993,8 @@
       });
       refreshTimes(list);
       if (window.htmx) htmx.process(list);
-      if (d.unread > 0) {
-        fetch("/ui/notifications/seen", { method: "POST", credentials: "same-origin" }).then(function () { bellSet(0); });
-      }
+      all.hidden = !(d.unread > 0);
+      bellSet(d.unread || 0);
     }).catch(function () {
       list.replaceChildren(el("li", "bell-empty", "Notifications could not be loaded."));
     });

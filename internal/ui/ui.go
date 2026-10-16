@@ -187,6 +187,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /ui/notifications", s.page(v, s.bellList))
 	mux.Handle("GET /ui/notifications/unread", s.page(v, s.bellCount))
 	mux.Handle("POST /ui/notifications/seen", s.page(v, s.bellSeen))
+	mux.Handle("POST /ui/notifications/read", s.page(v, s.bellRead))
 	mux.HandleFunc("POST /goli/ask", s.goliAPI)
 	mux.HandleFunc("POST /integrations/slack/goli", s.goliSlack)
 	mux.Handle("GET /inbox", s.page(v, s.inbox))

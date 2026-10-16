@@ -81,8 +81,8 @@ The bell at the top of every page lists what Goliash sent you in the last 30 day
 notifications of any app. Each message has its title, its first lines and a link to where it points: the upgrade
 plan opens **Updates**, an alert about one service opens that service, the rest open **History**.
 
-- The red count on the bell is how many came since you last opened it; opening it marks them read. Each person has
-  their own count.
+- The red count on the bell is how many you have not opened yet; each person has their own. Opening a message reads
+  that one only, so nothing slips by unseen in a long list; **Mark all read** reads them all.
 - Every rule counts: a message sent to Slack, e-mail and push shows once. To have messages only in Goliash, add an
   **In Goliash** channel and point rules at it.
 - Installed as an app (**Install** in Chrome or Edge, **Add to Home Screen** on iPhone), the app icon carries the
