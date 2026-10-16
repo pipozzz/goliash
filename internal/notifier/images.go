@@ -26,7 +26,7 @@ const (
 	EventOutdatedBase     = "outdated_base"     // an image is built on a base build weeks older than the base's tag
 	EventEvidenceLost     = "evidence_lost"     // a deploy's image lacks a signature, SBOM or provenance the one before had
 	EventUnexpectedSigner = "unexpected_signer" // a deploy's image is not signed by who its service's policy names
-	EventLicense         = "license"           // a deploy's image brings packages under network copyleft or source-available licenses
+	EventLicense          = "license"           // a deploy's image brings packages under network copyleft or source-available licenses
 )
 
 // imageEvents are the events CheckImages sends.
