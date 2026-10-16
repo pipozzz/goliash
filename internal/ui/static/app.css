@@ -718,7 +718,7 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .tile-stack { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); align-items: start; }
 .stack-back { position: relative; margin-top: 34px; padding: 14px 40px 14px 0; }
 /* The board behind is dimmed, its label is not (it must stay readable). */
-.stack-back > .logo-board { opacity: 0.78; transition: opacity 0.2s ease; filter: saturate(0.85); }
+.stack-back > .logo-board { opacity: 0.92; transition: opacity 0.2s ease; filter: saturate(0.85); }
 .stack-back:hover > .logo-board, .stack-back:focus-within > .logo-board { opacity: 1; filter: none; }
 .stack-back-label { display: inline-block; margin: 0 0 8px 4px; font-weight: 600; font-size: 13px; }
 .stack-back .logo-board.compact { transform: rotate(-1.5deg); transform-origin: top left; }
