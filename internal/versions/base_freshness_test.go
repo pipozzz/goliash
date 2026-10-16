@@ -75,6 +75,19 @@ func TestOutdatedBase(t *testing.T) {
 		t.Errorf("the base was read %d times in one run", reg.baseReads)
 	}
 
+	// The security posture names the production service built on an outdated base.
+	o, err := LoadOverview(ctx, l.st, l.sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pos, err := LoadPosture(ctx, l.st, l.sc, o, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pos.OutdatedBase) != 1 || pos.OutdatedBase[0] != "api" {
+		t.Errorf("posture outdated bases: %v (prod %s)", pos.OutdatedBase, pos.Prod.Name)
+	}
+
 	findings, err := LoadHygiene(ctx, l.st, l.sc)
 	if err != nil {
 		t.Fatal(err)

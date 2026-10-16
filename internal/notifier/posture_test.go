@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 func TestPostureReport(t *testing.T) {
@@ -81,5 +82,13 @@ func TestPostureReport(t *testing.T) {
 	}
 	if err := e.n.SendPostureNow(ctx, e.sc, other); !errors.Is(err, ErrNotAReportRule) {
 		t.Errorf("not a report rule: %v", err)
+	}
+}
+
+func TestPostureItemOutdatedBases(t *testing.T) {
+	pos := versions.Posture{Prod: store.Environment{Name: "prod"}, ProdRunning: 9, OutdatedBase: []string{"api", "checkout", "web", "worker"}}
+	it := PostureItem(pos, nil, time.Now())
+	if !strings.Contains(it.Text, "Built on an outdated base (rebuild with --pull): api, checkout, web, 1 more.") {
+		t.Errorf("text: %s", it.Text)
 	}
 }

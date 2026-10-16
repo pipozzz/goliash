@@ -161,6 +161,13 @@ func PostureItem(pos versions.Posture, prev *store.PostureSample, now time.Time)
 	if len(pos.Stale) > 0 || len(pos.NoUpstream) > 0 {
 		fmt.Fprintf(&b, " Blind spots: %d stale targets, %d services without a known upstream.", len(pos.Stale), len(pos.NoUpstream))
 	}
+	if n := len(pos.OutdatedBase); n > 0 {
+		names := pos.OutdatedBase
+		if n > postureWorst {
+			names = append(append([]string{}, names[:postureWorst]...), fmt.Sprintf("%d more", n-postureWorst))
+		}
+		fmt.Fprintf(&b, " Built on an outdated base (rebuild with --pull): %s.", strings.Join(names, ", "))
+	}
 	if len(worst) > 0 {
 		b.WriteString(" Longest: " + strings.Join(worst, "; ") + ".")
 	}
