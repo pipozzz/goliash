@@ -309,4 +309,22 @@ func TestAlertVulnerabilities(t *testing.T) {
 	if len(announced) != 1 {
 		t.Fatalf("announced again: %+v", announced)
 	}
+	// CISA's due date passes while it still runs: one reminder, then quiet.
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228", Ransomware: true, DueDate: "2021-12-24"}})
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	if len(announced) != 2 || announced[1].Note != "CVE-2021-44228 exploited ransomware critical past-due" {
+		t.Fatalf("past-due reminder %+v", announced)
+	}
+	// A vulnerability already past due when it starts running is announced once, saying so.
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-old", "GHSA-jfh8-c2jp-5v3q", "GHSA-7rjr"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "GHSA-7rjr", Aliases: []string{"CVE-2021-45046"}, Severity: "CRITICAL"})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{
+		{CVE: "CVE-2021-44228", Ransomware: true, DueDate: "2021-12-24"}, {CVE: "CVE-2021-45046", DueDate: "2021-12-31"},
+	})
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	_ = l.checker.AlertVulnerabilities(ctx, l.sc)
+	if len(announced) != 3 || announced[2].Note != "CVE-2021-45046 exploited critical past-due" {
+		t.Fatalf("already past due %+v", announced)
+	}
 }

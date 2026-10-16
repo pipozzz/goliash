@@ -472,22 +472,36 @@ func (c *Checker) AlertVulnerabilities(ctx context.Context, sc store.Scope) erro
 		if f.Exploited == nil && !critical {
 			continue
 		}
+		pastDue := f.PastDue(now)
 		for _, a := range f.Affected {
 			if a.ServiceID == "" {
 				continue
 			}
 			key := store.VulnAlert{CVE: f.Key, ServiceID: a.ServiceID, EnvironmentID: a.EnvironmentID}
-			if done[key] {
+			// The reminder that CISA's due date passed while it still runs is announced once more, apart.
+			due := store.VulnAlert{CVE: f.Key + pastDueSuffix, ServiceID: a.ServiceID, EnvironmentID: a.EnvironmentID}
+			announce := !done[key] || (pastDue && !done[due])
+			if !announce {
 				continue
 			}
-			done[key] = true
-			record = append(record, key)
+			for _, k := range []store.VulnAlert{key, due} {
+				if k == key || pastDue {
+					if !done[k] {
+						done[k] = true
+						record = append(record, k)
+					}
+				}
+			}
 			if !baseline {
 				continue
 			}
+			note := vulnNote(f)
+			if pastDue {
+				note += " " + PastDueFlag
+			}
 			evs = append(evs, store.Event{
 				Type: "vulnerability", ServiceID: a.ServiceID, EnvironmentID: a.EnvironmentID,
-				FromVersion: a.Package, ToVersion: a.Fix, Note: vulnNote(f), Source: "poll", At: now,
+				FromVersion: a.Package, ToVersion: a.Fix, Note: note, Source: "poll", At: now,
 			})
 		}
 	}
@@ -501,6 +515,12 @@ func (c *Checker) AlertVulnerabilities(ctx context.Context, sc store.Scope) erro
 	c.emit(sc, evs)
 	return nil
 }
+
+// PastDueFlag marks a vulnerability alert sent because CISA's due date for fixing it passed while it runs.
+const PastDueFlag = "past-due"
+
+// pastDueSuffix keys the past-due reminder apart from the first alert in vulnerability_alerts.
+const pastDueSuffix = " " + PastDueFlag
 
 // vulnNote is a vulnerability event's note: the CVE, then exploited, ransomware and severity when they apply.
 func vulnNote(f VulnFinding) string {

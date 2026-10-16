@@ -226,6 +226,10 @@ runs somewhere, once per service and environment, with the package and the versi
 
 > payments-api @ prod: CVE-2021-44228 (exploited, ransomware, critical) in log4j-core 2.14.1, fixed in 2.15.0
 
+When CISA's due date for fixing an exploited vulnerability ([BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01))
+passes while it still runs, it is announced once more, *past CISA's due date*; one that is already past due when it
+starts running says so in its first alert.
+
 ```sh
 goliash notify create -channel security -events vulnerability -envs prod -mode instant
 ```
