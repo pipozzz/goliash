@@ -467,6 +467,13 @@ func (c *Checker) AlertVulnerabilities(ctx context.Context, sc store.Scope) erro
 	var record []store.VulnAlert
 	var evs []store.Event
 	now := c.now()
+	// Past-due reminders start after the first look that knows them: vulnerabilities already past due then (an
+	// upgrade from a Goliash without reminders) are recorded, not announced again.
+	dueBaseline := store.VulnAlert{CVE: "past-due baseline"}
+	remind := done[dueBaseline]
+	if !remind {
+		record = append(record, dueBaseline)
+	}
 	for _, f := range r.Findings {
 		critical := strings.EqualFold(f.Severity, "CRITICAL")
 		if f.Exploited == nil && !critical {
@@ -484,6 +491,7 @@ func (c *Checker) AlertVulnerabilities(ctx context.Context, sc store.Scope) erro
 			if !announce {
 				continue
 			}
+			fresh := !done[key] // its first alert
 			for _, k := range []store.VulnAlert{key, due} {
 				if k == key || pastDue {
 					if !done[k] {
@@ -492,7 +500,7 @@ func (c *Checker) AlertVulnerabilities(ctx context.Context, sc store.Scope) erro
 					}
 				}
 			}
-			if !baseline {
+			if !baseline || (!fresh && !remind) {
 				continue
 			}
 			note := vulnNote(f)
