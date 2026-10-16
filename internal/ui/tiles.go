@@ -47,6 +47,7 @@ func worse(a, b string) string {
 // TilesView is the tiles page.
 type TilesView struct {
 	Base
+	Views   ViewTabs
 	GroupBy string
 	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
 	Envs    []string
@@ -214,11 +215,12 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		}
 	}
 	v := TilesView{
-		Base: s.base(r.Context(), p, "matrix", "Tiles"), GroupBy: g.GroupBy, Env: q.Get("env"),
+		Base: withFlash(s.base(r.Context(), p, "matrix", "Tiles"), r), GroupBy: g.GroupBy, Env: q.Get("env"),
 		App: q.Get("app"), TV: q.Get("tv") == "1", Updated: time.Now().UTC().Format("15:04 UTC"),
 		At: at, Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04"),
 	}
 	v.Kiosk = v.TV
+	v.Views = s.viewTabs(r.Context(), r, p, "/tiles")
 	if c, err := strconv.Atoi(q.Get("cycle")); err == nil && v.TV && c > 0 {
 		v.Cycle = min(max(c, 10), 3600)
 	}

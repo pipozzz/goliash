@@ -18,7 +18,7 @@ import (
 
 // PaletteEntry is one place the palette can go.
 type PaletteEntry struct {
-	Kind  string `json:"kind"`  // service, application, target, page
+	Kind  string `json:"kind"`  // view, service, application, target, page
 	Label string `json:"label"` // what is matched and shown
 	Sub   string `json:"sub,omitempty"`
 	URL   string `json:"url"`
@@ -60,6 +60,13 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 	for _, t := range targets {
 		out = append(out, PaletteEntry{Kind: "target", Label: t.Name, Sub: t.Platform, URL: "/targets/" + t.ID})
 	}
+	for _, sv := range s.visibleViews(ctx, p) {
+		sub := "your view"
+		if sv.UserID == "" {
+			sub = "for everyone"
+		}
+		out = append(out, PaletteEntry{Kind: "view", Label: sv.Name, Sub: sub, URL: sv.URL})
+	}
 	sort.SliceStable(out, func(i, j int) bool { return kindOrder[out[i].Kind] < kindOrder[out[j].Kind] })
 	for _, pg := range []struct{ label, sub, url string }{
 		{"Matrix", "services × environments", "/?view=table"},
@@ -87,7 +94,7 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 	return json.NewEncoder(w).Encode(out)
 }
 
-var kindOrder = map[string]int{"application": 0, "service": 1, "target": 2, "page": 3}
+var kindOrder = map[string]int{"view": 0, "application": 1, "service": 2, "target": 3, "page": 4}
 
 func dedupeEntries(in []PaletteEntry) []PaletteEntry {
 	seen := map[string]bool{}

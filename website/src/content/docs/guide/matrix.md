@@ -88,6 +88,20 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 - `/` opens your home view, on every device you sign in on: the view you switched to last, or the one picked under
   **Your account → Home page**. Until you pick, it goes by device: the tiles on a phone, the table elsewhere.
 
+## Saved views
+
+Set up the matrix or the tiles the way you look at them (a team's applications, production only, grouped by status,
+the TV board for the wall screen) and **+ Save view** keeps it under a name. Saved views are tabs above the matrix and
+the tiles: one click opens a team's board, and each has its own address to bookmark, share or open on a wall screen.
+
+- **Yours or everyone's**: a view is yours unless a member saves it *For everyone*; then the whole workspace sees the
+  tab, and members can delete it.
+- **Your home**: *Make it my home* on a view's tab, or the home page setting on **Your account**, makes Goliash open
+  with it on every device. Switching between table and tiles does not change a view home.
+- **Search**: views are in the search (⌘K) too.
+
+A view keeps the page's grouping, team or application, environment, filters and TV mode, not a point in time.
+
 ## One target at a glance
 
 Click a target's name under **Settings → Agents and targets** to see what runs on that cluster or host: a ring

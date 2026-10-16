@@ -1199,3 +1199,17 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .sub-head { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
 .signers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .signers li { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+
+/* Saved views: tabs above the matrix and the tiles. */
+.view-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 4px 0 12px; }
+.view-tab-list { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.view-tab { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.view-tab:hover { border-color: var(--accent); text-decoration: none; }
+.view-tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.view-home { margin-right: 3px; }
+.view-actions { display: inline-flex; gap: 10px; font-size: 13px; }
+.view-save > summary { list-style: none; cursor: pointer; font-size: 13px; }
+.view-save > summary::-webkit-details-marker { display: none; }
+.view-save[open] { flex-basis: 100%; }
+.view-save form { margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.view-save input[name=name] { flex: 1 1 220px; min-width: 0; }

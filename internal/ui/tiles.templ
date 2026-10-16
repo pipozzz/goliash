@@ -34,6 +34,9 @@ templ TilesPage(v TilesView) {
 					<p class="sub" data-tl-live hidden?={ v.At != "" }>Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.</p>
 				</div>
 			</div>
+			if v.At == "" {
+				@viewTabsBar(v.Views)
+			}
 			<div class="toolbar tiles-toolbar">
 				<nav class="segmented" aria-label="View">
 					<span class="muted">View</span>
