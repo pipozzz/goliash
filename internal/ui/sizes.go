@@ -31,7 +31,7 @@ func (s *Server) serviceSizes(ctx context.Context, sc store.Scope, svc store.Ser
 	if err != nil {
 		return LineChart{}, nil, err
 	}
-	change := lastSizeChange(periods, evidence, envs)
+	change := versions.LastSizeChange(periods, evidence, envs)
 	// MB per environment and day.
 	perEnv := map[string][]int{}
 	first := sizeDays
@@ -82,49 +82,5 @@ func (s *Server) serviceSizes(ctx context.Context, sc store.Scope, svc store.Ser
 	return c, change, nil
 }
 
-// SizeChange is what the last deploy in an environment changed in the image: its size and its layers.
-type SizeChange struct {
-	Env, From, To    string // environment, and the versions before and after
-	Before, After    int64  // sizes in bytes
-	Added, Removed   []store.ImageLayer
-	AddedN, RemovedN int // all of them, when the lists are cut short
-}
-
-// sizeChangeLayers is how many added and removed layers a size change lists.
-const sizeChangeLayers = 6
-
-// lastSizeChange is the most recent deploy, production first, whose two images' layers are known.
-func lastSizeChange(periods []store.ImagePeriod, evidence map[string]store.ImageEvidence, envs []store.Environment) *SizeChange {
-	ev := func(p store.ImagePeriod) store.ImageEvidence {
-		return evidence[versions.ParseImage(p.Image).Repo()+"@"+p.Digest]
-	}
-	for i := len(envs) - 1; i >= 0; i-- {
-		var cur, prev *store.ImagePeriod
-		for j := range periods {
-			p := &periods[j]
-			if p.EnvironmentID == envs[i].ID && p.Until.IsZero() && (cur == nil || p.Since.After(cur.Since)) {
-				cur = p
-			}
-		}
-		if cur == nil {
-			continue
-		}
-		for j := range periods {
-			p := &periods[j]
-			if p.EnvironmentID == envs[i].ID && p.Digest != cur.Digest && !p.Until.IsZero() && (prev == nil || p.Until.After(prev.Until)) {
-				prev = p
-			}
-		}
-		if prev == nil || len(ev(*cur).Layers) == 0 || len(ev(*prev).Layers) == 0 {
-			continue
-		}
-		added, removed := versions.LayerChange(ev(*prev).Layers, ev(*cur).Layers)
-		ch := &SizeChange{
-			Env: envs[i].Name, From: prev.Tag, To: cur.Tag, Before: ev(*prev).Size, After: ev(*cur).Size,
-			AddedN: len(added), RemovedN: len(removed),
-		}
-		ch.Added, ch.Removed = added[:min(len(added), sizeChangeLayers)], removed[:min(len(removed), sizeChangeLayers)]
-		return ch
-	}
-	return nil
-}
+// SizeChange is what the last deploy in an environment changed in the image.
+type SizeChange = versions.SizeChange

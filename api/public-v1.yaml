@@ -101,6 +101,80 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/services/{name}/images:
+    get:
+      operationId: getServiceImages
+      summary: What a service's images are made of
+      description: >-
+        Per environment, the running main image's size against the service's size budget (`max_size_mb`), its base
+        and whether that base has a newer build, and its supply-chain evidence; every image that ran in the last 90
+        days with its size; and what the last deploy (production first) changed in the layers, biggest first, with
+        the Dockerfile step that made each. Sizes, bases and layers appear once the image's registry was read.
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The images.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, images, history]
+                properties:
+                  service: { type: string }
+                  budget_bytes: { type: integer, format: int64, description: "The size budget; absent without one." }
+                  images:
+                    type: array
+                    items:
+                      type: object
+                      required: [environment, image, digest]
+                      properties:
+                        environment: { type: string }
+                        image: { type: string }
+                        version: { type: string }
+                        digest: { type: string }
+                        size_bytes: { type: integer, format: int64, description: "What pulling it downloads: compressed layers and config." }
+                        over_budget: { type: boolean }
+                        layers: { type: integer }
+                        base_image: { type: string, example: "docker.io/library/node:22-alpine" }
+                        base_status: { type: string, enum: [current, outdated] }
+                        base_behind_days: { type: integer, description: "Days the base tag has had a newer build than the image is built on." }
+                        evidence:
+                          type: object
+                          required: [signed, sbom, provenance]
+                          properties:
+                            signed: { type: boolean }
+                            sbom: { type: boolean }
+                            provenance: { type: boolean }
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      required: [environment, digest, since]
+                      properties:
+                        environment: { type: string }
+                        version: { type: string }
+                        digest: { type: string }
+                        size_bytes: { type: integer, format: int64 }
+                        since: { type: string, format: date-time }
+                        until: { type: string, format: date-time, description: "Absent while it still runs." }
+                  last_change:
+                    type: object
+                    required: [environment, from, to, before_bytes, after_bytes, added, removed, added_count, removed_count]
+                    properties:
+                      environment: { type: string }
+                      from: { type: string }
+                      to: { type: string }
+                      before_bytes: { type: integer, format: int64 }
+                      after_bytes: { type: integer, format: int64 }
+                      added: { type: array, items: { $ref: '#/components/schemas/ImageLayer' } }
+                      removed: { type: array, items: { $ref: '#/components/schemas/ImageLayer' } }
+                      added_count: { type: integer, description: "All added layers; added lists the six biggest." }
+                      removed_count: { type: integer }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
   /api/v1/notifications/sent:
     get:
       operationId: listSentNotifications
@@ -652,6 +726,12 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    ImageLayer:
+      type: object
+      required: [size_bytes]
+      properties:
+        size_bytes: { type: integer, format: int64 }
+        command: { type: string, description: "The build step that made it, from the image config's history.", example: "RUN apt-get install -y chromium" }
     Environment:
       type: object
       required: [id, name, position]

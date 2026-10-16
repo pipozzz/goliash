@@ -385,6 +385,25 @@ func NewServer(c *Client) *mcp.Server {
 			return nil, Result{Data: filter(data, map[string]string{"environment": in.Environment, "service": in.Service})}, nil
 		})
 
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "images", Annotations: readOnly,
+		Description: "What one service's images are made of. Per environment: the running image's size against the " +
+			"service's size budget, its base and how many days the base tag has had a newer build, and whether it is " +
+			"signed and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
+			"the last deploy changed in the layers, biggest first, with the Dockerfile step that made each. Use it to " +
+			"explain why an image grew or what a rebuild would fix.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+			Service string `json:"service" jsonschema:"the service name"`
+		},
+		) (*mcp.CallToolResult, Result, error) {
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/services/"+url.PathEscape(in.Service)+"/images", nil, nil)
+			if err != nil {
+				return nil, Result{}, err
+			}
+			return nil, Result{Data: data}, nil
+		})
+
 	no := false
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "acknowledge",
