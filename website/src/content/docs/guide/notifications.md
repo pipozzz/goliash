@@ -117,6 +117,14 @@ environments, or only for releases of at least a given size. Applications are ma
 (after renames and merges, see [Applications and teams](/guide/apps/)): a rule for `webshop` gets every service
 running in it, and a drift only when it is in that application.
 
+A deploy back to an older version (2.4.1 → 2.3.9) is a **rollback**: ⏪ *payments-api @ prod: rolled back from
+2.4.1 to 2.3.9*. Rules for deploys get rollbacks too, and the event type `rollback` (*rollbacks* in the form) sends
+only those, e.g. to the people on call:
+
+```sh
+goliash notify create -channel oncall -events rollback -envs prod -mode instant
+```
+
 A rule that sends **stale agents** (an agent silent for 10 minutes) also sends the all clear when the agent is back:
 ✅ *agent eu-cluster is back after about 25 min; its targets report again*.
 

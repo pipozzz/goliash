@@ -77,6 +77,7 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_outdated` | service, environment | 1 when behind upstream by the tracked jump |
 | `goliash_drift_days` | service, environment, kind (and app) | how long a drift has been open, in days |
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
+| `goliash_rollbacks` | service, environment | changes back to an older version in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
 | `goliash_license_packages` | class, kind (app, os) | packages in running images per license class, from their SBOMs |
 | `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget or no digest |

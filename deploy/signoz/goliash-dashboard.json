@@ -138,25 +138,25 @@
       "i": "w9",
       "x": 0,
       "y": 26,
-      "w": 4,
+      "w": 3,
       "h": 3,
       "moved": false,
       "static": false
     },
     {
       "i": "w10",
-      "x": 4,
+      "x": 3,
       "y": 26,
-      "w": 4,
+      "w": 3,
       "h": 3,
       "moved": false,
       "static": false
     },
     {
       "i": "w11",
-      "x": 8,
+      "x": 6,
       "y": 26,
-      "w": 4,
+      "w": 3,
       "h": 3,
       "moved": false,
       "static": false
@@ -458,6 +458,15 @@
       "y": 54,
       "w": 4,
       "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w42",
+      "x": 9,
+      "y": 26,
+      "w": 3,
+      "h": 3,
       "moved": false,
       "static": false
     },
@@ -2140,6 +2149,124 @@
           "thresholdValue": 1209600,
           "thresholdUnit": "s",
           "thresholdColor": "Red",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w42",
+      "panelTypes": "value",
+      "title": "Rollbacks",
+      "description": "Changes back to an older version in the last 30 days: a deploy that had to be undone.",
+      "query": {
+        "queryType": "builder",
+        "id": "423052f7-115b-5f58-830e-63023fd27b47",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_rollbacks",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
           "thresholdFormat": "Text",
           "thresholdLabel": "",
           "isEditEnabled": false,
@@ -5955,25 +6082,25 @@
           "i": "w9",
           "x": 0,
           "y": 26,
-          "w": 4,
+          "w": 3,
           "h": 3,
           "moved": false,
           "static": false
         },
         {
           "i": "w10",
-          "x": 4,
+          "x": 3,
           "y": 26,
-          "w": 4,
+          "w": 3,
           "h": 3,
           "moved": false,
           "static": false
         },
         {
           "i": "w11",
-          "x": 8,
+          "x": 6,
           "y": 26,
-          "w": 4,
+          "w": 3,
           "h": 3,
           "moved": false,
           "static": false
@@ -5993,6 +6120,15 @@
           "y": 29,
           "w": 6,
           "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w42",
+          "x": 9,
+          "y": 26,
+          "w": 3,
+          "h": 3,
           "moved": false,
           "static": false
         }
