@@ -99,6 +99,7 @@ the tiles: one click opens a team's board, and each has its own address to bookm
 - **Your home**: *Make it my home* on a view's tab, or the home page setting on **Your account**, makes Goliash open
   with it on every device. Switching between table and tiles does not change a view home.
 - **Search**: views are in the search (⌘K) too.
+- **Updates** has views of its own (a team's upgrade list, production only), as tabs above it.
 
 A view keeps the page's grouping, team or application, environment, filters and TV mode, not a point in time.
 

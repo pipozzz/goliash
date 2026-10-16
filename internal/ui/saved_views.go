@@ -57,7 +57,7 @@ func viewURL(raw string) string {
 	case "/", "":
 		q.Set("view", "table") // "/" alone opens the home, which may be this very view
 		u.Path = "/"
-	case "/tiles":
+	case "/tiles", "/updates":
 	default:
 		return ""
 	}
@@ -76,7 +76,16 @@ func viewURL(raw string) string {
 	return u.Path + "?" + b.String()
 }
 
-// viewTabs loads the saved views for a matrix or tiles page.
+// viewPage is the kind of page a view shows: the board (the matrix and the tiles, one picture of what runs) or
+// Updates. A page's tabs are the views of its kind.
+func viewPage(u string) string {
+	if strings.HasPrefix(u, "/updates") {
+		return "updates"
+	}
+	return "board"
+}
+
+// viewTabs loads the saved views for a matrix, tiles or Updates page: those of its kind.
 func (s *Server) viewTabs(ctx context.Context, r *http.Request, p auth.Principal, allURL string) ViewTabs {
 	t := ViewTabs{AllURL: allURL, Current: viewURL(r.URL.RequestURI()), CanShare: p.Can(store.RoleMember), CanSave: !s.auth.Demo() && p.User.ID != ""}
 	views, err := s.store.ListSavedViews(ctx, p.Scope, p.User.ID)
@@ -84,6 +93,9 @@ func (s *Server) viewTabs(ctx context.Context, r *http.Request, p auth.Principal
 		return t
 	}
 	for _, v := range views {
+		if viewPage(v.URL) != viewPage(allURL) {
+			continue
+		}
 		tab := ViewTab{
 			ID: v.ID, Name: v.Name, URL: v.URL, Shared: v.UserID == "",
 			CanDelete: v.UserID == p.User.ID || (v.UserID == "" && p.Can(store.RoleMember)),
@@ -121,7 +133,7 @@ func (s *Server) saveView(w http.ResponseWriter, r *http.Request, p auth.Princip
 	case s.auth.Demo() || p.User.ID == "":
 		return back(w, r, from, "error", "Views are kept per person; the demo has no persons.")
 	case u == "":
-		return back(w, r, "/", "error", "Only the matrix and the tiles can be saved as a view.")
+		return back(w, r, "/", "error", "Only the matrix, the tiles and Updates can be saved as a view.")
 	case name == "" || len(name) > maxViewName:
 		return back(w, r, from, "error", "Name the view (up to 60 characters).")
 	}
@@ -155,7 +167,11 @@ func (s *Server) saveView(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if shared {
 		s.audit(ctx, p, "view.create", "view", name, "url", u)
 	}
-	return back(w, r, u, "notice", "Saved as "+name+". It is a tab above the matrix and the tiles now.")
+	where := "above the matrix and the tiles"
+	if viewPage(u) == "updates" {
+		where = "above Updates"
+	}
+	return back(w, r, u, "notice", "Saved as "+name+". It is a tab "+where+" now.")
 }
 
 // deleteView removes a view: one's own, or a shared one for members.
@@ -175,8 +191,11 @@ func (s *Server) deleteView(w http.ResponseWriter, r *http.Request, p auth.Princ
 		_ = s.store.SetHomeView(ctx, p.User.ID, "")
 	}
 	all := "/?view=table"
-	if strings.HasPrefix(v.URL, "/tiles") {
+	switch {
+	case strings.HasPrefix(v.URL, "/tiles"):
 		all = "/tiles"
+	case strings.HasPrefix(v.URL, "/updates"):
+		all = "/updates"
 	}
 	return back(w, r, all, "notice", v.Name+" is deleted.")
 }

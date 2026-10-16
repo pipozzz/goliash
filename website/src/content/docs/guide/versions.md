@@ -153,7 +153,8 @@ why. They are ordered by urgency (an exploited vulnerability in the running imag
 soon, major, minor, behind the previous environment, patch), production first, then by how long they have been open.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the
 wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running). The tiles filter by urgency, and the
-selects by team and environment. **Copy as checklist** copies the list as markdown checkboxes for a ticket or a
+selects by team and environment; **+ Save view** keeps a team's or an environment's list as a tab (see
+[Saved views](/guide/matrix/#saved-views)). **Copy as checklist** copies the list as markdown checkboxes for a ticket or a
 planning board. **Put off** on a line skips that version (until a newer release is out) or puts it off for a week or
 30 days; it is an [acknowledgement](#acknowledging) for that service and environment, so its notifications go quiet
 too. Updates put off are kept apart under *Acknowledged*.

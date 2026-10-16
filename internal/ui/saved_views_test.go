@@ -20,7 +20,8 @@ func TestViewURL(t *testing.T) {
 		"/tiles?app=payments&notice=Saved&at=x": "/tiles?app=payments",
 		"/":                                     "/?view=table",
 		"/?q=post&drift=1":                      "/?drift=1&q=post&view=table",
-		"/updates":                              "",
+		"/updates?team=payments&env=prod":       "/updates?env=prod&team=payments",
+		"/events":                               "",
 		"//evil.example/tiles":                  "",
 		"https://evil.example/tiles":            "",
 		"/tiles?app=a%26b":                      "/tiles?app=a%26b",
@@ -58,8 +59,24 @@ func TestSavedViews(t *testing.T) {
 	if _, body, _ := post(t, pat, e.srv.URL+"/views", url.Values{"name": {"wall"}, "url": {"/tiles?env=dev"}}); !strings.Contains(body, "named wall already") {
 		t.Fatalf("same name: %s", body)
 	}
-	if _, body, _ := post(t, pat, e.srv.URL+"/views", url.Values{"name": {"x"}, "url": {"https://evil.example/"}}); !strings.Contains(body, "Only the matrix and the tiles") {
+	if _, body, _ := post(t, pat, e.srv.URL+"/views", url.Values{"name": {"x"}, "url": {"https://evil.example/"}}); !strings.Contains(body, "Only the matrix, the tiles and Updates") {
 		t.Fatalf("an outside address: %s", body)
+	}
+	// Updates have their own views: a team's upgrade list, a tab there and not above the tiles.
+	if _, body, _ := post(t, pat, e.srv.URL+"/views", url.Values{"name": {"payments upgrades"}, "url": {"/updates?team=payments"}}); !strings.Contains(body, "a tab above Updates now") {
+		t.Fatalf("save updates view: %s", body)
+	}
+	if _, page := get(t, pat, e.srv.URL+"/updates", nil); !strings.Contains(page, ">payments upgrades") || strings.Contains(page, ">wall") {
+		t.Fatalf("updates tabs: %s", page)
+	}
+	if _, page := get(t, pat, e.srv.URL+"/tiles", nil); strings.Contains(page, ">payments upgrades") {
+		t.Fatal("an Updates view is a tab above the tiles")
+	}
+	views0, _ := e.st.ListSavedViews(ctx, e.ws.Scope(), patUser.ID)
+	for _, sv := range views0 {
+		if sv.Name == "payments upgrades" {
+			_, _, _ = post(t, pat, e.srv.URL+"/views/"+sv.ID+"/delete", nil)
+		}
 	}
 	// Vic, a viewer, sees the shared one but not Pat's, may keep their own, and may not share.
 	_, page := get(t, vic, e.srv.URL+"/tiles", nil)

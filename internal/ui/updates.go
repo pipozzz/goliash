@@ -21,6 +21,7 @@ import (
 // UpdatesView is the to-do list of upgrades.
 type UpdatesView struct {
 	Base
+	Views        ViewTabs
 	Items, Acked []UpdateItem
 	Levels       []UpdateLevel
 	Level        int // the urgency shown; -1 for all
@@ -75,6 +76,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	q := r.URL.Query()
 	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1}
+	v.Views = s.viewTabs(ctx, r, p, "/updates")
 	if l := q.Get("level"); l != "" {
 		for i := range versions.UrgencyLabels {
 			if itoa(i) == l {

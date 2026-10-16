@@ -11,6 +11,7 @@ templ UpdatesPage(v UpdatesView) {
 				<p class="sub">What to upgrade, and to which version: exploited vulnerabilities and end of life first, then the biggest jumps, production first.</p>
 			</div>
 		</div>
+		@viewTabsBar(v.Views)
 		if v.Total > 0 {
 			<nav class="tiles" aria-label="Urgency">
 				<a href={ templ.URL(updatesURL(v, "level", "")) } class={ "tile", templ.KV("current", v.Level < 0) }>
