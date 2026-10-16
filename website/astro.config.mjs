@@ -89,6 +89,7 @@ export default defineConfig({
             { slug: 'reference/agent-protocol' },
           ],
         },
+        { slug: 'pricing' },
         { slug: 'security' },
       ],
     }),
