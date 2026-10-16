@@ -15,6 +15,9 @@ import (
 type ImageSBOM struct {
 	Repo, Digest string
 	Purls        []string
+	Licenses     map[string]string // purl -> SPDX license expression, for the packages whose license the SBOM names
+	// LicensesRead is false for an SBOM read before licenses were kept.
+	LicensesRead bool
 	Error        string
 	FetchedAt    time.Time
 }
@@ -22,16 +25,24 @@ type ImageSBOM struct {
 // SetImageSBOM records what an image's SBOM lists, or why it could not be read.
 func (s *Store) SetImageSBOM(ctx context.Context, sc Scope, b ImageSBOM) error {
 	purls := jsonList(b.Purls)
-	_, err := s.exec(ctx, s.db, `INSERT INTO image_sboms (org_id, workspace_id, repo, digest, purls, error, fetched_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET purls = excluded.purls, error = excluded.error, fetched_at = excluded.fetched_at`,
-		sc.OrgID, sc.WorkspaceID, b.Repo, b.Digest, purls, b.Error, s.now())
+	licenses := []byte("{}")
+	if len(b.Licenses) > 0 {
+		var err error
+		if licenses, err = json.Marshal(b.Licenses); err != nil {
+			return err
+		}
+	}
+	_, err := s.exec(ctx, s.db, `INSERT INTO image_sboms (org_id, workspace_id, repo, digest, purls, licenses, error, fetched_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET purls = excluded.purls, licenses = excluded.licenses,
+			error = excluded.error, fetched_at = excluded.fetched_at`,
+		sc.OrgID, sc.WorkspaceID, b.Repo, b.Digest, purls, string(licenses), b.Error, s.now())
 	return err
 }
 
 // ListImageSBOMs returns the workspace's SBOMs keyed by repo + "@" + digest.
 func (s *Store) ListImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageSBOM, error) {
-	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, error, fetched_at FROM image_sboms
+	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, licenses, error, fetched_at FROM image_sboms
 		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -41,10 +52,13 @@ func (s *Store) ListImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageS
 	for rows.Next() {
 		var b ImageSBOM
 		var purls string
-		if err := rows.Scan(&b.Repo, &b.Digest, &purls, &b.Error, &b.FetchedAt); err != nil {
+		var licenses sql.NullString
+		if err := rows.Scan(&b.Repo, &b.Digest, &purls, &licenses, &b.Error, &b.FetchedAt); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(purls), &b.Purls)
+		b.LicensesRead = licenses.Valid
+		_ = json.Unmarshal([]byte(licenses.String), &b.Licenses)
 		b.FetchedAt = b.FetchedAt.UTC()
 		out[b.Repo+"@"+b.Digest] = b
 	}

@@ -6,6 +6,7 @@ package registry
 import (
 	"context"
 	"encoding/base64"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -23,8 +24,9 @@ func TestImageSBOMSources(t *testing.T) {
 		index  = "sha256:" + "f100000000000000000000000000000000000000000000000000000000000000"
 		amd64  = "sha256:" + "f200000000000000000000000000000000000000000000000000000000000000"
 	)
-	spdx := `{"spdxVersion":"SPDX-2.3","packages":[{"name":"openssl","externalRefs":[{"referenceType":"purl","referenceLocator":"pkg:deb/debian/openssl@3.0.15"}]}]}`
-	cdx := `{"bomFormat":"CycloneDX","components":[{"purl":"pkg:npm/lodash@4.17.15","components":[{"purl":"pkg:npm/minimist@1.2.5"}]}]}`
+	spdx := `{"spdxVersion":"SPDX-2.3","packages":[{"name":"openssl","licenseConcluded":"NOASSERTION","licenseDeclared":"Apache-2.0","externalRefs":[{"referenceType":"purl","referenceLocator":"pkg:deb/debian/openssl@3.0.15"}]}]}`
+	cdx := `{"bomFormat":"CycloneDX","components":[{"purl":"pkg:npm/lodash@4.17.15","licenses":[{"license":{"id":"MIT"}},{"license":{"name":"Custom"}}],
+		"components":[{"purl":"pkg:npm/minimist@1.2.5","licenses":[{"expression":"MIT OR Apache-2.0"}]}]}]}`
 	statement := func(doc string) string {
 		return `{"_type":"https://in-toto.io/Statement/v1","predicateType":"https://cyclonedx.org/bom","predicate":` + doc + `}`
 	}
@@ -84,8 +86,18 @@ func TestImageSBOMSources(t *testing.T) {
 		{"index of platforms", index, []string{"pkg:npm/lodash@4.17.15", "pkg:npm/minimist@1.2.5"}},
 	} {
 		got, err := client().ImageSBOM(ctx, repo, c.digest, Credentials{})
-		if err != nil || !slices.Equal(got, c.want) {
+		if err != nil || !slices.Equal(got.Purls, c.want) {
 			t.Errorf("%s: %v %v", c.name, got, err)
+		}
+		if len(c.want) == 0 {
+			continue
+		}
+		wantLicenses := map[string]string{"pkg:npm/lodash@4.17.15": "MIT AND Custom", "pkg:npm/minimist@1.2.5": "MIT OR Apache-2.0"}
+		if c.digest == built {
+			wantLicenses = map[string]string{"pkg:deb/debian/openssl@3.0.15": "Apache-2.0"}
+		}
+		if !maps.Equal(got.Licenses, wantLicenses) {
+			t.Errorf("%s: licenses %v, want %v", c.name, got.Licenses, wantLicenses)
 		}
 	}
 }
