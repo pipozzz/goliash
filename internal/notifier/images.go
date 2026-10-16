@@ -176,6 +176,13 @@ func (n *Notifier) imageGrowth(ctx context.Context, sc store.Scope, now time.Tim
 		if ps[cur].Tag != "" {
 			note += " with " + ps[cur].Tag
 		}
+		if added, _ := versions.LayerChange(prevEv.Layers, curEv.Layers); len(added) > 0 && added[0].Command != "" {
+			cmd := added[0].Command
+			if r := []rune(cmd); len(r) > 80 {
+				cmd = string(r[:79]) + "…"
+			}
+			note += fmt.Sprintf("; biggest new layer %s: %s", humanSize(added[0].Size), cmd)
+		}
 		add(Item{Type: EventImageGrew, From: humanSize(before), To: humanSize(after), Note: note})
 	}
 	out = append(out, outdatedBases(periods, evidence, svcByID, envName, now)...)

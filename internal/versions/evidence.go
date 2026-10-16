@@ -66,6 +66,9 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 			return ctx.Err()
 		}
 		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found, Size: ev.Size}
+		for _, l := range ev.LayerDetails {
+			rec.Layers = append(rec.Layers, store.ImageLayer{Digest: l.Digest, Size: l.Size, Command: l.Command})
+		}
 		if err != nil {
 			rec.Error = err.Error()
 		} else {
@@ -175,6 +178,13 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		ev.Provenance = in.Provenance != nil && *in.Provenance
 		if in.Size != nil {
 			ev.Size = *in.Size
+		}
+		for _, l := range in.LayerDetails {
+			layer := store.ImageLayer{Digest: l.Digest, Size: l.Size}
+			if l.Command != nil {
+				layer.Command = *l.Command
+			}
+			ev.Layers = append(ev.Layers, layer)
 		}
 		if in.Error == nil {
 			c.judgeBase(ctx, &ev, services[serviceOf[in.Digest]], in.Layers, auth, bases)

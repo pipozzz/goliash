@@ -32,6 +32,9 @@ func TestImageEvidence(t *testing.T) {
 			"/v2/acme/built/manifests/sha256:amd": `{"mediaType":"` + mediaManifest + `","config":{"digest":"sha256:cfg","size":1000},
 				"layers":[{"digest":"sha256:a","size":30000000},{"digest":"sha256:b","size":2000000}]}`,
 			"/v2/acme/built/manifests/sha256:arm": `{"mediaType":"` + mediaManifest + `","config":{"size":1},"layers":[{"size":1}]}`,
+			"/v2/acme/built/blobs/sha256:cfg": `{"history":[{"created_by":"/bin/sh -c #(nop) ADD file:abc in / "},
+				{"created_by":"/bin/sh -c #(nop) CMD [\"sh\"]","empty_layer":true},
+				{"created_by":"RUN /bin/sh -c apk add --no-cache curl # buildkit"}]}`,
 			// cosign: a signature tag.
 			"/v2/acme/built/manifests/sha256-" + built[7:] + ".sig": `{"mediaType":"` + mediaManifest + `","layers":[{"digest":"sha256:s"}]}`,
 			// A Sigstore bundle as an OCI referrer.
@@ -55,6 +58,9 @@ func TestImageEvidence(t *testing.T) {
 	if err != nil || !ev.Signed || !ev.SBOM || !ev.Provenance || ev.Size != 32001000 {
 		t.Errorf("buildkit and cosign: %+v %v", ev, err)
 	}
+	if d := ev.LayerDetails; len(d) != 2 || d[0].Command != "ADD file:abc in /" || d[1].Command != "RUN apk add --no-cache curl" || d[1].Size != 2000000 {
+		t.Errorf("layer details: %+v", ev.LayerDetails)
+	}
 	ev, err = client().ImageEvidence(ctx, host+"/acme/bundled", bundle, Credentials{})
 	if err != nil || !ev.Signed || !ev.SBOM || !ev.Provenance {
 		t.Errorf("referrers: %+v %v", ev, err)
@@ -65,5 +71,20 @@ func TestImageEvidence(t *testing.T) {
 	}
 	if _, err := client().ImageEvidence(ctx, host+"/acme/missing", plain, Credentials{}); err == nil {
 		t.Error("missing image: no error")
+	}
+}
+
+func TestBuildStep(t *testing.T) {
+	for in, want := range map[string]string{
+		"/bin/sh -c #(nop) COPY dir:abc in /app ":                 "COPY dir:abc in /app",
+		"/bin/sh -c apt-get update && apt-get install -y curl":    "RUN apt-get update && apt-get install -y curl",
+		"RUN /bin/sh -c npm ci --omit=dev # buildkit":             "RUN npm ci --omit=dev",
+		"COPY /src/app /usr/local/bin/app # buildkit":             "COPY /src/app /usr/local/bin/app",
+		"|1 VERSION=2 /bin/sh -c make build":                      "|1 VERSION=2 /bin/sh -c make build",
+		"ADD alpine-minirootfs-3.20.3-x86_64.tar.gz / # buildkit": "ADD alpine-minirootfs-3.20.3-x86_64.tar.gz /",
+	} {
+		if got := buildStep(in); got != want {
+			t.Errorf("buildStep(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

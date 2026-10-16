@@ -53,6 +53,16 @@ func TestImageGrowth(t *testing.T) {
 	// A big one, two days ago.
 	run("sha256:03", "2.0.0", now.AddDate(0, 0, -2), []string{v11})
 	size("sha256:03", 240_000_000)
+	// The layers say what grew.
+	base := store.ImageLayer{Digest: "sha256:base", Size: 60_000_000, Command: "ADD rootfs /"}
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
+		Repo: "ghcr.io/acme/api", Digest: "sha256:02", Size: 90_000_000,
+		Layers: []store.ImageLayer{base, {Digest: "sha256:app1", Size: 30_000_000, Command: "COPY . /app"}},
+	})
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
+		Repo: "ghcr.io/acme/api", Digest: "sha256:03", Size: 240_000_000,
+		Layers: []store.ImageLayer{base, {Digest: "sha256:chrome", Size: 145_000_000, Command: "RUN apt-get install -y chromium"}, {Digest: "sha256:app2", Size: 35_000_000, Command: "COPY . /app"}},
+	})
 
 	for range 2 { // once per new image
 		if err := e.n.CheckImages(ctx); err != nil {
@@ -63,7 +73,7 @@ func TestImageGrowth(t *testing.T) {
 	if slack.count() != 1 {
 		t.Fatalf("alerts %d", slack.count())
 	}
-	for _, want := range []string{"image grew from 90 MB to 240 MB", "+150 MB, +166%", "2.0.0"} {
+	for _, want := range []string{"image grew from 90 MB to 240 MB", "+150 MB, +166%", "2.0.0", "biggest new layer 145 MB: RUN apt-get install -y chromium"} {
 		if !strings.Contains(slack.last(), want) {
 			t.Errorf("alert misses %q: %s", want, slack.last())
 		}

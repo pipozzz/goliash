@@ -45,7 +45,7 @@ func TestServiceSizes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	c, err := e.ui.serviceSizes(ctx, sc, svc, now)
+	c, _, err := e.ui.serviceSizes(ctx, sc, svc, now)
 	if err != nil || len(c.Series) != 1 {
 		t.Fatalf("chart %+v %v", c, err)
 	}

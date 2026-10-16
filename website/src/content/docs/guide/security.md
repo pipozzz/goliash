@@ -76,7 +76,10 @@ registries show it (linux/amd64, or the first platform, of a multi-platform imag
 environment, with how much each differs from production (*76 MB +32 MB*): what promoting that version adds, and
 **Image size** charts it per environment over the last 90 days, from the deploy history: each step is a deploy, so
 a heavier base or a new dependency stands out. The metric `goliash_image_size_bytes` and the dashboards' *Image
-size* graph show it in Grafana and SigNoz. Agents read it for private images from agent 1.61.
+size* graph show it in Grafana and SigNoz. Under the chart, **Last change** lists what the latest deploy (production first) changed in
+the image's layers: the new ones and the gone ones, biggest first, with the Dockerfile step that made each, read from
+the image config's history (`RUN apt-get install -y chromium`, +145 MB). Layers both versions share, the base and
+unchanged steps, are left out: what is listed is what grew. Agents read it for private images from agent 1.61.
 
 ## Is it running?
 

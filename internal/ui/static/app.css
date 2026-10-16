@@ -1181,3 +1181,9 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 /* An image's size change against production: growth stands out a little. */
 .size-delta { margin-left: 6px; font-size: 12px; }
 .size-delta.grew { color: var(--warn); }
+
+/* What the last deploy changed in an image: its new and gone layers. */
+.size-change { border-top: 1px solid var(--line); }
+.size-change h3 { font-size: 14px; margin: 0 0 10px; }
+.size-change .grew { color: var(--warn); }
+.size-change code { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -23,6 +23,16 @@ type Evidence struct {
 	Size int64
 	// Layers are that image's layer digests, bottom first: the ones it shares with its base come first.
 	Layers []string
+	// LayerDetails are the same layers with their sizes and the build step that made each, from the image's
+	// config history, when it could be read.
+	LayerDetails []Layer
+}
+
+// Layer is one layer of an image: its digest, compressed size, and the Dockerfile step that made it.
+type Layer struct {
+	Digest  string `json:"digest"`
+	Size    int64  `json:"size"`
+	Command string `json:"command,omitempty"`
 }
 
 const (
@@ -101,11 +111,15 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 	if err != nil {
 		return ev, err
 	}
+	readImage := func(m evidenceManifest) {
+		ev.Size, ev.Layers = imageSize(m), layerDigests(m)
+		ev.LayerDetails = c.layerDetails(ctx, base, repo, creds, m)
+	}
 	if len(img.Manifests) == 0 {
-		ev.Size, ev.Layers = imageSize(img), layerDigests(img)
+		readImage(img)
 	} else if d, ok := platformManifest(img.Manifests); ok {
 		if m, err := get(d.Digest); err == nil {
-			ev.Size, ev.Layers = imageSize(m), layerDigests(m)
+			readImage(m)
 		}
 	}
 	for _, d := range img.Manifests {
@@ -203,4 +217,61 @@ func layerDigests(m evidenceManifest) []string {
 		out = append(out, l.Digest)
 	}
 	return out
+}
+
+// layerDetails pairs an image's layers with the build steps that made them, from its config's history (whose
+// entries without a layer, like ENV or CMD, are skipped). Without a readable history the commands stay empty.
+func (c *Client) layerDetails(ctx context.Context, base, repo string, creds Credentials, m evidenceManifest) []Layer {
+	out := make([]Layer, len(m.Layers))
+	for i, l := range m.Layers {
+		out[i] = Layer{Digest: l.Digest, Size: l.Size}
+	}
+	if m.Config.Digest == "" {
+		return out
+	}
+	body, _, err := c.get(ctx, base+"/blobs/"+m.Config.Digest, repo, creds, "*/*")
+	if err != nil {
+		return out
+	}
+	var cfg struct {
+		History []struct {
+			CreatedBy  string `json:"created_by"`
+			EmptyLayer bool   `json:"empty_layer"`
+		} `json:"history"`
+	}
+	if json.Unmarshal(body, &cfg) != nil {
+		return out
+	}
+	i := 0
+	for _, h := range cfg.History {
+		if h.EmptyLayer {
+			continue
+		}
+		if i >= len(out) {
+			break
+		}
+		out[i].Command = buildStep(h.CreatedBy)
+		i++
+	}
+	return out
+}
+
+// buildStep makes a history entry read like the Dockerfile line it came from, and short.
+func buildStep(createdBy string) string {
+	s := strings.TrimSpace(createdBy)
+	for _, p := range []string{"/bin/sh -c #(nop) ", "|0 /bin/sh -c ", "/bin/sh -c "} {
+		if i := strings.Index(s, p); i >= 0 && i < 12 {
+			s = strings.TrimSpace(s[i+len(p):])
+			if p != "/bin/sh -c #(nop) " && !strings.HasPrefix(s, "RUN ") {
+				s = "RUN " + s
+			}
+		}
+	}
+	s = strings.TrimSuffix(s, " # buildkit")
+	s = strings.ReplaceAll(s, "RUN /bin/sh -c ", "RUN ")
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > 160 {
+		s = string(r[:159]) + "…"
+	}
+	return s
 }

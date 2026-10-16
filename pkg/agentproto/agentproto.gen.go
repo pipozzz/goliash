@@ -366,6 +366,13 @@ type ImageInspection struct {
 	// Found What was found, for people ("cosign signature", "buildkit sbom" …).
 	Found []string `json:"found,omitempty"`
 
+	// LayerDetails The same layers with their compressed sizes and the build steps that made them (from the image config's history).
+	LayerDetails []struct {
+		Command *string `json:"command,omitempty"`
+		Digest  string  `json:"digest"`
+		Size    int64   `json:"size"`
+	} `json:"layer_details,omitempty"`
+
 	// Layers The image's layer digests, bottom first (linux/amd64 or the first platform), to tell whether it is built on its base as the base is now.
 	Layers     []string `json:"layers,omitempty"`
 	Provenance *bool    `json:"provenance,omitempty"`

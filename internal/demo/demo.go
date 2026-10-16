@@ -335,6 +335,26 @@ func demoSize(repo, tag string) int64 {
 	return base + grow%97*350_000
 }
 
+// demoLayers is an example image's layers: the same base for every version, dependencies that change with the
+// minor version, and the application that changes with every one.
+func demoLayers(repo, tag string, size int64) []store.ImageLayer {
+	digest := func(s string) string {
+		sum := sha256.Sum256([]byte(s))
+		return "sha256:" + hex.EncodeToString(sum[:])
+	}
+	minor := tag
+	if parts := strings.SplitN(tag, ".", 3); len(parts) >= 2 {
+		minor = parts[0] + "." + parts[1]
+	}
+	base := size * 35 / 100
+	deps := size * 50 / 100
+	return []store.ImageLayer{
+		{Digest: digest(repo + "|base"), Size: base, Command: "ADD alpine-minirootfs-3.20.3-x86_64.tar.gz /"},
+		{Digest: digest(repo + "|deps|" + minor), Size: deps, Command: "RUN apk add --no-cache ca-certificates tzdata && npm ci --omit=dev"},
+		{Digest: digest(repo + "|app|" + tag), Size: size - base - deps, Command: "COPY dist/ /app/"},
+	}
+}
+
 // seedEvidence records what the registries would hold beside the demo's images: the team's own images
 // are signed with an SBOM and provenance, official images carry BuildKit's SBOM and provenance, the rest
 // nothing.
@@ -359,7 +379,8 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			}
 			running[in.Image+"@"+in.Digest] = true
 			repo := versions.ParseImage(in.Image).Repo()
-			if err := st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: repo, Digest: in.Digest, Size: demoSize(repo, in.Tag)}); err != nil {
+			size := demoSize(repo, in.Tag)
+			if err := st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: repo, Digest: in.Digest, Size: size, Layers: demoLayers(repo, in.Tag, size)}); err != nil {
 				return err
 			}
 		}
@@ -379,6 +400,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
 		}
 		ev.Size = demoSize(ev.Repo, in.Tag)
+		ev.Layers = demoLayers(ev.Repo, in.Tag, ev.Size)
 		// Two of the team's images: one built on its base as it is now, one on a build from weeks ago.
 		switch ev.Repo {
 		case "ghcr.io/acme/checkout":

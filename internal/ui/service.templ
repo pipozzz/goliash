@@ -236,12 +236,17 @@ templ ServicePage(v ServiceView) {
 		if len(v.Security.Images) > 0 {
 			@serviceSecurity(v)
 		}
-		if len(v.Sizes.Series) > 0 {
+		if len(v.Sizes.Series) > 0 || v.SizeChange != nil {
 			<section class="panel" id="sizes">
 				<div class="panel-head"><h2>Image size</h2><span class="muted">MB pulled, per environment, last 90 days</span></div>
-				<div class="panel-body">
-					@lines(v.Sizes, "Image size in MB per environment, last 90 days")
-				</div>
+				if len(v.Sizes.Series) > 0 {
+					<div class="panel-body">
+						@lines(v.Sizes, "Image size in MB per environment, last 90 days")
+					</div>
+				}
+				if c := v.SizeChange; c != nil {
+					@sizeChange(c)
+				}
 			</section>
 		}
 		<div class="grid-2">
@@ -621,4 +626,45 @@ templ evidenceMark(ok bool) {
 	} else {
 		<span class="muted">no</span>
 	}
+}
+
+// sizeChange lists the layers the last deploy in an environment added and removed, with the build steps that made
+// them: what made the image bigger or smaller.
+templ sizeChange(c *SizeChange) {
+	<div class="panel-body size-change">
+		<h3>
+			{ "Last change in " + c.Env + ": " + orDash(c.From) + " → " + orDash(c.To) + ", " }
+			if c.After >= c.Before {
+				<span class={ templ.KV("grew", c.After-c.Before >= 20_000_000) }>{ signedBytes(c.After - c.Before) }</span>
+			} else {
+				<span>{ signedBytes(c.After - c.Before) }</span>
+			}
+		</h3>
+		<div class="scroll" tabindex="0">
+			<table class="cards">
+				<thead><tr><th class="num">Size</th><th>Layer</th><th>Build step</th></tr></thead>
+				<tbody>
+					for _, l := range c.Added {
+						<tr>
+							<td class="num" data-label="Size">{ "+" + humanBytes(l.Size) }</td>
+							<td data-label="Layer"><span class="badge outdated">new</span></td>
+							<td data-label="Build step"><code>{ orDash(l.Command) }</code></td>
+						</tr>
+					}
+					for _, l := range c.Removed {
+						<tr class="muted">
+							<td class="num" data-label="Size">{ "−" + humanBytes(l.Size) }</td>
+							<td data-label="Layer"><span class="badge neutral">gone</span></td>
+							<td data-label="Build step"><code>{ orDash(l.Command) }</code></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		if c.AddedN > len(c.Added) || c.RemovedN > len(c.Removed) {
+			<p class="hint">{ "The biggest of " + itoa(c.AddedN) + " new and " + itoa(c.RemovedN) + " gone layers; layers both versions share (the base, unchanged steps) are left out." }</p>
+		} else {
+			<p class="hint">Layers both versions share (the base, unchanged steps) are left out.</p>
+		}
+	</div>
 }

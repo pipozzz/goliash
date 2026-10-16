@@ -448,7 +448,8 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 type ServiceView struct {
 	Base
 	Security       ServiceSecurity
-	Sizes          LineChart // the image's size per environment over the last 90 days, in MB; empty when unknown
+	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
+	SizeChange     *SizeChange // what the last deploy changed in the image, when its layers are known
 	Name           string
 	Owner          string
 	OwnerSource    string // "" set by people, "label" or "app" when Goliash set it

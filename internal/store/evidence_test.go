@@ -43,5 +43,13 @@ func TestImageEvidence(t *testing.T) {
 		if got, _ := s.ListImageEvidence(ctx, sc); got["docker.io/library/nginx@sha256:a"].Size != 182_000_000 {
 			t.Errorf("size %d", got["docker.io/library/nginx@sha256:a"].Size)
 		}
+		// Layers too.
+		ev.Layers = []ImageLayer{{Digest: "sha256:l1", Size: 5, Command: "RUN apk add curl"}}
+		_ = s.SetImageEvidence(ctx, sc, ev)
+		ev.Layers = nil
+		_ = s.SetImageEvidence(ctx, sc, ev)
+		if got, _ := s.ListImageEvidence(ctx, sc); len(got["docker.io/library/nginx@sha256:a"].Layers) != 1 || got["docker.io/library/nginx@sha256:a"].Layers[0].Command != "RUN apk add curl" {
+			t.Errorf("layers %+v", got["docker.io/library/nginx@sha256:a"].Layers)
+		}
 	})
 }

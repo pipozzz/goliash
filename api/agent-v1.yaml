@@ -807,6 +807,17 @@ components:
           description: The image's layer digests, bottom first (linux/amd64 or the first platform), to tell whether it is built on its base as the base is now.
           items:
             type: string
+        layer_details:
+          type: array
+          maxItems: 512
+          description: The same layers with their compressed sizes and the build steps that made them (from the image config's history).
+          items:
+            type: object
+            required: [digest, size]
+            properties:
+              digest: { type: string }
+              size: { type: integer, format: int64, minimum: 0 }
+              command: { type: string, maxLength: 200 }
         purls:
           type: array
           maxItems: 20000

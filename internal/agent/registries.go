@@ -262,6 +262,14 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 			in.Size = &ev.Size
 		}
 		in.Layers = ev.Layers[:min(len(ev.Layers), 512)]
+		for _, l := range ev.LayerDetails[:min(len(ev.LayerDetails), 512)] {
+			d := l
+			in.LayerDetails = append(in.LayerDetails, struct {
+				Command *string `json:"command,omitempty"`
+				Digest  string  `json:"digest"`
+				Size    int64   `json:"size"`
+			}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
+		}
 		if ev.SBOM {
 			purls, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
 			if err != nil {

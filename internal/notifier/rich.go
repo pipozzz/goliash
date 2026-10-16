@@ -157,7 +157,7 @@ func goliQuestion(it Item) string {
 	case it.Type == EventEvidenceLost:
 		return "Version " + it.To + " of " + it.Service + " in " + it.Environment + " has no " + it.Note + ", though " + it.From + " had. What might have changed in the build, and what is the risk?"
 	case it.Type == EventImageGrew:
-		return "Why did the " + it.Service + " image in " + it.Environment + " grow from " + it.From + " to " + it.To + "? Brief me on what changed between the versions (base image, dependencies, build) and how the image could get smaller."
+		return "Why did the " + it.Service + " image in " + it.Environment + " grow from " + it.From + " to " + it.To + " (" + it.Note + ")? Brief me on what changed between the versions (base image, dependencies, build) and how the image could get smaller."
 	case it.Type == "posture":
 		return "Walk me through our security posture: what to fix first to cut production exposure, what is past its end of life, and which accepted risks to review."
 	case it.Type == "agent_stale":
