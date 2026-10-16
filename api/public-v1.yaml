@@ -896,6 +896,9 @@ components:
         digest: { type: string }
         running: { type: integer }
         first_seen: { type: string, format: date-time }
+        size_bytes: { type: integer, format: int64, description: "What pulling the image downloads (compressed layers and config), when read." }
+        base: { type: string, description: "The FROM image the image was compared with, e.g. docker.io/library/node:22-alpine." }
+        base_status: { type: string, enum: [current, outdated], description: "outdated: built on an older build of its base than the base's tag has now (rebuild with --pull)." }
 
     AckRequest:
       type: object

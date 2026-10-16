@@ -325,7 +325,7 @@ func NewServer(c *Client) *mcp.Server {
 	for _, t := range []struct{ name, path, desc string }{
 		{"promotions", "/api/v1/promotions", "Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring."},
 		{"delivery", "/api/v1/delivery", "Per service, versions that arrived in each environment in the last 30 days and the median lead time between environments."},
-		{"hygiene", "/api/v1/hygiene", "Image hygiene: moving tags like latest, tags pushed again, untrusted registries, missing digests."},
+		{"hygiene", "/api/v1/hygiene", "Image hygiene: moving tags like latest, tags pushed again, untrusted registries, images built on an outdated base (an older build of their FROM image: rebuild with --pull), missing digests."},
 	} {
 		mcp.AddTool(s, &mcp.Tool{Name: t.name, Description: t.desc, Annotations: readOnly},
 			func(ctx context.Context, _ *mcp.CallToolRequest, _ noIn) (*mcp.CallToolResult, Result, error) {
@@ -370,7 +370,8 @@ func NewServer(c *Client) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "inventory", Annotations: readOnly,
-		Description: "Every running container (sidecars included) with image, tag and digest, now or at a past time.",
+		Description: "Every running container (sidecars included) with image, tag and digest, now or at a past time; " +
+			"with the image's size (bytes pulled) and whether it is built on its base as the base is now (base_status), when read.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in inventoryIn) (*mcp.CallToolResult, Result, error) {
 			q := url.Values{}

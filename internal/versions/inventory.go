@@ -71,6 +71,9 @@ type InventoryItem struct {
 	Digest      string    `json:"digest,omitempty"`
 	Running     int       `json:"running"`
 	FirstSeen   time.Time `json:"first_seen"`
+	SizeBytes   int64     `json:"size_bytes,omitempty"`  // what pulling the image downloads, when read
+	Base        string    `json:"base,omitempty"`        // the FROM image it was compared with
+	BaseStatus  string    `json:"base_status,omitempty"` // current, or outdated: built on an older build of its base
 }
 
 // Inventory lists every container that runs now, or ran at a point in time, sidecars
@@ -110,6 +113,10 @@ func Inventory(ctx context.Context, st *store.Store, sc store.Scope, at *time.Ti
 	for _, t := range targets {
 		target[t.ID] = t
 	}
+	evidence, err := st.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]InventoryItem, 0, len(instances))
 	for _, i := range instances {
 		t := target[i.TargetID]
@@ -118,6 +125,14 @@ func Inventory(ctx context.Context, st *store.Store, sc store.Scope, at *time.Ti
 			Namespace: i.Namespace, Workload: i.WorkloadName, Kind: i.WorkloadKind, Container: i.ContainerName,
 			Image: i.Image, Tag: i.Tag, Digest: i.Digest, Running: i.Running, FirstSeen: i.FirstSeenAt,
 		})
+		if i.Digest != "" {
+			ev := evidence[ParseImage(i.Image).Repo()+"@"+i.Digest]
+			it := &out[len(out)-1]
+			it.SizeBytes, it.BaseStatus = ev.Size, ev.BaseStatus
+			if ev.BaseStatus != "" {
+				it.Base = ev.BaseImage
+			}
+		}
 	}
 	sort.Slice(out, func(a, b int) bool {
 		x, y := out[a], out[b]

@@ -596,11 +596,12 @@ func (h *PublicHandler) inventory(w http.ResponseWriter, r *http.Request, p auth
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"environment", "target", "platform", "service", "namespace", "workload", "kind", "container", "image", "tag", "digest", "running", "first_seen"})
+	_ = cw.Write([]string{"environment", "target", "platform", "service", "namespace", "workload", "kind", "container", "image", "tag", "digest", "running", "first_seen", "size_bytes", "base", "base_status"})
 	for _, i := range items {
 		_ = cw.Write([]string{
 			i.Environment, i.Target, i.Platform, i.Service, i.Namespace, i.Workload, i.Kind, i.Container,
 			i.Image, i.Tag, i.Digest, strconv.Itoa(i.Running), i.FirstSeen.UTC().Format(time.RFC3339),
+			strconv.FormatInt(i.SizeBytes, 10), i.Base, i.BaseStatus,
 		})
 	}
 	cw.Flush()
