@@ -323,7 +323,7 @@ func NewServer(c *Client) *mcp.Server {
 		})
 
 	for _, t := range []struct{ name, path, desc string }{
-		{"promotions", "/api/v1/promotions", "Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring."},
+		{"promotions", "/api/v1/promotions", "Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring and the known vulnerabilities it would fix and bring (when both images have an SBOM)."},
 		{"delivery", "/api/v1/delivery", "Per service, versions that arrived in each environment in the last 30 days and the median lead time between environments."},
 		{"hygiene", "/api/v1/hygiene", "Image hygiene: moving tags like latest, tags pushed again, untrusted registries, images built on an outdated base (an older build of their FROM image: rebuild with --pull), missing digests."},
 	} {

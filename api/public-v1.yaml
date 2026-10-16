@@ -934,6 +934,23 @@ components:
               version: { type: string }
               published_at: { type: string, format: date-time }
               release_notes: { type: string }
+        vulnerabilities:
+          type: object
+          description: >-
+            What promoting does to the known vulnerabilities of `to`, comparing the SBOMs of the two versions' images on
+            OSV: those it fixes and those it brings, exploited ones first. Absent unless both images have an SBOM.
+          required: [fixed, new]
+          properties:
+            fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+            new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+
+    VulnRef:
+      type: object
+      required: [id, exploited]
+      properties:
+        id: { type: string, example: CVE-2021-44228 }
+        severity: { type: string, example: CRITICAL }
+        exploited: { type: boolean, description: CISA lists it as exploited in the wild. }
 
     Delivery:
       type: object

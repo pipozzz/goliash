@@ -429,6 +429,26 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		h.fail(w, r, err)
 		return
 	}
+	if err := versions.AddVulnDeltas(r.Context(), h.store, p.Scope, list); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiVuln struct {
+		ID        string `json:"id"`
+		Severity  string `json:"severity,omitempty"`
+		Exploited bool   `json:"exploited"`
+	}
+	type apiVulns struct {
+		Fixed []apiVuln `json:"fixed"`
+		New   []apiVuln `json:"new"`
+	}
+	refs := func(vs []versions.VulnRef) []apiVuln {
+		out := []apiVuln{}
+		for _, v := range vs {
+			out = append(out, apiVuln{v.ID, v.Severity, v.Exploited})
+		}
+		return out
+	}
 	type apiRelease struct {
 		Version      string     `json:"version"`
 		PublishedAt  *time.Time `json:"published_at,omitempty"`
@@ -443,6 +463,7 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		Running  string       `json:"running"`
 		Since    time.Time    `json:"since"`
 		Releases []apiRelease `json:"releases"`
+		Vulns    *apiVulns    `json:"vulnerabilities,omitempty"`
 	}
 	out := []apiPromotion{}
 	for _, pr := range list {
@@ -454,6 +475,9 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 				ar.PublishedAt = &t
 			}
 			ap.Releases = append(ap.Releases, ar)
+		}
+		if pr.Vulns.Known {
+			ap.Vulns = &apiVulns{Fixed: refs(pr.Vulns.Fixed), New: refs(pr.Vulns.New)}
 		}
 		out = append(out, ap)
 	}
