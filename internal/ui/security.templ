@@ -210,7 +210,12 @@ templ SecurityPage(v SecurityView) {
 						{ itoa(v.Vulns.Fixable) } with a fixed version out.
 					</p>
 					if v.Vulns.Exploited > 0 {
-						<p class="notice error"><a href="/security/vulns?kev=1"><strong>{ plural(v.Vulns.Exploited, "vulnerability is", "vulnerabilities are") } exploited in the wild</strong></a> (CISA KEV): patch these first.</p>
+						<p class="notice error">
+							<a href="/security/vulns?kev=1"><strong>{ plural(v.Vulns.Exploited, "vulnerability is", "vulnerabilities are") } exploited in the wild</strong></a> (CISA KEV): patch these first.
+							if v.Vulns.PastDue > 0 {
+								{ " " + plural(v.Vulns.PastDue, "of them runs past the date CISA set for fixing it.", "of them run past the dates CISA set for fixing them.") }
+							}
+						</p>
 					}
 				}
 			</div>
@@ -255,7 +260,23 @@ templ SecurityPage(v SecurityView) {
 						<small>private registries or no digest known</small>
 					</div>
 				</div>
-				<p class="hint panel-note">Goliash records that signatures and attestations exist; it does not verify who signed them.</p>
+				if len(v.Evidence.Signers) > 0 || v.Evidence.NoSigner > 0 {
+					<div class="panel-body">
+						<h3 class="sub-head">Signed by</h3>
+						<ul class="signers">
+							for _, sg := range v.Evidence.Signers {
+								<li>
+									<span class="mono" title={ sg.Identity }>{ shortSigner(sg.Identity) }</span>
+									<span class="muted">{ issuerName(sg.Issuer) + " · " + plural(sg.Images, "image", "images") }</span>
+								</li>
+							}
+							if v.Evidence.NoSigner > 0 {
+								<li><span class="muted">{ plural(v.Evidence.NoSigner, "image is", "images are") + " signed with a key, which names nobody" }</span></li>
+							}
+						</ul>
+					</div>
+				}
+				<p class="hint panel-note">Goliash records that signatures and attestations exist and who keyless signatures' certificates name; it does not verify them. A service's version policy can name who should sign its images.</p>
 				if len(v.Evidence.Unsigned) > 0 {
 					<details class="unsigned">
 						<summary>{ plural(len(v.Evidence.Unsigned), "unsigned image", "unsigned images") }</summary>

@@ -146,6 +146,15 @@ paths:
                             signed: { type: boolean }
                             sbom: { type: boolean }
                             provenance: { type: boolean }
+                            signers:
+                              type: array
+                              description: Who signed it, as its keyless signatures' certificates name them (not verified).
+                              items:
+                                type: object
+                                required: [identity]
+                                properties:
+                                  identity: { type: string, example: "https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main" }
+                                  issuer: { type: string, example: "https://token.actions.githubusercontent.com" }
                   history:
                     type: array
                     items:
@@ -479,6 +488,46 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/rollouts:
+    get:
+      operationId: listRollouts
+      summary: Rollouts that do not finish
+      description: >-
+        Workloads whose replicas are not where they should be, worst first: `down` (none of the replicas it asks for
+        runs), `stuck` (two versions side by side for more than 30 minutes) and `short` (fewer replicas than it asks
+        for). Only workloads whose platform reports the replicas it asks for (Kubernetes, ECS, Nomad, Swarm, Compose).
+      responses:
+        "200":
+          description: The workloads.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [kind, service, environment, target, workload, running, desired, since, versions]
+                  properties:
+                    kind: { type: string, enum: [down, stuck, short] }
+                    service: { type: string }
+                    environment: { type: string }
+                    target: { type: string }
+                    workload: { type: string, example: shop/payments-api }
+                    running: { type: integer }
+                    desired: { type: integer }
+                    since: { type: string, format: date-time, description: "Since when it has been so, as far as Goliash can tell." }
+                    versions:
+                      type: array
+                      description: The versions running, newest first.
+                      items:
+                        type: object
+                        required: [version, running, since]
+                        properties:
+                          version: { type: string }
+                          running: { type: integer }
+                          since: { type: string, format: date-time }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/delivery:
     get:
       operationId: getDelivery
@@ -686,7 +735,9 @@ paths:
                             due_date: { type: string }
                             date_added: { type: string }
                             ransomware: { type: boolean }
+                            past_due: { type: boolean, description: "It still runs after the due date CISA set for fixing it (BOD 22-01)." }
                         fixable: { type: boolean }
+                        running_since: { type: string, format: date-time, description: "Since when it has run: the earliest of the affected images." }
                         affected:
                           type: array
                           items:
@@ -698,6 +749,7 @@ paths:
                               image: { type: string }
                               package: { type: string, example: log4j-core 2.14.1 }
                               fix: { type: string, example: 2.15.0 }
+                              since: { type: string, format: date-time, description: "Since when the image has run in the environment." }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }

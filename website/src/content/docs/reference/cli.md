@@ -24,6 +24,10 @@ Usage:
   goliash drift                           open drifts
   goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
                                           every running container with image and digest (audits, SBOM)
+  goliash images SERVICE                  its running images: size against budget, base, signed, SBOM, provenance, last layer change
+  goliash licenses [-class attention|all|CLASS] [-environment E] [-os] [-fail-on CLASSES]
+                                          licenses of packages in running images, copyleft and unknown first;
+                                          -fail-on network-copyleft,source-available exits 1 when one runs
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]

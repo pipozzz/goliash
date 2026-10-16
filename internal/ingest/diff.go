@@ -78,7 +78,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			inst := store.Instance{
 				Scope: in.Target.Scope, TargetID: in.Target.ID, EnvironmentID: in.Target.EnvironmentID,
 				WorkloadID: w.ID, WorkloadKind: string(w.Kind), WorkloadName: w.Name,
-				ContainerName: c.Name, Image: c.Image, Tag: ref.Tag, Digest: digest, Running: c.Running,
+				ContainerName: c.Name, Image: c.Image, Tag: ref.Tag, Digest: digest, Running: c.Running, Desired: w.DesiredReplicas,
 				SuggestedService: d.Suggested, ServiceID: d.ServiceID,
 			}
 			if w.Namespace != nil {

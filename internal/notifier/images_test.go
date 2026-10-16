@@ -118,3 +118,61 @@ func TestImageGrowth(t *testing.T) {
 		}
 	}
 }
+
+// A deploy whose image brings an AGPL package the image before did not have is announced once.
+func TestLicenseAlert(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "legal", map[string]any{"url": slack.srv.URL}), "instant", []string{EventLicense}, Filter{})
+	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	e.clock = now
+	run := func(digest, tag string, at time.Time, remove []string) string {
+		in := store.Instance{
+			TargetID: tgt.ID, EnvironmentID: e.prod.ID, ServiceID: e.svc.ID, WorkloadID: "w", WorkloadName: "api",
+			ContainerName: "api", Image: "ghcr.io/acme/api:" + tag, Tag: tag, Digest: digest, Running: 1, IsMain: true,
+		}
+		if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: store.NewID(), TargetID: tgt.ID, At: at, Upsert: []store.Instance{in}, Remove: remove}); err != nil {
+			t.Fatal(err)
+		}
+		active, _ := e.st.ListActiveInstances(ctx, e.sc)
+		for _, a := range active {
+			if a.Digest == digest {
+				return a.ID
+			}
+		}
+		return ""
+	}
+	lodash, pdfOld, pdf, gpl := "pkg:npm/lodash@4.17.21", "pkg:maven/com.itextpdf/itextpdf@5.5.12", "pkg:maven/com.itextpdf/itextpdf@5.5.13.3", "pkg:deb/debian/bash@5.2"
+	sbom := func(digest string, purls ...string) {
+		_ = e.st.SetImageSBOM(ctx, e.sc, store.ImageSBOM{
+			Repo: "ghcr.io/acme/api", Digest: digest, Purls: purls,
+			Licenses: map[string]string{lodash: "MIT", pdfOld: "AGPL-3.0-only", pdf: "AGPL-3.0-only", gpl: "GPL-3.0-or-later"},
+		})
+	}
+	v1 := run("sha256:01", "1.0.0", now.AddDate(0, 0, -20), nil)
+	sbom("sha256:01", lodash)
+	v2 := run("sha256:02", "1.1.0", now.AddDate(0, 0, -2), []string{v1})
+	sbom("sha256:02", lodash, pdf, gpl) // brings iText; bash is an OS package
+	for range 2 {
+		if err := e.n.CheckImages(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	if slack.count() != 1 || !strings.Contains(slack.last(), "1.1.0 brings com.itextpdf/itextpdf 5.5.13.3 (AGPL-3.0-only)") || strings.Contains(slack.last(), "bash") {
+		t.Fatalf("alerts %d: %s", slack.count(), strings.Join(slack.all(), "\n"))
+	}
+	// An upgrade of iText is not news: the image before had it already.
+	run("sha256:03", "1.2.0", now.Add(-time.Hour), []string{v2})
+	sbom("sha256:03", lodash, pdfOld)
+	_ = e.n.CheckImages(ctx)
+	_ = e.n.DeliverDue(ctx)
+	if slack.count() != 1 {
+		t.Errorf("announced again: %s", slack.last())
+	}
+}
