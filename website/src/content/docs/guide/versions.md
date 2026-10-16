@@ -173,8 +173,10 @@ no script.
 ![The Delivery page: versions waiting for promotion with the releases they bring, and versions per environment with lead times over the last 30 days](../../../assets/delivery.png)
 
 The **Delivery** page lists every version that runs in one environment and waits for the next, longest waiting
-first, with the releases a promotion would bring and their release notes. It is the list to go through before a
-release to production; `goliash promotions` and `GET /api/v1/promotions` show the same.
+first, with the releases a promotion would bring and their release notes. When both versions' images have an SBOM,
+it also says what the promotion does to known vulnerabilities: *fixes 3 vulnerabilities (1 exploited) · brings 1
+new one*, with their IDs one click away. It is the list to go through before a release to production;
+`goliash promotions` and `GET /api/v1/promotions` (`vulnerabilities.fixed` and `.new`) show the same.
 
 ```sh
 goliash promotions
@@ -193,9 +195,9 @@ and a notification rule with the `rollout` event announces stuck rollouts and se
 restarting is not news).
 
 ```text
-SERVICE        PROMOTE           FROM → TO        WAITING   RELEASES
-payments-api   1.5.0 → 1.6.0     staging → prod   3d        1.6.0, 1.5.1
-postgres       15.6 → 15.7       staging → prod   26h       15.7
+SERVICE        PROMOTE           FROM → TO        WAITING   VULNERABILITIES   RELEASES
+payments-api   1.5.0 → 1.6.0     staging → prod   3d        2 fixed, 0 new    1.6.0, 1.5.1
+postgres       15.6 → 15.7       staging → prod   26h       1 fixed, 0 new    15.7
 ```
 
 Below it, the page shows how versions moved over the last 30 days, read from what ran when rather than from CI:

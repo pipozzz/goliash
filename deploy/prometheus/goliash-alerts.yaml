@@ -64,13 +64,13 @@ groups:
         annotations:
           summary: "{{ $value }} services in {{ $labels.environment }} have run behind an available release for 90+ days"
           description: Security in Goliash lists them with the version that fixes each; Explain asks Goli what it would take.
-      - alert: GoliashRolloutStuck
-        expr: goliash_rollout_problem{kind=~"down|stuck"} == 1
-        for: 10m
-        labels: { severity: critical }
+      - alert: GoliashVulnerabilityPastDue
+        expr: goliash_vulnerabilities_past_due > 0
+        for: 1h
+        labels: { severity: warning }
         annotations:
-          summary: "{{ $labels.service }} in {{ $labels.environment }} on {{ $labels.target }}: {{ $labels.kind }} ({{ $labels.running }} of {{ $labels.desired }} replicas)"
-          description: The workload runs none of the replicas it asks for, or two versions side by side for more than 30 minutes. Delivery in Goliash shows which versions run where; check the new version's logs and events.
+          summary: "{{ $value }} exploited vulnerabilities run in {{ $labels.environment }} past CISA's due date"
+          description: CISA lists them as exploited in the wild and set a date for fixing them (BOD 22-01), which has passed. Security → Vulnerabilities in Goliash lists them with the version that fixes each.
       - alert: GoliashImageGrew
         expr: |
           goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)

@@ -210,7 +210,12 @@ templ SecurityPage(v SecurityView) {
 						{ itoa(v.Vulns.Fixable) } with a fixed version out.
 					</p>
 					if v.Vulns.Exploited > 0 {
-						<p class="notice error"><a href="/security/vulns?kev=1"><strong>{ plural(v.Vulns.Exploited, "vulnerability is", "vulnerabilities are") } exploited in the wild</strong></a> (CISA KEV): patch these first.</p>
+						<p class="notice error">
+							<a href="/security/vulns?kev=1"><strong>{ plural(v.Vulns.Exploited, "vulnerability is", "vulnerabilities are") } exploited in the wild</strong></a> (CISA KEV): patch these first.
+							if v.Vulns.PastDue > 0 {
+								{ " " + plural(v.Vulns.PastDue, "of them runs past the date CISA set for fixing it.", "of them run past the dates CISA set for fixing them.") }
+							}
+						</p>
 					}
 				}
 			</div>

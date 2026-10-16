@@ -182,7 +182,7 @@
     {
       "i": "71e49115-bc4e-5757-a942-126a86cc8e2e",
       "x": 0,
-      "y": 43,
+      "y": 36,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -194,7 +194,7 @@
     {
       "i": "w12",
       "x": 0,
-      "y": 44,
+      "y": 37,
       "w": 3,
       "h": 6,
       "moved": false,
@@ -203,7 +203,7 @@
     {
       "i": "w24",
       "x": 3,
-      "y": 44,
+      "y": 37,
       "w": 4,
       "h": 6,
       "moved": false,
@@ -212,7 +212,7 @@
     {
       "i": "w15",
       "x": 7,
-      "y": 44,
+      "y": 37,
       "w": 5,
       "h": 6,
       "moved": false,
@@ -221,7 +221,7 @@
     {
       "i": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "x": 0,
-      "y": 87,
+      "y": 91,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -233,7 +233,7 @@
     {
       "i": "w16",
       "x": 0,
-      "y": 88,
+      "y": 92,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -242,7 +242,7 @@
     {
       "i": "w25",
       "x": 2,
-      "y": 88,
+      "y": 92,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -251,7 +251,7 @@
     {
       "i": "w17",
       "x": 4,
-      "y": 88,
+      "y": 92,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -260,7 +260,7 @@
     {
       "i": "w18",
       "x": 6,
-      "y": 88,
+      "y": 92,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -269,7 +269,7 @@
     {
       "i": "w19",
       "x": 8,
-      "y": 88,
+      "y": 92,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -278,7 +278,7 @@
     {
       "i": "w20",
       "x": 10,
-      "y": 88,
+      "y": 92,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -287,7 +287,7 @@
     {
       "i": "6d3a9c2a-12d6-54a5-a6af-630f15d128ea",
       "x": 0,
-      "y": 68,
+      "y": 61,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -299,7 +299,7 @@
     {
       "i": "w26",
       "x": 0,
-      "y": 69,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -308,7 +308,7 @@
     {
       "i": "w27",
       "x": 2,
-      "y": 69,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -317,7 +317,7 @@
     {
       "i": "w28",
       "x": 4,
-      "y": 69,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -326,7 +326,7 @@
     {
       "i": "w29",
       "x": 6,
-      "y": 69,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -335,7 +335,7 @@
     {
       "i": "w30",
       "x": 8,
-      "y": 69,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -344,7 +344,7 @@
     {
       "i": "w31",
       "x": 10,
-      "y": 69,
+      "y": 62,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -353,7 +353,7 @@
     {
       "i": "w32",
       "x": 0,
-      "y": 72,
+      "y": 65,
       "w": 6,
       "h": 8,
       "moved": false,
@@ -362,7 +362,7 @@
     {
       "i": "w33",
       "x": 6,
-      "y": 72,
+      "y": 65,
       "w": 6,
       "h": 8,
       "moved": false,
@@ -371,7 +371,7 @@
     {
       "i": "f287c707-77d5-52c1-bb00-dde8d04cd803",
       "x": 0,
-      "y": 50,
+      "y": 43,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -383,7 +383,7 @@
     {
       "i": "w34",
       "x": 0,
-      "y": 51,
+      "y": 44,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -392,7 +392,7 @@
     {
       "i": "w35",
       "x": 3,
-      "y": 51,
+      "y": 44,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -401,7 +401,7 @@
     {
       "i": "w36",
       "x": 6,
-      "y": 51,
+      "y": 44,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -410,7 +410,7 @@
     {
       "i": "w37",
       "x": 9,
-      "y": 51,
+      "y": 44,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -419,7 +419,7 @@
     {
       "i": "w-image-size",
       "x": 0,
-      "y": 54,
+      "y": 47,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -428,7 +428,7 @@
     {
       "i": "w38",
       "x": 6,
-      "y": 54,
+      "y": 47,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -437,7 +437,7 @@
     {
       "i": "w39",
       "x": 0,
-      "y": 61,
+      "y": 54,
       "w": 4,
       "h": 7,
       "moved": false,
@@ -446,7 +446,7 @@
     {
       "i": "w40",
       "x": 4,
-      "y": 61,
+      "y": 54,
       "w": 4,
       "h": 7,
       "moved": false,
@@ -455,7 +455,7 @@
     {
       "i": "w41",
       "x": 8,
-      "y": 61,
+      "y": 54,
       "w": 4,
       "h": 7,
       "moved": false,
@@ -473,7 +473,7 @@
     {
       "i": "w44",
       "x": 0,
-      "y": 80,
+      "y": 73,
       "w": 4,
       "h": 7,
       "moved": false,
@@ -482,26 +482,65 @@
     {
       "i": "w43",
       "x": 4,
-      "y": 80,
+      "y": 73,
       "w": 8,
       "h": 7,
       "moved": false,
       "static": false
     },
     {
-      "i": "w50",
+      "i": "1386bfd1-d410-5d19-abd1-41a026ac6f93",
       "x": 0,
-      "y": 36,
-      "w": 3,
-      "h": 7,
+      "y": 80,
+      "w": 12,
+      "h": 1,
+      "minH": 1,
+      "maxH": 1,
+      "minW": 12,
       "moved": false,
       "static": false
     },
     {
-      "i": "w51",
+      "i": "w45",
+      "x": 0,
+      "y": 81,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w46",
       "x": 3,
-      "y": 36,
-      "w": 9,
+      "y": 81,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w47",
+      "x": 6,
+      "y": 81,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w48",
+      "x": 9,
+      "y": 81,
+      "w": 3,
+      "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w49",
+      "x": 0,
+      "y": 84,
+      "w": 12,
       "h": 7,
       "moved": false,
       "static": false
@@ -2584,286 +2623,6 @@
       "columnUnits": {
         "A": "s"
       }
-    },
-    {
-      "id": "w50",
-      "panelTypes": "value",
-      "title": "Rollouts stuck or down",
-      "description": "Workloads running none of the replicas they ask for, or two versions side by side for more than 30 minutes.",
-      "query": {
-        "queryType": "builder",
-        "id": "9e91098b-b76b-5c73-bf98-f04d777cd4ca",
-        "builder": {
-          "queryData": [
-            {
-              "dataSource": "metrics",
-              "disabled": false,
-              "expression": "A",
-              "queryName": "A",
-              "stepInterval": 60,
-              "aggregations": [
-                {
-                  "metricName": "goliash_rollout_issues",
-                  "temporality": "unspecified",
-                  "timeAggregation": "latest",
-                  "spaceAggregation": "sum",
-                  "reduceTo": "last"
-                }
-              ],
-              "filter": {
-                "expression": "kind IN ('down', 'stuck')"
-              },
-              "functions": [],
-              "having": {
-                "expression": ""
-              },
-              "limit": null,
-              "orderBy": [],
-              "selectColumns": [],
-              "groupBy": [],
-              "legend": "",
-              "reduceTo": "last"
-            }
-          ],
-          "queryFormulas": []
-        },
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ],
-        "promql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ]
-      },
-      "yAxisUnit": "none",
-      "timePreferance": "GLOBAL_TIME",
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "softMax": 0,
-      "thresholds": [
-        {
-          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
-          "keyIndex": 0,
-          "thresholdOperator": ">",
-          "thresholdValue": 0,
-          "thresholdUnit": "none",
-          "thresholdColor": "Orange",
-          "thresholdFormat": "Text",
-          "thresholdLabel": "",
-          "isEditEnabled": false,
-          "selectedGraph": "value"
-        }
-      ],
-      "fillSpans": false,
-      "isStacked": false,
-      "contextLinks": {
-        "linksData": []
-      },
-      "selectedLogFields": [
-        {
-          "fieldContext": "log",
-          "name": "timestamp",
-          "signal": "logs",
-          "type": "log"
-        },
-        {
-          "fieldContext": "log",
-          "name": "body",
-          "signal": "logs",
-          "type": "log"
-        }
-      ],
-      "selectedTracesFields": [
-        {
-          "fieldContext": "resource",
-          "fieldDataType": "string",
-          "name": "service.name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "fieldDataType": "string",
-          "name": "name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "name": "duration_nano",
-          "signal": "traces"
-        }
-      ]
-    },
-    {
-      "id": "w51",
-      "panelTypes": "table",
-      "title": "Rollouts that do not finish",
-      "description": "Each workload whose replicas are not where they should be.",
-      "query": {
-        "queryType": "builder",
-        "id": "35ae5293-e253-5b7f-bfcd-36645216608d",
-        "builder": {
-          "queryData": [
-            {
-              "dataSource": "metrics",
-              "disabled": false,
-              "expression": "A",
-              "queryName": "A",
-              "stepInterval": 60,
-              "aggregations": [
-                {
-                  "metricName": "goliash_rollout_problem",
-                  "temporality": "unspecified",
-                  "timeAggregation": "latest",
-                  "spaceAggregation": "max",
-                  "reduceTo": "last"
-                }
-              ],
-              "filter": {
-                "expression": "service IN $service AND environment IN $environment"
-              },
-              "functions": [],
-              "having": {
-                "expression": ""
-              },
-              "limit": null,
-              "orderBy": [],
-              "selectColumns": [],
-              "groupBy": [
-                {
-                  "key": "service",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "service--string--tag--false"
-                },
-                {
-                  "key": "environment",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "environment--string--tag--false"
-                },
-                {
-                  "key": "target",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "target--string--tag--false"
-                },
-                {
-                  "key": "workload",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "workload--string--tag--false"
-                },
-                {
-                  "key": "kind",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "kind--string--tag--false"
-                },
-                {
-                  "key": "running",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "running--string--tag--false"
-                },
-                {
-                  "key": "desired",
-                  "dataType": "string",
-                  "type": "tag",
-                  "isColumn": false,
-                  "isJSON": false,
-                  "id": "desired--string--tag--false"
-                }
-              ],
-              "legend": "Problem",
-              "reduceTo": "last"
-            }
-          ],
-          "queryFormulas": []
-        },
-        "clickhouse_sql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ],
-        "promql": [
-          {
-            "disabled": false,
-            "legend": "",
-            "name": "A",
-            "query": ""
-          }
-        ]
-      },
-      "yAxisUnit": "none",
-      "timePreferance": "GLOBAL_TIME",
-      "nullZeroValues": "zero",
-      "opacity": "1",
-      "softMin": 0,
-      "softMax": 0,
-      "thresholds": [],
-      "fillSpans": false,
-      "isStacked": false,
-      "contextLinks": {
-        "linksData": []
-      },
-      "selectedLogFields": [
-        {
-          "fieldContext": "log",
-          "name": "timestamp",
-          "signal": "logs",
-          "type": "log"
-        },
-        {
-          "fieldContext": "log",
-          "name": "body",
-          "signal": "logs",
-          "type": "log"
-        }
-      ],
-      "selectedTracesFields": [
-        {
-          "fieldContext": "resource",
-          "fieldDataType": "string",
-          "name": "service.name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "fieldDataType": "string",
-          "name": "name",
-          "signal": "traces"
-        },
-        {
-          "fieldContext": "span",
-          "name": "duration_nano",
-          "signal": "traces"
-        }
-      ]
     },
     {
       "id": "71e49115-bc4e-5757-a942-126a86cc8e2e",
@@ -5559,6 +5318,604 @@
       ]
     },
     {
+      "id": "1386bfd1-d410-5d19-abd1-41a026ac6f93",
+      "panelTypes": "row",
+      "title": "Vulnerabilities",
+      "description": ""
+    },
+    {
+      "id": "w45",
+      "panelTypes": "value",
+      "title": "Exploited in the wild",
+      "description": "Known vulnerabilities in running images that CISA lists as exploited (KEV).",
+      "query": {
+        "queryType": "builder",
+        "id": "fe97f8f2-7711-5c54-b00f-0892a99ba2e7",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_vulnerabilities",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "environment IN $environment AND exploited = 'true'"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w46",
+      "panelTypes": "value",
+      "title": "Past CISA due date",
+      "description": "Exploited vulnerabilities still running after the date CISA set for fixing them (BOD 22-01).",
+      "query": {
+        "queryType": "builder",
+        "id": "b9e8d1e8-bd5c-50db-8d46-db55e17f731f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_vulnerabilities_past_due",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w47",
+      "panelTypes": "value",
+      "title": "Oldest exploited",
+      "description": "How long the longest-running exploited vulnerability has run.",
+      "query": {
+        "queryType": "builder",
+        "id": "60a7991a-4c6f-56ae-8ea3-0c12e176f8cf",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_exploited_vulnerability_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "d",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w48",
+      "panelTypes": "value",
+      "title": "Critical",
+      "description": "Known critical vulnerabilities in running images.",
+      "query": {
+        "queryType": "builder",
+        "id": "111a4f23-26c7-5654-b449-82d3fdffce97",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_vulnerabilities",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "environment IN $environment AND severity = 'critical'"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w49",
+      "panelTypes": "graph",
+      "title": "Vulnerabilities by severity",
+      "description": "Known vulnerabilities in running images over time: a drop is a fix deployed.",
+      "query": {
+        "queryType": "builder",
+        "id": "3d6a12ae-a479-5ea3-ae53-d550375c99f7",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_vulnerabilities",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "severity",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "severity--string--tag--false"
+                }
+              ],
+              "legend": "{{severity}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
+      "legendPosition": "bottom"
+    },
+    {
       "id": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "panelTypes": "row",
       "title": "Goliash itself",
@@ -6429,24 +6786,6 @@
           "h": 3,
           "moved": false,
           "static": false
-        },
-        {
-          "i": "w50",
-          "x": 0,
-          "y": 36,
-          "w": 3,
-          "h": 7,
-          "moved": false,
-          "static": false
-        },
-        {
-          "i": "w51",
-          "x": 3,
-          "y": 36,
-          "w": 9,
-          "h": 7,
-          "moved": false,
-          "static": false
         }
       ]
     },
@@ -6456,7 +6795,7 @@
         {
           "i": "w12",
           "x": 0,
-          "y": 44,
+          "y": 37,
           "w": 3,
           "h": 6,
           "moved": false,
@@ -6465,7 +6804,7 @@
         {
           "i": "w24",
           "x": 3,
-          "y": 44,
+          "y": 37,
           "w": 4,
           "h": 6,
           "moved": false,
@@ -6474,7 +6813,7 @@
         {
           "i": "w15",
           "x": 7,
-          "y": 44,
+          "y": 37,
           "w": 5,
           "h": 6,
           "moved": false,
@@ -6488,7 +6827,7 @@
         {
           "i": "w16",
           "x": 0,
-          "y": 88,
+          "y": 92,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6497,7 +6836,7 @@
         {
           "i": "w25",
           "x": 2,
-          "y": 88,
+          "y": 92,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6506,7 +6845,7 @@
         {
           "i": "w17",
           "x": 4,
-          "y": 88,
+          "y": 92,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6515,7 +6854,7 @@
         {
           "i": "w18",
           "x": 6,
-          "y": 88,
+          "y": 92,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6524,7 +6863,7 @@
         {
           "i": "w19",
           "x": 8,
-          "y": 88,
+          "y": 92,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6533,7 +6872,7 @@
         {
           "i": "w20",
           "x": 10,
-          "y": 88,
+          "y": 92,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6547,7 +6886,7 @@
         {
           "i": "w26",
           "x": 0,
-          "y": 69,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6556,7 +6895,7 @@
         {
           "i": "w27",
           "x": 2,
-          "y": 69,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6565,7 +6904,7 @@
         {
           "i": "w28",
           "x": 4,
-          "y": 69,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6574,7 +6913,7 @@
         {
           "i": "w29",
           "x": 6,
-          "y": 69,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6583,7 +6922,7 @@
         {
           "i": "w30",
           "x": 8,
-          "y": 69,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6592,7 +6931,7 @@
         {
           "i": "w31",
           "x": 10,
-          "y": 69,
+          "y": 62,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6601,7 +6940,7 @@
         {
           "i": "w32",
           "x": 0,
-          "y": 72,
+          "y": 65,
           "w": 6,
           "h": 8,
           "moved": false,
@@ -6610,7 +6949,7 @@
         {
           "i": "w33",
           "x": 6,
-          "y": 72,
+          "y": 65,
           "w": 6,
           "h": 8,
           "moved": false,
@@ -6619,7 +6958,7 @@
         {
           "i": "w44",
           "x": 0,
-          "y": 80,
+          "y": 73,
           "w": 4,
           "h": 7,
           "moved": false,
@@ -6628,7 +6967,7 @@
         {
           "i": "w43",
           "x": 4,
-          "y": 80,
+          "y": 73,
           "w": 8,
           "h": 7,
           "moved": false,
@@ -6642,7 +6981,7 @@
         {
           "i": "w34",
           "x": 0,
-          "y": 51,
+          "y": 44,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -6651,7 +6990,7 @@
         {
           "i": "w35",
           "x": 3,
-          "y": 51,
+          "y": 44,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -6660,7 +6999,7 @@
         {
           "i": "w36",
           "x": 6,
-          "y": 51,
+          "y": 44,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -6669,7 +7008,7 @@
         {
           "i": "w37",
           "x": 9,
-          "y": 51,
+          "y": 44,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -6678,7 +7017,7 @@
         {
           "i": "w-image-size",
           "x": 0,
-          "y": 54,
+          "y": 47,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -6687,7 +7026,7 @@
         {
           "i": "w38",
           "x": 6,
-          "y": 54,
+          "y": 47,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -6696,7 +7035,7 @@
         {
           "i": "w39",
           "x": 0,
-          "y": 61,
+          "y": 54,
           "w": 4,
           "h": 7,
           "moved": false,
@@ -6705,7 +7044,7 @@
         {
           "i": "w40",
           "x": 4,
-          "y": 61,
+          "y": 54,
           "w": 4,
           "h": 7,
           "moved": false,
@@ -6714,8 +7053,58 @@
         {
           "i": "w41",
           "x": 8,
-          "y": 61,
+          "y": 54,
           "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        }
+      ]
+    },
+    "1386bfd1-d410-5d19-abd1-41a026ac6f93": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w45",
+          "x": 0,
+          "y": 81,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w46",
+          "x": 3,
+          "y": 81,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w47",
+          "x": 6,
+          "y": 81,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w48",
+          "x": 9,
+          "y": 81,
+          "w": 3,
+          "h": 3,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w49",
+          "x": 0,
+          "y": 84,
+          "w": 12,
           "h": 7,
           "moved": false,
           "static": false

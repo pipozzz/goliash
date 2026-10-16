@@ -431,6 +431,26 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		h.fail(w, r, err)
 		return
 	}
+	if err := versions.AddVulnDeltas(r.Context(), h.store, p.Scope, list); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiVuln struct {
+		ID        string `json:"id"`
+		Severity  string `json:"severity,omitempty"`
+		Exploited bool   `json:"exploited"`
+	}
+	type apiVulns struct {
+		Fixed []apiVuln `json:"fixed"`
+		New   []apiVuln `json:"new"`
+	}
+	refs := func(vs []versions.VulnRef) []apiVuln {
+		out := []apiVuln{}
+		for _, v := range vs {
+			out = append(out, apiVuln{v.ID, v.Severity, v.Exploited})
+		}
+		return out
+	}
 	type apiRelease struct {
 		Version      string     `json:"version"`
 		PublishedAt  *time.Time `json:"published_at,omitempty"`
@@ -445,6 +465,7 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		Running  string       `json:"running"`
 		Since    time.Time    `json:"since"`
 		Releases []apiRelease `json:"releases"`
+		Vulns    *apiVulns    `json:"vulnerabilities,omitempty"`
 	}
 	out := []apiPromotion{}
 	for _, pr := range list {
@@ -456,6 +477,9 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 				ar.PublishedAt = &t
 			}
 			ap.Releases = append(ap.Releases, ar)
+		}
+		if pr.Vulns.Known {
+			ap.Vulns = &apiVulns{Fixed: refs(pr.Vulns.Fixed), New: refs(pr.Vulns.New)}
 		}
 		out = append(out, ap)
 	}
@@ -1048,6 +1072,7 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 			fmt.Fprintf(&b, "goliash_license_packages{class=%q,kind=\"os\"} %d\n", c, lic.OSCounts[c])
 		}
 	}
+	h.vulnMetrics(r.Context(), &b, p.Scope, o)
 	if issues, err := versions.RolloutIssues(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
 		rolloutMetrics(&b, issues)
 	}
@@ -1272,13 +1297,15 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		DueDate    string `json:"due_date,omitempty"`
 		DateAdded  string `json:"date_added,omitempty"`
 		Ransomware bool   `json:"ransomware"`
+		PastDue    bool   `json:"past_due"`
 	}
 	type apiAffected struct {
-		Service     string `json:"service"`
-		Environment string `json:"environment"`
-		Image       string `json:"image"`
-		Package     string `json:"package"`
-		Fix         string `json:"fix,omitempty"`
+		Service     string     `json:"service"`
+		Environment string     `json:"environment"`
+		Image       string     `json:"image"`
+		Package     string     `json:"package"`
+		Fix         string     `json:"fix,omitempty"`
+		Since       *time.Time `json:"since,omitempty"`
 	}
 	type apiFinding struct {
 		ID         string        `json:"id"`
@@ -1288,6 +1315,7 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		Severity   string        `json:"severity,omitempty"`
 		Exploited  *apiExploited `json:"exploited,omitempty"`
 		Fixable    bool          `json:"fixable"`
+		Since      *time.Time    `json:"running_since,omitempty"`
 		Affected   []apiAffected `json:"affected"`
 	}
 	query := strings.ToUpper(strings.TrimSpace(q.Get("q")))
@@ -1314,10 +1342,19 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 			af.Aliases = []string{}
 		}
 		if f.Exploited != nil {
-			af.Exploited = &apiExploited{DueDate: f.Exploited.DueDate, DateAdded: f.Exploited.DateAdded, Ransomware: f.Exploited.Ransomware}
+			af.Exploited = &apiExploited{DueDate: f.Exploited.DueDate, DateAdded: f.Exploited.DateAdded, Ransomware: f.Exploited.Ransomware, PastDue: f.PastDue(time.Now())}
+		}
+		if !f.Since.IsZero() {
+			t := f.Since
+			af.Since = &t
 		}
 		for _, a := range f.Affected {
-			af.Affected = append(af.Affected, apiAffected{Service: a.Service, Environment: a.Env, Image: a.Image, Package: a.Package, Fix: a.Fix})
+			aa := apiAffected{Service: a.Service, Environment: a.Env, Image: a.Image, Package: a.Package, Fix: a.Fix}
+			if !a.Since.IsZero() {
+				t := a.Since
+				aa.Since = &t
+			}
+			af.Affected = append(af.Affected, aa)
 		}
 		out.Findings = append(out.Findings, af)
 	}
@@ -1333,6 +1370,61 @@ func (h *PublicHandler) status(w http.ResponseWriter, r *http.Request, p auth.Pr
 		return
 	}
 	writeJSON(w, http.StatusOK, hl)
+}
+
+// vulnMetrics are the known vulnerabilities of running images per environment: how many per severity and
+// whether exploited, those past CISA's due date, and how long the oldest exploited one has run.
+func (h *PublicHandler) vulnMetrics(ctx context.Context, b *strings.Builder, sc store.Scope, o versions.Overview) {
+	type count struct {
+		env, severity string
+		exploited     bool
+	}
+	counts := map[count]int{}
+	pastDue, oldest := map[string]int{}, map[string]float64{}
+	now := time.Now()
+	var envs []string
+	for _, e := range o.Matrix.Environments {
+		rep, err := versions.LoadVulnReport(ctx, h.store, sc, e.ID)
+		if err != nil {
+			return
+		}
+		if rep.WithSBOM == 0 {
+			continue
+		}
+		envs = append(envs, e.Name)
+		for _, f := range rep.Findings {
+			sev := strings.ToLower(f.Severity)
+			if sev == "" {
+				sev = "unknown"
+			}
+			counts[count{e.Name, sev, f.Exploited != nil}]++
+			if f.PastDue(now) {
+				pastDue[e.Name]++
+			}
+			if f.Exploited != nil && !f.Since.IsZero() {
+				oldest[e.Name] = max(oldest[e.Name], now.Sub(f.Since).Hours()/24)
+			}
+		}
+	}
+	b.WriteString("# HELP goliash_vulnerabilities Known vulnerabilities in running images per environment, severity and whether CISA lists them as exploited.\n")
+	b.WriteString("# TYPE goliash_vulnerabilities gauge\n")
+	for _, env := range envs {
+		for _, sev := range []string{"critical", "high", "medium", "low", "unknown"} {
+			for _, x := range []bool{true, false} {
+				fmt.Fprintf(b, "goliash_vulnerabilities{environment=%q,severity=%q,exploited=\"%t\"} %d\n", env, sev, x, counts[count{env, sev, x}])
+			}
+		}
+	}
+	b.WriteString("# HELP goliash_vulnerabilities_past_due Exploited vulnerabilities still running after the due date CISA set for fixing them (BOD 22-01).\n")
+	b.WriteString("# TYPE goliash_vulnerabilities_past_due gauge\n")
+	for _, env := range envs {
+		fmt.Fprintf(b, "goliash_vulnerabilities_past_due{environment=%q} %d\n", env, pastDue[env])
+	}
+	b.WriteString("# HELP goliash_exploited_vulnerability_days How long the longest-running exploited vulnerability has run in the environment, in days.\n")
+	b.WriteString("# TYPE goliash_exploited_vulnerability_days gauge\n")
+	for _, env := range envs {
+		fmt.Fprintf(b, "goliash_exploited_vulnerability_days{environment=%q} %.2f\n", env, oldest[env])
+	}
 }
 
 // rolloutMetrics are the workloads whose replicas are not where they should be: a count per kind, and one series

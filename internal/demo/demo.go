@@ -431,7 +431,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			return err
 		}
 		// A short SBOM: real package versions, so the live lookup on OSV answers with their real vulnerabilities.
-		if purls := demoSBOM(ev.Repo); len(purls) > 0 && ev.SBOM {
+		if purls := demoSBOM(ev.Repo, in.Tag); len(purls) > 0 && ev.SBOM {
 			if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: ev.Repo, Digest: ev.Digest, Purls: purls, Licenses: demoLicenses(purls)}); err != nil {
 				return err
 			}
@@ -442,7 +442,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 
 // demoSBOM lists some packages of an example image, as its SBOM would: Debian 12 packages of the official
 // images, npm packages of the shop's Node application.
-func demoSBOM(repo string) []string {
+func demoSBOM(repo, tag string) []string {
 	deb := func(pkgs ...string) []string {
 		var out []string
 		for _, p := range pkgs {
@@ -457,6 +457,12 @@ func demoSBOM(repo string) []string {
 	case "docker.io/library/nginx":
 		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
 	case "ghcr.io/acme/payments-api":
+		if tag == "1.6.0" { // the release that upgraded log4j: promoting it fixes Log4Shell
+			return []string{
+				"pkg:maven/org.apache.logging.log4j/log4j-core@2.17.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2",
+				"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",
+			}
+		}
 		return []string{
 			"pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.13.2",
 			"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",

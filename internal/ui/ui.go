@@ -1146,6 +1146,9 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return err
 	}
+	if err := versions.AddVulnDeltas(ctx, s.store, p.Scope, list); err != nil {
+		return err
+	}
 	v := PromotionsView{Base: s.base(ctx, p, "promotions", "Delivery")}
 	if v.Rollouts, err = versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err != nil {
 		return err
@@ -1175,7 +1178,7 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 		v.Delivery = append(v.Delivery, row)
 	}
 	for _, pr := range list {
-		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since}
+		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}
 		for _, rel := range pr.Releases {
 			pv.Releases = append(pv.Releases, ReleaseView{Version: rel.Version, Published: rel.PublishedAt, URL: rel.ChangelogURL})
 		}

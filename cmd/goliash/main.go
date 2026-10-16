@@ -2242,19 +2242,26 @@ func promotionsCmd(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := versions.AddVulnDeltas(ctx, db, ws.Scope(), list); err != nil {
+		return err
+	}
 	if len(list) == 0 {
 		_, _ = fmt.Fprintln(out, "Nothing waits: every environment runs what the one before it runs.")
 		return nil
 	}
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "SERVICE\tPROMOTE\tFROM → TO\tWAITING\tRELEASES")
+	_, _ = fmt.Fprintln(tw, "SERVICE\tPROMOTE\tFROM → TO\tWAITING\tVULNERABILITIES\tRELEASES")
 	for _, p := range list {
 		var rel []string
 		for _, r := range p.Releases {
 			rel = append(rel, r.Version)
 		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s → %s\t%s → %s\t%s\t%s\n", p.Service.Name, p.Running, p.Version, p.From.Name, p.To.Name,
-			time.Since(p.Since).Round(time.Hour), strings.Join(rel, ", "))
+		vulns := "-"
+		if p.Vulns.Known {
+			vulns = fmt.Sprintf("%d fixed, %d new", len(p.Vulns.Fixed), len(p.Vulns.New))
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s → %s\t%s → %s\t%s\t%s\t%s\n", p.Service.Name, p.Running, p.Version, p.From.Name, p.To.Name,
+			time.Since(p.Since).Round(time.Hour), vulns, strings.Join(rel, ", "))
 	}
 	return tw.Flush()
 }
