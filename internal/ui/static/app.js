@@ -576,7 +576,8 @@
   const goliTools = {
     matrix: "the matrix", service: "a service", drifts: "drift", updates: "updates", changes: "history",
     vulnerabilities: "vulnerabilities", status: "data freshness", inventory: "the inventory", hygiene: "hygiene",
-    delivery: "delivery", promotions: "promotions", release_notes: "release notes", posture: "the security posture"
+    delivery: "delivery", promotions: "promotions", release_notes: "release notes", posture: "the security posture",
+    images: "images", notifications: "notifications"
   };
   const goliIdeas = [
     "What should we upgrade first, and why?",
@@ -594,7 +595,8 @@
         "What runs where for " + name + ", and is anything behind?",
         "What changed in " + name + " this week?",
         "Brief me on upgrading " + name + " to its newest release.",
-        "Does " + name + " have known vulnerabilities in production?"
+        "Does " + name + " have known vulnerabilities in production?",
+        "Why did the " + name + " image grow, and is its base current?"
       ];
     }
     if (params.get("at")) {
