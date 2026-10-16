@@ -162,7 +162,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .kind.new_release { background: var(--info-soft); color: var(--info); border-color: transparent; }
 .kind.drift_detected { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .kind.drift_resolved { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
-.kind.removed { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.kind.removed, .kind.rollback { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 @media (max-width: 640px) { .timeline li { grid-template-columns: 1fr; gap: 2px; } }
 
 /* Forms */

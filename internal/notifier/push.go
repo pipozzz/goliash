@@ -103,7 +103,7 @@ func (p WebPush) Send(ctx context.Context, ch store.Channel, msg Message) error 
 	}
 	urgent := false
 	for _, it := range msg.Items {
-		if it.Type == "agent_stale" || it.Type == "vulnerability" || it.Note == "eol" {
+		if it.Type == "agent_stale" || it.Type == "vulnerability" || it.Note == "eol" || it.Note == "rollback" {
 			urgent = true
 		}
 	}

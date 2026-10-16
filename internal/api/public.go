@@ -392,7 +392,7 @@ func (h *PublicHandler) events(w http.ResponseWriter, r *http.Request, p auth.Pr
 	for _, e := range evs {
 		out = append(out, apiEvent{
 			ID: e.ID, Type: e.Type, Service: o.Services[e.ServiceID].Name, App: e.App, Environment: o.Envs[e.EnvironmentID].Name,
-			Target: targetName[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note, Source: e.Source, At: e.At,
+			Target: targetName[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: versions.EventNote(e), Source: e.Source, At: e.At,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -482,6 +482,7 @@ func (h *PublicHandler) delivery(w http.ResponseWriter, r *http.Request, p auth.
 	type apiEnv struct {
 		Environment string     `json:"environment"`
 		Deploys     int        `json:"deploys"`
+		Rollbacks   int        `json:"rollbacks"`
 		LastDeploy  *time.Time `json:"last_deploy,omitempty"`
 	}
 	type apiLead struct {
@@ -499,7 +500,7 @@ func (h *PublicHandler) delivery(w http.ResponseWriter, r *http.Request, p auth.
 	for _, d := range stats {
 		ad := apiDelivery{Service: d.Service.Name, Environments: []apiEnv{}, LeadTimes: []apiLead{}}
 		for _, e := range d.Envs {
-			ae := apiEnv{Environment: e.Env.Name, Deploys: e.Deploys}
+			ae := apiEnv{Environment: e.Env.Name, Deploys: e.Deploys, Rollbacks: e.Rollbacks}
 			if !e.LastDeploy.IsZero() {
 				t := e.LastDeploy
 				ae.LastDeploy = &t
@@ -1006,6 +1007,13 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		for _, d := range stats {
 			for _, e := range d.Envs {
 				fmt.Fprintf(&b, "goliash_deploys{service=%q,environment=%q} %d\n", d.Service.Name, e.Env.Name, e.Deploys)
+			}
+		}
+		b.WriteString("# HELP goliash_rollbacks Changes back to an older version in an environment in the last 30 days.\n")
+		b.WriteString("# TYPE goliash_rollbacks gauge\n")
+		for _, d := range stats {
+			for _, e := range d.Envs {
+				fmt.Fprintf(&b, "goliash_rollbacks{service=%q,environment=%q} %d\n", d.Service.Name, e.Env.Name, e.Rollbacks)
 			}
 		}
 		b.WriteString("# HELP goliash_lead_time_seconds Median time a version took from one environment to the next, last 30 days.\n")

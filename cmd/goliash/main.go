@@ -2290,7 +2290,11 @@ func deliveryCmd(ctx context.Context, args []string, out io.Writer) error {
 	for _, d := range stats {
 		cols := []string{d.Service.Name}
 		for _, e := range d.Envs {
-			cols = append(cols, strconv.Itoa(e.Deploys))
+			c := strconv.Itoa(e.Deploys)
+			if e.Rollbacks > 0 {
+				c += fmt.Sprintf(" (%d rolled back)", e.Rollbacks)
+			}
+			cols = append(cols, c)
 		}
 		for _, lt := range d.LeadTimes {
 			if lt.Samples == 0 {
