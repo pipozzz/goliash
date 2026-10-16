@@ -80,6 +80,7 @@ section show it in Grafana and SigNoz, next to each service's size budget, outda
 the image's layers: the new ones and the gone ones, biggest first, with the Dockerfile step that made each, read from
 the image config's history (`RUN apt-get install -y chromium`, +145 MB). Layers both versions share, the base and
 unchanged steps, are left out: what is listed is what grew. Agents read it for private images from agent 1.61.
+`goliash images SERVICE` shows the same in a terminal.
 
 ## Is it running?
 
@@ -140,6 +141,13 @@ The page opens on the packages that **need a look** (network copyleft, source-av
 each with the services and environments it runs in. An expression with OR counts as its least demanding choice
 (`MIT OR GPL-2.0` is permissive); one with AND as its most demanding part. Operating system packages (Debian,
 Alpine, RPM) are left out unless asked for: copyleft is the norm there (glibc, bash) and comes with the base image.
+
+In a terminal, `goliash licenses` lists the same, and `-fail-on network-copyleft,source-available` exits with 1 when
+such a package runs, for a check in cron or CI:
+
+```sh
+goliash licenses -environment prod -fail-on network-copyleft,source-available
+```
 
 The same is `GET /api/v1/licenses` (`?class=attention`, `?environment=prod`, `?os=false`, `?q=AGPL`), the
 `licenses` tool for AI assistants and Goli, the metric `goliash_license_packages{class,kind}`, and licenses per
