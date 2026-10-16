@@ -25,7 +25,8 @@ type Delivery struct {
 type EnvDelivery struct {
 	Env        store.Environment
 	Deploys    int       // versions that arrived within the window
-	LastDeploy time.Time // zero when none is known
+	Rollbacks  int       // changes back to an older version within the window
+	LastDeploy time.Time // the latest version change, rollbacks and redeploys included; zero when none is known
 }
 
 // LeadTime is how long versions took from one environment to the next (median).
@@ -33,6 +34,28 @@ type LeadTime struct {
 	From, To store.Environment
 	Median   time.Duration
 	Samples  int
+}
+
+// RollbackNote marks a version change to an older version.
+const RollbackNote = "rollback"
+
+// IsRollback tells whether a change from one version to another went back to an older version. Tags that are not
+// versions (latest, a commit SHA) have no order, so a change between them is never a rollback.
+func IsRollback(from, to string) bool {
+	f, ok := ParseVersion(from)
+	if !ok {
+		return false
+	}
+	t, ok := ParseVersion(to)
+	return ok && t.Compare(f) < 0
+}
+
+// EventNote is an event's note as people read it: a version change to an older version is a rollback.
+func EventNote(e store.Event) string {
+	if e.Type == "version_changed" && e.Note == "" && IsRollback(e.FromVersion, e.ToVersion) {
+		return RollbackNote
+	}
+	return e.Note
 }
 
 // maxDeliveryEvents bounds the history read for the statistics.
@@ -52,9 +75,21 @@ func DeliveryStats(ctx context.Context, st *store.Store, sc store.Scope, o Overv
 	}
 	type key struct{ service, env, version string }
 	arrival := map[key]time.Time{}
+	type envKey struct{ service, env string }
+	rollbacks, lastChange := map[envKey]int{}, map[envKey]time.Time{}
+	since := now.Add(-window)
 	for _, e := range evs {
+		if EventNote(e) == RollbackNote {
+			k := envKey{e.ServiceID, e.EnvironmentID}
+			if !e.At.Before(since) {
+				rollbacks[k]++
+			}
+		}
 		if e.ServiceID == "" || e.ToVersion == "" || e.FromVersion == e.ToVersion {
 			continue // unmapped, removed, or a retag of the same version
+		}
+		if ek := (envKey{e.ServiceID, e.EnvironmentID}); e.At.After(lastChange[ek]) {
+			lastChange[ek] = e.At
 		}
 		k := key{e.ServiceID, e.EnvironmentID, e.ToVersion}
 		if t, ok := arrival[k]; !ok || e.At.Before(t) {
@@ -69,21 +104,18 @@ func DeliveryStats(ctx context.Context, st *store.Store, sc store.Scope, o Overv
 	for k, t := range arrival {
 		byService[k.service] = append(byService[k.service], arr{k.env, k.version, t})
 	}
-	since := now.Add(-window)
 	var out []Delivery
 	for _, row := range o.Matrix.Rows {
 		d := Delivery{Service: row.Service}
 		for _, env := range o.Matrix.Environments {
-			ed := EnvDelivery{Env: env}
+			k := envKey{row.Service.ID, env.ID}
+			ed := EnvDelivery{Env: env, Rollbacks: rollbacks[k], LastDeploy: lastChange[k]} // rollbacks and redeploys too
 			for _, a := range byService[row.Service.ID] {
 				if a.env != env.ID {
 					continue
 				}
 				if !a.at.Before(since) {
 					ed.Deploys++
-				}
-				if a.at.After(ed.LastDeploy) {
-					ed.LastDeploy = a.at
 				}
 			}
 			d.Envs = append(d.Envs, ed)

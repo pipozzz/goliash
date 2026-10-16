@@ -97,6 +97,9 @@ templ PromotionsPage(v PromotionsView) {
 									for _, c := range d.Envs {
 										<td class="num">
 											{ itoa(c.Deploys) }
+											if c.Rollbacks > 0 {
+												<div class="targets error-text">{ plural(c.Rollbacks, "rollback", "rollbacks") }</div>
+											}
 											if !c.Last.IsZero() {
 												<div class="targets">
 													{ "last " }

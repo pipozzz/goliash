@@ -114,6 +114,8 @@ var targets = []demoTarget{
 	{name: "demo-prod-us", env: "prod", platform: "ecs", steps: []step{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.8.0", "notifications": "0.14.0", "rabbitmq": "3.12.14"}},
 		{9, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.9.0", "notifications": "0.14.0", "rabbitmq": "3.12.14"}},
+		// 3.10.0 went out and was rolled back two days later.
+		{11, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.10.0", "notifications": "0.14.0", "rabbitmq": "3.12.14"}},
 		{13, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "orders-api": "3.9.0", "notifications": "0.15.2", "rabbitmq": "3.12.14"}},
 	}},
 	// The commerce side in staging, a step ahead of production.
