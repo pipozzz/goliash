@@ -244,7 +244,7 @@ an installation does not hear about every vulnerability it runs on day one; the 
 
 ## Image alerts
 
-Five events watch the running images, each once per image and environment (rules for every event get them too,
+Six events watch the running images, each once per image and environment (rules for every event get them too,
 and Goli can explain each):
 
 | Event | When |
