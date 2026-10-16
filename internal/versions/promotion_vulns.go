@@ -25,6 +25,71 @@ type VulnDelta struct {
 	New   []VulnRef
 }
 
+// vulnSide is a service's main image of a version, in one environment or (env "") wherever it runs.
+type vulnSide struct{ service, env, version string }
+
+// vulnIndex knows, per service, environment and version, whether its main image has an SBOM Goliash read and
+// which known vulnerabilities are in it.
+type vulnIndex struct {
+	read  map[vulnSide]bool
+	vulns map[vulnSide]map[string]VulnRef
+}
+
+func loadVulnIndex(ctx context.Context, st *store.Store, sc store.Scope, rep VulnReport) (vulnIndex, error) {
+	idx := vulnIndex{read: map[vulnSide]bool{}, vulns: map[vulnSide]map[string]VulnRef{}}
+	active, err := st.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return idx, err
+	}
+	sboms, err := st.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return idx, err
+	}
+	for _, in := range active {
+		if !in.IsMain || in.Digest == "" {
+			continue
+		}
+		if len(sboms[ParseImage(in.Image).Repo()+"@"+in.Digest].Purls) > 0 {
+			idx.read[vulnSide{in.ServiceID, in.EnvironmentID, in.Tag}] = true
+			idx.read[vulnSide{in.ServiceID, "", in.Tag}] = true
+		}
+	}
+	for _, f := range rep.Findings {
+		ref := VulnRef{ID: f.Key, Severity: f.Severity, Exploited: f.Exploited != nil}
+		for _, a := range f.Affected {
+			tag := ParseImage(a.Image).Tag
+			for _, k := range []vulnSide{{a.ServiceID, a.EnvironmentID, tag}, {a.ServiceID, "", tag}} {
+				if idx.vulns[k] == nil {
+					idx.vulns[k] = map[string]VulnRef{}
+				}
+				idx.vulns[k][f.Key] = ref
+			}
+		}
+	}
+	return idx, nil
+}
+
+// delta is what moving from the running side to the new one does to known vulnerabilities.
+func (idx vulnIndex) delta(newer, running vulnSide) VulnDelta {
+	d := VulnDelta{Known: idx.read[newer] && idx.read[running]}
+	if !d.Known {
+		return d
+	}
+	for id, v := range idx.vulns[running] {
+		if _, still := idx.vulns[newer][id]; !still {
+			d.Fixed = append(d.Fixed, v)
+		}
+	}
+	for id, v := range idx.vulns[newer] {
+		if _, had := idx.vulns[running][id]; !had {
+			d.New = append(d.New, v)
+		}
+	}
+	sortVulnRefs(d.Fixed)
+	sortVulnRefs(d.New)
+	return d
+}
+
 // AddVulnDeltas fills in each promotion's vulnerability delta, comparing the main images of the version waiting
 // and the version running, as their SBOMs and OSV tell.
 func AddVulnDeltas(ctx context.Context, st *store.Store, sc store.Scope, list []Promotion) error {
@@ -35,57 +100,13 @@ func AddVulnDeltas(ctx context.Context, st *store.Store, sc store.Scope, list []
 	if err != nil {
 		return err
 	}
-	active, err := st.ListActiveInstances(ctx, sc)
+	idx, err := loadVulnIndex(ctx, st, sc, rep)
 	if err != nil {
 		return err
-	}
-	sboms, err := st.ListImageSBOMs(ctx, sc)
-	if err != nil {
-		return err
-	}
-	// Whether a service's main image of a version in an environment has a readable SBOM.
-	type side struct{ service, env, version string }
-	read := map[side]bool{}
-	for _, in := range active {
-		if !in.IsMain || in.Digest == "" {
-			continue
-		}
-		if len(sboms[ParseImage(in.Image).Repo()+"@"+in.Digest].Purls) > 0 {
-			read[side{in.ServiceID, in.EnvironmentID, in.Tag}] = true
-		}
-	}
-	// The vulnerabilities of each side.
-	vulns := map[side]map[string]VulnRef{}
-	for _, f := range rep.Findings {
-		ref := VulnRef{ID: f.Key, Severity: f.Severity, Exploited: f.Exploited != nil}
-		for _, a := range f.Affected {
-			k := side{a.ServiceID, a.EnvironmentID, ParseImage(a.Image).Tag}
-			if vulns[k] == nil {
-				vulns[k] = map[string]VulnRef{}
-			}
-			vulns[k][f.Key] = ref
-		}
 	}
 	for i := range list {
 		p := &list[i]
-		from := side{p.Service.ID, p.From.ID, p.Version}
-		to := side{p.Service.ID, p.To.ID, p.Running}
-		d := VulnDelta{Known: read[from] && read[to]}
-		if d.Known {
-			for id, v := range vulns[to] {
-				if _, still := vulns[from][id]; !still {
-					d.Fixed = append(d.Fixed, v)
-				}
-			}
-			for id, v := range vulns[from] {
-				if _, had := vulns[to][id]; !had {
-					d.New = append(d.New, v)
-				}
-			}
-			sortVulnRefs(d.Fixed)
-			sortVulnRefs(d.New)
-		}
-		p.Vulns = d
+		p.Vulns = idx.delta(vulnSide{p.Service.ID, p.From.ID, p.Version}, vulnSide{p.Service.ID, p.To.ID, p.Running})
 	}
 	return nil
 }

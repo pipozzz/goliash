@@ -151,7 +151,10 @@ life, upstream or environment drift. Each line shows what runs, the version to m
 why. They are ordered by urgency (an exploited vulnerability in the running image, end of life passed, end of life
 soon, major, minor, behind the previous environment, patch), production first, then by how long they have been open.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the
-wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running). The tiles filter by urgency, and the
+wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running).
+When the version to move to already runs somewhere (staging, another cluster) and both images have an SBOM, the line
+also says what the upgrade does to known vulnerabilities: *fixes 8 vulnerabilities (1 exploited) · brings 2 new ones*,
+and the weekly upgrade plan says what each upgrade fixes. The tiles filter by urgency, and the
 selects by team and environment. **Copy as checklist** copies the list as markdown checkboxes for a ticket or a
 planning board. **Put off** on a line skips that version (until a newer release is out) or puts it off for a week or
 30 days; it is an [acknowledgement](#acknowledging) for that service and environment, so its notifications go quiet

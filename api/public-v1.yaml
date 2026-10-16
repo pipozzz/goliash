@@ -609,6 +609,11 @@ paths:
                       items: { type: string }
                       description: Vulnerabilities in the running image that CISA lists as exploited in the wild, from its SBOM.
                     critical_vulnerabilities: { type: integer, description: "Other critical vulnerabilities in the running image." }
+                    vulnerabilities:
+                      allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
+                      description: >-
+                        What the upgrade does to known vulnerabilities, when the target version already runs somewhere:
+                        comparing the SBOMs of its image and the running one. Absent unless both have an SBOM.
                     since: { type: string, format: date-time }
                     acknowledged: { type: boolean }
         "401": { $ref: '#/components/responses/Unauthorized' }
@@ -991,14 +996,17 @@ components:
               published_at: { type: string, format: date-time }
               release_notes: { type: string }
         vulnerabilities:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
           description: >-
             What promoting does to the known vulnerabilities of `to`, comparing the SBOMs of the two versions' images on
             OSV: those it fixes and those it brings, exploited ones first. Absent unless both images have an SBOM.
-          required: [fixed, new]
-          properties:
-            fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
-            new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+
+    VulnDelta:
+      type: object
+      required: [fixed, new]
+      properties:
+        fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+        new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
 
     VulnRef:
       type: object

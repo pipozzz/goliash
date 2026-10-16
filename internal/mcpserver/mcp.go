@@ -229,7 +229,8 @@ func NewServer(c *Client) *mcp.Server {
 		Name: "updates", Annotations: readOnly,
 		Description: "What to upgrade, most urgent first: per service (and application) and environment, the running " +
 			"version, the version to move to with its release notes, and why (end of life, a major or minor jump, behind " +
-			"the previous environment). Acknowledged items are marked. Use it to plan upgrades.",
+			"the previous environment), and, when the target already runs somewhere, the known vulnerabilities the upgrade " +
+			"fixes and brings. Acknowledged items are marked. Use it to plan upgrades.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updatesIn) (*mcp.CallToolResult, Result, error) {
 			data, err := c.do(ctx, http.MethodGet, "/api/v1/updates", nil, nil)
