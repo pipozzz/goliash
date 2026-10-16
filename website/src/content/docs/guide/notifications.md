@@ -317,5 +317,5 @@ scrape_configs:
     static_configs: [{ targets: ["goliash.example.com"] }]
 ```
 
-Ready-made Grafana and SigNoz dashboards, scrape settings for the OpenTelemetry Collector, deploy markers on
-your graphs and more alerts are on [Grafana and SigNoz](../observability/).
+Ready-made dashboards and deploy markers on your graphs are on [Grafana dashboard](../grafana/) and
+[SigNoz dashboard](../signoz/); more alerts are in [Metrics and alerts](../observability/#alerts).

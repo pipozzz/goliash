@@ -47,7 +47,7 @@ which gives the server a read-only ClusterRole, and create a `kubernetes` target
 
 `metrics.serviceMonitor.enabled`, `metrics.prometheusRule.enabled` and `metrics.grafanaDashboard.enabled` create a
 ServiceMonitor, the alert rules and the Grafana dashboard for the Prometheus Operator; see
-[Grafana and SigNoz](../../guide/observability/#kubernetes).
+[Grafana dashboard](../../guide/grafana/#kubernetes).
 
 ## Agent
 

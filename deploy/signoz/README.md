@@ -3,6 +3,9 @@
 `goliash-dashboard.json` shows what runs where, open drift, services behind upstream per environment and the longest
 drift per service, filterable by environment and service. It reads the metrics Goliash serves at `/metrics`.
 
+The full guide, with screenshots and the Docker (Foundry), Helm and SigNoz Cloud setups, is on
+[goliash.dev/guide/signoz](https://goliash.dev/guide/signoz/).
+
 ## 1. Scrape Goliash with the OpenTelemetry Collector
 
 Create an API token in Goliash (**Users → API tokens**, or `goliash token create -name signoz`) and add a Prometheus

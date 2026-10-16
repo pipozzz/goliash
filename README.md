@@ -224,7 +224,8 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
   (`goliash_outdated`, `goliash_drift_days`), delivery (`goliash_deploys`, `goliash_lead_time_seconds`), image
   hygiene and the server's own health. Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and
   [SigNoz](deploy/signoz), [alert rules](deploy/prometheus/goliash-alerts.yaml), and the Helm chart's `metrics.*`
-  options are described in [Grafana and SigNoz](https://goliash.dev/guide/observability/).
+  options are described in [Grafana dashboard](https://goliash.dev/guide/grafana/),
+  [SigNoz dashboard](https://goliash.dev/guide/signoz/) and [Metrics and alerts](https://goliash.dev/guide/observability/).
 
 ### Versions, upstream and drift
 

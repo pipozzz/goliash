@@ -1,6 +1,6 @@
 ---
-title: Grafana and SigNoz
-description: 'Scrape Goliash /metrics with Prometheus or the OpenTelemetry Collector, import the ready-made Grafana and SigNoz dashboards, put deploys on your graphs and alert on drift.'
+title: Metrics and alerts
+description: 'Goliash /metrics for Prometheus and the OpenTelemetry Collector: what runs where, drift, delivery speed and security posture, ready-made Grafana and SigNoz dashboards, and alert rules.'
 ---
 
 For a quick look without any of that, **Settings → Status** (also the *Live* sign above the matrix) says whether
@@ -15,15 +15,18 @@ Goliash fits next to the observability stack you already have in three ways:
 1. **Metrics.** `/metrics` serves what runs where, drift, delivery speed, image hygiene and Goliash's own health in
    the Prometheus text format. Prometheus, Grafana Agent/Alloy, VictoriaMetrics and the OpenTelemetry Collector
    (for SigNoz, Grafana Cloud, Datadog…) all read it.
-2. **Dashboards.** Ready-made dashboards for Grafana and SigNoz read those metrics.
+2. **Dashboards.** Ready-made dashboards read those metrics:
+   - [Grafana dashboard](../grafana/): Prometheus scrape settings, the dashboard, deploy markers on your graphs and
+     the Helm chart's ServiceMonitor, PrometheusRule and dashboard ConfigMap.
+   - [SigNoz dashboard](../signoz/): the OpenTelemetry Collector receiver and the dashboard.
 3. **Deploys on your graphs.** A deploy shows up as a marker on the graphs of the services it may have changed, from
-   the metrics alone or from a Grafana notification channel.
+   the metrics alone or from a Grafana notification channel; see [Grafana dashboard](../grafana/#4-deploys-on-your-graphs).
 
 The quickest way is **Settings → Integrations** in Goliash: it creates a viewer token with one click and shows the
 scrape settings for Prometheus and the OpenTelemetry Collector, filled in for your server, next to download links
-for both dashboards. The steps below do the same by hand.
+for both dashboards.
 
-## 1. A token for the scraper
+## A token for the scraper
 
 `/metrics` needs an API token with the viewer role. Create one under **Users → API tokens**, or:
 
@@ -31,98 +34,11 @@ for both dashboards. The steps below do the same by hand.
 goliash token create -name metrics -role viewer
 ```
 
-Save the `glsh_api_…` value in a file the scraper can read, e.g. `/etc/prometheus/goliash-token`.
+Save the `glsh_api_…` value in a file the scraper can read, e.g. `/etc/prometheus/goliash-token`, and send it as a
+bearer token; the [Grafana](../grafana/#2-scrape-goliash) and [SigNoz](../signoz/#2-scrape-goliash-with-the-opentelemetry-collector)
+pages show the scrape settings.
 
-## 2. Scrape
-
-### Prometheus (and Grafana)
-
-```yaml
-scrape_configs:
-  - job_name: goliash
-    scrape_interval: 60s
-    scheme: https
-    authorization:
-      credentials_file: /etc/prometheus/goliash-token
-    static_configs:
-      - targets: [goliash.example.com]
-```
-
-Grafana Alloy and Grafana Cloud take the same settings in a `prometheus.scrape` block.
-
-### OpenTelemetry Collector (SigNoz)
-
-Add a Prometheus receiver to the collector that sends to SigNoz, in its own pipeline:
-
-```yaml
-receivers:
-  prometheus/goliash:
-    config:
-      scrape_configs:
-        - job_name: goliash
-          scrape_interval: 60s
-          scheme: https
-          authorization:
-            credentials_file: /etc/otelcol/goliash-token
-          static_configs:
-            - targets: [goliash.example.com]
-
-service:
-  pipelines:
-    metrics/goliash:
-      receivers: [prometheus/goliash]
-      processors: [batch]
-      exporters: [otlp]   # the exporter your SigNoz collector already uses
-```
-
-In the SigNoz Docker or Helm install, this goes into the `signoz-otel-collector` configuration
-(`otel-collector-config.yaml`, or `otelCollector.config` in the Helm values). Mount the token file into the collector
-container. On SigNoz Cloud, run a collector of your own with the ingestion key, or add the receiver to the one you
-already run. The metrics keep their Prometheus names and labels.
-
-## 3. Import the dashboard
-
-| | File | How |
-|---|---|---|
-| Grafana | [`deploy/grafana/goliash-dashboard.json`](https://github.com/pipozzz/goliash/blob/main/deploy/grafana/goliash-dashboard.json) | **Dashboards → New → Import**, upload the file, pick the Prometheus data source |
-| SigNoz | [`deploy/signoz/goliash-dashboard.json`](https://github.com/pipozzz/goliash/blob/main/deploy/signoz/goliash-dashboard.json) | **Dashboards → New dashboard → Import JSON** |
-
-Both have the same parts, filterable by environment and service:
-
-- **Versions and drift:** services behind upstream, open drifts and the oldest, what runs where, services running
-  more than one version.
-- **Delivery (last 30 days):** deploys, the median and slowest lead time from one environment to the next, deploys
-  per service and the lead time table. Lead time needs at least two environments; with only one, its panels stay
-  empty (SigNoz says it cannot find `goliash_lead_time_seconds`).
-- **Security posture:** how long production has run behind available releases (median and 90th percentile, and
-  over time: is patching getting faster?), services behind for 30 and 90 days, past end of life, accepted risk, and
-  the longest exposed services.
-- **Image hygiene:** moving tags, tags pushed again, untrusted registries and images without a digest.
-- **Goliash itself:** agents online and stale, snapshots waiting, failing notifications, the server running the
-  background work and the running version.
-
-## 4. Deploys on your graphs
-
-**From the metrics (Grafana).** The Goliash dashboard has a *Deploys* annotation that marks every new version, read
-from `goliash_deployed_version_info`. To get the same markers on any other dashboard, add an annotation query on the
-same Prometheus data source:
-
-```promql
-count by (service, environment, version) (
-  goliash_deployed_version_info{environment="prod"} unless goliash_deployed_version_info offset 10m
-)
-```
-
-with *Title* `{{service}} {{version}}` and *Tags* `environment,service`.
-
-**From Goliash events (Grafana).** A [Grafana channel](../notifications/#deploys-on-your-dashboards) writes every event
-as an annotation tagged `goliash`, the event type, the service and the environment, at the moment Goliash saw it.
-The Goliash dashboard has a *Goliash events* annotation for them, off by default.
-
-**SigNoz** has no annotations; put the *Deploys per service* panel next to your service's latency or error panels,
-or alert on new versions (below).
-
-## 5. Alerts
+## Alerts
 
 Ready-made Prometheus rules are in
 [`deploy/prometheus/goliash-alerts.yaml`](https://github.com/pipozzz/goliash/blob/main/deploy/prometheus/goliash-alerts.yaml)
@@ -145,23 +61,8 @@ release for 90+ days. The same queries work in Grafana alerting and SigNoz alert
 Alerts about versions themselves (new releases, drift, removed services) are better sent by Goliash directly; see
 [Notifications](../notifications/).
 
-## Kubernetes
-
-With the Prometheus Operator (kube-prometheus-stack) and Grafana's dashboard sidecar, the Helm chart sets up all of the
-above. Create the token secret first, then turn the parts on:
-
-```sh
-kubectl create secret generic goliash-metrics --from-literal=token=glsh_api_…
-helm upgrade --install goliash oci://ghcr.io/pipozzz/charts/goliash \
-  --set metrics.serviceMonitor.enabled=true \
-  --set metrics.serviceMonitor.labels.release=kube-prometheus-stack \
-  --set metrics.prometheusRule.enabled=true \
-  --set metrics.prometheusRule.labels.release=kube-prometheus-stack \
-  --set metrics.grafanaDashboard.enabled=true
-```
-
-The `release` label must match your Prometheus' `serviceMonitorSelector` and `ruleSelector`; the dashboard ConfigMap
-carries `grafana_dashboard: "1"`, which the sidecar of kube-prometheus-stack looks for.
+On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule with these alerts; see
+[Grafana dashboard](../grafana/#kubernetes).
 
 ## Metrics
 
