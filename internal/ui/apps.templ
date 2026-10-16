@@ -121,7 +121,7 @@ templ TeamsPage(v TeamsView) {
 			for _, t := range v.Teams {
 				<section class={ "panel app-card s-" + t.State }>
 					<div class="panel-head">
-						<h2><a href={ templ.URL("/tiles?group=team&app=" + t.Name) }>{ t.Name }</a></h2>
+						<h2><a href={ templ.URL("/tiles?group=team&only=1&app=" + url.QueryEscape(t.Name)) } title={ t.Name + "'s services as their own board" }>{ t.Name }</a></h2>
 						<span class="muted">{ itoa(t.OK) } of { plural(len(t.Services), "service", "services") } up to date</span>
 						if v.Goli {
 							<button type="button" class="link ask-goli noprint" data-goli-ask={ teamBrief(t.Name) } title={ "Goli looks at what " + t.Name + " runs and says what to do first" }>Brief</button>
