@@ -165,3 +165,10 @@ func (s *Store) ReportServerCollectorStatus(ctx context.Context, sc Scope, targe
 		status, lastError, s.now(), sc.OrgID, sc.WorkspaceID, targetID)
 	return expectOne(res, err)
 }
+
+func nullInt(n *int) sql.NullInt64 {
+	if n == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(*n), Valid: true}
+}

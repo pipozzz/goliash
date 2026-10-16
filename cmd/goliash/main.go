@@ -87,6 +87,10 @@ const usage = `Usage:
   goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
                                           every running container with image and digest (audits, SBOM)
   goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
+  goliash images SERVICE                  its running images: size against budget, base, signed, SBOM, provenance, last layer change
+  goliash licenses [-class attention|all|CLASS] [-environment E] [-os] [-fail-on CLASSES]
+                                          licenses of packages in running images, copyleft and unknown first;
+                                          -fail-on network-copyleft,source-available exits 1 when one runs
   goliash login [-no-browser] URL         sign the CLI in through the browser (OAuth, read only) for ask and mcp
   goliash logout [URL]                    end that sign-in
   goliash mcp [-server URL] [-token T]    MCP server on stdin/stdout for AI assistants (env GOLIASH_URL, GOLIASH_TOKEN)
@@ -222,6 +226,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return inventoryCmd(ctx, args, out)
 	case "hygiene":
 		return hygieneCmd(ctx, args, out)
+	case "licenses":
+		return licensesCmd(ctx, args, out)
+	case "images":
+		return imagesCmd(ctx, args, out)
 	case "ask":
 		return askCmd(ctx, args, os.Stdin, os.Stdout, os.Stderr)
 	case "login":

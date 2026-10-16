@@ -222,6 +222,14 @@ type EvidenceSummary struct {
 	Signed, SBOM, Provenance int
 	Unchecked                int            // private registries or no digest: not looked up by the server
 	Unsigned                 []EvidenceItem // checked images without a signature
+	Signers                  []SignerCount  // who signed the signed images, most images first
+	NoSigner                 int            // signed images whose signatures name nobody (a key)
+}
+
+// SignerCount is a signer and how many production images it signed.
+type SignerCount struct {
+	Identity, Issuer string
+	Images           int
 }
 
 // EvidenceItem is one production image and what was found for it.
@@ -262,6 +270,21 @@ func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID strin
 		out.Checked++
 		if ev.Signed {
 			out.Signed++
+			if len(ev.Signers) == 0 && ev.SignersRead {
+				out.NoSigner++
+			}
+			for _, sg := range ev.Signers {
+				counted := false
+				for i := range out.Signers {
+					if out.Signers[i].Identity == sg.Identity {
+						out.Signers[i].Images++
+						counted = true
+					}
+				}
+				if !counted {
+					out.Signers = append(out.Signers, SignerCount{Identity: sg.Identity, Issuer: sg.Issuer, Images: 1})
+				}
+			}
 		} else {
 			out.Unsigned = append(out.Unsigned, EvidenceItem{Image: strings.TrimPrefix(in.Image, "docker.io/"), Found: ev.Found})
 		}
@@ -273,6 +296,12 @@ func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID strin
 		}
 	}
 	sort.Slice(out.Unsigned, func(i, j int) bool { return out.Unsigned[i].Image < out.Unsigned[j].Image })
+	sort.Slice(out.Signers, func(i, j int) bool {
+		if out.Signers[i].Images != out.Signers[j].Images {
+			return out.Signers[i].Images > out.Signers[j].Images
+		}
+		return out.Signers[i].Identity < out.Signers[j].Identity
+	})
 	return out, nil
 }
 
@@ -525,6 +554,36 @@ func licenseSummary(r versions.LicenseReport) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+// shortSigner is a signer's identity as people read it: a GitHub or GitLab workflow as repository · file @ ref.
+func shortSigner(identity string) string {
+	s := identity
+	for _, p := range []string{"https://github.com/", "https://gitlab.com/"} {
+		s = strings.TrimPrefix(s, p)
+	}
+	s = strings.Replace(s, "/.github/workflows/", " · ", 1)
+	s = strings.Replace(s, "//.gitlab-ci.yml", " · .gitlab-ci.yml", 1)
+	s = strings.Replace(s, "@refs/heads/", " @ ", 1)
+	s = strings.Replace(s, "@refs/tags/", " @ ", 1)
+	return s
+}
+
+// issuerName names an OIDC issuer: GitHub Actions, GitLab, Google, or its URL.
+func issuerName(issuer string) string {
+	switch {
+	case issuer == "https://token.actions.githubusercontent.com":
+		return "GitHub Actions"
+	case strings.HasPrefix(issuer, "https://gitlab."):
+		return "GitLab"
+	case issuer == "https://accounts.google.com":
+		return "Google"
+	case issuer == "https://github.com/login/oauth":
+		return "GitHub"
+	case strings.Contains(issuer, "login.microsoftonline.com"):
+		return "Microsoft"
+	}
+	return issuer
 }
 
 // licensesCSV downloads the packages the licenses page shows, with its filters but without its length limit.

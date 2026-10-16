@@ -59,6 +59,7 @@ base with a newer build for over a month, an image that lost its signature, SBOM
 | Notifications failing | `goliash_notifications_failing > 0` |
 | Background work not running exactly once | `sum(goliash_leader) != 1` |
 | Exploited vulnerability past CISA's due date | `goliash_vulnerabilities_past_due > 0` |
+| Rollout stuck or service down | `goliash_rollout_problem{kind=~"down|stuck"} == 1` for 10 minutes |
 | Image grew a lot | `goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)` |
 | Image over its size budget | `goliash_image_size_bytes > on (service) group_left max by (service) (goliash_image_size_budget_bytes)` |
 | Base outdated for a month | `goliash_image_base_behind_days > 30` |
@@ -84,6 +85,8 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_vulnerabilities` | environment, severity, exploited | known vulnerabilities in running images, from SBOMs and OSV |
 | `goliash_vulnerabilities_past_due` | environment | exploited vulnerabilities running past CISA's due date for fixing them |
 | `goliash_exploited_vulnerability_days` | environment | days the longest-running exploited vulnerability has run |
+| `goliash_rollout_issues` | kind (down, stuck, short) | workloads whose replicas are not where they should be |
+| `goliash_rollout_problem` | service, environment, target, workload, kind, running, desired | 1 for each such workload, while it lasts |
 | `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget or no digest |
 | `goliash_image_size_bytes` | service, environment | what pulling the service's image downloads, in bytes (compressed layers and config) |
 | `goliash_image_layers` | service, environment | layers in that image |

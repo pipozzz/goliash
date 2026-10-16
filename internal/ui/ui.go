@@ -688,6 +688,15 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
+	if issues, err := versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err == nil {
+		for _, is := range issues {
+			if is.ServiceID == svc.ID {
+				v.Rollouts = append(v.Rollouts, is)
+			}
+		}
+	} else {
+		return err
+	}
 	if v.Split, err = s.splitApps(ctx, p.Scope, svc); err != nil {
 		return err
 	}
@@ -717,6 +726,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if own.MaxSizeMB > 0 {
 			v.Policy.MaxSizeMB = strconv.Itoa(own.MaxSizeMB)
 		}
+		v.Policy.Signer = own.Signer
 	}
 	if base := versions.BaseImage(svc); base != "" {
 		st := s.checker.BaseStatus(ctx, base, time.Now())
@@ -862,6 +872,10 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 	pol.TagFilter, pol.Track = strings.TrimSpace(r.FormValue("tag_filter")), versions.Jump(r.FormValue("track"))
 	pol.Prerelease, pol.PinMajor = r.FormValue("prerelease") == "1", nil
 	pol.BaseImage = strings.TrimSpace(r.FormValue("base_image"))
+	pol.Signer = strings.TrimSpace(r.FormValue("signer"))
+	if len(pol.Signer) > 300 {
+		return back(w, r, path, "error", "The expected signer is too long.")
+	}
 	pol.MaxSizeMB = 0
 	if ms := strings.TrimSpace(r.FormValue("max_size_mb")); ms != "" {
 		n, err := strconv.Atoi(ms)
@@ -1093,6 +1107,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},
 		{Kind: "outdated-base", Label: "Outdated base", Help: "built on an older build of its FROM image: its fixes are missing", Warn: true},
 		{Kind: "over-budget", Label: "Over size budget", Help: "bigger than its service's image size budget", Warn: true},
+		{Kind: "unexpected-signer", Label: "Unexpected signer", Help: "not signed by who its service's policy names", Warn: true},
 		{Kind: "unpinned", Label: "Digest unknown", Help: "a tag pushed again would go unnoticed; often a collector permission"},
 	}
 	known := false
@@ -1143,6 +1158,9 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 		return err
 	}
 	v := PromotionsView{Base: s.base(ctx, p, "promotions", "Delivery")}
+	if v.Rollouts, err = versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err != nil {
+		return err
+	}
 	stats, err := versions.DeliveryStats(ctx, s.store, p.Scope, o, 30*24*time.Hour, time.Now())
 	if err != nil {
 		return err
@@ -3050,6 +3068,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			Env: envName[in.EnvironmentID], Image: in.Image, Digest: in.Digest,
 			Checked: ok && !ev.CheckedAt.IsZero(), Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Size: ev.Size,
 		}, envPos[in.EnvironmentID]})
+		if len(ev.Signers) > 0 {
+			rows[len(rows)-1].Signer, rows[len(rows)-1].SignerFull = shortSigner(ev.Signers[0].Identity), ev.Signers[0].Identity
+		}
 		if ev.BaseStatus == "outdated" {
 			rows[len(rows)-1].OldBase = strings.TrimPrefix(strings.TrimPrefix(ev.BaseImage, "docker.io/library/"), "docker.io/")
 		}

@@ -14,6 +14,32 @@ templ PromotionsPage(v PromotionsView) {
 				<p class="sub">What waits to be promoted, and how versions move through the environments, read from what ran when.</p>
 			</div>
 		</div>
+		if len(v.Rollouts) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Rollouts that do not finish</h2><span class="muted">replicas not where the platform was asked to put them</span></div>
+				<div class="scroll" tabindex="0">
+					<table class="cards">
+						<thead><tr><th>Service</th><th>Where</th><th>What</th><th>Since</th></tr></thead>
+						<tbody>
+							for _, is := range v.Rollouts {
+								<tr>
+									<td data-label="Service" class="svc"><a href={ templ.URL("/services/" + is.Service) }><strong>{ is.Service }</strong></a></td>
+									<td data-label="Where">
+										{ is.Environment }
+										<div class="targets">{ is.Target + " · " + is.Workload }</div>
+									</td>
+									<td data-label="What">
+										<span class={ "badge", rolloutBadge(is.Kind) }>{ rolloutLabel(is.Kind) }</span>
+										<div class="targets">{ rolloutDetail(is) }</div>
+									</td>
+									<td data-label="Since">@timeAgo(is.Since)</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		<section class="panel">
 			<div class="panel-head"><h2>Deploys per week</h2><span class="muted">versions that arrived, by environment, last 12 weeks</span></div>
 			@stackedBars(v.Deploys, "Deploys per week by environment, last 12 weeks")

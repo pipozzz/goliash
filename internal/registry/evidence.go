@@ -18,6 +18,9 @@ type Evidence struct {
 	SBOM       bool     // an SPDX or CycloneDX SBOM attestation or artifact
 	Provenance bool     // a SLSA provenance attestation
 	Found      []string // what was found, for people: "cosign signature", "buildkit sbom" …
+	// Signers are who signed it, as the certificates of keyless signatures name them; empty for key-based
+	// signatures and when no signature carries a certificate.
+	Signers []Signer
 	// Size is what pulling the image downloads: its compressed layers and config, in bytes, for linux/amd64
 	// (or the first platform) of a multi-platform image; zero when unknown.
 	Size int64
@@ -140,6 +143,11 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 	if sig, err := get(tag + ".sig"); err == nil && len(sig.Layers) > 0 {
 		ev.Signed = true
 		found("cosign signature")
+		for _, l := range sig.Layers {
+			if s, ok := certSigner([]byte(l.Annotations[annotationCosignCert])); ok {
+				ev.addSigner(s)
+			}
+		}
 	} else if err != nil && !errors.Is(err, ErrNotFound) {
 		return ev, err
 	}
@@ -163,6 +171,13 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 					ev.Signed = true
 					found("sigstore bundle")
 					predicate(d.Annotations["dev.sigstore.bundle.predicateType"], "sigstore")
+					if m, err := get(d.Digest); err == nil && len(m.Layers) > 0 {
+						if b, _, err := c.get(ctx, base+"/blobs/"+m.Layers[0].Digest, repo, creds, "*/*"); err == nil {
+							if s, ok := bundleSigner(b); ok {
+								ev.addSigner(s)
+							}
+						}
+					}
 				case t == mediaNotation:
 					ev.Signed = true
 					found("notation signature")

@@ -24,10 +24,11 @@ const (
 	EventImageOverBudget = "image_over_budget" // a deploy's image is bigger than its service's size budget
 	EventOutdatedBase    = "outdated_base"     // an image is built on a base build weeks older than the base's tag
 	EventEvidenceLost    = "evidence_lost"     // a deploy's image lacks a signature, SBOM or provenance the one before had
+	EventLicense         = "license"           // a deploy's image brings packages under network copyleft or source-available licenses
 )
 
 // imageEvents are the events CheckImages sends.
-var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost}
+var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense}
 
 // baseLag is how long an image may trail its base's newest build before it is announced.
 const baseLag = 14 * 24 * time.Hour
@@ -90,6 +91,10 @@ func (n *Notifier) imageGrowth(ctx context.Context, sc store.Scope, now time.Tim
 	if err != nil {
 		return nil, err
 	}
+	sboms, err := n.store.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
 	services, err := n.store.ListServices(ctx, sc)
 	if err != nil {
 		return nil, err
@@ -145,6 +150,13 @@ func (n *Notifier) imageGrowth(ctx context.Context, sc store.Scope, now time.Tim
 			}
 			it.Text = Describe(it)
 			out = append(out, growth{item: it, env: ps[cur].EnvironmentID, digest: ps[cur].Digest})
+		}
+		var prevSBOM store.ImageSBOM
+		if prev >= 0 {
+			prevSBOM = sboms[versions.ParseImage(ps[prev].Image).Repo()+"@"+ps[prev].Digest]
+		}
+		if pkgs := newDemandingLicenses(sboms[versions.ParseImage(ps[cur].Image).Repo()+"@"+ps[cur].Digest], prevSBOM); len(pkgs) > 0 {
+			add(Item{Type: EventLicense, Note: strings.Join(pkgs, ", ")})
 		}
 		if b := versions.SizeBudget(svc); b > 0 && curEv.Size > b {
 			add(Item{Type: EventImageOverBudget, From: humanSize(curEv.Size), Note: humanSize(b) + " budget", To: ps[cur].Tag})
@@ -223,5 +235,27 @@ func outdatedBases(periods []store.ImagePeriod, evidence map[string]store.ImageE
 		it.Text = Describe(it)
 		out = append(out, growth{item: it, env: p.EnvironmentID, digest: p.Digest})
 	}
+	return out
+}
+
+// newDemandingLicenses lists the application packages of an image's SBOM under a network copyleft or
+// source-available license that the image before it did not have: "com.itextpdf/itextpdf 5.5.13.3 (AGPL-3.0-only)".
+func newDemandingLicenses(cur, prev store.ImageSBOM) []string {
+	had := map[string]bool{}
+	for _, p := range prev.Purls {
+		had[versions.PurlName(p)] = true // the same package at any version
+	}
+	var out []string
+	for _, p := range cur.Purls {
+		lic := cur.Licenses[p]
+		c := versions.ClassifyLicense(lic)
+		if (c != versions.NetworkCopyleft && c != versions.SourceAvailable) || versions.OSPackage(p) {
+			continue
+		}
+		if name := versions.PurlName(p); !had[name] {
+			out = append(out, name+" "+versions.PurlVersion(p)+" ("+lic+")")
+		}
+	}
+	sort.Strings(out)
 	return out
 }
