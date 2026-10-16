@@ -385,6 +385,15 @@ type ImageInspection struct {
 	Sbom   *bool    `json:"sbom,omitempty"`
 	Signed *bool    `json:"signed,omitempty"`
 
+	// Signers Who signed the image, as the certificates of its keyless (Sigstore) signatures name them.
+	Signers []struct {
+		// Identity A CI workflow URI, a service account or an email.
+		Identity string `json:"identity"`
+
+		// Issuer The OIDC issuer that vouched for it.
+		Issuer *string `json:"issuer,omitempty"`
+	} `json:"signers,omitempty"`
+
 	// Size What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
 	Size *int64 `json:"size,omitempty"`
 }

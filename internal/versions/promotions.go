@@ -23,6 +23,7 @@ type Promotion struct {
 	Running  string            // running in To
 	Since    time.Time         // waiting since
 	Releases []store.Release   // releases after Running up to Version, newest first
+	Vulns    VulnDelta         // what promoting does to known vulnerabilities; filled by AddVulnDeltas
 }
 
 // Promotions lists the versions waiting to be promoted, longest waiting first.

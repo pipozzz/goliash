@@ -125,6 +125,10 @@ only those, e.g. to the people on call:
 goliash notify create -channel oncall -events rollback -envs prod -mode instant
 ```
 
+A rule with the event type `rollout` (*stuck rollouts and services down*) announces a workload running two versions
+side by side for more than half an hour (⏳ *traefik @ prod: rollout stuck on k8s-prod: v3.1.6 on 1 of 2, v3.1.2 on
+1*) or none of the replicas it asks for (🛑, urgent on web push), once each.
+
 A rule that sends **stale agents** (an agent silent for 10 minutes) also sends the all clear when the agent is back:
 ✅ *agent eu-cluster is back after about 25 min; its targets report again*.
 
