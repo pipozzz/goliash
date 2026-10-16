@@ -358,6 +358,13 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
 		}
 		ev.Size = demoSize(ev.Repo, in.Tag)
+		// Two of the team's images: one built on its base as it is now, one on a build from weeks ago.
+		switch ev.Repo {
+		case "ghcr.io/acme/checkout":
+			ev.BaseImage, ev.BaseStatus, ev.BaseSince = "docker.io/library/node:18-alpine", "outdated", time.Now().AddDate(0, 0, -23)
+		case "ghcr.io/acme/orders-api":
+			ev.BaseImage, ev.BaseStatus, ev.BaseSince = "docker.io/library/golang:1.22-alpine", "current", time.Now().AddDate(0, 0, -9)
+		}
 		if err := st.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}

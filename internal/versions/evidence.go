@@ -42,6 +42,11 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 	}
 	now := c.now()
 	auth := c.registryAuth(ctx, sc)
+	services, err := c.servicesByID(ctx, sc)
+	if err != nil {
+		return err
+	}
+	bases := baseLookups{}
 	done := map[string]bool{}
 	n := 0
 	for _, in := range active {
@@ -63,12 +68,26 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found, Size: ev.Size}
 		if err != nil {
 			rec.Error = err.Error()
+		} else {
+			c.judgeBase(ctx, &rec, services[in.ServiceID], ev.Layers, auth, bases)
 		}
 		if err := c.store.SetImageEvidence(ctx, sc, rec); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (c *Checker) servicesByID(ctx context.Context, sc store.Scope) (map[string]store.Service, error) {
+	svcs, err := c.store.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]store.Service, len(svcs))
+	for _, s := range svcs {
+		out[s.ID] = s
+	}
+	return out, nil
 }
 
 // sizesRead is when lookups started reading image sizes (Goliash 1.61).
@@ -131,6 +150,21 @@ func validDigest(d string) bool {
 // RecordInspections records what an agent found beside private images: signatures and attestations, and the
 // packages of their SBOMs.
 func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo string, found []agentproto.ImageInspection) error {
+	services, err := c.servicesByID(ctx, sc)
+	if err != nil {
+		return err
+	}
+	active, err := c.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return err
+	}
+	serviceOf := map[string]string{} // digest -> service, for this repository
+	for _, in := range active {
+		if in.ServiceID != "" && ParseImage(in.Image).Repo() == repo {
+			serviceOf[in.Digest] = in.ServiceID
+		}
+	}
+	auth, bases := c.registryAuth(ctx, sc), baseLookups{}
 	for _, in := range found {
 		ev := store.ImageEvidence{Repo: repo, Digest: in.Digest, Found: in.Found}
 		if in.Error != nil {
@@ -141,6 +175,9 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		ev.Provenance = in.Provenance != nil && *in.Provenance
 		if in.Size != nil {
 			ev.Size = *in.Size
+		}
+		if in.Error == nil {
+			c.judgeBase(ctx, &ev, services[serviceOf[in.Digest]], in.Layers, auth, bases)
 		}
 		if err := c.store.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err

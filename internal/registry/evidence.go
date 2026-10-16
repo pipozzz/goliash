@@ -21,6 +21,8 @@ type Evidence struct {
 	// Size is what pulling the image downloads: its compressed layers and config, in bytes, for linux/amd64
 	// (or the first platform) of a multi-platform image; zero when unknown.
 	Size int64
+	// Layers are that image's layer digests, bottom first: the ones it shares with its base come first.
+	Layers []string
 }
 
 const (
@@ -100,10 +102,10 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 		return ev, err
 	}
 	if len(img.Manifests) == 0 {
-		ev.Size = imageSize(img)
+		ev.Size, ev.Layers = imageSize(img), layerDigests(img)
 	} else if d, ok := platformManifest(img.Manifests); ok {
 		if m, err := get(d.Digest); err == nil {
-			ev.Size = imageSize(m)
+			ev.Size, ev.Layers = imageSize(m), layerDigests(m)
 		}
 	}
 	for _, d := range img.Manifests {
@@ -193,4 +195,12 @@ func platformManifest(ds []descriptor) (descriptor, bool) {
 		return descriptor{}, false
 	}
 	return *first, true
+}
+
+func layerDigests(m evidenceManifest) []string {
+	out := make([]string, 0, len(m.Layers))
+	for _, l := range m.Layers {
+		out = append(out, l.Digest)
+	}
+	return out
 }

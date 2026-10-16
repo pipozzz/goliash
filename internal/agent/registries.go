@@ -261,6 +261,7 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 		if ev.Size > 0 {
 			in.Size = &ev.Size
 		}
+		in.Layers = ev.Layers[:min(len(ev.Layers), 512)]
 		if ev.SBOM {
 			purls, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
 			if err != nil {

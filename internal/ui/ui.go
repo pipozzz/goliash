@@ -1073,6 +1073,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 		{Kind: "moving-tag", Label: "Moving tags", Help: "latest, stable and the like: the version cannot be known", Warn: true},
 		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},
 		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},
+		{Kind: "outdated-base", Label: "Outdated base", Help: "built on an older build of its FROM image: its fixes are missing", Warn: true},
 		{Kind: "unpinned", Label: "Digest unknown", Help: "a tag pushed again would go unnoticed; often a collector permission"},
 	}
 	known := false
@@ -1092,7 +1093,13 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 			v.Findings = append(v.Findings, f)
 		}
 	}
-	if v.Kinds[3].Count > 0 && (v.Kind == "" || v.Kind == "unpinned") {
+	unpinned := 0
+	for _, k := range v.Kinds {
+		if k.Kind == "unpinned" {
+			unpinned = k.Count
+		}
+	}
+	if unpinned > 0 && (v.Kind == "" || v.Kind == "unpinned") {
 		if v.DigestHints, err = s.digestHints(r.Context(), p.Scope); err != nil {
 			return err
 		}
@@ -3021,6 +3028,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			Env: envName[in.EnvironmentID], Image: in.Image, Digest: in.Digest,
 			Checked: ok && !ev.CheckedAt.IsZero(), Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Size: ev.Size,
 		}, envPos[in.EnvironmentID]})
+		if ev.BaseStatus == "outdated" {
+			rows[len(rows)-1].OldBase = strings.TrimPrefix(strings.TrimPrefix(ev.BaseImage, "docker.io/library/"), "docker.io/")
+		}
 		if ev.SBOM {
 			out.WithSBOM++
 		}

@@ -276,6 +276,7 @@ templ SecurityPage(v SecurityView) {
 							@postureRow("Moving tags", "latest, stable: the version cannot be known", v.Hygiene["moving-tag"], "/hygiene?kind=moving-tag", true)
 							@postureRow("Tags pushed again", "one tag running as different images", v.Hygiene["retagged"], "/hygiene?kind=retagged", true)
 							@postureRow("Untrusted registries", "outside GOLIASH_ALLOWED_REGISTRIES", v.Hygiene["untrusted-registry"], "/hygiene?kind=untrusted-registry", true)
+							@postureRow("Outdated base", "built on an older build of its FROM image", v.Hygiene["outdated-base"], "/hygiene?kind=outdated-base", true)
 							@postureRow("Digest unknown", "a tag pushed again would go unnoticed", v.Hygiene["unpinned"], "/hygiene?kind=unpinned", false)
 						</tbody>
 					</table>

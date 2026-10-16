@@ -364,7 +364,10 @@ type ImageInspection struct {
 	Error  *string `json:"error,omitempty"`
 
 	// Found What was found, for people ("cosign signature", "buildkit sbom" …).
-	Found      []string `json:"found,omitempty"`
+	Found []string `json:"found,omitempty"`
+
+	// Layers The image's layer digests, bottom first (linux/amd64 or the first platform), to tell whether it is built on its base as the base is now.
+	Layers     []string `json:"layers,omitempty"`
 	Provenance *bool    `json:"provenance,omitempty"`
 
 	// Purls The package URLs the SBOM attestation lists, when there is one.

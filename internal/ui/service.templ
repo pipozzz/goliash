@@ -532,7 +532,12 @@ templ serviceSecurity(v ServiceView) {
 					for _, im := range sec.Images {
 						<tr>
 							<td><strong>{ im.Env }</strong></td>
-							<td data-label="Image"><code title={ im.Digest }>{ im.Image }</code></td>
+							<td data-label="Image">
+								<code title={ im.Digest }>{ im.Image }</code>
+								if im.OldBase != "" {
+									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=outdated-base" title={ "Built on an older " + im.OldBase + " than its tag has now: rebuild with --pull to get its fixes" }>older base</a>
+								}
+							</td>
 							<td class="num" data-label="Size">
 								if im.Size > 0 {
 									{ humanBytes(im.Size) }

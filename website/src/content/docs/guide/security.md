@@ -33,6 +33,26 @@ An image that does not declare its base can name it in the service's version pol
 `node:22-alpine`); `none` turns tracking off. The image is read on a public registry by the server; for private
 images, set the base in the policy.
 
+### Built on an outdated base
+
+A new build is not always a fresh one: a build cache, or `FROM` without `--pull`, keeps the base's layers as they
+were when the base was first pulled, with the vulnerabilities its newer builds fixed. The image's version and date
+look current; its bottom layers are not.
+
+Goliash checks this with the layers themselves. Building `FROM node:22-alpine` copies the base's layers unchanged,
+so an image built on the base as its tag is now starts with exactly those layers. When it reads a running image's
+evidence, Goliash also reads the base's tag (for the same platform, once per check) and compares:
+
+- **current**: the image starts with the base's layers as they are now;
+- **outdated**: it does not: it was built on an older build of the base (or on another base than it declares).
+
+Outdated ones show as **Outdated base** on [Image hygiene](/guide/matrix/#image-hygiene), with when the base's current build was
+made (*built on an older node:22-alpine than the one its tag has now (built Oct 2, 14 days ago): rebuild with
+`--pull`*), in the Security page's supply chain, as an **older base** badge on the service's images, and in
+`goliash_image_hygiene_findings{kind="outdated-base"}`. Bases pinned to a digest (`node@sha256:…`) are pinned on
+purpose and left alone. Agents send the layers of private images (agent 1.61); the base itself must be readable by
+the server, as public bases are.
+
 ## Supply-chain evidence
 
 For every image running in production, Goliash asks its registry what it holds beside the image:

@@ -162,6 +162,7 @@ runs" hard to know or to trust, sidecars included:
 | moving tag | `latest`, `stable`, `main` or no tag: the version cannot be known, and a restart may pull something else. |
 | retagged | The same repository and tag run as different images (digests): the tag was pushed again. |
 | untrusted registry | The image comes from outside `GOLIASH_ALLOWED_REGISTRIES` (e.g. `ghcr.io/acme,docker.io/library`). |
+| outdated base | Built on an older build of its `FROM` image than the base's tag has now (a build cache, no `--pull`): the base's fixes are missing. See [Security](/guide/security/#built-on-an-outdated-base). |
 | unpinned (info) | No digest is known for the image. |
 
 `goliash hygiene`, `GET /api/v1/hygiene` and `goliash_image_hygiene_findings{kind}` in `/metrics` show the same.

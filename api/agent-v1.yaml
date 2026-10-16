@@ -801,6 +801,12 @@ components:
           format: int64
           minimum: 0
           description: What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
+        layers:
+          type: array
+          maxItems: 512
+          description: The image's layer digests, bottom first (linux/amd64 or the first platform), to tell whether it is built on its base as the base is now.
+          items:
+            type: string
         purls:
           type: array
           maxItems: 20000

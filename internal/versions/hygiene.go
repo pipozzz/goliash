@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -15,7 +16,7 @@ import (
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, unpinned
+	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
@@ -141,5 +142,52 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 			running = append(running, i)
 		}
 	}
-	return Hygiene(running, envName, targetName, allowedRegistries), nil
+	findings := Hygiene(running, envName, targetName, allowedRegistries)
+	evidence, err := st.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := append(OutdatedBases(running, evidence, envName, targetName, time.Now()), findings...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
+	return out, nil
+}
+
+// OutdatedBases finds images built on an older build of their base than the base's tag has now: a build cache
+// or a FROM without --pull kept the old base's layers, and its fixed vulnerabilities with them.
+func OutdatedBases(active []store.Instance, evidence map[string]store.ImageEvidence, envName, targetName map[string]string, now time.Time) []Finding {
+	byImage := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		if i.Digest == "" {
+			continue
+		}
+		ref := ParseImage(i.Image)
+		ev := evidence[ref.Repo()+"@"+i.Digest]
+		if ev.BaseStatus != "outdated" {
+			continue
+		}
+		key := ref.Repo() + ":" + ref.Tag
+		f := byImage[key]
+		if f == nil {
+			base := strings.TrimPrefix(strings.TrimPrefix(ev.BaseImage, "docker.io/library/"), "docker.io/")
+			detail := "built on an older " + base + " than the one its tag has now"
+			if !ev.BaseSince.IsZero() {
+				detail += " (built " + ev.BaseSince.Format("Jan 2") + ", " + strconv.Itoa(int(now.Sub(ev.BaseSince).Hours()/24)) + " days ago)"
+			}
+			f = &Finding{
+				Kind: "outdated-base", Severity: "warning", Detail: detail + ": rebuild with --pull to get its fixes",
+				Image: strings.TrimPrefix(strings.TrimPrefix(key, "docker.io/library/"), "docker.io/"),
+			}
+			byImage[key] = f
+			order = append(order, key)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	sort.Strings(order)
+	out := make([]Finding, 0, len(order))
+	for _, k := range order {
+		sort.Strings(byImage[k].Where)
+		out = append(out, *byImage[k])
+	}
+	return out
 }

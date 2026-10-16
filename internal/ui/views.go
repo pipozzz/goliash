@@ -1274,6 +1274,7 @@ type ImageSecurity struct {
 	Size                              int64 // bytes pulled; 0 when unknown
 	Delta                             int64 // against the first (production) image's size, when both are known
 	DeltaFrom                         string
+	OldBase                           string // the base it is built on an older build of, when it is
 }
 
 // ServiceFinding is one vulnerability in the service's images.

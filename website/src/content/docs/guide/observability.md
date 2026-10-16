@@ -172,7 +172,7 @@ carries `grafana_dashboard: "1"`, which the sidecar of kube-prometheus-stack loo
 | `goliash_drift_days` | service, environment, kind (and app) | how long a drift has been open, in days |
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
-| `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry or no digest |
+| `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry, an outdated base or no digest |
 | `goliash_image_size_bytes` | service, environment | what pulling the service's image downloads, in bytes (compressed layers and config) |
 | `goliash_exposure_days` | service, environment (and app) | days a service has run behind an available release |
 | `goliash_exposure_median_days`, `goliash_exposure_p90_days` | environment (production) | median and 90th percentile of those days in production |
