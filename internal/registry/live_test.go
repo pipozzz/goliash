@@ -75,9 +75,13 @@ func TestLiveImageSBOM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	purls, err := New().ImageSBOM(context.Background(), "docker.io/library/nginx", digest, Credentials{})
-	t.Logf("%d purls, e.g. %v", len(purls), purls[:min(5, len(purls))])
-	if err != nil || len(purls) < 20 {
-		t.Fatalf("%d purls: %v", len(purls), err)
+	sbom, err := New().ImageSBOM(context.Background(), "docker.io/library/nginx", digest, Credentials{})
+	purls := sbom.Purls
+	t.Logf("%d purls, e.g. %v; %d licenses", len(purls), purls[:min(5, len(purls))], len(sbom.Licenses))
+	for _, p := range purls[:min(5, len(purls))] {
+		t.Logf("%s: %s", p, sbom.Licenses[p])
+	}
+	if err != nil || len(purls) < 20 || len(sbom.Licenses) < 10 {
+		t.Fatalf("%d purls, %d licenses: %v", len(purls), len(sbom.Licenses), err)
 	}
 }

@@ -65,6 +65,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
 	mux.Handle("GET /api/v1/vulnerabilities", h.with(store.RoleViewer, h.vulnerabilities))
+	mux.Handle("GET /api/v1/licenses", h.with(store.RoleViewer, h.licenses))
 	mux.Handle("GET /api/v1/status", h.with(store.RoleViewer, h.status))
 	mux.Handle("GET /api/v1/updates", h.with(store.RoleViewer, h.updates))
 	mux.Handle("GET /api/v1/posture", h.with(store.RoleViewer, h.posture))
@@ -1060,6 +1061,14 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		b.WriteString("# TYPE goliash_image_hygiene_findings gauge\n")
 		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unpinned"} {
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
+		}
+	}
+	if lic, err := versions.LoadLicenseReport(r.Context(), h.store, p.Scope, ""); err == nil {
+		b.WriteString("# HELP goliash_license_packages Packages in running images per license class (application packages, and operating system ones apart).\n")
+		b.WriteString("# TYPE goliash_license_packages gauge\n")
+		for _, c := range versions.LicenseClasses {
+			fmt.Fprintf(&b, "goliash_license_packages{class=%q,kind=\"app\"} %d\n", c, lic.Counts[c])
+			fmt.Fprintf(&b, "goliash_license_packages{class=%q,kind=\"os\"} %d\n", c, lic.OSCounts[c])
 		}
 	}
 	h.imageSizeMetrics(r.Context(), &b, p.Scope, o)

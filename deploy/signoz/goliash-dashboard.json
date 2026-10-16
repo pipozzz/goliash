@@ -221,7 +221,7 @@
     {
       "i": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "x": 0,
-      "y": 73,
+      "y": 80,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -233,7 +233,7 @@
     {
       "i": "w16",
       "x": 0,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -242,7 +242,7 @@
     {
       "i": "w25",
       "x": 2,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -251,7 +251,7 @@
     {
       "i": "w17",
       "x": 4,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -260,7 +260,7 @@
     {
       "i": "w18",
       "x": 6,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -269,7 +269,7 @@
     {
       "i": "w19",
       "x": 8,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -278,7 +278,7 @@
     {
       "i": "w20",
       "x": 10,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -467,6 +467,24 @@
       "y": 26,
       "w": 3,
       "h": 3,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w44",
+      "x": 0,
+      "y": 73,
+      "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w43",
+      "x": 4,
+      "y": 73,
+      "w": 8,
+      "h": 7,
       "moved": false,
       "static": false
     }
@@ -5011,6 +5029,238 @@
       }
     },
     {
+      "id": "w44",
+      "panelTypes": "value",
+      "title": "Licenses that need a look",
+      "description": "Application packages under network copyleft, source-available terms, strong copyleft or an unknown license.",
+      "query": {
+        "queryType": "builder",
+        "id": "c3f13be9-85a1-562f-b902-c54b68141aee",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_license_packages",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "kind = 'app' AND class IN ('network-copyleft', 'source-available', 'strong-copyleft', 'unknown')"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w43",
+      "panelTypes": "pie",
+      "title": "Packages by license",
+      "description": "Application packages in running images per license class, from their SBOMs.",
+      "query": {
+        "queryType": "builder",
+        "id": "35ec2016-ebf5-5544-b856-0d7979b44f43",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_license_packages",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "kind = 'app'"
+              },
+              "functions": [],
+              "having": {
+                "expression": "sum(goliash_image_hygiene_findings) > 0"
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "class",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "class--string--tag--false"
+                }
+              ],
+              "legend": "{{class}}",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
       "id": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "panelTypes": "row",
       "title": "Goliash itself",
@@ -5922,7 +6172,7 @@
         {
           "i": "w16",
           "x": 0,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5931,7 +6181,7 @@
         {
           "i": "w25",
           "x": 2,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5940,7 +6190,7 @@
         {
           "i": "w17",
           "x": 4,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5949,7 +6199,7 @@
         {
           "i": "w18",
           "x": 6,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5958,7 +6208,7 @@
         {
           "i": "w19",
           "x": 8,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5967,7 +6217,7 @@
         {
           "i": "w20",
           "x": 10,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -6047,6 +6297,24 @@
           "y": 65,
           "w": 6,
           "h": 8,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w44",
+          "x": 0,
+          "y": 73,
+          "w": 4,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w43",
+          "x": 4,
+          "y": 73,
+          "w": 8,
+          "h": 7,
           "moved": false,
           "static": false
         }

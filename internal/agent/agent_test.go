@@ -670,9 +670,11 @@ func (r *inspectRegistry) ImageEvidence(_ context.Context, _, digest string, cre
 	return registry.Evidence{Signed: true, SBOM: true, Found: []string{"cosign signature", "buildkit sbom"}}, nil
 }
 
-func (r *inspectRegistry) ImageSBOM(context.Context, string, string, registry.Credentials) ([]string, error) {
-	return []string{"pkg:npm/lodash@4.17.15"}, nil
+func (r *inspectRegistry) ImageSBOM(context.Context, string, string, registry.Credentials) (registry.SBOM, error) {
+	return registry.SBOM{Purls: []string{"pkg:npm/lodash@4.17.15"}, Licenses: map[string]string{"pkg:npm/lodash@4.17.15": "MIT"}}, nil
 }
+
+var _ Inspector = (*inspectRegistry)(nil)
 
 func TestInspectDigests(t *testing.T) {
 	good, bad := "sha256:"+strings.Repeat("a", 64), "sha256:"+strings.Repeat("a", 61)+"bad"
@@ -680,7 +682,7 @@ func TestInspectDigests(t *testing.T) {
 	a := &Agent{registry: reg, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	got := a.inspectDigests(context.Background(), agentproto.RegistryCheck{Repository: "harbor.example.com/shop/api", Inspect: []string{good, bad}},
 		registry.Credentials{Password: "s3cret"})
-	if len(got) != 2 || !*got[0].Signed || !*got[0].Sbom || len(got[0].Purls) != 1 || got[1].Error == nil || got[1].Signed != nil {
+	if len(got) != 2 || !*got[0].Signed || !*got[0].Sbom || len(got[0].Purls) != 1 || got[0].Licenses["pkg:npm/lodash@4.17.15"] != "MIT" || got[1].Error == nil || got[1].Signed != nil {
 		t.Fatalf("inspections %+v", got)
 	}
 	if len(reg.creds) != 2 || reg.creds[0] != "s3cret" {
