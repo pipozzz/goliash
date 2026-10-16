@@ -20,6 +20,7 @@ import (
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 type publicEnv struct {
@@ -230,6 +231,60 @@ func TestMetrics(t *testing.T) {
 	}
 	if code, _ := e.call(nil, "GET", "/metrics", "", ""); code != http.StatusUnauthorized {
 		t.Fatal("metrics without auth")
+	}
+}
+
+// The image metrics: size and layers of the largest image, the budget, a base's lag and the evidence every image has.
+func TestImageMetrics(t *testing.T) {
+	e := newPublicEnv(t)
+	ctx := context.Background()
+	o, err := versions.LoadOverview(ctx, e.st, e.sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var web store.Service
+	for _, s := range o.Services {
+		web = s
+	}
+	web.VersionPolicy = json.RawMessage(`{"max_size_mb":150}`)
+	if err := e.st.UpdateService(ctx, web); err != nil {
+		t.Fatal(err)
+	}
+	active, _ := e.st.ListActiveInstances(ctx, e.sc)
+	for _, in := range active {
+		old := in.ID
+		in.ID, in.Digest = "", "sha256:"+in.Tag
+		snap := store.NewID()
+		_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: snap, Scope: e.sc, TargetID: in.TargetID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+		if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: snap, TargetID: in.TargetID, At: time.Now(), Upsert: []store.Instance{in}, Remove: []string{old}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
+		Repo: "docker.io/library/nginx", Digest: "sha256:1.27.2", CheckedAt: now, Signed: true, SBOM: true, Size: 190_000_000,
+		BaseImage: "docker.io/library/debian:12", BaseStatus: "outdated", BaseSince: now.AddDate(0, 0, -20),
+		Layers: []store.ImageLayer{{Digest: "sha256:a", Size: 100_000_000}, {Digest: "sha256:b", Size: 90_000_000}},
+	})
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
+		Repo: "docker.io/library/nginx", Digest: "sha256:1.27.3", CheckedAt: now, Signed: true, Size: 70_000_000, BaseStatus: "current",
+	})
+	_, body := e.call(nil, "GET", "/metrics", e.token, "")
+	for _, want := range []string{
+		`goliash_image_size_bytes{service="web",environment="prod"} 190000000`,
+		`goliash_image_size_bytes{service="web",environment="staging"} 70000000`,
+		`goliash_image_layers{service="web",environment="prod"} 2`,
+		`goliash_image_size_budget_bytes{service="web"} 150000000`,
+		`goliash_image_base_behind_days{service="web",environment="prod"} 20.00`,
+		`goliash_image_base_behind_days{service="web",environment="staging"} 0.00`,
+		`goliash_image_evidence{service="web",environment="prod",kind="signature"} 1`,
+		`goliash_image_evidence{service="web",environment="prod",kind="sbom"} 1`,
+		`goliash_image_evidence{service="web",environment="prod",kind="provenance"} 0`,
+		`goliash_image_evidence{service="web",environment="staging",kind="sbom"} 0`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s\n%s", want, body)
+		}
 	}
 }
 

@@ -45,7 +45,8 @@ Ready-made Prometheus rules are in
 (also a download on the Integrations page): add the file to `rule_files` in `prometheus.yml`. They cover a missing
 scrape, the background work not running exactly once, stale agents, a growing snapshot queue, failing notifications
 drift open for more than two weeks, production on a release past its end of life, production behind an available
-release for 90+ days, and an image that grew by a quarter (and 20 MB) in a day. The same queries work in Grafana alerting and SigNoz alerts:
+release for 90+ days, an image that grew by a quarter (and 20 MB) in a day, an image over its size budget, a
+base with a newer build for over a month, and an image that lost its signature, SBOM or provenance. The same queries work in Grafana alerting and SigNoz alerts:
 
 | Alert | Query |
 |---|---|
@@ -58,6 +59,9 @@ release for 90+ days, and an image that grew by a quarter (and 20 MB) in a day. 
 | Notifications failing | `goliash_notifications_failing > 0` |
 | Background work not running exactly once | `sum(goliash_leader) != 1` |
 | Image grew a lot | `goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)` |
+| Image over its size budget | `goliash_image_size_bytes > on (service) group_left max by (service) (goliash_image_size_budget_bytes)` |
+| Base outdated for a month | `goliash_image_base_behind_days > 30` |
+| Image lost its signature, SBOM or provenance | `goliash_image_evidence == 0 and (goliash_image_evidence offset 1d) == 1` |
 
 Alerts about versions themselves (new releases, drift, removed services) are better sent by Goliash directly; see
 [Notifications](../notifications/).
@@ -74,8 +78,12 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_drift_days` | service, environment, kind (and app) | how long a drift has been open, in days |
 | `goliash_deploys` | service, environment | versions that arrived in the last 30 days |
 | `goliash_lead_time_seconds` | service, from, to | median time a version took to the next environment, last 30 days |
-| `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry, an outdated base or no digest |
+| `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget or no digest |
 | `goliash_image_size_bytes` | service, environment | what pulling the service's image downloads, in bytes (compressed layers and config) |
+| `goliash_image_layers` | service, environment | layers in that image |
+| `goliash_image_size_budget_bytes` | service | the size budget from the service's version policy (`max_size_mb`), in bytes |
+| `goliash_image_base_behind_days` | service, environment | days the image's base tag has had a newer build than the one the image is built on (0: current) |
+| `goliash_image_evidence` | service, environment, kind (signature, sbom, provenance) | 1 when every image running there has it, 0 when one lacks it |
 | `goliash_exposure_days` | service, environment (and app) | days a service has run behind an available release |
 | `goliash_exposure_median_days`, `goliash_exposure_p90_days` | environment (production) | median and 90th percentile of those days in production |
 | `goliash_exposures` | environment, over_days (30, 90) | production services behind an available release that long |

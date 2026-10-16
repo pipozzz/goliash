@@ -60,7 +60,10 @@ then in Grafana open **Dashboards → New → Import**, upload the file and pick
 - **Security posture:** how long production has run behind available releases (median and 90th percentile, and
   over time: is patching getting faster?), services behind for 30 and 90 days, past end of life, accepted risk, and
   the longest exposed services.
-- **Image hygiene:** moving tags, tags pushed again, untrusted registries and images without a digest.
+- **Image hygiene:** moving tags, tags pushed again, untrusted registries, outdated bases, sizes over budget and
+  images without a digest.
+- **Images:** what pulling each service's image downloads over time and against its size budget, bases with a newer
+  build than the image is built on, images missing a signature, SBOM or provenance, and layer counts.
 - **Goliash itself:** agents online and stale, snapshots waiting, failing notifications, the server running the
   background work and the running version.
 

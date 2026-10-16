@@ -1227,6 +1227,631 @@
       }
     },
     {
+      "id": 128,
+      "type": "row",
+      "title": "Images",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "panels": []
+    },
+    {
+      "id": 129,
+      "type": "stat",
+      "title": "Over budget",
+      "description": "Services whose image is larger than the max_size_mb in their version policy.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(max by (service) (goliash_image_size_bytes{environment=~\"$environment\", service=~\"$service\"}) > on (service) max by (service) (goliash_image_size_budget_bytes)) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 130,
+      "type": "stat",
+      "title": "Outdated bases",
+      "description": "Images built on an older build of their base than the base tag has today: rebuild with --pull.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 46
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(goliash_image_base_behind_days{environment=~\"$environment\", service=~\"$service\"} > 0) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 131,
+      "type": "stat",
+      "title": "Without a signature",
+      "description": "Services and environments running an image with no signature in the registry.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 46
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(goliash_image_evidence{kind=\"signature\", environment=~\"$environment\", service=~\"$service\"} == 0) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 132,
+      "type": "stat",
+      "title": "Without an SBOM",
+      "description": "Services and environments running an image with no SBOM attached.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 46
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(goliash_image_evidence{kind=\"sbom\", environment=~\"$environment\", service=~\"$service\"} == 0) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 127,
+      "type": "timeseries",
+      "title": "Image size",
+      "description": "What pulling each service's image downloads (compressed layers and config), the largest per service across environments: a jump is a heavier base or new dependencies.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (service) (goliash_image_size_bytes{environment=~\"$environment\", service=~\"$service\"})",
+          "refId": "A",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 133,
+      "type": "bargauge",
+      "title": "Size against budget",
+      "description": "Each service's largest image as a share of its size budget (max_size_mb); services without a budget are left out.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(max by (service) (goliash_image_size_bytes{environment=~\"$environment\", service=~\"$service\"}) / on (service) max by (service) (goliash_image_size_budget_bytes))",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "titleSize": 12,
+          "valueSize": 14
+        },
+        "minVizHeight": 14,
+        "maxVizHeight": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "max": 1.2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 134,
+      "type": "table",
+      "title": "Outdated bases",
+      "description": "How long each image's base tag has had a newer build than the image is built on, longest first.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 58
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(goliash_image_base_behind_days{environment=~\"$environment\", service=~\"$service\"} > 0)",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "service": 0,
+              "environment": 1,
+              "kind": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "Days behind",
+              "service": "Service",
+              "environment": "Environment",
+              "kind": "Evidence"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Days behind",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60,
+            "align": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Days behind"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 14
+                    },
+                    {
+                      "color": "red",
+                      "value": 60
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 135,
+      "type": "table",
+      "title": "Missing evidence",
+      "description": "Images running without a signature, an SBOM or provenance.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 58
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "goliash_image_evidence{environment=~\"$environment\", service=~\"$service\"} == 0",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "service": 0,
+              "environment": 1,
+              "kind": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "Has it",
+              "service": "Service",
+              "environment": "Environment",
+              "kind": "Evidence"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60,
+            "align": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Has it"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 136,
+      "type": "timeseries",
+      "title": "Layers",
+      "description": "Layers in each service's largest image: a jump often means a Dockerfile lost its multi-stage build or a cache step.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 58
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (service) (goliash_image_layers{environment=~\"$environment\", service=~\"$service\"})",
+          "refId": "A",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "type": "row",
       "title": "Security posture",
       "collapsed": false,
@@ -1236,7 +1861,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 66
       }
     },
     {
@@ -1252,7 +1877,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 46
+        "y": 67
       },
       "targets": [
         {
@@ -1317,7 +1942,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 46
+        "y": 67
       },
       "targets": [
         {
@@ -1382,7 +2007,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 46
+        "y": 67
       },
       "targets": [
         {
@@ -1443,7 +2068,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 46
+        "y": 67
       },
       "targets": [
         {
@@ -1504,7 +2129,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 46
+        "y": 67
       },
       "targets": [
         {
@@ -1565,7 +2190,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 46
+        "y": 67
       },
       "targets": [
         {
@@ -1625,7 +2250,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 50
+        "y": 71
       },
       "targets": [
         {
@@ -1691,7 +2316,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 50
+        "y": 71
       },
       "targets": [
         {
@@ -1805,7 +2430,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 79
       },
       "panels": []
     },
@@ -1822,7 +2447,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 59
+        "y": 80
       },
       "targets": [
         {
@@ -1879,7 +2504,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 59
+        "y": 80
       },
       "targets": [
         {
@@ -1940,7 +2565,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 59
+        "y": 80
       },
       "targets": [
         {
@@ -2005,7 +2630,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 59
+        "y": 80
       },
       "targets": [
         {
@@ -2066,7 +2691,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 59
+        "y": 80
       },
       "targets": [
         {
@@ -2131,7 +2756,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 59
+        "y": 80
       },
       "targets": [
         {
@@ -2174,56 +2799,6 @@
           }
         },
         "overrides": []
-      }
-    },
-    {
-      "id": 127,
-      "type": "timeseries",
-      "title": "Image size",
-      "description": "What pulling each service's image downloads (compressed layers and config), the largest per service across environments: a jump is a heavier base or new dependencies.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 63
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "max by (service) (goliash_image_size_bytes)",
-          "refId": "A",
-          "legendFormat": "{{service}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "decbytes",
-          "min": 0,
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 0
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
       }
     }
   ],

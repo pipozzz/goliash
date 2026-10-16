@@ -1043,8 +1043,9 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 	_, _ = w.Write([]byte(b.String()))
 }
 
-// imageSizeMetrics is what pulling each service's main image downloads, per environment: the largest image
-// when an environment runs several.
+// imageSizeMetrics describes each service's main images per environment: what pulling them downloads (the
+// largest when an environment runs several), the size budget, how long a base has had a newer build, and which
+// supply-chain evidence every image has.
 func (h *PublicHandler) imageSizeMetrics(ctx context.Context, b *strings.Builder, sc store.Scope, o versions.Overview) {
 	active, err := h.store.ListActiveInstances(ctx, sc)
 	if err != nil {
@@ -1055,19 +1056,48 @@ func (h *PublicHandler) imageSizeMetrics(ctx context.Context, b *strings.Builder
 		return
 	}
 	type key struct{ service, env string }
-	sizes := map[key]int64{}
+	type images struct {
+		size, layers             int64
+		baseDays                 float64
+		based                    bool // some image's base was compared
+		checked                  bool // some image's evidence was looked up
+		signed, sbom, provenance bool // every looked-up image has it
+	}
+	seen := map[key]*images{}
 	for _, in := range active {
 		svc, ok := o.Services[in.ServiceID]
 		if !in.IsMain || !ok || in.Digest == "" {
 			continue
 		}
-		ev := known[versions.ParseImage(in.Image).Repo()+"@"+in.Digest]
-		if k := (key{svc.Name, o.Envs[in.EnvironmentID].Name}); ev.Size > sizes[k] {
-			sizes[k] = ev.Size
+		k := key{svc.Name, o.Envs[in.EnvironmentID].Name}
+		m := seen[k]
+		if m == nil {
+			m = &images{signed: true, sbom: true, provenance: true}
+			seen[k] = m
+		}
+		ev, ok := known[versions.ParseImage(in.Image).Repo()+"@"+in.Digest]
+		if !ok {
+			continue
+		}
+		if ev.Size > m.size {
+			m.size, m.layers = ev.Size, int64(len(ev.Layers))
+		}
+		switch ev.BaseStatus {
+		case "current":
+			m.based = true
+		case "outdated":
+			m.based = true
+			if !ev.BaseSince.IsZero() {
+				m.baseDays = max(m.baseDays, time.Since(ev.BaseSince).Hours()/24)
+			}
+		}
+		if ev.Error == "" && !ev.CheckedAt.IsZero() {
+			m.checked = true
+			m.signed, m.sbom, m.provenance = m.signed && ev.Signed, m.sbom && ev.SBOM, m.provenance && ev.Provenance
 		}
 	}
-	keys := make([]key, 0, len(sizes))
-	for k := range sizes {
+	keys := make([]key, 0, len(seen))
+	for k := range seen {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
@@ -1079,8 +1109,57 @@ func (h *PublicHandler) imageSizeMetrics(ctx context.Context, b *strings.Builder
 	b.WriteString("# HELP goliash_image_size_bytes What pulling the service's image downloads (compressed layers and config).\n")
 	b.WriteString("# TYPE goliash_image_size_bytes gauge\n")
 	for _, k := range keys {
-		fmt.Fprintf(b, "goliash_image_size_bytes{service=%q,environment=%q} %d\n", k.service, k.env, sizes[k])
+		if m := seen[k]; m.size > 0 {
+			fmt.Fprintf(b, "goliash_image_size_bytes{service=%q,environment=%q} %d\n", k.service, k.env, m.size)
+		}
 	}
+	b.WriteString("# HELP goliash_image_layers Layers in the service's image (the one goliash_image_size_bytes measures).\n")
+	b.WriteString("# TYPE goliash_image_layers gauge\n")
+	for _, k := range keys {
+		if m := seen[k]; m.layers > 0 {
+			fmt.Fprintf(b, "goliash_image_layers{service=%q,environment=%q} %d\n", k.service, k.env, m.layers)
+		}
+	}
+	b.WriteString("# HELP goliash_image_size_budget_bytes The largest image a service's policy allows (max_size_mb).\n")
+	b.WriteString("# TYPE goliash_image_size_budget_bytes gauge\n")
+	budgets := make([]store.Service, 0, len(o.Services))
+	for _, svc := range o.Services {
+		if versions.SizeBudget(svc) > 0 {
+			budgets = append(budgets, svc)
+		}
+	}
+	sort.Slice(budgets, func(i, j int) bool { return budgets[i].Name < budgets[j].Name })
+	for _, svc := range budgets {
+		fmt.Fprintf(b, "goliash_image_size_budget_bytes{service=%q} %d\n", svc.Name, versions.SizeBudget(svc))
+	}
+	b.WriteString("# HELP goliash_image_base_behind_days Days the image's base tag has had a newer build than the one the image is built on (0: current).\n")
+	b.WriteString("# TYPE goliash_image_base_behind_days gauge\n")
+	for _, k := range keys {
+		if m := seen[k]; m.based {
+			fmt.Fprintf(b, "goliash_image_base_behind_days{service=%q,environment=%q} %.2f\n", k.service, k.env, m.baseDays)
+		}
+	}
+	b.WriteString("# HELP goliash_image_evidence 1 when every image the service runs in the environment has the evidence: a signature, an SBOM or provenance.\n")
+	b.WriteString("# TYPE goliash_image_evidence gauge\n")
+	for _, k := range keys {
+		m := seen[k]
+		if !m.checked {
+			continue
+		}
+		for _, e := range []struct {
+			kind string
+			has  bool
+		}{{"signature", m.signed}, {"sbom", m.sbom}, {"provenance", m.provenance}} {
+			fmt.Fprintf(b, "goliash_image_evidence{service=%q,environment=%q,kind=%q} %d\n", k.service, k.env, e.kind, b2i(e.has))
+		}
+	}
+}
+
+func b2i(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 // postureMetrics is the security posture as metrics: what a CISO's dashboard trends and alerts on.
