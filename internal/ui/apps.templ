@@ -3,6 +3,8 @@
 
 package ui
 
+import "net/url"
+
 templ AppsPage(v AppsView) {
 	@Layout(v.Base) {
 		<div class="head">
@@ -125,6 +127,22 @@ templ TeamsPage(v TeamsView) {
 					<div class="panel-body app-body">
 						if len(t.Apps) > 0 {
 							<p class="app-meta"><span class="muted">Applications</span> { joinComma(t.Apps) }</p>
+						}
+						if t.Exploited+t.EOL+t.Rollouts+t.Behind > 0 {
+							<div class="badges team-score">
+								if t.Exploited > 0 {
+									<a class="badge exploited" href={ templ.URL("/updates?team=" + url.QueryEscape(t.Name)) } title="Services running a vulnerability exploited in the wild (CISA KEV)">{ plural(t.Exploited, "exploited", "exploited") }</a>
+								}
+								if t.EOL > 0 {
+									<a class="badge eol" href={ templ.URL("/updates?team=" + url.QueryEscape(t.Name)) } title="Services on a release cycle past or near its end of life">{ plural(t.EOL, "end of life", "end of life") }</a>
+								}
+								if t.Rollouts > 0 {
+									<a class="badge rollout" href="/delivery" title="Services with a rollout stuck, or none of their replicas running">{ plural(t.Rollouts, "rollout stuck", "rollouts stuck") }</a>
+								}
+								if t.Behind > 0 {
+									<a class="badge upstream" href={ templ.URL("/updates?team=" + url.QueryEscape(t.Name)) } title="Services behind upstream or the previous environment">{ itoa(t.Behind) + " behind" }</a>
+								}
+							</div>
 						}
 						<ul class="app-services">
 							for _, svc := range t.Services {

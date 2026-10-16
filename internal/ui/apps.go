@@ -47,6 +47,9 @@ type TeamView struct {
 	Apps     []string
 	State    string
 	OK       int
+	// The team's scorecard: services running something exploited in the wild, past end of life, with a rollout
+	// stuck or down, and behind (upstream or the previous environment), each service once.
+	Exploited, EOL, Rollouts, Behind int
 }
 
 // AppsView is the Applications page.
@@ -243,6 +246,16 @@ func (s *Server) teams(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		}
 		t.Services = append(t.Services, svc)
 		t.State = worse(t.State, c.State)
+		kinds := map[string]bool{}
+		for _, cell := range row.Cells {
+			for _, d := range cell.Drifts {
+				kinds[d.Kind] = true
+			}
+		}
+		t.Exploited += b2i(kinds["exploited"])
+		t.EOL += b2i(kinds["eol"])
+		t.Rollouts += b2i(kinds["rollout"])
+		t.Behind += b2i(kinds["upstream"] || kinds["env"])
 		if c.State == stCurrent {
 			t.OK++
 		}
@@ -326,3 +339,10 @@ func teamNames(ts []TeamView) []string {
 }
 
 func joinComma(s []string) string { return strings.Join(s, ", ") }
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
