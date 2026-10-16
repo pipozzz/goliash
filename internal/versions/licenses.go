@@ -395,3 +395,12 @@ func LicenseMatches(p LicensedPackage, q string) bool {
 	}
 	return false
 }
+
+// PurlName is a package URL's name without its version: com.itextpdf/itextpdf, debian/openssl.
+func PurlName(p string) string { return purlPackage(p) }
+
+// PurlVersion is a package URL's version.
+func PurlVersion(p string) string { return purlVersion(p) }
+
+// OSPackage tells whether a package URL names an operating system package (deb, apk, rpm).
+func OSPackage(p string) bool { return osPackage(p) }

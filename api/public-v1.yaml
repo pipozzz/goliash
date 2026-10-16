@@ -146,6 +146,15 @@ paths:
                             signed: { type: boolean }
                             sbom: { type: boolean }
                             provenance: { type: boolean }
+                            signers:
+                              type: array
+                              description: Who signed it, as its keyless signatures' certificates name them (not verified).
+                              items:
+                                type: object
+                                required: [identity]
+                                properties:
+                                  identity: { type: string, example: "https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main" }
+                                  issuer: { type: string, example: "https://token.actions.githubusercontent.com" }
                   history:
                     type: array
                     items:
@@ -479,6 +488,46 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/rollouts:
+    get:
+      operationId: listRollouts
+      summary: Rollouts that do not finish
+      description: >-
+        Workloads whose replicas are not where they should be, worst first: `down` (none of the replicas it asks for
+        runs), `stuck` (two versions side by side for more than 30 minutes) and `short` (fewer replicas than it asks
+        for). Only workloads whose platform reports the replicas it asks for (Kubernetes, ECS, Nomad, Swarm, Compose).
+      responses:
+        "200":
+          description: The workloads.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [kind, service, environment, target, workload, running, desired, since, versions]
+                  properties:
+                    kind: { type: string, enum: [down, stuck, short] }
+                    service: { type: string }
+                    environment: { type: string }
+                    target: { type: string }
+                    workload: { type: string, example: shop/payments-api }
+                    running: { type: integer }
+                    desired: { type: integer }
+                    since: { type: string, format: date-time, description: "Since when it has been so, as far as Goliash can tell." }
+                    versions:
+                      type: array
+                      description: The versions running, newest first.
+                      items:
+                        type: object
+                        required: [version, running, since]
+                        properties:
+                          version: { type: string }
+                          running: { type: integer }
+                          since: { type: string, format: date-time }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/delivery:
     get:
       operationId: getDelivery
@@ -609,6 +658,11 @@ paths:
                       items: { type: string }
                       description: Vulnerabilities in the running image that CISA lists as exploited in the wild, from its SBOM.
                     critical_vulnerabilities: { type: integer, description: "Other critical vulnerabilities in the running image." }
+                    vulnerabilities:
+                      allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
+                      description: >-
+                        What the upgrade does to known vulnerabilities, when the target version already runs somewhere:
+                        comparing the SBOMs of its image and the running one. Absent unless both have an SBOM.
                     since: { type: string, format: date-time }
                     acknowledged: { type: boolean }
         "401": { $ref: '#/components/responses/Unauthorized' }
@@ -994,14 +1048,17 @@ components:
               published_at: { type: string, format: date-time }
               release_notes: { type: string }
         vulnerabilities:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
           description: >-
             What promoting does to the known vulnerabilities of `to`, comparing the SBOMs of the two versions' images on
             OSV: those it fixes and those it brings, exploited ones first. Absent unless both images have an SBOM.
-          required: [fixed, new]
-          properties:
-            fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
-            new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+
+    VulnDelta:
+      type: object
+      required: [fixed, new]
+      properties:
+        fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+        new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
 
     VulnRef:
       type: object

@@ -479,6 +479,9 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			if err := n.CheckImages(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("checking running images failed", "err", err)
 			}
+			if err := n.CheckRollouts(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("checking rollouts failed", "err", err)
+			}
 		}
 		if time.Since(recorded) >= time.Hour {
 			recorded = time.Now()
@@ -645,8 +648,15 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s image is %s, over its %s", where, orDash(it.To), it.From, it.Note)
 	case EventOutdatedBase:
 		return fmt.Sprintf("%s: %s is built on an older %s than its tag has had for %s: rebuild with --pull", where, orDash(it.To), it.From, it.Note)
+	case EventLicense:
+		return fmt.Sprintf("%s: %s brings %s", where, orDash(it.To), it.Note)
 	case EventEvidenceLost:
 		return fmt.Sprintf("%s: %s has no %s, though %s had", where, orDash(it.To), it.Note, orDash(it.From))
+	case EventRollout:
+		if it.Note == string(versions.RolloutDown) {
+			return fmt.Sprintf("%s: none of %s replicas running%s", where, it.From, on)
+		}
+		return fmt.Sprintf("%s: rollout stuck%s: %s", where, on, it.From)
 	case "deployed":
 		return fmt.Sprintf("%s: %s deployed%s", where, it.To, on)
 	case "version_changed":
