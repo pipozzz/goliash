@@ -88,6 +88,7 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	if p.Can(store.RoleAdmin) {
 		out = append(out, PaletteEntry{Kind: "page", Label: "Users and API tokens", Sub: "settings", URL: "/settings"})
+		out = append(out, PaletteEntry{Kind: "page", Label: "Private registries", Sub: "registry credentials for the server", URL: "/settings#registries"})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "private, no-store")
