@@ -57,6 +57,11 @@ func TestDeliveryStats(t *testing.T) {
 	if rollbacks["prod"] != 1 || rollbacks["staging"] != 0 {
 		t.Fatalf("rollbacks %v", rollbacks)
 	}
+	for _, e := range d.Envs {
+		if e.Env.Name == "prod" && !e.LastDeploy.Equal(t0.Add(9*24*time.Hour)) {
+			t.Errorf("prod's last deploy %v, want the redeploy after the rollback", e.LastDeploy)
+		}
+	}
 	if deploys["staging"] != 2 || deploys["prod"] != 2 || deploys["dev"] != 0 {
 		t.Fatalf("deploys %v (the arrival 60 days ago is outside the window, the retag is not a deploy)", deploys)
 	}
