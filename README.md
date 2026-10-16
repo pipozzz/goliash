@@ -58,7 +58,8 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   release-notes links from GitHub.
 - **Tiles.** The matrix drawn like the logo: every application a cell, coloured by how current it is, warm where
   something needs attention; open a cell for its services, compare environments side by side, or put it on a wall
-  screen. The browser tab's icon shows the workspace's state too.
+  screen. The browser tab's icon shows the workspace's state too. Show one team alone as its own board, and save
+  any view (a team, production, the TV board, a team's upgrade list) as a tab or as your home page.
 - **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
   production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
 - **Goli, the assistant inside.** <img align="right" alt="Goli, the Goliash plushie" src="docs/assets/goli.svg" width="90">
@@ -106,8 +107,10 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Ask your own AI assistant too.** A built-in MCP server gives Claude, Cursor and others the same read-only tools
   Goli uses: "what runs in prod?", "what should we upgrade first?", answered from live data. They sign in with OAuth,
   no token to copy; try it on the demo: `claude mcp add --transport http goliash https://demo.goliash.dev/mcp`.
-- **Built for teams and MSPs.** Workspaces per client, roles, passkeys, two-factor, magic-link and OIDC sign-in, audit
-  log, REST API and Prometheus metrics.
+- **Built for teams and MSPs.** Every service has a team, picked or created as you type; each team's card is a
+  scorecard (exploited, end of life, stuck rollouts, behind) with a one-click brief from Goli. Workspaces per client,
+  roles, passkeys, two-factor, magic-link and OIDC sign-in, audit log, REST API, Prometheus metrics, and CSV exports
+  of exposure, licenses and vulnerabilities for audits.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
   in your network. One binary each, SQLite or PostgreSQL (several servers for high availability), Helm, Compose,
   Swarm, Nomad, CloudFormation and Terraform manifests included.
