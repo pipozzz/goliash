@@ -58,7 +58,8 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   release-notes links from GitHub.
 - **Tiles.** The matrix drawn like the logo: every application a cell, coloured by how current it is, warm where
   something needs attention; open a cell for its services, compare environments side by side, or put it on a wall
-  screen. The browser tab's icon shows the workspace's state too.
+  screen. The browser tab's icon shows the workspace's state too. Show one team alone as its own board, and save
+  any view (a team, production, the TV board, a team's upgrade list) as a tab or as your home page.
 - **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
   production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
 - **Goli, the assistant inside.** <img align="right" alt="Goli, the Goliash plushie" src="docs/assets/goli.svg" width="90">
@@ -71,14 +72,25 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   [Try it on the demo](https://demo.goliash.dev/updates).
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
+- **Did the deploy go out?** Rollouts stuck half way (two versions side by side for half an hour), services running
+  none of their replicas, and rollbacks to an older version, read from Kubernetes, ECS, Nomad, Swarm and Compose:
+  first on the Delivery page, announced, and counted against deploys as a change failure rate. Each version waiting
+  for production says which known vulnerabilities promoting it fixes and which it brings.
+- **What the image is made of.** What pulling each image costs, charted per environment over 90 days, the layers the
+  last deploy added with the Dockerfile step of each (`RUN apt-get install -y chromium`, +145 MB), a size budget per
+  service, and images built on an older build of their `FROM` image than the base has now (`docker build --pull`
+  forgotten), with an alert when an image grows a lot.
 - **History without CI.** Every deploy, rollout, retag and removal, read from the runtime itself. Scrub a timeline
   back through 400 days and watch versions change, or play the deployments back one by one.
 - **An SBOM of what actually runs.** Not one image at build time: every running image in every environment, with its
   digest, where it runs and the packages of its SBOM (BuildKit, cosign or OCI referrers), as CycloneDX 1.6 for now
   or any past moment, per environment, straight into Dependency-Track.
 - **Is CVE-X running?** Packages from those SBOMs checked daily against OSV (Debian, Ubuntu, Alpine, Wolfi,
-  Chainguard and language ecosystems), exploited-in-the-wild (CISA KEV) first, with the version that fixes each, and
-  an alert when one starts running.
+  Chainguard and language ecosystems), exploited-in-the-wild (CISA KEV) first, with the version that fixes each, how
+  long each has run, *past due* once CISA's date for fixing it passes, and an alert when one starts running.
+- **Licenses and signers.** The license of every package in running images, sorted by what it asks: AGPL and SSPL,
+  source-available terms, GPL and unknown licenses first. And who signed each image, as its keyless (Sigstore)
+  signature names the CI workflow or person, with an expected signer per service.
 - **Notifications with less noise.** Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, webhooks (signed), e-mail, browser push and Grafana annotations, instant or as daily/weekly digests, with
   dedup and ack/snooze, and a scheduled upgrade plan.
 - **Software outside containers too.** Add a database on a VM or a managed service by hand, with where it runs and
@@ -87,15 +99,18 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Security posture for whoever answers for the risk.** How long production has run behind an available release
   (median, 90th percentile, 30+ and 90+ days), what is past its end of life, accepted risk, supply-chain findings and
   blind spots, with a CSV and a PDF for risk registers and audits (NIS2, DORA, SOC 2, ISO 27001).
-- **On the dashboards you already have.** Ready-made Grafana and SigNoz dashboards (versions, drift, delivery speed,
-  image hygiene, Goliash's own health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
+- **On the dashboards you already have.** Ready-made Grafana and SigNoz dashboards (versions, drift, delivery speed
+  and change failure rate, rollouts, image sizes and budgets, vulnerabilities, licenses, image hygiene, Goliash's own
+  health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
   PrometheusRule and dashboard from the Helm chart. Settings → Integrations fills in the scrape settings and creates
   the token in one click.
 - **Ask your own AI assistant too.** A built-in MCP server gives Claude, Cursor and others the same read-only tools
   Goli uses: "what runs in prod?", "what should we upgrade first?", answered from live data. They sign in with OAuth,
   no token to copy; try it on the demo: `claude mcp add --transport http goliash https://demo.goliash.dev/mcp`.
-- **Built for teams and MSPs.** Workspaces per client, roles, passkeys, two-factor, magic-link and OIDC sign-in, audit
-  log, REST API and Prometheus metrics.
+- **Built for teams and MSPs.** Every service has a team, picked or created as you type; each team's card is a
+  scorecard (exploited, end of life, stuck rollouts, behind) with a one-click brief from Goli. Workspaces per client,
+  roles, passkeys, two-factor, magic-link and OIDC sign-in, audit log, REST API, Prometheus metrics, and CSV exports
+  of exposure, licenses and vulnerabilities for audits.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
   in your network. One binary each, SQLite or PostgreSQL (several servers for high availability), Helm, Compose,
   Swarm, Nomad, CloudFormation and Terraform manifests included.

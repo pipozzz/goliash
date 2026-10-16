@@ -66,6 +66,15 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
     An environment behind the one before it, a version behind upstream, a release cycle at its end of life, a
     host that runs something other than Git declares: shown at once, announced only when it lasts.
   </Card>
+  <Card title="Did the deploy go out?" icon="rocket">
+    Rollouts stuck half way, services running none of their replicas and rollbacks to an older version, from
+    Kubernetes, ECS, Nomad, Swarm and Compose: first on the Delivery page, announced, and counted as a change failure
+    rate. Each version waiting for production says which known vulnerabilities promoting it fixes and brings.
+  </Card>
+  <Card title="What the image is made of" icon="seti:docker">
+    What pulling each image costs over time, the layers the last deploy added with the Dockerfile step of each, a
+    size budget per service, and images built on an outdated build of their base image.
+  </Card>
   <Card title="History without CI" icon="list-format">
     Every deploy, rollout, retag and removal, read from the runtime itself, not from pipelines. Scrub the timeline
     back through 400 days and watch versions change, or play the deployments back one by one.
@@ -80,7 +89,12 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
   </Card>
   <Card title="Security posture" icon="warning">
     How long production has run behind an available release, what is past its end of life, accepted risk and blind
-    spots, read from the runtime. Export it as CSV or PDF for the risk register and the audit.
+    spots, read from the runtime. Known vulnerabilities with how long each has run and CISA's due dates. Export it as
+    CSV or PDF for the risk register and the audit.
+  </Card>
+  <Card title="Licenses and signers" icon="document">
+    The license of every package in running images, AGPL, source-available and unknown ones first, and who signed
+    each image, as its Sigstore certificate names the CI workflow or person, with an expected signer per service.
   </Card>
   <Card title="On your dashboards" icon="laptop">
     Ready-made Grafana and SigNoz dashboards, deploy markers on your graphs and Prometheus alerts. Settings →
@@ -90,6 +104,11 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
     An MCP server built in: Claude, Cursor and others answer "what runs in prod?" or "what changed in the last two
     hours?" from live data. They sign in with OAuth as you, read only; no token to copy. Try it on the demo:
     `claude mcp add --transport http goliash https://demo.goliash.dev/mcp`.
+  </Card>
+  <Card title="Teams and saved views" icon="puzzle">
+    Every service has a team, and each team a scorecard: exploited vulnerabilities, end of life, stuck rollouts,
+    what is behind, with a brief from Goli. Show one team alone as its own board or TV screen, and save any view as a
+    tab or your home page.
   </Card>
   <Card title="Connected in two clicks" icon="rocket">
     Pick the platform and copy one command: the agent registers itself and finds what to watch, from a Docker host to

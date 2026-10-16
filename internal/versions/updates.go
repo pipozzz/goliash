@@ -34,6 +34,9 @@ type Update struct {
 	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
 	Exploited []string
 	Critical  int
+	// Vulns is what upgrading does to known vulnerabilities, when the target version already runs somewhere and
+	// both images have an SBOM: those it fixes and those it brings.
+	Vulns VulnDelta
 }
 
 // Urgency levels, most urgent first.
@@ -174,6 +177,14 @@ func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 	us := Updates(o, acks, now)
 	if r, err := LoadVulnReport(ctx, st, sc, ""); err == nil {
 		us = WithVulnerabilities(us, r)
+		if idx, err := loadVulnIndex(ctx, st, sc, r); err == nil {
+			for i := range us {
+				u := &us[i]
+				if u.Target != "" && u.Target != u.Running {
+					u.Vulns = idx.delta(vulnSide{u.Service.ID, "", u.Target}, vulnSide{u.Service.ID, u.Environment.ID, u.Running})
+				}
+			}
+		}
 	}
 	return us
 }

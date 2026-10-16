@@ -64,11 +64,20 @@ func (h *PublicHandler) licenses(w http.ResponseWriter, r *http.Request, p auth.
 		Packages []apiPackage   `json:"packages"`
 	}{rep.Images, rep.WithSBOM, counts(rep.Counts), counts(rep.OSCounts), rep.LicensesUnread == 0, []apiPackage{}}
 	search := strings.TrimSpace(q.Get("q"))
+	var shown []versions.LicensedPackage
 	for _, pkg := range rep.Packages {
 		if (class == "attention" && !pkg.Class.Attention()) || (class != "" && class != "attention" && string(pkg.Class) != class) ||
 			(pkg.OS && !withOS) || !versions.LicenseMatches(pkg, search) {
 			continue
 		}
+		shown = append(shown, pkg)
+	}
+	if q.Get("format") == "csv" {
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		_ = versions.WriteLicensesCSV(w, shown)
+		return
+	}
+	for _, pkg := range shown {
 		ap := apiPackage{Purl: pkg.Purl, Name: pkg.Name, Version: pkg.Version, License: pkg.License, Class: string(pkg.Class), OS: pkg.OS, RunningIn: []apiUse{}}
 		for _, u := range pkg.Where {
 			ap.RunningIn = append(ap.RunningIn, apiUse{u.Service, u.Environment})

@@ -72,6 +72,20 @@ func TestTilesPage(t *testing.T) {
 	if !strings.Contains(body, "All applications") || !strings.Contains(body, `class="tile-panel" id="svc-`) {
 		t.Errorf("drill-down: %s", body[:min(len(body), 300)])
 	}
+	if !strings.Contains(body, "Only this application") || !strings.Contains(body, "only=1") {
+		t.Error("the card offers no way to show it alone")
+	}
+	// Alone: the application's services as the whole board, nothing behind, and the choice kept in the links.
+	_, body = get(t, viewer, e.srv.URL+"/tiles?app=other&only=1&tv=1", nil)
+	if !strings.Contains(body, `class="tile-alone`) || strings.Contains(body, `class="tile-stack"`) || strings.Contains(body, "stack-back") {
+		t.Errorf("alone: %s", body[:min(len(body), 300)])
+	}
+	if !strings.Contains(body, "only=1") {
+		t.Error("the TV links drop only")
+	}
+	if _, body = get(t, viewer, e.srv.URL+"/tiles?only=1", nil); strings.Contains(body, `class="tile-alone`) {
+		t.Error("only without an application is not a board")
+	}
 	if _, body = get(t, viewer, e.srv.URL+"/tiles?env=side", nil); !strings.Contains(body, `class="env-boards"`) {
 		t.Error("no boards side by side")
 	}

@@ -140,7 +140,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .badge { display: inline-flex; align-items: center; gap: 4px; font: 600 11px/1.2 var(--sans); padding: 3px 7px; border-radius: 999px; white-space: nowrap; }
 .badge.env, .badge.declared { background: var(--warn-soft); color: var(--warn); }
 .badge.upstream { background: var(--info-soft); color: var(--info); }
-.badge.inconsistent, .badge.failing, .badge.stale, .badge.eol, .badge.revoked, .badge.exploited { background: var(--bad-soft); color: var(--bad); }
+.badge.inconsistent, .badge.failing, .badge.stale, .badge.eol, .badge.revoked, .badge.exploited, .badge.rollout { background: var(--bad-soft); color: var(--bad); }
 .badge.ok, .badge.online { background: var(--ok-soft); color: var(--ok); }
 .badge.degraded, .badge.outdated { background: var(--warn-soft); color: var(--warn); }
 .badge.neutral, .badge.never, .badge.declared-only { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
@@ -1213,3 +1213,9 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .view-save[open] { flex-basis: 100%; }
 .view-save form { margin-top: 8px; align-items: center; flex-wrap: wrap; }
 .view-save input[name=name] { flex: 1 1 220px; min-width: 0; }
+/* One application or team alone, as the whole board (?only=1): its services as the cells, nothing behind. */
+.tile-alone { display: grid; gap: 14px; }
+.alone-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.alone-head .stack-title { flex: 1 1 auto; min-width: 0; }
+.alone-head h2 { margin: 0; }
+.stack-head .stack-only { font-size: 13px; white-space: nowrap; }

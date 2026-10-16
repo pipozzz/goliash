@@ -194,6 +194,7 @@ paths:
         copyleft (LGPL, MPL), unknown, permissive. An OR in a license expression counts as its least demanding
         choice, an AND as its most demanding part. Operating system packages (deb, apk, rpm) are marked `os`.
       parameters:
+        - { name: format, in: query, description: "csv: one row per package and where it runs, for a license review.", schema: { type: string, enum: [json, csv], default: json } }
         - { name: environment, in: query, description: Only this environment., schema: { type: string } }
         - name: class
           in: query
@@ -205,6 +206,8 @@ paths:
         "200":
           description: The packages.
           content:
+            text/csv:
+              schema: { type: string }
             application/json:
               schema:
                 type: object
@@ -658,6 +661,11 @@ paths:
                       items: { type: string }
                       description: Vulnerabilities in the running image that CISA lists as exploited in the wild, from its SBOM.
                     critical_vulnerabilities: { type: integer, description: "Other critical vulnerabilities in the running image." }
+                    vulnerabilities:
+                      allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
+                      description: >-
+                        What the upgrade does to known vulnerabilities, when the target version already runs somewhere:
+                        comparing the SBOMs of its image and the running one. Absent unless both have an SBOM.
                     since: { type: string, format: date-time }
                     acknowledged: { type: boolean }
         "401": { $ref: '#/components/responses/Unauthorized' }
@@ -701,6 +709,7 @@ paths:
         still being looked up: an empty answer then does not mean "not running". Only images with an SBOM are
         covered (`images_with_sbom` of `images`).
       parameters:
+        - { name: format, in: query, description: "csv: one row per vulnerability and affected image, with CISA due dates and fixes.", schema: { type: string, enum: [json, csv], default: json } }
         - { name: q, in: query, schema: { type: string }, description: 'A CVE or advisory ID, package or service; part of it matches' }
         - { name: environment, in: query, schema: { type: string }, description: Only this environment }
         - { name: exploited, in: query, schema: { type: boolean }, description: Only vulnerabilities exploited in the wild (CISA KEV) }
@@ -708,6 +717,8 @@ paths:
         "200":
           description: Findings, exploited first, then by severity.
           content:
+            text/csv:
+              schema: { type: string }
             application/json:
               schema:
                 type: object
@@ -1043,14 +1054,17 @@ components:
               published_at: { type: string, format: date-time }
               release_notes: { type: string }
         vulnerabilities:
-          type: object
+          allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
           description: >-
             What promoting does to the known vulnerabilities of `to`, comparing the SBOMs of the two versions' images on
             OSV: those it fixes and those it brings, exploited ones first. Absent unless both images have an SBOM.
-          required: [fixed, new]
-          properties:
-            fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
-            new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+
+    VulnDelta:
+      type: object
+      required: [fixed, new]
+      properties:
+        fixed: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
+        new: { type: array, items: { $ref: '#/components/schemas/VulnRef' } }
 
     VulnRef:
       type: object

@@ -167,6 +167,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 					<span class="tag">{ it.Target }</span>
 				}
 			}
+			if it.Vulns.Known && (len(it.Vulns.Fixed) > 0 || len(it.Vulns.New) > 0) {
+				@promotionVulns(it.Vulns)
+			}
 			if it.Brief != "" {
 				<button type="button" class="link brief" data-goli-ask={ it.Brief } title="Goli reads the release notes in between and briefs you">Brief</button>
 			}

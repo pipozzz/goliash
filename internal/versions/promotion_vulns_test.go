@@ -54,3 +54,46 @@ func TestAddVulnDeltas(t *testing.T) {
 		t.Error("exploited counts")
 	}
 }
+
+// An upgrade to a version that already runs elsewhere says what it fixes, as the promotion does.
+func TestUpdateVulnDeltas(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	deploy := func(target, tag, digest string) {
+		tg := l.targets[target]
+		if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+			TargetID: tg.ID, EnvironmentID: tg.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "web", WorkloadName: "web", ContainerName: "nginx",
+			Image: "nginx:" + tag, Tag: tag, Digest: digest, Running: 1, IsMain: true,
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deploy("stg-1", "1.28.0", "sha256:new")
+	deploy("prod-a", "1.27.2", "sha256:old")
+	openssl := "pkg:deb/debian/openssl@3.0.11"
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "docker.io/library/nginx", Digest: "sha256:old", Purls: []string{openssl}})
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "docker.io/library/nginx", Digest: "sha256:new", Purls: []string{"pkg:deb/debian/zlib@1.3"}})
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{openssl: {"CVE-2024-5535"}, "pkg:deb/debian/zlib@1.3": nil})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "CVE-2024-5535", Severity: "CRITICAL"})
+	_, _ = l.st.InsertReleases(ctx, l.sc, l.svc.ID, []string{"1.27.2", "1.28.0"})
+	if err := l.checker.EvaluateDrift(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	o, err := LoadOverview(ctx, l.st, l.sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var prod *Update
+	us := LoadUpdates(ctx, l.st, l.sc, o, nil, time.Now())
+	for i := range us {
+		if us[i].Environment.Name == "prod" && us[i].Service.ID == l.svc.ID {
+			prod = &us[i]
+		}
+	}
+	if prod == nil || prod.Target != "1.28.0" {
+		t.Fatalf("updates %+v", us)
+	}
+	if !prod.Vulns.Known || len(prod.Vulns.Fixed) != 1 || prod.Vulns.Fixed[0].ID != "CVE-2024-5535" || len(prod.Vulns.New) != 0 {
+		t.Errorf("prod upgrade %+v", prod.Vulns)
+	}
+}
