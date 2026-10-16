@@ -93,6 +93,7 @@ Goli uses the same read-only tools as the [MCP server](/reference/mcp/), through
 | `vulnerabilities` | Known vulnerabilities in running images, exploited ones first |
 | `posture` | The security posture: how long production runs behind fixes, end of life, accepted risk, blind spots |
 | `notifications` | What Goliash sent you: alerts, digests and upgrade plans, as under the bell |
+| `images` | One service's images: size against its budget, base, signature/SBOM/provenance, 90 days of sizes and what the last deploy changed in the layers |
 | `inventory`, `hygiene` | Every running image with its size and whether its base is current; image hygiene, outdated bases included |
 | `delivery`, `promotions` | Deploys over time; what waits to be promoted |
 | `status` | Whether the data is fresh |
