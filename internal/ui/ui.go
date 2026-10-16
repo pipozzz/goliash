@@ -1061,7 +1061,7 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request, p auth.Principal
 	for _, d := range rep.Delivery {
 		row := DeliveryRow{Service: d.Service.Name}
 		for _, e := range d.Envs {
-			row.Envs = append(row.Envs, DeliveryCell{Deploys: e.Deploys})
+			row.Envs = append(row.Envs, DeliveryCell{Deploys: e.Deploys, Rollbacks: e.Rollbacks})
 		}
 		for _, lt := range d.LeadTimes {
 			lead := "—"
@@ -1153,7 +1153,7 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	for _, d := range stats {
 		row := DeliveryRow{Service: d.Service.Name}
 		for _, e := range d.Envs {
-			row.Envs = append(row.Envs, DeliveryCell{Deploys: e.Deploys, Last: e.LastDeploy})
+			row.Envs = append(row.Envs, DeliveryCell{Deploys: e.Deploys, Rollbacks: e.Rollbacks, Last: e.LastDeploy})
 		}
 		for _, lt := range d.LeadTimes {
 			lead := "—"

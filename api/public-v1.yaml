@@ -909,7 +909,7 @@ components:
         target: { type: string }
         from: { type: string }
         to: { type: string }
-        note: { type: string }
+        note: { type: string, description: "retag (same version, new digest) or rollback (a version_changed to an older version); for drift, its kind." }
         source: { type: string, description: "Where the event came from, e.g. snapshot or poll." }
         at: { type: string, format: date-time }
 
@@ -965,6 +965,7 @@ components:
             properties:
               environment: { type: string }
               deploys: { type: integer, description: Versions that arrived within the window. }
+              rollbacks: { type: integer, description: "Changes back to an older version within the window: with deploys, a change failure rate." }
               last_deploy: { type: string, format: date-time }
         lead_times:
           type: array

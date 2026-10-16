@@ -401,7 +401,7 @@ type EventView struct {
 func askAround(events []EventView) {
 	for i, e := range events {
 		switch e.Type {
-		case "deployed", "version_changed", "removed", "drift_detected":
+		case "deployed", "version_changed", versions.RollbackNote, "removed", "drift_detected":
 			events[i].Ask = "What else changed in the hour before and after " + e.At.UTC().Format("2006-01-02 15:04 UTC") +
 				", when this happened: " + e.Text + "? Could any of it be related, and what should I check first?"
 		}
@@ -416,7 +416,7 @@ var eventLabels = map[string]string{
 // ruleEventLabels name event types as the rule form does.
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
-	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
+	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
 	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost",
 }
 
@@ -430,11 +430,14 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 		svc := o.Services[e.ServiceID]
 		it := notifier.Item{
 			Type: e.Type, Service: svc.Name, App: e.App, Environment: o.Envs[e.EnvironmentID].Name,
-			Target: targetName[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: e.Note,
+			Target: targetName[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: versions.EventNote(e),
 		}
 		v := EventView{
 			At: e.At, Type: e.Type, Label: eventLabels[e.Type], Text: notifier.Describe(it), Service: svc.Name,
 			Env: it.Environment, Target: it.Target,
+		}
+		if it.Note == versions.RollbackNote {
+			v.Type, v.Label = versions.RollbackNote, "rolled back"
 		}
 		if svc.Name != "" {
 			v.ServiceURL = serviceURL(svc.Name)
@@ -562,8 +565,9 @@ type DeliveryRow struct {
 
 // DeliveryCell is one environment of a service.
 type DeliveryCell struct {
-	Deploys int
-	Last    time.Time
+	Deploys   int
+	Rollbacks int // changes back to an older version
+	Last      time.Time
 }
 
 // EventsView is the history page.

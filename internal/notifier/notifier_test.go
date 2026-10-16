@@ -587,3 +587,25 @@ func TestDescribeVulnerability(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestRollback(t *testing.T) {
+	it := Item{Type: "version_changed", Service: "payments-api", Environment: "prod", Target: "k8s-prod", From: "1.5.0", To: "1.4.2", Note: "rollback"}
+	if got, want := Describe(it), "payments-api @ prod: rolled back from 1.5.0 to 1.4.2 on k8s-prod"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if k := kindOf(it); k.Label != "Rolled back" {
+		t.Errorf("kind %+v", k)
+	}
+	rollbacksOnly := store.Rule{EventTypes: []string{"rollback"}}
+	if !matches(rollbacksOnly, Filter{}, it) {
+		t.Error("a rollbacks rule misses a rollback")
+	}
+	forward := it
+	forward.From, forward.To, forward.Note = "1.4.2", "1.5.0", ""
+	if matches(rollbacksOnly, Filter{}, forward) {
+		t.Error("a rollbacks rule takes a deploy forward")
+	}
+	if !matches(store.Rule{EventTypes: []string{"version_changed"}}, Filter{}, it) {
+		t.Error("a deploys rule misses a rollback")
+	}
+}

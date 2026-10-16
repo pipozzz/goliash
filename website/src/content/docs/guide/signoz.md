@@ -77,7 +77,7 @@ then in SigNoz open **Dashboards → New dashboard → Import JSON** and upload 
 
 - **Versions and drift:** services behind upstream, open drifts and the oldest, what runs where, services running
   more than one version.
-- **Delivery (last 30 days):** deploys, the median and slowest lead time from one environment to the next, deploys
+- **Delivery (last 30 days):** deploys, rollbacks, the median and slowest lead time from one environment to the next, deploys
   per service and the lead time table. Lead time needs at least two environments; with only one, its panels stay
   empty and SigNoz says it cannot find `goliash_lead_time_seconds`.
 - **Security posture:** how long production has run behind available releases (median and 90th percentile, and
