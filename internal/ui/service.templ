@@ -313,6 +313,11 @@ templ ServicePage(v ServiceView) {
 								<input name="base_image" class="mono" value={ v.Policy.BaseImage } placeholder="node:22-alpine"/>
 								<span class="hint">What the service's image is built FROM, tracked for end of life. Empty: as the image declares (org.opencontainers.image.base.name); none: not tracked.</span>
 							</label>
+							<label>
+								Image size budget (MB)
+								<input name="max_size_mb" inputmode="numeric" value={ v.Policy.MaxSizeMB } placeholder="e.g. 300"/>
+								<span class="hint">What pulling the image may download. Over it, Image hygiene lists it and the image over budget alert fires. Empty: no budget.</span>
+							</label>
 							<label class="check">
 								<input type="checkbox" name="prerelease" value="1" checked?={ v.Policy.Prerelease }/>
 								Consider alpha, beta and rc tags

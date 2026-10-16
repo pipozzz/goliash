@@ -417,7 +417,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
-	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth",
+	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
@@ -512,6 +512,7 @@ type PolicyForm struct {
 	PinMajor   string
 	Prerelease bool
 	BaseImage  string // set by people; empty: as the image declares
+	MaxSizeMB  string // the image size budget, empty: none
 }
 
 // ServiceEnv is one environment on a service page.
@@ -1114,6 +1115,14 @@ func eventTitle(kind string) string {
 	}
 	if kind == "image_grew" {
 		return "A deploy whose image is at least a quarter and 20 MB bigger than the one it replaced"
+	}
+	switch kind {
+	case "image_over_budget":
+		return "A deploy whose image is bigger than the size budget in its service's version policy"
+	case "outdated_base":
+		return "An image built on a build of its base that has had a newer one for over two weeks"
+	case "evidence_lost":
+		return "A deploy whose image has no signature, SBOM or provenance though the one it replaced had"
 	}
 	if kind == "posture_report" {
 		return "The Security page in one message for production: exposure days, end of life, accepted risk, the longest exposures; at the digest time, daily or on Mondays"

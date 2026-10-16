@@ -226,21 +226,29 @@ The first time a workspace's SBOMs are looked up completely, what already runs i
 an installation does not hear about every vulnerability it runs on day one; the Security page lists those. See
 [Security posture](../security/#is-it-running).
 
-## Image growth
+## Image alerts
 
-The `image_grew` event (*image growth* in the form) announces a deploy whose image is at least a quarter and 20 MB
-bigger than the one it replaced in that environment: a heavier base, a dependency pulled in by accident, build tools
-left in the final image. It comes once per new image and environment, for deploys of the last week, and Goli can
-explain it:
+Four events watch the running images, each once per image and environment (rules for every event get them too,
+and Goli can explain each):
 
-> api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0)
+| Event | When |
+| --- | --- |
+| `image_grew` (*image growth*) | A deploy's image is at least a quarter and 20 MB bigger than the one it replaced: a heavier base, a dependency pulled in by accident, build tools left in the final image. |
+| `image_over_budget` | A deploy's image is bigger than the **Image size budget** in its service's version policy. |
+| `outdated_base` | An image is built on a build of its base that has had a newer one for over two weeks: [rebuild with `--pull`](../security/#built-on-an-outdated-base). |
+| `evidence_lost` | A deploy's image has no signature, SBOM or provenance though the one it replaced had: the build or its CI changed. |
+
+> api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0)<br>
+> api @ prod: 2.0.0 image is 240 MB, over its 200 MB budget<br>
+> api @ prod: 2.0.0 has no signature, SBOM, though 1.1.0 had
 
 ```sh
-goliash notify create -channel platform -events image_grew -envs prod -mode instant
+goliash notify create -channel platform -events image_grew,image_over_budget,outdated_base,evidence_lost -envs prod -mode instant
 ```
 
-Sizes are read from the registry with the [supply-chain evidence](../security/#supply-chain-evidence); the service
-page charts them per deploy.
+Deploy alerts look at deploys of the last week, so turning a rule on does not announce old news. Sizes and evidence
+are read from the registry with the [supply-chain evidence](../security/#supply-chain-evidence); the service page
+charts the size per deploy.
 
 ## Deploys on your dashboards
 

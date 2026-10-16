@@ -52,6 +52,16 @@ func (s *sink) count() int {
 	return len(s.bodies)
 }
 
+func (s *sink) all() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, len(s.bodies))
+	for i, b := range s.bodies {
+		out[i] = string(b)
+	}
+	return out
+}
+
 func (s *sink) last() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

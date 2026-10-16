@@ -51,7 +51,7 @@ func HygienePage(v HygieneView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Image hygiene</h1><p class=\"sub\">Images that make \"what runs\" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, and images without a known digest.</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Image hygiene</h1><p class=\"sub\">Images that make \"what runs\" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, images over their size budget, and images without a known digest.</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

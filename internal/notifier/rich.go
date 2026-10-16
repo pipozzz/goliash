@@ -54,6 +54,12 @@ func kindOf(it Item) kind {
 		return kind{"🛡️", "#1b2a6b", "Security posture"}
 	case EventImageGrew:
 		return kind{"📦", "#d9822b", "Image grew"}
+	case EventImageOverBudget:
+		return kind{"📦", "#e5484d", "Image over budget"}
+	case EventOutdatedBase:
+		return kind{"🧱", "#d9822b", "Outdated base"}
+	case EventEvidenceLost:
+		return kind{"🔓", "#e5484d", "Evidence lost"}
 	}
 	return kind{"👋", "#1b2a6b", "Goliash"}
 }
@@ -144,6 +150,12 @@ func goliQuestion(it Item) string {
 		return "Explain this vulnerability alert for us, what fixes it and how urgent it is: " + it.Text
 	case it.Type == "drift_detected":
 		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
+	case it.Type == EventImageOverBudget:
+		return "Why is the " + it.Service + " image in " + it.Environment + " " + it.From + ", over its " + it.Note + "? What takes the space and how could it shrink?"
+	case it.Type == EventOutdatedBase:
+		return "The " + it.Service + " image in " + it.Environment + " is built on an older " + it.From + ". What fixes is it missing, and how do we rebuild it on the current base?"
+	case it.Type == EventEvidenceLost:
+		return "Version " + it.To + " of " + it.Service + " in " + it.Environment + " has no " + it.Note + ", though " + it.From + " had. What might have changed in the build, and what is the risk?"
 	case it.Type == EventImageGrew:
 		return "Why did the " + it.Service + " image in " + it.Environment + " grow from " + it.From + " to " + it.To + "? Brief me on what changed between the versions (base image, dependencies, build) and how the image could get smaller."
 	case it.Type == "posture":

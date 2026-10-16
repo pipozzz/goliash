@@ -5,6 +5,7 @@ package notifier
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -54,7 +55,7 @@ func TestImageGrowth(t *testing.T) {
 	size("sha256:03", 240_000_000)
 
 	for range 2 { // once per new image
-		if err := e.n.CheckImageGrowth(ctx); err != nil {
+		if err := e.n.CheckImages(ctx); err != nil {
 			t.Fatal(err)
 		}
 		_ = e.n.DeliverDue(ctx)
@@ -65,6 +66,45 @@ func TestImageGrowth(t *testing.T) {
 	for _, want := range []string{"image grew from 90 MB to 240 MB", "+150 MB, +166%", "2.0.0"} {
 		if !strings.Contains(slack.last(), want) {
 			t.Errorf("alert misses %q: %s", want, slack.last())
+		}
+	}
+
+	// The same deploy, seen again with more known: a 200 MB budget, the evidence 1.1.0 had and 2.0.0 lacks, and a
+	// base three weeks behind. Each is announced once.
+	pol, _ := json.Marshal(map[string]any{"max_size_mb": 200})
+	e.svc.VersionPolicy = pol
+	if err := e.st.UpdateService(ctx, e.svc); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{Repo: "ghcr.io/acme/api", Digest: "sha256:02", Size: 90_000_000, Signed: true, SBOM: true})
+	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
+		Repo: "ghcr.io/acme/api", Digest: "sha256:03", Size: 240_000_000, BaseImage: "docker.io/library/node:22-alpine",
+		BaseStatus: "outdated", BaseSince: now.AddDate(0, 0, -21),
+	})
+	before := slack.count()
+	for range 2 {
+		if err := e.n.CheckImages(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	all := strings.Join(slack.all()[before:], "\n") // due together, they may come as one message
+	if slack.count() == before {
+		t.Fatal("no new alerts")
+	}
+	after := slack.count()
+	_ = e.n.CheckImages(ctx)
+	_ = e.n.DeliverDue(ctx)
+	if slack.count() != after {
+		t.Error("announced again")
+	}
+	for _, want := range []string{
+		"2.0.0 image is 240 MB, over its 200 MB budget",
+		"2.0.0 has no signature, SBOM, though 1.1.0 had",
+		"2.0.0 is built on an older node:22-alpine than its tag has had for 21 days: rebuild with --pull",
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("alerts miss %q:\n%s", want, all)
 		}
 	}
 }

@@ -711,6 +711,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	v.Policy = PolicyForm{TagFilter: pol.TagFilter, Track: string(pol.Track), Prerelease: pol.Prerelease}
 	if own, err := versions.ParsePolicy(svc.VersionPolicy); err == nil {
 		v.Policy.BaseImage = own.BaseImage
+		if own.MaxSizeMB > 0 {
+			v.Policy.MaxSizeMB = strconv.Itoa(own.MaxSizeMB)
+		}
 	}
 	if base := versions.BaseImage(svc); base != "" {
 		st := s.checker.BaseStatus(ctx, base, time.Now())
@@ -856,6 +859,14 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 	pol.TagFilter, pol.Track = strings.TrimSpace(r.FormValue("tag_filter")), versions.Jump(r.FormValue("track"))
 	pol.Prerelease, pol.PinMajor = r.FormValue("prerelease") == "1", nil
 	pol.BaseImage = strings.TrimSpace(r.FormValue("base_image"))
+	pol.MaxSizeMB = 0
+	if ms := strings.TrimSpace(r.FormValue("max_size_mb")); ms != "" {
+		n, err := strconv.Atoi(ms)
+		if err != nil || n < 0 {
+			return back(w, r, path, "error", "The size budget must be a whole number of MB, e.g. 300.")
+		}
+		pol.MaxSizeMB = n
+	}
 	if pm := strings.TrimSpace(r.FormValue("pin_major")); pm != "" {
 		n, err := strconv.Atoi(pm)
 		if err != nil || n < 0 {
@@ -1078,6 +1089,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},
 		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},
 		{Kind: "outdated-base", Label: "Outdated base", Help: "built on an older build of its FROM image: its fixes are missing", Warn: true},
+		{Kind: "over-budget", Label: "Over size budget", Help: "bigger than its service's image size budget", Warn: true},
 		{Kind: "unpinned", Label: "Digest unknown", Help: "a tag pushed again would go unnoticed; often a collector permission"},
 	}
 	known := false

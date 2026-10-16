@@ -472,8 +472,8 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			if err := n.PlanUpdates(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("queueing upgrade plans failed", "err", err)
 			}
-			if err := n.CheckImageGrowth(ctx); err != nil && ctx.Err() == nil {
-				n.log.Error("checking image growth failed", "err", err)
+			if err := n.CheckImages(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("checking running images failed", "err", err)
 			}
 		}
 		if time.Since(recorded) >= time.Hour {
@@ -637,6 +637,12 @@ func Describe(it Item) string {
 		return it.Text
 	case EventImageGrew:
 		return fmt.Sprintf("%s: image grew from %s to %s (%s)", where, it.From, it.To, it.Note)
+	case EventImageOverBudget:
+		return fmt.Sprintf("%s: %s image is %s, over its %s", where, orDash(it.To), it.From, it.Note)
+	case EventOutdatedBase:
+		return fmt.Sprintf("%s: %s is built on an older %s than its tag has had for %s: rebuild with --pull", where, orDash(it.To), it.From, it.Note)
+	case EventEvidenceLost:
+		return fmt.Sprintf("%s: %s has no %s, though %s had", where, orDash(it.To), it.Note, orDash(it.From))
 	case "deployed":
 		return fmt.Sprintf("%s: %s deployed%s", where, it.To, on)
 	case "version_changed":

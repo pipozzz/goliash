@@ -103,3 +103,20 @@ func TestOutdatedBase(t *testing.T) {
 		t.Fatalf("hygiene: %+v", outdated)
 	}
 }
+
+func TestOverBudget(t *testing.T) {
+	pol := []byte(`{"max_size_mb":200}`)
+	svcs := []store.Service{{ID: "s1", Name: "api", VersionPolicy: pol}, {ID: "s2", Name: "web"}}
+	active := []store.Instance{
+		{ServiceID: "s1", EnvironmentID: "p", TargetID: "t", WorkloadName: "api", ContainerName: "api", Image: "ghcr.io/acme/api:2", Tag: "2", Digest: "sha256:big"},
+		{ServiceID: "s2", EnvironmentID: "p", TargetID: "t", WorkloadName: "web", ContainerName: "web", Image: "ghcr.io/acme/web:1", Tag: "1", Digest: "sha256:web"},
+	}
+	ev := map[string]store.ImageEvidence{
+		"ghcr.io/acme/api@sha256:big": {Size: 240_000_000},
+		"ghcr.io/acme/web@sha256:web": {Size: 900_000_000}, // no budget: nothing to say
+	}
+	got := OverBudget(active, ev, svcs, map[string]string{"p": "prod"}, map[string]string{"t": "k8s"})
+	if len(got) != 1 || got[0].Image != "ghcr.io/acme/api:2" || got[0].Detail != "240 MB, over its 200 MB budget by 40 MB" {
+		t.Fatalf("findings %+v", got)
+	}
+}

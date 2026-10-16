@@ -174,6 +174,18 @@ type Policy struct {
 	// BaseImage names the image the service's own image is built on ("node:18-alpine"), for images that
 	// do not declare it; "none" turns base image tracking off.
 	BaseImage string `json:"base_image,omitempty"`
+	// MaxSizeMB is the service's image size budget: what pulling it may download, in MB (1,000,000 bytes);
+	// 0: none.
+	MaxSizeMB int `json:"max_size_mb,omitempty"`
+}
+
+// SizeBudget is a service's image size budget in bytes, 0 when it has none.
+func SizeBudget(svc store.Service) int64 {
+	p, err := ParsePolicy(svc.VersionPolicy)
+	if err != nil || p.MaxSizeMB <= 0 {
+		return 0
+	}
+	return int64(p.MaxSizeMB) * 1_000_000
 }
 
 // PolicySource says where a service's effective policy comes from.

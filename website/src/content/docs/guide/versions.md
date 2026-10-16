@@ -66,6 +66,8 @@ page, with `goliash service set`, or through the catalog.
 | `github`, `github_tag_prefix` | GitHub repository (`owner/repo`) whose releases give dates and release notes. | from catalog or image label |
 | `gitlab` | GitLab project (`gitlab.com/group/project`) whose releases give dates and release notes; `github_tag_prefix` applies too. | from catalog or image label |
 | `changelog` | A release notes URL template with `{version}`. | none |
+| `base_image` | The image the service's image is built `FROM`, when it does not declare it; `none` turns base tracking off. | as the image declares |
+| `max_size_mb` | The image size budget in MB: over it, Image hygiene lists it and `image_over_budget` alerts. | none |
 
 Without a `tag_filter`, tags are compared **like with like**: a service running `1.27.2-alpine` is compared with
 other `-alpine` tags with three version parts, so `latest`, `mainline` or `1.27-bookworm` do not count. A tag that is no

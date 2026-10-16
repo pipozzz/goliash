@@ -1383,7 +1383,7 @@ func SettingsPage(v SettingsView) templ.Component {
 // ruleEvents are the event kinds a rule can pick, with their labels.
 var ruleEvents = [][2]string{
 	{"new_release", "new releases"}, {"drift_detected", "drift"}, {"drift_resolved", "drift resolved"},
-	{"version_changed", "deploys"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"vulnerability", "exploited or critical vulnerabilities"}, {"updates_plan", "upgrade plan"}, {"posture_report", "security posture report"}, {"image_grew", "image growth"},
+	{"version_changed", "deploys"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"vulnerability", "exploited or critical vulnerabilities"}, {"updates_plan", "upgrade plan"}, {"posture_report", "security posture report"}, {"image_grew", "image growth"}, {"image_over_budget", "image over its size budget"}, {"outdated_base", "outdated base"}, {"evidence_lost", "signature or SBOM lost"},
 }
 
 // ruleFields are the fields of the add and edit rule forms.

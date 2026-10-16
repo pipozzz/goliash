@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ import (
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, unpinned
+	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
@@ -147,7 +148,12 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	if err != nil {
 		return nil, err
 	}
-	out := append(OutdatedBases(running, evidence, envName, targetName, time.Now()), findings...)
+	services, err := st.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := append(OutdatedBases(running, evidence, envName, targetName, time.Now()), OverBudget(running, evidence, services, envName, targetName)...)
+	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
 	return out, nil
 }
@@ -177,6 +183,48 @@ func OutdatedBases(active []store.Instance, evidence map[string]store.ImageEvide
 			f = &Finding{
 				Kind: "outdated-base", Severity: "warning", Detail: detail + ": rebuild with --pull to get its fixes",
 				Image: strings.TrimPrefix(strings.TrimPrefix(key, "docker.io/library/"), "docker.io/"),
+			}
+			byImage[key] = f
+			order = append(order, key)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	sort.Strings(order)
+	out := make([]Finding, 0, len(order))
+	for _, k := range order {
+		sort.Strings(byImage[k].Where)
+		out = append(out, *byImage[k])
+	}
+	return out
+}
+
+// OverBudget finds images bigger than their service's size budget (the version policy's max size).
+func OverBudget(active []store.Instance, evidence map[string]store.ImageEvidence, services []store.Service, envName, targetName map[string]string) []Finding {
+	budget := map[string]int64{}
+	for _, s := range services {
+		if b := SizeBudget(s); b > 0 {
+			budget[s.ID] = b
+		}
+	}
+	byImage := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		b := budget[i.ServiceID]
+		if b == 0 || i.Digest == "" {
+			continue
+		}
+		ref := ParseImage(i.Image)
+		size := evidence[ref.Repo()+"@"+i.Digest].Size
+		if size <= b {
+			continue
+		}
+		key := ref.Repo() + ":" + ref.Tag
+		f := byImage[key]
+		if f == nil {
+			f = &Finding{
+				Kind: "over-budget", Severity: "warning",
+				Image:  strings.TrimPrefix(strings.TrimPrefix(key, "docker.io/library/"), "docker.io/"),
+				Detail: fmt.Sprintf("%d MB, over its %d MB budget by %d MB", size/1_000_000, b/1_000_000, (size-b+999_999)/1_000_000),
 			}
 			byImage[key] = f
 			order = append(order, key)
