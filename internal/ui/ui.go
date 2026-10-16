@@ -472,6 +472,9 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 	if rep, err := versions.LoadVulnReport(ctx, s.store, sc, ""); err == nil {
 		markExploited(&g, rep)
 	}
+	if issues, err := versions.RolloutIssues(ctx, s.store, sc, o, time.Now()); err == nil {
+		markRollouts(&g, issues)
+	}
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
 			return g, err

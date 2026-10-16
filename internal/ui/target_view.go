@@ -78,7 +78,7 @@ func healthOf(drifts []DriftBadge, mapped bool) string {
 	h := "ok"
 	for _, d := range drifts {
 		switch d.Kind {
-		case "eol", "inconsistent", "exploited":
+		case "eol", "inconsistent", "exploited", "rollout":
 			return "bad"
 		default:
 			h = "warn"

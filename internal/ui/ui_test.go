@@ -1845,6 +1845,33 @@ func TestMarkExploited(t *testing.T) {
 	}
 }
 
+func TestMarkRollouts(t *testing.T) {
+	g := MatrixGrid{Envs: []EnvHeader{{Name: "staging"}, {Name: "prod"}}, Rows: []MatrixRow{{
+		Service: "traefik", Health: "ok",
+		Cells: []MatrixCell{{Versions: []VersionView{{Tag: "v3.1.6"}}}, {Versions: []VersionView{{Tag: "v3.1.2"}, {Tag: "v3.1.6"}}}},
+	}}}
+	markRollouts(&g, []versions.RolloutIssue{
+		{
+			Kind: versions.RolloutStuck, Service: "traefik", Environment: "prod", Target: "eu", Running: 2, Desired: 2,
+			Versions: []versions.RolloutVersion{{Version: "v3.1.6", Running: 1}, {Version: "v3.1.2", Running: 1}},
+		},
+		{
+			Kind: versions.RolloutShort, Service: "traefik", Environment: "staging", Target: "stg", Running: 1, Desired: 2,
+			Versions: []versions.RolloutVersion{{Version: "v3.1.6", Running: 1}},
+		},
+	})
+	staging, prod := g.Rows[0].Cells[0].Drifts, g.Rows[0].Cells[1].Drifts
+	if len(prod) != 1 || prod[0].Kind != "rollout" || prod[0].Label != "rollout stuck" || !strings.Contains(prod[0].Title, "eu: v3.1.6 on 1, v3.1.2 on 1 of 2 replicas asked for") {
+		t.Fatalf("prod %+v", prod)
+	}
+	if len(staging) != 1 || staging[0].Kind != "degraded" || staging[0].Label != "1 of 2 replicas" {
+		t.Fatalf("staging %+v", staging)
+	}
+	if g.Rows[0].Health != "bad" || envState(g.Rows[0].Cells[1], "v3.1.6") != stAttention || envState(g.Rows[0].Cells[0], "v3.1.6") == stAttention {
+		t.Fatalf("health %s", g.Rows[0].Health)
+	}
+}
+
 func TestServiceSecurityPanel(t *testing.T) {
 	e := newUIEnv(t)
 	ctx := context.Background()
