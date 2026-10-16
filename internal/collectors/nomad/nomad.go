@@ -81,6 +81,7 @@ type job struct {
 }
 
 type allocStub struct {
+	ID           string
 	TaskGroup    string
 	JobVersion   uint64
 	ClientStatus string
@@ -235,6 +236,15 @@ func (c *Collector) workload(ctx context.Context, s jobStub) (*agentproto.Worklo
 	for _, a := range allocs {
 		if a.ClientStatus != "running" {
 			continue
+		}
+		// Nomad keeps only the last few versions of a job (JobTrackedVersions, 6 by
+		// default). An allocation still running an older one is read with its own copy of
+		// the job, or it would count as nothing running.
+		if _, ok := byVersion[a.JobVersion]; !ok && a.ID != "" {
+			var alloc struct{ Job *job }
+			if err := c.get(ctx, "/v1/allocation/"+url.PathEscape(a.ID), url.Values{"namespace": {s.Namespace}}, &alloc); err == nil && alloc.Job != nil {
+				byVersion[a.JobVersion] = *alloc.Job
+			}
 		}
 		for _, t := range tasks(byVersion[a.JobVersion], a.TaskGroup) {
 			counts[t]++

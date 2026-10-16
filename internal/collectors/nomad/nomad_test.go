@@ -39,7 +39,13 @@ func fakeNomad(t *testing.T, token string) *httptest.Server {
 			{"TaskGroup":"web","JobVersion":2,"ClientStatus":"running"},
 			{"TaskGroup":"web","JobVersion":3,"ClientStatus":"running"},
 			{"TaskGroup":"web","JobVersion":3,"ClientStatus":"pending"},
-			{"TaskGroup":"web","JobVersion":1,"ClientStatus":"complete"}]`,
+			{"TaskGroup":"web","JobVersion":1,"ClientStatus":"complete"},
+			{"ID":"a-old","TaskGroup":"web","JobVersion":0,"ClientStatus":"running"}]`,
+		// Version 0 is no longer in the job's history: the allocation carries its own copy.
+		"/v1/allocation/a-old": `{"ID":"a-old","Job":{"ID":"api","Namespace":"prod","Version":0,"TaskGroups":[
+			{"Name":"web","Count":3,"Tasks":[
+				{"Name":"app","Driver":"docker","Config":{"image":"ghcr.io/acme/payments-api:1.3.0"}},
+				{"Name":"proxy","Driver":"docker","Config":{"image":"envoyproxy/envoy:v1.31.2"}}]}]}}`,
 		"/v1/job/logs/versions": `{"Versions":[{"ID":"logs","Namespace":"prod","Version":0,"TaskGroups":[
 			{"Name":"collector","Count":1,"Tasks":[{"Name":"vector","Driver":"docker","Config":{"image":"timberio/vector:0.41.1-alpine"}}]}]}]}`,
 		"/v1/job/logs/allocations": `[{"TaskGroup":"collector","JobVersion":0,"ClientStatus":"running"},
@@ -115,7 +121,7 @@ func TestCollect(t *testing.T) {
 	for _, c := range api.Containers {
 		got = append(got, c.Name+"="+c.Image+"x"+strconv.Itoa(c.Running))
 	}
-	want := "web/app=ghcr.io/acme/payments-api:1.4.2x2 web/app=ghcr.io/acme/payments-api:1.5.0x1 web/proxy=envoyproxy/envoy:v1.31.2x3"
+	want := "web/app=ghcr.io/acme/payments-api:1.3.0x1 web/app=ghcr.io/acme/payments-api:1.4.2x2 web/app=ghcr.io/acme/payments-api:1.5.0x1 web/proxy=envoyproxy/envoy:v1.31.2x4"
 	if strings.Join(got, " ") != want {
 		t.Fatalf("containers\n got: %s\nwant: %s", strings.Join(got, " "), want)
 	}
