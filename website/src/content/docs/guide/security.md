@@ -123,6 +123,11 @@ marked *exploited* with CISA's due date and *ransomware* when CISA knows of rans
 in the wild* shows just those. Each affected package says the version that fixes it (the lowest above the running
 one, from OSV), or *no fix yet*. The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
 
+**How long it has run.** Each vulnerability says how long it has been running (*running for 23 days*: since the
+first affected image started), and an exploited one still running after the date CISA set for fixing it
+([BOD 22-01](https://www.cisa.gov/binding-operational-directive-22-01)) is marked *past due*; the Security page counts
+them. `GET /api/v1/vulnerabilities` has `running_since`, `exploited.past_due` and `since` per affected image.
+
 ![The Security panel of a service page: four running images, each signed with an SBOM and provenance, and its vulnerabilities, the two exploited Log4j CVEs first with the versions that fix them, then jackson-databind ones by severity](../../../assets/service-security.png)
 
 Each service's page has a **Security** panel too: its running images per environment, signed or not, with an SBOM
