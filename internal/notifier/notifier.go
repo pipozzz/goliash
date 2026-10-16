@@ -645,6 +645,8 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s image is %s, over its %s", where, orDash(it.To), it.From, it.Note)
 	case EventOutdatedBase:
 		return fmt.Sprintf("%s: %s is built on an older %s than its tag has had for %s: rebuild with --pull", where, orDash(it.To), it.From, it.Note)
+	case EventLicense:
+		return fmt.Sprintf("%s: %s brings %s", where, orDash(it.To), it.Note)
 	case EventUnexpectedSigner:
 		return fmt.Sprintf("%s: %s is %s", where, orDash(it.To), it.Note)
 	case EventEvidenceLost:
