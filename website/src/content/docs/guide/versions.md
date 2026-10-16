@@ -180,6 +180,18 @@ release to production; `goliash promotions` and `GET /api/v1/promotions` show th
 goliash promotions
 ```
 
+**Rollouts that do not finish** come first on the page. Kubernetes, ECS, Nomad, Swarm and Compose say how many
+replicas a workload asks for, and Goliash compares that with what runs:
+
+- **down**: none of the replicas runs;
+- **stuck**: two versions side by side for more than 30 minutes (*traefik v3.1.6 on 1, v3.1.2 on 1 of 2 replicas
+  asked for*), a rolling update that stopped half way;
+- **short**: fewer replicas than asked for.
+
+The service page shows the same in red, `GET /api/v1/rollouts` and the `rollouts` tool for AI assistants list them,
+and a notification rule with the `rollout` event announces stuck rollouts and services down (not short ones: a pod
+restarting is not news).
+
 ```text
 SERVICE        PROMOTE           FROM → TO        WAITING   RELEASES
 payments-api   1.5.0 → 1.6.0     staging → prod   3d        1.6.0, 1.5.1

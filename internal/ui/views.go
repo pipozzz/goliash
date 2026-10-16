@@ -416,7 +416,7 @@ var eventLabels = map[string]string{
 // ruleEventLabels name event types as the rule form does.
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
-	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
+	"version_changed": "deploys", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents", "rollout": "stuck rollouts",
 	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost",
 }
 
@@ -447,6 +447,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
+	Rollouts       []versions.RolloutIssue // its workloads whose replicas are not where they should be
 	Security       ServiceSecurity
 	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
 	SizeChange     *SizeChange // what the last deploy changed in the image, when its layers are known
@@ -547,6 +548,7 @@ type PromotionsView struct {
 	Deploys    BarChart
 	Drift      LineChart
 	Promotions []PromotionView
+	Rollouts   []versions.RolloutIssue
 	EnvNames   []string // delivery table columns
 	LeadNames  []string // "dev → staging", …
 	Delivery   []DeliveryRow
@@ -1295,4 +1297,47 @@ type ImageSecurity struct {
 type ServiceFinding struct {
 	Key, Summary, Severity, Package, Fix, Envs string
 	Exploited                                  bool
+}
+
+// rolloutLabel names a rollout problem as people read it.
+func rolloutLabel(k versions.RolloutKind) string {
+	switch k {
+	case versions.RolloutDown:
+		return "down"
+	case versions.RolloutStuck:
+		return "rollout stuck"
+	}
+	return "short of replicas"
+}
+
+func rolloutBadge(k versions.RolloutKind) string {
+	if k == versions.RolloutShort {
+		return "degraded"
+	}
+	return "failing"
+}
+
+// rolloutHeadline says what is wrong with a workload, where.
+func rolloutHeadline(is versions.RolloutIssue) string {
+	return upperFirst(rolloutLabel(is.Kind)) + " in " + is.Environment + " on " + is.Target + ":"
+}
+
+// rolloutDetail says which versions run on how many of the replicas asked for.
+func rolloutDetail(is versions.RolloutIssue) string {
+	if is.Running == 0 {
+		return "none of " + plural(is.Desired, "replica", "replicas") + " running"
+	}
+	parts := make([]string, 0, len(is.Versions))
+	for _, v := range is.Versions {
+		parts = append(parts, v.Version+" on "+itoa(v.Running))
+	}
+	return strings.Join(parts, ", ") + " of " + plural(is.Desired, "replica", "replicas") + " asked for"
+}
+
+// upperFirst upper-cases a label's first letter.
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

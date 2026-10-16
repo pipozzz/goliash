@@ -23,7 +23,7 @@ import (
 var readOnly = map[string]bool{
 	"matrix": true, "service": true, "drifts": true, "updates": true, "changes": true, "vulnerabilities": true,
 	"status": true, "inventory": true, "hygiene": true, "delivery": true, "promotions": true, "release_notes": true, "posture": true,
-	"notifications": true, "images": true,
+	"notifications": true, "rollouts": true, "images": true,
 }
 
 // MCPTools are the tools of Goliash's MCP server, run in this process against the REST API as the person

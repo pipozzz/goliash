@@ -73,6 +73,12 @@ templ ServicePage(v ServiceView) {
 				}
 			</div>
 		}
+		for _, is := range v.Rollouts {
+			<div class={ "notice", templ.KV("error", is.Kind != versions.RolloutShort) }>
+				<strong>{ rolloutHeadline(is) }</strong>
+				{ " " + rolloutDetail(is) }
+			</div>
+		}
 		if v.LatestAny != "" && v.LatestAny != v.Latest {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
 		}

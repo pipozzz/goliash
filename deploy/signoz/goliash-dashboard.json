@@ -182,7 +182,7 @@
     {
       "i": "71e49115-bc4e-5757-a942-126a86cc8e2e",
       "x": 0,
-      "y": 36,
+      "y": 43,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -194,7 +194,7 @@
     {
       "i": "w12",
       "x": 0,
-      "y": 37,
+      "y": 44,
       "w": 3,
       "h": 6,
       "moved": false,
@@ -203,7 +203,7 @@
     {
       "i": "w24",
       "x": 3,
-      "y": 37,
+      "y": 44,
       "w": 4,
       "h": 6,
       "moved": false,
@@ -212,7 +212,7 @@
     {
       "i": "w15",
       "x": 7,
-      "y": 37,
+      "y": 44,
       "w": 5,
       "h": 6,
       "moved": false,
@@ -221,7 +221,7 @@
     {
       "i": "83831094-f342-5739-a3d0-f5bd4cd956ea",
       "x": 0,
-      "y": 73,
+      "y": 80,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -233,7 +233,7 @@
     {
       "i": "w16",
       "x": 0,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -242,7 +242,7 @@
     {
       "i": "w25",
       "x": 2,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -251,7 +251,7 @@
     {
       "i": "w17",
       "x": 4,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -260,7 +260,7 @@
     {
       "i": "w18",
       "x": 6,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -269,7 +269,7 @@
     {
       "i": "w19",
       "x": 8,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -278,7 +278,7 @@
     {
       "i": "w20",
       "x": 10,
-      "y": 74,
+      "y": 81,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -287,7 +287,7 @@
     {
       "i": "6d3a9c2a-12d6-54a5-a6af-630f15d128ea",
       "x": 0,
-      "y": 61,
+      "y": 68,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -299,7 +299,7 @@
     {
       "i": "w26",
       "x": 0,
-      "y": 62,
+      "y": 69,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -308,7 +308,7 @@
     {
       "i": "w27",
       "x": 2,
-      "y": 62,
+      "y": 69,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -317,7 +317,7 @@
     {
       "i": "w28",
       "x": 4,
-      "y": 62,
+      "y": 69,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -326,7 +326,7 @@
     {
       "i": "w29",
       "x": 6,
-      "y": 62,
+      "y": 69,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -335,7 +335,7 @@
     {
       "i": "w30",
       "x": 8,
-      "y": 62,
+      "y": 69,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -344,7 +344,7 @@
     {
       "i": "w31",
       "x": 10,
-      "y": 62,
+      "y": 69,
       "w": 2,
       "h": 3,
       "moved": false,
@@ -353,7 +353,7 @@
     {
       "i": "w32",
       "x": 0,
-      "y": 65,
+      "y": 72,
       "w": 6,
       "h": 8,
       "moved": false,
@@ -362,7 +362,7 @@
     {
       "i": "w33",
       "x": 6,
-      "y": 65,
+      "y": 72,
       "w": 6,
       "h": 8,
       "moved": false,
@@ -371,7 +371,7 @@
     {
       "i": "f287c707-77d5-52c1-bb00-dde8d04cd803",
       "x": 0,
-      "y": 43,
+      "y": 50,
       "w": 12,
       "h": 1,
       "minH": 1,
@@ -383,7 +383,7 @@
     {
       "i": "w34",
       "x": 0,
-      "y": 44,
+      "y": 51,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -392,7 +392,7 @@
     {
       "i": "w35",
       "x": 3,
-      "y": 44,
+      "y": 51,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -401,7 +401,7 @@
     {
       "i": "w36",
       "x": 6,
-      "y": 44,
+      "y": 51,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -410,7 +410,7 @@
     {
       "i": "w37",
       "x": 9,
-      "y": 44,
+      "y": 51,
       "w": 3,
       "h": 3,
       "moved": false,
@@ -419,7 +419,7 @@
     {
       "i": "w-image-size",
       "x": 0,
-      "y": 47,
+      "y": 54,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -428,7 +428,7 @@
     {
       "i": "w38",
       "x": 6,
-      "y": 47,
+      "y": 54,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -437,7 +437,7 @@
     {
       "i": "w39",
       "x": 0,
-      "y": 54,
+      "y": 61,
       "w": 4,
       "h": 7,
       "moved": false,
@@ -446,7 +446,7 @@
     {
       "i": "w40",
       "x": 4,
-      "y": 54,
+      "y": 61,
       "w": 4,
       "h": 7,
       "moved": false,
@@ -455,8 +455,26 @@
     {
       "i": "w41",
       "x": 8,
-      "y": 54,
+      "y": 61,
       "w": 4,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w50",
+      "x": 0,
+      "y": 36,
+      "w": 3,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w51",
+      "x": 3,
+      "y": 36,
+      "w": 9,
       "h": 7,
       "moved": false,
       "static": false
@@ -2421,6 +2439,286 @@
       "columnUnits": {
         "A": "s"
       }
+    },
+    {
+      "id": "w50",
+      "panelTypes": "value",
+      "title": "Rollouts stuck or down",
+      "description": "Workloads running none of the replicas they ask for, or two versions side by side for more than 30 minutes.",
+      "query": {
+        "queryType": "builder",
+        "id": "9e91098b-b76b-5c73-bf98-f04d777cd4ca",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_rollout_issues",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "kind IN ('down', 'stuck')"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [
+        {
+          "index": "1f9f7d17-2c3c-5b24-ac08-49fe3d7108ee",
+          "keyIndex": 0,
+          "thresholdOperator": ">",
+          "thresholdValue": 0,
+          "thresholdUnit": "none",
+          "thresholdColor": "Orange",
+          "thresholdFormat": "Text",
+          "thresholdLabel": "",
+          "isEditEnabled": false,
+          "selectedGraph": "value"
+        }
+      ],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w51",
+      "panelTypes": "table",
+      "title": "Rollouts that do not finish",
+      "description": "Each workload whose replicas are not where they should be.",
+      "query": {
+        "queryType": "builder",
+        "id": "35ae5293-e253-5b7f-bfcd-36645216608d",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_rollout_problem",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                },
+                {
+                  "key": "environment",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "environment--string--tag--false"
+                },
+                {
+                  "key": "target",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "target--string--tag--false"
+                },
+                {
+                  "key": "workload",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "workload--string--tag--false"
+                },
+                {
+                  "key": "kind",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "kind--string--tag--false"
+                },
+                {
+                  "key": "running",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "running--string--tag--false"
+                },
+                {
+                  "key": "desired",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "desired--string--tag--false"
+                }
+              ],
+              "legend": "Problem",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
     },
     {
       "id": "71e49115-bc4e-5757-a942-126a86cc8e2e",
@@ -5745,6 +6043,24 @@
           "h": 7,
           "moved": false,
           "static": false
+        },
+        {
+          "i": "w50",
+          "x": 0,
+          "y": 36,
+          "w": 3,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w51",
+          "x": 3,
+          "y": 36,
+          "w": 9,
+          "h": 7,
+          "moved": false,
+          "static": false
         }
       ]
     },
@@ -5754,7 +6070,7 @@
         {
           "i": "w12",
           "x": 0,
-          "y": 37,
+          "y": 44,
           "w": 3,
           "h": 6,
           "moved": false,
@@ -5763,7 +6079,7 @@
         {
           "i": "w24",
           "x": 3,
-          "y": 37,
+          "y": 44,
           "w": 4,
           "h": 6,
           "moved": false,
@@ -5772,7 +6088,7 @@
         {
           "i": "w15",
           "x": 7,
-          "y": 37,
+          "y": 44,
           "w": 5,
           "h": 6,
           "moved": false,
@@ -5786,7 +6102,7 @@
         {
           "i": "w16",
           "x": 0,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5795,7 +6111,7 @@
         {
           "i": "w25",
           "x": 2,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5804,7 +6120,7 @@
         {
           "i": "w17",
           "x": 4,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5813,7 +6129,7 @@
         {
           "i": "w18",
           "x": 6,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5822,7 +6138,7 @@
         {
           "i": "w19",
           "x": 8,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5831,7 +6147,7 @@
         {
           "i": "w20",
           "x": 10,
-          "y": 74,
+          "y": 81,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5845,7 +6161,7 @@
         {
           "i": "w26",
           "x": 0,
-          "y": 62,
+          "y": 69,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5854,7 +6170,7 @@
         {
           "i": "w27",
           "x": 2,
-          "y": 62,
+          "y": 69,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5863,7 +6179,7 @@
         {
           "i": "w28",
           "x": 4,
-          "y": 62,
+          "y": 69,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5872,7 +6188,7 @@
         {
           "i": "w29",
           "x": 6,
-          "y": 62,
+          "y": 69,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5881,7 +6197,7 @@
         {
           "i": "w30",
           "x": 8,
-          "y": 62,
+          "y": 69,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5890,7 +6206,7 @@
         {
           "i": "w31",
           "x": 10,
-          "y": 62,
+          "y": 69,
           "w": 2,
           "h": 3,
           "moved": false,
@@ -5899,7 +6215,7 @@
         {
           "i": "w32",
           "x": 0,
-          "y": 65,
+          "y": 72,
           "w": 6,
           "h": 8,
           "moved": false,
@@ -5908,7 +6224,7 @@
         {
           "i": "w33",
           "x": 6,
-          "y": 65,
+          "y": 72,
           "w": 6,
           "h": 8,
           "moved": false,
@@ -5922,7 +6238,7 @@
         {
           "i": "w34",
           "x": 0,
-          "y": 44,
+          "y": 51,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -5931,7 +6247,7 @@
         {
           "i": "w35",
           "x": 3,
-          "y": 44,
+          "y": 51,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -5940,7 +6256,7 @@
         {
           "i": "w36",
           "x": 6,
-          "y": 44,
+          "y": 51,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -5949,7 +6265,7 @@
         {
           "i": "w37",
           "x": 9,
-          "y": 44,
+          "y": 51,
           "w": 3,
           "h": 3,
           "moved": false,
@@ -5958,7 +6274,7 @@
         {
           "i": "w-image-size",
           "x": 0,
-          "y": 47,
+          "y": 54,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -5967,7 +6283,7 @@
         {
           "i": "w38",
           "x": 6,
-          "y": 47,
+          "y": 54,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -5976,7 +6292,7 @@
         {
           "i": "w39",
           "x": 0,
-          "y": 54,
+          "y": 61,
           "w": 4,
           "h": 7,
           "moved": false,
@@ -5985,7 +6301,7 @@
         {
           "i": "w40",
           "x": 4,
-          "y": 54,
+          "y": 61,
           "w": 4,
           "h": 7,
           "moved": false,
@@ -5994,7 +6310,7 @@
         {
           "i": "w41",
           "x": 8,
-          "y": 54,
+          "y": 61,
           "w": 4,
           "h": 7,
           "moved": false,

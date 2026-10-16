@@ -61,6 +61,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/events", h.with(store.RoleViewer, h.events))
 	mux.Handle("GET /api/v1/drifts", h.with(store.RoleViewer, h.drifts))
 	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
+	mux.Handle("GET /api/v1/rollouts", h.with(store.RoleViewer, h.rollouts))
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
@@ -1030,6 +1031,9 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}
+	if issues, err := versions.RolloutIssues(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
+		rolloutMetrics(&b, issues)
+	}
 	h.imageSizeMetrics(r.Context(), &b, p.Scope, o)
 	h.serverMetrics(r.Context(), &b, p.Scope)
 	if pos, err := versions.LoadPosture(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
@@ -1312,4 +1316,24 @@ func (h *PublicHandler) status(w http.ResponseWriter, r *http.Request, p auth.Pr
 		return
 	}
 	writeJSON(w, http.StatusOK, hl)
+}
+
+// rolloutMetrics are the workloads whose replicas are not where they should be: a count per kind, and one series
+// per workload while it lasts.
+func rolloutMetrics(b *strings.Builder, issues []versions.RolloutIssue) {
+	count := map[versions.RolloutKind]int{}
+	for _, is := range issues {
+		count[is.Kind]++
+	}
+	b.WriteString("# HELP goliash_rollout_issues Workloads running none of the replicas they ask for (down), two versions side by side for over 30 minutes (stuck), or fewer replicas than asked for (short).\n")
+	b.WriteString("# TYPE goliash_rollout_issues gauge\n")
+	for _, k := range []versions.RolloutKind{versions.RolloutDown, versions.RolloutStuck, versions.RolloutShort} {
+		fmt.Fprintf(b, "goliash_rollout_issues{kind=%q} %d\n", k, count[k])
+	}
+	b.WriteString("# HELP goliash_rollout_problem 1 for each workload whose replicas are not where they should be, while it lasts.\n")
+	b.WriteString("# TYPE goliash_rollout_problem gauge\n")
+	for _, is := range issues {
+		fmt.Fprintf(b, "goliash_rollout_problem{service=%q,environment=%q,target=%q,workload=%q,kind=%q,running=\"%d\",desired=\"%d\"} 1\n",
+			is.Service, is.Environment, is.Target, is.Workload, is.Kind, is.Running, is.Desired)
+	}
 }

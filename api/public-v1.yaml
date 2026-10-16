@@ -423,6 +423,46 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/rollouts:
+    get:
+      operationId: listRollouts
+      summary: Rollouts that do not finish
+      description: >-
+        Workloads whose replicas are not where they should be, worst first: `down` (none of the replicas it asks for
+        runs), `stuck` (two versions side by side for more than 30 minutes) and `short` (fewer replicas than it asks
+        for). Only workloads whose platform reports the replicas it asks for (Kubernetes, ECS, Nomad, Swarm, Compose).
+      responses:
+        "200":
+          description: The workloads.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [kind, service, environment, target, workload, running, desired, since, versions]
+                  properties:
+                    kind: { type: string, enum: [down, stuck, short] }
+                    service: { type: string }
+                    environment: { type: string }
+                    target: { type: string }
+                    workload: { type: string, example: shop/payments-api }
+                    running: { type: integer }
+                    desired: { type: integer }
+                    since: { type: string, format: date-time, description: "Since when it has been so, as far as Goliash can tell." }
+                    versions:
+                      type: array
+                      description: The versions running, newest first.
+                      items:
+                        type: object
+                        required: [version, running, since]
+                        properties:
+                          version: { type: string }
+                          running: { type: integer }
+                          since: { type: string, format: date-time }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/delivery:
     get:
       operationId: getDelivery

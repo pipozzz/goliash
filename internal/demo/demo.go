@@ -198,7 +198,18 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 				CollectedAt: start.Add(time.Duration(day)*24*time.Hour + time.Duration(len(t.name))*time.Minute),
 			}
 			for _, name := range sortedKeys(running) {
-				snap.Workloads = append(snap.Workloads, demoWorkload(t, name, running[name]))
+				w := demoWorkload(t, name, running[name])
+				// The last day, traefik v3.1.6 went out to one of prod-eu's two replicas and the other kept v3.1.2: a
+				// stuck rollout.
+				if day == 21 && t.name == "demo-prod-eu" && name == "traefik" {
+					next := w.Containers[0]
+					next.Image, next.Running = images["traefik"]+":v3.1.6", 1
+					d := demoDigest(next.Image)
+					next.Digest = &d
+					w.Containers[0].Running = 1
+					w.Containers = append(w.Containers, next)
+				}
+				snap.Workloads = append(snap.Workloads, w)
 			}
 			if t.name == "demo-prod-eu" {
 				ns := "reports"
