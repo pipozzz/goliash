@@ -17,8 +17,20 @@ func TestVulnerabilityStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		sboms, err := s.ListImageSBOMs(ctx, sc)
-		if err != nil || len(sboms["docker.io/library/nginx@sha256:a"].Purls) != 1 {
+		if b := sboms["docker.io/library/nginx@sha256:a"]; err != nil || len(b.Purls) != 1 || !b.LicensesRead || len(b.Licenses) != 0 {
 			t.Fatalf("sboms %+v %v", sboms, err)
+		}
+		lic := map[string]string{"pkg:deb/debian/openssl@3.0.11": "Apache-2.0"}
+		_ = s.SetImageSBOM(ctx, sc, ImageSBOM{Repo: "docker.io/library/nginx", Digest: "sha256:a", Purls: []string{"pkg:deb/debian/openssl@3.0.11"}, Licenses: lic})
+		if sboms, _ = s.ListImageSBOMs(ctx, sc); sboms["docker.io/library/nginx@sha256:a"].Licenses["pkg:deb/debian/openssl@3.0.11"] != "Apache-2.0" {
+			t.Fatalf("licenses %+v", sboms)
+		}
+		// Read before licenses were kept.
+		if _, err := s.exec(ctx, s.db, `UPDATE image_sboms SET licenses = NULL`); err != nil {
+			t.Fatal(err)
+		}
+		if sboms, _ = s.ListImageSBOMs(ctx, sc); sboms["docker.io/library/nginx@sha256:a"].LicensesRead {
+			t.Fatal("an SBOM read before licenses counts as read for them")
 		}
 		if err := s.SetPackageVulns(ctx, map[string][]string{"pkg:deb/debian/openssl@3.0.11": {"DEBIAN-CVE-2024-1", "DSA-1"}, "pkg:npm/x@1": nil}); err != nil {
 			t.Fatal(err)

@@ -228,7 +228,7 @@ func (a *Agent) resolveDigests(ctx context.Context, c agentproto.RegistryCheck, 
 // Inspector finds the signatures, attestations and SBOM packages of an image. registry.Client implements it.
 type Inspector interface {
 	ImageEvidence(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.Evidence, error)
-	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) ([]string, error)
+	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
 // maxPurls bounds the packages reported for one image.
@@ -282,11 +282,19 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 			}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
 		}
 		if ev.SBOM {
-			purls, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
+			sbom, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
 			if err != nil {
 				a.log.Warn("sbom not readable", "repository", c.Repository, "digest", digest, "err", err)
 			}
-			in.Purls = purls[:min(len(purls), maxPurls)]
+			in.Purls = sbom.Purls[:min(len(sbom.Purls), maxPurls)]
+			for _, p := range in.Purls {
+				if l := sbom.Licenses[p]; l != "" {
+					if in.Licenses == nil {
+						in.Licenses = map[string]string{}
+					}
+					in.Licenses[p] = l
+				}
+			}
 		}
 		out = append(out, in)
 	}

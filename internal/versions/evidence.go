@@ -128,6 +128,10 @@ func (c *Checker) pendingInspections(ctx context.Context, sc store.Scope, active
 	if err != nil {
 		return nil, err
 	}
+	sboms, err := c.store.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
 	now := c.now()
 	auth := c.registryAuth(ctx, sc)
 	out := map[string][]string{}
@@ -135,7 +139,7 @@ func (c *Checker) pendingInspections(ctx context.Context, sc store.Scope, active
 	for _, in := range active {
 		repo := ParseImage(in.Image).Repo()
 		key := repo + "@" + in.Digest
-		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || fresh(known[key], now) ||
+		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || (fresh(known[key], now) && !NeedsLicenses(sboms[key])) ||
 			len(out[repo]) >= inspectPerRepo || !validDigest(in.Digest) {
 			continue
 		}
@@ -207,7 +211,7 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 			return err
 		}
 		if ev.SBOM && len(in.Purls) > 0 {
-			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls}); err != nil {
+			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses}); err != nil {
 				return err
 			}
 		}

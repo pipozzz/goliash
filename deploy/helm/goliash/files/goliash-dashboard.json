@@ -2548,6 +2548,125 @@
       "description": "Days each service has run behind an available release, longest first."
     },
     {
+      "id": 139,
+      "type": "stat",
+      "title": "Licenses that need a look",
+      "description": "Application packages in running images under network copyleft (AGPL, SSPL), source-available terms (BUSL, Elastic), strong copyleft (GPL) or an unknown license, as their SBOMs declare. Goliash's Security / Licenses page lists them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 79
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(goliash_license_packages{kind=\"app\", class=~\"network-copyleft|source-available|strong-copyleft|unknown\"}) or vector(0)",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 140,
+      "type": "bargauge",
+      "title": "Packages by license",
+      "description": "Application packages in running images per license class, from their SBOMs. Operating system packages are left out: copyleft is the norm there.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 18,
+        "x": 6,
+        "y": 79
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (class) (goliash_license_packages{kind=\"app\"})",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{class}}"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 111,
       "type": "row",
       "title": "Goliash itself",
@@ -2556,7 +2675,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 86
       },
       "panels": []
     },
@@ -2573,7 +2692,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 80
+        "y": 87
       },
       "targets": [
         {
@@ -2630,7 +2749,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 80
+        "y": 87
       },
       "targets": [
         {
@@ -2691,7 +2810,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 80
+        "y": 87
       },
       "targets": [
         {
@@ -2756,7 +2875,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 80
+        "y": 87
       },
       "targets": [
         {
@@ -2817,7 +2936,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 80
+        "y": 87
       },
       "targets": [
         {
@@ -2882,7 +3001,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 80
+        "y": 87
       },
       "targets": [
         {

@@ -82,7 +82,8 @@ then in SigNoz open **Dashboards → New dashboard → Import JSON** and upload 
   empty and SigNoz says it cannot find `goliash_lead_time_seconds`.
 - **Security posture:** how long production has run behind available releases (median and 90th percentile, and
   over time: is patching getting faster?), services behind for 30 and 90 days, past end of life, accepted risk, and
-  the longest exposed services.
+  the longest exposed services, and packages by license class (copyleft, source-available and unknown ones that
+  need a look).
 - **Image hygiene:** moving tags, tags pushed again, untrusted registries, outdated bases, sizes over budget and
   images without a digest.
 - **Images:** what pulling each service's image downloads over time and against its size budget, bases with a newer
