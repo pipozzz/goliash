@@ -1173,3 +1173,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .update-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 110; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--ink); color: var(--surface); box-shadow: 0 12px 34px rgb(10 14 30 / .3); font-size: 14px; animation: palette-in .2s ease-out; }
 .update-bar button { padding: 5px 14px; border-radius: 999px; border: 0; background: #8aa4ff; color: #0e1530; font-weight: 600; cursor: pointer; }
 @media print { .update-bar { display: none; } }
+
+/* An image's size change against production: growth stands out a little. */
+.size-delta { margin-left: 6px; font-size: 12px; }
+.size-delta.grew { color: var(--warn); }

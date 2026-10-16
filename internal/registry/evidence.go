@@ -18,6 +18,9 @@ type Evidence struct {
 	SBOM       bool     // an SPDX or CycloneDX SBOM attestation or artifact
 	Provenance bool     // a SLSA provenance attestation
 	Found      []string // what was found, for people: "cosign signature", "buildkit sbom" …
+	// Size is what pulling the image downloads: its compressed layers and config, in bytes, for linux/amd64
+	// (or the first platform) of a multi-platform image; zero when unknown.
+	Size int64
 }
 
 const (
@@ -34,6 +37,7 @@ type descriptor struct {
 	MediaType    string            `json:"mediaType"`
 	ArtifactType string            `json:"artifactType"`
 	Digest       string            `json:"digest"`
+	Size         int64             `json:"size"`
 	Annotations  map[string]string `json:"annotations"`
 	Platform     *struct {
 		OS           string `json:"os"`
@@ -95,6 +99,13 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 	if err != nil {
 		return ev, err
 	}
+	if len(img.Manifests) == 0 {
+		ev.Size = imageSize(img)
+	} else if d, ok := platformManifest(img.Manifests); ok {
+		if m, err := get(d.Digest); err == nil {
+			ev.Size = imageSize(m)
+		}
+	}
 	for _, d := range img.Manifests {
 		if d.Annotations[annotationRefType] != "attestation-manifest" {
 			continue
@@ -152,4 +163,34 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 		}
 	}
 	return ev, nil
+}
+
+// imageSize is what pulling an image manifest downloads: its config and layers, compressed.
+func imageSize(m evidenceManifest) int64 {
+	n := m.Config.Size
+	for _, l := range m.Layers {
+		n += l.Size
+	}
+	return n
+}
+
+// platformManifest picks the image of an index whose size is shown: linux/amd64, else the first real
+// platform (not an attestation, whose platform is unknown/unknown).
+func platformManifest(ds []descriptor) (descriptor, bool) {
+	var first *descriptor
+	for i, d := range ds {
+		if d.Annotations[annotationRefType] == "attestation-manifest" || d.Platform == nil || d.Platform.OS == "unknown" {
+			continue
+		}
+		if d.Platform.OS == "linux" && d.Platform.Architecture == "amd64" {
+			return d, true
+		}
+		if first == nil {
+			first = &ds[i]
+		}
+	}
+	if first == nil {
+		return descriptor{}, false
+	}
+	return *first, true
 }

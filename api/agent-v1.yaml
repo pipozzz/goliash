@@ -796,6 +796,11 @@ components:
           description: What was found, for people ("cosign signature", "buildkit sbom" …).
           items:
             type: string
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+          description: What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
         purls:
           type: array
           maxItems: 20000

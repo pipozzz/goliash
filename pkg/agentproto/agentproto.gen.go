@@ -371,6 +371,9 @@ type ImageInspection struct {
 	Purls  []string `json:"purls,omitempty"`
 	Sbom   *bool    `json:"sbom,omitempty"`
 	Signed *bool    `json:"signed,omitempty"`
+
+	// Size What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
+	Size *int64 `json:"size,omitempty"`
 }
 
 // KubernetesSettings defines model for KubernetesSettings.

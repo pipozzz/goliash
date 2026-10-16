@@ -1271,6 +1271,9 @@ type ServiceSecurity struct {
 type ImageSecurity struct {
 	Env, Image, Digest                string
 	Checked, Signed, SBOM, Provenance bool
+	Size                              int64 // bytes pulled; 0 when unknown
+	Delta                             int64 // against the first (production) image's size, when both are known
+	DeltaFrom                         string
 }
 
 // ServiceFinding is one vulnerability in the service's images.

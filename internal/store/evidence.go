@@ -17,6 +17,7 @@ type ImageEvidence struct {
 	Found                    []string
 	Error                    string
 	CheckedAt                time.Time
+	Size                     int64 // bytes pulled: compressed layers and config; 0 when unknown
 }
 
 // SetImageEvidence records what was found for an image.
@@ -28,17 +29,18 @@ func (s *Store) SetImageEvidence(ctx context.Context, sc Scope, ev ImageEvidence
 	if ev.Found == nil {
 		found = []byte("[]")
 	}
-	_, err = s.exec(ctx, s.db, `INSERT INTO image_evidence (org_id, workspace_id, repo, digest, signed, sbom, provenance, found, error, checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err = s.exec(ctx, s.db, `INSERT INTO image_evidence (org_id, workspace_id, repo, digest, signed, sbom, provenance, found, error, checked_at, size_bytes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET signed = excluded.signed, sbom = excluded.sbom,
-			provenance = excluded.provenance, found = excluded.found, error = excluded.error, checked_at = excluded.checked_at`,
-		sc.OrgID, sc.WorkspaceID, ev.Repo, ev.Digest, ev.Signed, ev.SBOM, ev.Provenance, string(found), ev.Error, s.now())
+			provenance = excluded.provenance, found = excluded.found, error = excluded.error, checked_at = excluded.checked_at,
+			size_bytes = CASE WHEN excluded.size_bytes > 0 THEN excluded.size_bytes ELSE image_evidence.size_bytes END`,
+		sc.OrgID, sc.WorkspaceID, ev.Repo, ev.Digest, ev.Signed, ev.SBOM, ev.Provenance, string(found), ev.Error, s.now(), ev.Size)
 	return err
 }
 
 // ListImageEvidence returns what is known of the workspace's images, keyed by repo + "@" + digest.
 func (s *Store) ListImageEvidence(ctx context.Context, sc Scope) (map[string]ImageEvidence, error) {
-	rows, err := s.query(ctx, s.db, `SELECT repo, digest, signed, sbom, provenance, found, error, checked_at FROM image_evidence
+	rows, err := s.query(ctx, s.db, `SELECT repo, digest, signed, sbom, provenance, found, error, checked_at, size_bytes FROM image_evidence
 		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -48,7 +50,7 @@ func (s *Store) ListImageEvidence(ctx context.Context, sc Scope) (map[string]Ima
 	for rows.Next() {
 		var ev ImageEvidence
 		var found string
-		if err := rows.Scan(&ev.Repo, &ev.Digest, &ev.Signed, &ev.SBOM, &ev.Provenance, &found, &ev.Error, &ev.CheckedAt); err != nil {
+		if err := rows.Scan(&ev.Repo, &ev.Digest, &ev.Signed, &ev.SBOM, &ev.Provenance, &found, &ev.Error, &ev.CheckedAt, &ev.Size); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(found), &ev.Found)

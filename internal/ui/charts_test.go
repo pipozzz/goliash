@@ -199,3 +199,14 @@ func TestSegLabelBusyLane(t *testing.T) {
 		t.Errorf("a long current bar is labelled inside: %+v", lb)
 	}
 }
+
+func TestHumanBytes(t *testing.T) {
+	for n, want := range map[int64]string{512: "512 B", 45_000: "45 kB", 182_400_000: "182 MB", 1_400_000_000: "1.4 GB"} {
+		if got := humanBytes(n); got != want {
+			t.Errorf("humanBytes(%d) = %q, want %q", n, got, want)
+		}
+	}
+	if signedBytes(24_000_000) != "+24 MB" || signedBytes(-3_000_000) != "−3 MB" {
+		t.Errorf("signed: %s %s", signedBytes(24_000_000), signedBytes(-3_000_000))
+	}
+}

@@ -3019,7 +3019,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		ev, ok := known[repo+"@"+in.Digest]
 		rows = append(rows, row{ImageSecurity{
 			Env: envName[in.EnvironmentID], Image: in.Image, Digest: in.Digest,
-			Checked: ok && !ev.CheckedAt.IsZero(), Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance,
+			Checked: ok && !ev.CheckedAt.IsZero(), Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Size: ev.Size,
 		}, envPos[in.EnvironmentID]})
 		if ev.SBOM {
 			out.WithSBOM++
@@ -3032,6 +3032,10 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		return rows[i].Image < rows[j].Image
 	})
 	for _, r := range rows {
+		// What reaching production would change: each other environment's image against production's.
+		if first := rows[0]; r.Env != first.Env && r.Size > 0 && first.Size > 0 && r.Digest != first.Digest {
+			r.Delta, r.DeltaFrom = r.Size-first.Size, first.Env
+		}
 		out.Images = append(out.Images, r.ImageSecurity)
 	}
 	if len(out.Images) == 0 {

@@ -1026,6 +1026,7 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}
+	h.imageSizeMetrics(r.Context(), &b, p.Scope, o)
 	h.serverMetrics(r.Context(), &b, p.Scope)
 	if pos, err := versions.LoadPosture(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
 		postureMetrics(&b, pos)
@@ -1037,6 +1038,46 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// imageSizeMetrics is what pulling each service's main image downloads, per environment: the largest image
+// when an environment runs several.
+func (h *PublicHandler) imageSizeMetrics(ctx context.Context, b *strings.Builder, sc store.Scope, o versions.Overview) {
+	active, err := h.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return
+	}
+	known, err := h.store.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return
+	}
+	type key struct{ service, env string }
+	sizes := map[key]int64{}
+	for _, in := range active {
+		svc, ok := o.Services[in.ServiceID]
+		if !in.IsMain || !ok || in.Digest == "" {
+			continue
+		}
+		ev := known[versions.ParseImage(in.Image).Repo()+"@"+in.Digest]
+		if k := (key{svc.Name, o.Envs[in.EnvironmentID].Name}); ev.Size > sizes[k] {
+			sizes[k] = ev.Size
+		}
+	}
+	keys := make([]key, 0, len(sizes))
+	for k := range sizes {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].service != keys[j].service {
+			return keys[i].service < keys[j].service
+		}
+		return keys[i].env < keys[j].env
+	})
+	b.WriteString("# HELP goliash_image_size_bytes What pulling the service's image downloads (compressed layers and config).\n")
+	b.WriteString("# TYPE goliash_image_size_bytes gauge\n")
+	for _, k := range keys {
+		fmt.Fprintf(b, "goliash_image_size_bytes{service=%q,environment=%q} %d\n", k.service, k.env, sizes[k])
+	}
 }
 
 // postureMetrics is the security posture as metrics: what a CISO's dashboard trends and alerts on.

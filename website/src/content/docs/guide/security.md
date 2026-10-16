@@ -51,6 +51,12 @@ newer. Images on Amazon ECR need the agent's role to have `ecr:GetAuthorizationT
 `ecr:GetDownloadUrlForLayer` (the CloudFormation and Terraform setups include them). Images without a known
 digest count as *not checked*.
 
+The same lookup reads the image's **size**: what pulling it downloads, its compressed layers and config, as
+registries show it (linux/amd64, or the first platform, of a multi-platform image). A service's page lists it per
+environment, with how much each differs from production (*76 MB +32 MB*): what promoting that version adds. The
+metric `goliash_image_size_bytes` and the dashboards' *Image size* graph show it over time, so a heavier base or a
+new dependency stands out. Agents read it for private images from agent 1.61.
+
 ## Is it running?
 
 **Security → Is it running?** answers "is CVE-2024-3094 in production?" in seconds, and lists every known

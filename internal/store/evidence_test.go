@@ -35,5 +35,13 @@ func TestImageEvidence(t *testing.T) {
 		if x := got["ghcr.io/acme/x@sha256:b"]; x.Error != "denied" || x.Signed || len(x.Found) != 0 {
 			t.Fatalf("failed lookup %+v", x)
 		}
+		// A size is kept, and a later lookup that cannot read it does not forget it.
+		ev.Size = 182_000_000
+		_ = s.SetImageEvidence(ctx, sc, ev)
+		ev.Size = 0
+		_ = s.SetImageEvidence(ctx, sc, ev)
+		if got, _ := s.ListImageEvidence(ctx, sc); got["docker.io/library/nginx@sha256:a"].Size != 182_000_000 {
+			t.Errorf("size %d", got["docker.io/library/nginx@sha256:a"].Size)
+		}
 	})
 }

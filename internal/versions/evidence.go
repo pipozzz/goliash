@@ -60,7 +60,7 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found}
+		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found, Size: ev.Size}
 		if err != nil {
 			rec.Error = err.Error()
 		}
@@ -71,8 +71,12 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 	return nil
 }
 
+// sizesRead is when lookups started reading image sizes (Goliash 1.61).
+var sizesRead = time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)
+
 func fresh(ev store.ImageEvidence, now time.Time) bool {
-	if ev.CheckedAt.IsZero() {
+	// Looked up before sizes were read: once more, to learn the size.
+	if ev.CheckedAt.IsZero() || (ev.Size == 0 && ev.Error == "" && ev.CheckedAt.Before(sizesRead)) {
 		return false
 	}
 	ttl := evidenceNotFound
@@ -135,6 +139,9 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		ev.Signed = in.Signed != nil && *in.Signed
 		ev.SBOM = in.Sbom != nil && *in.Sbom
 		ev.Provenance = in.Provenance != nil && *in.Provenance
+		if in.Size != nil {
+			ev.Size = *in.Size
+		}
 		if err := c.store.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}

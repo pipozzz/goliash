@@ -527,12 +527,22 @@ templ serviceSecurity(v ServiceView) {
 		</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">
-				<thead><tr><th>Environment</th><th>Image</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
+				<thead><tr><th>Environment</th><th>Image</th><th class="num">Size</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
 				<tbody>
 					for _, im := range sec.Images {
 						<tr>
 							<td><strong>{ im.Env }</strong></td>
 							<td data-label="Image"><code title={ im.Digest }>{ im.Image }</code></td>
+							<td class="num" data-label="Size">
+								if im.Size > 0 {
+									{ humanBytes(im.Size) }
+									if im.Delta != 0 {
+										<span class={ "muted size-delta", templ.KV("grew", im.Delta > 0) } title={ "against " + im.DeltaFrom }>{ signedBytes(im.Delta) }</span>
+									}
+								} else {
+									<span class="muted">—</span>
+								}
+							</td>
 							if !im.Checked {
 								<td colspan="3" class="muted" data-label="Evidence">not checked yet</td>
 							} else {

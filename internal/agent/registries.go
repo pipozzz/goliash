@@ -258,6 +258,9 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 			continue
 		}
 		in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
+		if ev.Size > 0 {
+			in.Size = &ev.Size
+		}
 		if ev.SBOM {
 			purls, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
 			if err != nil {

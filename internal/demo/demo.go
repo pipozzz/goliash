@@ -320,6 +320,21 @@ func seedPostureHistory(ctx context.Context, st *store.Store, sc store.Scope) er
 	return nil
 }
 
+// demoSize is an example image size: a base per repository, growing a little with each version, so newer
+// environments show what an upgrade adds.
+func demoSize(repo, tag string) int64 {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(repo))
+	base := int64(20+h.Sum32()%380) * 1_000_000
+	grow := int64(0)
+	for _, r := range tag {
+		if r >= '0' && r <= '9' {
+			grow = grow*10 + int64(r-'0')
+		}
+	}
+	return base + grow%97*350_000
+}
+
 // seedEvidence records what the registries would hold beside the demo's images: the team's own images
 // are signed with an SBOM and provenance, official images carry BuildKit's SBOM and provenance, the rest
 // nothing.
@@ -342,6 +357,7 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			ev.SBOM, ev.Provenance = true, true
 			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
 		}
+		ev.Size = demoSize(ev.Repo, in.Tag)
 		if err := st.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}

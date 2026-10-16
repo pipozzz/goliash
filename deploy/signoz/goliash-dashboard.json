@@ -367,6 +367,15 @@
       "h": 8,
       "moved": false,
       "static": false
+    },
+    {
+      "i": "w-image-size",
+      "x": 0,
+      "y": 59,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
     }
   ],
   "variables": {
@@ -4338,6 +4347,120 @@
         ]
       },
       "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w-image-size",
+      "panelTypes": "graph",
+      "title": "Image size",
+      "description": "What pulling each service's image downloads, the largest per service: a jump is a heavier base or new dependencies.",
+      "query": {
+        "queryType": "builder",
+        "id": "948ce474-f9aa-55ce-8f78-bb1d61210b4f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_image_size_bytes",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "service",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "service--string--tag--false"
+                }
+              ],
+              "legend": "{{service}}",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "decbytes",
       "timePreferance": "GLOBAL_TIME",
       "nullZeroValues": "zero",
       "opacity": "1",

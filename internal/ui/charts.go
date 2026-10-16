@@ -556,3 +556,24 @@ func nowText(v string) string {
 	}
 	return v
 }
+
+// humanBytes writes a size as registries do, in decimal units: 182 MB, 1.4 GB.
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1e9:
+		return fmt.Sprintf("%.1f GB", float64(n)/1e9)
+	case n >= 1e6:
+		return fmt.Sprintf("%.0f MB", float64(n)/1e6)
+	case n >= 1e3:
+		return fmt.Sprintf("%.0f kB", float64(n)/1e3)
+	}
+	return fmt.Sprintf("%d B", n)
+}
+
+// signedBytes is a size change: +24 MB, −3 MB.
+func signedBytes(n int64) string {
+	if n < 0 {
+		return "−" + humanBytes(-n)
+	}
+	return "+" + humanBytes(n)
+}
