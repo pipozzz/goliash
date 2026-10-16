@@ -1199,3 +1199,10 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .sub-head { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
 .signers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .signers li { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+
+/* One application or team alone, as the whole board (?only=1): its services as the cells, nothing behind. */
+.tile-alone { display: grid; gap: 14px; }
+.alone-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.alone-head .stack-title { flex: 1 1 auto; min-width: 0; }
+.alone-head h2 { margin: 0; }
+.stack-head .stack-only { font-size: 13px; white-space: nowrap; }
