@@ -3,7 +3,10 @@
 
 package ui
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // VulnsPage answers "is this vulnerability running?" and lists the known vulnerabilities of running images.
 templ VulnsPage(v VulnsView) {
@@ -69,6 +72,9 @@ templ VulnsPage(v VulnsView) {
 										if f.Summary != "" {
 											<div class="targets">{ f.Summary }</div>
 										}
+										if d := f.DaysRunning(time.Now()); !f.Since.IsZero() {
+											<div class="targets">{ "running for " + plural(d, "day", "days") }</div>
+										}
 										if len(f.IDs) > 1 || f.IDs[0] != f.Key {
 											<div class="targets mono">{ strings.Join(f.IDs, ", ") }</div>
 										}
@@ -84,6 +90,9 @@ templ VulnsPage(v VulnsView) {
 											<span class="badge eol" title={ "CISA: " + f.Exploited.Name + ", added " + f.Exploited.DateAdded }>exploited</span>
 											if f.Exploited.Ransomware {
 												<span class="badge eol">ransomware</span>
+											}
+											if f.PastDue(time.Now()) {
+												<span class="badge eol" title="CISA's due date for fixing it (BOD 22-01) has passed">past due</span>
 											}
 											if f.Exploited.DueDate != "" {
 												<div class="targets">{ "CISA due " + f.Exploited.DueDate }</div>

@@ -125,6 +125,10 @@ only those, e.g. to the people on call:
 goliash notify create -channel oncall -events rollback -envs prod -mode instant
 ```
 
+A rule with the event type `rollout` (*stuck rollouts and services down*) announces a workload running two versions
+side by side for more than half an hour (⏳ *traefik @ prod: rollout stuck on k8s-prod: v3.1.6 on 1 of 2, v3.1.2 on
+1*) or none of the replicas it asks for (🛑, urgent on web push), once each.
+
 A rule that sends **stale agents** (an agent silent for 10 minutes) also sends the all clear when the agent is back:
 ✅ *agent eu-cluster is back after about 25 min; its targets report again*.
 
@@ -236,7 +240,7 @@ an installation does not hear about every vulnerability it runs on day one; the 
 
 ## Image alerts
 
-Four events watch the running images, each once per image and environment (rules for every event get them too,
+Five events watch the running images, each once per image and environment (rules for every event get them too,
 and Goli can explain each):
 
 | Event | When |
@@ -245,10 +249,12 @@ and Goli can explain each):
 | `image_over_budget` | A deploy's image is bigger than the **Image size budget** in its service's version policy. |
 | `outdated_base` | An image is built on a build of its base that has had a newer one for over two weeks: [rebuild with `--pull`](../security/#built-on-an-outdated-base). |
 | `evidence_lost` | A deploy's image has no signature, SBOM or provenance though the one it replaced had: the build or its CI changed. |
+| `license` (*AGPL or source-available packages*) | A deploy's image brings an application package under a network copyleft (AGPL, SSPL) or source-available license (BUSL, Elastic) that the image it replaced did not have, as its SBOM declares; see [Licenses](../security/#licenses). |
 
 > api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0; biggest new layer 145 MB: RUN apt-get install -y chromium)<br>
 > api @ prod: 2.0.0 image is 240 MB, over its 200 MB budget<br>
-> api @ prod: 2.0.0 has no signature, SBOM, though 1.1.0 had
+> api @ prod: 2.0.0 has no signature, SBOM, though 1.1.0 had<br>
+> api @ prod: 1.1.0 brings com.itextpdf/itextpdf 5.5.13.3 (AGPL-3.0-only)
 
 ```sh
 goliash notify create -channel platform -events image_grew,image_over_budget,outdated_base,evidence_lost -envs prod -mode instant
