@@ -58,7 +58,8 @@ type UpdateItem struct {
 	Skip                                 string // the version after Target: "skip this version" holds until a newer one
 	Exploited                            []string
 	Critical                             int
-	Brief                                string // what to ask Goli for a briefing on this upgrade; empty without Goli
+	Vulns                                versions.VulnDelta // what the upgrade does to known vulnerabilities, when known
+	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
 }
 
 var levelClasses = []string{"eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
@@ -100,7 +101,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Exploited: u.Exploited, Critical: u.Critical,
+			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns,
 		}
 		if s.goliOn() && u.Running != "" && u.Target != "" {
 			it.Brief = fmt.Sprintf("Brief me on upgrading %s in %s from %s to %s: what breaks or needs migrating, "+

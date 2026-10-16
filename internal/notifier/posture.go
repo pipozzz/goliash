@@ -103,7 +103,58 @@ func (n *Notifier) postureItem(ctx context.Context, sc store.Scope, now time.Tim
 	if err != nil {
 		return Item{}, err
 	}
-	return PostureItem(pos, n.weekAgo(ctx, sc, now), now), nil
+	var supply SupplyChain
+	if pos.Prod.ID != "" {
+		if supply.Vulns, err = versions.LoadVulnReport(ctx, n.store, sc, pos.Prod.ID); err != nil {
+			return Item{}, err
+		}
+		if supply.Licenses, err = versions.LoadLicenseReport(ctx, n.store, sc, pos.Prod.ID); err != nil {
+			return Item{}, err
+		}
+	}
+	return PostureItem(pos, supply, n.weekAgo(ctx, sc, now), now), nil
+}
+
+// SupplyChain is what the SBOMs of production's images say, for the posture report: known vulnerabilities and
+// licenses that need a look. Zero values leave them out.
+type SupplyChain struct {
+	Vulns    versions.VulnReport
+	Licenses versions.LicenseReport
+}
+
+// supplyChainText says what the SBOMs of production's images say: known vulnerabilities, exploited ones first, and
+// application packages whose licenses need a look. Empty when no image has an SBOM.
+func supplyChainText(s SupplyChain) string {
+	var b strings.Builder
+	if s.Vulns.WithSBOM > 0 {
+		fmt.Fprintf(&b, " Known vulnerabilities in %s with an SBOM: %d", plural(s.Vulns.WithSBOM, "image", "images"), len(s.Vulns.Findings))
+		if s.Vulns.Exploited > 0 {
+			fmt.Fprintf(&b, ", %d exploited in the wild", s.Vulns.Exploited)
+			var ids []string
+			for _, f := range s.Vulns.Findings {
+				if f.Exploited != nil && len(ids) < postureWorst {
+					ids = append(ids, f.Key)
+				}
+			}
+			b.WriteString(" (" + strings.Join(ids, ", ") + ")")
+		}
+		fmt.Fprintf(&b, "; %d with a fix out.", s.Vulns.Fixable)
+	}
+	if s.Licenses.WithSBOM > 0 {
+		var parts []string
+		for _, c := range []struct {
+			class versions.LicenseClass
+			name  string
+		}{{versions.NetworkCopyleft, "network copyleft"}, {versions.SourceAvailable, "source-available"}, {versions.StrongCopyleft, "strong copyleft"}, {versions.UnknownLicense, "unknown"}} {
+			if n := s.Licenses.Counts[c.class]; n > 0 {
+				parts = append(parts, fmt.Sprintf("%d %s", n, c.name))
+			}
+		}
+		if len(parts) > 0 {
+			b.WriteString(" Licenses that need a look: " + strings.Join(parts, ", ") + ".")
+		}
+	}
+	return b.String()
 }
 
 // weekAgo is the posture a week before now, or nil when there is no reading from 7 to 14 days back.
@@ -124,7 +175,7 @@ func (n *Notifier) weekAgo(ctx context.Context, sc store.Scope, now time.Time) *
 
 // PostureItem is the posture as a notification item: the numbers a security officer follows week to week, the
 // longest production exposures, and the same numbers a week ago when known.
-func PostureItem(pos versions.Posture, prev *store.PostureSample, now time.Time) Item {
+func PostureItem(pos versions.Posture, supply SupplyChain, prev *store.PostureSample, now time.Time) Item {
 	prod := pos.Prod.Name
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s runs %s", orDash(prod), plural(pos.ProdRunning, "service", "services"))
@@ -171,6 +222,7 @@ func PostureItem(pos versions.Posture, prev *store.PostureSample, now time.Time)
 	if len(worst) > 0 {
 		b.WriteString(" Longest: " + strings.Join(worst, "; ") + ".")
 	}
+	b.WriteString(supplyChainText(supply))
 	if prev != nil {
 		fmt.Fprintf(&b, " A week ago (%s): %d behind, median %d days, %d behind 90+, %d past end of life.",
 			prev.Day, prev.Exposed, prev.Median, prev.Behind90, prev.EOLPassed)

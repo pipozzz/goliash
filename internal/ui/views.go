@@ -416,8 +416,8 @@ var eventLabels = map[string]string{
 // ruleEventLabels name event types as the rule form does.
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
-	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents",
-	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost",
+	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents", "rollout": "stuck rollouts",
+	"vulnerability": "vulnerabilities", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "license": "AGPL or source-available packages",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
@@ -450,6 +450,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
+	Rollouts       []versions.RolloutIssue // its workloads whose replicas are not where they should be
 	TeamNames      []string // the workspace's teams, to pick one
 	Security       ServiceSecurity
 	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
@@ -518,6 +519,7 @@ type PolicyForm struct {
 	Prerelease bool
 	BaseImage  string // set by people; empty: as the image declares
 	MaxSizeMB  string // the image size budget, empty: none
+	Signer     string // who should sign its images, empty: nobody named
 }
 
 // ServiceEnv is one environment on a service page.
@@ -552,6 +554,7 @@ type PromotionsView struct {
 	Deploys    BarChart
 	Drift      LineChart
 	Promotions []PromotionView
+	Rollouts   []versions.RolloutIssue
 	EnvNames   []string // delivery table columns
 	LeadNames  []string // "dev → staging", …
 	Delivery   []DeliveryRow
@@ -1295,6 +1298,7 @@ type ImageSecurity struct {
 	Delta                             int64 // against the first (production) image's size, when both are known
 	DeltaFrom                         string
 	OldBase                           string // the base it is built on an older build of, when it is
+	Signer, SignerFull                string // who signed it, short and as the certificate names it
 }
 
 // ServiceFinding is one vulnerability in the service's images.
@@ -1321,4 +1325,47 @@ func vulnIDs(list []versions.VulnRef) string {
 		ids = append(ids, "…")
 	}
 	return strings.Join(ids, ", ")
+}
+
+// rolloutLabel names a rollout problem as people read it.
+func rolloutLabel(k versions.RolloutKind) string {
+	switch k {
+	case versions.RolloutDown:
+		return "down"
+	case versions.RolloutStuck:
+		return "rollout stuck"
+	}
+	return "short of replicas"
+}
+
+func rolloutBadge(k versions.RolloutKind) string {
+	if k == versions.RolloutShort {
+		return "degraded"
+	}
+	return "failing"
+}
+
+// rolloutHeadline says what is wrong with a workload, where.
+func rolloutHeadline(is versions.RolloutIssue) string {
+	return upperFirst(rolloutLabel(is.Kind)) + " in " + is.Environment + " on " + is.Target + ":"
+}
+
+// rolloutDetail says which versions run on how many of the replicas asked for.
+func rolloutDetail(is versions.RolloutIssue) string {
+	if is.Running == 0 {
+		return "none of " + plural(is.Desired, "replica", "replicas") + " running"
+	}
+	parts := make([]string, 0, len(is.Versions))
+	for _, v := range is.Versions {
+		parts = append(parts, v.Version+" on "+itoa(v.Running))
+	}
+	return strings.Join(parts, ", ") + " of " + plural(is.Desired, "replica", "replicas") + " asked for"
+}
+
+// upperFirst upper-cases a label's first letter.
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

@@ -66,6 +66,9 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 			return ctx.Err()
 		}
 		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found, Size: ev.Size}
+		for _, s := range ev.Signers {
+			rec.Signers = append(rec.Signers, store.ImageSigner(s))
+		}
 		for _, l := range ev.LayerDetails {
 			rec.Layers = append(rec.Layers, store.ImageLayer{Digest: l.Digest, Size: l.Size, Command: l.Command})
 		}
@@ -99,6 +102,10 @@ var sizesRead = time.Date(2026, 10, 16, 0, 0, 0, 0, time.UTC)
 func fresh(ev store.ImageEvidence, now time.Time) bool {
 	// Looked up before sizes were read: once more, to learn the size.
 	if ev.CheckedAt.IsZero() || (ev.Size == 0 && ev.Error == "" && ev.CheckedAt.Before(sizesRead)) {
+		return false
+	}
+	// Signed, and looked up before signers were read: once more, to learn who signed it.
+	if ev.Signed && ev.Error == "" && !ev.SignersRead {
 		return false
 	}
 	ttl := evidenceNotFound
@@ -180,6 +187,13 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		ev.Signed = in.Signed != nil && *in.Signed
 		ev.SBOM = in.Sbom != nil && *in.Sbom
 		ev.Provenance = in.Provenance != nil && *in.Provenance
+		for _, s := range in.Signers {
+			signer := store.ImageSigner{Identity: s.Identity}
+			if s.Issuer != nil {
+				signer.Issuer = *s.Issuer
+			}
+			ev.Signers = append(ev.Signers, signer)
+		}
 		if in.Size != nil {
 			ev.Size = *in.Size
 		}

@@ -61,6 +61,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/events", h.with(store.RoleViewer, h.events))
 	mux.Handle("GET /api/v1/drifts", h.with(store.RoleViewer, h.drifts))
 	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
+	mux.Handle("GET /api/v1/rollouts", h.with(store.RoleViewer, h.rollouts))
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))
@@ -434,37 +435,21 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		h.fail(w, r, err)
 		return
 	}
-	type apiVuln struct {
-		ID        string `json:"id"`
-		Severity  string `json:"severity,omitempty"`
-		Exploited bool   `json:"exploited"`
-	}
-	type apiVulns struct {
-		Fixed []apiVuln `json:"fixed"`
-		New   []apiVuln `json:"new"`
-	}
-	refs := func(vs []versions.VulnRef) []apiVuln {
-		out := []apiVuln{}
-		for _, v := range vs {
-			out = append(out, apiVuln{v.ID, v.Severity, v.Exploited})
-		}
-		return out
-	}
 	type apiRelease struct {
 		Version      string     `json:"version"`
 		PublishedAt  *time.Time `json:"published_at,omitempty"`
 		ReleaseNotes string     `json:"release_notes,omitempty"`
 	}
 	type apiPromotion struct {
-		Service  string       `json:"service"`
-		App      string       `json:"app,omitempty"`
-		From     string       `json:"from"`
-		To       string       `json:"to"`
-		Version  string       `json:"version"`
-		Running  string       `json:"running"`
-		Since    time.Time    `json:"since"`
-		Releases []apiRelease `json:"releases"`
-		Vulns    *apiVulns    `json:"vulnerabilities,omitempty"`
+		Service  string        `json:"service"`
+		App      string        `json:"app,omitempty"`
+		From     string        `json:"from"`
+		To       string        `json:"to"`
+		Version  string        `json:"version"`
+		Running  string        `json:"running"`
+		Since    time.Time     `json:"since"`
+		Releases []apiRelease  `json:"releases"`
+		Vulns    *apiVulnDelta `json:"vulnerabilities,omitempty"`
 	}
 	out := []apiPromotion{}
 	for _, pr := range list {
@@ -477,9 +462,7 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 			}
 			ap.Releases = append(ap.Releases, ar)
 		}
-		if pr.Vulns.Known {
-			ap.Vulns = &apiVulns{Fixed: refs(pr.Vulns.Fixed), New: refs(pr.Vulns.New)}
-		}
+		ap.Vulns = toAPIVulnDelta(pr.Vulns)
 		out = append(out, ap)
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -869,21 +852,22 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		return
 	}
 	type apiUpdate struct {
-		Service      string    `json:"service"`
-		Owner        string    `json:"owner,omitempty"`
-		App          string    `json:"app,omitempty"`
-		Environment  string    `json:"environment"`
-		Running      string    `json:"running"`
-		Target       string    `json:"target,omitempty"`
-		ReleaseNotes string    `json:"release_notes,omitempty"`
-		Jump         string    `json:"jump,omitempty"`
-		Behind       string    `json:"behind,omitempty"`
-		EOL          string    `json:"eol,omitempty"`
-		Urgency      string    `json:"urgency"`
-		Since        time.Time `json:"since"`
-		Acknowledged bool      `json:"acknowledged"`
-		Exploited    []string  `json:"exploited,omitempty"`
-		Critical     int       `json:"critical_vulnerabilities,omitempty"`
+		Service      string        `json:"service"`
+		Owner        string        `json:"owner,omitempty"`
+		App          string        `json:"app,omitempty"`
+		Environment  string        `json:"environment"`
+		Running      string        `json:"running"`
+		Target       string        `json:"target,omitempty"`
+		ReleaseNotes string        `json:"release_notes,omitempty"`
+		Jump         string        `json:"jump,omitempty"`
+		Behind       string        `json:"behind,omitempty"`
+		EOL          string        `json:"eol,omitempty"`
+		Urgency      string        `json:"urgency"`
+		Since        time.Time     `json:"since"`
+		Acknowledged bool          `json:"acknowledged"`
+		Exploited    []string      `json:"exploited,omitempty"`
+		Critical     int           `json:"critical_vulnerabilities,omitempty"`
+		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 	}
 	out := []apiUpdate{}
 	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, time.Now()) {
@@ -891,7 +875,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
 			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
-			Exploited: u.Exploited, Critical: u.Critical,
+			Exploited: u.Exploited, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -1053,13 +1037,13 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 	}
 	if findings, err := versions.LoadHygiene(r.Context(), h.store, p.Scope); err == nil {
-		byKind := map[string]int{"moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "outdated-base": 0, "over-budget": 0, "unpinned": 0}
+		byKind := map[string]int{"moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "outdated-base": 0, "over-budget": 0, "unexpected-signer": 0, "unpinned": 0}
 		for _, f := range findings {
 			byKind[f.Kind]++
 		}
-		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget or no digest.\n")
+		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget, an unexpected signer or no digest.\n")
 		b.WriteString("# TYPE goliash_image_hygiene_findings gauge\n")
-		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unpinned"} {
+		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unexpected-signer", "unpinned"} {
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}
@@ -1072,6 +1056,9 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 	}
 	h.vulnMetrics(r.Context(), &b, p.Scope, o)
+	if issues, err := versions.RolloutIssues(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
+		rolloutMetrics(&b, issues)
+	}
 	h.imageSizeMetrics(r.Context(), &b, p.Scope, o)
 	h.serverMetrics(r.Context(), &b, p.Scope)
 	if pos, err := versions.LoadPosture(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
@@ -1421,4 +1408,51 @@ func (h *PublicHandler) vulnMetrics(ctx context.Context, b *strings.Builder, sc 
 	for _, env := range envs {
 		fmt.Fprintf(b, "goliash_exploited_vulnerability_days{environment=%q} %.2f\n", env, oldest[env])
 	}
+}
+
+// rolloutMetrics are the workloads whose replicas are not where they should be: a count per kind, and one series
+// per workload while it lasts.
+func rolloutMetrics(b *strings.Builder, issues []versions.RolloutIssue) {
+	count := map[versions.RolloutKind]int{}
+	for _, is := range issues {
+		count[is.Kind]++
+	}
+	b.WriteString("# HELP goliash_rollout_issues Workloads running none of the replicas they ask for (down), two versions side by side for over 30 minutes (stuck), or fewer replicas than asked for (short).\n")
+	b.WriteString("# TYPE goliash_rollout_issues gauge\n")
+	for _, k := range []versions.RolloutKind{versions.RolloutDown, versions.RolloutStuck, versions.RolloutShort} {
+		fmt.Fprintf(b, "goliash_rollout_issues{kind=%q} %d\n", k, count[k])
+	}
+	b.WriteString("# HELP goliash_rollout_problem 1 for each workload whose replicas are not where they should be, while it lasts.\n")
+	b.WriteString("# TYPE goliash_rollout_problem gauge\n")
+	for _, is := range issues {
+		fmt.Fprintf(b, "goliash_rollout_problem{service=%q,environment=%q,target=%q,workload=%q,kind=%q,running=\"%d\",desired=\"%d\"} 1\n",
+			is.Service, is.Environment, is.Target, is.Workload, is.Kind, is.Running, is.Desired)
+	}
+}
+
+// apiVulnDelta is what a promotion or upgrade does to known vulnerabilities.
+type apiVulnDelta struct {
+	Fixed []apiVulnRef `json:"fixed"`
+	New   []apiVulnRef `json:"new"`
+}
+
+type apiVulnRef struct {
+	ID        string `json:"id"`
+	Severity  string `json:"severity,omitempty"`
+	Exploited bool   `json:"exploited"`
+}
+
+// toAPIVulnDelta is nil unless both images' SBOMs were read.
+func toAPIVulnDelta(d versions.VulnDelta) *apiVulnDelta {
+	if !d.Known {
+		return nil
+	}
+	refs := func(vs []versions.VulnRef) []apiVulnRef {
+		out := []apiVulnRef{}
+		for _, v := range vs {
+			out = append(out, apiVulnRef{v.ID, v.Severity, v.Exploited})
+		}
+		return out
+	}
+	return &apiVulnDelta{Fixed: refs(d.Fixed), New: refs(d.New)}
 }

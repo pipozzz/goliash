@@ -220,5 +220,11 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 		From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
 	}
 	it.Text = Describe(it)
+	if n := len(u.Vulns.Fixed); n > 0 {
+		it.Text += "; fixes " + plural(n, "known vulnerability", "known vulnerabilities")
+		if x := versions.Exploited(u.Vulns.Fixed); x > 0 {
+			it.Text += fmt.Sprintf(", %d exploited in the wild", x)
+		}
+	}
 	return it
 }

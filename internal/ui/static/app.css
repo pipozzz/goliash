@@ -1196,6 +1196,10 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .size-change .grew { color: var(--warn); }
 .size-change code { white-space: pre-wrap; overflow-wrap: anywhere; }
 
+.sub-head { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
+.signers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.signers li { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+
 /* Teams: quick team buttons, the filter of services without a team, taking a service out of its team. */
 .team-picks { flex-wrap: wrap; gap: 6px; align-items: center; }
 .pick-tools { align-items: center; gap: 12px; flex-wrap: wrap; }

@@ -229,7 +229,8 @@ func NewServer(c *Client) *mcp.Server {
 		Name: "updates", Annotations: readOnly,
 		Description: "What to upgrade, most urgent first: per service (and application) and environment, the running " +
 			"version, the version to move to with its release notes, and why (end of life, a major or minor jump, behind " +
-			"the previous environment). Acknowledged items are marked. Use it to plan upgrades.",
+			"the previous environment), and, when the target already runs somewhere, the known vulnerabilities the upgrade " +
+			"fixes and brings. Acknowledged items are marked. Use it to plan upgrades.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updatesIn) (*mcp.CallToolResult, Result, error) {
 			data, err := c.do(ctx, http.MethodGet, "/api/v1/updates", nil, nil)
@@ -324,6 +325,7 @@ func NewServer(c *Client) *mcp.Server {
 
 	for _, t := range []struct{ name, path, desc string }{
 		{"promotions", "/api/v1/promotions", "Versions that run in one environment and wait for the next, longest waiting first, with the releases a promotion would bring and the known vulnerabilities it would fix and bring (when both images have an SBOM)."},
+		{"rollouts", "/api/v1/rollouts", "Rollouts that do not finish, worst first: workloads running none of the replicas they ask for (down), two versions side by side for more than 30 minutes (stuck), or fewer replicas than asked for (short), with the versions and replicas on each target. Use it for \"did the deploy go out?\" and incidents."},
 		{"delivery", "/api/v1/delivery", "Per service, versions that arrived in each environment in the last 30 days and the median lead time between environments."},
 		{"hygiene", "/api/v1/hygiene", "Image hygiene: moving tags like latest, tags pushed again, untrusted registries, images built on an outdated base (an older build of their FROM image: rebuild with --pull), missing digests."},
 	} {
@@ -389,7 +391,7 @@ func NewServer(c *Client) *mcp.Server {
 		Name: "images", Annotations: readOnly,
 		Description: "What one service's images are made of. Per environment: the running image's size against the " +
 			"service's size budget, its base and how many days the base tag has had a newer build, and whether it is " +
-			"signed and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
+			"signed (and by whom, as keyless signatures' certificates name it) and has an SBOM and provenance. Also every image that ran in the last 90 days with its size, and what " +
 			"the last deploy changed in the layers, biggest first, with the Dockerfile step that made each. Use it to " +
 			"explain why an image grew or what a rebuild would fix.",
 	},

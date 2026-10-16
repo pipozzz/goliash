@@ -68,6 +68,7 @@ page, with `goliash service set`, or through the catalog.
 | `changelog` | A release notes URL template with `{version}`. | none |
 | `base_image` | The image the service's image is built `FROM`, when it does not declare it; `none` turns base tracking off. | as the image declares |
 | `max_size_mb` | The image size budget in MB: over it, Image hygiene lists it and `image_over_budget` alerts. | none |
+| `signer` | Who should sign its images: a keyless signature's identity (`https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main`), or a prefix ending in `*` (`https://github.com/acme/*`). Otherwise Image hygiene lists it as *unexpected signer*. | none |
 
 Without a `tag_filter`, tags are compared **like with like**: a service running `1.27.2-alpine` is compared with
 other `-alpine` tags with three version parts, so `latest`, `mainline` or `1.27-bookworm` do not count. A tag that is no
@@ -151,7 +152,10 @@ life, upstream or environment drift. Each line shows what runs, the version to m
 why. They are ordered by urgency (an exploited vulnerability in the running image, end of life passed, end of life
 soon, major, minor, behind the previous environment, patch), production first, then by how long they have been open.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the
-wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running). The tiles filter by urgency, and the
+wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running).
+When the version to move to already runs somewhere (staging, another cluster) and both images have an SBOM, the line
+also says what the upgrade does to known vulnerabilities: *fixes 8 vulnerabilities (1 exploited) · brings 2 new ones*,
+and the weekly upgrade plan says what each upgrade fixes. The tiles filter by urgency, and the
 selects by team and environment. **Copy as checklist** copies the list as markdown checkboxes for a ticket or a
 planning board. **Put off** on a line skips that version (until a newer release is out) or puts it off for a week or
 30 days; it is an [acknowledgement](#acknowledging) for that service and environment, so its notifications go quiet
@@ -181,6 +185,18 @@ new one*, with their IDs one click away. It is the list to go through before a r
 ```sh
 goliash promotions
 ```
+
+**Rollouts that do not finish** come first on the page. Kubernetes, ECS, Nomad, Swarm and Compose say how many
+replicas a workload asks for, and Goliash compares that with what runs:
+
+- **down**: none of the replicas runs;
+- **stuck**: two versions side by side for more than 30 minutes (*traefik v3.1.6 on 1, v3.1.2 on 1 of 2 replicas
+  asked for*), a rolling update that stopped half way;
+- **short**: fewer replicas than asked for.
+
+The service page shows the same in red, `GET /api/v1/rollouts` and the `rollouts` tool for AI assistants list them,
+and a notification rule with the `rollout` event announces stuck rollouts and services down (not short ones: a pod
+restarting is not news).
 
 ```text
 SERVICE        PROMOTE           FROM → TO        WAITING   VULNERABILITIES   RELEASES

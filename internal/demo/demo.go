@@ -200,7 +200,18 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 				CollectedAt: start.Add(time.Duration(day)*24*time.Hour + time.Duration(len(t.name))*time.Minute),
 			}
 			for _, name := range sortedKeys(running) {
-				snap.Workloads = append(snap.Workloads, demoWorkload(t, name, running[name]))
+				w := demoWorkload(t, name, running[name])
+				// The last day, traefik v3.1.6 went out to one of prod-eu's two replicas and the other kept v3.1.2: a
+				// stuck rollout.
+				if day == 21 && t.name == "demo-prod-eu" && name == "traefik" {
+					next := w.Containers[0]
+					next.Image, next.Running = images["traefik"]+":v3.1.6", 1
+					d := demoDigest(next.Image)
+					next.Digest = &d
+					w.Containers[0].Running = 1
+					w.Containers = append(w.Containers, next)
+				}
+				snap.Workloads = append(snap.Workloads, w)
 			}
 			if t.name == "demo-prod-eu" {
 				ns := "reports"
@@ -249,7 +260,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		case "payments-api": // size budgets: one over, two under
 			s.VersionPolicy = json.RawMessage(`{"max_size_mb":350}`)
 		case "checkout":
-			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400}`)
+			s.VersionPolicy = json.RawMessage(`{"max_size_mb":400,"signer":"https://github.com/acme/*"}`)
 		case "notifications":
 			s.VersionPolicy = json.RawMessage(`{"max_size_mb":100}`)
 		}
@@ -403,6 +414,15 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 		case strings.HasPrefix(ev.Repo, "ghcr.io/acme/") && ev.Repo != "ghcr.io/acme/report" && ev.Repo != "ghcr.io/acme/image-resizer":
 			ev.Signed, ev.SBOM, ev.Provenance = true, true, true
 			ev.Found = []string{"sigstore bundle", "buildkit sbom", "buildkit provenance"}
+			// Signed by the release workflow; checkout 2.4.0 by hand, by a developer, which its policy does not expect.
+			signer := store.ImageSigner{
+				Identity: "https://github.com/acme/" + strings.TrimPrefix(ev.Repo, "ghcr.io/acme/") + "/.github/workflows/release.yml@refs/heads/main",
+				Issuer:   "https://token.actions.githubusercontent.com",
+			}
+			if ev.Repo == "ghcr.io/acme/checkout" && in.Tag == "2.4.0" {
+				signer = store.ImageSigner{Identity: "dev@acme.example", Issuer: "https://accounts.google.com"}
+			}
+			ev.Signers = []store.ImageSigner{signer}
 		case strings.HasPrefix(ev.Repo, "docker.io/library/"):
 			ev.SBOM, ev.Provenance = true, true
 			ev.Found = []string{"buildkit sbom", "buildkit provenance"}
