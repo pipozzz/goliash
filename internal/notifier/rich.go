@@ -36,6 +36,8 @@ func kindOf(it Item) kind {
 			return kind{"🛑", "#e5484d", "Down"}
 		}
 		return kind{"⏳", "#ffb347", "Rollout stuck"}
+	case EventUnexpectedSigner:
+		return kind{"✍️", "#e5484d", "Unexpected signer"}
 	case "removed":
 		return kind{"🗑️", "#8a93a6", "Removed"}
 	case "new_release":

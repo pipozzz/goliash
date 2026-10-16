@@ -249,6 +249,7 @@ and Goli can explain each):
 | `image_over_budget` | A deploy's image is bigger than the **Image size budget** in its service's version policy. |
 | `outdated_base` | An image is built on a build of its base that has had a newer one for over two weeks: [rebuild with `--pull`](../security/#built-on-an-outdated-base). |
 | `evidence_lost` | A deploy's image has no signature, SBOM or provenance though the one it replaced had: the build or its CI changed. |
+| `unexpected_signer` (*not signed by the expected signer*) | A deploy's image is not signed by the **Expected signer** in its service's version policy: unsigned, signed by someone else, or signed with a key that names nobody; see [Who signed it](../security/#who-signed-it). |
 
 > api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0; biggest new layer 145 MB: RUN apt-get install -y chromium)<br>
 > api @ prod: 2.0.0 image is 240 MB, over its 200 MB budget<br>

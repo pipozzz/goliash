@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -20,14 +21,15 @@ import (
 
 // Rule event types about running images.
 const (
-	EventImageGrew       = "image_grew"        // a deploy made the image much bigger
-	EventImageOverBudget = "image_over_budget" // a deploy's image is bigger than its service's size budget
-	EventOutdatedBase    = "outdated_base"     // an image is built on a base build weeks older than the base's tag
-	EventEvidenceLost    = "evidence_lost"     // a deploy's image lacks a signature, SBOM or provenance the one before had
+	EventImageGrew        = "image_grew"        // a deploy made the image much bigger
+	EventImageOverBudget  = "image_over_budget" // a deploy's image is bigger than its service's size budget
+	EventOutdatedBase     = "outdated_base"     // an image is built on a base build weeks older than the base's tag
+	EventEvidenceLost     = "evidence_lost"     // a deploy's image lacks a signature, SBOM or provenance the one before had
+	EventUnexpectedSigner = "unexpected_signer" // a deploy's image is not signed by who its service's policy names
 )
 
 // imageEvents are the events CheckImages sends.
-var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost}
+var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventUnexpectedSigner}
 
 // baseLag is how long an image may trail its base's newest build before it is announced.
 const baseLag = 14 * 24 * time.Hour
@@ -146,6 +148,11 @@ func (n *Notifier) imageGrowth(ctx context.Context, sc store.Scope, now time.Tim
 			it.Text = Describe(it)
 			out = append(out, growth{item: it, env: ps[cur].EnvironmentID, digest: ps[cur].Digest})
 		}
+		if want := versions.ExpectedSigner(svc); want != "" && !curEv.CheckedAt.IsZero() && curEv.Error == "" && (!curEv.Signed || curEv.SignersRead) {
+			if problem := signerProblem(curEv, want); problem != "" {
+				add(Item{Type: EventUnexpectedSigner, Note: problem + "; " + want + " should sign it"})
+			}
+		}
 		if b := versions.SizeBudget(svc); b > 0 && curEv.Size > b {
 			add(Item{Type: EventImageOverBudget, From: humanSize(curEv.Size), Note: humanSize(b) + " budget", To: ps[cur].Tag})
 		}
@@ -224,4 +231,20 @@ func outdatedBases(periods []store.ImagePeriod, evidence map[string]store.ImageE
 		out = append(out, growth{item: it, env: p.EnvironmentID, digest: p.Digest})
 	}
 	return out
+}
+
+// signerProblem says how an image is not signed by the expected signer, or nothing when it is.
+func signerProblem(ev store.ImageEvidence, want string) string {
+	switch {
+	case !ev.Signed:
+		return "not signed"
+	case len(ev.Signers) == 0:
+		return "signed with a key that names nobody"
+	}
+	for _, s := range ev.Signers {
+		if registry.SignerMatches(s.Identity, want) {
+			return ""
+		}
+	}
+	return "signed by " + ev.Signers[0].Identity
 }
