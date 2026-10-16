@@ -576,7 +576,8 @@
   const goliTools = {
     matrix: "the matrix", service: "a service", drifts: "drift", updates: "updates", changes: "history",
     vulnerabilities: "vulnerabilities", status: "data freshness", inventory: "the inventory", hygiene: "hygiene",
-    delivery: "delivery", promotions: "promotions", release_notes: "release notes", posture: "the security posture"
+    delivery: "delivery", promotions: "promotions", release_notes: "release notes", posture: "the security posture",
+    licenses: "licenses"
   };
   const goliIdeas = [
     "What should we upgrade first, and why?",

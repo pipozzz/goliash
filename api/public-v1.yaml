@@ -101,6 +101,62 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/licenses:
+    get:
+      operationId: listLicenses
+      summary: Licenses of the packages in running images
+      description: >-
+        Every package the SBOMs of running images list, with the license the SBOM names and its class, most
+        demanding first: network copyleft (AGPL, SSPL), source-available (BUSL, Elastic), strong copyleft (GPL), weak
+        copyleft (LGPL, MPL), unknown, permissive. An OR in a license expression counts as its least demanding
+        choice, an AND as its most demanding part. Operating system packages (deb, apk, rpm) are marked `os`.
+      parameters:
+        - { name: environment, in: query, description: Only this environment., schema: { type: string } }
+        - name: class
+          in: query
+          description: "Only this class, or attention: network copyleft, source-available, strong copyleft and unknown."
+          schema: { type: string, enum: [attention, network-copyleft, source-available, strong-copyleft, weak-copyleft, unknown, permissive] }
+        - { name: os, in: query, description: "false leaves out operating system packages.", schema: { type: boolean } }
+        - { name: q, in: query, description: "A package name, purl, license or service.", schema: { type: string, example: "AGPL" } }
+      responses:
+        "200":
+          description: The packages.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [images, images_with_sbom, counts, os_counts, complete, packages]
+                properties:
+                  images: { type: integer, description: Running images with a digest. }
+                  images_with_sbom: { type: integer }
+                  counts: { type: object, additionalProperties: { type: integer }, description: "Application packages per class." }
+                  os_counts: { type: object, additionalProperties: { type: integer }, description: "Operating system packages per class." }
+                  complete: { type: boolean, description: "false while SBOMs read before licenses were kept wait to be read again." }
+                  packages:
+                    type: array
+                    items:
+                      type: object
+                      required: [purl, name, class, os, running_in]
+                      properties:
+                        purl: { type: string, example: "pkg:maven/com.itextpdf/itextpdf@5.5.13.3" }
+                        name: { type: string }
+                        version: { type: string }
+                        license: { type: string, description: "As the SBOM names it, an SPDX expression; absent when it names none.", example: "AGPL-3.0-only" }
+                        class: { type: string, enum: [network-copyleft, source-available, strong-copyleft, weak-copyleft, unknown, permissive] }
+                        os: { type: boolean }
+                        running_in:
+                          type: array
+                          items:
+                            type: object
+                            required: [service, environment]
+                            properties:
+                              service: { type: string }
+                              environment: { type: string }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
   /api/v1/notifications/sent:
     get:
       operationId: listSentNotifications

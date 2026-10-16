@@ -385,6 +385,38 @@ func NewServer(c *Client) *mcp.Server {
 			return nil, Result{Data: filter(data, map[string]string{"environment": in.Environment, "service": in.Service})}, nil
 		})
 
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "licenses", Annotations: readOnly,
+		Description: "Licenses of the packages in running images, from their SBOMs, most demanding first: network copyleft " +
+			"(AGPL, SSPL), source-available (BUSL, Elastic), strong copyleft (GPL), weak copyleft (LGPL, MPL), unknown, " +
+			"permissive; each with the services and environments it runs in. class=attention gives those that need a look; " +
+			"os=false leaves out operating system packages, where copyleft is the norm. Use it for license reviews and " +
+			"\"does anything AGPL run?\". Not legal advice.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+			Class       string `json:"class,omitempty" jsonschema:"attention, network-copyleft, source-available, strong-copyleft, weak-copyleft, unknown or permissive"`
+			Environment string `json:"environment,omitempty" jsonschema:"only this environment"`
+			Q           string `json:"q,omitempty" jsonschema:"a package name, purl, license or service"`
+			OS          *bool  `json:"os,omitempty" jsonschema:"false leaves out operating system packages (default: false)"`
+		},
+		) (*mcp.CallToolResult, Result, error) {
+			q := url.Values{}
+			for k, v := range map[string]string{"class": in.Class, "environment": in.Environment, "q": in.Q} {
+				if v != "" {
+					q.Set(k, v)
+				}
+			}
+			q.Set("os", "false")
+			if in.OS != nil && *in.OS {
+				q.Set("os", "true")
+			}
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/licenses", q, nil)
+			if err != nil {
+				return nil, Result{}, err
+			}
+			return nil, Result{Data: data}, nil
+		})
+
 	no := false
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "acknowledge",

@@ -29,6 +29,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `delivery` | Deploys per environment and lead times, last 30 days |
 | `inventory` | Every running container with image and digest, now or at a past time, with image size and whether its base is current |
 | `hygiene` | Moving tags, tags pushed again, untrusted registries, images built on an outdated base |
+| `licenses` | Licenses of the packages in running images, most demanding first (AGPL, BUSL, GPL, unknown…), with where each runs |
 | `vulnerabilities` | Is a CVE running? Known vulnerabilities of running images, exploited ones first, with the services and the version that fixes each |
 | `posture` | The security posture: exposure days (median, p90, 30+, 90+), end of life, accepted risk, blind spots and every exposure |
 | `notifications` | What Goliash sent: alerts, digests and upgrade plans, each once, newest first (default: 7 days) |
