@@ -1308,7 +1308,7 @@ func markRollouts(g *MatrixGrid, issues []versions.RolloutIssue) {
 			worst := list[0] // issues come worst first
 			var details []string
 			for _, is := range list {
-				details = append(details, is.Target+": "+rolloutDetail(is))
+				details = append(details, is.Target+rolloutWorkload(is)+": "+rolloutDetail(is))
 			}
 			b := DriftBadge{Kind: "rollout", Label: rolloutLabel(worst.Kind), Title: upperFirst(rolloutLabel(worst.Kind)) + " — " + strings.Join(details, "; ")}
 			if worst.Kind == versions.RolloutShort {
@@ -1396,7 +1396,20 @@ func rolloutBadge(k versions.RolloutKind) string {
 
 // rolloutHeadline says what is wrong with a workload, where.
 func rolloutHeadline(is versions.RolloutIssue) string {
-	return upperFirst(rolloutLabel(is.Kind)) + " in " + is.Environment + " on " + is.Target + ":"
+	return upperFirst(rolloutLabel(is.Kind)) + " in " + is.Environment + " on " + is.Target + rolloutWorkload(is) + ":"
+}
+
+// rolloutWorkload names the workload when its name is not the service's: a service
+// runs in several workloads, and the one in trouble may be a leftover job.
+func rolloutWorkload(is versions.RolloutIssue) string {
+	name := is.Workload
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	if name == "" || name == is.Service {
+		return ""
+	}
+	return ", " + is.Workload
 }
 
 // rolloutDetail says which versions run on how many of the replicas asked for.

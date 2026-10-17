@@ -44,8 +44,8 @@ func TestRolloutAlerts(t *testing.T) {
 	}
 	all := strings.Join(slack.all(), "\n")
 	for _, want := range []string{
-		"rollout stuck on k8s-prod: 1.6.0 on 1 of 3, 1.5.0 on 2",
-		"none of 3 replicas running on k8s-prod",
+		"rollout stuck on k8s-prod (api): 1.6.0 on 1 of 3, 1.5.0 on 2",
+		"none of 3 replicas running on k8s-prod (worker)",
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("alerts miss %q:\n%s", want, all)

@@ -29,6 +29,7 @@ type Item struct {
 	Apps        []string  `json:"apps,omitempty"` // the applications the service runs in, for rules filtering by application
 	Environment string    `json:"environment,omitempty"`
 	Target      string    `json:"target,omitempty"`
+	Workload    string    `json:"workload,omitempty"` // a rollout's workload, when its name is not the service's
 	From        string    `json:"from,omitempty"`
 	To          string    `json:"to,omitempty"`
 	Note        string    `json:"note,omitempty"`
@@ -638,6 +639,9 @@ func Describe(it Item) string {
 	on := ""
 	if it.Target != "" {
 		on = " on " + it.Target
+	}
+	if it.Workload != "" {
+		on += " (" + it.Workload + ")"
 	}
 	switch it.Type {
 	case "posture":

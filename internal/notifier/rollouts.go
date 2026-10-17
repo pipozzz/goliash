@@ -53,6 +53,9 @@ func (n *Notifier) CheckRollouts(ctx context.Context) error {
 				Type: EventRollout, Service: is.Service, Owner: o.Services[is.ServiceID].Owner, Environment: is.Environment,
 				Target: is.Target, Note: string(is.Kind), At: is.Since,
 			}
+			if name := is.Workload[strings.LastIndex(is.Workload, "/")+1:]; name != is.Service {
+				it.Workload = is.Workload
+			}
 			if is.Kind == versions.RolloutDown {
 				it.From = strconv.Itoa(is.Desired)
 			} else {
