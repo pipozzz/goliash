@@ -330,17 +330,22 @@
     const fr = fig.getBoundingClientRect();
     let left = sx - fr.left + fig.scrollLeft + 16;
     if (left + tip.offsetWidth > fig.clientWidth + fig.scrollLeft - 4) left = sx - fr.left + fig.scrollLeft - tip.offsetWidth - 16;
+    left = Math.max(fig.scrollLeft + 4, left); // a narrow chart has room on neither side: keep it inside
     let top = e.clientY - fr.top - tip.offsetHeight / 2;
     top = Math.max(4, Math.min(top, fig.clientHeight - tip.offsetHeight - 4));
     tip.style.left = left + "px";
     tip.style.top = top + "px";
   }
-  document.addEventListener("pointermove", function (e) {
+  function pointChart(e) {
     const fig = e.target.closest && e.target.closest("figure[data-chart]");
     if (fig && e.target.closest("svg")) hoverChart(fig, e);
     else leaveChart();
-  });
-  document.addEventListener("pointerleave", leaveChart);
+  }
+  document.addEventListener("pointermove", pointChart);
+  // A finger does not hover: a tap on a chart shows that day, a tap elsewhere hides it.
+  document.addEventListener("pointerdown", function (e) { if (e.pointerType !== "mouse") pointChart(e); });
+  // A finger leaves the page as it lifts: only a mouse leaving hides the tooltip.
+  document.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") leaveChart(); });
 
   // Tiles: after a live refresh, cells whose state changed pulse once, and the
   // favicon (the logo in the workspace's colours) is redrawn.
