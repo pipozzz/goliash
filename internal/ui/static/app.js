@@ -920,6 +920,20 @@
         .then(function (d) { if (d) bellSet(d.unread); }).catch(function () { /* offline */ });
     }, 800);
   }
+  // A menu opens under its summary, aligned right; near the left edge of a phone that
+  // would start it off the screen. Opened, it is nudged back inside.
+  document.addEventListener("toggle", function (e) {
+    const d = e.target;
+    if (!(d instanceof HTMLDetailsElement) || !d.classList.contains("menu") || !d.open) return;
+    const list = d.querySelector(":scope > .menu-list");
+    if (!list) return;
+    list.style.transform = "";
+    const r = list.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    let dx = 0;
+    if (r.left < 8) dx = 8 - r.left;
+    else if (r.right > vw - 8) dx = vw - 8 - r.right;
+    if (dx) list.style.transform = "translateX(" + Math.round(dx) + "px)";
+  }, true);
   function bellClose() {
     if (!bellPanel || !bellPanel.isConnected) return;
     bellPanel.remove();
@@ -953,9 +967,16 @@
     list.appendChild(el("li", "bell-empty", "Loading…"));
     bellPanel.appendChild(head);
     bellPanel.appendChild(list);
+    // Under the bell, its right edge with the bell's, but always on the screen: on a
+    // phone the bell sits mid-bar and a panel that wide would start off its left edge.
     const r = btn.getBoundingClientRect();
-    bellPanel.style.top = (r.bottom + 8) + "px";
-    bellPanel.style.right = Math.max(8, window.innerWidth - r.right - 8) + "px";
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    const width = Math.min(400, vw - 16);
+    const top = r.bottom + 8;
+    bellPanel.style.top = top + "px";
+    bellPanel.style.width = width + "px";
+    bellPanel.style.right = Math.min(Math.max(8, vw - r.right - 8), vw - width - 8) + "px";
+    bellPanel.style.maxHeight = Math.min(560, vh - top - 8) + "px";
     document.body.appendChild(bellPanel);
     btn.setAttribute("aria-expanded", "true");
     if (window.htmx) htmx.process(bellPanel);
