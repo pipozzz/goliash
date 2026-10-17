@@ -22,6 +22,8 @@ jobs:
           go-version-file: go.mod
       - name: License boundary
         run: ./scripts/check-licenses.sh
+      - name: Known vulnerabilities in the code and the Go toolchain it is built with
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14

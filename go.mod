@@ -2,6 +2,10 @@ module github.com/pipozzz/goliash
 
 go 1.26.0
 
+// Releases are built with this patch release: each one fixes security issues in the
+// standard library (govulncheck runs in CI).
+toolchain go1.26.9
+
 tool (
 	github.com/a-h/templ/cmd/templ
 	github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
