@@ -5,6 +5,7 @@ package nomad
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -14,7 +15,23 @@ import (
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
+// served counts the requests per path, to check what the collector asks for.
+var served = map[string]int{}
+
+// currentJob is the newest version in a /versions answer, as /v1/job/ID returns it.
+func currentJob(t *testing.T, versions string) (string, bool) {
+	if versions == "" {
+		return "", false
+	}
+	var v struct{ Versions []json.RawMessage }
+	if err := json.Unmarshal([]byte(versions), &v); err != nil || len(v.Versions) == 0 {
+		t.Fatalf("fixture %s: %v", versions, err)
+	}
+	return string(v.Versions[0]), true // fixtures list the newest first, as Nomad does
+}
+
 func fakeNomad(t *testing.T, token string) *httptest.Server {
+	served = map[string]int{}
 	responses := map[string]string{
 		"/v1/jobs": `[
 			{"ID":"api","Namespace":"prod","Type":"service","Status":"running"},
@@ -74,6 +91,11 @@ func fakeNomad(t *testing.T, token string) *httptest.Server {
 			t.Errorf("region not passed: %s", r.URL.RawQuery)
 		}
 		body, ok := responses[r.URL.Path]
+		if !ok && strings.HasPrefix(r.URL.Path, "/v1/job/") && !strings.HasSuffix(r.URL.Path, "/allocations") &&
+			!strings.HasSuffix(r.URL.Path, "/versions") { // /v1/job/ID: the newest of its versions
+			body, ok = currentJob(t, responses[r.URL.Path+"/versions"])
+		}
+		served[r.URL.Path]++
 		if !ok {
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte("Permission denied"))
@@ -130,6 +152,10 @@ func TestCollect(t *testing.T) {
 	if logs.Name != "logs" || logs.DesiredReplicas != nil || logs.Containers[0].Running != 2 {
 		t.Fatalf("system job %+v", logs)
 	}
+	// Only a job with an allocation on an older version has its history read.
+	if served["/v1/job/api/versions"] != 1 || served["/v1/job/logs/versions"] != 0 || served["/v1/job/logs"] != 1 {
+		t.Errorf("requests %v", served)
+	}
 	if compress, ok := byName["compress"]; !ok || compress.DesiredReplicas != nil {
 		t.Fatalf("batch job %+v", byName["compress"])
 	}
@@ -183,6 +209,9 @@ func TestPeriodicRuns(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, ok := responses[r.URL.Path]
+		if !ok && !strings.HasSuffix(r.URL.Path, "/allocations") && !strings.HasSuffix(r.URL.Path, "/versions") {
+			body, ok = currentJob(t, responses[r.URL.Path+"/versions"])
+		}
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return

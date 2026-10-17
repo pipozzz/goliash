@@ -196,24 +196,31 @@ func (c *Collector) workload(ctx context.Context, s jobStub) (*agentproto.Worklo
 	q := url.Values{"namespace": {s.Namespace}}
 	path := "/v1/job/" + url.PathEscape(s.ID)
 
-	var versions struct{ Versions []job }
-	if err := c.get(ctx, path+"/versions", q, &versions); err != nil {
+	// The job as it is now; older versions only when an allocation still runs one (a
+	// deployment under way), as the history holds whole job specifications.
+	var current job
+	if err := c.get(ctx, path, q, &current); err != nil {
 		return nil, err
 	}
-	if len(versions.Versions) == 0 {
-		return nil, nil
-	}
-	byVersion := map[uint64]job{}
-	current := versions.Versions[0]
-	for _, v := range versions.Versions {
-		byVersion[v.Version] = v
-		if v.Version > current.Version {
-			current = v
-		}
-	}
+	byVersion := map[uint64]job{current.Version: current}
 	var allocs []allocStub
 	if err := c.get(ctx, path+"/allocations", q, &allocs); err != nil {
 		return nil, err
+	}
+	for _, a := range allocs {
+		if _, ok := byVersion[a.JobVersion]; ok || a.ClientStatus != "running" {
+			continue
+		}
+		var versions struct{ Versions []job }
+		if err := c.get(ctx, path+"/versions", q, &versions); err != nil {
+			return nil, err
+		}
+		for _, v := range versions.Versions {
+			if _, ok := byVersion[v.Version]; !ok {
+				byVersion[v.Version] = v
+			}
+		}
+		break
 	}
 
 	ns := s.Namespace
