@@ -463,6 +463,9 @@ type ServiceView struct {
 	Kind           string
 	Upstream       string
 	RefRepo        string
+	KindShown      string // own or third_party, as chosen or worked out from the image
+	KindAuto       string // the kind worked out from the image, offered as the default
+	KindChosen     bool
 	Latest         string
 	LatestAny      string
 	CheckedAt      time.Time

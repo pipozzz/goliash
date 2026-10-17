@@ -102,7 +102,7 @@ const usage = `Usage:
   goliash promotions                      versions waiting for the next environment, with their releases
   goliash delivery [-window 720h]         deploys per environment and lead times between environments
   goliash check [-service NAME]           check upstream registries now
-  goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
+  goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party|auto]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
   goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
@@ -1180,7 +1180,7 @@ func serviceSet(ctx context.Context, args []string, out io.Writer) error {
 	upstream := fs.String("upstream", "", "image repository to read releases from, e.g. docker.io/library/postgres")
 	owner := fs.String("owner", "", "owning team or person")
 	app := fs.String("app", "", "place the service in this application whatever its labels say (empty: from its labels)")
-	kind := fs.String("kind", "", "own or third_party")
+	kind := fs.String("kind", "", "own, third_party, or auto (worked out from the image)")
 	track := fs.String("track", "", "smallest version jump that alerts: patch, minor or major")
 	pinMajor := fs.Int("pin-major", -1, "stay on this major; newer majors are information only (-1: no pin)")
 	tagFilter := fs.String("tag-filter", "", "regular expression upstream tags must match")
@@ -1213,7 +1213,14 @@ func serviceSet(ctx context.Context, args []string, out io.Writer) error {
 		svc.Owner = *owner
 	}
 	if set["kind"] {
-		svc.Kind = *kind
+		switch *kind {
+		case "own", "third_party":
+			svc.Kind, svc.KindChosen = *kind, true
+		case "auto":
+			svc.Kind, svc.KindChosen = "own", false
+		default:
+			return fmt.Errorf("-kind is own, third_party or auto (from the image), not %q", *kind)
+		}
 	}
 	if set["track"] {
 		policy.Track = versions.Jump(*track)

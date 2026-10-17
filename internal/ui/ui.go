@@ -700,6 +700,8 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
+	v.KindShown, v.KindChosen = versions.ServiceKind(svc, ref.Repo), svc.KindChosen
+	v.KindAuto = versions.ServiceKind(store.Service{Upstream: svc.Upstream}, ref.Repo)
 	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)
 	v.PublicRegistry = ref.Repo != "" && versions.IsPublicRegistry(ref.Repo)
 	if u, ok := o.Upstreams[svc.ID]; ok {
@@ -918,10 +920,11 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if _, err := versions.ParsePolicy(raw); err != nil {
 		return back(w, r, path, "error", "Policy not saved: "+err.Error())
 	}
-	kind := r.FormValue("kind")
-	if kind != "third_party" {
-		kind = "own"
+	kind, chosen := r.FormValue("kind"), true
+	if kind != "own" && kind != "third_party" {
+		kind, chosen = "own", false // worked out from the image
 	}
+	svc.KindChosen = chosen
 	svc.Owner, svc.Kind, svc.Upstream, svc.VersionPolicy = strings.TrimSpace(r.FormValue("owner")), kind,
 		strings.TrimSpace(r.FormValue("upstream")), raw
 	if err := s.store.UpdateService(ctx, svc); err != nil {
@@ -2741,7 +2744,7 @@ func (s *Server) splitService(w http.ResponseWriter, r *http.Request, p auth.Pri
 			return err
 		}
 		if existed != nil { // a new service: the same kind of thing, checked the same way
-			to.Kind, to.Upstream, to.VersionPolicy = svc.Kind, svc.Upstream, svc.VersionPolicy
+			to.Kind, to.KindChosen, to.Upstream, to.VersionPolicy = svc.Kind, svc.KindChosen, svc.Upstream, svc.VersionPolicy
 			if err := s.store.UpdateService(ctx, to); err != nil {
 				return err
 			}

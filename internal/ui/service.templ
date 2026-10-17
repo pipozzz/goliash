@@ -41,7 +41,7 @@ templ ServicePage(v ServiceView) {
 					}
 				</dd>
 			</div>
-			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.Kind) }</dd></div>
+			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.KindShown) }</dd></div>
 			<div class="fact"><dt>Upstream</dt><dd class="mono">{ orDash(v.RefRepo) }</dd></div>
 			if v.BuiltOn != nil {
 				<div class="fact">
@@ -307,8 +307,9 @@ templ ServicePage(v ServiceView) {
 								<label>
 									Kind
 									<select name="kind">
-										<option value="own" selected?={ v.Kind != "third_party" }>own</option>
-										<option value="third_party" selected?={ v.Kind == "third_party" }>third-party</option>
+										<option value="" selected?={ !v.KindChosen }>{ "from the image: " + kindLabel(v.KindAuto) }</option>
+										<option value="own" selected?={ v.KindChosen && v.Kind != "third_party" }>own</option>
+										<option value="third_party" selected?={ v.KindChosen && v.Kind == "third_party" }>third-party</option>
 									</select>
 								</label>
 							</div>

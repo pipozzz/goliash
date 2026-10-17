@@ -51,6 +51,12 @@ signed for its service and environment, so nobody can make one up for another se
 addresses. `goliash badges reset` makes a new signing key: every badge handed out stops loading, and the service pages
 offer new ones.
 
+## Own or third-party
+
+A service is *third-party* when its image is someone else's software: one of Docker Hub's official images
+(`docker.io/library/postgres`) or an image of the [catalog](#version-policy); anything else is taken as your team's
+*own*. The service page shows it under **Kind**; its form can set it either way, or back to *from the image*.
+
 ## Version policy
 
 A policy decides which tags count as versions and which differences are worth an alert. Set it on the service

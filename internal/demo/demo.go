@@ -250,7 +250,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		}
 		s.Owner = owner
 		if !strings.HasPrefix(images[name], "ghcr.io/acme/") && !strings.HasPrefix(images[name], "public.ecr.aws/lambda/") {
-			s.Kind = "third_party"
+			s.Kind, s.KindChosen = "third_party", true
 		}
 		switch name {
 		case "postgres":

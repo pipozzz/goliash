@@ -79,7 +79,7 @@ func (s *Server) createService(w http.ResponseWriter, r *http.Request, p auth.Pr
 	svc.Upstream = versions.ParseImage(upstream).Repo()
 	svc.Owner = strings.TrimSpace(r.PostForm.Get("owner"))
 	if strings.HasPrefix(svc.Upstream, "docker.io/") || strings.Contains(svc.Upstream, ".") {
-		svc.Kind = "third_party"
+		svc.Kind, svc.KindChosen = "third_party", true
 	}
 	if err := s.store.UpdateService(ctx, svc); err != nil {
 		return err

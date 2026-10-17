@@ -29,7 +29,7 @@ Usage:
                                           licenses of packages in running images, copyleft and unknown first;
                                           -fail-on network-copyleft,source-available exits 1 when one runs
   goliash check [-service NAME]           check upstream registries now
-  goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party]
+  goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party|auto]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
   goliash channel create -type slack|webhook|email|push -name NAME [-url URL] [-secret S] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]

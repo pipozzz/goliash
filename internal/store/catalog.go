@@ -19,7 +19,8 @@ type Service struct {
 	Owner         string
 	OwnerSource   string // '' set by people; "label" or "app" when Goliash set it and follows changes
 	App           string // the application it is placed in by hand; empty: from its workloads
-	Kind          string // own or third_party
+	Kind          string // own or third_party; see KindChosen
+	KindChosen    bool   // a person chose Kind; else it is worked out from the image (versions.ServiceKind)
 	Upstream      string // image repository releases are read from
 	VersionPolicy json.RawMessage
 	CreatedAt     time.Time
@@ -38,7 +39,7 @@ type Service struct {
 }
 
 // EnsureService returns the workspace's service with the given name, creating it
-// (kind "own") when it does not exist.
+// (kind "own" until worked out from its image) when it does not exist.
 func (s *Store) EnsureService(ctx context.Context, sc Scope, name string) (Service, error) {
 	svc, err := s.GetServiceByName(ctx, sc, name)
 	if !errors.Is(err, ErrNotFound) {
@@ -108,21 +109,21 @@ func (s *Store) UpdateService(ctx context.Context, svc Service) error {
 	}
 	// An owner changed here is set by people: Goliash no longer follows labels for it.
 	res, err := s.exec(ctx, s.db, `UPDATE services SET owner_source = CASE WHEN owner = ? THEN owner_source ELSE '' END,
-		owner = ?, kind = ?, upstream = ?, version_policy = ?
+		owner = ?, kind = ?, kind_chosen = ?, upstream = ?, version_policy = ?
 		WHERE org_id = ? AND workspace_id = ? AND id = ?`,
-		svc.Owner, svc.Owner, svc.Kind, svc.Upstream, string(svc.VersionPolicy), svc.Scope.OrgID, svc.Scope.WorkspaceID, svc.ID)
+		svc.Owner, svc.Owner, svc.Kind, svc.KindChosen, svc.Upstream, string(svc.VersionPolicy), svc.Scope.OrgID, svc.Scope.WorkspaceID, svc.ID)
 	return expectOne(res, err)
 }
 
 const serviceColumns = `id, org_id, workspace_id, name, owner, kind, upstream, version_policy, created_at,
-	source_url, source_image, source_checked_at, private_upstream, app, owner_source, base_image`
+	source_url, source_image, source_checked_at, private_upstream, app, owner_source, base_image, kind_chosen`
 
 func scanService(row scanner) (Service, error) {
 	var svc Service
 	var policy string
 	var checked sql.NullTime
 	if err := row.Scan(&svc.ID, &svc.Scope.OrgID, &svc.Scope.WorkspaceID, &svc.Name, &svc.Owner, &svc.Kind,
-		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App, &svc.OwnerSource, &svc.BaseImage); err != nil {
+		&svc.Upstream, &policy, &svc.CreatedAt, &svc.SourceURL, &svc.SourceImage, &checked, &svc.PrivateUpstream, &svc.App, &svc.OwnerSource, &svc.BaseImage, &svc.KindChosen); err != nil {
 		return Service{}, notFound(err)
 	}
 	svc.VersionPolicy, svc.CreatedAt = json.RawMessage(policy), svc.CreatedAt.UTC()

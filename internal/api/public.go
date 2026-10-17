@@ -222,9 +222,14 @@ func (h *PublicHandler) services(w http.ResponseWriter, r *http.Request, p auth.
 		Upstream string          `json:"upstream"`
 		Policy   json.RawMessage `json:"version_policy"`
 	}
+	o, err := versions.LoadOverview(r.Context(), h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
 	out := []apiService{}
 	for _, s := range svcs {
-		out = append(out, apiService{ID: s.ID, Name: s.Name, Owner: s.Owner, Kind: s.Kind, Upstream: s.Upstream, Policy: s.VersionPolicy})
+		out = append(out, apiService{ID: s.ID, Name: s.Name, Owner: s.Owner, Kind: versions.ServiceKind(s, o.Refs[s.ID].Repo), Upstream: s.Upstream, Policy: s.VersionPolicy})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
