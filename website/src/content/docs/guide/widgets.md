@@ -15,7 +15,7 @@ Apple only lets installed apps put widgets on the home screen, so the widget run
 [Scriptable](https://scriptable.app), a free app that makes widgets from a short script.
 
 1. **Integrations → Widgets → Create a viewer token** (admins). The token can only read; revoke it any time under
-   Users and API tokens.
+   Workspace settings.
 2. On the iPhone, open that page and tap **Download Goliash.js**: the server's address and the token are already
    in it. Open the file in Scriptable (**Share → Scriptable**); it is added as *Goliash*. (On a computer, **Copy**
    and paste it into a new script in Scriptable instead.)

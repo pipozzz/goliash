@@ -2020,7 +2020,7 @@ func accessLabel(u store.User, wsRole string) string {
 }
 
 func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsView, error) {
-	v := SettingsView{Base: s.base(ctx, p, "settings", "Users"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled}
+	v := SettingsView{Base: s.base(ctx, p, "settings", "Workspace settings"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled}
 	if req, err := s.store.RequireTwoFactor(ctx, p.User.OrgID); err == nil {
 		v.Require2FA = req
 	}

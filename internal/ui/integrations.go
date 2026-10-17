@@ -88,7 +88,7 @@ func (s *Server) integrationToken(w http.ResponseWriter, r *http.Request, p auth
 	s.audit(r.Context(), p, "api_token.create", "token", name, "role", store.RoleViewer, "expires", "never")
 	v := IntegrationsView{Base: s.base(r.Context(), p, "integrations", "Integrations"), ServerURL: s.publicURL, Tool: tool, Token: token}
 	v.Envs = s.envNames(r.Context(), p.Scope)
-	v.Notice = "Viewer token " + name + " created. It is in the settings below and shown only now; revoke it under Users and API tokens."
+	v.Notice = "Viewer token " + name + " created. It is in the settings below and shown only now; revoke it under Workspace settings."
 	w.Header().Set("Cache-Control", "no-store")
 	return render(w, r, IntegrationsPage(v))
 }

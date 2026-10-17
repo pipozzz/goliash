@@ -200,7 +200,7 @@ and updates live over server-sent events.
 | History | every event, filterable by service, environment and type |
 | Settings → Agents and targets | agents and targets with collector health; environments (rename, reorder); edit targets; add agents with install commands, rotate or revoke tokens, rename and delete agents, move or delete targets |
 | Settings → Notifications | channels (test, edit, delete) and rules (pause, delete) |
-| Settings → Users and API tokens | invite people, change roles, sign-in links, sign out, remove passwords, API tokens with roles and expiry, the audit log (admins) |
+| Settings → Workspace settings | invite people, change roles, sign-in links, sign out, remove passwords, API tokens with roles and expiry, the audit log (admins) |
 | Settings → Workspaces | one workspace per team or client (organization admins) |
 | Account (your avatar) | name, password, and every browser you are signed in on |
 
@@ -225,7 +225,7 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
 - Set `GOLIASH_PUBLIC_URL` to the address people use; with `https://` cookies are marked Secure.
 - **Roles**: viewer reads; member maps services, edits policies and acks; admin manages agents, targets, channels,
   tokens and users; owner can do everything. Viewer, member and admin are per workspace; admin and owner of the
-  organization reach every workspace. Organization admins change roles under Settings → Users and API tokens; only owners grant or
+  organization reach every workspace. Organization admins change roles under Settings → Workspace settings; only owners grant or
   take the owner role, and the last owner cannot be removed.
 - **REST API** (session or `Authorization: Bearer glsh_api_…`): `GET /api/v1/matrix`, `/services`, `/environments`,
   `/targets`, `/events?service=&environment=&type=&before=&limit=`, `/drifts`, `/updates`, `/vulnerabilities`,
@@ -288,7 +288,7 @@ bin/goliash rule create -match image_repo -pattern 'ghcr\.io/acme/pay.*' -servic
 - **Stale data:** a target whose agent stopped sending heartbeats, or without a snapshot for three poll intervals
   (at least 15 minutes), is marked "stale data" in the matrix.
 - **Audit log:** every change to configuration, tokens and roles (UI, API, CLI) and every sign-in is recorded and
-  shown to admins under Settings → Users and API tokens.
+  shown to admins under Settings → Workspace settings.
 
 ### Workspaces (MSPs, teams)
 

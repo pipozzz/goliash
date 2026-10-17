@@ -87,7 +87,15 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 		out = append(out, PaletteEntry{Kind: "page", Label: pg.label, Sub: pg.sub, URL: pg.url})
 	}
 	if p.Can(store.RoleAdmin) {
-		out = append(out, PaletteEntry{Kind: "page", Label: "Users and API tokens", Sub: "settings", URL: "/settings"})
+		for _, sec := range []struct{ label, sub, url string }{
+			{"Workspace settings", "people, tokens, registries, audit log", "/settings"},
+			{"People", "who can sign in, and their roles", "/settings#people"},
+			{"API tokens", "for scripts, Prometheus, CI", "/settings#tokens"},
+			{"Audit log", "changes to configuration, tokens and roles", "/settings#audit"},
+			{"Apps with access", "AI assistants and CLIs signed in with OAuth", "/settings#apps"},
+		} {
+			out = append(out, PaletteEntry{Kind: "page", Label: sec.label, Sub: sec.sub, URL: sec.url})
+		}
 		out = append(out, PaletteEntry{Kind: "page", Label: "Private registries", Sub: "registry credentials for the server", URL: "/settings#registries"})
 	}
 	w.Header().Set("Content-Type", "application/json")

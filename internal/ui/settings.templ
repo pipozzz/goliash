@@ -214,14 +214,25 @@ templ SettingsPage(v SettingsView) {
 	@Layout(v.Base) {
 		<div class="head">
 			<div>
-				<h1>Users and API tokens</h1>
+				<h1>Workspace settings</h1>
 				<p class="sub">Viewers read. Members map services, edit policies and acknowledge. Admins manage agents, channels and users.</p>
 			</div>
 		</div>
+		<nav class="section-links" aria-label="Sections">
+			<a href="#people">People</a>
+			if v.CanGrantOwner {
+				<a href="#two-factor">Two-factor sign-in</a>
+			}
+			<a href="#registries">Private registries</a>
+			<a href="#applications">Applications</a>
+			<a href="#tokens">API tokens</a>
+			<a href="#apps">Apps with access</a>
+			<a href="#audit">Audit log</a>
+		</nav>
 		if v.Secret != "" {
 			@secret(v.SecretLabel, v.Secret)
 		}
-		<section class="panel">
+		<section class="panel" id="people">
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
 			<div class="scroll" tabindex="0">
 				<table>
@@ -317,7 +328,7 @@ templ SettingsPage(v SettingsView) {
 			</div>
 		</section>
 		if v.CanGrantOwner {
-			<section class="panel">
+			<section class="panel" id="two-factor">
 				<div class="panel-head">
 					<h2>Two-factor sign-in</h2>
 					if v.Require2FA {
@@ -344,7 +355,7 @@ templ SettingsPage(v SettingsView) {
 			</section>
 		}
 		@registriesPanel(v)
-		<section class="panel">
+		<section class="panel" id="applications">
 			<div class="panel-head"><h2>Applications</h2><span class="muted">how the target page groups workloads</span></div>
 			<div class="panel-body stack">
 				<p class="muted">A workload's application comes from its labels: goliash.app or app.kubernetes.io/part-of, then the Helm release, the Compose project or the Swarm stack, else its namespace. Name your own label to have it checked first.</p>
@@ -358,7 +369,7 @@ templ SettingsPage(v SettingsView) {
 				<p class="hint">Applies from each target's next snapshot. Leave it empty for the well-known labels only.</p>
 			</div>
 		</section>
-		<section class="panel">
+		<section class="panel" id="tokens">
 			<div class="panel-head"><h2>API tokens</h2><span class="muted">{ "for " + v.Workspace }</span></div>
 			if len(v.Tokens) > 0 {
 				<div class="scroll" tabindex="0">
@@ -453,7 +464,7 @@ templ SettingsPage(v SettingsView) {
 				</div>
 			}
 		</section>
-		<section class="panel">
+		<section class="panel" id="audit">
 			<div class="panel-head"><h2>Audit log</h2><span class="muted">changes to configuration, tokens and roles, newest first</span></div>
 			if len(v.Audit) == 0 {
 				<div class="empty">Nothing recorded yet.</div>

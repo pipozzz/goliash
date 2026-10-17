@@ -1272,3 +1272,6 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .nav[data-more-right] { mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
 .nav[data-more-left] { mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
 .nav[data-more-left][data-more-right] { mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+
+/* Workspace settings: a line of links to its sections. */
+.section-links { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; margin-top: -8px; }

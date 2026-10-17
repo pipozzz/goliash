@@ -33,11 +33,11 @@ func TestPalette(t *testing.T) {
 		t.Errorf("kinds %v", kinds)
 	}
 	for _, en := range entries {
-		if en.Label == "Users and API tokens" {
+		if en.Label == "Workspace settings" {
 			t.Error("a viewer is offered the admin page")
 		}
 	}
-	if _, body = get(t, e.as(store.RoleAdmin), e.srv.URL+"/ui/palette.json", nil); !strings.Contains(body, "Users and API tokens") {
+	if _, body = get(t, e.as(store.RoleAdmin), e.srv.URL+"/ui/palette.json", nil); !strings.Contains(body, "Workspace settings") {
 		t.Error("an admin misses the admin page")
 	}
 	if !strings.Contains(body, `"url":"#shortcuts"`) || !strings.Contains(body, "tv=1") {

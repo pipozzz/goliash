@@ -77,7 +77,7 @@ A session ends after 30 days (`GOLIASH_SESSION_TTL`) or after 14 days without us
 whichever comes first.
 
 The account page lists every browser you are signed in on, with its address and when it was last used; sign any of
-them out, or all but this one. Changing your password signs out the others. On **Settings → Users and API tokens** admins sign a person
+them out, or all but this one. Changing your password signs out the others. On **Settings → Workspace settings** admins sign a person
 out everywhere or remove their password (when it leaked: they sign in with a link and choose a new one).
 
 ## Roles
@@ -92,7 +92,7 @@ out everywhere or remove their password (when it leaked: they sign in with a lin
 Viewer, member and admin are granted **per workspace**. Admin and owner can also be granted for the whole
 **organization**: they then reach every workspace.
 
-Organization admins change roles on **Settings → Users and API tokens**. Only owners grant or take the owner role, the last owner cannot
+Organization admins change roles on **Settings → Workspace settings**. Only owners grant or take the owner role, the last owner cannot
 be removed, and nobody changes their own role. Every change is recorded in the audit log.
 
 ## Workspaces
@@ -115,12 +115,12 @@ Every CLI command takes `-workspace` (or `GOLIASH_WORKSPACE`); without it, it wo
 ## API tokens
 
 API tokens (`glsh_api_…`) belong to one workspace. A **viewer** token (the default) reads everything; a **member**
-token can also acknowledge. A token may expire after 30, 90 or 365 days, or never. Create them on **Settings → Users and API tokens** or
-with `goliash token create -name prometheus [-role member] [-expires 90d]`; the token is shown once. **Settings → Users and API tokens**
+token can also acknowledge. A token may expire after 30, 90 or 365 days, or never. Create them on **Settings → Workspace settings** or
+with `goliash token create -name prometheus [-role member] [-expires 90d]`; the token is shown once. **Settings → Workspace settings**
 lists every token with who created it and when it was last used, and revokes one at once (`goliash token revoke
 -name prometheus`). Things done with a token show its name in the audit log and on acknowledgements.
 
 ## Audit log
 
 Every change to configuration, tokens and roles, from the UI, the API or the CLI, and every sign-in is recorded.
-Admins see the log on **Settings → Users and API tokens**. Secrets never appear in it.
+Admins see the log on **Settings → Workspace settings**. Secrets never appear in it.
