@@ -718,7 +718,7 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .tile-stack { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); align-items: start; }
 .stack-back { position: relative; margin-top: 34px; padding: 14px 40px 14px 0; }
 /* The board behind is dimmed, its label is not (it must stay readable). */
-.stack-back > .logo-board { opacity: 0.92; transition: opacity 0.2s ease; filter: saturate(0.85); }
+.stack-back > .logo-board { opacity: 1; transition: opacity 0.2s ease; filter: saturate(0.85); }
 .stack-back:hover > .logo-board, .stack-back:focus-within > .logo-board { opacity: 1; filter: none; }
 .stack-back-label { display: inline-block; margin: 0 0 8px 4px; font-weight: 600; font-size: 13px; }
 .stack-back .logo-board.compact { transform: rotate(-1.5deg); transform-origin: top left; }
@@ -1250,16 +1250,18 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .combo-list .combo-new { color: var(--accent); font-weight: 600; border-top: 1px solid var(--line); margin-top: 2px; }
 .combo-list .combo-new:first-child { border-top: 0; margin-top: 0; }
 /* The team picker's list must reach out of the facts box, which otherwise clips its corners. */
-.facts:has(.team-set) { overflow: visible; }
-.facts:has(.team-set) > .fact:first-child { border-top-left-radius: calc(var(--radius) - 1px); border-bottom-left-radius: calc(var(--radius) - 1px); }
-.facts:has(.team-set) > .fact:last-child { border-top-right-radius: calc(var(--radius) - 1px); border-bottom-right-radius: calc(var(--radius) - 1px); }
+.facts:has(.combo-list:not([hidden])) { overflow: visible; } /* the team suggestions open below the card */
 
 /* Touch screens: a finger needs about 28px. The links and small buttons get a taller hit
    area from padding, given back as negative margin, so the layout stays where it was. */
 @media (pointer: coarse) {
   :where(main :not(.segmented) > a:not(.button):not([class*="cell"]):not([class*="tile"])), .brand, button.link, .toolbar-link { padding-block: 7px; margin-block: -7px; }
   :where(main td a:not(.button)), button.link { padding-inline: 4px; margin-inline: -4px; }
-  main summary { padding-block: 5px; }
+  button.link { padding-block: 8px; margin-block: -8px; min-width: 28px; }
+  main a.badge { position: relative; }
+  main a.badge::after { content: ""; position: absolute; inset: -6px -2px; }
+  main button:not(.link), main .button { min-height: 32px; }
+  main summary { padding-block: 7px; }
   main input[type="checkbox"], main input[type="radio"] { width: 20px; height: 20px; }
 }
 @media (max-width: 720px) {
