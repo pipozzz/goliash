@@ -216,7 +216,7 @@ func vulnsMarkdown(d versions.VulnDelta) string {
 		b.WriteString("- " + head + ": " + list(d.Fixed) + "\n")
 	}
 	if len(d.New) > 0 {
-		b.WriteString(fmt.Sprintf("- Brings %d new: %s\n", len(d.New), list(d.New)))
+		fmt.Fprintf(&b, "- Brings %d new: %s\n", len(d.New), list(d.New))
 	}
 	b.WriteString("\nFrom the SBOMs of both images and OSV, as Goliash reads them.\n")
 	return b.String()
