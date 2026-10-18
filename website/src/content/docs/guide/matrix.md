@@ -273,6 +273,7 @@ Every snapshot is compared with the previous one of the same target. The differe
 | `new_release` | An upstream release newer than everything known appears. |
 | `drift_detected`, `drift_resolved` | Drift is announced, or ends. |
 | `agent_stale` | An agent stops sending heartbeats. |
+| `goliash_release` | A newer Goliash release is out (checked every 6 hours, once per release; off with `GOLIASH_UPDATE_CHECK=off`). |
 
 The first snapshot of a target is a baseline and creates no events. When a snapshot is incomplete, for example
 because one namespace was forbidden, missing workloads are not treated as removed.

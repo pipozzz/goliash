@@ -146,6 +146,8 @@ type Notifier struct {
 	onSent  func(sc store.Scope)
 	takeOn  TakeOn
 	goli    bool
+	running string                                                    // this server's version
+	newer   func(ctx context.Context, running string) (string, error) // a newer Goliash, or ""
 }
 
 // TakeFunc writes Goli's take on a message: plain text, a few sentences. plan says whether it is an upgrade plan
@@ -390,7 +392,7 @@ func matches(r store.Rule, f Filter, it Item) bool {
 	if len(r.EventTypes) > 0 && !contains(r.EventTypes, it.Type) && (!rollback || !contains(r.EventTypes, versions.RollbackNote)) {
 		return false
 	}
-	if it.Type == "agent_stale" { // not tied to a service or environment
+	if it.Type == "agent_stale" || it.Type == EventGoliashRelease { // not tied to a service or environment
 		return true
 	}
 	if len(f.Services) > 0 && !contains(f.Services, it.Service) {
@@ -470,7 +472,7 @@ func dueAt(mode string, f Filter, now time.Time) time.Time {
 func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	var planned, recorded time.Time
+	var planned, recorded, selfChecked time.Time
 	for {
 		if time.Since(planned) >= 5*time.Minute {
 			planned = time.Now()
@@ -482,6 +484,12 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			}
 			if err := n.CheckRollouts(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("checking rollouts failed", "err", err)
+			}
+		}
+		if time.Since(selfChecked) >= selfCheckEvery {
+			selfChecked = time.Now()
+			if err := n.CheckGoliashRelease(ctx); err != nil && ctx.Err() == nil {
+				n.log.Warn("looking for a newer Goliash failed", "err", err)
 			}
 		}
 		if time.Since(recorded) >= time.Hour {
@@ -721,6 +729,8 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s%s in %s%s", where, cve, flags, it.From, fix)
 	case "agent_stale":
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
+	case EventGoliashRelease:
+		return fmt.Sprintf("Goliash %s is out (this server runs %s): upgrade the server, then the agents", it.To, it.From)
 	case "agent_back":
 		return fmt.Sprintf("agent %s is back after about %s; its targets report again", it.Target, it.Note)
 	}

@@ -62,6 +62,8 @@ func kindOf(it Item) kind {
 		return kind{"🔌", "#e5484d", "Agent silent"}
 	case "agent_back":
 		return kind{"✅", "#30a46c", "Agent back"}
+	case EventGoliashRelease:
+		return kind{"🆕", "#1b2a6b", "Goliash release"}
 	case "posture":
 		return kind{"🛡️", "#1b2a6b", "Security posture"}
 	case EventImageGrew:
