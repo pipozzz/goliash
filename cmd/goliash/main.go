@@ -2818,13 +2818,20 @@ func slackFromEnv(log *slog.Logger) *ui.SlackConfig {
 	return &ui.SlackConfig{SigningSecret: secret, Token: token, InChannel: os.Getenv("GOLIASH_SLACK_IN_CHANNEL") == "true"}
 }
 
-// gitOpsPulls opens upgrades as pull requests in GitOps repositories when GOLIASH_GITOPS_TOKEN is set: a GitHub
-// token that may write contents and pull requests of the deploy repositories (GOLIASH_GITOPS_GITHUB_API for
-// GitHub Enterprise).
+// gitOpsPulls opens upgrades as pull or merge requests in GitOps repositories: on GitHub with
+// GOLIASH_GITOPS_TOKEN (a token that may write contents and pull requests of the deploy repositories;
+// GOLIASH_GITOPS_GITHUB_API for GitHub Enterprise), on GitLab with GOLIASH_GITOPS_GITLAB_TOKEN (gitlab.com, or
+// GOLIASH_GITLAB_URL).
 func gitOpsPulls() ui.PullRequester {
-	token := os.Getenv("GOLIASH_GITOPS_TOKEN")
-	if token == "" {
+	var r gitops.Router
+	if token := os.Getenv("GOLIASH_GITOPS_TOKEN"); token != "" {
+		r = append(r, gitops.NewGitHub(token, os.Getenv("GOLIASH_GITOPS_GITHUB_API")))
+	}
+	if token := os.Getenv("GOLIASH_GITOPS_GITLAB_TOKEN"); token != "" {
+		r = append(r, gitops.NewGitLab(token, os.Getenv("GOLIASH_GITLAB_URL")))
+	}
+	if len(r) == 0 {
 		return nil
 	}
-	return gitops.NewGitHub(token, os.Getenv("GOLIASH_GITOPS_GITHUB_API"))
+	return r
 }

@@ -16,8 +16,9 @@ import (
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
-// PullRequester opens an upgrade as a pull request in a GitOps repository.
+// PullRequester opens an upgrade as a pull (or merge) request in a GitOps repository it supports.
 type PullRequester interface {
+	Supports(repo string) bool
 	OpenBump(ctx context.Context, b gitops.Bump) (string, error)
 }
 
@@ -93,7 +94,7 @@ func branchSafe(s string) string {
 // canPR says whether an upgrade of the application can be opened as a pull request: a token, and a GitHub
 // repository to open it in.
 func (s *Server) canPR(a versions.GitOpsApp) bool {
-	return s.pulls != nil && a.Tag != "" && strings.HasPrefix(versions.RepoWebURL(a.Repo), "https://github.com/")
+	return s.pulls != nil && a.Tag != "" && s.pulls.Supports(versions.RepoWebURL(a.Repo))
 }
 
 // bump opens the pull request that pins to in the application's repository; why says why this version, notes is

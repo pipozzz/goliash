@@ -25,15 +25,25 @@ import (
 type GitHub struct {
 	token string
 	api   string // https://api.github.com
+	host  string // github.com, or a GitHub Enterprise host
 	http  *http.Client
 }
 
 // NewGitHub returns a GitHub client for token; api is empty for github.com.
 func NewGitHub(token, api string) *GitHub {
+	host := "github.com"
 	if api == "" {
 		api = "https://api.github.com"
+	} else if u, err := url.Parse(api); err == nil && u.Host != "api.github.com" {
+		host = u.Host // GitHub Enterprise: https://github.example.com/api/v3
 	}
-	return &GitHub{token: token, api: strings.TrimSuffix(api, "/"), http: &http.Client{Timeout: 30 * time.Second}}
+	return &GitHub{token: token, api: strings.TrimSuffix(api, "/"), host: host, http: &http.Client{Timeout: 30 * time.Second}}
+}
+
+// Supports says whether the repository lives on this GitHub.
+func (g *GitHub) Supports(repo string) bool {
+	_, _, ok := g.ownerRepo(repo)
+	return ok
 }
 
 // Bump is an upgrade to open as a pull request.
@@ -61,7 +71,7 @@ const maxFiles = 200
 // OpenBump changes the tag in every YAML file under the path that pins it, on a new branch, and opens a pull
 // request; it returns the pull request's address. An open pull request from the same branch is returned as is.
 func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
-	owner, name, ok := ownerRepo(b.Repo)
+	owner, name, ok := g.ownerRepo(b.Repo)
 	if !ok {
 		return "", fmt.Errorf("%s is not a GitHub repository", b.Repo)
 	}
@@ -232,9 +242,9 @@ func (g *GitHub) do(ctx context.Context, method, p string, in, out any) error {
 }
 
 // ownerRepo reads owner and name from https://github.com/owner/name.
-func ownerRepo(web string) (string, string, bool) {
+func (g *GitHub) ownerRepo(web string) (string, string, bool) {
 	u, err := url.Parse(web)
-	if err != nil || u.Host != "github.com" {
+	if err != nil || u.Host != g.host {
 		return "", "", false
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")

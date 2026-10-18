@@ -69,6 +69,7 @@ func fakeGitHub(t *testing.T, kustomization string) (*httptest.Server, *sync.Map
 func TestOpenBump(t *testing.T) {
 	srv, written := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.4.2\n")
 	g := NewGitHub("tok", srv.URL)
+	g.host = "github.com" // the fake API serves github.com's repositories
 	url, err := g.OpenBump(context.Background(), Bump{
 		Repo: "https://github.com/acme/deploy", Branch: "main", Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout",
 		From: "1.4.2", To: "1.5.0", Head: "goliash/checkout-1.5.0-prod", Title: "checkout 1.5.0 in prod", CommitMsg: "checkout: 1.5.0",
@@ -93,14 +94,16 @@ func TestOpenBump(t *testing.T) {
 
 func TestOpenBumpFindsNothing(t *testing.T) {
 	srv, _ := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    digest: sha256:"+strings.Repeat("a", 64)+"\n")
-	_, err := NewGitHub("tok", srv.URL).OpenBump(context.Background(), Bump{
+	g := NewGitHub("tok", srv.URL)
+	g.host = "github.com"
+	_, err := g.OpenBump(context.Background(), Bump{
 		Repo: "https://github.com/acme/deploy", Branch: "main",
 		Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout", From: "1.4.2", To: "1.5.0", Head: "h",
 	})
 	if !errors.Is(err, ErrNoTag) {
 		t.Fatalf("err = %v", err)
 	}
-	if _, err := NewGitHub("tok", srv.URL).OpenBump(context.Background(), Bump{Repo: "https://gitlab.com/acme/deploy"}); err == nil {
+	if _, err := g.OpenBump(context.Background(), Bump{Repo: "https://gitlab.com/acme/deploy"}); err == nil {
 		t.Fatal("a GitLab repository accepted")
 	}
 }

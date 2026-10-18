@@ -60,6 +60,8 @@ func TestArgoCDOnServiceAndMatrix(t *testing.T) {
 
 type fakePulls struct{ got []gitops.Bump }
 
+func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
+
 func (f *fakePulls) OpenBump(_ context.Context, b gitops.Bump) (string, error) {
 	f.got = append(f.got, b)
 	return "https://github.com/acme/deploy/pull/7", nil
