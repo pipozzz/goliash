@@ -33,6 +33,11 @@ Each target has the settings object of its platform:
 
 Nomad: each job is a workload. A periodic or parameterized job is one workload (a cron job) that counts its
 running runs, rather than a new workload for every `backup/periodic-…` or `export/dispatch-…` run.
+An image written with variables, `image = "ghcr.io/acme/app:${NOMAD_META_version}"`, is read as Nomad would run
+it: `${NOMAD_META_<key>}` and `${meta.<key>}` from the job's, group's and task's `meta` (the most specific wins), and
+`${NOMAD_JOB_NAME}`, `${NOMAD_GROUP_NAME}`, `${NOMAD_TASK_NAME}` and `${NOMAD_NAMESPACE}`. Variables only a client
+knows, such as `${attr.*}` or `${node.*}`, stay as written. Labels (`goliash.app`, `goliash.team`) come from the same
+`meta`.
 
 Lambda: each function is a workload, its tags are labels (so `goliash.app` and `goliash.service` work as tags). A
 function built from a container image reports that image and digest, checked for new tags like any image. A .zip

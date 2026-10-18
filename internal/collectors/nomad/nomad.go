@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -350,10 +351,68 @@ func tasks(j job, group string) []struct{ name, image string } {
 			if image == "" || (t.Driver != "docker" && t.Driver != "podman" && t.Driver != "containerd-driver") {
 				continue
 			}
+			image = interpolate(image, j, g.Name, t.Name, g.Meta, t.Meta)
 			out = append(out, struct{ name, image string }{g.Name + "/" + t.Name, image})
 		}
 	}
 	return out
+}
+
+// nomadVar matches ${...} in a job specification.
+var nomadVar = regexp.MustCompile(`\$\{([^}]+)\}`)
+
+// interpolate resolves the variables Nomad itself would in a task's image, as the API
+// returns the specification uninterpolated: image = "app:${NOMAD_META_version}" is
+// common. Meta (${NOMAD_META_x}, ${meta.x}) merges job, group and task, the most
+// specific winning; the job, group and task names are known too. Variables only a
+// client knows (${attr.*}, ${node.*}) stay as they are.
+func interpolate(s string, j job, group, task string, groupMeta, taskMeta map[string]string) string {
+	if !strings.Contains(s, "${") {
+		return s
+	}
+	meta := map[string]string{}
+	for _, m := range []map[string]string{j.Meta, groupMeta, taskMeta} {
+		for k, v := range m {
+			meta[k] = v
+		}
+	}
+	env := func(k string) string { // a key as an environment variable name: NOMAD_META_<key>
+		return strings.Map(func(r rune) rune {
+			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' {
+				return r
+			}
+			return '_'
+		}, k)
+	}
+	return nomadVar.ReplaceAllStringFunc(s, func(m string) string {
+		name := strings.TrimSpace(m[2 : len(m)-1])
+		switch name {
+		case "NOMAD_JOB_NAME", "NOMAD_JOB_ID":
+			return j.ID
+		case "NOMAD_GROUP_NAME":
+			return group
+		case "NOMAD_TASK_NAME":
+			return task
+		case "NOMAD_NAMESPACE":
+			return j.Namespace
+		}
+		key, ok := strings.CutPrefix(name, "NOMAD_META_")
+		if !ok {
+			if key, ok = strings.CutPrefix(name, "meta."); !ok {
+				return m
+			}
+			if v, found := meta[key]; found {
+				return v
+			}
+			return m
+		}
+		for k, v := range meta {
+			if e := env(k); e == key || strings.ToUpper(e) == key {
+				return v
+			}
+		}
+		return m
+	})
 }
 
 func (c *Collector) get(ctx context.Context, path string, q url.Values, v any) error {

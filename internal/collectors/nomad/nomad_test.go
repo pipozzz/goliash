@@ -257,3 +257,20 @@ func TestLabelsFromGroupsAndTasks(t *testing.T) {
 		t.Error("a job without meta has labels")
 	}
 }
+
+func TestImageVariables(t *testing.T) {
+	j := job{ID: "checkout", Namespace: "shop", Meta: map[string]string{"version": "1.4.0", "app.channel": "stable"}}
+	for _, c := range []struct{ image, want string }{
+		{"ghcr.io/acme/checkout:${NOMAD_META_version}", "ghcr.io/acme/checkout:1.4.0"},
+		{"ghcr.io/acme/checkout:${NOMAD_META_VERSION}", "ghcr.io/acme/checkout:1.4.0"},
+		{"ghcr.io/acme/checkout:${meta.version}", "ghcr.io/acme/checkout:1.4.0"},
+		{"ghcr.io/acme/${NOMAD_JOB_NAME}:${NOMAD_META_app_channel}", "ghcr.io/acme/checkout:stable"},
+		{"ghcr.io/acme/checkout:${NOMAD_META_tag}", "ghcr.io/acme/checkout:2.0.0"}, // the task's meta
+		{"registry.${attr.unique.platform.aws.placement.availability-zone}/x:1", "registry.${attr.unique.platform.aws.placement.availability-zone}/x:1"},
+		{"nginx:1.27", "nginx:1.27"},
+	} {
+		if got := interpolate(c.image, j, "web", "app", map[string]string{"tag": "1.9.0"}, map[string]string{"tag": "2.0.0"}); got != c.want {
+			t.Errorf("interpolate(%q) = %q, want %q", c.image, got, c.want)
+		}
+	}
+}
