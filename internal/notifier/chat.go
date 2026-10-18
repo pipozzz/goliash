@@ -27,7 +27,7 @@ func lines(msg Message, link func(text, url string) string) (title string, body 
 	for _, it := range msg.Items {
 		line := it.Text
 		if it.URL != "" {
-			line += " " + link("release notes", it.URL)
+			line += " " + link(strings.ToLower(linkLabel(it)), it.URL)
 		}
 		body = append(body, line)
 	}
@@ -180,7 +180,7 @@ func (g Grafana) Send(ctx context.Context, ch store.Channel, msg Message) error 
 		}
 		text := it.Text
 		if it.URL != "" {
-			text += ` <a href="` + html.EscapeString(it.URL) + `">release notes</a>`
+			text += ` <a href="` + html.EscapeString(it.URL) + `">` + strings.ToLower(linkLabel(it)) + `</a>`
 		}
 		body, _ := json.Marshal(map[string]any{"time": it.At.UnixMilli(), "tags": tags, "text": text})
 		if err := post(ctx, g.HTTP, endpoint, body, map[string]string{"Authorization": "Bearer " + cfg.Token}); err != nil {

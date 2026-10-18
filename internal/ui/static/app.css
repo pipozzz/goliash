@@ -1276,3 +1276,4 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 /* Workspace settings: a line of links to its sections. */
 .section-links { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; margin-top: -8px; }
 .bell-mark.kind-goliash_release { background: var(--accent); }
+.bell-mark.kind-gitops { background: #d9822b; }
