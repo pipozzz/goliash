@@ -65,19 +65,19 @@ variable "nomad_address" {
 }
 
 variable "nomad_token" {
-  description = "Nomad ACL token with the list-jobs and read-job capabilities, when ACLs are enabled. Empty = no token."
+  description = "Prefer the Nomad Variable (README): a value here is in the job specification. Nomad ACL token with the list-jobs and read-job capabilities, when ACLs are enabled. Empty = no token."
   type        = string
   default     = ""
 }
 
 variable "secret_key" {
-  description = "Key that encrypts notification channel secrets (openssl rand -base64 32). Empty = generated on the data volume on first start."
+  description = "Prefer the Nomad Variable (README): a value here is in the job specification. Key that encrypts notification channel secrets (openssl rand -base64 32). Empty = generated on the data volume on first start."
   type        = string
   default     = ""
 }
 
 variable "github_token" {
-  description = "GitHub token for release notes lookups (raises GitHub's rate limit). Optional."
+  description = "Prefer the Nomad Variable (README): a value here is in the job specification. GitHub token for release notes lookups (raises GitHub's rate limit). Optional."
   type        = string
   default     = ""
 }

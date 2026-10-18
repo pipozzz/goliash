@@ -39,7 +39,12 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 
 - **Single node.** State is SQLite on a local volume: `count = 1`; pin the job with `constraints`. For more,
   point `GOLIASH_DATABASE_URL` at PostgreSQL (see the docs).
-- **ACLs.** With Nomad ACLs on, create a read-only token and pass it as `nomad_token`:
+- **Secrets.** `secret_key`, `github_token` and `nomad_token` given as pack variables end up in the job
+  specification, which anyone with `read-job` sees (`nomad job inspect`, the UI, Goliash itself). Put them in the
+  job's Nomad Variable instead, which only the job reads; its `GOLIASH_*` items become environment variables:
+  `nomad var put nomad/jobs/goliash GOLIASH_SECRET_KEY=$(openssl rand -base64 32) GOLIASH_GITHUB_TOKEN=ghp_…`
+  (the Nomad ACL token as `NOMAD_TOKEN`). Any other `GOLIASH_*` setting works the same way.
+- **ACLs.** With Nomad ACLs on, create a read-only token and put it in the Variable (or pass it as `nomad_token`):
   `nomad acl policy apply goliash-read - <<<'namespace "*" { capabilities = ["list-jobs", "read-job"] }'` then
   `nomad acl token create -name goliash -policy goliash-read`.
 - **Mapping.** Add `goliash.service` to a job's `meta` to name its service; everything else waits in the Inbox.

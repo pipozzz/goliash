@@ -78,6 +78,28 @@ job "[[ var "job_name" . ]]" {
         [[- end ]]
       }
 
+      # Secrets from the Nomad Variable nomad/jobs/<job name>, which only this job reads,
+      # instead of the job specification, which every read-job token shows:
+      #   nomad var put nomad/jobs/[[ var "job_name" . ]] GOLIASH_SECRET_KEY=... GOLIASH_GITHUB_TOKEN=...
+      # Its GOLIASH_* items (and NOMAD_TOKEN, for watching the cluster) become environment
+      # variables; no Variable, no secrets.
+      template {
+        destination = "secrets/goliash.env"
+        env         = true
+        change_mode = "restart"
+        data        = <<EOH
+{{- if nomadVarExists "nomad/jobs/[[ var "job_name" . ]]" }}
+{{- with nomadVar "nomad/jobs/[[ var "job_name" . ]]" }}
+{{- range $k, $v := . }}
+{{- if $k | regexMatch "^(GOLIASH_[A-Z0-9_]+|NOMAD_TOKEN)$" }}
+{{ $k }}={{ $v | toJSON }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+EOH
+      }
+
       # Created on first start only: changes made later in the UI are kept.
       template {
         destination = "local/bootstrap.yaml"
