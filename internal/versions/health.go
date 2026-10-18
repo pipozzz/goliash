@@ -52,7 +52,8 @@ func LoadHealth(ctx context.Context, st *store.Store, checker *Checker, sc store
 		return v, err
 	}
 	c := HealthCheck{Title: "Agents", State: "ok", Link: "/agents", LinkText: "Agents and targets"}
-	silent := 0
+	silent, older := 0, 0
+	server, serverKnown := ParseVersion(strings.TrimPrefix(version, "v"))
 	for _, a := range agents {
 		if a.ActiveTokens == 0 {
 			continue
@@ -61,12 +62,19 @@ func LoadHealth(ctx context.Context, st *store.Store, checker *Checker, sc store
 			silent++
 			c.Details = append(c.Details, fmt.Sprintf("%s: silent since %s", a.Name, healthAgo(now, a.StaleSince)))
 		}
+		// An agent left on an older release misses its fixes, security ones among them.
+		if av, ok := ParseVersion(strings.TrimPrefix(a.Version, "v")); serverKnown && ok && av.Compare(server) < 0 {
+			older++
+			c.Details = append(c.Details, fmt.Sprintf("%s: runs %s, the server %s", a.Name, a.Version, version))
+		}
 	}
 	switch {
 	case len(agents) == 0:
 		c.State, c.Summary = "off", "No agents. Targets the server collects itself still report."
 	case silent > 0:
 		c.State, c.Summary = "bad", fmt.Sprintf("%d of %d silent: what they watch may be out of date.", silent, len(agents))
+	case older > 0:
+		c.State, c.Summary = "warn", fmt.Sprintf("%d of %d on an older release than the server: upgrade them (their pages show the command).", older, len(agents))
 	default:
 		c.Summary = healthPlural(len(agents), "agent reports", "agents report") + " in time."
 	}
