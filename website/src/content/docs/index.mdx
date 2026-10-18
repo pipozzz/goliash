@@ -1,6 +1,6 @@
 ---
 title: 'What runs where, on which version'
-description: Self-hosted, open-source version tracking for Kubernetes, Amazon ECS, AWS Lambda, Nomad, Docker Swarm and Compose. One matrix of services × environments, with upstream releases, drift, end-of-life, vulnerabilities and a CycloneDX SBOM of what actually runs.
+description: Self-hosted, open-source version tracking for Kubernetes, Amazon ECS, AWS Lambda, Nomad, Docker Swarm and Compose. One matrix of services × environments, with upstream releases, drift, end-of-life, vulnerabilities, a CycloneDX SBOM of what actually runs, and Argo CD and Flux next to it, upgrades opened as pull requests.
 template: splash
 hero:
   title: Goliash
@@ -35,6 +35,7 @@ import tilesEnvs from '../../assets/tiles-envs.png';
 import security from '../../assets/security.png';
 import vulns from '../../assets/vulns.png';
 import timeline from '../../assets/timeline-tiles.png';
+import gitops from '../../assets/gitops.png';
 import goli from '../../assets/goli.svg';
 
 <Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
@@ -141,6 +142,13 @@ with the service, the package and the version that fixes it.
 
 **Time travel**: scrub back through 400 days, step from deployment to deployment or press Play, and watch the
 matrix or the tiles change, coloured as things stood then. "What ran in prod when the incident started?" in seconds.
+
+<Image src={gitops} alt="A service page with its Argo CD panel: the applications webshop-prod and webshop-staging, the repository github.com/acme/deploy with their paths and branch, the commit last synced, Synced and Healthy for prod with an Open PR → 2.4.0 button, OutOfSync for staging for two days" class="screenshot" />
+
+**Argo CD and Flux**: each service shows the Git repository, path and commit that deploy it, whether it is in sync
+and healthy, and what actually runs next to it. An upgrade or a promotion is one click away as a **pull request** on
+GitHub or GitLab, changing the tag where your manifests, Kustomize or Helm values pin it; you review, Argo CD or Flux
+deploys. Out of sync for an hour? Slack knows. [How it works](/guide/argocd/)
 
 ## Meet Goli
 

@@ -72,6 +72,10 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   [Try it on the demo](https://demo.goliash.dev/updates).
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
+- **Argo CD and Flux, next to what runs.** Each service shows the Git repository, path and commit its Argo CD
+  application or Flux Kustomization/HelmRelease deploys, whether it is in sync and healthy, with alerts when it is not.
+  Upgrades and promotions open as **pull requests** (GitHub, GitHub Enterprise, GitLab) that change the tag where
+  manifests, Kustomize or Helm values pin it; you review, GitOps deploys.
 - **Did the deploy go out?** Rollouts stuck half way (two versions side by side for half an hour), services running
   none of their replicas, and rollbacks to an older version, read from Kubernetes, ECS, Nomad, Swarm and Compose:
   first on the Delivery page, announced, and counted against deploys as a change failure rate. Each version waiting
