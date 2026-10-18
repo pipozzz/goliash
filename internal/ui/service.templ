@@ -356,6 +356,11 @@ templ ServicePage(v ServiceView) {
 								<input name="signer" value={ v.Policy.Signer } placeholder="https://github.com/acme/*"/>
 								<span class="hint">Who should sign its images, as keyless signatures' certificates name it: a workflow URI or email, or a prefix ending in *. An image not signed by it shows under Image hygiene.</span>
 							</label>
+							<label>
+								Automatic pull requests
+								<input name="auto_pr" value={ v.Policy.AutoPR } placeholder="dev=minor, staging=patch"/>
+								<span class="hint">Per environment, the biggest jump Goliash opens a pull request for by itself, in the repository its Argo CD or Flux application deploys from. Empty: only when someone asks.</span>
+							</label>
 							<label class="check">
 								<input type="checkbox" name="prerelease" value="1" checked?={ v.Policy.Prerelease }/>
 								Consider alpha, beta and rc tags
@@ -755,7 +760,9 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 									}
 								</span>
 								<div class="targets">since @timeAgo(a.Since)</div>
-								if canEdit && a.To != "" {
+								if a.PRURL != "" {
+									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener">{ "Pull request → " + a.To }</a>
+								} else if canEdit && a.To != "" {
 									<form method="post" action={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/pr") } class="gitops-pr">
 										<input type="hidden" name="target_id" value={ a.TargetID }/>
 										<input type="hidden" name="workload_id" value={ a.WorkloadID }/>

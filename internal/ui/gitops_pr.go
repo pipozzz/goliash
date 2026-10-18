@@ -13,6 +13,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/gitops"
+	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -75,7 +76,7 @@ func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Pri
 	}
 	why := "the newest release its version policy accepts"
 	vulns, _ := versions.UpgradeVulns(ctx, s.store, p.Scope, svc.ID, envID(o, app.Environment), app.Tag, to)
-	pr, msg := s.bump(ctx, p, svc.Name, path, *app, to, why, o.ReleaseURL[svc.ID+"|"+to], vulns)
+	pr, msg := s.bump(ctx, p.Scope, p.User.Email, svc.Name, path, *app, to, why, o.ReleaseURL[svc.ID+"|"+to], vulns)
 	if msg != "" {
 		return back(w, r, path, "error", msg)
 	}
@@ -100,7 +101,10 @@ func (s *Server) canPR(a versions.GitOpsApp) bool {
 
 // bump opens the pull request that pins to in the application's repository; why says why this version, notes is
 // a release notes address. It returns the pull request's address, or a message for the person who asked.
-func (s *Server) bump(ctx context.Context, p auth.Principal, service, page string, app versions.GitOpsApp, to, why, notes string, vulns versions.VulnDelta) (string, string) {
+func (s *Server) bump(ctx context.Context, sc store.Scope, by, service, page string, app versions.GitOpsApp, to, why, notes string, vulns versions.VulnDelta) (string, string) {
+	if open, ok := s.openPull(ctx, sc, app, to); ok { // proposed already: never twice
+		return open, ""
+	}
 	image := versions.ParseImage(app.Image).Repo()
 	where := app.Path
 	if app.TargetRevision != "" {
@@ -108,7 +112,7 @@ func (s *Server) bump(ctx context.Context, p auth.Principal, service, page strin
 	}
 	body := fmt.Sprintf("Upgrades **%s** in **%s** from `%s` to `%s`: %s.\n\n"+
 		"- %s: `%s` (%s)\n- Image: `%s`\n- Opened by %s from [Goliash](%s%s)\n",
-		service, app.Environment, app.Tag, to, why, versions.GitOpsObject(app.Tool), app.App, where, image, p.User.Email, s.publicURL, page)
+		service, app.Environment, app.Tag, to, why, versions.GitOpsObject(app.Tool), app.App, where, image, by, s.publicURL, page)
 	if notes != "" {
 		body += "- Release notes: " + notes + "\n"
 	}
@@ -127,8 +131,33 @@ func (s *Server) bump(ctx context.Context, p auth.Principal, service, page strin
 	case err != nil:
 		return "", "The pull request could not be opened: " + err.Error()
 	}
-	s.audit(ctx, p, "gitops.pull_request", "service", service, "environment", app.Environment, "to", to, "url", pr)
+	if err := s.store.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: sc, ServiceID: app.ServiceID, Environment: app.Environment,
+		TargetID: app.TargetID, WorkloadID: app.WorkloadID, From: app.Tag, To: to, URL: pr, OpenedBy: by,
+	}); err != nil {
+		s.log.ErrorContext(ctx, "recording a pull request failed", "url", pr, "err", err)
+	}
+	if err := s.store.Audit(ctx, store.AuditEntry{
+		OrgID: sc.OrgID, WorkspaceID: sc.WorkspaceID, Actor: by, Action: "gitops.pull_request",
+		Details: map[string]string{"service": service, "environment": app.Environment, "to": to, "url": pr},
+	}); err != nil {
+		s.log.ErrorContext(ctx, "audit log write failed", "action", "gitops.pull_request", "err", err)
+	}
 	return pr, ""
+}
+
+// openPull is the pull request Goliash already opened to move the application's workload to the version.
+func (s *Server) openPull(ctx context.Context, sc store.Scope, app versions.GitOpsApp, to string) (string, bool) {
+	pulls, err := s.store.ListGitOpsPulls(ctx, sc)
+	if err != nil {
+		return "", false
+	}
+	for _, p := range pulls {
+		if p.TargetID == app.TargetID && p.WorkloadID == app.WorkloadID && p.To == to {
+			return p.URL, true
+		}
+	}
+	return "", false
 }
 
 // promotePR opens a promotion from the Delivery page as a pull request: the version that runs in the previous
@@ -161,7 +190,7 @@ func (s *Server) promotePR(w http.ResponseWriter, r *http.Request, p auth.Princi
 			}
 			why := fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006"))
 			vulns, _ := versions.UpgradeVulns(ctx, s.store, p.Scope, pr.Service.ID, pr.To.ID, a.Tag, pr.Version)
-			url, msg := s.bump(ctx, p, pr.Service.Name, page, a, pr.Version, why, o.ReleaseURL[pr.Service.ID+"|"+pr.Version], vulns)
+			url, msg := s.bump(ctx, p.Scope, p.User.Email, pr.Service.Name, page, a, pr.Version, why, o.ReleaseURL[pr.Service.ID+"|"+pr.Version], vulns)
 			if msg != "" {
 				return back(w, r, page, "error", msg)
 			}

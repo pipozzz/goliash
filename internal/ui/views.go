@@ -525,6 +525,7 @@ type PolicyForm struct {
 	BaseImage  string // set by people; empty: as the image declares
 	MaxSizeMB  string // the image size budget, empty: none
 	Signer     string // who should sign its images, empty: nobody named
+	AutoPR     string // "dev=minor, staging=patch": pull requests the policy opens by itself
 }
 
 // ServiceEnv is one environment on a service page.
@@ -557,6 +558,7 @@ type PromotionView struct {
 // PromotePR is one Argo CD application a promotion can be opened in as a pull request.
 type PromotePR struct {
 	TargetID, WorkloadID, Target, App string
+	URL                               string // the pull request Goliash opened already
 }
 
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
@@ -1501,6 +1503,7 @@ type GitOpsView struct {
 	TargetID, WorkloadID          string
 	Tag                           string // the version running
 	To                            string // the version a pull request would pin; empty, no button
+	PRURL                         string // the pull request Goliash opened for To, when it did
 }
 
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {

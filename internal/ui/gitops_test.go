@@ -5,6 +5,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -205,5 +206,64 @@ func TestVulnsMarkdown(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("missing %q in\n%s", want, md)
 		}
+	}
+}
+
+// The version policy opens pull requests by itself up to the jump it names, once per version, and the page then
+// links the pull request instead of offering one.
+func TestAutoPRs(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svcName := e.serviceOf("evil")
+	svc, _ := e.st.GetServiceByName(ctx, sc, svcName)
+	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"1.28.0"}); err != nil { // the fixture runs nginx 1.27.2
+		t.Fatal(err)
+	}
+	setPolicy := func(js string) {
+		svc.VersionPolicy = json.RawMessage(js)
+		if err := e.st.UpdateService(ctx, svc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func() int {
+		n, err := e.ui.AutoPRs(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if run() != 0 {
+		t.Fatal("opened without auto_pr")
+	}
+	setPolicy(`{"auto_pr":{"prod":"patch"}}`)
+	if run() != 0 {
+		t.Fatal("opened a minor upgrade under auto_pr patch")
+	}
+	setPolicy(`{"auto_pr":{"prod":"minor"}}`)
+	if run() != 1 || run() != 0 || len(pulls.got) != 1 {
+		t.Fatalf("want one pull request, got %d", len(pulls.got))
+	}
+	if b := pulls.got[0]; b.To != "1.28.0" || !strings.Contains(b.Body, "auto_pr: minor") || !strings.Contains(b.Body, "Opened by auto-pr") {
+		t.Fatalf("bump %+v", b)
+	}
+	_, page := get(t, e.as(store.RoleMember), e.srv.URL+"/services/"+url.PathEscape(svcName), nil)
+	if !strings.Contains(page, `href="https://github.com/acme/deploy/pull/7"`) || strings.Contains(page, "Open PR") {
+		t.Fatal("the page offers a pull request instead of linking the open one")
+	}
+	if got, err := parseAutoPR(" dev=minor, staging=patch "); err != nil || got["dev"] != "minor" || formatAutoPR(got) != "dev=minor, staging=patch" {
+		t.Fatalf("parse %v %v", got, err)
+	}
+	if _, err := parseAutoPR("prod=everything"); err == nil {
+		t.Fatal("a bad jump accepted")
 	}
 }

@@ -77,6 +77,10 @@ templ PromotionsPage(v PromotionsView) {
 										}
 										if v.CanMember {
 											for _, pr := range p.PRs {
+												if pr.URL != "" {
+													<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener">{ "Pull request → " + p.To }</a>
+													continue
+												}
 												<form method="post" action="/delivery/promote" class="gitops-pr noprint">
 													<input type="hidden" name="service" value={ p.Service }/>
 													<input type="hidden" name="env" value={ p.To }/>

@@ -68,6 +68,7 @@ page, with `goliash service set`, or through the catalog.
 | `pin_major` | Stay on this major: newer majors are shown, not alerted. | none |
 | `tag_filter` | A regular expression tags must match. | tags shaped like the running one |
 | `prerelease` | Consider alpha, beta and rc versions. | `false` |
+| `auto_pr` | Per environment, the biggest jump Goliash opens a pull request for by itself, in the repository its [Argo CD or Flux](/guide/argocd/#automatic-pull-requests) application deploys from: `{"dev": "minor"}`. | none |
 | `drift_alert_after` | How long drift lasts before it is announced, per kind, e.g. `{"env": "72h"}`. | see below |
 | `github`, `github_tag_prefix` | GitHub repository (`owner/repo`) whose releases give dates and release notes. | from catalog or image label |
 | `gitlab` | GitLab project (`gitlab.com/group/project`) whose releases give dates and release notes; `github_tag_prefix` applies too. | from catalog or image label |

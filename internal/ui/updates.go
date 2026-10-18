@@ -118,7 +118,8 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			for _, a := range apps {
 				if a.ServiceID == u.Service.ID && a.Environment == u.Environment.Name && a.Tag == u.Running &&
 					u.Target == latest && s.pullRequestTo(a, latest) == u.Target {
-					it.PRs = append(it.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App})
+					url, _ := s.openPull(ctx, p.Scope, a, u.Target)
+					it.PRs = append(it.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App, URL: url})
 				}
 			}
 		}

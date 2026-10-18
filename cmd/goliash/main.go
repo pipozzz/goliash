@@ -672,6 +672,7 @@ func serve(ctx context.Context, args []string) error {
 		go svc.RunProcessor(lctx, 10*time.Second)
 		go checker.Run(lctx, *upstreamEvery, time.Minute)
 		go housekeeping(lctx, db, log, *keepSnapshots)
+		go uiServer.RunAutoPRs(lctx, 30*time.Minute)
 		if *backupDir != "" {
 			go backups(lctx, db, *dsn, *backupDir, *backupKeep, log)
 		}

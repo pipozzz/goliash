@@ -203,6 +203,10 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 		if canAck {
 			<td class="update-actions" data-label="">
 				for _, pr := range it.PRs {
+					if pr.URL != "" {
+						<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener">Pull request</a>
+						continue
+					}
 					<form method="post" action={ templ.URL(it.ServiceURL + "/gitops/pr") } class="gitops-pr">
 						<input type="hidden" name="target_id" value={ pr.TargetID }/>
 						<input type="hidden" name="workload_id" value={ pr.WorkloadID }/>

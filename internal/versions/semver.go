@@ -180,6 +180,10 @@ type Policy struct {
 	// Signer is who should sign the service's images: the identity in their keyless signatures' certificates,
 	// exactly, or a prefix ending in * (https://github.com/acme/*). Empty: no expectation.
 	Signer string `json:"signer,omitempty"`
+	// AutoPR opens pull requests by itself, per environment, for upgrades up to a jump: {"dev": "minor",
+	// "staging": "patch"} upgrades dev to the newest acceptable release when it is at most a minor jump away. It
+	// needs a GitOps application (Argo CD, Flux) and a token for its repository.
+	AutoPR map[string]Jump `json:"auto_pr,omitempty"`
 }
 
 // ExpectedSigner is who should sign a service's images, empty when its policy names nobody.
@@ -321,6 +325,11 @@ func ParsePolicy(raw []byte) (Policy, error) {
 		}
 		if d, err := time.ParseDuration(v); err != nil || d < 0 {
 			return p, fmt.Errorf("drift_alert_after.%s: %q is not a duration like 168h", kind, v)
+		}
+	}
+	for env, j := range p.AutoPR {
+		if j != JumpPatch && j != JumpMinor && j != JumpMajor {
+			return p, fmt.Errorf("auto_pr.%s must be patch, minor or major, not %q", env, j)
 		}
 	}
 	return p, nil

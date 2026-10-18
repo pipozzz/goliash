@@ -72,6 +72,8 @@ type Server struct {
 	updateCheck bool
 	argoCDURL   string
 	pulls       PullRequester
+	autoMu      sync.Mutex
+	autoFailed  map[string]time.Time // automatic pull requests that could not be opened, and when
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
@@ -133,7 +135,7 @@ func New(o Options) *Server {
 	publicBase = strings.TrimSuffix(o.PublicURL, "/")
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests,
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests, autoFailed: map[string]time.Time{},
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
 		oauthHTTP: publicOnlyClient(),
 		slack:     o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
@@ -738,6 +740,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			if a.ServiceID == svc.ID {
 				g := gitOpsView(a, s.argoCDURL, time.Now())
 				g.To = s.pullRequestTo(a, v.Latest)
+				if g.To != "" {
+					g.PRURL, _ = s.openPull(ctx, p.Scope, a, g.To)
+				}
 				v.GitOps = append(v.GitOps, g)
 			}
 		}
@@ -774,6 +779,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			v.Policy.MaxSizeMB = strconv.Itoa(own.MaxSizeMB)
 		}
 		v.Policy.Signer = own.Signer
+		v.Policy.AutoPR = formatAutoPR(own.AutoPR)
 	}
 	if base := versions.BaseImage(svc); base != "" {
 		st := s.checker.BaseStatus(ctx, base, time.Now())
@@ -923,6 +929,11 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if len(pol.Signer) > 300 {
 		return back(w, r, path, "error", "The expected signer is too long.")
 	}
+	autoPR, err := parseAutoPR(r.FormValue("auto_pr"))
+	if err != nil {
+		return back(w, r, path, "error", "Automatic pull requests: "+err.Error()+", like dev=minor, staging=patch.")
+	}
+	pol.AutoPR = autoPR
 	pol.MaxSizeMB = 0
 	if ms := strings.TrimSpace(r.FormValue("max_size_mb")); ms != "" {
 		n, err := strconv.Atoi(ms)
@@ -1240,7 +1251,8 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	for _, pr := range list {
 		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}
 		for _, a := range promotionApps(apps, pr, s.canPR) {
-			pv.PRs = append(pv.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App})
+			url, _ := s.openPull(ctx, p.Scope, a, pr.Version)
+			pv.PRs = append(pv.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App, URL: url})
 		}
 		for _, rel := range pr.Releases {
 			pv.Releases = append(pv.Releases, ReleaseView{Version: rel.Version, Published: rel.PublishedAt, URL: rel.ChangelogURL})
