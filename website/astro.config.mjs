@@ -75,7 +75,7 @@ export default defineConfig({
         },
         {
           label: 'Guide',
-          items: [{ slug: 'guide/matrix' }, { slug: 'guide/apps' }, { slug: 'guide/versions' }, { slug: 'guide/notifications' }, { slug: 'guide/security' }, { slug: 'guide/sbom' }, { slug: 'guide/observability' }, { slug: 'guide/grafana' }, { slug: 'guide/signoz' }, { slug: 'guide/widgets' }, { slug: 'guide/teams' }, { slug: 'guide/goli' }],
+          items: [{ slug: 'guide/matrix' }, { slug: 'guide/apps' }, { slug: 'guide/versions' }, { slug: 'guide/argocd' }, { slug: 'guide/notifications' }, { slug: 'guide/security' }, { slug: 'guide/sbom' }, { slug: 'guide/observability' }, { slug: 'guide/grafana' }, { slug: 'guide/signoz' }, { slug: 'guide/widgets' }, { slug: 'guide/teams' }, { slug: 'guide/goli' }],
         },
         {
           label: 'Reference',

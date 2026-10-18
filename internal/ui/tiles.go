@@ -136,7 +136,7 @@ func envState(c MatrixCell, latest string) string {
 		st = stUnknown
 	}
 	for _, d := range c.Drifts {
-		if d.Kind == "eol" || d.Kind == "inconsistent" || d.Kind == "exploited" || d.Kind == "rollout" {
+		if d.Kind == "eol" || d.Kind == "inconsistent" || d.Kind == "exploited" || d.Kind == "rollout" || d.Kind == "gitops" {
 			return stAttention
 		}
 		st = stBehind

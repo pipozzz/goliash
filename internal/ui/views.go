@@ -452,6 +452,7 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 type ServiceView struct {
 	Base
 	Rollouts       []versions.RolloutIssue // its workloads whose replicas are not where they should be
+	GitOps         []GitOpsView            // the Argo CD applications that deploy it
 	TeamNames      []string                // the workspace's teams, to pick one
 	Security       ServiceSecurity
 	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
@@ -1321,6 +1322,50 @@ func markRollouts(g *MatrixGrid, issues []versions.RolloutIssue) {
 	g.Groups = groupRows(g.Rows, g.GroupBy)
 }
 
+// markGitOps badges the cells whose Argo CD application has been out of sync, degraded or missing for a while:
+// what Git declares is not what runs, or what runs is not healthy.
+func markGitOps(g *MatrixGrid, apps []versions.GitOpsApp, now time.Time) {
+	byCell := map[string][]versions.GitOpsApp{} // service + "|" + environment
+	for _, a := range apps {
+		if a.Trouble(now) != "" {
+			byCell[a.Service+"|"+a.Environment] = append(byCell[a.Service+"|"+a.Environment], a)
+		}
+	}
+	if len(byCell) == 0 {
+		return
+	}
+	for ri := range g.Rows {
+		r := &g.Rows[ri]
+		for i := range r.Cells {
+			if i >= len(g.Envs) {
+				continue
+			}
+			list := byCell[r.Service+"|"+g.Envs[i].Name]
+			if len(list) == 0 {
+				continue
+			}
+			var details []string
+			for _, a := range list {
+				details = append(details, gitOpsLine(a, now))
+			}
+			b := DriftBadge{Kind: "gitops", Label: "Argo: " + list[0].Trouble(now), Title: strings.Join(details, "; ")}
+			r.Cells[i].Drifts = append(r.Cells[i].Drifts, b)
+			r.Health = worseHealth(r.Health, "warn")
+		}
+	}
+	g.Groups = groupRows(g.Rows, g.GroupBy)
+}
+
+// gitOpsLine says what an application's state is and for how long: "checkout-prod on k8s-prod: OutOfSync,
+// Degraded for 2 hours".
+func gitOpsLine(a versions.GitOpsApp, now time.Time) string {
+	state := a.Sync
+	if a.Health != "" {
+		state += ", " + a.Health
+	}
+	return a.App + " on " + a.Target + ": " + strings.TrimPrefix(state, ", ") + " for " + versions.HumanDuration(now.Sub(a.SyncSince))
+}
+
 // worseHealth is the worse of two row healths.
 func worseHealth(a, b string) string {
 	rank := map[string]int{"ok": 0, "warn": 1, "bad": 2}
@@ -1430,4 +1475,46 @@ func upperFirst(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// GitOpsView is an Argo CD application as it deploys one of a service's workloads.
+type GitOpsView struct {
+	Environment, Target, Workload string
+	App, AppURL                   string // AppURL: the application in the Argo CD UI, with GOLIASH_ARGOCD_URL
+	Sync, Health                  string
+	Since                         time.Time
+	Trouble                       string // out of sync, degraded, missing, or ""
+	Repo, RepoURL                 string
+	Path, TargetRevision          string
+	Revision, CommitURL           string // Revision shortened for a commit
+}
+
+func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {
+	v := GitOpsView{
+		Environment: a.Environment, Target: a.Target, Workload: a.Workload, App: a.App,
+		AppURL: versions.ArgoAppURL(argoURL, a.AppNamespace, a.App), Sync: a.Sync, Health: a.Health, Since: a.SyncSince,
+		Trouble: a.Trouble(now), Repo: a.Repo, RepoURL: versions.RepoWebURL(a.Repo), Path: a.Path,
+		TargetRevision: a.TargetRevision, Revision: a.Revision,
+	}
+	v.CommitURL = versions.CommitWebURL(v.RepoURL, a.Revision)
+	if v.CommitURL != "" && len(v.Revision) > 7 {
+		v.Revision = v.Revision[:7]
+	}
+	if v.RepoURL != "" { // shown as host/owner/repo
+		v.Repo = strings.TrimPrefix(v.RepoURL, "https://")
+	}
+	return v
+}
+
+// syncBadge is the badge class of an application's sync or health state.
+func syncBadge(state string) string {
+	switch state {
+	case "Synced", "Healthy":
+		return "ok"
+	case "OutOfSync", "Progressing", "Suspended":
+		return "warn"
+	case "Degraded", "Missing":
+		return "bad"
+	}
+	return "neutral"
 }

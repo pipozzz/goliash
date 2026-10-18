@@ -70,6 +70,7 @@ type Server struct {
 	pushSubject string
 	version     string
 	updateCheck bool
+	argoCDURL   string
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
@@ -98,6 +99,8 @@ type Options struct {
 	Version   string // the server's release
 	// UpdateCheck lets the status page ask Goliash's registry for a newer release of Goliash.
 	UpdateCheck bool
+	// ArgoCDURL is the Argo CD UI (GOLIASH_ARGOCD_URL), for links to applications; empty, no links.
+	ArgoCDURL string
 	// PushSubject is who web pushes come from; empty when the server has no https
 	// address or mail sender to give, and Apple's push service refuses them.
 	PushSubject string
@@ -127,7 +130,7 @@ func New(o Options) *Server {
 	publicBase = strings.TrimSuffix(o.PublicURL, "/")
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck,
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL,
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
 		oauthHTTP: publicOnlyClient(),
 		slack:     o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
@@ -482,6 +485,9 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 	if issues, err := versions.RolloutIssues(ctx, s.store, sc, o, time.Now()); err == nil {
 		markRollouts(&g, issues)
 	}
+	if apps, err := versions.GitOpsApps(ctx, s.store, sc, o); err == nil {
+		markGitOps(&g, apps, time.Now())
+	}
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
 			return g, err
@@ -717,6 +723,15 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		for _, is := range issues {
 			if is.ServiceID == svc.ID {
 				v.Rollouts = append(v.Rollouts, is)
+			}
+		}
+	} else {
+		return err
+	}
+	if apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o); err == nil {
+		for _, a := range apps {
+			if a.ServiceID == svc.ID {
+				v.GitOps = append(v.GitOps, gitOpsView(a, s.argoCDURL, time.Now()))
 			}
 		}
 	} else {

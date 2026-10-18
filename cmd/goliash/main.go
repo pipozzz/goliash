@@ -611,6 +611,7 @@ func serve(ctx context.Context, args []string) error {
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
 		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs, Slack: slackFromEnv(log),
+		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"),
 	})
 	uiServer.Register(mux)
 	// An API token, or an OAuth access token an app got when someone allowed it (the 401 tells apps where).

@@ -99,6 +99,9 @@ templ ServicePage(v ServiceView) {
 		if v.LatestAny != "" && v.LatestAny != v.Latest {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
 		}
+		if len(v.GitOps) > 0 {
+			@gitOpsPanel(v.GitOps)
+		}
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Versions over time</h2><span class="muted">last 30 days; hover for dates</span></div>
@@ -701,4 +704,61 @@ templ sizeChange(c *SizeChange) {
 			<p class="hint">Layers both versions share (the base, unchanged steps) are left out.</p>
 		}
 	</div>
+}
+
+// gitOpsPanel shows the Argo CD applications that deploy the service: where from, which commit, in sync or not.
+templ gitOpsPanel(apps []GitOpsView) {
+	<section class="panel" id="gitops">
+		<div class="panel-head"><h2>Argo CD</h2><span class="muted">what Git declares, and whether it runs</span></div>
+		<div class="scroll" tabindex="0">
+			<table class="cards">
+				<thead><tr><th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th></tr></thead>
+				<tbody>
+					for _, a := range apps {
+						<tr>
+							<td data-label="Application">
+								if a.AppURL != "" {
+									<a href={ templ.SafeURL(a.AppURL) } rel="noopener" target="_blank"><strong>{ a.App }</strong></a>
+								} else {
+									<strong>{ a.App }</strong>
+								}
+								<div class="targets">{ a.Workload }</div>
+							</td>
+							<td data-label="Where">{ a.Environment }<div class="targets">{ a.Target }</div></td>
+							<td data-label="From">
+								if a.RepoURL != "" {
+									<a href={ templ.SafeURL(a.RepoURL) } rel="noopener" target="_blank" class="mono">{ a.Repo }</a>
+								} else {
+									<span class="mono">{ orDash(a.Repo) }</span>
+								}
+								<div class="targets">{ a.Path }
+									if a.TargetRevision != "" {
+										{ " @ " + a.TargetRevision }
+									}
+								</div>
+							</td>
+							<td data-label="Synced" class="mono">
+								if a.CommitURL != "" {
+									<a href={ templ.SafeURL(a.CommitURL) } rel="noopener" target="_blank">{ a.Revision }</a>
+								} else {
+									{ orDash(a.Revision) }
+								}
+							</td>
+							<td data-label="State">
+								<span class="badges">
+									if a.Sync != "" {
+										<span class={ "badge", syncBadge(a.Sync) }>{ a.Sync }</span>
+									}
+									if a.Health != "" {
+										<span class={ "badge", syncBadge(a.Health) }>{ a.Health }</span>
+									}
+								</span>
+								<div class="targets">since @timeAgo(a.Since)</div>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
 }

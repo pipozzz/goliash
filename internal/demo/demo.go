@@ -211,6 +211,9 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 					w.Containers[0].Running = 1
 					w.Containers = append(w.Containers, next)
 				}
+				if t.platform == "kubernetes" {
+					w.Gitops = demoGitOps(t, w, day)
+				}
 				snap.Workloads = append(snap.Workloads, w)
 			}
 			if t.name == "demo-prod-eu" {
@@ -634,6 +637,32 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		}
 	}
 	return w
+}
+
+// demoGitOps is the Argo CD application that deploys a Kubernetes workload, one per application and environment
+// from one deploy repository. Two stories: since day 19 the webshop's staging application waits for a manual sync
+// (out of sync, the old version still running), and the last day prod's edge application, with traefik's rollout
+// stuck, is degraded.
+func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps {
+	app := w.Labels["app.kubernetes.io/part-of"]
+	if app == "" {
+		return nil
+	}
+	name := app + "-" + t.env
+	ns, project, repo, path, branch := "argocd", app, "https://github.com/acme/deploy.git", "apps/"+app+"/"+t.env, "main"
+	sum := sha256.Sum256([]byte(name + w.Containers[0].Image))
+	rev := hex.EncodeToString(sum[:20])
+	sync, health := "Synced", "Healthy"
+	switch {
+	case name == "webshop-staging" && day >= 19:
+		sync = "OutOfSync"
+	case name == "edge-prod" && day == 21:
+		sync, health = "OutOfSync", "Degraded"
+	}
+	return &agentproto.GitOps{
+		Tool: agentproto.Argocd, App: name, AppNamespace: &ns, Project: &project, Repo: &repo,
+		Path: &path, TargetRevision: &branch, Revision: &rev, Sync: &sync, Health: &health,
+	}
 }
 
 // demoDigest is a stable made-up digest for an image reference: the same tag is the same image everywhere.

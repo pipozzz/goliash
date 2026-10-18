@@ -119,6 +119,9 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	if err := s.store.ApplySnapshot(ctx, changes); err != nil {
 		return err
 	}
+	if err := s.store.SetWorkloadGitOps(ctx, sc, target.ID, gitOps(payload.Workloads), payload.Complete, payload.CollectedAt); err != nil {
+		return err
+	}
 	// What was mapped automatically stays so through a rule per image, as the inbox would make it.
 	repos := make([]string, 0, len(autoMapped))
 	for repo := range autoMapped {
@@ -169,3 +172,26 @@ func (s *Service) RunProcessor(ctx context.Context, interval time.Duration) {
 // OnEvents registers a callback for events produced by snapshot processing
 // (notifications). It must be set before RunProcessor starts.
 func (s *Service) OnEvents(fn func(store.Scope, []store.Event)) { s.onEvents = fn }
+
+// gitOps are the GitOps applications a snapshot reports for its workloads.
+func gitOps(ws []agentproto.Workload) []store.WorkloadGitOps {
+	var out []store.WorkloadGitOps
+	for _, w := range ws {
+		g := w.Gitops
+		if g == nil || g.App == "" {
+			continue
+		}
+		str := func(p *string) string {
+			if p == nil {
+				return ""
+			}
+			return *p
+		}
+		out = append(out, store.WorkloadGitOps{
+			WorkloadID: w.ID, Tool: string(g.Tool), App: g.App, AppNamespace: str(g.AppNamespace), Project: str(g.Project),
+			Repo: str(g.Repo), Path: str(g.Path), TargetRevision: str(g.TargetRevision), Revision: str(g.Revision),
+			Sync: str(g.Sync), Health: str(g.Health),
+		})
+	}
+	return out
+}

@@ -23,6 +23,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_SLACK_SIGNING_SECRET` | | | With `GOLIASH_SLACK_GOLI_TOKEN`, turns on Goli's `/goli` command for a Slack app; see [Goli in Slack](/guide/goli/#goli-in-slack). `GOLIASH_SLACK_IN_CHANNEL=true` answers in the channel |
 | `GOLIASH_DOCS_ASSISTANT` | | | URL of a product's documentation as one text: Goli answers questions about it for a website at `POST /goli/docs`; see [Goli on your website](/guide/goli/#goli-on-your-website) |
 | `GOLIASH_UPDATE_CHECK` | | on | `off` stops the Status page and the `goliash_release` notification from asking `ghcr.io/pipozzz/goliash` for a newer release of Goliash (only its tag list is read). Agents older than the server are flagged on the Status page either way |
+| `GOLIASH_ARGOCD_URL` | | | The Argo CD UI, e.g. `https://argocd.example.com`: application names on service pages link to it. See [Argo CD](/guide/argocd/) |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
