@@ -33,6 +33,10 @@ Goliash then, in the repository the application deploys from (GitHub):
    follows;
 3. opens a pull request saying what, where and why, with the release notes when known.
 
+The **Delivery** page does the same for promotions: next to a version that runs in staging and waits for prod, **Open
+PR → prod** pins that version in the repository of prod's application (one button per cluster when several run it),
+saying since when it has run in staging.
+
 Review and merge it as any change; Argo CD deploys it. Goliash never merges, never pushes to the branch an
 application follows, and offers only the release the policy accepts. An image pinned by digest is left for you
 (the new digest has to come with it).

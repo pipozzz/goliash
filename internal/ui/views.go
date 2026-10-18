@@ -551,6 +551,12 @@ type PromotionView struct {
 	Since                                    time.Time
 	Releases                                 []ReleaseView
 	Vulns                                    versions.VulnDelta
+	PRs                                      []PromotePR // Argo CD applications it can be opened in as a pull request
+}
+
+// PromotePR is one Argo CD application a promotion can be opened in as a pull request.
+type PromotePR struct {
+	TargetID, WorkloadID, Target, App string
 }
 
 // PromotionsView is the delivery page: pending promotions and delivery statistics.

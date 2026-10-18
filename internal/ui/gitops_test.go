@@ -123,3 +123,58 @@ func TestOpenGitOpsPR(t *testing.T) {
 		t.Fatalf("bump %+v", b)
 	}
 }
+
+// A version waiting in staging is promoted to prod as a pull request in the repository prod's Argo CD
+// application deploys from.
+func TestPromoteAsPR(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	svc := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, svc)
+	staging, _ := e.st.CreateEnvironment(ctx, sc, "staging", 20)
+	stg, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: staging.ID, Platform: "kubernetes", Name: "k8s-staging"})
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: sc, SnapshotID: store.NewID(), TargetID: stg.ID, At: time.Now().Add(-48 * time.Hour),
+		Upsert: []store.Instance{{
+			TargetID: stg.ID, EnvironmentID: staging.ID, ServiceID: rec.ID, WorkloadID: "s1", WorkloadKind: "deployment",
+			WorkloadName: "evil", ContainerName: "app", Image: "nginx:1.28.0", Tag: "1.28.0", Running: 1, IsMain: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.ui.checker.EvaluateDrift(ctx, sc); err != nil { // promotions come from "behind previous env" drift
+		t.Fatal(err)
+	}
+	member := e.as(store.RoleMember)
+	if _, page := get(t, member, e.srv.URL+"/delivery", nil); !strings.Contains(page, "Open PR → prod") {
+		t.Fatal("no promote button on the Delivery page")
+	}
+	_, body, _ := post(t, member, e.srv.URL+"/delivery/promote", url.Values{
+		"service": {svc}, "env": {"prod"}, "version": {"1.28.0"},
+		"target_id": {e.tgt.ID}, "workload_id": {"w1"},
+	})
+	if !strings.Contains(body, "Pull request opened") || len(pulls.got) != 1 {
+		t.Fatalf("not opened (%d)", len(pulls.got))
+	}
+	if b := pulls.got[0]; b.To != "1.28.0" || b.Path != "apps/evil/prod" || !strings.Contains(b.Body, "it has run in staging since") {
+		t.Fatalf("bump %+v", b)
+	}
+	// A promotion that does not wait is refused.
+	_, body, _ = post(t, member, e.srv.URL+"/delivery/promote", url.Values{
+		"service": {svc}, "env": {"prod"}, "version": {"1000.0.0"},
+		"target_id": {e.tgt.ID}, "workload_id": {"w1"},
+	})
+	if !strings.Contains(body, "no longer waiting") || len(pulls.got) != 1 {
+		t.Fatal("a promotion not waiting was opened")
+	}
+}

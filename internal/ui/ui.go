@@ -168,6 +168,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
 	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
+	mux.Handle("POST /delivery/promote", s.page(m, s.promotePR))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
 	mux.Handle("GET /services/new", s.page(m, s.newService))
 	mux.Handle("POST /services/new", s.page(m, s.createService))
@@ -1204,7 +1205,7 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err := versions.AddVulnDeltas(ctx, s.store, p.Scope, list); err != nil {
 		return err
 	}
-	v := PromotionsView{Base: s.base(ctx, p, "promotions", "Delivery")}
+	v := PromotionsView{Base: withFlash(s.base(ctx, p, "promotions", "Delivery"), r)}
 	if v.Rollouts, err = versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err != nil {
 		return err
 	}
@@ -1232,8 +1233,15 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		v.Delivery = append(v.Delivery, row)
 	}
+	apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o)
+	if err != nil {
+		return err
+	}
 	for _, pr := range list {
 		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}
+		for _, a := range promotionApps(apps, pr, s.canPR) {
+			pv.PRs = append(pv.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App})
+		}
 		for _, rel := range pr.Releases {
 			pv.Releases = append(pv.Releases, ReleaseView{Version: rel.Version, Published: rel.PublishedAt, URL: rel.ChangelogURL})
 		}
