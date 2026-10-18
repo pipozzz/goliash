@@ -57,6 +57,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
 	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/demo"
+	"github.com/pipozzz/goliash/internal/gitops"
 	"github.com/pipozzz/goliash/internal/goli"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/mapping"
@@ -611,7 +612,7 @@ func serve(ctx context.Context, args []string) error {
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
 		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs, Slack: slackFromEnv(log),
-		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"),
+		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"), PullRequests: gitOpsPulls(),
 	})
 	uiServer.Register(mux)
 	// An API token, or an OAuth access token an app got when someone allowed it (the 401 tells apps where).
@@ -2815,4 +2816,15 @@ func slackFromEnv(log *slog.Logger) *ui.SlackConfig {
 		return nil
 	}
 	return &ui.SlackConfig{SigningSecret: secret, Token: token, InChannel: os.Getenv("GOLIASH_SLACK_IN_CHANNEL") == "true"}
+}
+
+// gitOpsPulls opens upgrades as pull requests in GitOps repositories when GOLIASH_GITOPS_TOKEN is set: a GitHub
+// token that may write contents and pull requests of the deploy repositories (GOLIASH_GITOPS_GITHUB_API for
+// GitHub Enterprise).
+func gitOpsPulls() ui.PullRequester {
+	token := os.Getenv("GOLIASH_GITOPS_TOKEN")
+	if token == "" {
+		return nil
+	}
+	return gitops.NewGitHub(token, os.Getenv("GOLIASH_GITOPS_GITHUB_API"))
 }

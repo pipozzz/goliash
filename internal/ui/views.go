@@ -1487,6 +1487,9 @@ type GitOpsView struct {
 	Repo, RepoURL                 string
 	Path, TargetRevision          string
 	Revision, CommitURL           string // Revision shortened for a commit
+	TargetID, WorkloadID          string
+	Tag                           string // the version running
+	To                            string // the version a pull request would pin; empty, no button
 }
 
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {
@@ -1494,7 +1497,7 @@ func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView 
 		Environment: a.Environment, Target: a.Target, Workload: a.Workload, App: a.App,
 		AppURL: versions.ArgoAppURL(argoURL, a.AppNamespace, a.App), Sync: a.Sync, Health: a.Health, Since: a.SyncSince,
 		Trouble: a.Trouble(now), Repo: a.Repo, RepoURL: versions.RepoWebURL(a.Repo), Path: a.Path,
-		TargetRevision: a.TargetRevision, Revision: a.Revision,
+		TargetRevision: a.TargetRevision, Revision: a.Revision, TargetID: a.TargetID, WorkloadID: a.WorkloadID, Tag: a.Tag,
 	}
 	v.CommitURL = versions.CommitWebURL(v.RepoURL, a.Revision)
 	if v.CommitURL != "" && len(v.Revision) > 7 {

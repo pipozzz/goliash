@@ -22,6 +22,8 @@ type GitOpsApp struct {
 	Environment string
 	Target      string
 	Workload    string
+	Image       string // the workload's main image, as it runs
+	Tag         string // and its tag
 }
 
 // gitOpsGrace is how long an application may be out of sync or unhealthy before it counts: Argo CD is out of
@@ -69,7 +71,7 @@ func GitOpsApps(ctx context.Context, st *store.Store, sc store.Scope, o Overview
 	for _, in := range active {
 		k := key{in.TargetID, in.WorkloadID}
 		g, ok := byWorkload[k]
-		if !ok || seen[k] || in.ServiceID == "" {
+		if !ok || seen[k] || in.ServiceID == "" || !in.IsMain { // the main container carries the version
 			continue
 		}
 		seen[k] = true
@@ -80,6 +82,7 @@ func GitOpsApps(ctx context.Context, st *store.Store, sc store.Scope, o Overview
 		out = append(out, GitOpsApp{
 			WorkloadGitOps: g, ServiceID: in.ServiceID, Service: o.Services[in.ServiceID].Name,
 			Environment: o.Envs[in.EnvironmentID].Name, Target: targetName[in.TargetID], Workload: workload,
+			Image: in.Image, Tag: in.Tag,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

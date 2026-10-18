@@ -16,6 +16,28 @@ on which version, against the newest release upstream.
   application has been so for more than 10 minutes: Argo CD is out of sync for a moment on every change, and
   progressing while it rolls out, which is not news. On the tiles such a cell needs attention.
 
+## Upgrade with a pull request
+
+With `GOLIASH_GITOPS_TOKEN` set on the server, the panel offers **Open PR → 1.7.0** next to an application that runs
+an older version than the newest release the service's [version policy](/guide/versions/#version-policy) accepts.
+Goliash then, in the repository the application deploys from (GitHub):
+
+1. finds the YAML files under the application's path that pin the image at the running version: an image reference
+   (`image: ghcr.io/acme/checkout:1.4.2`), Kustomize's `images` (`name` with `newTag`) or Helm values (`repository`
+   with `tag`); other images, and the same tag of other images, stay as they are;
+2. changes the tag on a new branch `goliash/<service>-<version>-<environment>`, from the branch the application
+   follows;
+3. opens a pull request saying what, where and why, with the release notes when known.
+
+Review and merge it as any change; Argo CD deploys it. Goliash never merges, never pushes to the branch an
+application follows, and offers only the release the policy accepts. An image pinned by digest is left for you
+(the new digest has to come with it).
+
+The token is a [fine-grained GitHub token](https://github.com/settings/personal-access-tokens) limited to the deploy
+repositories, with *Contents* and *Pull requests* read and write. For GitHub Enterprise set `GOLIASH_GITOPS_GITHUB_API`
+to its API address (`https://github.example.com/api/v3`). Only members and admins see the button; each pull request is
+in the audit log.
+
 ## Set up
 
 Nothing to configure in Argo CD. The agent (or the server collecting its own cluster) reads Argo CD's

@@ -71,6 +71,7 @@ type Server struct {
 	version     string
 	updateCheck bool
 	argoCDURL   string
+	pulls       PullRequester
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
@@ -101,6 +102,8 @@ type Options struct {
 	UpdateCheck bool
 	// ArgoCDURL is the Argo CD UI (GOLIASH_ARGOCD_URL), for links to applications; empty, no links.
 	ArgoCDURL string
+	// PullRequests opens upgrades as pull requests in GitOps repositories (GOLIASH_GITOPS_TOKEN); nil, no button.
+	PullRequests PullRequester
 	// PushSubject is who web pushes come from; empty when the server has no https
 	// address or mail sender to give, and Apple's push service refuses them.
 	PushSubject string
@@ -130,7 +133,7 @@ func New(o Options) *Server {
 	publicBase = strings.TrimSuffix(o.PublicURL, "/")
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL,
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests,
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
 		oauthHTTP: publicOnlyClient(),
 		slack:     o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
@@ -164,6 +167,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
+	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
 	mux.Handle("GET /services/new", s.page(m, s.newService))
 	mux.Handle("POST /services/new", s.page(m, s.createService))
@@ -731,7 +735,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o); err == nil {
 		for _, a := range apps {
 			if a.ServiceID == svc.ID {
-				v.GitOps = append(v.GitOps, gitOpsView(a, s.argoCDURL, time.Now()))
+				g := gitOpsView(a, s.argoCDURL, time.Now())
+				g.To = s.pullRequestTo(a, v.Latest)
+				v.GitOps = append(v.GitOps, g)
 			}
 		}
 	} else {

@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/pipozzz/goliash/internal/versions"
@@ -100,7 +101,7 @@ templ ServicePage(v ServiceView) {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
 		}
 		if len(v.GitOps) > 0 {
-			@gitOpsPanel(v.GitOps)
+			@gitOpsPanel(v.GitOps, v.Name, v.CanMember)
 		}
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">
@@ -707,7 +708,7 @@ templ sizeChange(c *SizeChange) {
 }
 
 // gitOpsPanel shows the Argo CD applications that deploy the service: where from, which commit, in sync or not.
-templ gitOpsPanel(apps []GitOpsView) {
+templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 	<section class="panel" id="gitops">
 		<div class="panel-head"><h2>Argo CD</h2><span class="muted">what Git declares, and whether it runs</span></div>
 		<div class="scroll" tabindex="0">
@@ -754,6 +755,14 @@ templ gitOpsPanel(apps []GitOpsView) {
 									}
 								</span>
 								<div class="targets">since @timeAgo(a.Since)</div>
+								if canEdit && a.To != "" {
+									<form method="post" action={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/pr") } class="gitops-pr">
+										<input type="hidden" name="target_id" value={ a.TargetID }/>
+										<input type="hidden" name="workload_id" value={ a.WorkloadID }/>
+										<input type="hidden" name="to" value={ a.To }/>
+										<button type="submit" class="secondary" title={ "Open a pull request that pins " + a.To + " in " + a.Path }>Open PR → { a.To }</button>
+									</form>
+								}
 							</td>
 						</tr>
 					}

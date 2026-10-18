@@ -1,0 +1,106 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package gitops
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+)
+
+// fakeGitHub serves a deploy repository with two files under apps/checkout/prod and records what is written.
+func fakeGitHub(t *testing.T, kustomization string) (*httptest.Server, *sync.Map) {
+	files := map[string]string{
+		"apps/checkout/prod/kustomization.yaml": kustomization,
+		"apps/checkout/prod/service.yaml":       "kind: Service\n",
+		"apps/web/prod/kustomization.yaml":      "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.4.2\n",
+	}
+	written := &sync.Map{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		p := r.URL.Path
+		switch {
+		case r.Method == http.MethodGet && p == "/repos/acme/deploy/git/ref/heads/main":
+			_, _ = w.Write([]byte(`{"object":{"sha":"base-sha"}}`))
+		case r.Method == http.MethodGet && p == "/repos/acme/deploy/git/trees/base-sha":
+			var tree []map[string]any
+			for name, c := range files {
+				tree = append(tree, map[string]any{"path": name, "type": "blob", "size": len(c)})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"tree": tree})
+		case r.Method == http.MethodGet && strings.HasPrefix(p, "/repos/acme/deploy/contents/"):
+			name := strings.TrimPrefix(p, "/repos/acme/deploy/contents/")
+			_ = json.NewEncoder(w).Encode(map[string]string{"sha": "sha-" + name, "content": base64.StdEncoding.EncodeToString([]byte(files[name]))})
+		case r.Method == http.MethodPost && p == "/repos/acme/deploy/git/refs":
+			var b map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&b)
+			written.Store("ref", b["ref"]+"@"+b["sha"])
+			w.WriteHeader(http.StatusCreated)
+		case r.Method == http.MethodPut && strings.HasPrefix(p, "/repos/acme/deploy/contents/"):
+			var b map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&b)
+			c, _ := base64.StdEncoding.DecodeString(b["content"])
+			written.Store(strings.TrimPrefix(p, "/repos/acme/deploy/contents/"), string(c)+"|"+b["sha"]+"|"+b["branch"])
+		case r.Method == http.MethodPost && p == "/repos/acme/deploy/pulls":
+			var b map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&b)
+			written.Store("pull", b["title"].(string)+"|"+b["head"].(string)+"|"+b["base"].(string))
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"html_url":"https://github.com/acme/deploy/pull/7"}`))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, p)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, written
+}
+
+func TestOpenBump(t *testing.T) {
+	srv, written := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.4.2\n")
+	g := NewGitHub("tok", srv.URL)
+	url, err := g.OpenBump(context.Background(), Bump{
+		Repo: "https://github.com/acme/deploy", Branch: "main", Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout",
+		From: "1.4.2", To: "1.5.0", Head: "goliash/checkout-1.5.0-prod", Title: "checkout 1.5.0 in prod", CommitMsg: "checkout: 1.5.0",
+	})
+	if err != nil || url != "https://github.com/acme/deploy/pull/7" {
+		t.Fatalf("OpenBump = %q, %v", url, err)
+	}
+	get := func(k string) string { v, _ := written.Load(k); s, _ := v.(string); return s }
+	if get("ref") != "refs/heads/goliash/checkout-1.5.0-prod@base-sha" {
+		t.Errorf("branch %q", get("ref"))
+	}
+	if get("apps/checkout/prod/kustomization.yaml") != "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.5.0\n|sha-apps/checkout/prod/kustomization.yaml|goliash/checkout-1.5.0-prod" {
+		t.Errorf("commit %q", get("apps/checkout/prod/kustomization.yaml"))
+	}
+	if get("apps/web/prod/kustomization.yaml") != "" || get("apps/checkout/prod/service.yaml") != "" {
+		t.Error("a file outside the path, or without the tag, was written")
+	}
+	if get("pull") != "checkout 1.5.0 in prod|goliash/checkout-1.5.0-prod|main" {
+		t.Errorf("pull %q", get("pull"))
+	}
+}
+
+func TestOpenBumpFindsNothing(t *testing.T) {
+	srv, _ := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    digest: sha256:"+strings.Repeat("a", 64)+"\n")
+	_, err := NewGitHub("tok", srv.URL).OpenBump(context.Background(), Bump{
+		Repo: "https://github.com/acme/deploy", Branch: "main",
+		Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout", From: "1.4.2", To: "1.5.0", Head: "h",
+	})
+	if !errors.Is(err, ErrNoTag) {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := NewGitHub("tok", srv.URL).OpenBump(context.Background(), Bump{Repo: "https://gitlab.com/acme/deploy"}); err == nil {
+		t.Fatal("a GitLab repository accepted")
+	}
+}
