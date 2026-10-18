@@ -188,3 +188,22 @@ func TestPromoteAsPR(t *testing.T) {
 		t.Fatal("a promotion not waiting was opened")
 	}
 }
+
+func TestVulnsMarkdown(t *testing.T) {
+	if vulnsMarkdown(versions.VulnDelta{}) != "" || vulnsMarkdown(versions.VulnDelta{Known: true}) != "" {
+		t.Fatal("nothing known, yet a section")
+	}
+	md := vulnsMarkdown(versions.VulnDelta{
+		Known: true,
+		Fixed: []versions.VulnRef{{ID: "CVE-2021-44228", Severity: "CRITICAL", Exploited: true}, {ID: "CVE-2024-1", Severity: "HIGH"}},
+		New:   []versions.VulnRef{{ID: "GHSA-xxxx", Severity: "MODERATE"}},
+	})
+	for _, want := range []string{
+		"Fixes 2, 1 of them exploited in the wild: `CVE-2021-44228` (**exploited in the wild**), `CVE-2024-1` (high)",
+		"Brings 1 new: `GHSA-xxxx` (moderate)",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("missing %q in\n%s", want, md)
+		}
+	}
+}

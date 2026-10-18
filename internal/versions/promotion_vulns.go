@@ -111,6 +111,20 @@ func AddVulnDeltas(ctx context.Context, st *store.Store, sc store.Scope, list []
 	return nil
 }
 
+// UpgradeVulns is what moving a service in one environment from a version to another does to known
+// vulnerabilities: the newer version as it runs anywhere, the running one in that environment.
+func UpgradeVulns(ctx context.Context, st *store.Store, sc store.Scope, serviceID, envID, from, to string) (VulnDelta, error) {
+	rep, err := LoadVulnReport(ctx, st, sc, "")
+	if err != nil {
+		return VulnDelta{}, err
+	}
+	idx, err := loadVulnIndex(ctx, st, sc, rep)
+	if err != nil {
+		return VulnDelta{}, err
+	}
+	return idx.delta(vulnSide{serviceID, "", to}, vulnSide{serviceID, envID, from}), nil
+}
+
 // sortVulnRefs puts exploited vulnerabilities first, then the most severe, then by ID.
 func sortVulnRefs(list []VulnRef) {
 	sort.Slice(list, func(i, j int) bool {

@@ -74,7 +74,8 @@ func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Pri
 		return back(w, r, path, "error", "That upgrade is no longer offered; the page is reloaded with what runs now.")
 	}
 	why := "the newest release its version policy accepts"
-	pr, msg := s.bump(ctx, p, svc.Name, path, *app, to, why, o.ReleaseURL[svc.ID+"|"+to])
+	vulns, _ := versions.UpgradeVulns(ctx, s.store, p.Scope, svc.ID, envID(o, app.Environment), app.Tag, to)
+	pr, msg := s.bump(ctx, p, svc.Name, path, *app, to, why, o.ReleaseURL[svc.ID+"|"+to], vulns)
 	if msg != "" {
 		return back(w, r, path, "error", msg)
 	}
@@ -99,7 +100,7 @@ func (s *Server) canPR(a versions.GitOpsApp) bool {
 
 // bump opens the pull request that pins to in the application's repository; why says why this version, notes is
 // a release notes address. It returns the pull request's address, or a message for the person who asked.
-func (s *Server) bump(ctx context.Context, p auth.Principal, service, page string, app versions.GitOpsApp, to, why, notes string) (string, string) {
+func (s *Server) bump(ctx context.Context, p auth.Principal, service, page string, app versions.GitOpsApp, to, why, notes string, vulns versions.VulnDelta) (string, string) {
 	image := versions.ParseImage(app.Image).Repo()
 	where := app.Path
 	if app.TargetRevision != "" {
@@ -111,6 +112,7 @@ func (s *Server) bump(ctx context.Context, p auth.Principal, service, page strin
 	if notes != "" {
 		body += "- Release notes: " + notes + "\n"
 	}
+	body += vulnsMarkdown(vulns)
 	pr, err := s.pulls.OpenBump(ctx, gitops.Bump{
 		Repo: versions.RepoWebURL(app.Repo), Branch: app.TargetRevision, Path: app.Path, Image: image,
 		From: app.Tag, To: to, Head: "goliash/" + branchSafe(service+"-"+to+"-"+app.Environment),
@@ -158,7 +160,8 @@ func (s *Server) promotePR(w http.ResponseWriter, r *http.Request, p auth.Princi
 				continue
 			}
 			why := fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006"))
-			url, msg := s.bump(ctx, p, pr.Service.Name, page, a, pr.Version, why, o.ReleaseURL[pr.Service.ID+"|"+pr.Version])
+			vulns, _ := versions.UpgradeVulns(ctx, s.store, p.Scope, pr.Service.ID, pr.To.ID, a.Tag, pr.Version)
+			url, msg := s.bump(ctx, p, pr.Service.Name, page, a, pr.Version, why, o.ReleaseURL[pr.Service.ID+"|"+pr.Version], vulns)
 			if msg != "" {
 				return back(w, r, page, "error", msg)
 			}
@@ -178,4 +181,53 @@ func promotionApps(apps []versions.GitOpsApp, pr versions.Promotion, can func(ve
 		}
 	}
 	return out
+}
+
+// vulnsMarkdown says in a pull request what the upgrade does to known vulnerabilities, from the SBOMs of both
+// images: the reviewer's best reason to merge, or to wait.
+func vulnsMarkdown(d versions.VulnDelta) string {
+	if !d.Known || len(d.Fixed)+len(d.New) == 0 {
+		return ""
+	}
+	list := func(refs []versions.VulnRef) string {
+		var parts []string
+		for i, v := range refs {
+			if i == 10 {
+				parts = append(parts, fmt.Sprintf("and %d more", len(refs)-10))
+				break
+			}
+			item := "`" + v.ID + "`"
+			if v.Exploited {
+				item += " (**exploited in the wild**)"
+			} else if v.Severity != "" {
+				item += " (" + strings.ToLower(v.Severity) + ")"
+			}
+			parts = append(parts, item)
+		}
+		return strings.Join(parts, ", ")
+	}
+	var b strings.Builder
+	b.WriteString("\n### Known vulnerabilities\n\n")
+	if len(d.Fixed) > 0 {
+		head := fmt.Sprintf("Fixes %d", len(d.Fixed))
+		if n := versions.Exploited(d.Fixed); n > 0 {
+			head += fmt.Sprintf(", %d of them exploited in the wild", n)
+		}
+		b.WriteString("- " + head + ": " + list(d.Fixed) + "\n")
+	}
+	if len(d.New) > 0 {
+		b.WriteString(fmt.Sprintf("- Brings %d new: %s\n", len(d.New), list(d.New)))
+	}
+	b.WriteString("\nFrom the SBOMs of both images and OSV, as Goliash reads them.\n")
+	return b.String()
+}
+
+// envID is the ID of the environment named name.
+func envID(o versions.Overview, name string) string {
+	for id, e := range o.Envs {
+		if e.Name == name {
+			return id
+		}
+	}
+	return ""
 }
