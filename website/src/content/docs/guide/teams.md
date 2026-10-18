@@ -40,13 +40,13 @@ get in. Single sign-on (OIDC) leaves this to the identity provider.
 - A code works once; a little clock drift is fine. Five wrong codes end the attempt for a while.
 - Lost the phone: sign in with a recovery code, then set up again or make new codes on the account page.
 - With a passkey, **Use your passkey** on the code page works instead of a code.
-- No recovery codes either: an admin chooses **Reset 2FA** on the Users page (it removes passkeys too), or the
+- No recovery codes either: an admin chooses **Reset 2FA** on **Workspace settings** (it removes passkeys too), or the
   operator runs `goliash user 2fa -email you@example.com -reset`. The `GOLIASH_RECOVERY_EMAIL` link (below) also
   skips the code.
 
 The secret is encrypted with the server's secret key, like channel secrets; recovery codes are stored as hashes.
 
-An owner can **require** two-factor sign-in for the organization (Users page): everyone who signs in with a password
+An owner can **require** two-factor sign-in for the organization (**Workspace settings**): everyone who signs in with a password
 or a link then sets up an app, or adds a passkey and signs in with it, before anything else. A passkey counts as
 both factors. Owners turn it on only from a session that meets it themselves.
 

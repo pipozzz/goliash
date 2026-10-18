@@ -174,7 +174,7 @@ func WorkspacesPage(v WorkspacesView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</tbody></table></div><div class=\"panel-body\" style=\"border-top:1px solid var(--line)\"><form class=\"inline\" method=\"post\" action=\"/workspaces\"><label>Name<input name=\"name\" required placeholder=\"Client A\"></label> <label>Slug<input name=\"slug\" required placeholder=\"client-a\" pattern=\"[a-z0-9][a-z0-9-]*\"></label> <label class=\"check\"><input type=\"checkbox\" name=\"envs\" value=\"1\" checked> with dev, staging and prod</label> <button type=\"submit\">Create workspace</button></form><p class=\"hint\">Organization owners and admins see every workspace. Invite everyone else into the workspaces they need from its Users page.</p></div></section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</tbody></table></div><div class=\"panel-body\" style=\"border-top:1px solid var(--line)\"><form class=\"inline\" method=\"post\" action=\"/workspaces\"><label>Name<input name=\"name\" required placeholder=\"Client A\"></label> <label>Slug<input name=\"slug\" required placeholder=\"client-a\" pattern=\"[a-z0-9][a-z0-9-]*\"></label> <label class=\"check\"><input type=\"checkbox\" name=\"envs\" value=\"1\" checked> with dev, staging and prod</label> <button type=\"submit\">Create workspace</button></form><p class=\"hint\">Organization owners and admins see every workspace. Invite everyone else into the workspaces they need from its Workspace settings.</p></div></section>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

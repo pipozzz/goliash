@@ -235,3 +235,25 @@ func TestPeriodicRuns(t *testing.T) {
 		t.Fatalf("workloads %v (complete %v, errors %v)", got, res.Complete, res.Errors)
 	}
 }
+
+func TestLabelsFromGroupsAndTasks(t *testing.T) {
+	var j job
+	if err := json.Unmarshal([]byte(`{"Meta":{"goliash.app":"shop","team":"old"},"TaskGroups":[
+		{"Name":"web","Meta":{"team":"team-shop","tier":"front"},"Tasks":[{"Name":"app","Meta":{"goliash.service":"checkout"}}]},
+		{"Name":"worker","Meta":{"team":"team-shop","tier":"back"},"Tasks":[{"Name":"run"}]}]}`), &j); err != nil {
+		t.Fatal(err)
+	}
+	got := j.labels()
+	want := map[string]string{"goliash.app": "shop", "team": "team-shop", "goliash.service": "checkout"}
+	if len(got) != len(want) {
+		t.Fatalf("labels %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q (labels %v)", k, got[k], v, got)
+		}
+	}
+	if (job{}).labels() != nil {
+		t.Error("a job without meta has labels")
+	}
+}

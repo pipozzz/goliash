@@ -199,7 +199,7 @@ func (s *Server) signOutOthers(w http.ResponseWriter, r *http.Request, p auth.Pr
 	return back(w, r, "/account", "notice", "Signed out "+itoa(n)+" other device(s).")
 }
 
-// signOutUser signs a person out everywhere (admins, from the Users page).
+// signOutUser signs a person out everywhere (admins, from Workspace settings).
 func (s *Server) signOutUser(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
 	if !ok {

@@ -72,12 +72,54 @@ type job struct {
 	TaskGroups []struct {
 		Name  string
 		Count int
+		Meta  map[string]string
 		Tasks []struct {
 			Name   string
 			Driver string
 			Config map[string]any
+			Meta   map[string]string
 		}
 	}
+}
+
+// labels are a job's meta as its tasks see it: the job's, then a group's, then a
+// task's, the more specific winning, as Nomad merges them. The workload is the whole
+// job, so a group or task key counts only when every group or task setting it agrees.
+func (j job) labels() map[string]string {
+	out := map[string]string{}
+	for k, v := range j.Meta {
+		out[k] = v
+	}
+	overlay := func(metas []map[string]string) {
+		agreed := map[string]string{}
+		mixed := map[string]bool{}
+		for _, m := range metas {
+			for k, v := range m {
+				if old, ok := agreed[k]; ok && old != v {
+					mixed[k] = true
+				}
+				agreed[k] = v
+			}
+		}
+		for k, v := range agreed {
+			if !mixed[k] {
+				out[k] = v
+			}
+		}
+	}
+	var groups, tasks []map[string]string
+	for _, g := range j.TaskGroups {
+		groups = append(groups, g.Meta)
+		for _, t := range g.Tasks {
+			tasks = append(tasks, t.Meta)
+		}
+	}
+	overlay(groups)
+	overlay(tasks)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 type allocStub struct {
@@ -225,7 +267,7 @@ func (c *Collector) workload(ctx context.Context, s jobStub) (*agentproto.Worklo
 
 	ns := s.Namespace
 	w := &agentproto.Workload{
-		ID: s.Namespace + "/" + s.ID, Kind: agentproto.NomadJob, Namespace: &ns, Name: s.ID, Labels: current.Meta,
+		ID: s.Namespace + "/" + s.ID, Kind: agentproto.NomadJob, Namespace: &ns, Name: s.ID, Labels: current.labels(),
 	}
 	desired := 0
 	for _, g := range current.TaskGroups {

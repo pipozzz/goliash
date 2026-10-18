@@ -838,7 +838,7 @@ type UserView struct {
 	TOTP        bool
 }
 
-// TokenView is one API token on the Users page.
+// TokenView is one API token on Workspace settings.
 type TokenView struct {
 	ID        string
 	Name      string

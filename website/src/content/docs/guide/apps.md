@@ -12,7 +12,7 @@ Goliash groups services two ways: by **application** (what a service is part of:
 
 Each workload's application is read from its labels, first match wins:
 
-1. the label set for the workspace on the Users page (*Application label*, e.g. `example.com/app`);
+1. the label set for the workspace on **Settings → Workspace settings** (*Application label*, e.g. `example.com/app`);
 2. `goliash.app`, `app.kubernetes.io/part-of`, `app.kubernetes.io/instance` or `release` (Helm),
    `com.docker.compose.project`, `com.docker.stack.namespace`;
 3. the Nomad job;
@@ -160,7 +160,7 @@ services:
       goliash.team: team-shop
 ```
 
-Nomad (job `meta`):
+Nomad (`meta` of the job, or of its groups or tasks; the more specific wins, as in Nomad):
 
 ```hcl
 job "checkout" {
@@ -172,7 +172,7 @@ job "checkout" {
 ```
 
 ECS: the same keys as **tags on the ECS service** (`goliash.app`, `goliash.team`). A different label key for
-applications (say `example.com/product`) can be set per workspace on the Users page.
+applications (say `example.com/product`) can be set per workspace on **Settings → Workspace settings**.
 
 ## Recommended setup
 
