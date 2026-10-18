@@ -64,6 +64,11 @@ func kindOf(it Item) kind {
 		return kind{"✅", "#30a46c", "Agent back"}
 	case EventGoliashRelease:
 		return kind{"🆕", "#1b2a6b", "Goliash release"}
+	case EventGitOps:
+		if it.Note == "out of sync" {
+			return kind{"🔀", "#d9822b", "Argo CD out of sync"}
+		}
+		return kind{"🔀", "#e5484d", "Argo CD " + it.Note}
 	case "posture":
 		return kind{"🛡️", "#1b2a6b", "Security posture"}
 	case EventImageGrew:
@@ -233,12 +238,12 @@ func slackBlocks(msg Message) []map[string]any {
 			head = k.Emoji + " *" + k.Label + "*"
 		}
 		body := head + "\n" + slackEscape(what(it))
-		if it.From != "" && it.To != "" && it.Type != "drift_detected" || it.Type == "update" {
+		if it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps || it.Type == "update" {
 			body += "\n`" + slackEscape(orDash(it.From)) + "` → `" + slackEscape(orDash(it.To)) + "`"
 		}
 		sec := map[string]any{"type": "section", "text": text("mrkdwn", truncate(body, 3000))}
 		if it.URL != "" {
-			sec["accessory"] = button("Release notes", it.URL, false)
+			sec["accessory"] = button(linkLabel(it), it.URL, false)
 		} else if u := itemLink(msg.Link, it); u != "" && !single {
 			sec["accessory"] = button("Open", u, false)
 		}
@@ -320,7 +325,7 @@ func discordEmbeds(msg Message) []map[string]any {
 			fields = append(fields, map[string]any{"name": "New", "value": "`" + it.To + "`", "inline": true})
 		}
 		if it.URL != "" {
-			fields = append(fields, map[string]any{"name": "Release notes", "value": "[open](" + it.URL + ")", "inline": true})
+			fields = append(fields, map[string]any{"name": linkLabel(it), "value": "[open](" + it.URL + ")", "inline": true})
 		}
 		if fields != nil {
 			e["fields"] = fields
@@ -341,6 +346,7 @@ func emailHTML(msg Message) (string, error) {
 		From, To           string
 		Arrow              bool
 		Notes, Open        string
+		NotesLabel         string
 		When, Target, Team string
 	}
 	data := struct {
@@ -353,8 +359,8 @@ func emailHTML(msg Message) (string, error) {
 	for _, it := range msg.Items {
 		data.Rows = append(data.Rows, row{
 			Kind: kindOf(it), Where: where(it), What: what(it), From: it.From, To: it.To,
-			Arrow: it.From != "" && it.To != "" && it.Type != "drift_detected" || it.Type == "update",
-			Notes: it.URL, Open: itemLink(msg.Link, it), When: it.At.UTC().Format("2 Jan 15:04 UTC"),
+			Arrow: it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps || it.Type == "update",
+			Notes: it.URL, NotesLabel: strings.ToLower(linkLabel(it)), Open: itemLink(msg.Link, it), When: it.At.UTC().Format("2 Jan 15:04 UTC"),
 			Target: it.Target, Team: it.Owner,
 		})
 	}
@@ -386,7 +392,7 @@ var emailTemplate = template.Must(template.New("mail").Parse(`<!doctype html>
     {{if .Where}}<div style="font-size:15px;font-weight:700;margin-top:4px">{{if .Open}}<a href="{{.Open}}" style="color:#1c2333;text-decoration:none">{{.Where}}</a>{{else}}{{.Where}}{{end}}</div>{{end}}
     <div style="font-size:14px;color:#3d4659;margin-top:2px">{{.What}}</div>
     {{if .Arrow}}<div style="margin-top:8px;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:13px"><span style="background:#eceef3;border-radius:5px;padding:2px 7px">{{if .From}}{{.From}}{{else}}—{{end}}</span> <span style="color:#8a93a6">→</span> <span style="background:#e3e9ff;color:#1b2a6b;border-radius:5px;padding:2px 7px;font-weight:600">{{if .To}}{{.To}}{{else}}—{{end}}</span></div>{{end}}
-    <div style="font-size:12px;color:#8a93a6;margin-top:8px">{{.When}}{{if .Target}} · on {{.Target}}{{end}}{{if .Team}} · {{.Team}}{{end}}{{if .Notes}} · <a href="{{.Notes}}" style="color:#3b6cf6">release notes</a>{{end}}</div>
+    <div style="font-size:12px;color:#8a93a6;margin-top:8px">{{.When}}{{if .Target}} · on {{.Target}}{{end}}{{if .Team}} · {{.Team}}{{end}}{{if .Notes}} · <a href="{{.Notes}}" style="color:#3b6cf6">{{.NotesLabel}}</a>{{end}}</div>
   </td></tr></table>
 {{end}}
 {{if .Open}}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr><td style="background:#1b2a6b;border-radius:9px"><a href="{{.Open}}" style="display:inline-block;padding:11px 20px;color:#ffffff;font-weight:600;font-size:14px;text-decoration:none">{{.OpenLabel}} →</a></td>{{if .Goli}}<td width="10"></td><td style="background:#e3e9ff;border-radius:9px"><a href="{{.Goli}}" style="display:inline-block;padding:11px 20px;color:#1b2a6b;font-weight:600;font-size:14px;text-decoration:none">Ask Goli</a></td>{{end}}</tr></table>{{end}}

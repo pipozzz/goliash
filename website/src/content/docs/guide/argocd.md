@@ -16,6 +16,10 @@ on which version, against the newest release upstream.
   application has been so for more than 10 minutes: Argo CD is out of sync for a moment on every change, and
   progressing while it rolls out, which is not news. On the tiles such a cell needs attention.
 
+A notification rule with the `gitops` event (*Argo CD out of sync or degraded*) says so in Slack, Teams, e-mail or a
+push, once per episode, with the commit last synced; Goli and AI assistants read the same through the `gitops` tool
+and `GET /api/v1/gitops`.
+
 ## Upgrade with a pull request
 
 With `GOLIASH_GITOPS_TOKEN` set on the server, the panel offers **Open PR → 1.7.0** next to an application that runs

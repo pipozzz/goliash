@@ -531,6 +531,42 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/gitops:
+    get:
+      operationId: listGitOps
+      summary: GitOps applications
+      description: >-
+        The Argo CD applications that deploy the workspace's services, those that need attention first: where they
+        deploy from, the commit last synced, sync and health, and since when. `trouble` is `out of sync`, `degraded`
+        or `missing` once the state has lasted 10 minutes, else empty. Empty without Argo CD.
+      responses:
+        "200":
+          description: The applications, per workload they deploy.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [tool, app, service, environment, target, workload, repo, path, target_revision, revision, sync, health, since, trouble]
+                  properties:
+                    tool: { type: string, enum: [argocd] }
+                    app: { type: string, example: checkout-prod }
+                    service: { type: string }
+                    environment: { type: string }
+                    target: { type: string }
+                    workload: { type: string, example: shop/checkout }
+                    repo: { type: string, example: https://github.com/acme/deploy.git }
+                    path: { type: string, description: "The path in the repository, or the Helm chart." }
+                    target_revision: { type: string, example: main }
+                    revision: { type: string, description: "The commit or chart version last synced." }
+                    sync: { type: string, example: OutOfSync }
+                    health: { type: string, example: Healthy }
+                    since: { type: string, format: date-time, description: "Since when sync and health are what they are." }
+                    trouble: { type: string, enum: ["", "out of sync", "degraded", "missing"] }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/delivery:
     get:
       operationId: getDelivery

@@ -18,7 +18,7 @@ const cardItems = 20
 
 // arrow says what changed in versions, or "" when nothing to show.
 func arrow(it Item) string {
-	if it.Type == "update" || it.From != "" && it.To != "" && it.Type != "drift_detected" {
+	if it.Type == "update" || it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps {
 		return orDash(it.From) + " → " + orDash(it.To)
 	}
 	return ""
@@ -98,7 +98,7 @@ func teamsCard(msg Message) map[string]any {
 			c["selectAction"] = map[string]any{"type": "Action.OpenUrl", "url": u}
 		}
 		if it.URL != "" {
-			items = append(items, map[string]any{"type": "ActionSet", "actions": []any{map[string]any{"type": "Action.OpenUrl", "title": "Release notes", "url": it.URL}}})
+			items = append(items, map[string]any{"type": "ActionSet", "actions": []any{map[string]any{"type": "Action.OpenUrl", "title": linkLabel(it), "url": it.URL}}})
 			c["items"] = items
 		}
 		body = append(body, c)
@@ -164,7 +164,7 @@ func googleChatCard(msg Message) map[string]any {
 		}
 		d := map[string]any{"topLabel": k.Emoji + " " + k.Label, "text": text, "wrapText": true}
 		if it.URL != "" {
-			d["button"] = button("Release notes", it.URL)
+			d["button"] = button(linkLabel(it), it.URL)
 		} else if u := itemLink(msg.Link, it); u != "" {
 			d["button"] = button("Open", u)
 		}

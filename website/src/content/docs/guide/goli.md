@@ -91,6 +91,7 @@ Goli uses the same read-only tools as the [MCP server](/reference/mcp/), through
 | `changes` | What changed recently: deploys, new releases, drift |
 | `licenses` | Licenses of packages in running images, copyleft and unknown ones first |
 | `rollouts` | Rollouts that do not finish: services down, stuck with two versions, short of replicas |
+| `gitops` | Argo CD applications: repository, path, commit last synced, out of sync or degraded and since when |
 | `vulnerabilities` | Known vulnerabilities in running images, exploited ones first |
 | `posture` | The security posture: how long production runs behind fixes, end of life, accepted risk, blind spots |
 | `notifications` | What Goliash sent you: alerts, digests and upgrade plans, as under the bell |

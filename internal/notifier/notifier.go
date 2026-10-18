@@ -485,6 +485,9 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			if err := n.CheckRollouts(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("checking rollouts failed", "err", err)
 			}
+			if err := n.CheckGitOps(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("checking Argo CD applications failed", "err", err)
+			}
 		}
 		if time.Since(selfChecked) >= selfCheckEvery {
 			selfChecked = time.Now()
@@ -731,6 +734,8 @@ func Describe(it Item) string {
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
 	case EventGoliashRelease:
 		return fmt.Sprintf("Goliash %s is out (this server runs %s): upgrade the server, then the agents", it.To, it.From)
+	case EventGitOps:
+		return fmt.Sprintf("%s: Argo CD application %s is %s%s", where, it.From, it.Note, on)
 	case "agent_back":
 		return fmt.Sprintf("agent %s is back after about %s; its targets report again", it.Target, it.Note)
 	}
