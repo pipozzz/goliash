@@ -109,8 +109,16 @@ func TestOpenGitOpsPR(t *testing.T) {
 	if _, page := get(t, member, e.srv.URL+"/services/"+url.PathEscape(svc), nil); !strings.Contains(page, "Open PR → "+newer) {
 		t.Fatal("no Open PR button")
 	}
-	if _, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/"+url.PathEscape(svc), nil); strings.Contains(page, "Open PR") {
+	viewer := e.as(store.RoleViewer)
+	if _, page := get(t, viewer, e.srv.URL+"/services/"+url.PathEscape(svc), nil); strings.Contains(page, "Open PR") {
 		t.Fatal("a viewer is offered a pull request")
+	}
+	_ = e.ui.checker.EvaluateDrift(ctx, sc) // the Updates page lists upstream drift (already recorded: fine)
+	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, "/gitops/pr") || !strings.Contains(page, `name="to" value="`+newer+`"`) {
+		t.Fatal("no Open PR on the Updates page")
+	}
+	if _, page := get(t, viewer, e.srv.URL+"/updates", nil); strings.Contains(page, "/gitops/pr") {
+		t.Fatal("a viewer is offered a pull request on the Updates page")
 	}
 	_, body, _ = post(t, member, e.srv.URL+"/services/"+url.PathEscape(svc)+"/gitops/pr",
 		url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {newer}})

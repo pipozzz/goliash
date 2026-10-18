@@ -33,7 +33,8 @@ Goliash then, in the repository the application deploys from (GitHub):
    follows;
 3. opens a pull request saying what, where and why, with the release notes when known.
 
-The **Delivery** page does the same for promotions: next to a version that runs in staging and waits for prod, **Open
+The **Updates** page offers **Open PR** on the same lines, next to *Put off*. The **Delivery** page does the same for
+promotions: next to a version that runs in staging and waits for prod, **Open
 PR → prod** pins that version in the repository of prod's application (one button per cluster when several run it),
 saying since when it has run in staging.
 

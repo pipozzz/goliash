@@ -61,6 +61,7 @@ type UpdateItem struct {
 	Critical                             int
 	Vulns                                versions.VulnDelta // what the upgrade does to known vulnerabilities, when known
 	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
+	PRs                                  []PromotePR        // Argo CD applications the upgrade can be opened in as a pull request
 }
 
 var levelClasses = []string{"eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
@@ -90,6 +91,10 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.Levels = append(v.Levels, UpdateLevel{Level: i, Label: label, Class: levelClasses[i]})
 	}
 	var md strings.Builder
+	apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o)
+	if err != nil {
+		return err
+	}
 	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, time.Now()) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
@@ -104,6 +109,18 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns,
+		}
+		if p.Can(store.RoleMember) {
+			latest := ""
+			if up, ok := o.Upstreams[u.Service.ID]; ok && up.HasLatest {
+				latest = up.Latest.Raw
+			}
+			for _, a := range apps {
+				if a.ServiceID == u.Service.ID && a.Environment == u.Environment.Name && a.Tag == u.Running &&
+					u.Target == latest && s.pullRequestTo(a, latest) == u.Target {
+					it.PRs = append(it.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App})
+				}
+			}
 		}
 		if s.goliOn() && u.Running != "" && u.Target != "" {
 			it.Brief = fmt.Sprintf("Brief me on upgrading %s in %s from %s to %s: what breaks or needs migrating, "+
