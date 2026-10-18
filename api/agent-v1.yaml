@@ -704,6 +704,8 @@ components:
         desired_replicas:
           type: integer
           minimum: 0
+        gitops:
+          $ref: '#/components/schemas/GitOps'
         containers:
           type: array
           description: |
@@ -711,6 +713,46 @@ components:
             appears more than once with different images or digests.
           items:
             $ref: '#/components/schemas/Container'
+
+    GitOps:
+      type: object
+      description: |
+        The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
+        listing the workload among its resources. Older servers ignore it.
+      required: [tool, app]
+      properties:
+        tool:
+          type: string
+          enum: [argocd]
+        app:
+          type: string
+          description: The application's name.
+          example: checkout-prod
+        app_namespace:
+          type: string
+          description: Where the application object lives (argocd for Argo CD by default).
+        project:
+          type: string
+        repo:
+          type: string
+          description: The Git (or Helm) repository it deploys from.
+          example: https://github.com/acme/deploy.git
+        path:
+          type: string
+          description: The path in the repository, or the Helm chart name.
+        target_revision:
+          type: string
+          description: The branch, tag or chart version it follows.
+          example: main
+        revision:
+          type: string
+          description: The commit (or chart version) last synced.
+        sync:
+          type: string
+          description: Synced, OutOfSync or Unknown.
+        health:
+          type: string
+          description: Healthy, Progressing, Degraded, Suspended, Missing or Unknown.
 
     Container:
       type: object

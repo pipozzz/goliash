@@ -41,6 +41,21 @@ func (e CollectorStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for GitOpsTool.
+const (
+	Argocd GitOpsTool = "argocd"
+)
+
+// Valid indicates whether the value is a known member of the GitOpsTool enum.
+func (e GitOpsTool) Valid() bool {
+	switch e {
+	case Argocd:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Platform.
 const (
 	Compose    Platform = "compose"
@@ -322,6 +337,45 @@ type EnrollResponse struct {
 	// Token The agent token, prefixed `glsh_agent_`.
 	Token string `json:"token"`
 }
+
+// GitOps The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
+// listing the workload among its resources. Older servers ignore it.
+type GitOps struct {
+	// App The application's name.
+	//
+	// Example: checkout-prod
+	App string `json:"app"`
+
+	// AppNamespace Where the application object lives (argocd for Argo CD by default).
+	AppNamespace *string `json:"app_namespace,omitempty"`
+
+	// Health Healthy, Progressing, Degraded, Suspended, Missing or Unknown.
+	Health *string `json:"health,omitempty"`
+
+	// Path The path in the repository, or the Helm chart name.
+	Path    *string `json:"path,omitempty"`
+	Project *string `json:"project,omitempty"`
+
+	// Repo The Git (or Helm) repository it deploys from.
+	//
+	// Example: https://github.com/acme/deploy.git
+	Repo *string `json:"repo,omitempty"`
+
+	// Revision The commit (or chart version) last synced.
+	Revision *string `json:"revision,omitempty"`
+
+	// Sync Synced, OutOfSync or Unknown.
+	Sync *string `json:"sync,omitempty"`
+
+	// TargetRevision The branch, tag or chart version it follows.
+	//
+	// Example: main
+	TargetRevision *string    `json:"target_revision,omitempty"`
+	Tool           GitOpsTool `json:"tool"`
+}
+
+// GitOpsTool defines model for GitOps.Tool.
+type GitOpsTool string
 
 // Heartbeat defines model for Heartbeat.
 type Heartbeat struct {
@@ -625,6 +679,10 @@ type Workload struct {
 	// appears more than once with different images or digests.
 	Containers      []Container `json:"containers"`
 	DesiredReplicas *int        `json:"desired_replicas,omitempty"`
+
+	// Gitops The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
+	// listing the workload among its resources. Older servers ignore it.
+	Gitops *GitOps `json:"gitops,omitempty"`
 
 	// ID Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID), or a stable name
 	// for Docker (compose project/service, container name).

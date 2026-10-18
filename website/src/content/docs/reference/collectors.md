@@ -31,6 +31,11 @@ Each target has the settings object of its platform:
 {"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 
+Kubernetes with Argo CD: when the agent may read `applications.argoproj.io` (the Helm charts grant `get` and `list`),
+each workload an Application lists among its resources carries where it is deployed from: the application, its
+repository, path or chart, target revision, the commit last synced, and its sync and health status. Without Argo CD
+or the permission nothing changes.
+
 Nomad: each job is a workload. A periodic or parameterized job is one workload (a cron job) that counts its
 running runs, rather than a new workload for every `backup/periodic-…` or `export/dispatch-…` run.
 An image written with variables, `image = "ghcr.io/acme/app:${NOMAD_META_version}"`, is read as Nomad would run

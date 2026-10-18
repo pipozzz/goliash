@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -50,6 +51,9 @@ func New(_ context.Context, t agentproto.Target) (collectors.Collector, error) {
 	}
 	c := newCollector(cs, settings)
 	c.readSecrets = ReadPullSecrets()
+	if dyn, err := dynamic.NewForConfig(cfg); err == nil {
+		c.dyn = dyn
+	}
 	return c, nil
 }
 
@@ -87,6 +91,9 @@ type Collector struct {
 	started   bool
 	synced    chan struct{}
 	watchErrs map[string]watchErr
+
+	// Argo CD Applications, read when the cluster has them and the role allows it.
+	dyn dynamic.Interface
 
 	// Image pull secrets, read only when GOLIASH_READ_PULL_SECRETS allows it.
 	readSecrets bool
@@ -281,6 +288,18 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 
 	res := collectors.Result{Workloads: b.result(), Complete: true}
+	if apps := c.argoCD(ctx); len(apps) > 0 {
+		for i := range res.Workloads {
+			w := &res.Workloads[i]
+			ns := ""
+			if w.Namespace != nil {
+				ns = *w.Namespace
+			}
+			if g, ok := apps[workloadKey{w.Kind, ns, w.Name}]; ok {
+				w.Gitops = &g
+			}
+		}
+	}
 	if errs := c.currentErrors(); len(errs) > 0 {
 		res.Complete, res.Errors = false, errs
 	}
