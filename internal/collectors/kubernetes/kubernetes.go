@@ -288,6 +288,16 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 
 	res := collectors.Result{Workloads: b.result(), Complete: true}
+	if f := c.flux(ctx); len(f.kustomizations)+len(f.helmReleases) > 0 {
+		for i := range res.Workloads {
+			w := &res.Workloads[i]
+			ns := ""
+			if w.Namespace != nil {
+				ns = *w.Namespace
+			}
+			w.Gitops = f.fluxFor(w.Labels, ns)
+		}
+	}
 	if apps := c.argoCD(ctx); len(apps) > 0 {
 		for i := range res.Workloads {
 			w := &res.Workloads[i]

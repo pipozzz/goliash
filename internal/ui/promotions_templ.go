@@ -396,9 +396,9 @@ func PromotionsPage(v PromotionsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var23 string
-							templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue("Open a pull request in the repository of Argo CD application " + pr.App)
+							templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue("Open a pull request in the repository " + pr.App + " deploys from")
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 86, Col: 133}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 86, Col: 128}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 							if templ_7745c5c3_Err != nil {

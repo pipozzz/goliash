@@ -9,6 +9,8 @@ import (
 	"html/template"
 	"net/url"
 	"strings"
+
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // Rich messages: Slack blocks, Discord embeds and HTML e-mail share how an item looks,
@@ -66,9 +68,9 @@ func kindOf(it Item) kind {
 		return kind{"🆕", "#1b2a6b", "Goliash release"}
 	case EventGitOps:
 		if it.Note == "out of sync" {
-			return kind{"🔀", "#d9822b", "Argo CD out of sync"}
+			return kind{"🔀", "#d9822b", versions.GitOpsToolName(it.Tool) + " out of sync"}
 		}
-		return kind{"🔀", "#e5484d", "Argo CD " + it.Note}
+		return kind{"🔀", "#e5484d", versions.GitOpsToolName(it.Tool) + " " + it.Note}
 	case "posture":
 		return kind{"🛡️", "#1b2a6b", "Security posture"}
 	case EventImageGrew:

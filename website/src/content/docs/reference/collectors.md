@@ -33,8 +33,9 @@ Each target has the settings object of its platform:
 
 Kubernetes with Argo CD: when the agent may read `applications.argoproj.io` (the Helm charts grant `get` and `list`),
 each workload an Application lists among its resources carries where it is deployed from: the application, its
-repository, path or chart, target revision, the commit last synced, and its sync and health status. Without Argo CD
-or the permission nothing changes.
+repository, path or chart, target revision, the commit last synced, and its sync and health status. With Flux, the
+workloads a Kustomization or HelmRelease labelled carry the same from it and its GitRepository or HelmRepository.
+Without Argo CD or Flux, or without the permission, nothing changes.
 
 Nomad: each job is a workload. A periodic or parameterized job is one workload (a cron job) that counts its
 running runs, rather than a new workload for every `backup/periodic-…` or `export/dispatch-…` run.

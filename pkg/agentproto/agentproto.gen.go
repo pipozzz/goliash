@@ -44,12 +44,15 @@ func (e CollectorStatusStatus) Valid() bool {
 // Defines values for GitOpsTool.
 const (
 	Argocd GitOpsTool = "argocd"
+	Flux   GitOpsTool = "flux"
 )
 
 // Valid indicates whether the value is a known member of the GitOpsTool enum.
 func (e GitOpsTool) Valid() bool {
 	switch e {
 	case Argocd:
+		return true
+	case Flux:
 		return true
 	default:
 		return false
@@ -339,7 +342,8 @@ type EnrollResponse struct {
 }
 
 // GitOps The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
-// listing the workload among its resources. Older servers ignore it.
+// listing the workload among its resources, or the Flux Kustomization or HelmRelease that labelled it. Older
+// servers ignore it.
 type GitOps struct {
 	// App The application's name.
 	//
@@ -681,7 +685,8 @@ type Workload struct {
 	DesiredReplicas *int        `json:"desired_replicas,omitempty"`
 
 	// Gitops The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
-	// listing the workload among its resources. Older servers ignore it.
+	// listing the workload among its resources, or the Flux Kustomization or HelmRelease that labelled it. Older
+	// servers ignore it.
 	Gitops *GitOps `json:"gitops,omitempty"`
 
 	// ID Platform-native id (Kubernetes UID, ECS service ARN, Nomad job ID, Swarm service ID), or a stable name

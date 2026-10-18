@@ -28,6 +28,10 @@ rules:
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
     verbs: ["get", "list"]
+  # Flux: the Kustomizations and HelmReleases that applied each workload, and their Git or Helm sources.
+  - apiGroups: ["kustomize.toolkit.fluxcd.io", "helm.toolkit.fluxcd.io", "source.toolkit.fluxcd.io"]
+    resources: ["kustomizations", "helmreleases", "gitrepositories", "helmrepositories"]
+    verbs: ["get", "list"]
   {{- if .Values.rbac.readPullSecrets }}
   - apiGroups: [""]
     resources: ["secrets"]

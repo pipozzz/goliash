@@ -718,12 +718,13 @@ components:
       type: object
       description: |
         The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
-        listing the workload among its resources. Older servers ignore it.
+        listing the workload among its resources, or the Flux Kustomization or HelmRelease that labelled it. Older
+        servers ignore it.
       required: [tool, app]
       properties:
         tool:
           type: string
-          enum: [argocd]
+          enum: [argocd, flux]
         app:
           type: string
           description: The application's name.

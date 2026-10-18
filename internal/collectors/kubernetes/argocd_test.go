@@ -49,9 +49,7 @@ func TestArgoCD(t *testing.T) {
 		"health":    map[string]any{"status": "Healthy"},
 		"resources": []any{map[string]any{"group": "apps", "kind": "StatefulSet", "namespace": "data", "name": "postgres"}},
 	})
-	gvr := schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "applications"}
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
-		map[schema.GroupVersionResource]string{gvr: "ApplicationList"}, payments, data)
+	dyn := fakeDynamic(payments, data)
 
 	c := newCollector(fake.NewClientset(fixtures()...), agentproto.KubernetesSettings{ExcludeNamespaces: []string{"kube-system"}})
 	c.dyn = dyn
@@ -77,7 +75,7 @@ func TestArgoCD(t *testing.T) {
 func TestNoArgoCD(t *testing.T) {
 	c := newCollector(fake.NewClientset(fixtures()...), agentproto.KubernetesSettings{})
 	gvr := schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "applications"}
-	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: "ApplicationList"})
+	dyn := fakeDynamic()
 	dyn.PrependReactor("list", "applications", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, apierrors.NewNotFound(gvr.GroupResource(), "") // the CRD is not installed
 	})
@@ -92,4 +90,12 @@ func TestNoArgoCD(t *testing.T) {
 			t.Fatalf("%s has gitops", w.Name)
 		}
 	}
+}
+
+// fakeDynamic is a dynamic client that lists Argo CD's and Flux's objects.
+func fakeDynamic(objs ...runtime.Object) *dynamicfake.FakeDynamicClient {
+	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
+		argoApplications: "ApplicationList", fluxKustomizations: "KustomizationList", fluxHelmReleases: "HelmReleaseList",
+		fluxGitRepositories: "GitRepositoryList", fluxHelmRepos: "HelmRepositoryList",
+	}, objs...)
 }

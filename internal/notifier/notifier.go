@@ -30,6 +30,7 @@ type Item struct {
 	Environment string    `json:"environment,omitempty"`
 	Target      string    `json:"target,omitempty"`
 	Workload    string    `json:"workload,omitempty"` // a rollout's workload, when its name is not the service's
+	Tool        string    `json:"tool,omitempty"`     // a gitops alert's tool: argocd, flux
 	From        string    `json:"from,omitempty"`
 	To          string    `json:"to,omitempty"`
 	Note        string    `json:"note,omitempty"`
@@ -486,7 +487,7 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 				n.log.Error("checking rollouts failed", "err", err)
 			}
 			if err := n.CheckGitOps(ctx); err != nil && ctx.Err() == nil {
-				n.log.Error("checking Argo CD applications failed", "err", err)
+				n.log.Error("checking GitOps applications failed", "err", err)
 			}
 		}
 		if time.Since(selfChecked) >= selfCheckEvery {
@@ -735,7 +736,7 @@ func Describe(it Item) string {
 	case EventGoliashRelease:
 		return fmt.Sprintf("Goliash %s is out (this server runs %s): upgrade the server, then the agents", it.To, it.From)
 	case EventGitOps:
-		return fmt.Sprintf("%s: Argo CD application %s is %s%s", where, it.From, it.Note, on)
+		return fmt.Sprintf("%s: %s %s is %s%s", where, versions.GitOpsObject(it.Tool), it.From, it.Note, on)
 	case "agent_back":
 		return fmt.Sprintf("agent %s is back after about %s; its targets report again", it.Target, it.Note)
 	}

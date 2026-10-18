@@ -1354,7 +1354,11 @@ func markGitOps(g *MatrixGrid, apps []versions.GitOpsApp, now time.Time) {
 			for _, a := range list {
 				details = append(details, gitOpsLine(a, now))
 			}
-			b := DriftBadge{Kind: "gitops", Label: "Argo: " + list[0].Trouble(now), Title: strings.Join(details, "; ")}
+			short := map[string]string{"flux": "Flux"}[list[0].Tool]
+			if short == "" {
+				short = "Argo"
+			}
+			b := DriftBadge{Kind: "gitops", Label: short + ": " + list[0].Trouble(now), Title: strings.Join(details, "; ")}
 			r.Cells[i].Drifts = append(r.Cells[i].Drifts, b)
 			r.Health = worseHealth(r.Health, "warn")
 		}
@@ -1483,8 +1487,9 @@ func upperFirst(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// GitOpsView is an Argo CD application as it deploys one of a service's workloads.
+// GitOpsView is a GitOps application (Argo CD, Flux) as it deploys one of a service's workloads.
 type GitOpsView struct {
+	Tool                          string // argocd, flux
 	Environment, Target, Workload string
 	App, AppURL                   string // AppURL: the application in the Argo CD UI, with GOLIASH_ARGOCD_URL
 	Sync, Health                  string
@@ -1500,7 +1505,7 @@ type GitOpsView struct {
 
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {
 	v := GitOpsView{
-		Environment: a.Environment, Target: a.Target, Workload: a.Workload, App: a.App,
+		Tool: a.Tool, Environment: a.Environment, Target: a.Target, Workload: a.Workload, App: a.App,
 		AppURL: versions.ArgoAppURL(argoURL, a.AppNamespace, a.App), Sync: a.Sync, Health: a.Health, Since: a.SyncSince,
 		Trouble: a.Trouble(now), Repo: a.Repo, RepoURL: versions.RepoWebURL(a.Repo), Path: a.Path,
 		TargetRevision: a.TargetRevision, Revision: a.Revision, TargetID: a.TargetID, WorkloadID: a.WorkloadID, Tag: a.Tag,
@@ -1526,4 +1531,18 @@ func syncBadge(state string) string {
 		return "bad"
 	}
 	return "neutral"
+}
+
+// gitOpsTitle names the GitOps panel after the tools in it.
+func gitOpsTitle(apps []GitOpsView) string {
+	tools := map[string]bool{}
+	for _, a := range apps {
+		tools[a.Tool] = true
+	}
+	if len(tools) == 1 {
+		for t := range tools {
+			return versions.GitOpsToolName(t)
+		}
+	}
+	return "GitOps"
 }

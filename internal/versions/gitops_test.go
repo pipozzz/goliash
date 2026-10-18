@@ -12,12 +12,14 @@ import (
 
 func TestGitOpsLinks(t *testing.T) {
 	for repo, want := range map[string]string{
-		"git@github.com:acme/deploy.git":            "https://github.com/acme/deploy",
-		"https://gitlab.example.com/ops/deploy.git": "https://gitlab.example.com/ops/deploy",
-		"https://github.com/acme/deploy":            "https://github.com/acme/deploy",
-		"registry-1.docker.io/bitnamicharts":        "",
-		"https://charts.bitnami.com":                "",
-		"oci://ghcr.io/acme/charts":                 "",
+		"git@github.com:acme/deploy.git":                   "https://github.com/acme/deploy",
+		"ssh://git@github.com/acme/deploy":                 "https://github.com/acme/deploy",
+		"ssh://git@gitlab.example.com:2222/ops/deploy.git": "https://gitlab.example.com/ops/deploy",
+		"https://gitlab.example.com/ops/deploy.git":        "https://gitlab.example.com/ops/deploy",
+		"https://github.com/acme/deploy":                   "https://github.com/acme/deploy",
+		"registry-1.docker.io/bitnamicharts":               "",
+		"https://charts.bitnami.com":                       "",
+		"oci://ghcr.io/acme/charts":                        "",
 	} {
 		if got := RepoWebURL(repo); got != want {
 			t.Errorf("RepoWebURL(%q) = %q, want %q", repo, got, want)

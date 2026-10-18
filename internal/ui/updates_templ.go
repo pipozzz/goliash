@@ -1001,9 +1001,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var52 string
-				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue("Open a pull request in the repository of Argo CD application " + pr.App)
+				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue("Open a pull request in the repository " + pr.App + " deploys from")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 210, Col: 126}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 210, Col: 121}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var52)
 				if templ_7745c5c3_Err != nil {

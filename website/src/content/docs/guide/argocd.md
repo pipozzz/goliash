@@ -1,6 +1,6 @@
 ---
-title: Argo CD
-description: 'Which Git repository, path and commit deploy each service, whether Argo CD is in sync, and links straight to the application, the repository and the commit.'
+title: Argo CD and Flux
+description: 'Which Git repository, path and commit deploy each service, whether Argo CD or Flux is in sync, upgrades and promotions as pull requests, and links straight to the application, the repository and the commit.'
 ---
 
 With Argo CD, Git says what should run and Argo CD makes it so. Goliash shows both sides on one page: what Git
@@ -69,6 +69,23 @@ To link application names to the Argo CD UI, set its address on the server:
 ```sh
 GOLIASH_ARGOCD_URL=https://argocd.example.com
 ```
+
+## Flux
+
+With Flux the same panel, badges (*Flux: out of sync*, *Flux: degraded*), alerts and pull requests work from Flux's
+own objects; nothing to configure in Flux either. Flux labels everything it applies with its Kustomization or
+HelmRelease (`kustomize.toolkit.fluxcd.io/name`, `helm.toolkit.fluxcd.io/name`), and Goliash reads those with their
+sources:
+
+- a **Kustomization**: its GitRepository's URL and branch (or tag, semver), its path, and the commit last applied
+  (`main@sha1:…`); *out of sync* when the GitRepository has a newer commit than the one applied, *degraded* when its
+  `Ready` condition fails (reconciliation, health checks), *suspended* when suspended;
+- a **HelmRelease**: its chart, the version it follows and the one applied, and its HelmRepository; a HelmRelease
+  wins over the Kustomization that applied it.
+
+`ssh://git@github.com/acme/deploy` and `git@…` addresses link to the repository's web page, and pull requests work
+for them as for Argo CD. The Helm charts grant `get` and `list` on Flux's `kustomizations`, `helmreleases`,
+`gitrepositories` and `helmrepositories`.
 
 ## Why it helps
 

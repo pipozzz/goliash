@@ -83,7 +83,7 @@ templ PromotionsPage(v PromotionsView) {
 													<input type="hidden" name="version" value={ p.Version }/>
 													<input type="hidden" name="target_id" value={ pr.TargetID }/>
 													<input type="hidden" name="workload_id" value={ pr.WorkloadID }/>
-													<button type="submit" class="secondary" title={ "Open a pull request in the repository of Argo CD application " + pr.App }>
+													<button type="submit" class="secondary" title={ "Open a pull request in the repository " + pr.App + " deploys from" }>
 														{ "Open PR → " + p.To }
 														if len(p.PRs) > 1 {
 															{ " (" + pr.Target + ")" }

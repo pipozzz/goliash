@@ -707,10 +707,10 @@ templ sizeChange(c *SizeChange) {
 	</div>
 }
 
-// gitOpsPanel shows the Argo CD applications that deploy the service: where from, which commit, in sync or not.
+// gitOpsPanel shows the GitOps applications (Argo CD, Flux) that deploy the service: where from, which commit, in sync or not.
 templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 	<section class="panel" id="gitops">
-		<div class="panel-head"><h2>Argo CD</h2><span class="muted">what Git declares, and whether it runs</span></div>
+		<div class="panel-head"><h2>{ gitOpsTitle(apps) }</h2><span class="muted">what Git declares, and whether it runs</span></div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">
 				<thead><tr><th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th></tr></thead>

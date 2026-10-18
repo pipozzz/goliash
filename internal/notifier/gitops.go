@@ -10,7 +10,7 @@ import (
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
-// EventGitOps announces an Argo CD application that has been out of sync, degraded or missing for 10 minutes:
+// EventGitOps announces a GitOps application (Argo CD, Flux) that has been out of sync, degraded or missing for 10 minutes:
 // what Git declares does not run. Note is the trouble, From the application, To the commit last synced.
 const EventGitOps = "gitops"
 
@@ -49,7 +49,7 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 			}
 			it := Item{
 				Type: EventGitOps, Service: a.Service, Owner: o.Services[a.ServiceID].Owner, Environment: a.Environment,
-				Target: a.Target, Note: trouble, From: a.App, To: a.Revision, At: a.SyncSince,
+				Target: a.Target, Note: trouble, From: a.App, To: a.Revision, At: a.SyncSince, Tool: a.Tool,
 				URL: versions.CommitWebURL(versions.RepoWebURL(a.Repo), a.Revision),
 			}
 			where := a.Path

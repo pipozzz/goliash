@@ -207,7 +207,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 						<input type="hidden" name="target_id" value={ pr.TargetID }/>
 						<input type="hidden" name="workload_id" value={ pr.WorkloadID }/>
 						<input type="hidden" name="to" value={ it.Target }/>
-						<button type="submit" class="secondary" title={ "Open a pull request in the repository of Argo CD application " + pr.App }>
+						<button type="submit" class="secondary" title={ "Open a pull request in the repository " + pr.App + " deploys from" }>
 							Open PR
 							if len(it.PRs) > 1 {
 								{ " (" + pr.Target + ")" }

@@ -111,14 +111,18 @@ func RepoWebURL(repo string) string {
 		repo = "https://" + host + "/" + path
 	}
 	u, err := url.Parse(repo)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "ssh") || u.Host == "" {
 		return ""
+	}
+	host := u.Hostname() // ssh://git@github.com:22/acme/deploy: no user, no SSH port
+	if u.Scheme != "ssh" {
+		host = u.Host
 	}
 	path := strings.TrimSuffix(strings.Trim(u.Path, "/"), ".git")
 	if strings.Count(path, "/") < 1 { // owner/repo at least; a chart repository has no such path
 		return ""
 	}
-	return "https://" + u.Host + "/" + path
+	return "https://" + host + "/" + path
 }
 
 var commitSHA = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
@@ -148,4 +152,21 @@ func ArgoAppURL(base, appNamespace, app string) string {
 		return base + "/applications/" + url.PathEscape(app)
 	}
 	return base + "/applications/" + url.PathEscape(appNamespace) + "/" + url.PathEscape(app)
+}
+
+// GitOpsToolName is how a GitOps tool is called: "Argo CD", "Flux".
+func GitOpsToolName(tool string) string {
+	if tool == "flux" {
+		return "Flux"
+	}
+	return "Argo CD"
+}
+
+// GitOpsObject is what the tool calls the object that deploys a workload: an Argo CD application, a Flux
+// Kustomization or HelmRelease (told apart by a chart path: the HelmRelease's).
+func GitOpsObject(tool string) string {
+	if tool == "flux" {
+		return "Flux"
+	}
+	return "Argo CD application"
 }

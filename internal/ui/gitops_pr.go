@@ -106,8 +106,8 @@ func (s *Server) bump(ctx context.Context, p auth.Principal, service, page strin
 		where += " @ " + app.TargetRevision
 	}
 	body := fmt.Sprintf("Upgrades **%s** in **%s** from `%s` to `%s`: %s.\n\n"+
-		"- Argo CD application: `%s` (%s)\n- Image: `%s`\n- Opened by %s from [Goliash](%s%s)\n",
-		service, app.Environment, app.Tag, to, why, app.App, where, image, p.User.Email, s.publicURL, page)
+		"- %s: `%s` (%s)\n- Image: `%s`\n- Opened by %s from [Goliash](%s%s)\n",
+		service, app.Environment, app.Tag, to, why, versions.GitOpsObject(app.Tool), app.App, where, image, p.User.Email, s.publicURL, page)
 	if notes != "" {
 		body += "- Release notes: " + notes + "\n"
 	}
