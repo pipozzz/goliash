@@ -110,7 +110,7 @@ func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Pri
 	ctx := r.Context()
 	name := r.PathValue("name")
 	path := "/services/" + url.PathEscape(name)
-	if ret := r.FormValue("return"); ret == "/delivery" || ret == "/updates" {
+	if ret := r.FormValue("return"); ret == "/delivery" || ret == "/updates" || ret == "/security" {
 		path = ret
 	}
 	if s.pulls == nil {
@@ -224,6 +224,27 @@ func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade)
 		s.log.ErrorContext(ctx, "audit log write failed", "action", "gitops.pull_request", "err", err)
 	}
 	return pr, ""
+}
+
+// upgradePRs are the pull requests a page may offer to move a service in an environment from running to target,
+// one per GitOps application that runs it there: when target is the newest acceptable release, as the service page
+// offers it. Opened ones carry their address and state.
+func (s *Server) upgradePRs(ctx context.Context, sc store.Scope, o versions.Overview, apps []versions.GitOpsApp, serviceID, env, running, target string) []PromotePR {
+	up, ok := o.Upstreams[serviceID]
+	if !ok || !up.HasLatest || target != up.Latest.Raw {
+		return nil
+	}
+	var out []PromotePR
+	for _, a := range apps {
+		if a.ServiceID == serviceID && a.Environment == env && a.Tag == running && s.pullRequestTo(a, target) == target {
+			pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
+			if open, ok := s.pullFor(ctx, sc, a, target); ok && open.State != "closed" {
+				pp.URL, pp.State = open.URL, open.State
+			}
+			out = append(out, pp)
+		}
+	}
+	return out
 }
 
 // pullFor is the pull request Goliash opened to move the application's workload to the version, whatever became of

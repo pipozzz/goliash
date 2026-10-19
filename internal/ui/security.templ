@@ -128,6 +128,18 @@ templ SecurityPage(v SecurityView) {
 										} else {
 											{ orDash(ex.Target) }
 										}
+										for _, pr := range v.PRs[ex.Service.ID+"|"+ex.Environment.ID] {
+											if pr.URL != "" {
+												<div><a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener">{ pullLabel(ex.Target, pr.State) }</a></div>
+											} else {
+												<div class="noprint"><a class="button secondary gitops-pr" href={ templ.URL(serviceURL(ex.Service.Name) + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, ex.Target, "/security")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
+													Open PR
+													if len(v.PRs[ex.Service.ID+"|"+ex.Environment.ID]) > 1 {
+														{ " (" + pr.Target + ")" }
+													}
+												</a></div>
+											}
+										}
 										if v.Goli && ex.Target != "" && ex.Running != "" {
 											<div><button type="button" class="link ask-goli noprint" data-goli-ask={ explainExposure(ex) } title="Goli explains what this exposure means and what to do first">Explain</button></div>
 										}

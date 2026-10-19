@@ -33,8 +33,9 @@ type SecurityView struct {
 	Licenses versions.LicenseReport
 	NoDigest int // targets reporting no digest at all
 	At       time.Time
-	Trend    []TrendLine // production over the last 90 days; empty until there are two days
-	Since    string      // the first day of the trend
+	PRs      map[string][]PromotePR // service ID|environment ID: pull requests offered for an exposure
+	Trend    []TrendLine            // production over the last 90 days; empty until there are two days
+	Since    string                 // the first day of the trend
 }
 
 // TrendLine is one number of the posture over time.
@@ -144,7 +145,35 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		}
 		v.Exposures = prod
 	}
+	if p.Can(store.RoleMember) || s.demoPulls() {
+		if v.PRs, err = s.exposurePRs(r.Context(), p.Scope, v.Exposures); err != nil {
+			return err
+		}
+	}
 	return render(w, r, SecurityPage(v))
+}
+
+// exposurePRs are the pull requests the Security page offers to close exposures: an upgrade to the newest
+// acceptable release where a GitOps application deploys the service.
+func (s *Server) exposurePRs(ctx context.Context, sc store.Scope, exs []versions.Exposure) (map[string][]PromotePR, error) {
+	if s.pulls == nil || len(exs) == 0 {
+		return nil, nil
+	}
+	o, err := versions.LoadOverview(ctx, s.store, sc)
+	if err != nil {
+		return nil, err
+	}
+	apps, err := versions.GitOpsApps(ctx, s.store, sc, o)
+	if err != nil || len(apps) == 0 {
+		return nil, err
+	}
+	out := map[string][]PromotePR{}
+	for _, ex := range exs {
+		if prs := s.upgradePRs(ctx, sc, o, apps, ex.Service.ID, ex.Environment.Name, ex.Running, ex.Target); len(prs) > 0 {
+			out[ex.Service.ID+"|"+ex.Environment.ID] = prs
+		}
+	}
+	return out, nil
 }
 
 // securityCSV is every exposure as a spreadsheet, for audits and risk registers.

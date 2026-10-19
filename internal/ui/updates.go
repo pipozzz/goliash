@@ -111,20 +111,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns,
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
-			latest := ""
-			if up, ok := o.Upstreams[u.Service.ID]; ok && up.HasLatest {
-				latest = up.Latest.Raw
-			}
-			for _, a := range apps {
-				if a.ServiceID == u.Service.ID && a.Environment == u.Environment.Name && a.Tag == u.Running &&
-					u.Target == latest && s.pullRequestTo(a, latest) == u.Target {
-					pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
-					if open, ok := s.pullFor(ctx, p.Scope, a, u.Target); ok && open.State != "closed" {
-						pp.URL, pp.State = open.URL, open.State
-					}
-					it.PRs = append(it.PRs, pp)
-				}
-			}
+			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
 		}
 		if s.goliOn() && u.Running != "" && u.Target != "" {
 			it.Brief = fmt.Sprintf("Brief me on upgrading %s in %s from %s to %s: what breaks or needs migrating, "+

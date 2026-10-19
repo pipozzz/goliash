@@ -136,6 +136,12 @@ func TestOpenGitOpsPR(t *testing.T) {
 	if _, page := get(t, viewer, e.srv.URL+"/updates", nil); strings.Contains(page, "/gitops/preview") {
 		t.Fatal("a viewer is offered a pull request on the Updates page")
 	}
+	if _, page := get(t, member, e.srv.URL+"/security?env=all", nil); !strings.Contains(page, "return=%2Fsecurity") || !strings.Contains(page, "to="+newer) {
+		t.Fatal("no Open PR on the Security page")
+	}
+	if _, page := get(t, viewer, e.srv.URL+"/security?env=all", nil); strings.Contains(page, "/gitops/preview") {
+		t.Fatal("a viewer is offered a pull request on the Security page")
+	}
 	_, body, _ = post(t, member, e.srv.URL+"/services/"+url.PathEscape(svc)+"/gitops/pr",
 		url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {newer}})
 	if !strings.Contains(body, "Pull request opened: https://github.com/acme/deploy/pull/7") || len(pulls.got) != 1 {
