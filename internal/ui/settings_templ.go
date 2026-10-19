@@ -1433,7 +1433,7 @@ func SettingsPage(v SettingsView) templ.Component {
 // ruleEvents are the event kinds a rule can pick, with their labels.
 var ruleEvents = [][2]string{
 	{"new_release", "new releases"}, {"drift_detected", "drift"}, {"drift_resolved", "drift resolved"},
-	{"version_changed", "deploys"}, {"rollback", "rollbacks"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"rollout", "stuck rollouts and services down"}, {"vulnerability", "exploited or critical vulnerabilities"}, {"updates_plan", "upgrade plan"}, {"posture_report", "security posture report"}, {"image_grew", "image growth"}, {"image_over_budget", "image over its size budget"}, {"outdated_base", "outdated base"}, {"evidence_lost", "signature or SBOM lost"}, {"unexpected_signer", "not signed by the expected signer"}, {"license", "AGPL or source-available packages"}, {"goliash_release", "new Goliash releases"}, {"gitops", "Argo CD or Flux out of sync or degraded"},
+	{"version_changed", "deploys"}, {"rollback", "rollbacks"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"rollout", "stuck rollouts and services down"}, {"vulnerability", "exploited or critical vulnerabilities"}, {"updates_plan", "upgrade plan"}, {"posture_report", "security posture report"}, {"image_grew", "image growth"}, {"image_over_budget", "image over its size budget"}, {"outdated_base", "outdated base"}, {"evidence_lost", "signature or SBOM lost"}, {"unexpected_signer", "not signed by the expected signer"}, {"license", "AGPL or source-available packages"}, {"goliash_release", "new Goliash releases"}, {"gitops", "Argo CD or Flux out of sync or degraded"}, {"pull_request", "pull requests Goliash opened"},
 }
 
 // ruleFields are the fields of the add and edit rule forms.

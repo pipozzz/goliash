@@ -6,7 +6,9 @@ package notifier
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -68,8 +70,31 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 
 // linkLabel names an item's link: release notes, or for an Argo CD alert the commit last synced.
 func linkLabel(it Item) string {
-	if it.Type == EventGitOps {
+	switch it.Type {
+	case EventGitOps:
 		return "Commit"
+	case EventPullRequest:
+		return "Pull request"
 	}
 	return "Release notes"
+}
+
+// EventPullRequest announces a pull (or merge) request Goliash opened to upgrade a service: by a person, or by the
+// version policy (auto_pr). From and To are the versions, Note who opened it, URL the pull request.
+const EventPullRequest = "pull_request"
+
+// PullRequestOpened queues the announcement of a pull request Goliash opened.
+func (n *Notifier) PullRequestOpened(sc store.Scope, it Item) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rules, err := n.store.ActiveRules(ctx, sc)
+	if err != nil {
+		n.log.Error("queueing notifications failed", "err", err)
+		return
+	}
+	it.Type, it.At = EventPullRequest, n.now()
+	it.Text = Describe(it)
+	if err := n.enqueue(ctx, sc, rules, it, EventPullRequest+"|"+it.URL); err != nil {
+		n.log.Error("queueing notifications failed", "err", err)
+	}
 }

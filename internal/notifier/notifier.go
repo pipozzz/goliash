@@ -737,6 +737,12 @@ func Describe(it Item) string {
 		return fmt.Sprintf("Goliash %s is out (this server runs %s): upgrade the server, then the agents", it.To, it.From)
 	case EventGitOps:
 		return fmt.Sprintf("%s: %s %s is %s%s", where, versions.GitOpsObject(it.Tool), it.From, it.Note, on)
+	case EventPullRequest:
+		by := it.Note
+		if by == "auto-pr" {
+			by = "the version policy (auto_pr)"
+		}
+		return fmt.Sprintf("%s: pull request opened to move %s to %s%s, by %s", where, it.From, it.To, on, by)
 	case "agent_back":
 		return fmt.Sprintf("agent %s is back after about %s; its targets report again", it.Target, it.Note)
 	}

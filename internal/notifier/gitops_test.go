@@ -65,3 +65,20 @@ func TestGitOpsAlerts(t *testing.T) {
 		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
 	}
 }
+
+func TestPullRequestOpened(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventPullRequest}, Filter{})
+	e.n.PullRequestOpened(e.sc, Item{
+		Service: "checkout", Environment: "dev", Target: "k8s-dev", From: "2.3.1", To: "2.4.0",
+		Note: "auto-pr", URL: "https://github.com/acme/deploy/pull/7",
+	})
+	_ = e.n.DeliverDue(ctx)
+	all := strings.Join(slack.all(), "\n")
+	if slack.count() != 1 || !strings.Contains(all, "pull request opened to move 2.3.1 to 2.4.0 on k8s-dev, by the version policy (auto_pr)") ||
+		!strings.Contains(all, "https://github.com/acme/deploy/pull/7") {
+		t.Fatalf("want one announcement, got %d:\n%s", slack.count(), all)
+	}
+}

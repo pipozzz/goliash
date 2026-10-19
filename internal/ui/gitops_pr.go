@@ -13,6 +13,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/gitops"
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -186,6 +187,16 @@ func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade)
 		TargetID: app.TargetID, WorkloadID: app.WorkloadID, From: app.Tag, To: u.to, URL: pr, OpenedBy: by,
 	}); err != nil {
 		s.log.ErrorContext(ctx, "recording a pull request failed", "url", pr, "err", err)
+	}
+	if s.notify != nil {
+		owner := ""
+		if svc, err := s.store.GetService(ctx, sc, app.ServiceID); err == nil {
+			owner = svc.Owner
+		}
+		s.notify.PullRequestOpened(sc, notifier.Item{
+			Service: u.service, Owner: owner, Environment: app.Environment,
+			Target: app.Target, From: app.Tag, To: u.to, Note: by, URL: pr, Tool: app.Tool,
+		})
 	}
 	if err := s.store.Audit(ctx, store.AuditEntry{
 		OrgID: sc.OrgID, WorkspaceID: sc.WorkspaceID, Actor: by, Action: "gitops.pull_request",

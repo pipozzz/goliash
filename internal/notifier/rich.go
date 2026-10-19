@@ -66,6 +66,8 @@ func kindOf(it Item) kind {
 		return kind{"✅", "#30a46c", "Agent back"}
 	case EventGoliashRelease:
 		return kind{"🆕", "#1b2a6b", "Goliash release"}
+	case EventPullRequest:
+		return kind{"📬", "#1b2a6b", "Pull request opened"}
 	case EventGitOps:
 		if it.Note == "out of sync" {
 			return kind{"🔀", "#d9822b", versions.GitOpsToolName(it.Tool) + " out of sync"}
