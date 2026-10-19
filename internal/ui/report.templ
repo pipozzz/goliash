@@ -85,6 +85,24 @@ templ ReportPage(v ReportView) {
 				</table>
 			</div>
 		</section>
+		if v.Pulls.Opened > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Pull requests</h2>@panelInfo("Pull requests Goliash opened in GitOps repositories during the month: upgrades, promotions and rollbacks, by people or by version policies, what became of them and how soon their version ran.")</div>
+				<div class="report-stats">
+					<div><strong>{ itoa(v.Pulls.Opened) }</strong><span>opened</span></div>
+					<div><strong>{ itoa(v.Pulls.Merged) }</strong><span>merged</span></div>
+					<div><strong>{ itoa(v.Pulls.Open) }</strong><span>still open</span></div>
+					<div><strong>{ itoa(v.Pulls.Closed) }</strong><span>closed unmerged</span></div>
+					<div><strong>{ itoa(v.Pulls.Auto) }</strong><span>by version policies</span></div>
+					if v.Pulls.Rollbacks > 0 {
+						<div><strong>{ itoa(v.Pulls.Rollbacks) }</strong><span>rollbacks</span></div>
+					}
+					if v.Pulls.ToRunning != "" {
+						<div title={ "The median over " + plural(v.Pulls.Ran, "pull request whose version ran", "pull requests whose version ran") }><strong>{ v.Pulls.ToRunning }</strong><span>from pull request to running</span></div>
+					}
+				</div>
+			</section>
+		}
 		if len(v.Releases) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>New upstream releases</h2></div>

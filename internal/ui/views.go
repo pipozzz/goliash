@@ -1056,6 +1056,7 @@ type ReportView struct {
 	EnvNames, LeadNames              []string
 	Delivery                         []DeliveryRow
 	Releases                         []ReportReleaseView
+	Pulls                            ReportPulls
 }
 
 // AttentionView is one open drift in the report.

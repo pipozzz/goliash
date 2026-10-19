@@ -558,3 +558,36 @@ func TestGitPins(t *testing.T) {
 		t.Fatal("a pull request offered for what Git pins already")
 	}
 }
+
+// The monthly report counts the pull requests Goliash opened, rollbacks among them, and how soon their version ran.
+func TestReportPulls(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	svc, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
+	for _, p := range []store.GitOpsPull{
+		{From: "1.0.0", To: "1.1.0", OpenedBy: "auto-pr", URL: "https://github.com/acme/deploy/pull/1", WorkloadID: "w1"},
+		{From: "1.1.0", To: "1.0.0", OpenedBy: "sre@example.com", URL: "https://github.com/acme/deploy/pull/2", WorkloadID: "w2"},
+	} {
+		p.Scope, p.ServiceID, p.Environment, p.TargetID = sc, svc.ID, "prod", e.tgt.ID
+		if err := e.st.RecordGitOpsPull(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.st.InsertEvent(ctx, sc, store.Event{
+		Type: "version_changed", ServiceID: svc.ID, TargetID: e.tgt.ID, FromVersion: "1.0.0", ToVersion: "1.1.0",
+		At: time.Now().Add(2*time.Hour + time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	month := time.Now().UTC().Format("2006-01")
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/report?month="+month, nil)
+	for _, want := range []string{
+		"<h2>Pull requests</h2>", "<strong>2</strong><span>opened</span>", "<strong>1</strong><span>by version policies</span>",
+		"<strong>1</strong><span>rollbacks</span>", "<strong>2h</strong><span>from pull request to running</span>",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("report lacks %q", want)
+		}
+	}
+}

@@ -233,7 +233,9 @@ The same numbers are in `GET /api/v1/delivery?window=30d` and in `/metrics` as `
 
 **Delivery → Monthly report** shows one month of a workspace on one page: services and targets, versions deployed
 per environment with lead times, new upstream releases, and everything that needs attention now (end of life,
-differences from Git, lagging versions), most important first. *Print or save as PDF* gives a clean document,
+differences from Git, lagging versions), most important first. With [pull requests](/guide/argocd/) on, it also
+counts those Goliash opened that month: merged, still open, closed, by version policies, rollbacks, and the median
+time from pull request to running. *Print or save as PDF* gives a clean document,
 for a monthly review or, with a workspace per client, an MSP's report to each client. Pick the month with
 `/report?month=2026-09`.
 

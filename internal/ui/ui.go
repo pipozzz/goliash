@@ -1162,6 +1162,9 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request, p auth.Principal
 	for _, rel := range rep.Releases {
 		v.Releases = append(v.Releases, ReportReleaseView{Service: rel.Service, Version: rel.Version, At: rel.At.Format("2 Jan")})
 	}
+	if v.Pulls, err = s.reportPulls(ctx, p.Scope, month, month.AddDate(0, 1, 0)); err != nil {
+		return err
+	}
 	return render(w, r, ReportPage(v))
 }
 
