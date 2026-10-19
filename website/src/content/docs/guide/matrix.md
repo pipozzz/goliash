@@ -31,7 +31,9 @@ Badges in a cell:
 During a rollout, both versions show with their replica counts. The matrix updates live as snapshots arrive.
 
 **Group by** above the matrix puts services under headings: **Application** (default), **Team** (the service's
-owner) or **Status** (needs attention, behind, up to date), or **None** for one list. A service's application is the
+owner), **Target** (the cluster, cloud account or host it runs on: a service on three clusters shows under each, with
+that cluster's versions only; targets come in environment order, each with its platform and environment) or **Status**
+(needs attention, behind, up to date), or **None** for one list. A service's application is the
 one most of its workloads belong to (see below how it is found). Each heading shows how many of its services are up
 to date, as a bar, and the filter hides headings with nothing left under them. The choice stays in the link, also
 while looking back with time travel.
@@ -72,6 +74,8 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 - **Open a cell** and its board is laid over the global one like a card, one cell per service; the global board stays
   behind, dimmed, with the application marked, and its cells open the other applications directly. × or Escape lays
   the card down again. Arrow keys move between cells, Enter opens one.
+- **Grouped by target**, each cell is a cluster or cloud account (`/tiles?group=target`): open one to see what runs
+  on it, `/tiles?group=target&app=k8s-prod&only=1&tv=1` puts one cluster on a wall screen.
 - **Only this team** (or application) on the card shows it alone, as the whole board: its services as large cells,
   nothing else behind (`/tiles?group=team&app=payments&only=1`). With *Env* and **TV mode** it is a team's own wall
   screen (`&env=prod&tv=1`); save it as a [view](#saved-views) to keep it a click away.

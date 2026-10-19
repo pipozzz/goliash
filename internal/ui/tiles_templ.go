@@ -302,7 +302,7 @@ func TilesPage(v TilesView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					for _, m := range []struct{ Key, Label string }{{"app", "Application"}, {"team", "Team"}, {"status", "Status"}} {
+					for _, m := range []struct{ Key, Label string }{{"app", "Application"}, {"team", "Team"}, {"target", "Target"}, {"status", "Status"}} {
 						var templ_7745c5c3_Var16 = []any{templ.KV("on", v.GroupBy == m.Key)}
 						templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var16...)
 						if templ_7745c5c3_Err != nil {

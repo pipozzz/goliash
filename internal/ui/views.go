@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -107,7 +108,7 @@ func (g MatrixGroup) healthBar(w float64) (ok, warn, bad float64) {
 // matrixGroupModes are the ways to arrange the matrix, application first. Namespaces
 // are left out: one service usually runs in a different one per environment.
 var matrixGroupModes = []struct{ Key, Label string }{
-	{"app", "Application"}, {"team", "Team"}, {"status", "Status"}, {"none", "None"},
+	{"app", "Application"}, {"team", "Team"}, {"target", "Target"}, {"status", "Status"}, {"none", "None"},
 }
 
 // matrixGroupBy returns a known grouping, application by default.
@@ -125,6 +126,10 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 	if by == "none" {
 		return []MatrixGroup{{Rows: rows}}
 	}
+	captions := map[string]string{}
+	if by == "target" {
+		rows, captions = rowsByTarget(rows)
+	}
 	byKey := map[string][]MatrixRow{}
 	sources := map[string]map[string]bool{}
 	fams := rowFamilies(rows)
@@ -138,6 +143,11 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 			}
 		case "status":
 			key = r.Health
+		case "target":
+			key = r.Target
+			if key == "" {
+				key = "not running"
+			}
 		default:
 			key = fams[r.App].Name
 			if key == "" {
@@ -150,7 +160,7 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		}
 		byKey[key] = append(byKey[key], r)
 	}
-	last := func(k string) bool { return k == "other" || k == "no owner" }
+	last := func(k string) bool { return k == "other" || k == "no owner" || k == "not running" }
 	var keys []string
 	if by == "status" {
 		for _, sc := range statusColumns {
@@ -162,9 +172,24 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		for k := range byKey {
 			keys = append(keys, k)
 		}
+		envOf := map[string]int{} // by target: its environment's column, so dev's targets come before prod's
+		if by == "target" {
+			for k, rs := range byKey {
+				envOf[k] = len(rs[0].Cells)
+				for i, c := range rs[0].Cells {
+					if len(c.Versions) > 0 {
+						envOf[k] = i
+						break
+					}
+				}
+			}
+		}
 		sort.Slice(keys, func(i, j int) bool {
 			if last(keys[i]) != last(keys[j]) {
 				return last(keys[j])
+			}
+			if envOf[keys[i]] != envOf[keys[j]] {
+				return envOf[keys[i]] < envOf[keys[j]]
 			}
 			return keys[i] < keys[j]
 		})
@@ -192,9 +217,64 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		if by == "app" {
 			g.Caption = familyCaption(fams, k, sources[k])
 		}
+		if by == "target" {
+			g.Caption = captions[k]
+		}
 		out = append(out, g)
 	}
 	return out
+}
+
+// rowsByTarget splits each row into one per target it runs on, each keeping only that target's versions (and its
+// environment's drifts): the services of a cluster or a cloud account. A row running nowhere is kept once, without
+// a target. It returns the captions of the targets too.
+func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]string) {
+	var out []MatrixRow
+	captions := map[string]string{}
+	for _, r := range rows {
+		var targets []string
+		for _, c := range r.Cells {
+			for _, v := range c.Versions {
+				for _, t := range v.On {
+					if !slices.Contains(targets, t.Name) {
+						targets = append(targets, t.Name)
+						captions[t.Name] = t.Caption
+					}
+				}
+			}
+		}
+		if len(targets) == 0 {
+			out = append(out, r)
+			continue
+		}
+		for _, t := range targets {
+			cp := r
+			cp.Target = t
+			cp.Cells = make([]MatrixCell, len(r.Cells))
+			for i, c := range r.Cells {
+				var vs []VersionView
+				for _, v := range c.Versions {
+					if slices.ContainsFunc(v.On, func(x TargetTag) bool { return x.Name == t }) {
+						vs = append(vs, v)
+					}
+				}
+				if len(vs) > 0 {
+					c.Versions = vs
+					cp.Cells[i] = c
+				}
+			}
+			var all []DriftBadge // its health, from what is left: another environment's drift is not this target's
+			for _, c := range cp.Cells {
+				all = append(all, c.Drifts...)
+			}
+			cp.Health = healthOf(all, true)
+			if slices.ContainsFunc(all, func(b DriftBadge) bool { return b.Kind == "exploited" }) {
+				cp.Health = "bad"
+			}
+			out = append(out, cp)
+		}
+	}
+	return out, captions
 }
 
 func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
@@ -252,6 +332,7 @@ type MatrixRow struct {
 	LatestURL string
 	Note      string // e.g. "17.0 outside pin", "checked by agent"
 	NoteTitle string
+	Target    string // grouped by target: the one target this row shows
 }
 
 // MatrixCell is one service in one environment.
@@ -268,8 +349,12 @@ type VersionView struct {
 	Resolved string // the exact release behind a moving tag
 	Running  int
 	Targets  string
+	On       []TargetTag  // the targets it runs on, for grouping by target
 	Drifts   []DriftBadge // the drifts about this version, on a service page
 }
+
+// TargetTag is a target a version runs on, named and described for a heading: "Kubernetes · prod".
+type TargetTag struct{ Name, Caption string }
 
 // DriftBadge is a short drift label with an explanation on hover.
 type DriftBadge struct {
@@ -334,6 +419,19 @@ func buildGrid(o versions.Overview, agents int, groupBy string) MatrixGrid {
 	return g
 }
 
+// targetCaption describes a target for a heading: its platform and environment.
+func targetCaption(o versions.Overview, id, env string) string {
+	for _, t := range o.Targets {
+		if t.ID == id {
+			if p, ok := platformInfo(t.Platform); ok {
+				return p.Title + " · " + env
+			}
+			return t.Platform + " · " + env
+		}
+	}
+	return env
+}
+
 // matrixRow is one matrix line: a service, or its part in one application when its
 // versions are compared per application.
 func matrixRow(o versions.Overview, row versions.Row, part versions.Part) MatrixRow {
@@ -350,7 +448,15 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		var stale []string
 		cell.FromDeclared = c.FromDeclared
 		for _, v := range c.Versions {
-			cell.Versions = append(cell.Versions, VersionView{Tag: v.Tag, Resolved: v.Resolved, Running: v.Running, Targets: strings.Join(v.Targets, ", ")})
+			vv := VersionView{Tag: v.Tag, Resolved: v.Resolved, Running: v.Running, Targets: strings.Join(v.Targets, ", ")}
+			for i, name := range v.Targets {
+				caption := o.Matrix.Environments[ei].Name
+				if i < len(v.TargetIDs) {
+					caption = targetCaption(o, v.TargetIDs[i], caption)
+				}
+				vv.On = append(vv.On, TargetTag{Name: name, Caption: caption})
+			}
+			cell.Versions = append(cell.Versions, vv)
 			for i, id := range v.TargetIDs {
 				if last, ok := o.Stale[id]; ok {
 					stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))

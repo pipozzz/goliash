@@ -46,7 +46,7 @@ templ TilesPage(v TilesView) {
 				if v.App == "" {
 					<nav class="segmented" aria-label="Group by">
 						<span class="muted">Group by</span>
-						for _, m := range []struct{ Key, Label string }{{"app", "Application"}, {"team", "Team"}, {"status", "Status"}} {
+						for _, m := range []struct{ Key, Label string }{{"app", "Application"}, {"team", "Team"}, {"target", "Target"}, {"status", "Status"}} {
 							<a href={ templ.URL(tilesWith(v, "group", m.Key)) } class={ templ.KV("on", v.GroupBy == m.Key) }>{ m.Label }</a>
 						}
 					</nav>

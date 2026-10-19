@@ -577,7 +577,7 @@ func shortName(s string) string {
 }
 
 func groupWord(by string) string {
-	return map[string]string{"app": "applications", "team": "teams", "status": "states"}[by]
+	return map[string]string{"app": "applications", "team": "teams", "target": "targets", "status": "states"}[by]
 }
 
 // favicon is the logo coloured by the workspace's state: of its nine cells, as many
