@@ -198,8 +198,11 @@ func ArgoAppURL(base, appNamespace, app string) string {
 
 // GitOpsToolName is how a GitOps tool is called: "Argo CD", "Flux".
 func GitOpsToolName(tool string) string {
-	if tool == "flux" {
+	switch tool {
+	case "flux":
 		return "Flux"
+	case "git":
+		return "Git"
 	}
 	return "Argo CD"
 }
@@ -207,8 +210,11 @@ func GitOpsToolName(tool string) string {
 // GitOpsObject is what the tool calls the object that deploys a workload: an Argo CD application, a Flux
 // Kustomization or HelmRelease (told apart by a chart path: the HelmRelease's).
 func GitOpsObject(tool string) string {
-	if tool == "flux" {
+	switch tool {
+	case "flux":
 		return "Flux"
+	case "git":
+		return "Workload"
 	}
 	return "Argo CD application"
 }

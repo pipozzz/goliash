@@ -105,10 +105,10 @@ func (g *Gitea) walk(ctx context.Context, b Bump, visit func(f giteaFile)) (stri
 			return repo, branch, err
 		}
 		for _, f := range tree.Tree {
-			if f.Type != "blob" || f.Size > 512<<10 || !strings.HasSuffix(f.Path, ".yaml") && !strings.HasSuffix(f.Path, ".yml") {
+			if f.Type != "blob" || f.Size > 512<<10 || !deployFile(f.Path) {
 				continue
 			}
-			if dir != "" && !strings.HasPrefix(f.Path, dir+"/") {
+			if !underPath(f.Path, dir) {
 				continue
 			}
 			if read++; read > maxFiles {

@@ -1,6 +1,6 @@
 ---
 title: Argo CD and Flux
-description: 'Which Git repository, path and commit deploy each service, whether Argo CD or Flux is in sync, upgrades and promotions as pull requests, and links straight to the application, the repository and the commit.'
+description: 'Which Git repository, path and commit deploy each service, whether Argo CD or Flux is in sync, upgrades, promotions and rollbacks as pull requests (also for Nomad jobs and Compose files without a GitOps tool), and links straight to the application, the repository and the commit.'
 ---
 
 With Argo CD, Git says what should run and Argo CD makes it so. Goliash shows both sides on one page: what Git
@@ -144,6 +144,35 @@ sources:
 `ssh://git@github.com/acme/deploy` and `git@…` addresses link to the repository's web page, and pull requests work
 for them as for Argo CD. The Helm charts grant `get` and `list` on Flux's `kustomizations`, `helmreleases`,
 `gitrepositories` and `helmrepositories`.
+
+## Without Argo CD or Flux
+
+Nomad jobs, Compose files and ECS task definitions live in Git too. Name the place in the workload's labels and the
+same pull requests work, without a GitOps tool:
+
+| Label | |
+| --- | --- |
+| `goliash.git.repo` | The repository: `https://github.com/acme/infra` (GitHub, GitLab, Gitea or Forgejo, with the token above) |
+| `goliash.git.path` | The file, or a directory of files, that pins the image: `nomad/vault.nomad.hcl` |
+| `goliash.git.branch` | The branch, when not the repository's default |
+
+On Nomad they go in the job's `meta` (job, group or task); on Docker, Compose and Swarm in `labels`; on ECS as tags.
+
+```hcl
+job "vault" {
+  meta {
+    "goliash.git.repo" = "https://github.com/acme/infra"
+    "goliash.git.path" = "nomad/vault.nomad.hcl"
+  }
+  # …
+}
+```
+
+The service page then shows a **Git** panel with **Open PR**, and the Updates, Security and Delivery pages, the
+`auto_pr` version policy, the preview and the reminders work as for Argo CD. Goliash changes the tag where the file
+pins it, in HCL (`image = "hashicorp/vault:1.17.2"`), YAML, JSON task definitions or Terraform. A service without
+the labels shows its members the lines to add, for the platforms it runs on. With no sync state to read, there is no *out of
+sync*, *Git pins* or rollback offer: those need Argo CD or Flux.
 
 ## Why it helps
 

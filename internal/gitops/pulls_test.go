@@ -50,3 +50,21 @@ func TestGitHubOpenPulls(t *testing.T) {
 		t.Fatal("Dependabot's pull request not found")
 	}
 }
+
+func TestDeployFiles(t *testing.T) {
+	for _, c := range []struct {
+		file, dir string
+		want      bool
+	}{
+		{"nomad/vault.nomad.hcl", "nomad/vault.nomad.hcl", true},
+		{"nomad/vault.nomad.hcl", "nomad", true},
+		{"nomad/vault.nomad.hcl", "", true},
+		{"nomad-old/vault.hcl", "nomad", false},
+		{"README.md", "", false},
+		{"compose/tools/compose.yaml", "compose/tools", true}, {"ecs/api/task-definition.json", "ecs/api", true},
+	} {
+		if got := deployFile(c.file) && underPath(c.file, c.dir); got != c.want {
+			t.Errorf("%s under %q: %v", c.file, c.dir, got)
+		}
+	}
+}

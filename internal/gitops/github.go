@@ -65,7 +65,23 @@ var ErrNoTag = errors.New("no file pins the image at that version")
 // ErrPinned is returned when the files pin the image by digest: changing the tag alone would not change what runs.
 var ErrPinned = errors.New("the image is pinned by digest")
 
-// maxFiles bounds how many YAML files under the path are read.
+// deployFile says whether a repository file may pin an image: Kubernetes, Kustomize, Helm and Compose YAML, Nomad
+// jobs (HCL), ECS task definitions (JSON) and Terraform.
+func deployFile(name string) bool {
+	for _, ext := range []string{".yaml", ".yml", ".hcl", ".nomad", ".json", ".tf"} {
+		if strings.HasSuffix(name, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// underPath says whether a repository file is the path, or under it ("" is the whole repository).
+func underPath(file, dir string) bool {
+	return dir == "" || file == dir || strings.HasPrefix(file, dir+"/")
+}
+
+// maxFiles bounds how many files under the path are read.
 const maxFiles = 200
 
 // ghPlan is what OpenBump would change, with what it needs to commit it.
@@ -161,10 +177,10 @@ func (g *GitHub) walk(ctx context.Context, b Bump, visit func(path, sha string, 
 	dir := strings.Trim(path.Clean("/"+b.Path), "/")
 	read := 0
 	for _, f := range tree.Tree {
-		if f.Type != "blob" || f.Size > 512<<10 || !strings.HasSuffix(f.Path, ".yaml") && !strings.HasSuffix(f.Path, ".yml") {
+		if f.Type != "blob" || f.Size > 512<<10 || !deployFile(f.Path) {
 			continue
 		}
-		if dir != "" && !strings.HasPrefix(f.Path, dir+"/") {
+		if !underPath(f.Path, dir) {
 			continue
 		}
 		if read++; read > maxFiles {
