@@ -45,3 +45,21 @@ templ secret(label, value string) {
 		<span class="muted">It is shown only once.</span>
 	</div>
 }
+
+// about is a page's explanation, folded: a short "About this page" that shows it on hover (its title) and opens on
+// a click or a tap. title is the plain text for the tooltip; the children are the explanation.
+templ about(title string) {
+	<details class="about">
+		<summary title={ title }>About this page</summary>
+		<div class="about-text">
+			{ children... }
+		</div>
+	</details>
+}
+
+// aboutText is about with plain text.
+templ aboutText(text string) {
+	@about(text) {
+		{ text }
+	}
+}

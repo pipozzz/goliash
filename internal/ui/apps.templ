@@ -12,9 +12,9 @@ templ AppsPage(v AppsView) {
 		<div class="head">
 			<div>
 				<h1>Applications</h1>
-				<p class="sub">
+				@about("Found in workload labels (app.kubernetes.io/part-of, goliash.app, Helm, Compose, Nomad) or, without them, the namespace. Rename one, merge several into one, or give an application's services a team.") {
 					Found in workload labels (<code>app.kubernetes.io/part-of</code>, <code>goliash.app</code>, Helm, Compose, Nomad) or, without them, the namespace. Rename one, merge several into one, or give an application's services a team.
-				</p>
+				}
 			</div>
 			<a class="button secondary" href="/teams">Teams</a>
 		</div>
@@ -121,7 +121,7 @@ templ TeamsPage(v TeamsView) {
 		<div class="head">
 			<div>
 				<h1>Teams</h1>
-				<p class="sub">A service's team is its owner. Teams filter the matrix, tiles, updates, upgrade plans and notification rules.</p>
+				@aboutText("A service's team is its owner. Teams filter the matrix, tiles, updates, upgrade plans and notification rules.")
 			</div>
 			<a class="button secondary" href="/apps">Applications</a>
 		</div>

@@ -11,7 +11,7 @@ templ PromotionsPage(v PromotionsView) {
 			<div>
 				<h1>Delivery</h1>
 				<p class="sub"><a href="/report">Monthly report →</a></p>
-				<p class="sub">What waits to be promoted, and how versions move through the environments, read from what ran when.</p>
+				@aboutText("What waits to be promoted, and how versions move through the environments, read from what ran when.")
 			</div>
 		</div>
 		if len(v.Rollouts) > 0 {

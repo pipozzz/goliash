@@ -8,7 +8,7 @@ templ NotificationsPage(v NotificationsView) {
 		<div class="head">
 			<div>
 				<h1>Notifications</h1>
-				<p class="sub">Rules send events to channels, right away or as a daily or weekly digest.</p>
+				@aboutText("Rules send events to channels, right away or as a daily or weekly digest.")
 			</div>
 			<span class="actions"><a href="/notifications/deliveries">Delivery log</a></span>
 		</div>
@@ -215,7 +215,7 @@ templ SettingsPage(v SettingsView) {
 		<div class="head">
 			<div>
 				<h1>Workspace settings</h1>
-				<p class="sub">Viewers read. Members map services, edit policies and acknowledge. Admins manage agents, channels and users.</p>
+				@aboutText("Viewers read. Members map services, edit policies and acknowledge. Admins manage agents, channels and users.")
 			</div>
 		</div>
 		<nav class="section-links" aria-label="Sections">
@@ -730,7 +730,7 @@ templ DeliveryLogPage(v SentView) {
 			<div>
 				<p><a href="/notifications">Notifications</a> / delivery log</p>
 				<h1>Delivery log</h1>
-				<p class="sub">Every notification of the last 30 days: what went out through which channel, what waits for its digest or quiet hours, and what failed.</p>
+				@aboutText("Every notification of the last 30 days: what went out through which channel, what waits for its digest or quiet hours, and what failed.")
 			</div>
 		</div>
 		<form class="row" method="get" action="/notifications/deliveries">

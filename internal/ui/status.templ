@@ -8,7 +8,7 @@ templ StatusPage(v StatusView) {
 		<div class="head">
 			<div>
 				<h1>Status</h1>
-				<p class="sub">Whether Goliash itself works and its data is fresh: agents reporting, releases checked, vulnerability data current, notifications going out.</p>
+				@aboutText("Whether Goliash itself works and its data is fresh: agents reporting, releases checked, vulnerability data current, notifications going out.")
 			</div>
 			<span class={ "status-overall", "st-" + v.Worst }>{ statusWord(v.Worst) }</span>
 		</div>
