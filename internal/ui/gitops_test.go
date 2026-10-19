@@ -343,6 +343,24 @@ func TestMarkdownHTML(t *testing.T) {
 	}
 }
 
+// Goli's summary of the release notes goes into the description, after the facts, marked as Goli's.
+func TestBumpRequestWithSummary(t *testing.T) {
+	s := &Server{publicURL: "https://goliash.example.com"}
+	u := upgrade{
+		app: versions.GitOpsApp{Tag: "1.4.2", Image: "ghcr.io/acme/api:1.4.2"}, service: "api", page: "/services/api",
+		to: "1.5.0", why: "the newest release its version policy accepts", summary: "- Nothing breaking in the release notes.\n- Fixes CVE-2026-1.",
+	}
+	u.app.Environment, u.app.Path, u.app.Repo = "prod", "apps/api", "https://github.com/acme/deploy"
+	b := s.bumpRequest(u, "you@example.com")
+	if !strings.Contains(b.Body, "### What changes\n\n- Nothing breaking in the release notes.\n- Fixes CVE-2026-1.") ||
+		!strings.Contains(b.Body, "by Goli") {
+		t.Fatalf("body:\n%s", b.Body)
+	}
+	if b2 := s.bumpRequest(upgrade{app: u.app, service: "api", to: "1.5.0"}, "x"); strings.Contains(b2.Body, "What changes") {
+		t.Fatal("a summary section without a summary")
+	}
+}
+
 // A pull request closed without merging: the page offers the upgrade again, the policy does not open it again.
 func TestClosedPullRequest(t *testing.T) {
 	e := newUIEnv(t)
