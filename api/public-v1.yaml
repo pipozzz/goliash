@@ -536,9 +536,11 @@ paths:
       operationId: listGitOps
       summary: GitOps applications
       description: >-
-        The Argo CD applications that deploy the workspace's services, those that need attention first: where they
-        deploy from, the commit last synced, sync and health, and since when. `trouble` is `out of sync`, `degraded`
-        or `missing` once the state has lasted 10 minutes, else empty. Empty without Argo CD.
+        The Argo CD applications and Flux Kustomizations that deploy the workspace's services, those that need
+        attention first: where they deploy from, the commit last synced, sync and health, and since when. `trouble` is
+        `out of sync`, `degraded` or `missing` once the state has lasted 10 minutes, else empty. For one degraded or
+        missing, `after_change` is the version change on its cluster just before (within a week): the likeliest
+        cause, and `from` the version to roll back to. Empty without Argo CD or Flux.
       responses:
         "200":
           description: The applications, per workload they deploy.
@@ -550,7 +552,7 @@ paths:
                   type: object
                   required: [tool, app, service, environment, target, workload, repo, path, target_revision, revision, sync, health, since, trouble]
                   properties:
-                    tool: { type: string, enum: [argocd] }
+                    tool: { type: string, enum: [argocd, flux] }
                     app: { type: string, example: checkout-prod }
                     service: { type: string }
                     environment: { type: string }
@@ -564,6 +566,47 @@ paths:
                     health: { type: string, example: Healthy }
                     since: { type: string, format: date-time, description: "Since when sync and health are what they are." }
                     trouble: { type: string, enum: ["", "out of sync", "degraded", "missing"] }
+                    version: { type: string, description: "The version (image tag) of the workload's main container.", example: 25.0.6 }
+                    after_change:
+                      type: object
+                      description: For a degraded or missing application, the version change just before it.
+                      required: [from, to, at]
+                      properties:
+                        from: { type: string, example: 25.0.1 }
+                        to: { type: string, example: 25.0.6 }
+                        at: { type: string, format: date-time }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/pull-requests:
+    get:
+      operationId: listPullRequests
+      summary: Pull requests Goliash opened
+      description: >-
+        The pull requests Goliash opened in GitOps repositories to upgrade, promote or roll back a service, newest
+        first: open, merged or closed as the forge last said (asked every 30 minutes), who opened them (`auto-pr` for
+        a version policy), and whether the version they pin runs on that workload now.
+      responses:
+        "200":
+          description: The pull requests.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [service, environment, target, from, to, url, state, opened_by, opened_at, running]
+                  properties:
+                    service: { type: string, example: checkout }
+                    environment: { type: string, example: prod }
+                    target: { type: string, example: k8s-prod }
+                    from: { type: string, example: 2.3.1 }
+                    to: { type: string, example: 2.4.0 }
+                    url: { type: string, example: https://github.com/acme/deploy/pull/7 }
+                    state: { type: string, enum: [open, merged, closed] }
+                    opened_by: { type: string, example: auto-pr }
+                    opened_at: { type: string, format: date-time }
+                    running: { type: boolean, description: "The version it pins runs on that workload now." }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 

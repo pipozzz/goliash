@@ -39,6 +39,8 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		Health         string    `json:"health"`
 		Since          time.Time `json:"since"`
 		Trouble        string    `json:"trouble"`
+		Version        string    `json:"version,omitempty"`
+		AfterChange    *change   `json:"after_change,omitempty"`
 	}
 	now := time.Now()
 	var trouble, fine []apiApp
@@ -46,7 +48,12 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		x := apiApp{
 			Tool: a.Tool, App: a.App, Service: a.Service, Environment: a.Environment, Target: a.Target, Workload: a.Workload,
 			Repo: a.Repo, Path: a.Path, TargetRevision: a.TargetRevision, Revision: a.Revision, Sync: a.Sync, Health: a.Health,
-			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now),
+			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now), Version: a.Tag,
+		}
+		if x.Trouble == "degraded" || x.Trouble == "missing" { // unhealthy: the version change just before, the likeliest cause
+			if from, at, ok := versions.Replaced(r.Context(), h.store, p.Scope, a, now.Add(-7*24*time.Hour)); ok {
+				x.AfterChange = &change{From: from, To: a.Tag, At: at.UTC()}
+			}
 		}
 		if x.Trouble != "" {
 			trouble = append(trouble, x)
@@ -55,4 +62,58 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		}
 	}
 	writeJSON(w, http.StatusOK, append(append([]apiApp{}, trouble...), fine...))
+}
+
+// change is a version change on a cluster: from, to, and when.
+type change struct {
+	From string    `json:"from"`
+	To   string    `json:"to"`
+	At   time.Time `json:"at"`
+}
+
+// pullRequests lists the pull requests Goliash opened to change a version in a GitOps repository, newest first:
+// what became of them, and whether the version they pin runs.
+func (h *PublicHandler) pullRequests(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, h.store, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	apps, err := versions.GitOpsApps(ctx, h.store, p.Scope, o)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	pulls, err := h.store.ListGitOpsPulls(ctx, p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	running, targetName := map[string]string{}, map[string]string{}
+	for _, a := range apps {
+		running[a.TargetID+"|"+a.WorkloadID] = a.Tag
+		targetName[a.TargetID] = a.Target
+	}
+	type apiPull struct {
+		Service     string    `json:"service"`
+		Environment string    `json:"environment"`
+		Target      string    `json:"target"`
+		From        string    `json:"from"`
+		To          string    `json:"to"`
+		URL         string    `json:"url"`
+		State       string    `json:"state"`
+		OpenedBy    string    `json:"opened_by"`
+		OpenedAt    time.Time `json:"opened_at"`
+		Running     bool      `json:"running"`
+	}
+	out := []apiPull{}
+	for _, pr := range pulls {
+		out = append(out, apiPull{
+			Service: o.Services[pr.ServiceID].Name, Environment: pr.Environment, Target: targetName[pr.TargetID],
+			From: pr.From, To: pr.To, URL: pr.URL, State: pr.State, OpenedBy: pr.OpenedBy, OpenedAt: pr.OpenedAt.UTC(),
+			Running: running[pr.TargetID+"|"+pr.WorkloadID] == pr.To,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }

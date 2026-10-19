@@ -27,6 +27,8 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `changes` | What changed: recently (default: last 24 hours), or in a window of the past (`since` and `before` as times) |
 | `promotions` | What waits for the next environment, with the releases it brings |
 | `rollouts` | Rollouts that do not finish: workloads down, stuck with two versions side by side, or short of replicas |
+| `gitops` | Is Git what runs? Argo CD applications and Flux Kustomizations: repository, path, commit, sync and health; for a degraded one, the version change just before it and so the version to roll back to |
+| `pull_requests` | Pull requests Goliash opened to upgrade, promote or roll back: open, merged or closed, by whom, and whether the version runs now |
 | `delivery` | Deploys per environment and lead times, last 30 days |
 | `inventory` | Every running container with image and digest, now or at a past time, with image size and whether its base is current |
 | `images` | Why did an image grow? One service's images: size against its budget, base and how far behind it is, evidence, 90 days of sizes, and the layers the last deploy added and removed with the Dockerfile step of each |

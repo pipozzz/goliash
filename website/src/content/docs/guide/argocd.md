@@ -18,7 +18,8 @@ on which version, against the newest release upstream.
 
 A notification rule with the `gitops` event (*Argo CD out of sync or degraded*) says so in Slack, Teams, e-mail or a
 push, once per episode, with the commit last synced; Goli and AI assistants read the same through the `gitops` tool
-and `GET /api/v1/gitops`.
+and `GET /api/v1/gitops`, which for a degraded application also gives the version change just before it
+(`after_change`). `GET /api/v1/pull-requests` and the `pull_requests` tool list the pull requests Goliash opened.
 
 ## Upgrade with a pull request
 

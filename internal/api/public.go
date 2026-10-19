@@ -63,6 +63,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/promotions", h.with(store.RoleViewer, h.promotions))
 	mux.Handle("GET /api/v1/rollouts", h.with(store.RoleViewer, h.rollouts))
 	mux.Handle("GET /api/v1/gitops", h.with(store.RoleViewer, h.gitOps))
+	mux.Handle("GET /api/v1/pull-requests", h.with(store.RoleViewer, h.pullRequests))
 	mux.Handle("GET /api/v1/delivery", h.with(store.RoleViewer, h.delivery))
 	mux.Handle("GET /api/v1/inventory", h.with(store.RoleViewer, h.inventory))
 	mux.Handle("GET /api/v1/hygiene", h.with(store.RoleViewer, h.hygiene))

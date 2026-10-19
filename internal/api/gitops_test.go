@@ -1,0 +1,56 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package api
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/pipozzz/goliash/internal/store"
+)
+
+// A degraded application says the version change just before it; the pull requests Goliash opened are listed with
+// whether their version runs.
+func TestGitOpsAfterChangeAndPullRequests(t *testing.T) {
+	e := newPublicEnv(t)
+	ctx := context.Background()
+	ts, _ := e.st.ListTargets(ctx, e.sc)
+	var prod store.Target
+	for _, x := range ts {
+		if x.Name == "k8s-prod" {
+			prod = x
+		}
+	}
+	web, _ := e.st.GetServiceByName(ctx, e.sc, "web")
+	g := store.WorkloadGitOps{
+		WorkloadID: "w", Tool: "argocd", App: "web-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/web/prod", TargetRevision: "main", Sync: "Synced", Health: "Degraded",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, e.sc, prod.ID, []store.WorkloadGitOps{g}, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.InsertEvent(ctx, e.sc, store.Event{
+		Type: "version_changed", ServiceID: web.ID, EnvironmentID: prod.EnvironmentID, TargetID: prod.ID,
+		FromVersion: "1.27.1", ToVersion: "1.27.2", At: time.Now().Add(-2 * time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	code, body := e.call(nil, "GET", "/api/v1/gitops", e.token, "")
+	if code != 200 || !strings.Contains(body, `"trouble":"degraded","version":"1.27.2","after_change":{"from":"1.27.1","to":"1.27.2"`) {
+		t.Fatalf("%d %s", code, body)
+	}
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: e.sc, ServiceID: web.ID, Environment: "prod", TargetID: prod.ID, WorkloadID: "w",
+		From: "1.27.1", To: "1.27.2", URL: "https://github.com/acme/deploy/pull/3", OpenedBy: "auto-pr",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	code, body = e.call(nil, "GET", "/api/v1/pull-requests", e.token, "")
+	if code != 200 || !strings.Contains(body, `"service":"web","environment":"prod","target":"k8s-prod","from":"1.27.1","to":"1.27.2"`) ||
+		!strings.Contains(body, `"state":"open","opened_by":"auto-pr"`) || !strings.Contains(body, `"running":true`) {
+		t.Fatalf("%d %s", code, body)
+	}
+}
