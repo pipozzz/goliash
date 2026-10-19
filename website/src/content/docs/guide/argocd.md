@@ -39,6 +39,8 @@ promotions: next to a version that runs in staging and waits for prod, **Open
 PR → prod** pins that version in the repository of prod's application (one button per cluster when several run it),
 saying since when it has run in staging.
 
+![A pull request preview: the repository github.com/acme/deploy, the branch goliash/checkout-2.4.0-prod from main, the title, the kustomization.yaml change from newTag 2.3.1 to 2.4.0, and the description](../../../assets/gitops-preview.png)
+
 **Open PR** first shows a **preview**: the files that pin the image with the lines that change, the branch, the
 title and the description, read from the repository and changing nothing; **Open the pull request** sends it. The
 public demo shows the preview with made-up repositories and opens nothing.

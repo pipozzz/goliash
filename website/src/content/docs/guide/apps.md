@@ -6,7 +6,7 @@ description: 'Where applications and teams come from, label conventions, how to 
 Goliash groups services two ways: by **application** (what a service is part of: a webshop, an identity stack) and by
 **team** (who owns it). The matrix, tiles, updates, upgrade plans and notification rules all use both.
 
-![The Applications page: edge, identity, monitoring and webshop as cards, edged in their state's colour, each with where its name comes from, its team, its services with their state, and fields to rename it or give all its services a team](../../../assets/apps.png)
+![The Applications page: applications as cards, edged in their state's colour, each with where its name comes from, its team, its services with their state, and an Edit button to rename it or give all its services a team](../../../assets/apps.png)
 
 ## Where applications come from
 

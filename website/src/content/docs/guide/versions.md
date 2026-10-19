@@ -18,7 +18,7 @@ containers run. It lists that repository's tags and keeps the newest versions th
 New services are checked within a minute, then every hour. **Check upstream now** on a service page, or
 `goliash check`, checks at once.
 
-![A service page: versions running per environment with drift and end-of-life badges, and the upstream releases with their release notes](../../../assets/service.png)
+![A service page: its team, upstream and the latest acceptable release; the Argo CD panel with the applications that deploy it, synced or out of sync, with Open PR → 1.7.0; and its versions over time per environment and cluster](../../../assets/service.png)
 
 ## Moving tags
 
@@ -172,7 +172,7 @@ too. Updates put off are kept apart under *Acknowledged*.
 The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with. A notification rule
 with the upgrade plan sends it every week; see [Upgrade plan](/guide/notifications/#upgrade-plan).
 
-![The Updates page: tiles counting end-of-life, major and minor upgrades, and a list of services with the running version, the version to move to, why, and a Put off menu](../../../assets/updates.png)
+![The Updates page: tiles counting all, major, minor and patch upgrades, and a list of services with the running version, the version to move to, why, how long it has been open, Open PR where Argo CD deploys it, and Put off](../../../assets/updates.png)
 
 ## Promotions and delivery
 
@@ -182,7 +182,7 @@ time**: which version ran in each environment (one lane per target where an envi
 thirty days; hover a bar for its dates. The charts are drawn on the server, follow the light or dark theme and need
 no script.
 
-![The Delivery page: versions waiting for promotion with the releases they bring, and versions per environment with lead times over the last 30 days](../../../assets/delivery.png)
+![The Delivery page: deploys per week as stacked bars by environment, and open drift per day as lines over gradient areas](../../../assets/delivery.png)
 
 The **Delivery** page lists every version that runs in one environment and waits for the next, longest waiting
 first, with the releases a promotion would bring and their release notes. When both versions' images have an SBOM,

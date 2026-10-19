@@ -36,6 +36,7 @@ import security from '../../assets/security.png';
 import vulns from '../../assets/vulns.png';
 import timeline from '../../assets/timeline-tiles.png';
 import gitops from '../../assets/gitops.png';
+import gitopsPreview from '../../assets/gitops-preview.png';
 import goli from '../../assets/goli.svg';
 
 <Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
@@ -149,6 +150,11 @@ matrix or the tiles change, coloured as things stood then. "What ran in prod whe
 and healthy, and what actually runs next to it. An upgrade or a promotion is one click away as a **pull request** on
 GitHub or GitLab, changing the tag where your manifests, Kustomize or Helm values pin it; you review, Argo CD or Flux
 deploys. Out of sync for an hour? Slack knows. [How it works](/guide/argocd/)
+
+<Image src={gitopsPreview} alt="A pull request preview: the repository, the new branch, the kustomization.yaml change from newTag 2.3.1 to 2.4.0, and the description Goliash writes" class="screenshot" />
+
+Before anything is sent, the **preview** shows the change line by line and the description, with the
+vulnerabilities the upgrade fixes. On [the demo](https://demo.goliash.dev/services/checkout) you can click it.
 
 ## Meet Goli
 
