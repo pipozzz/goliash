@@ -172,6 +172,18 @@ func CommitWebURL(web, revision string) string {
 	return web + "/commit/" + revision
 }
 
+// CompareWebURL is the page of a repository's forge that shows what changed from one commit to another, or ""
+// when either is not a commit or the forge is unknown (Bitbucket's needs more than the two).
+func CompareWebURL(web, from, to string) string {
+	if web == "" || !commitSHA.MatchString(from) || !commitSHA.MatchString(to) || strings.Contains(web, "bitbucket.org") {
+		return ""
+	}
+	if strings.Contains(web, "gitlab") {
+		return web + "/-/compare/" + from + "..." + to
+	}
+	return web + "/compare/" + from + "..." + to
+}
+
 // ArgoAppURL is the application's page in the Argo CD UI at base (GOLIASH_ARGOCD_URL), or "" without one.
 func ArgoAppURL(base, appNamespace, app string) string {
 	base = strings.TrimSuffix(strings.TrimSpace(base), "/")

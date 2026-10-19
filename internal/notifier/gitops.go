@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -65,6 +66,10 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 					it.Text += fmt.Sprintf(": Git pins %s, %s runs", pinned, a.Tag)
 				}
 			}
+			if cmp := versions.CompareWebURL(versions.RepoWebURL(a.Repo), a.PrevRevision, a.Revision); cmp != "" &&
+				!a.RevisionAt.Before(a.SyncSince.Add(-24*time.Hour)) { // Git moved just before: link what changed
+				it.URL = cmp
+			}
 			if trouble != "out of sync" { // unhealthy: say what changed just before, the likeliest cause
 				if from, at, ok := versions.Cause(ctx, n.store, sc, a); ok {
 					it.Text += fmt.Sprintf(", %s after %s replaced %s",
@@ -108,6 +113,9 @@ func (n *Notifier) SetGitPins(pins func(ctx context.Context, a versions.GitOpsAp
 func linkLabel(it Item) string {
 	switch it.Type {
 	case EventGitOps:
+		if strings.Contains(it.URL, "/compare/") {
+			return "Git changes"
+		}
 		return "Commit"
 	case EventPullRequest:
 		return "Pull request"

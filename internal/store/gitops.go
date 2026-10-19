@@ -22,6 +22,8 @@ type WorkloadGitOps struct {
 	Path           string    // or the Helm chart
 	TargetRevision string    // the branch, tag or chart version it follows
 	Revision       string    // the commit or chart version last synced
+	PrevRevision   string    // the one synced before it; "" until the revision first changes
+	RevisionAt     time.Time // when it moved from PrevRevision to Revision; zero before
 	Sync           string    // Synced, OutOfSync, Unknown
 	Health         string    // Healthy, Progressing, Degraded, Suspended, Missing, Unknown
 	SyncSince      time.Time // since when Sync and Health are what they are
@@ -34,17 +36,19 @@ type WorkloadGitOps struct {
 func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string, rows []WorkloadGitOps, complete bool, at time.Time) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		since := map[string]WorkloadGitOps{}
-		existing, err := s.query(ctx, tx, `SELECT workload_id, sync, health, sync_since FROM workload_gitops
+		existing, err := s.query(ctx, tx, `SELECT workload_id, sync, health, sync_since, revision, prev_revision, revision_at FROM workload_gitops
 			WHERE org_id = ? AND workspace_id = ? AND target_id = ?`, sc.OrgID, sc.WorkspaceID, targetID)
 		if err != nil {
 			return err
 		}
 		for existing.Next() {
 			var g WorkloadGitOps
-			if err := existing.Scan(&g.WorkloadID, &g.Sync, &g.Health, &g.SyncSince); err != nil {
+			var revAt sql.NullTime
+			if err := existing.Scan(&g.WorkloadID, &g.Sync, &g.Health, &g.SyncSince, &g.Revision, &g.PrevRevision, &revAt); err != nil {
 				_ = existing.Close()
 				return err
 			}
+			g.RevisionAt = revAt.Time
 			since[g.WorkloadID] = g
 		}
 		_ = existing.Close()
@@ -62,6 +66,16 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 			if old, ok := since[g.WorkloadID]; ok && old.Sync == g.Sync && old.Health == g.Health {
 				g.SyncSince = old.SyncSince
 			}
+			if old, ok := since[g.WorkloadID]; ok {
+				g.PrevRevision, g.RevisionAt = old.PrevRevision, old.RevisionAt
+				if old.Revision != "" && g.Revision != "" && old.Revision != g.Revision { // Git moved: remember from where
+					g.PrevRevision, g.RevisionAt = old.Revision, at
+				}
+			}
+			var revAt any
+			if !g.RevisionAt.IsZero() {
+				revAt = g.RevisionAt.UTC()
+			}
 			if !complete {
 				if _, err := s.exec(ctx, tx, `DELETE FROM workload_gitops WHERE org_id = ? AND workspace_id = ? AND target_id = ? AND workload_id = ?`,
 					sc.OrgID, sc.WorkspaceID, targetID, g.WorkloadID); err != nil {
@@ -69,10 +83,11 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 				}
 			}
 			if _, err := s.exec(ctx, tx, `INSERT INTO workload_gitops (target_id, workload_id, org_id, workspace_id, tool, app,
-				app_namespace, project, repo, path, target_revision, revision, sync, health, sync_since, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				app_namespace, project, repo, path, target_revision, revision, sync, health, sync_since, updated_at,
+				prev_revision, revision_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				targetID, g.WorkloadID, sc.OrgID, sc.WorkspaceID, g.Tool, g.App, g.AppNamespace, g.Project, g.Repo, g.Path,
-				g.TargetRevision, g.Revision, g.Sync, g.Health, g.SyncSince.UTC(), at.UTC()); err != nil {
+				g.TargetRevision, g.Revision, g.Sync, g.Health, g.SyncSince.UTC(), at.UTC(), g.PrevRevision, revAt); err != nil {
 				return err
 			}
 		}
@@ -83,7 +98,7 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 // ListWorkloadGitOps returns every workload's GitOps application in the workspace.
 func (s *Store) ListWorkloadGitOps(ctx context.Context, sc Scope) ([]WorkloadGitOps, error) {
 	rows, err := s.query(ctx, s.db, `SELECT target_id, workload_id, tool, app, app_namespace, project, repo, path,
-		target_revision, revision, sync, health, sync_since, updated_at FROM workload_gitops
+		target_revision, revision, sync, health, sync_since, updated_at, prev_revision, revision_at FROM workload_gitops
 		WHERE org_id = ? AND workspace_id = ? ORDER BY app, target_id, workload_id`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -92,11 +107,15 @@ func (s *Store) ListWorkloadGitOps(ctx context.Context, sc Scope) ([]WorkloadGit
 	var out []WorkloadGitOps
 	for rows.Next() {
 		var g WorkloadGitOps
+		var revAt sql.NullTime
 		if err := rows.Scan(&g.TargetID, &g.WorkloadID, &g.Tool, &g.App, &g.AppNamespace, &g.Project, &g.Repo, &g.Path,
-			&g.TargetRevision, &g.Revision, &g.Sync, &g.Health, &g.SyncSince, &g.UpdatedAt); err != nil {
+			&g.TargetRevision, &g.Revision, &g.Sync, &g.Health, &g.SyncSince, &g.UpdatedAt, &g.PrevRevision, &revAt); err != nil {
 			return nil, err
 		}
 		g.SyncSince, g.UpdatedAt = g.SyncSince.UTC(), g.UpdatedAt.UTC()
+		if revAt.Valid {
+			g.RevisionAt = revAt.Time.UTC()
+		}
 		out = append(out, g)
 	}
 	return out, rows.Err()

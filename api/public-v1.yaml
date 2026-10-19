@@ -567,6 +567,8 @@ paths:
                     since: { type: string, format: date-time, description: "Since when sync and health are what they are." }
                     trouble: { type: string, enum: ["", "out of sync", "degraded", "missing"] }
                     version: { type: string, description: "The version (image tag) of the workload's main container.", example: 25.0.6 }
+                    prev_revision: { type: string, description: "The commit synced before revision, once it changed." }
+                    compare_url: { type: string, description: "The forge's page of what changed in Git from prev_revision to revision." }
                     after_change:
                       type: object
                       description: For a degraded or missing application, the version change just before it.

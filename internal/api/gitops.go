@@ -40,6 +40,8 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		Since          time.Time `json:"since"`
 		Trouble        string    `json:"trouble"`
 		Version        string    `json:"version,omitempty"`
+		PrevRevision   string    `json:"prev_revision,omitempty"`
+		CompareURL     string    `json:"compare_url,omitempty"`
 		AfterChange    *change   `json:"after_change,omitempty"`
 	}
 	now := time.Now()
@@ -48,7 +50,8 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		x := apiApp{
 			Tool: a.Tool, App: a.App, Service: a.Service, Environment: a.Environment, Target: a.Target, Workload: a.Workload,
 			Repo: a.Repo, Path: a.Path, TargetRevision: a.TargetRevision, Revision: a.Revision, Sync: a.Sync, Health: a.Health,
-			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now), Version: a.Tag,
+			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now), Version: a.Tag, PrevRevision: a.PrevRevision,
+			CompareURL: versions.CompareWebURL(versions.RepoWebURL(a.Repo), a.PrevRevision, a.Revision),
 		}
 		if x.Trouble == "degraded" || x.Trouble == "missing" { // unhealthy: the version change just before, the likeliest cause
 			if from, at, ok := versions.Cause(r.Context(), h.store, p.Scope, a); ok {

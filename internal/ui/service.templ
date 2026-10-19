@@ -761,6 +761,9 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 								} else {
 									{ orDash(a.Revision) }
 								}
+								if a.CompareURL != "" {
+									<div class="targets"><a href={ templ.SafeURL(a.CompareURL) } rel="noopener" target="_blank" title="What changed in Git since the commit synced before">changes</a> @timeAgo(a.RevisionAt)</div>
+								}
 							</td>
 							<td data-label="State">
 								<span class="badges">

@@ -44,5 +44,19 @@ func TestWorkloadGitOps(t *testing.T) {
 		if got, _ = s.ListWorkloadGitOps(ctx, sc); len(got) != 1 || !got[0].SyncSince.Equal(t0.Add(2*time.Hour)) || got[0].Sync != "Synced" {
 			t.Fatalf("after a change %+v", got)
 		}
+		// The first revision seen has nothing before it; a new one remembers the one it replaced, and when.
+		if got[0].PrevRevision != "" || !got[0].RevisionAt.IsZero() {
+			t.Fatalf("a previous revision before any change %+v", got[0])
+		}
+		a.Revision = "def5678"
+		if err := s.SetWorkloadGitOps(ctx, sc, tgt.ID, []WorkloadGitOps{a}, true, t0.Add(3*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetWorkloadGitOps(ctx, sc, tgt.ID, []WorkloadGitOps{a}, true, t0.Add(4*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ = s.ListWorkloadGitOps(ctx, sc); got[0].PrevRevision != "abc1234" || !got[0].RevisionAt.Equal(t0.Add(3*time.Hour)) {
+			t.Fatalf("after Git moved %+v", got[0])
+		}
 	})
 }
