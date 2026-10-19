@@ -26,6 +26,16 @@ type GitOpsApp struct {
 	Tag         string // and its tag
 }
 
+// causeWindow is how long before an application's trouble began a version change on its cluster counts as its
+// likeliest cause: a change days earlier, the application healthy since, is not.
+const causeWindow = 24 * time.Hour
+
+// Cause is the version change that likeliest caused the application's trouble: the newest change of its version on
+// its cluster in the day before the trouble began (SyncSince). ok is false when there was none.
+func Cause(ctx context.Context, st *store.Store, sc store.Scope, a GitOpsApp) (from string, at time.Time, ok bool) {
+	return Replaced(ctx, st, sc, a, a.SyncSince.Add(-causeWindow))
+}
+
 // Replaced is the version the application's running version replaced on its cluster since since, and when:
 // the newest such change. ok is false when none did.
 func Replaced(ctx context.Context, st *store.Store, sc store.Scope, a GitOpsApp, since time.Time) (from string, at time.Time, ok bool) {

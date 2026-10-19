@@ -51,7 +51,7 @@ func PromotionsPage(v PromotionsView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Delivery</h1><p class=\"sub\"><a href=\"/report\">Monthly report →</a></p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Delivery</h1><p class=\"sub\"><a href=\"/report\">Monthly report →</a> <a href=\"/gitops\">GitOps applications →</a></p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -111,7 +111,7 @@ func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Pri
 	ctx := r.Context()
 	name := r.PathValue("name")
 	path := "/services/" + url.PathEscape(name)
-	if ret := r.FormValue("return"); ret == "/delivery" || ret == "/updates" || ret == "/security" {
+	if ret := r.FormValue("return"); ret == "/delivery" || ret == "/updates" || ret == "/security" || ret == "/gitops" {
 		path = ret
 	}
 	if s.pulls == nil {

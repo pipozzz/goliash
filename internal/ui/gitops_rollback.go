@@ -13,19 +13,15 @@ import (
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
-// rollbackWindow is how long after a version change a degraded application is offered a rollback to the version
-// before it.
-const rollbackWindow = 7 * 24 * time.Hour
-
 // rollbackFor is the version a rollback pull request for the application would pin, and why: when the application
-// is degraded or missing, and the version it runs replaced another on its cluster in the last week, the version it
-// replaced. Else "".
+// is degraded or missing, and the version it runs replaced another on its cluster in the day before that began
+// (versions.Cause), the version it replaced. Else "".
 func (s *Server) rollbackFor(ctx context.Context, sc store.Scope, a versions.GitOpsApp, now time.Time) (string, string) {
 	trouble := a.Trouble(now)
 	if !s.canPR(a) || trouble != "degraded" && trouble != "missing" {
 		return "", ""
 	}
-	from, at, ok := versions.Replaced(ctx, s.store, sc, a, now.Add(-rollbackWindow))
+	from, at, ok := versions.Cause(ctx, s.store, sc, a)
 	if !ok {
 		return "", ""
 	}

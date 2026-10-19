@@ -51,7 +51,7 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now), Version: a.Tag,
 		}
 		if x.Trouble == "degraded" || x.Trouble == "missing" { // unhealthy: the version change just before, the likeliest cause
-			if from, at, ok := versions.Replaced(r.Context(), h.store, p.Scope, a, now.Add(-7*24*time.Hour)); ok {
+			if from, at, ok := versions.Cause(r.Context(), h.store, p.Scope, a); ok {
 				x.AfterChange = &change{From: from, To: a.Tag, At: at.UTC()}
 			}
 		}

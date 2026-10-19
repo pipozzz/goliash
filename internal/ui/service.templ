@@ -101,7 +101,7 @@ templ ServicePage(v ServiceView) {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
 		}
 		if len(v.GitOps) > 0 {
-			@gitOpsPanel(v.GitOps, v.Name, v.CanMember || v.PreviewPRs)
+			@gitOpsPanel(v.GitOps, v.CanMember || v.PreviewPRs, false)
 		}
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">
@@ -713,15 +713,27 @@ templ sizeChange(c *SizeChange) {
 }
 
 // gitOpsPanel shows the GitOps applications (Argo CD, Flux) that deploy the service: where from, which commit, in sync or not.
-templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
+templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 	<section class="panel" id="gitops">
-		<div class="panel-head"><h2>{ gitOpsTitle(apps) }</h2>@panelInfo("what Git declares, and whether it runs")</div>
+		if !all {
+			<div class="panel-head"><h2>{ gitOpsTitle(apps) }</h2><a class="muted" href="/gitops">All applications →</a>@panelInfo("what Git declares, and whether it runs")</div>
+		}
 		<div class="scroll" tabindex="0">
 			<table class="cards">
-				<thead><tr><th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th></tr></thead>
+				<thead>
+					<tr>
+						if all {
+							<th>Service</th>
+						}
+						<th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th>
+					</tr>
+				</thead>
 				<tbody>
 					for _, a := range apps {
 						<tr>
+							if all {
+								<td data-label="Service" class="svc"><a href={ templ.URL(serviceURL(a.Service)) }><strong>{ a.Service }</strong></a></td>
+							}
 							<td data-label="Application">
 								if a.AppURL != "" {
 									<a href={ templ.SafeURL(a.AppURL) } rel="noopener" target="_blank"><strong>{ a.App }</strong></a>
@@ -766,12 +778,12 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 								if a.PRURL != "" {
 									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener" title={ othersTitle(a.PRTitle) }>{ pullLabel(a.To, a.PRState) }</a>
 								} else if canEdit && a.To != "" {
-									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, "")) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
+									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(a.Service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, gitOpsReturn(all))) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
 								}
 								if a.RollbackPRURL != "" {
 									<a class="gitops-pr" href={ templ.SafeURL(a.RollbackPRURL) } target="_blank" rel="noopener">Rollback PR → { a.Rollback }</a>
 								} else if canEdit && a.Rollback != "" {
-									<a class="button secondary gitops-pr rollback" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.Rollback, "")) } title={ "Why: " + a.RollbackWhy + ". See the pull request that pins " + a.Rollback + " again before opening it." }>Rollback PR → { a.Rollback }</a>
+									<a class="button secondary gitops-pr rollback" href={ templ.URL("/services/" + url.PathEscape(a.Service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.Rollback, gitOpsReturn(all))) } title={ "Why: " + a.RollbackWhy + ". See the pull request that pins " + a.Rollback + " again before opening it." }>Rollback PR → { a.Rollback }</a>
 								}
 							</td>
 						</tr>

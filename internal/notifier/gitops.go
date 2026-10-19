@@ -65,7 +65,7 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 				}
 			}
 			if trouble != "out of sync" { // unhealthy: say what changed just before, the likeliest cause
-				if from, at, ok := versions.Replaced(ctx, n.store, sc, a, now.Add(-7*24*time.Hour)); ok {
+				if from, at, ok := versions.Cause(ctx, n.store, sc, a); ok {
 					it.Text += fmt.Sprintf(", %s after %s replaced %s",
 						since(at, a.SyncSince), a.Tag, from)
 				}

@@ -180,6 +180,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /events", s.page(v, s.events))
 	mux.Handle("GET /promotions", s.page(v, s.promotions))
 	mux.Handle("GET /delivery", s.page(v, s.promotions))
+	mux.Handle("GET /gitops", s.page(v, s.gitOpsPage))
 	mux.Handle("GET /report", s.page(v, s.report))
 	mux.Handle("GET /hygiene", s.page(v, s.hygiene))
 	mux.Handle("GET /security", s.page(v, s.security))
@@ -739,24 +740,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o); err == nil {
 		for _, a := range apps {
 			if a.ServiceID == svc.ID {
-				g := gitOpsView(a, s.argoCDURL, time.Now())
-				g.To = s.pullRequestTo(a, v.Latest)
-				if g.To != "" {
-					if pr, ok := s.pullFor(ctx, p.Scope, a, g.To); ok && pr.State != "closed" {
-						g.PRURL, g.PRState = pr.URL, pr.State
-					} else if other, ok := s.othersPull(a, g.To); ok {
-						g.PRURL, g.PRState, g.PRTitle = other.URL, "open", other.Title
-					}
-				}
-				if g.GitPins = s.gitPins(a, time.Now()); g.GitPins != "" && g.GitPins == g.To && g.PRURL == "" {
-					g.To = "" // Git has it already: it waits for a sync, not a pull request
-				}
-				if g.Rollback, g.RollbackWhy = s.rollbackFor(ctx, p.Scope, a, time.Now()); g.Rollback != "" {
-					if pr, ok := s.pullFor(ctx, p.Scope, a, g.Rollback); ok && pr.State != "closed" {
-						g.RollbackPRURL = pr.URL
-					}
-				}
-				v.GitOps = append(v.GitOps, g)
+				v.GitOps = append(v.GitOps, s.gitOpsRow(ctx, p.Scope, a, v.Latest))
 			}
 		}
 	} else {

@@ -1,0 +1,38 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ GitOpsPage(v GitOpsPageView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>GitOps applications</h1>
+				@aboutText("Every Argo CD application and Flux Kustomization that deploys a service, on every cluster: what Git declares and whether it runs, those degraded, missing or out of sync first. Upgrades and rollbacks open as pull requests from here.")
+			</div>
+		</div>
+		if v.Total == 0 {
+			<section class="panel">
+				<div class="empty">No Argo CD application or Flux Kustomization deploys a mapped workload yet. <a href="https://goliash.dev/guide/argocd/" target="_blank" rel="noopener">How Goliash reads them</a></div>
+			</section>
+		} else {
+			<section class="panel">
+				<div class="report-stats">
+					<div><strong>{ itoa(v.Total) }</strong><span>deployed workloads</span></div>
+					<div><strong>{ itoa(v.Unhealthy) }</strong><span>degraded or missing</span></div>
+					<div><strong>{ itoa(v.OutOfSync) }</strong><span>out of sync</span></div>
+				</div>
+			</section>
+			<nav class="segmented" aria-label="Show">
+				<span class="muted">Show</span>
+				<a href="/gitops" class={ templ.KV("on", !v.Only) }>All</a>
+				<a href="/gitops?only=attention" class={ templ.KV("on", v.Only) }>Needs attention</a>
+			</nav>
+			if len(v.Apps) == 0 {
+				<section class="panel"><div class="empty">Every application is in sync and healthy.</div></section>
+			} else {
+				@gitOpsPanel(v.Apps, v.CanEdit, true)
+			}
+		}
+	}
+}

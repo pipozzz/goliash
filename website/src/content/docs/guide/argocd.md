@@ -22,8 +22,12 @@ on which version, against the newest release upstream.
 
 A notification rule with the `gitops` event (*Argo CD out of sync or degraded*) says so in Slack, Teams, e-mail or a
 push, once per episode, with the commit last synced; Goli and AI assistants read the same through the `gitops` tool
-and `GET /api/v1/gitops`, which for a degraded application also gives the version change just before it
+and `GET /api/v1/gitops`, which for a degraded application also gives the version change in the day before it
 (`after_change`). `GET /api/v1/pull-requests` and the `pull_requests` tool list the pull requests Goliash opened.
+
+**GitOps applications** (`/gitops`, linked from the Delivery page and every GitOps panel) lists them all, on every
+cluster, those degraded, missing or out of sync first, with what Git pins, the pull requests and the rollbacks on
+offer; *Needs attention* leaves the rest out.
 
 ## Upgrade with a pull request
 
@@ -67,8 +71,8 @@ open it again: closing it was a no).
 
 ### Roll back
 
-When an application turns **Degraded** or **Missing** (for more than ten minutes) within a week of its version
-replacing another on that cluster, the panel offers **Rollback PR → 1.6.2**: a pull request that pins the version
+When an application turns **Degraded** or **Missing** (for more than ten minutes) within a day of a service's
+version replacing another on that cluster, the panel offers that service **Rollback PR → 1.6.2**: a pull request that pins the version
 before again. Hover it to see why. The pull request says it rolls back, what went wrong and since when, and which
 known vulnerabilities the older version brings back. As with every pull request, you review and merge it, and
 GitOps deploys it.

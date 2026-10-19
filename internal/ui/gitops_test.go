@@ -655,3 +655,62 @@ func TestOthersPull(t *testing.T) {
 		t.Fatal("the version policy duplicated Renovate's pull request")
 	}
 }
+
+// The GitOps page lists every application, those that need attention first, and filters them.
+func TestGitOpsPage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	viewer := e.as(store.RoleViewer)
+	if _, body := get(t, viewer, e.srv.URL+"/gitops", nil); !strings.Contains(body, "No Argo CD application") {
+		t.Fatal("no empty state")
+	}
+	apps := []store.WorkloadGitOps{
+		{WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git", Path: "apps/evil/prod", Sync: "Synced", Health: "Healthy"},
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, apps, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, viewer, e.srv.URL+"/gitops", nil)
+	if !strings.Contains(body, "evil-prod") || !strings.Contains(body, "<strong>1</strong><span>deployed workloads</span>") {
+		t.Fatal("the application is not listed")
+	}
+	if _, body := get(t, viewer, e.srv.URL+"/gitops?only=attention", nil); strings.Contains(body, "evil-prod") || !strings.Contains(body, "in sync and healthy") {
+		t.Fatal("a healthy application shown as needing attention")
+	}
+	apps[0].Health = "Degraded"
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, apps, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := get(t, viewer, e.srv.URL+"/gitops?only=attention", nil); !strings.Contains(body, "evil-prod") || !strings.Contains(body, "<strong>1</strong><span>degraded or missing</span>") {
+		t.Fatal("a degraded application not shown")
+	}
+}
+
+// A degraded application is not offered a rollback of a change days before its trouble began: that change ran
+// healthy since.
+func TestRollbackOldChange(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	e.ui.pulls = &fakePulls{}
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Degraded",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
+	o, _ := versions.LoadOverview(ctx, e.st, sc)
+	apps, _ := versions.GitOpsApps(ctx, e.st, sc, o)
+	if err := e.st.InsertEvent(ctx, sc, store.Event{
+		Type: "version_changed", ServiceID: svc.ID, TargetID: e.tgt.ID, FromVersion: "0.9.0", ToVersion: apps[0].Tag,
+		At: time.Now().Add(-3 * 24 * time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if to, _ := e.ui.rollbackFor(ctx, sc, apps[0], time.Now()); to != "" {
+		t.Fatalf("a change three days before the trouble offered as its cause: %s", to)
+	}
+}

@@ -539,7 +539,7 @@ paths:
         The Argo CD applications and Flux Kustomizations that deploy the workspace's services, those that need
         attention first: where they deploy from, the commit last synced, sync and health, and since when. `trouble` is
         `out of sync`, `degraded` or `missing` once the state has lasted 10 minutes, else empty. For one degraded or
-        missing, `after_change` is the version change on its cluster just before (within a week): the likeliest
+        missing, `after_change` is the version change on its cluster in the day before that began: the likeliest
         cause, and `from` the version to roll back to. Empty without Argo CD or Flux.
       responses:
         "200":

@@ -1617,6 +1617,7 @@ func upperFirst(s string) string {
 
 // GitOpsView is a GitOps application (Argo CD, Flux) as it deploys one of a service's workloads.
 type GitOpsView struct {
+	Service                       string
 	Tool                          string // argocd, flux
 	Environment, Target, Workload string
 	App, AppURL                   string // AppURL: the application in the Argo CD UI, with GOLIASH_ARGOCD_URL
