@@ -101,3 +101,40 @@ func TestPullRequestOpened(t *testing.T) {
 		t.Fatalf("want one announcement, got %d:\n%s", slack.count(), all)
 	}
 }
+
+// A pull request Goliash opened that has waited for review for more than three days is called out, once.
+func TestWaitingPulls(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventPullRequest}, Filter{})
+	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s-prod"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: e.sc, ServiceID: e.svc.ID, Environment: "prod", TargetID: tgt.ID, WorkloadID: "w1",
+		From: "1.4.2", To: "1.5.0", URL: "https://github.com/acme/deploy/pull/8", OpenedBy: "auto-pr",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	check := func() {
+		if err := e.n.CheckWaitingPulls(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	e.clock = time.Now().Add(2 * 24 * time.Hour)
+	check()
+	if slack.count() != 0 {
+		t.Fatalf("called out after two days: %v", slack.all())
+	}
+	e.clock = time.Now().Add(4*24*time.Hour + time.Hour)
+	check()
+	check() // once
+	all := strings.Join(slack.all(), "\n")
+	if slack.count() != 1 || !strings.Contains(all, "the pull request to move 1.4.2 to 1.5.0 on k8s-prod has waited 4 days for review") ||
+		!strings.Contains(all, "https://github.com/acme/deploy/pull/8") {
+		t.Fatalf("want one reminder, got %d:\n%s", slack.count(), all)
+	}
+}

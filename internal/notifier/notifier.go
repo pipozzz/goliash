@@ -490,6 +490,9 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			if err := n.CheckGitOps(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("checking GitOps applications failed", "err", err)
 			}
+			if err := n.CheckWaitingPulls(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("checking waiting pull requests failed", "err", err)
+			}
 		}
 		if time.Since(selfChecked) >= selfCheckEvery {
 			selfChecked = time.Now()
@@ -739,6 +742,9 @@ func Describe(it Item) string {
 	case EventGitOps:
 		return fmt.Sprintf("%s: %s %s is %s%s", where, versions.GitOpsObject(it.Tool), it.From, it.Note, on)
 	case EventPullRequest:
+		if days, ok := strings.CutPrefix(it.Note, "waiting "); ok {
+			return fmt.Sprintf("%s: the pull request to move %s to %s%s has waited %s days for review", where, it.From, it.To, on, days)
+		}
 		by := it.Note
 		if by == "auto-pr" {
 			by = "the version policy (auto_pr)"

@@ -278,7 +278,7 @@ Every snapshot is compared with the previous one of the same target. The differe
 | `drift_detected`, `drift_resolved` | Drift is announced, or ends. |
 | `agent_stale` | An agent stops sending heartbeats. |
 | `gitops` | An Argo CD application has been out of sync, degraded or missing for 10 minutes; see [Argo CD](/guide/argocd/). |
-| `pull_request` | Goliash opened a pull request to upgrade a service, asked by someone or by the version policy's `auto_pr`; see [Argo CD and Flux](/guide/argocd/#upgrade-with-a-pull-request). |
+| `pull_request` | Goliash opened a pull request to upgrade a service, asked by someone or by the version policy's `auto_pr`, and once more when one has waited for review for more than three days; see [Argo CD and Flux](/guide/argocd/#upgrade-with-a-pull-request). |
 | `goliash_release` | A newer Goliash release is out (checked every 6 hours, once per release; off with `GOLIASH_UPDATE_CHECK=off`). |
 
 The first snapshot of a target is a baseline and creates no events. When a snapshot is incomplete, for example

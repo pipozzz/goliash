@@ -132,3 +132,62 @@ func since(change, then time.Time) string {
 	}
 	return fmt.Sprintf("%d days", int(d.Hours()/24))
 }
+
+// pullWaitsAfter is how long a pull request Goliash opened may stay open before it is called out once: an
+// upgrade proposed and then forgotten does nobody any good.
+const pullWaitsAfter = 3 * 24 * time.Hour
+
+// CheckWaitingPulls queues, once per pull request, a reminder of those Goliash opened that have waited for review
+// longer than pullWaitsAfter (as the forge last said: open).
+func (n *Notifier) CheckWaitingPulls(ctx context.Context) error {
+	wss, err := n.store.ListWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	now := n.now()
+	for _, ws := range wss {
+		sc := ws.Scope()
+		rules, err := n.store.ActiveRules(ctx, sc)
+		if err != nil {
+			return err
+		}
+		wanted := false
+		for _, r := range rules {
+			wanted = wanted || len(r.EventTypes) == 0 || contains(r.EventTypes, EventPullRequest)
+		}
+		if !wanted {
+			continue
+		}
+		pulls, err := n.store.ListGitOpsPulls(ctx, sc)
+		if err != nil {
+			return err
+		}
+		var o versions.Overview
+		for _, p := range pulls {
+			if p.State != "open" || now.Sub(p.OpenedAt) < pullWaitsAfter {
+				continue
+			}
+			if o.Services == nil {
+				if o, err = versions.LoadOverview(ctx, n.store, sc); err != nil {
+					return err
+				}
+			}
+			target := ""
+			for _, t := range o.Targets {
+				if t.ID == p.TargetID {
+					target = t.Name
+				}
+			}
+			svc := o.Services[p.ServiceID]
+			it := Item{
+				Type: EventPullRequest, Service: svc.Name, Owner: svc.Owner, Environment: p.Environment, Target: target,
+				From: p.From, To: p.To, URL: p.URL, At: now, Note: fmt.Sprintf("waiting %d", int(now.Sub(p.OpenedAt).Hours()/24)),
+			}
+			it.Text = Describe(it)
+			if err := n.enqueue(ctx, sc, rules, it, EventPullRequest+"|waiting|"+p.URL); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
