@@ -1562,5 +1562,6 @@ type PullView struct {
 	URL, State          string // open, merged or closed
 	OpenedBy            string
 	OpenedAt            time.Time
-	Deployed            bool // the version it pins runs there now
+	Deployed            bool          // the version it pins runs there now
+	ToRunning           time.Duration // from opening the pull request to the version running there; 0 unknown
 }

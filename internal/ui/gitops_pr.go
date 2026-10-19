@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -380,18 +381,50 @@ func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overv
 		targetName[a.TargetID] = a.Target
 	}
 	var out []PullView
+	arrived := map[string][]store.Event{} // service -> its version changes since the oldest pull request shown
 	for _, p := range pulls {
 		if time.Since(p.OpenedAt) > 30*24*time.Hour {
 			continue
 		}
 		name := o.Services[p.ServiceID].Name
-		out = append(out, PullView{
+		v := PullView{
 			Service: name, ServiceURL: "/services/" + url.PathEscape(name), Environment: p.Environment, Target: targetName[p.TargetID],
 			From: p.From, To: p.To, URL: p.URL, State: p.State, OpenedBy: p.OpenedBy, OpenedAt: p.OpenedAt,
 			Deployed: running[p.TargetID+"|"+p.WorkloadID] == p.To,
-		})
+		}
+		if v.Deployed {
+			evs, ok := arrived[p.ServiceID]
+			if !ok {
+				evs, _ = s.store.ListEvents(ctx, sc, store.EventFilter{
+					ServiceID: p.ServiceID, Types: []string{"version_changed", "deployed"}, Since: time.Now().Add(-31 * 24 * time.Hour), Limit: 1000,
+				})
+				arrived[p.ServiceID] = evs
+			}
+			for _, e := range evs { // newest first: keep the first arrival after the pull request was opened
+				if e.TargetID == p.TargetID && e.ToVersion == p.To && !e.At.Before(p.OpenedAt) {
+					v.ToRunning = e.At.Sub(p.OpenedAt)
+				}
+			}
+		}
+		out = append(out, v)
 	}
 	return out, nil
+}
+
+// medianToRunning is the median time from opening a pull request to its version running, over those that run,
+// and how many; 0 when none does.
+func medianToRunning(pulls []PullView) (time.Duration, int) {
+	var ds []time.Duration
+	for _, p := range pulls {
+		if p.ToRunning > 0 {
+			ds = append(ds, p.ToRunning)
+		}
+	}
+	if len(ds) == 0 {
+		return 0, 0
+	}
+	slices.Sort(ds)
+	return ds[len(ds)/2], len(ds)
 }
 
 // pullStateClass is the badge of a pull request's state.

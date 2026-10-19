@@ -417,3 +417,38 @@ func TestClosedPullRequest(t *testing.T) {
 		t.Fatal("the policy opened a closed pull request again")
 	}
 }
+
+// The Delivery page says how long after opening a pull request its version ran, and the median.
+func TestPullToRunning(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	e.ui.pulls = &fakePulls{}
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
+	o, _ := versions.LoadOverview(ctx, e.st, sc)
+	apps, _ := versions.GitOpsApps(ctx, e.st, sc, o)
+	running := apps[0].Tag
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: sc, ServiceID: svc.ID, Environment: apps[0].Environment, TargetID: e.tgt.ID, WorkloadID: "w1",
+		From: "0.9.0", To: running, URL: "https://github.com/acme/deploy/pull/9", OpenedBy: "auto-pr",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.InsertEvent(ctx, sc, store.Event{
+		Type: "version_changed", ServiceID: svc.ID, TargetID: e.tgt.ID, FromVersion: "0.9.0", ToVersion: running,
+		At: time.Now().Add(3*time.Hour + time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, d := get(t, e.as(store.RoleViewer), e.srv.URL+"/delivery", nil)
+	if !strings.Contains(d, "3h after opening") || !strings.Contains(d, "3h from pull request to running") {
+		t.Fatal("no time from pull request to running")
+	}
+}
