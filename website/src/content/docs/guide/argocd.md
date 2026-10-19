@@ -46,7 +46,8 @@ Goliash then, in the repository the application deploys from (GitHub, GitHub Ent
 3. opens a pull request (a merge request on GitLab, in one commit) saying what, where and why, with the release
    notes when known.
 
-The **Updates** page offers **Open PR** on the same lines, next to *Put off*, and the **Security** page next to
+The **Updates** page offers **Open PR** on the same lines, next to *Put off*, with a tick to open several at once
+(**Open the ticked pull requests**, up to 20, each as its own pull request), and the **Security** page next to
 each service that runs behind a newer release, so the person who finds the exposure can propose the fix. The **Delivery** page does the same for
 promotions: next to a version that runs in staging and waits for prod, **Open
 PR → prod** pins that version in the repository of prod's application (one button per cluster when several run it),

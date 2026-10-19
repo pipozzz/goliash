@@ -23,6 +23,7 @@ type UpdatesView struct {
 	Base
 	Views        ViewTabs
 	Items, Acked []UpdateItem
+	Bulk         bool // some upgrade can be ticked and opened as a pull request with others
 	Levels       []UpdateLevel
 	Level        int // the urgency shown; -1 for all
 	Teams, Envs  []string
@@ -112,6 +113,9 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
 			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
+			for _, pr := range it.PRs {
+				v.Bulk = v.Bulk || pr.URL == "" && p.Can(store.RoleMember) && !s.demoPulls()
+			}
 		}
 		if s.goliOn() && u.Running != "" && u.Target != "" {
 			it.Brief = fmt.Sprintf("Brief me on upgrading %s in %s from %s to %s: what breaks or needs migrating, "+

@@ -1322,3 +1322,5 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .pr-body ul { margin: 6px 0; padding-left: 20px; }
 .pr-body h3 { font-size: 15px; margin: 14px 0 4px; }
 .pr-body code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.bulk-pick { display: inline-flex; align-items: center; margin-right: 6px; cursor: pointer; }
+.bulk-pick input { width: 18px; height: 18px; }

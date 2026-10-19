@@ -54,6 +54,12 @@ templ UpdatesPage(v UpdatesView) {
 				<noscript><button type="submit" class="secondary">Filter</button></noscript>
 			</form>
 			<span class="spacer"></span>
+			if v.Bulk {
+				<form id="bulk-prs" method="post" action="/updates/prs" class="inline">
+					<input type="hidden" name="return" value={ updatesURL(v, "level", levelParam(v)) }/>
+					<button type="submit" title="Open a pull request for every upgrade ticked below">Open the ticked pull requests</button>
+				</form>
+			}
 			if len(v.Items) > 0 {
 				<button type="button" class="secondary" data-copy="updates-md" title="A markdown checklist for a ticket or a planning board">Copy as checklist</button>
 				<pre id="updates-md" hidden>{ v.Markdown }</pre>
@@ -222,6 +228,10 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 					if pr.URL != "" {
 						<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(it.Target, pr.State) }</a>
 					} else {
+						<label class="bulk-pick" title="Tick to open with the others">
+							<input type="checkbox" name="pr" form="bulk-prs" value={ bulkValue(it.Service, pr, it.Target) }/>
+							<span class="sr-only">{ "Open a pull request for " + it.Service + " " + it.Target + " on " + pr.Target }</span>
+						</label>
 						<a class="button secondary gitops-pr" href={ templ.URL(it.ServiceURL + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, it.Target, "/updates")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
 							Open PR
 							if len(it.PRs) > 1 {

@@ -172,6 +172,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
 	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
+	mux.Handle("POST /updates/prs", s.page(m, s.openBulkPRs))
 	mux.Handle("GET /services/{name}/gitops/preview", s.page(store.RoleViewer, s.previewGitOpsPR))
 	mux.Handle("POST /delivery/promote", s.page(m, s.promotePR))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))

@@ -478,3 +478,69 @@ func pullStateClass(state string) string {
 	}
 	return "upstream"
 }
+
+// bulkMax bounds how many pull requests one click opens.
+const bulkMax = 20
+
+// bulkValue names one pull request for the Updates page's ticks: service, target, workload and version.
+func bulkValue(service string, pr PromotePR, to string) string {
+	return strings.Join([]string{service, pr.TargetID, pr.WorkloadID, to}, "|")
+}
+
+// openBulkPRs opens the pull requests ticked on the Updates page, each as a click on its Open PR would: what the
+// page no longer offers, or was opened already, is skipped.
+func (s *Server) openBulkPRs(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	ret := r.FormValue("return")
+	if !strings.HasPrefix(ret, "/updates") || strings.HasPrefix(ret, "//") {
+		ret = "/updates"
+	}
+	if s.pulls == nil || s.demoPulls() {
+		return back(w, r, ret, "error", "Set a GitOps token on the server to open pull requests.")
+	}
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	picks := r.PostForm["pr"]
+	if len(picks) == 0 {
+		return back(w, r, ret, "error", "Tick the upgrades to open as pull requests first.")
+	}
+	if len(picks) > bulkMax {
+		return back(w, r, ret, "error", fmt.Sprintf("At most %d at a time.", bulkMax))
+	}
+	var opened, failed []string
+	for _, pick := range picks {
+		i := strings.LastIndex(pick, "|") // service|target|workload|version; the service's name may hold a "|"
+		head, to := pick[:max(i, 0)], pick[i+1:]
+		j := strings.LastIndex(head, "|")
+		k := strings.LastIndex(head[:max(j, 0)], "|")
+		if i < 0 || j < 0 || k < 0 {
+			continue
+		}
+		f := []string{head[:k], head[k+1 : j], head[j+1:], to}
+		u, ok, err := s.findUpgrade(ctx, p.Scope, f[0], f[1], f[2], f[3])
+		if err != nil {
+			return err
+		}
+		if !ok {
+			failed = append(failed, f[0]+" "+f[3]+" (no longer offered)")
+			continue
+		}
+		if _, msg := s.bump(ctx, p.Scope, p.User.Email, u); msg != "" {
+			failed = append(failed, f[0]+" "+f[3]+" ("+strings.TrimSuffix(msg, ".")+")")
+			continue
+		}
+		opened = append(opened, f[0]+" "+f[3]+" in "+u.app.Environment)
+	}
+	msg := fmt.Sprintf("Opened %d pull requests: %s.", len(opened), strings.Join(opened, ", "))
+	if len(opened) == 1 {
+		msg = "Opened the pull request for " + opened[0] + "."
+	}
+	if len(failed) > 0 {
+		msg += " Not opened: " + strings.Join(failed, ", ") + "."
+		if len(opened) == 0 {
+			return back(w, r, ret, "error", strings.TrimPrefix(msg, "Opened 0 pull requests: . "))
+		}
+	}
+	return back(w, r, ret, "notice", msg)
+}

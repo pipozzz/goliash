@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"net/http"
 	"net/url"
 	"strings"
@@ -712,5 +713,39 @@ func TestRollbackOldChange(t *testing.T) {
 	}
 	if to, _ := e.ui.rollbackFor(ctx, sc, apps[0], time.Now()); to != "" {
 		t.Fatalf("a change three days before the trouble offered as its cause: %s", to)
+	}
+}
+
+// The Updates page opens the ticked upgrades as pull requests in one go, and says what it could not open.
+func TestBulkPRs(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svc := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, svc)
+	if _, err := e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.ui.checker.EvaluateDrift(ctx, sc)
+	member := e.as(store.RoleMember)
+	want := svc + "|" + e.tgt.ID + "|w1|1.28.0"
+	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, `form="bulk-prs"`) || !strings.Contains(page, "Open the ticked pull requests") {
+		t.Fatal("no ticks on the Updates page")
+	}
+	if _, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/updates", nil); strings.Contains(page, "bulk-prs") {
+		t.Fatal("a viewer may tick pull requests")
+	}
+	_, body, _ := post(t, member, e.srv.URL+"/updates/prs", url.Values{"pr": {want, "nope|x|y|9.9.9"}, "return": {"/updates"}})
+	if len(pulls.got) != 1 || !strings.Contains(body, "Opened the pull request for "+html.EscapeString(svc)+" 1.28.0") || !strings.Contains(body, "Not opened: nope 9.9.9 (no longer offered)") {
+		t.Fatalf("opened %d: %.300s", len(pulls.got), body)
 	}
 }
