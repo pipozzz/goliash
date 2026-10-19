@@ -45,6 +45,10 @@ saying since when it has run in staging.
 title and the description, read from the repository and changing nothing; **Open the pull request** sends it. The
 public demo shows the preview with made-up repositories and opens nothing.
 
+With [Goli](/guide/goli/) on, the description also says **what changes**: Goli reads the release notes between the
+two versions and lists, in a few lines, what breaks or needs a migration first, then the notable fixes, security
+first. It is marked as Goli's, and asked once a day per upgrade.
+
 Each pull request lists the known vulnerabilities the upgrade fixes (exploited in the wild first) and those it
 brings, from the SBOMs of both images. A version is proposed once: after that the page links the open pull request.
 

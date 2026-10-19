@@ -78,6 +78,7 @@ func (s *Server) previewGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.
 	if s.demoPulls() {
 		by = "you"
 	}
+	s.addSummary(ctx, p.Scope, &u)
 	req := s.bumpRequest(u, by)
 	v := GitOpsPreviewView{
 		Base: s.base(ctx, p, "matrix", "Pull request preview"), Service: name, ServiceURL: path,

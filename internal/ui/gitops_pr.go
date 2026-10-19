@@ -45,6 +45,7 @@ type upgrade struct {
 	service, page  string
 	to, why, notes string
 	vulns          versions.VulnDelta
+	summary        string // Goli's summary of the release notes, a markdown list; empty without Goli
 }
 
 // findUpgrade finds the upgrade a form names and checks the page would still offer it: the newest acceptable
@@ -149,6 +150,9 @@ func (s *Server) bumpRequest(u upgrade, by string) gitops.Bump {
 		body += "- Release notes: " + u.notes + "\n"
 	}
 	body += vulnsMarkdown(u.vulns)
+	if u.summary != "" {
+		body += "\n### What changes\n\n" + u.summary + "\n\nSummarised from the release notes by Goli, Goliash's assistant: read them before merging.\n"
+	}
 	return gitops.Bump{
 		Repo: versions.RepoWebURL(app.Repo), Branch: app.TargetRevision, Path: app.Path, Image: image,
 		From: app.Tag, To: u.to, Head: "goliash/" + branchSafe(u.service+"-"+u.to+"-"+app.Environment),
@@ -177,6 +181,7 @@ func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade)
 	if open, ok := s.openPull(ctx, sc, app, u.to); ok { // proposed already: never twice
 		return open, ""
 	}
+	s.addSummary(ctx, sc, &u)
 	req := s.bumpRequest(u, by)
 	pr, err := s.pulls.OpenBump(ctx, req)
 	if err != nil {
