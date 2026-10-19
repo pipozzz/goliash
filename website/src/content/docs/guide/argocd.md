@@ -50,8 +50,9 @@ two versions and lists, in a few lines, what breaks or needs a migration first, 
 first. It is marked as Goli's, and asked once a day per upgrade.
 
 Each pull request lists the known vulnerabilities the upgrade fixes (exploited in the wild first) and those it
-brings, from the SBOMs of both images. A version is proposed once: after that the page links the pull request, marked *merged* once it is. Goliash asks
-the forge every 30 minutes; one closed without merging is offered again on the page (the version policy does not
+brings, from the SBOMs of both images. A version is proposed once: after that the page links the pull request, marked *merged* once it is. The **Delivery** page lists the pull
+requests of the last 30 days, open, merged or closed, who opened them, and *running* once the version runs. Goliash
+asks the forge every 30 minutes; one closed without merging is offered again on the page (the version policy does not
 open it again: closing it was a no).
 
 ### Automatic pull requests

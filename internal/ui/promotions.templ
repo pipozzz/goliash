@@ -117,6 +117,9 @@ templ PromotionsPage(v PromotionsView) {
 				</div>
 			}
 		</section>
+		if len(v.Pulls) > 0 {
+			@pullsPanel(v.Pulls)
+		}
 		<section class="panel">
 			<div class="panel-head"><h2>Last 30 days</h2>@panelInfo("Versions that arrived per environment, and the median time a version took to reach the next one")</div>
 			if len(v.Delivery) == 0 {
@@ -195,4 +198,34 @@ templ promotionVulns(d versions.VulnDelta) {
 			}
 		</div>
 	</details>
+}
+
+// pullsPanel lists the pull requests Goliash opened, from proposal to running.
+templ pullsPanel(pulls []PullView) {
+	<section class="panel" id="pulls">
+		<div class="panel-head"><h2>Pull requests</h2>@panelInfo("Pull requests Goliash opened in the last 30 days, by someone or by a version policy (auto-pr): open, merged or closed, and whether the version they pin runs there now.")</div>
+		<div class="scroll" tabindex="0">
+			<table class="cards">
+				<thead><tr><th>Service</th><th>Where</th><th>Upgrade</th><th>State</th><th>Opened</th></tr></thead>
+				<tbody>
+					for _, p := range pulls {
+						<tr>
+							<td data-label="Service" class="svc"><a href={ templ.URL(p.ServiceURL) }><strong>{ p.Service }</strong></a></td>
+							<td data-label="Where">{ p.Environment }<div class="targets">{ p.Target }</div></td>
+							<td data-label="Upgrade" class="mono"><a href={ templ.SafeURL(p.URL) } target="_blank" rel="noopener">{ p.From + " → " + p.To }</a></td>
+							<td data-label="State">
+								<span class="badges">
+									<span class={ "badge", pullStateClass(p.State) }>{ p.State }</span>
+									if p.Deployed {
+										<span class="badge ok">running</span>
+									}
+								</span>
+							</td>
+							<td data-label="Opened">@timeAgo(p.OpenedAt)<div class="targets">{ "by " + p.OpenedBy }</div></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
 }

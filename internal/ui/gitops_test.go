@@ -396,6 +396,10 @@ func TestClosedPullRequest(t *testing.T) {
 	if !strings.Contains(member, "Pull request → 1.28.0") {
 		t.Fatal("no link to the open pull request")
 	}
+	if _, d := get(t, m, e.srv.URL+"/delivery", nil); !strings.Contains(d, "<h2>Pull requests</h2>") || !strings.Contains(d, "1.27.2 → 1.28.0") ||
+		!strings.Contains(d, "by auto-pr") || !strings.Contains(d, `class="badge upstream">open`) {
+		t.Fatal("the Delivery page does not list the pull request")
+	}
 	pulls.state = "merged"
 	if err := e.ui.RefreshPulls(ctx); err != nil {
 		t.Fatal(err)

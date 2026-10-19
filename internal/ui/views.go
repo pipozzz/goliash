@@ -569,6 +569,7 @@ type PromotionsView struct {
 	Deploys    BarChart
 	Drift      LineChart
 	Promotions []PromotionView
+	Pulls      []PullView // pull requests Goliash opened, newest first
 	Rollouts   []versions.RolloutIssue
 	EnvNames   []string // delivery table columns
 	LeadNames  []string // "dev → staging", …
@@ -1551,4 +1552,15 @@ func gitOpsTitle(apps []GitOpsView) string {
 		}
 	}
 	return "GitOps"
+}
+
+// PullView is a pull request Goliash opened, and what became of it.
+type PullView struct {
+	Service, ServiceURL string
+	Environment, Target string
+	From, To            string
+	URL, State          string // open, merged or closed
+	OpenedBy            string
+	OpenedAt            time.Time
+	Deployed            bool // the version it pins runs there now
 }

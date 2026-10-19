@@ -1251,6 +1251,9 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return err
 	}
+	if v.Pulls, err = s.pullViews(ctx, p.Scope, o, apps); err != nil {
+		return err
+	}
 	for _, pr := range list {
 		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}
 		for _, a := range promotionApps(apps, pr, s.canPR) {

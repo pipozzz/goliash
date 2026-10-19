@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/gitops"
@@ -363,4 +364,43 @@ func envID(o versions.Overview, name string) string {
 		}
 	}
 	return ""
+}
+
+// pullViews are the pull requests Goliash opened in the last 30 days, newest first, with whether the version each
+// pins runs where it was meant to.
+func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overview, apps []versions.GitOpsApp) ([]PullView, error) {
+	pulls, err := s.store.ListGitOpsPulls(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	running := map[string]string{} // target|workload -> tag
+	targetName := map[string]string{}
+	for _, a := range apps {
+		running[a.TargetID+"|"+a.WorkloadID] = a.Tag
+		targetName[a.TargetID] = a.Target
+	}
+	var out []PullView
+	for _, p := range pulls {
+		if time.Since(p.OpenedAt) > 30*24*time.Hour {
+			continue
+		}
+		name := o.Services[p.ServiceID].Name
+		out = append(out, PullView{
+			Service: name, ServiceURL: "/services/" + url.PathEscape(name), Environment: p.Environment, Target: targetName[p.TargetID],
+			From: p.From, To: p.To, URL: p.URL, State: p.State, OpenedBy: p.OpenedBy, OpenedAt: p.OpenedAt,
+			Deployed: running[p.TargetID+"|"+p.WorkloadID] == p.To,
+		})
+	}
+	return out, nil
+}
+
+// pullStateClass is the badge of a pull request's state.
+func pullStateClass(state string) string {
+	switch state {
+	case "merged":
+		return "ok"
+	case "closed":
+		return "neutral"
+	}
+	return "upstream"
 }
