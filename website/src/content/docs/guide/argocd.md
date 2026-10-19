@@ -46,7 +46,9 @@ title and the description, read from the repository and changing nothing; **Open
 public demo shows the preview with made-up repositories and opens nothing.
 
 Each pull request lists the known vulnerabilities the upgrade fixes (exploited in the wild first) and those it
-brings, from the SBOMs of both images. A version is proposed once: after that the page links the open pull request.
+brings, from the SBOMs of both images. A version is proposed once: after that the page links the pull request, marked *merged* once it is. Goliash asks
+the forge every 30 minutes; one closed without merging is offered again on the page (the version policy does not
+open it again: closing it was a no).
 
 ### Automatic pull requests
 

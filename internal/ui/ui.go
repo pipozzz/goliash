@@ -742,7 +742,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 				g := gitOpsView(a, s.argoCDURL, time.Now())
 				g.To = s.pullRequestTo(a, v.Latest)
 				if g.To != "" {
-					g.PRURL, _ = s.openPull(ctx, p.Scope, a, g.To)
+					if pr, ok := s.pullFor(ctx, p.Scope, a, g.To); ok && pr.State != "closed" {
+						g.PRURL, g.PRState = pr.URL, pr.State
+					}
 				}
 				v.GitOps = append(v.GitOps, g)
 			}
@@ -1252,8 +1254,11 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	for _, pr := range list {
 		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}
 		for _, a := range promotionApps(apps, pr, s.canPR) {
-			url, _ := s.openPull(ctx, p.Scope, a, pr.Version)
-			pv.PRs = append(pv.PRs, PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App, URL: url})
+			pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
+			if open, ok := s.pullFor(ctx, p.Scope, a, pr.Version); ok && open.State != "closed" {
+				pp.URL, pp.State = open.URL, open.State
+			}
+			pv.PRs = append(pv.PRs, pp)
 		}
 		for _, rel := range pr.Releases {
 			pv.Releases = append(pv.Releases, ReleaseView{Version: rel.Version, Published: rel.PublishedAt, URL: rel.ChangelogURL})

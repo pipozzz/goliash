@@ -48,3 +48,6 @@ images:
 
 // OpenBump opens nothing in the demo.
 func (Demo) OpenBump(context.Context, Bump) (string, error) { return "", ErrDemo }
+
+// PullState says every demo pull request is open: the demo opens none, so none changes.
+func (Demo) PullState(context.Context, string) (string, error) { return "open", nil }

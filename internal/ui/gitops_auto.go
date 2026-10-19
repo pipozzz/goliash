@@ -25,6 +25,9 @@ func (s *Server) RunAutoPRs(ctx context.Context, interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
+		if err := s.RefreshPulls(ctx); err != nil && ctx.Err() == nil {
+			s.log.Error("reading pull requests' state failed", "err", err)
+		}
 		if n, err := s.AutoPRs(ctx); err != nil && ctx.Err() == nil {
 			s.log.Error("automatic pull requests failed", "err", err)
 		} else if n > 0 {
@@ -78,7 +81,7 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			if !ok || !pol.AutoPR[a.Environment].AtLeast(running.JumpTo(up.Latest)) {
 				continue // a bigger jump than the policy opens by itself
 			}
-			if _, done := s.openPull(ctx, sc, a, to); done {
+			if _, done := s.pullFor(ctx, sc, a, to); done { // opened once: closed without merging is a no
 				continue
 			}
 			key := sc.WorkspaceID + "|" + a.TargetID + "|" + a.WorkloadID + "|" + to

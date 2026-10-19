@@ -761,7 +761,7 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 								</span>
 								<div class="targets">since @timeAgo(a.Since)</div>
 								if a.PRURL != "" {
-									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener">{ "Pull request → " + a.To }</a>
+									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener">{ pullLabel(a.To, a.PRState) }</a>
 								} else if canEdit && a.To != "" {
 									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, "")) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
 								}

@@ -20,13 +20,19 @@ func TestGitOpsPulls(t *testing.T) {
 		if err := s.RecordGitOpsPull(ctx, p); err != nil {
 			t.Fatal(err)
 		}
-		p.URL = "https://github.com/acme/deploy/pull/8" // the same version again: the first stays
+		got, err := s.ListGitOpsPulls(ctx, sc)
+		if err != nil || len(got) != 1 || got[0].URL != "https://github.com/acme/deploy/pull/7" || got[0].To != "1.5.0" || got[0].State != "open" {
+			t.Fatalf("pulls %+v %v", got, err)
+		}
+		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "closed"); err != nil {
+			t.Fatal(err)
+		}
+		p.URL = "https://github.com/acme/deploy/pull/8" // closed, then opened again: the new one, open
 		if err := s.RecordGitOpsPull(ctx, p); err != nil {
 			t.Fatal(err)
 		}
-		got, err := s.ListGitOpsPulls(ctx, sc)
-		if err != nil || len(got) != 1 || got[0].URL != "https://github.com/acme/deploy/pull/7" || got[0].To != "1.5.0" {
-			t.Fatalf("pulls %+v %v", got, err)
+		if got, _ = s.ListGitOpsPulls(ctx, sc); len(got) != 1 || got[0].URL != "https://github.com/acme/deploy/pull/8" || got[0].State != "open" {
+			t.Fatalf("after opening again %+v", got)
 		}
 	})
 }

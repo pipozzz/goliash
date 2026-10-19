@@ -23,6 +23,7 @@ type PullRequester interface {
 	Supports(repo string) bool
 	Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error)
 	OpenBump(ctx context.Context, b gitops.Bump) (string, error)
+	PullState(ctx context.Context, pullURL string) (string, error)
 }
 
 // pullRequestTo is the version a pull request for the application would pin: the newest acceptable release, when
@@ -207,18 +208,72 @@ func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade)
 	return pr, ""
 }
 
-// openPull is the pull request Goliash already opened to move the application's workload to the version.
-func (s *Server) openPull(ctx context.Context, sc store.Scope, app versions.GitOpsApp, to string) (string, bool) {
+// pullFor is the pull request Goliash opened to move the application's workload to the version, whatever became of
+// it.
+func (s *Server) pullFor(ctx context.Context, sc store.Scope, app versions.GitOpsApp, to string) (store.GitOpsPull, bool) {
 	pulls, err := s.store.ListGitOpsPulls(ctx, sc)
 	if err != nil {
-		return "", false
+		return store.GitOpsPull{}, false
 	}
 	for _, p := range pulls {
 		if p.TargetID == app.TargetID && p.WorkloadID == app.WorkloadID && p.To == to {
-			return p.URL, true
+			return p, true
 		}
 	}
-	return "", false
+	return store.GitOpsPull{}, false
+}
+
+// openPull is the pull request Goliash opened for the version and nobody closed without merging: one closed may be
+// opened again.
+func (s *Server) openPull(ctx context.Context, sc store.Scope, app versions.GitOpsApp, to string) (string, bool) {
+	p, ok := s.pullFor(ctx, sc, app, to)
+	if !ok || p.State == "closed" {
+		return "", false
+	}
+	return p.URL, true
+}
+
+// pullLabel is the link to an opened pull request, with what became of it.
+func pullLabel(to, state string) string {
+	label := "Pull request → " + to
+	if state == "merged" {
+		label += " · merged"
+	}
+	return label
+}
+
+// RefreshPulls asks the forges what became of the open pull requests Goliash opened.
+func (s *Server) RefreshPulls(ctx context.Context) error {
+	if s.pulls == nil {
+		return nil
+	}
+	wss, err := s.store.ListWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ws := range wss {
+		sc := ws.Scope()
+		pulls, err := s.store.ListGitOpsPulls(ctx, sc)
+		if err != nil {
+			return err
+		}
+		for _, p := range pulls {
+			if p.State != "open" {
+				continue
+			}
+			state, err := s.pulls.PullState(ctx, p.URL)
+			if err != nil {
+				s.log.WarnContext(ctx, "reading a pull request's state failed", "url", p.URL, "err", err)
+				continue
+			}
+			if state != p.State {
+				if err := s.store.SetGitOpsPullState(ctx, sc, p.ID, state); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // promotePR opens a promotion from the Delivery page as a pull request: the version that runs in the previous

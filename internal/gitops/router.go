@@ -6,6 +6,7 @@ package gitops
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // Provider opens pull or merge requests in the repositories it supports.
@@ -13,6 +14,7 @@ type Provider interface {
 	Supports(repo string) bool
 	Plan(ctx context.Context, b Bump) (Plan, error)
 	OpenBump(ctx context.Context, b Bump) (string, error)
+	PullState(ctx context.Context, pullURL string) (string, error)
 }
 
 // Router sends each upgrade to the provider of its repository's host: GitHub, GitHub Enterprise, GitLab.
@@ -58,4 +60,24 @@ func (r Router) Plan(ctx context.Context, b Bump) (Plan, error) {
 		}
 	}
 	return Plan{}, fmt.Errorf("no token for %s", b.Repo)
+}
+
+// PullState asks the pull request's forge whether it is open, merged or closed.
+func (r Router) PullState(ctx context.Context, pullURL string) (string, error) {
+	for _, p := range r {
+		if p.Supports(repoOf(pullURL)) {
+			return p.PullState(ctx, pullURL)
+		}
+	}
+	return "", fmt.Errorf("no token for %s", pullURL)
+}
+
+// repoOf is the repository address of a pull or merge request address.
+func repoOf(pullURL string) string {
+	for _, sep := range []string{"/-/merge_requests/", "/pull/"} {
+		if i := strings.Index(pullURL, sep); i > 0 {
+			return pullURL[:i]
+		}
+	}
+	return pullURL
 }

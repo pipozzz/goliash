@@ -60,9 +60,14 @@ func TestArgoCDOnServiceAndMatrix(t *testing.T) {
 	}
 }
 
-type fakePulls struct{ got []gitops.Bump }
+type fakePulls struct {
+	got   []gitops.Bump
+	state string
+}
 
 func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
+
+func (f *fakePulls) PullState(context.Context, string) (string, error) { return f.state, nil }
 
 func (f *fakePulls) Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error) {
 	return gitops.Demo{}.Plan(ctx, b)
@@ -335,5 +340,58 @@ func TestMarkdownHTML(t *testing.T) {
 	want := `<p>Upgrades <strong>a</strong> to <code>1.2</code>: &lt;script&gt;.</p><ul><li>one <a href="https://e.com/p" target="_blank" rel="noopener">x</a></li><li>two</li></ul><h3>Known</h3><p>text</p>`
 	if got != want {
 		t.Fatalf("markdown\n got: %s\nwant: %s", got, want)
+	}
+}
+
+// A pull request closed without merging: the page offers the upgrade again, the policy does not open it again.
+func TestClosedPullRequest(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{state: "open"}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svcName := e.serviceOf("evil")
+	svc, _ := e.st.GetServiceByName(ctx, sc, svcName)
+	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	svc.VersionPolicy = json.RawMessage(`{"auto_pr":{"prod":"minor"}}`)
+	if err := e.st.UpdateService(ctx, svc); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := e.ui.AutoPRs(ctx); n != 1 {
+		t.Fatalf("opened %d", n)
+	}
+	m := e.as(store.RoleMember)
+	page := func() string {
+		_, b := get(t, m, e.srv.URL+"/services/"+url.PathEscape(svcName), nil)
+		return b
+	}
+	member := page()
+	if !strings.Contains(member, "Pull request → 1.28.0") {
+		t.Fatal("no link to the open pull request")
+	}
+	pulls.state = "merged"
+	if err := e.ui.RefreshPulls(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(page(), "Pull request → 1.28.0 · merged") {
+		t.Fatal("not shown as merged")
+	}
+	pulls.state = "closed"
+	got, _ := e.st.ListGitOpsPulls(ctx, sc)
+	_ = e.st.SetGitOpsPullState(ctx, sc, got[0].ID, "closed")
+	if p := page(); !strings.Contains(p, "Open PR → 1.28.0") {
+		t.Fatal("a closed pull request is not offered again")
+	}
+	if n, _ := e.ui.AutoPRs(ctx); n != 0 {
+		t.Fatal("the policy opened a closed pull request again")
 	}
 }

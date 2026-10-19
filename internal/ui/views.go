@@ -560,6 +560,7 @@ type PromotionView struct {
 type PromotePR struct {
 	TargetID, WorkloadID, Target, App string
 	URL                               string // the pull request Goliash opened already
+	State                             string // open or merged
 }
 
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
@@ -1505,6 +1506,7 @@ type GitOpsView struct {
 	Tag                           string // the version running
 	To                            string // the version a pull request would pin; empty, no button
 	PRURL                         string // the pull request Goliash opened for To, when it did
+	PRState                       string // open or merged
 }
 
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {

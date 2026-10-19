@@ -100,3 +100,31 @@ func TestRouter(t *testing.T) {
 		t.Error("GitHub Enterprise repository not supported")
 	}
 }
+
+func TestPullState(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.EscapedPath() {
+		case "/repos/acme/deploy/pulls/7":
+			_, _ = w.Write([]byte(`{"state":"closed","merged":true}`))
+		case "/repos/acme/deploy/pulls/8":
+			_, _ = w.Write([]byte(`{"state":"closed","merged":false}`))
+		case "/api/v4/projects/acme%2Fdeploy/merge_requests/3":
+			_, _ = w.Write([]byte(`{"state":"opened"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	gh := NewGitHub("t", srv.URL)
+	gh.host = "github.com"
+	r := Router{gh, NewGitLab("t", srv.URL)}
+	for pull, want := range map[string]string{
+		"https://github.com/acme/deploy/pull/7":     "merged",
+		"https://github.com/acme/deploy/pull/8":     "closed",
+		srv.URL + "/acme/deploy/-/merge_requests/3": "open",
+	} {
+		if got, err := r.PullState(context.Background(), pull); err != nil || got != want {
+			t.Errorf("PullState(%s) = %q, %v; want %q", pull, got, err, want)
+		}
+	}
+}

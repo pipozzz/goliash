@@ -3417,7 +3417,7 @@ func gitOpsPanel(apps []GitOpsView, service string, canEdit bool) templ.Componen
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var178 string
-				templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs("Pull request → " + a.To)
+				templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs(pullLabel(a.To, a.PRState))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `service.templ`, Line: 764, Col: 121}
 				}

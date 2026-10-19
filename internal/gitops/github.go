@@ -292,3 +292,29 @@ func escapePath(p string) string {
 	}
 	return strings.Join(parts, "/")
 }
+
+// PullState says whether a pull request this GitHub holds is open, merged or closed.
+func (g *GitHub) PullState(ctx context.Context, pullURL string) (string, error) {
+	u, err := url.Parse(pullURL)
+	if err != nil || u.Host != g.host {
+		return "", fmt.Errorf("%s is not a pull request on %s", pullURL, g.host)
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/") // owner/repo/pull/N
+	if len(parts) != 4 || parts[2] != "pull" {
+		return "", fmt.Errorf("%s is not a pull request address", pullURL)
+	}
+	var pr struct {
+		State  string `json:"state"`
+		Merged bool   `json:"merged"`
+	}
+	if err := g.do(ctx, http.MethodGet, "/repos/"+parts[0]+"/"+parts[1]+"/pulls/"+parts[3], nil, &pr); err != nil {
+		return "", err
+	}
+	switch {
+	case pr.Merged:
+		return "merged", nil
+	case pr.State == "closed":
+		return "closed", nil
+	}
+	return "open", nil
+}
