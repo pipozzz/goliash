@@ -746,6 +746,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 						g.PRURL, g.PRState = pr.URL, pr.State
 					}
 				}
+				if g.GitPins = s.gitPins(a, time.Now()); g.GitPins != "" && g.GitPins == g.To && g.PRURL == "" {
+					g.To = "" // Git has it already: it waits for a sync, not a pull request
+				}
 				if g.Rollback, g.RollbackWhy = s.rollbackFor(ctx, p.Scope, a, time.Now()); g.Rollback != "" {
 					if pr, ok := s.pullFor(ctx, p.Scope, a, g.Rollback); ok && pr.State != "closed" {
 						g.RollbackPRURL = pr.URL

@@ -53,3 +53,19 @@ func TestBumpImageTag(t *testing.T) {
 		}
 	}
 }
+
+func TestPinnedTags(t *testing.T) {
+	for _, c := range []struct {
+		name, content, want string
+	}{
+		{"manifest", "    image: ghcr.io/acme/api:1.5.0\n    image: ghcr.io/acme/other:9.9.9\n", "1.5.0"},
+		{"kustomize", "images:\n  - name: ghcr.io/acme/api\n    newTag: \"1.6.0\"\n  - name: ghcr.io/acme/other\n    newTag: 2.0.0\n", "1.6.0"},
+		{"helm", "image:\n  repository: ghcr.io/acme/api\n  tag: v1.7.0\n", "v1.7.0"},
+		{"digest", "image: ghcr.io/acme/api:1.5.0@sha256:" + strings.Repeat("a", 64) + "\n", ""},
+		{"two", "a: ghcr.io/acme/api:1.5.0\nb: ghcr.io/acme/api:1.5.1\nc: ghcr.io/acme/api:1.5.0\n", "1.5.0,1.5.1"},
+	} {
+		if got := strings.Join(PinnedTags([]byte(c.content), "ghcr.io/acme/api"), ","); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}

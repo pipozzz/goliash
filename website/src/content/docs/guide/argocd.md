@@ -12,6 +12,9 @@ on which version, against the newest release upstream.
 - **The service page** has an *Argo CD* panel: per environment and cluster, the application that deploys the
   service, its repository and path (or Helm chart) with the branch or tag it follows, the commit last synced (a link to
   the commit on GitHub, GitLab, Bitbucket or Gitea), and its sync and health status, with how long it has been so.
+  With a token for the repository (see [Set up](#set-up)), an application out of sync also says **which version Git
+  pins** and which runs: *Git pins 1.7.0, runs 1.6.0*, the answer to "why did my change not go out?". It is read
+  from the files under the application's path, at most every 10 minutes, never while you wait.
 - **The matrix and the tiles** mark a cell *Argo: out of sync*, *Argo: degraded* or *Argo: missing* when the
   application has been so for more than 10 minutes: Argo CD is out of sync for a moment on every change, and
   progressing while it rolls out, which is not news. On the tiles such a cell needs attention.

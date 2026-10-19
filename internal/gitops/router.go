@@ -6,6 +6,7 @@ package gitops
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -15,6 +16,7 @@ type Provider interface {
 	Plan(ctx context.Context, b Bump) (Plan, error)
 	OpenBump(ctx context.Context, b Bump) (string, error)
 	PullState(ctx context.Context, pullURL string) (string, error)
+	Pinned(ctx context.Context, b Bump) ([]string, error)
 }
 
 // Router sends each upgrade to the provider of its repository's host: GitHub, GitHub Enterprise, GitLab.
@@ -80,4 +82,24 @@ func repoOf(pullURL string) string {
 		}
 	}
 	return pullURL
+}
+
+// Pinned reads, through the provider of the repository's host, the tags the application's files pin its image at.
+func (r Router) Pinned(ctx context.Context, b Bump) ([]string, error) {
+	for _, p := range r {
+		if p.Supports(b.Repo) {
+			return p.Pinned(ctx, b)
+		}
+	}
+	return nil, fmt.Errorf("no provider for %s", b.Repo)
+}
+
+// appendNew appends the tags not in tags yet.
+func appendNew(tags []string, more ...string) []string {
+	for _, m := range more {
+		if !slices.Contains(tags, m) {
+			tags = append(tags, m)
+		}
+	}
+	return tags
 }

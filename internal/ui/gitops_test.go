@@ -61,13 +61,16 @@ func TestArgoCDOnServiceAndMatrix(t *testing.T) {
 }
 
 type fakePulls struct {
-	got   []gitops.Bump
-	state string
+	got    []gitops.Bump
+	state  string
+	pinned []string
 }
 
 func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
 
 func (f *fakePulls) PullState(context.Context, string) (string, error) { return f.state, nil }
+
+func (f *fakePulls) Pinned(context.Context, gitops.Bump) ([]string, error) { return f.pinned, nil }
 
 func (f *fakePulls) Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error) {
 	return gitops.Demo{}.Plan(ctx, b)
@@ -516,5 +519,42 @@ func TestPullToRunning(t *testing.T) {
 	_, d := get(t, e.as(store.RoleViewer), e.srv.URL+"/delivery", nil)
 	if !strings.Contains(d, "3h after opening") || !strings.Contains(d, "3h from pull request to running") {
 		t.Fatal("no time from pull request to running")
+	}
+}
+
+// An application out of sync says which version Git pins, read in the background, when it is not the one running.
+func TestGitPins(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{pinned: []string{"9.9.9"}}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/pins.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "OutOfSync", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	page := e.srv.URL + "/services/" + url.PathEscape(e.serviceOf("evil"))
+	viewer := e.as(store.RoleViewer)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, body := get(t, viewer, page, nil)
+		if strings.Contains(body, `Git pins <span class="mono">9.9.9</span>`) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no Git pins")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	// Git pins the newest release already: no pull request to offer, it waits for a sync.
+	svc, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
+	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"9.9.9"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := get(t, e.as(store.RoleMember), page, nil); strings.Contains(body, "Open PR → 9.9.9") {
+		t.Fatal("a pull request offered for what Git pins already")
 	}
 }

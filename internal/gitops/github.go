@@ -93,6 +93,38 @@ func (g *GitHub) Plan(ctx context.Context, b Bump) (Plan, error) {
 }
 
 func (g *GitHub) plan(ctx context.Context, b Bump) (ghPlan, error) {
+	pinned := false
+	var changes []ghChange
+	gp, err := g.walk(ctx, b, func(p, sha string, raw []byte) {
+		res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
+		pinned = pinned || res.Pinned
+		if res.Changes > 0 {
+			changes = append(changes, ghChange{p, sha, raw, res.Content})
+		}
+	})
+	if err != nil {
+		return gp, err
+	}
+	gp.changes = changes
+	if len(gp.changes) == 0 {
+		if pinned {
+			return gp, ErrPinned
+		}
+		return gp, ErrNoTag
+	}
+	return gp, nil
+}
+
+// Pinned reads the tags the YAML files under the application's path pin its image at, on its branch.
+func (g *GitHub) Pinned(ctx context.Context, b Bump) ([]string, error) {
+	var tags []string
+	_, err := g.walk(ctx, b, func(_, _ string, raw []byte) { tags = appendNew(tags, versions.PinnedTags(raw, b.Image)...) })
+	return tags, err
+}
+
+// walk reads the YAML files under the application's path on its branch (the repository's default branch for
+// none), up to maxFiles, and hands each to visit.
+func (g *GitHub) walk(ctx context.Context, b Bump, visit func(path, sha string, raw []byte)) (ghPlan, error) {
 	owner, name, ok := g.ownerRepo(b.Repo)
 	if !ok {
 		return ghPlan{}, fmt.Errorf("%s is not a GitHub repository", b.Repo)
@@ -127,7 +159,7 @@ func (g *GitHub) plan(ctx context.Context, b Bump) (ghPlan, error) {
 		return gp, err
 	}
 	dir := strings.Trim(path.Clean("/"+b.Path), "/")
-	pinned, read := false, 0
+	read := 0
 	for _, f := range tree.Tree {
 		if f.Type != "blob" || f.Size > 512<<10 || !strings.HasSuffix(f.Path, ".yaml") && !strings.HasSuffix(f.Path, ".yml") {
 			continue
@@ -149,17 +181,7 @@ func (g *GitHub) plan(ctx context.Context, b Bump) (ghPlan, error) {
 		if err != nil {
 			return gp, fmt.Errorf("%s: %w", f.Path, err)
 		}
-		res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
-		pinned = pinned || res.Pinned
-		if res.Changes > 0 {
-			gp.changes = append(gp.changes, ghChange{f.Path, file.SHA, raw, res.Content})
-		}
-	}
-	if len(gp.changes) == 0 {
-		if pinned {
-			return gp, ErrPinned
-		}
-		return gp, ErrNoTag
+		visit(f.Path, file.SHA, raw)
 	}
 	return gp, nil
 }

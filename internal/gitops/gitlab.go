@@ -55,6 +55,38 @@ func (g *GitLab) Plan(ctx context.Context, b Bump) (Plan, error) {
 }
 
 func (g *GitLab) plan(ctx context.Context, b Bump) (string, Plan, error) {
+	pinned := false
+	var changes []Change
+	project, p, err := g.walk(ctx, b, func(path string, raw []byte) {
+		res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
+		pinned = pinned || res.Pinned
+		if res.Changes > 0 {
+			changes = append(changes, Change{Path: path, Old: raw, New: res.Content})
+		}
+	})
+	if err != nil {
+		return project, p, err
+	}
+	p.Changes = changes
+	if len(p.Changes) == 0 {
+		if pinned {
+			return project, p, ErrPinned
+		}
+		return project, p, ErrNoTag
+	}
+	return project, p, nil
+}
+
+// Pinned reads the tags the YAML files under the application's path pin its image at, on its branch.
+func (g *GitLab) Pinned(ctx context.Context, b Bump) ([]string, error) {
+	var tags []string
+	_, _, err := g.walk(ctx, b, func(_ string, raw []byte) { tags = appendNew(tags, versions.PinnedTags(raw, b.Image)...) })
+	return tags, err
+}
+
+// walk reads the YAML files under the application's path on its branch (the project's default branch for none),
+// up to maxFiles, and hands each to visit.
+func (g *GitLab) walk(ctx context.Context, b Bump, visit func(path string, raw []byte)) (string, Plan, error) {
 	if !g.Supports(b.Repo) {
 		return "", Plan{}, fmt.Errorf("%s is not on %s", b.Repo, g.base)
 	}
@@ -71,7 +103,7 @@ func (g *GitLab) plan(ctx context.Context, b Bump) (string, Plan, error) {
 		p.Base = info.DefaultBranch
 	}
 	dir := strings.Trim(path.Clean("/"+b.Path), "/")
-	pinned, read := false, 0
+	read := 0
 	for page := 1; page <= 10 && read < maxFiles; page++ {
 		var tree []struct {
 			Path string `json:"path"`
@@ -95,21 +127,11 @@ func (g *GitLab) plan(ctx context.Context, b Bump) (string, Plan, error) {
 			if err != nil {
 				return project, p, err
 			}
-			res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
-			pinned = pinned || res.Pinned
-			if res.Changes > 0 {
-				p.Changes = append(p.Changes, Change{Path: f.Path, Old: raw, New: res.Content})
-			}
+			visit(f.Path, raw)
 		}
 		if len(tree) < 100 {
 			break
 		}
-	}
-	if len(p.Changes) == 0 {
-		if pinned {
-			return project, p, ErrPinned
-		}
-		return project, p, ErrNoTag
 	}
 	return project, p, nil
 }

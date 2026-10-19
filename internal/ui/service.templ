@@ -760,6 +760,9 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 									}
 								</span>
 								<div class="targets">since @timeAgo(a.Since)</div>
+								if a.GitPins != "" {
+									<div class="git-pins" title={ a.Path + " on " + a.TargetRevision + " pins " + a.GitPins + "; " + a.Tag + " runs: the change has not been synced" }>Git pins <span class="mono">{ a.GitPins }</span>, runs <span class="mono">{ a.Tag }</span></div>
+								}
 								if a.PRURL != "" {
 									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener">{ pullLabel(a.To, a.PRState) }</a>
 								} else if canEdit && a.To != "" {

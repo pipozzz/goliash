@@ -26,6 +26,7 @@ type PullRequester interface {
 	Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error)
 	OpenBump(ctx context.Context, b gitops.Bump) (string, error)
 	PullState(ctx context.Context, pullURL string) (string, error)
+	Pinned(ctx context.Context, b gitops.Bump) ([]string, error)
 }
 
 // pullRequestTo is the version a pull request for the application would pin: the newest acceptable release, when

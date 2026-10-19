@@ -51,3 +51,12 @@ func (Demo) OpenBump(context.Context, Bump) (string, error) { return "", ErrDemo
 
 // PullState says every demo pull request is open: the demo opens none, so none changes.
 func (Demo) PullState(context.Context, string) (string, error) { return "open", nil }
+
+// demoPins is what the demo's repository pins where it matters to the story: the webshop's staging application
+// waits for a manual sync of payments-api 1.7.0.
+var demoPins = map[string][]string{"apps/webshop/staging|ghcr.io/acme/payments-api": {"1.7.0"}}
+
+// Pinned says what the demo repository pins for the story's application, and knows nothing else.
+func (Demo) Pinned(_ context.Context, b Bump) ([]string, error) {
+	return demoPins[strings.Trim(b.Path, "/")+"|"+b.Image], nil
+}

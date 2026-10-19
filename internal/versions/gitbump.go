@@ -121,3 +121,42 @@ func blockLines(lines []string, i, indent int) []int {
 	}
 	return out
 }
+
+// PinnedTags are the tags a GitOps file pins the image at, in the forms BumpImageTag changes: "repo:tag"
+// references, and a tag key next to a key naming the image. Digest-pinned references are left out.
+func PinnedTags(content []byte, repo string) []string {
+	var out []string
+	add := func(t string) {
+		for _, x := range out {
+			if x == t {
+				return
+			}
+		}
+		out = append(out, t)
+	}
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		for _, m := range imageWithTag.FindAllString(line, -1) {
+			ref, digest, _ := strings.Cut(m, "@")
+			if r := ParseImage(ref); r.Repo() == repo && digest == "" && r.Tag != "" {
+				add(r.Tag)
+			}
+		}
+	}
+	for i, line := range lines {
+		k := imageKey.FindStringSubmatch(line)
+		if k == nil || ParseImage(k[4]).Repo() != repo || strings.Contains(k[4][strings.LastIndex(k[4], "/")+1:], ":") {
+			continue
+		}
+		indent := len(k[1])
+		if k[2] != "" {
+			indent += 2
+		}
+		for _, j := range blockLines(lines, i, indent) {
+			if t := tagKey.FindStringSubmatch(lines[j]); t != nil {
+				add(t[5])
+			}
+		}
+	}
+	return out
+}

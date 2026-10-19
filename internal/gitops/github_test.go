@@ -107,3 +107,15 @@ func TestOpenBumpFindsNothing(t *testing.T) {
 		t.Fatal("a GitLab repository accepted")
 	}
 }
+
+func TestPinned(t *testing.T) {
+	srv, _ := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.5.0\n")
+	g := NewGitHub("tok", srv.URL)
+	g.host = "github.com"
+	tags, err := g.Pinned(context.Background(), Bump{
+		Repo: "https://github.com/acme/deploy", Branch: "main", Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout",
+	})
+	if err != nil || strings.Join(tags, ",") != "1.5.0" {
+		t.Fatalf("Pinned = %v, %v", tags, err)
+	}
+}
