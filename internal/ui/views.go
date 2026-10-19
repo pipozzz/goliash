@@ -1507,6 +1507,8 @@ type GitOpsView struct {
 	To                            string // the version a pull request would pin; empty, no button
 	PRURL                         string // the pull request Goliash opened for To, when it did
 	PRState                       string // open or merged
+	Rollback, RollbackWhy         string // the version a rollback pull request would pin, degraded; empty, no button
+	RollbackPRURL                 string // the rollback pull request Goliash opened, when it did
 }
 
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {

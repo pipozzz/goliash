@@ -1279,6 +1279,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bell-mark.kind-gitops { background: #d9822b; }
 .gitops-pr { margin-top: 6px; }
 .gitops-pr { display: inline-block; }
+.gitops-pr.rollback { color: var(--bad, #b42318); border-color: currentColor; margin-left: 6px; }
 
 /* A page's explanation, folded under its title: hover shows it, a click or tap opens it. */
 .about { margin-top: 4px; font-size: 13px; color: var(--muted); }

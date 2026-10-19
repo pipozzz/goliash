@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/gitops"
@@ -47,10 +48,12 @@ type upgrade struct {
 	to, why, notes string
 	vulns          versions.VulnDelta
 	summary        string // Goli's summary of the release notes, a markdown list; empty without Goli
+	rollback       bool   // back to the version the running one replaced, the application being degraded
 }
 
 // findUpgrade finds the upgrade a form names and checks the page would still offer it: the newest acceptable
-// release, or a promotion of the version that waits in the environment before.
+// release, a promotion of the version that waits in the environment before, or a rollback of a degraded
+// application to the version before.
 func (s *Server) findUpgrade(ctx context.Context, sc store.Scope, service, targetID, workloadID, to string) (upgrade, bool, error) {
 	o, err := versions.LoadOverview(ctx, s.store, sc)
 	if err != nil {
@@ -85,6 +88,11 @@ func (s *Server) findUpgrade(ctx context.Context, sc store.Scope, service, targe
 			if pr.Service.ID == app.ServiceID && pr.To.Name == app.Environment && pr.Version == to && pr.Running == app.Tag {
 				u.why = fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006"))
 			}
+		}
+	}
+	if u.why == "" {
+		if back, why := s.rollbackFor(ctx, sc, *app, time.Now()); back == to {
+			u.why, u.rollback = why, true
 		}
 	}
 	if u.why == "" {
@@ -144,9 +152,13 @@ func (s *Server) bumpRequest(u upgrade, by string) gitops.Bump {
 	if app.TargetRevision != "" {
 		where += " @ " + app.TargetRevision
 	}
-	body := fmt.Sprintf("Upgrades **%s** in **%s** from `%s` to `%s`: %s.\n\n"+
+	verb, title, head := "Upgrades", fmt.Sprintf("%s %s in %s", u.service, u.to, app.Environment), u.service+"-"+u.to+"-"+app.Environment
+	if u.rollback {
+		verb, title, head = "Rolls back", fmt.Sprintf("Roll back %s to %s in %s", u.service, u.to, app.Environment), "rollback-"+head
+	}
+	body := fmt.Sprintf("%s **%s** in **%s** from `%s` to `%s`: %s.\n\n"+
 		"- %s: `%s` (%s)\n- Image: `%s`\n- Opened by %s from [Goliash](%s%s)\n",
-		u.service, app.Environment, app.Tag, u.to, u.why, versions.GitOpsObject(app.Tool), app.App, where, image, by, s.publicURL, u.page)
+		verb, u.service, app.Environment, app.Tag, u.to, u.why, versions.GitOpsObject(app.Tool), app.App, where, image, by, s.publicURL, u.page)
 	if u.notes != "" {
 		body += "- Release notes: " + u.notes + "\n"
 	}
@@ -156,8 +168,7 @@ func (s *Server) bumpRequest(u upgrade, by string) gitops.Bump {
 	}
 	return gitops.Bump{
 		Repo: versions.RepoWebURL(app.Repo), Branch: app.TargetRevision, Path: app.Path, Image: image,
-		From: app.Tag, To: u.to, Head: "goliash/" + branchSafe(u.service+"-"+u.to+"-"+app.Environment),
-		Title: fmt.Sprintf("%s %s in %s", u.service, u.to, app.Environment), Body: body,
+		From: app.Tag, To: u.to, Head: "goliash/" + branchSafe(head), Title: title, Body: body,
 		CommitMsg: fmt.Sprintf("%s: %s → %s in %s", u.service, app.Tag, u.to, app.Environment),
 	}
 }

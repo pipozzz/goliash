@@ -36,7 +36,7 @@ var summaries = summaryCache{byID: map[string]summaryEntry{}}
 // addSummary asks Goli, when it is on, what the release notes between the running version and the new one say a
 // reviewer should know, for the pull request's description. Without Goli, release notes or an answer, nothing.
 func (s *Server) addSummary(ctx context.Context, sc store.Scope, u *upgrade) {
-	if !s.goliOn() || s.checker == nil {
+	if !s.goliOn() || s.checker == nil || u.rollback { // a rollback's case is the trouble, not the release notes
 		return
 	}
 	key := u.app.ServiceID + "|" + u.app.Tag + "|" + u.to

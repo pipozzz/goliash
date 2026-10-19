@@ -413,3 +413,69 @@ func TestClosedPullRequest(t *testing.T) {
 		t.Fatal("the policy opened a closed pull request again")
 	}
 }
+
+// A degraded application whose version replaced another this week is offered a pull request back to it, which
+// says it rolls back and why.
+func TestRollbackPR(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	svc := e.serviceOf("evil")
+	svcRec, _ := e.st.GetServiceByName(ctx, sc, svc)
+	o, _ := versions.LoadOverview(ctx, e.st, sc)
+	apps, _ := versions.GitOpsApps(ctx, e.st, sc, o)
+	if len(apps) != 1 {
+		t.Fatalf("apps %+v", apps)
+	}
+	running := apps[0].Tag
+	if err := e.st.InsertEvent(ctx, sc, store.Event{
+		Type: "version_changed", ServiceID: svcRec.ID, TargetID: e.tgt.ID, FromVersion: "0.9.0", ToVersion: running,
+		At: time.Now().Add(-2 * time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	page := "/services/" + url.PathEscape(svc)
+	member := e.as(store.RoleMember)
+	if _, body := get(t, member, e.srv.URL+page, nil); strings.Contains(body, "Rollback PR") {
+		t.Fatal("a healthy application is offered a rollback")
+	}
+
+	g.Health = "Degraded"
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := get(t, member, e.srv.URL+page, nil); !strings.Contains(body, "Rollback PR → 0.9.0") {
+		t.Fatal("no Rollback PR button")
+	}
+	if _, body := get(t, e.as(store.RoleViewer), e.srv.URL+page, nil); strings.Contains(body, "Rollback PR") {
+		t.Fatal("a viewer is offered a rollback")
+	}
+	_, body, _ := post(t, member, e.srv.URL+page+"/gitops/pr",
+		url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {"0.9.0"}})
+	if !strings.Contains(body, "Pull request opened") || len(pulls.got) != 1 {
+		t.Fatalf("not opened: %d", len(pulls.got))
+	}
+	b := pulls.got[0]
+	if b.Title != "Roll back "+svc+" to 0.9.0 in "+apps[0].Environment || !strings.HasPrefix(b.Head, "goliash/rollback-") ||
+		!strings.Contains(b.Body, "Rolls back") || !strings.Contains(b.Body, "has been degraded since") {
+		t.Fatalf("pull request %+v", b)
+	}
+	if _, body := get(t, member, e.srv.URL+page, nil); !strings.Contains(body, "https://github.com/acme/deploy/pull/7") {
+		t.Fatal("the opened rollback is not linked")
+	}
+	// Only the version it replaced: no other.
+	_, body, _ = post(t, member, e.srv.URL+page+"/gitops/pr",
+		url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {"0.1.0"}})
+	if !strings.Contains(body, "no longer offered") {
+		t.Fatal("a rollback to another version was opened")
+	}
+}
