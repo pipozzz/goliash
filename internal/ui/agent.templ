@@ -108,7 +108,7 @@ templ AgentPage(v AgentPageView) {
 		</div>
 		if len(v.Agent.Notes) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Not collected</h2><span class="muted">what the agent found but could not read when it last started</span></div>
+				<div class="panel-head"><h2>Not collected</h2>@panelInfo("what the agent found but could not read when it last started")</div>
 				<ul class="panel-body notes-list">
 					for _, n := range v.Agent.Notes {
 						<li class="mono">{ n }</li>
@@ -117,7 +117,7 @@ templ AgentPage(v AgentPageView) {
 			</section>
 		}
 		<section class="panel">
-			<div class="panel-head"><h2>Targets</h2><span class="muted">what this agent collects</span></div>
+			<div class="panel-head"><h2>Targets</h2>@panelInfo("what this agent collects")</div>
 			if len(v.Targets) == 0 {
 				<div class="empty">
 					No targets yet.

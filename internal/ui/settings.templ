@@ -356,7 +356,7 @@ templ SettingsPage(v SettingsView) {
 		}
 		@registriesPanel(v)
 		<section class="panel" id="applications">
-			<div class="panel-head"><h2>Applications</h2><span class="muted">how the target page groups workloads</span></div>
+			<div class="panel-head"><h2>Applications</h2>@panelInfo("how the target page groups workloads")</div>
 			<div class="panel-body stack">
 				<p class="muted">A workload's application comes from its labels: goliash.app or app.kubernetes.io/part-of, then the Helm release, the Compose project or the Swarm stack, else its namespace. Name your own label to have it checked first.</p>
 				<form class="inline" method="post" action="/settings/app-label">
@@ -432,7 +432,7 @@ templ SettingsPage(v SettingsView) {
 			</div>
 		</section>
 		<section class="panel" id="apps">
-			<div class="panel-head"><h2>Apps with access</h2><span class="muted">AI assistants and CLIs people let read this workspace as them, read only</span></div>
+			<div class="panel-head"><h2>Apps with access</h2>@panelInfo("AI assistants and CLIs people let read this workspace as them, read only")</div>
 			if len(v.Apps) == 0 {
 				<div class="empty">No app reads this workspace. People connect Claude, Cursor or the CLI with <code>/mcp</code> or <code>goliash login</code>, and allow it on a consent page.</div>
 			} else {
@@ -465,7 +465,7 @@ templ SettingsPage(v SettingsView) {
 			}
 		</section>
 		<section class="panel" id="audit">
-			<div class="panel-head"><h2>Audit log</h2><span class="muted">changes to configuration, tokens and roles, newest first</span></div>
+			<div class="panel-head"><h2>Audit log</h2>@panelInfo("changes to configuration, tokens and roles, newest first")</div>
 			if len(v.Audit) == 0 {
 				<div class="empty">Nothing recorded yet.</div>
 			} else {

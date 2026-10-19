@@ -63,7 +63,7 @@ templ AgentsPage(v AgentsView) {
 		</section>
 		if v.CanAdmin && len(v.Codes) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Enrollment codes</h2><span class="muted">agents started with one register themselves</span></div>
+				<div class="panel-head"><h2>Enrollment codes</h2>@panelInfo("agents started with one register themselves")</div>
 				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Environment</th><th>For</th><th>Agents</th><th>New agents until</th><th>Last used</th><th>Created by</th><th><span class="sr-only">Actions</span></th></tr></thead>
@@ -105,7 +105,7 @@ templ AgentsPage(v AgentsView) {
 		}
 		if v.CanAdmin {
 			<section class="panel">
-				<div class="panel-head"><h2>Environments</h2><span class="muted">in promotion order</span></div>
+				<div class="panel-head"><h2>Environments</h2>@panelInfo("in promotion order")</div>
 				if len(v.Envs) > 0 {
 					<div class="scroll" tabindex="0">
 						<table class="envs">

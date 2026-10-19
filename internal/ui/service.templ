@@ -105,7 +105,7 @@ templ ServicePage(v ServiceView) {
 		}
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Versions over time</h2><span class="muted">last 30 days; hover for dates</span></div>
+				<div class="panel-head"><h2>Versions over time</h2>@panelInfo("last 30 days; hover for dates")</div>
 				@versionChart(v.Versions)
 			</section>
 		}
@@ -163,7 +163,7 @@ templ ServicePage(v ServiceView) {
 				</div>
 			</section>
 			<section class="panel">
-				<div class="panel-head"><h2>Upstream releases</h2><span class="muted">newest first</span></div>
+				<div class="panel-head"><h2>Upstream releases</h2>@panelInfo("newest first")</div>
 				<div class="panel-body">
 					if len(v.Releases) == 0 {
 						<p class="muted">No releases known yet.</p>
@@ -265,7 +265,7 @@ templ ServicePage(v ServiceView) {
 		}
 		if len(v.Sizes.Series) > 0 || v.SizeChange != nil {
 			<section class="panel" id="sizes">
-				<div class="panel-head"><h2>Image size</h2><span class="muted">MB pulled, per environment, last 90 days</span></div>
+				<div class="panel-head"><h2>Image size</h2>@panelInfo("MB pulled, per environment, last 90 days")</div>
 				if len(v.Sizes.Series) > 0 {
 					<div class="panel-body">
 						@lines(v.Sizes, "Image size in MB per environment, last 90 days")
@@ -375,7 +375,7 @@ templ ServicePage(v ServiceView) {
 		</div>
 		if len(v.Badges) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Badges</h2><span class="muted">to embed in a README or a wiki</span></div>
+				<div class="panel-head"><h2>Badges</h2>@panelInfo("to embed in a README or a wiki")</div>
 				<div class="panel-body embed-badges">
 					<p class="muted">Each badge shows the version and its state, updated within minutes. Its address is signed: it works without signing in, for this service and environment only.</p>
 					for i, b := range v.Badges {
@@ -512,7 +512,7 @@ templ versionDrifts(drifts []DriftBadge) {
 // a managed database, an appliance.
 templ manualPanel(v ServiceView) {
 	<section class="panel">
-		<div class="panel-head"><h2>Runs outside Goliash</h2><span class="muted">versions entered by hand: a VM, a managed service</span></div>
+		<div class="panel-head"><h2>Runs outside Goliash</h2>@panelInfo("versions entered by hand: a VM, a managed service")</div>
 		<div class="panel-body stack">
 			if len(v.Manual) > 0 {
 				<div class="scroll" tabindex="0">
@@ -715,7 +715,7 @@ templ sizeChange(c *SizeChange) {
 // gitOpsPanel shows the GitOps applications (Argo CD, Flux) that deploy the service: where from, which commit, in sync or not.
 templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 	<section class="panel" id="gitops">
-		<div class="panel-head"><h2>{ gitOpsTitle(apps) }</h2><span class="muted">what Git declares, and whether it runs</span></div>
+		<div class="panel-head"><h2>{ gitOpsTitle(apps) }</h2>@panelInfo("what Git declares, and whether it runs")</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">
 				<thead><tr><th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th></tr></thead>

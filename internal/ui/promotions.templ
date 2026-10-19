@@ -16,7 +16,7 @@ templ PromotionsPage(v PromotionsView) {
 		</div>
 		if len(v.Rollouts) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Rollouts that do not finish</h2><span class="muted">replicas not where the platform was asked to put them</span></div>
+				<div class="panel-head"><h2>Rollouts that do not finish</h2>@panelInfo("replicas not where the platform was asked to put them")</div>
 				<div class="scroll" tabindex="0">
 					<table class="cards">
 						<thead><tr><th>Service</th><th>Where</th><th>What</th><th>Since</th></tr></thead>
@@ -41,11 +41,11 @@ templ PromotionsPage(v PromotionsView) {
 			</section>
 		}
 		<section class="panel">
-			<div class="panel-head"><h2>Deploys per week</h2><span class="muted">versions that arrived, by environment, last 12 weeks</span></div>
+			<div class="panel-head"><h2>Deploys per week</h2>@panelInfo("versions that arrived, by environment, last 12 weeks")</div>
 			@stackedBars(v.Deploys, "Deploys per week by environment, last 12 weeks")
 		</section>
 		<section class="panel">
-			<div class="panel-head"><h2>Open drift</h2><span class="muted">per day and kind, last 30 days</span></div>
+			<div class="panel-head"><h2>Open drift</h2>@panelInfo("per day and kind, last 30 days")</div>
 			if len(nonZeroSeries(v.Drift.Series)) == 0 {
 				<div class="empty">No drift in the last 30 days.</div>
 			} else {
@@ -125,7 +125,7 @@ templ PromotionsPage(v PromotionsView) {
 			}
 		</section>
 		<section class="panel">
-			<div class="panel-head"><h2>Last 30 days</h2><span class="hint">Versions that arrived per environment, and the median time a version took to reach the next one</span></div>
+			<div class="panel-head"><h2>Last 30 days</h2>@panelInfo("Versions that arrived per environment, and the median time a version took to reach the next one")</div>
 			if len(v.Delivery) == 0 {
 				<div class="empty">No services yet.</div>
 			} else {

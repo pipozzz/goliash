@@ -167,7 +167,7 @@ templ SecurityPage(v SecurityView) {
 		</section>
 		if len(v.Bases) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Built on an unsupported base</h2><span class="muted">rebuild on a newer base image</span></div>
+				<div class="panel-head"><h2>Built on an unsupported base</h2>@panelInfo("rebuild on a newer base image")</div>
 				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Base image</th><th>End of life</th></tr></thead>
@@ -191,7 +191,7 @@ templ SecurityPage(v SecurityView) {
 			</section>
 		}
 		<section class="panel">
-			<div class="panel-head"><h2>Is it running?</h2><span class="muted">{ "known vulnerabilities in " + v.Prod.Name + ", from the images' SBOMs and OSV" }</span></div>
+			<div class="panel-head"><h2>Is it running?</h2>@panelInfo("known vulnerabilities in " + v.Prod.Name + ", from the images' SBOMs and OSV")</div>
 			<div class="panel-body stack">
 				<form class="row vuln-search" method="get" action="/security/vulns">
 					<label class="grow">
@@ -222,7 +222,7 @@ templ SecurityPage(v SecurityView) {
 		</section>
 		if v.Licenses.WithSBOM > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Licenses</h2><span class="muted">{ "packages in " + v.Prod.Name + ", as the images' SBOMs declare them" }</span></div>
+				<div class="panel-head"><h2>Licenses</h2>@panelInfo("packages in " + v.Prod.Name + ", as the images' SBOMs declare them")</div>
 				<div class="panel-body stack">
 					if n := licenseNeedsLook(v.Licenses); n > 0 {
 						<p>
@@ -237,7 +237,7 @@ templ SecurityPage(v SecurityView) {
 		}
 		if v.Evidence.Images > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Supply-chain evidence</h2><span class="muted">{ "images running in " + v.Prod.Name + ": what their registry holds beside them" }</span></div>
+				<div class="panel-head"><h2>Supply-chain evidence</h2>@panelInfo("images running in " + v.Prod.Name + ": what their registry holds beside them")</div>
 				<div class="tiles evidence">
 					<div class="tile">
 						<strong>{ percent(v.Evidence.Signed, v.Evidence.Checked) }</strong>
@@ -305,7 +305,7 @@ templ SecurityPage(v SecurityView) {
 		}
 		<div class="grid-2">
 			<section class="panel">
-				<div class="panel-head"><h2>Supply chain</h2><span class="muted">what runs, as images</span></div>
+				<div class="panel-head"><h2>Supply chain</h2>@panelInfo("what runs, as images")</div>
 				<div class="scroll" tabindex="0">
 					<table>
 						<tbody>
@@ -319,7 +319,7 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			</section>
 			<section class="panel">
-				<div class="panel-head"><h2>Blind spots</h2><span class="muted">where the numbers above may be incomplete</span></div>
+				<div class="panel-head"><h2>Blind spots</h2>@panelInfo("where the numbers above may be incomplete")</div>
 				<div class="panel-body stack">
 					if len(v.Stale) == 0 {
 						<p>Every target reported recently.</p>

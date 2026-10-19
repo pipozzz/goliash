@@ -45,3 +45,12 @@ templ secret(label, value string) {
 		<span class="muted">It is shown only once.</span>
 	</div>
 }
+
+// panelInfo is a panel's explanation as an icon in its header: hovering shows it, a click or a tap opens it under
+// the icon.
+templ panelInfo(text string) {
+	<details class="panel-info">
+		<summary title={ text } aria-label={ "About: " + text }></summary>
+		<div class="panel-info-text">{ text }</div>
+	</details>
+}

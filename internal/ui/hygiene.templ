@@ -34,7 +34,7 @@ templ HygienePage(v HygieneView) {
 		}
 		if len(v.DigestHints) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Why digests are unknown</h2><span class="muted">these targets report none at all</span></div>
+				<div class="panel-head"><h2>Why digests are unknown</h2>@panelInfo("these targets report none at all")</div>
 				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Target</th><th>Images</th><th>What to do</th></tr></thead>

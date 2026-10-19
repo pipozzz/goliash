@@ -82,7 +82,7 @@ templ InboxPage(v InboxView) {
 			}
 		</section>
 		<section class="panel">
-			<div class="panel-head"><h2>Mapping rules</h2><span class="muted">first match wins, top to bottom</span></div>
+			<div class="panel-head"><h2>Mapping rules</h2>@panelInfo("first match wins, top to bottom")</div>
 			if len(v.Rules) == 0 {
 				<div class="empty">No rules yet. Mapping or ignoring an image above creates one.</div>
 			} else {

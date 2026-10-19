@@ -939,6 +939,13 @@
     else if (r.right > vw - 8) dx = vw - 8 - r.right;
     if (dx) list.style.transform = "translateX(" + Math.round(dx) + "px)";
   }, true);
+  // A panel's explanation closes on a click elsewhere or Escape, as a tooltip would.
+  document.addEventListener("click", function (e) {
+    document.querySelectorAll("details.panel-info[open]").forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") document.querySelectorAll("details.panel-info[open]").forEach(function (d) { d.open = false; });
+  });
   function bellClose() {
     if (!bellPanel || !bellPanel.isConnected) return;
     bellPanel.remove();

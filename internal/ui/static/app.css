@@ -1279,3 +1279,16 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bell-mark.kind-gitops { background: #d9822b; }
 .gitops-pr { margin-top: 6px; }
 .gitops-pr { display: inline-block; }
+
+/* A panel's explanation: an icon in its header; hover shows it, a click or a tap opens it under the icon. */
+.panel-info { position: relative; display: inline-block; vertical-align: middle; }
+.panel-info > summary { list-style: none; cursor: pointer; display: inline-grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 50%; border: 1px solid var(--line); color: var(--muted); font: 600 10px/1 var(--sans); }
+.panel-info > summary::-webkit-details-marker { display: none; }
+.panel-info > summary::before { content: "i"; }
+.panel-info > summary:hover, .panel-info[open] > summary { color: var(--ink); border-color: var(--faint); }
+.panel-info-text { position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; width: max-content; max-width: min(340px, 80vw);
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  font-size: 13px; font-weight: 400; line-height: 1.45; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); white-space: normal; }
+@media (pointer: coarse) { .panel-info > summary { width: 28px; height: 28px; } }
+@media print { .panel-info { display: none; } }

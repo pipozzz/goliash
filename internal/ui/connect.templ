@@ -56,7 +56,7 @@ templ ConnectFormPage(v ConnectFormView) {
 		} else if v.Platform.AgentFirst {
 			@connectCodeForm(v)
 			<details class="panel connect-manual" open?={ formVal(v.Form, "mode", "") == "manual" }>
-				<summary class="panel-head"><h2>Set up by hand</h2><span class="muted">an agent you have, this server, or settings of your own</span></summary>
+				<summary class="panel-head"><h2>Set up by hand</h2>@panelInfo("an agent you have, this server, or settings of your own")</summary>
 				<div class="panel-body">
 					@connectManualForm(v)
 				</div>

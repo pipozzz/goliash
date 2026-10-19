@@ -94,7 +94,7 @@ templ UpdatesPage(v UpdatesView) {
 		</section>
 		if len(v.Watched) > 0 {
 			<section class="panel">
-				<div class="panel-head"><h2>Watching</h2><span class="muted">releases of software that runs nowhere Goliash knows</span></div>
+				<div class="panel-head"><h2>Watching</h2>@panelInfo("releases of software that runs nowhere Goliash knows")</div>
 				<div class="scroll" tabindex="0">
 					<table>
 						<thead><tr><th>Service</th><th>Newest release</th><th>Published</th></tr></thead>

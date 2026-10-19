@@ -15,7 +15,7 @@ templ IntegrationsPage(v IntegrationsView) {
 		</div>
 		<div class="integrations">
 			<details class="panel integration" id="prometheus" open?={ v.Tool == "prometheus" }>
-				<summary class="panel-head"><h2>Prometheus and Grafana</h2><span class="muted">scrape /metrics, import the dashboard</span></summary>
+				<summary class="panel-head"><h2>Prometheus and Grafana</h2>@panelInfo("scrape /metrics, import the dashboard")</summary>
 				<div class="panel-body stack">
 					@integrationToken(v, "prometheus", "/etc/prometheus/goliash-token")
 					<div>
@@ -35,7 +35,7 @@ templ IntegrationsPage(v IntegrationsView) {
 				</div>
 			</details>
 			<details class="panel integration" id="signoz" open?={ v.Tool == "signoz" }>
-				<summary class="panel-head"><h2>SigNoz</h2><span class="muted">the OpenTelemetry Collector reads /metrics</span></summary>
+				<summary class="panel-head"><h2>SigNoz</h2>@panelInfo("the OpenTelemetry Collector reads /metrics")</summary>
 				<div class="panel-body stack">
 					@integrationToken(v, "signoz", "/etc/otelcol/goliash-token")
 					<div>
@@ -53,7 +53,7 @@ templ IntegrationsPage(v IntegrationsView) {
 				</div>
 			</details>
 			<details class="panel integration" id="dtrack" open?={ v.Tool == "dtrack" }>
-				<summary class="panel-head"><h2>Dependency-Track</h2><span class="muted">what runs, as an SBOM per environment</span></summary>
+				<summary class="panel-head"><h2>Dependency-Track</h2>@panelInfo("what runs, as an SBOM per environment")</summary>
 				<div class="panel-body stack">
 					<p class="muted">Dependency-Track then tracks every package that runs in each environment against its vulnerability feeds and policies: a project per environment, kept current by a small script.</p>
 					@integrationToken(v, "dtrack", "")
@@ -69,7 +69,7 @@ templ IntegrationsPage(v IntegrationsView) {
 				</div>
 			</details>
 			<details class="panel integration" id="cli" open?={ v.Tool == "cli" }>
-				<summary class="panel-head"><h2>Terminal</h2><span class="muted">goliash ask and goliash mcp, signed in through the browser</span></summary>
+				<summary class="panel-head"><h2>Terminal</h2>@panelInfo("goliash ask and goliash mcp, signed in through the browser")</summary>
 				<div class="panel-body stack">
 					<div>
 						<h3>Install and sign in</h3>
@@ -86,7 +86,7 @@ goliash mcp                    # MCP over stdio, for apps that start local serve
 				</div>
 			</details>
 			<details class="panel integration" id="widgets" open?={ v.Tool == "widget" }>
-				<summary class="panel-head"><h2>Widgets</h2><span class="muted">the numbers on an iPhone, the Mac menu bar or the Windows 11 Widgets board</span></summary>
+				<summary class="panel-head"><h2>Widgets</h2>@panelInfo("the numbers on an iPhone, the Mac menu bar or the Windows 11 Widgets board")</summary>
 				<div class="panel-body stack">
 					<div>
 						<h3>iPhone and iPad</h3>
@@ -124,7 +124,7 @@ goliash mcp                    # MCP over stdio, for apps that start local serve
 				</div>
 			</details>
 			<details class="panel integration" id="mcp" open?={ v.Tool == "mcp" }>
-				<summary class="panel-head"><h2>AI assistants</h2><span class="muted">Claude, Cursor and others ask Goliash over MCP</span></summary>
+				<summary class="panel-head"><h2>AI assistants</h2>@panelInfo("Claude, Cursor and others ask Goliash over MCP")</summary>
 				<div class="panel-body stack">
 					<div>
 						<h3>Sign in from the app</h3>
