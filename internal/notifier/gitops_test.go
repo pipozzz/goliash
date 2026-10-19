@@ -64,6 +64,23 @@ func TestGitOpsAlerts(t *testing.T) {
 		!strings.Contains(all, "https://github.com/acme/deploy/commit/4f1c2e9") {
 		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
 	}
+
+	// Degraded an hour after 1.5.0 replaced 1.4.2: the alert says so, the likeliest cause.
+	if err := e.st.InsertEvent(ctx, e.sc, store.Event{
+		Type: "version_changed", ServiceID: e.svc.ID, EnvironmentID: e.prod.ID, TargetID: tgt.ID,
+		FromVersion: "1.4.2", ToVersion: "1.5.0", At: now.Add(-2 * time.Hour),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	g.Sync, g.Health = "Synced", "Degraded"
+	set(now.Add(-time.Hour))
+	if err := e.n.CheckGitOps(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.n.DeliverDue(ctx)
+	if all := strings.Join(slack.all(), "\n"); slack.count() != 2 || !strings.Contains(all, "is degraded on k8s-prod (apps/api/prod @ main), an hour after 1.5.0 replaced 1.4.2") {
+		t.Fatalf("want the degraded alert with its cause, got %d:\n%s", slack.count(), all)
+	}
 }
 
 func TestPullRequestOpened(t *testing.T) {

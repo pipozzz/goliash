@@ -62,6 +62,9 @@ before again. Hover it to see why. The pull request says it rolls back, what wen
 known vulnerabilities the older version brings back. As with every pull request, you review and merge it, and
 GitOps deploys it.
 
+The alert for a degraded or missing application says the same: *degraded on k8s-prod, an hour after 1.7.0
+replaced 1.6.2*, the likeliest cause first.
+
 ### Automatic pull requests
 
 A service's version policy can ask for them per environment: **Automatic pull requests** `dev=minor, staging=patch`

@@ -22,29 +22,16 @@ func (s *Server) rollbackFor(ctx context.Context, sc store.Scope, a versions.Git
 	if !s.canPR(a) || trouble != "degraded" && trouble != "missing" {
 		return "", ""
 	}
-	evs, err := s.store.ListEvents(ctx, sc, store.EventFilter{
-		ServiceID: a.ServiceID, Types: []string{"version_changed"}, Since: now.Add(-rollbackWindow),
-	})
-	if err != nil {
+	from, at, ok := versions.Replaced(ctx, s.store, sc, a, now.Add(-rollbackWindow))
+	if !ok {
 		return "", ""
 	}
-	running := strings.TrimPrefix(a.Tag, "v")
-	for _, e := range evs { // newest first
-		if e.TargetID != a.TargetID || strings.TrimPrefix(e.ToVersion, "v") != running {
-			continue
+	if strings.HasPrefix(a.Tag, "v") != strings.HasPrefix(from, "v") { // pin it the way the repository does
+		from = strings.TrimPrefix(from, "v")
+		if strings.HasPrefix(a.Tag, "v") {
+			from = "v" + from
 		}
-		from := e.FromVersion
-		if from == "" || strings.TrimPrefix(from, "v") == running {
-			return "", ""
-		}
-		if strings.HasPrefix(a.Tag, "v") != strings.HasPrefix(from, "v") { // pin it the way the repository does
-			from = strings.TrimPrefix(from, "v")
-			if strings.HasPrefix(a.Tag, "v") {
-				from = "v" + from
-			}
-		}
-		return from, fmt.Sprintf("%s has been %s since %s, after it replaced %s on %s on %s",
-			a.App, trouble, a.SyncSince.UTC().Format("2 Jan 15:04 MST"), from, a.Target, e.At.UTC().Format("2 Jan 15:04 MST"))
 	}
-	return "", ""
+	return from, fmt.Sprintf("%s has been %s since %s, after it replaced %s on %s on %s",
+		a.App, trouble, a.SyncSince.UTC().Format("2 Jan 15:04 MST"), from, a.Target, at.UTC().Format("2 Jan 15:04 MST"))
 }

@@ -59,6 +59,12 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 				where += " @ " + a.TargetRevision
 			}
 			it.Text = Describe(it) + fmt.Sprintf(" (%s)", where)
+			if trouble != "out of sync" { // unhealthy: say what changed just before, the likeliest cause
+				if from, at, ok := versions.Replaced(ctx, n.store, sc, a, now.Add(-7*24*time.Hour)); ok {
+					it.Text += fmt.Sprintf(", %s after %s replaced %s",
+						since(at, a.SyncSince), a.Tag, from)
+				}
+			}
 			dedup := fmt.Sprintf("%s|%s|%s|%s|%d", EventGitOps, trouble, a.TargetID, a.WorkloadID, a.SyncSince.Unix())
 			if err := n.enqueue(ctx, sc, rules, it, dedup); err != nil {
 				return err
@@ -97,4 +103,22 @@ func (n *Notifier) PullRequestOpened(sc store.Scope, it Item) {
 	if err := n.enqueue(ctx, sc, rules, it, EventPullRequest+"|"+it.URL); err != nil {
 		n.log.Error("queueing notifications failed", "err", err)
 	}
+}
+
+// since says how long after a change something followed it: "2 hours", "5 minutes"; "right" within a minute.
+func since(change, then time.Time) string {
+	d := then.Sub(change)
+	switch {
+	case d < time.Minute:
+		return "right"
+	case d < 2*time.Minute:
+		return "a minute"
+	case d < time.Hour:
+		return fmt.Sprintf("%d minutes", int(d.Minutes()))
+	case d < 2*time.Hour:
+		return "an hour"
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d hours", int(d.Hours()))
+	}
+	return fmt.Sprintf("%d days", int(d.Hours()/24))
 }

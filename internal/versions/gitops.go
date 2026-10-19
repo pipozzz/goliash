@@ -26,6 +26,26 @@ type GitOpsApp struct {
 	Tag         string // and its tag
 }
 
+// Replaced is the version the application's running version replaced on its cluster since since, and when:
+// the newest such change. ok is false when none did.
+func Replaced(ctx context.Context, st *store.Store, sc store.Scope, a GitOpsApp, since time.Time) (from string, at time.Time, ok bool) {
+	evs, err := st.ListEvents(ctx, sc, store.EventFilter{ServiceID: a.ServiceID, Types: []string{"version_changed"}, Since: since})
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	running := strings.TrimPrefix(a.Tag, "v")
+	for _, e := range evs { // newest first
+		if e.TargetID != a.TargetID || strings.TrimPrefix(e.ToVersion, "v") != running {
+			continue
+		}
+		if e.FromVersion == "" || strings.TrimPrefix(e.FromVersion, "v") == running {
+			return "", time.Time{}, false
+		}
+		return e.FromVersion, e.At, true
+	}
+	return "", time.Time{}, false
+}
+
 // gitOpsGrace is how long an application may be out of sync or unhealthy before it counts: Argo CD is out of
 // sync for a moment on every change, and progressing while it rolls out.
 const gitOpsGrace = 10 * time.Minute
