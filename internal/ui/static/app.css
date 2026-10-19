@@ -1095,6 +1095,8 @@ a.live:hover { text-decoration: underline; }
   background: transparent; cursor: pointer; filter: drop-shadow(0 8px 12px rgb(10 14 30 / 0.22));
   transition: transform 0.18s ease-out;
 }
+.goli-fab:has(.goli-season) { width: 74px; height: 97px; }
+.goli-halloween .goli-bell { display: none; } /* the witch's hat stands where the bell hangs */
 .goli-fab .goli-art { width: 100%; height: 100%; transform-origin: 50% 100%; animation: goli-sway 5s ease-in-out infinite; }
 .goli-fab:hover { transform: translateY(-4px); }
 .goli-glow { animation: goli-flicker 2.4s ease-in-out infinite; }
