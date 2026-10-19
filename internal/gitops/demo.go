@@ -60,3 +60,10 @@ var demoPins = map[string][]string{"apps/webshop/staging|ghcr.io/acme/payments-a
 func (Demo) Pinned(_ context.Context, b Bump) ([]string, error) {
 	return demoPins[strings.Trim(b.Path, "/")+"|"+b.Image], nil
 }
+
+// OpenPulls makes up Renovate's pull request in the demo repository: payments-api 1.7.0 waits for review there.
+func (Demo) OpenPulls(context.Context, string) ([]Pull, error) {
+	return []Pull{{
+		URL: "https://github.com/acme/deploy/pull/412", Title: "Update ghcr.io/acme/payments-api Docker tag to v1.7.0", Branch: "renovate/payments-api-1.x",
+	}}, nil
+}

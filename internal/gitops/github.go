@@ -340,3 +340,26 @@ func (g *GitHub) PullState(ctx context.Context, pullURL string) (string, error) 
 	}
 	return "open", nil
 }
+
+// OpenPulls lists the repository's open pull requests (the 100 newest).
+func (g *GitHub) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
+	owner, name, ok := g.ownerRepo(repo)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a GitHub repository", repo)
+	}
+	var list []struct {
+		HTMLURL string `json:"html_url"`
+		Title   string `json:"title"`
+		Head    struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+	}
+	if err := g.do(ctx, http.MethodGet, "/repos/"+owner+"/"+name+"/pulls?state=open&per_page=100", nil, &list); err != nil {
+		return nil, err
+	}
+	out := make([]Pull, 0, len(list))
+	for _, p := range list {
+		out = append(out, Pull{URL: p.HTMLURL, Title: p.Title, Branch: p.Head.Ref})
+	}
+	return out, nil
+}

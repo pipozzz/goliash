@@ -27,6 +27,7 @@ type PullRequester interface {
 	OpenBump(ctx context.Context, b gitops.Bump) (string, error)
 	PullState(ctx context.Context, pullURL string) (string, error)
 	Pinned(ctx context.Context, b gitops.Bump) ([]string, error)
+	OpenPulls(ctx context.Context, repo string) ([]gitops.Pull, error)
 }
 
 // pullRequestTo is the version a pull request for the application would pin: the newest acceptable release, when
@@ -123,6 +124,9 @@ func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Pri
 	if !ok {
 		return back(w, r, path, "error", "That upgrade is no longer offered; the page is reloaded with what runs now.")
 	}
+	if other, ok := s.othersPullNow(ctx, u.app, u.to); ok {
+		return back(w, r, path, "notice", "Someone opened this upgrade already: "+other.URL)
+	}
 	pr, msg := s.bump(ctx, p.Scope, p.User.Email, u)
 	if msg != "" {
 		return back(w, r, path, "error", msg)
@@ -195,6 +199,9 @@ func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade)
 	if open, ok := s.openPull(ctx, sc, app, u.to); ok { // proposed already: never twice
 		return open, ""
 	}
+	if other, ok := s.othersPullNow(ctx, app, u.to); ok { // Renovate, Dependabot or a person proposed it: not twice either
+		return other.URL, ""
+	}
 	s.addSummary(ctx, sc, &u)
 	req := s.bumpRequest(u, by)
 	pr, err := s.pulls.OpenBump(ctx, req)
@@ -240,6 +247,8 @@ func (s *Server) upgradePRs(ctx context.Context, sc store.Scope, o versions.Over
 			pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
 			if open, ok := s.pullFor(ctx, sc, a, target); ok && open.State != "closed" {
 				pp.URL, pp.State = open.URL, open.State
+			} else if other, ok := s.othersPull(a, target); ok {
+				pp.URL, pp.State, pp.Title = other.URL, "open", other.Title
 			}
 			out = append(out, pp)
 		}

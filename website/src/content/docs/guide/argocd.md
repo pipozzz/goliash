@@ -56,7 +56,10 @@ two versions and lists, in a few lines, what breaks or needs a migration first, 
 first. It is marked as Goli's, and asked once a day per upgrade.
 
 Each pull request lists the known vulnerabilities the upgrade fixes (exploited in the wild first) and those it
-brings, from the SBOMs of both images. A version is proposed once: after that the page links the pull request, marked *merged* once it is. The **Delivery** page lists the pull
+brings, from the SBOMs of both images. A version is proposed once: after that the page links the pull request, marked *merged* once it is. **Renovate, Dependabot
+or a person** may have proposed it first: when an open pull request in the repository names the image and the version
+in its title (*Update ghcr.io/acme/api Docker tag to v1.5.0*, *Bump api from 1.4.2 to 1.5.0*), the pages link that
+one instead (hover: *Opened outside Goliash*), and neither a click nor a version policy opens a second. The **Delivery** page lists the pull
 requests of the last 30 days, open, merged or closed, who opened them, and *running* once the version runs, with how long after opening it began to (*3h after
 opening*) and the median over them all at the top: your time from proposal to production. Goliash
 asks the forge every 30 minutes; one closed without merging is offered again on the page (the version policy does not

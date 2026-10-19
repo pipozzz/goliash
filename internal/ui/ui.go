@@ -744,6 +744,8 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 				if g.To != "" {
 					if pr, ok := s.pullFor(ctx, p.Scope, a, g.To); ok && pr.State != "closed" {
 						g.PRURL, g.PRState = pr.URL, pr.State
+					} else if other, ok := s.othersPull(a, g.To); ok {
+						g.PRURL, g.PRState, g.PRTitle = other.URL, "open", other.Title
 					}
 				}
 				if g.GitPins = s.gitPins(a, time.Now()); g.GitPins != "" && g.GitPins == g.To && g.PRURL == "" {

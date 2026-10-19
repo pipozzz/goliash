@@ -665,8 +665,9 @@ type PromotionView struct {
 // PromotePR is one Argo CD application a promotion can be opened in as a pull request.
 type PromotePR struct {
 	TargetID, WorkloadID, Target, App string
-	URL                               string // the pull request Goliash opened already
+	URL                               string // the pull request Goliash (or, with Title, someone else) opened already
 	State                             string // open or merged
+	Title                             string // someone else's pull request: its title
 }
 
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
@@ -1622,6 +1623,7 @@ type GitOpsView struct {
 	To                            string // the version a pull request would pin; empty, no button
 	PRURL                         string // the pull request Goliash opened for To, when it did
 	PRState                       string // open or merged
+	PRTitle                       string // the pull request someone else opened for To: its title
 	Rollback, RollbackWhy         string // the version a rollback pull request would pin, degraded; empty, no button
 	RollbackPRURL                 string // the rollback pull request Goliash opened, when it did
 	GitPins                       string // out of sync: the version Git pins, when not the one running

@@ -17,6 +17,7 @@ type Provider interface {
 	OpenBump(ctx context.Context, b Bump) (string, error)
 	PullState(ctx context.Context, pullURL string) (string, error)
 	Pinned(ctx context.Context, b Bump) ([]string, error)
+	OpenPulls(ctx context.Context, repo string) ([]Pull, error)
 }
 
 // Router sends each upgrade to the provider of its repository's host: GitHub, GitHub Enterprise, GitLab.
@@ -92,6 +93,16 @@ func (r Router) Pinned(ctx context.Context, b Bump) ([]string, error) {
 		}
 	}
 	return nil, fmt.Errorf("no provider for %s", b.Repo)
+}
+
+// OpenPulls lists, through the provider of the repository's host, its open pull or merge requests.
+func (r Router) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
+	for _, p := range r {
+		if p.Supports(repo) {
+			return p.OpenPulls(ctx, repo)
+		}
+	}
+	return nil, fmt.Errorf("no provider for %s", repo)
 }
 
 // appendNew appends the tags not in tags yet.

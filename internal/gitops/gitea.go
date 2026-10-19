@@ -287,3 +287,26 @@ func (g *Gitea) do(ctx context.Context, method, p string, in, out any) error {
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(out)
 }
+
+// OpenPulls lists the repository's open pull requests (the 50 newest).
+func (g *Gitea) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
+	owner, name, ok := g.ownerRepo(repo)
+	if !ok {
+		return nil, fmt.Errorf("%s is not on %s", repo, g.base)
+	}
+	var list []struct {
+		HTMLURL string `json:"html_url"`
+		Title   string `json:"title"`
+		Head    struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+	}
+	if err := g.do(ctx, http.MethodGet, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(name)+"/pulls?state=open&limit=50", nil, &list); err != nil {
+		return nil, err
+	}
+	out := make([]Pull, 0, len(list))
+	for _, p := range list {
+		out = append(out, Pull{URL: p.HTMLURL, Title: p.Title, Branch: p.Head.Ref})
+	}
+	return out, nil
+}

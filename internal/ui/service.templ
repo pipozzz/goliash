@@ -764,7 +764,7 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 									<div class="git-pins" title={ a.Path + " on " + a.TargetRevision + " pins " + a.GitPins + "; " + a.Tag + " runs: the change has not been synced" }>Git pins <span class="mono">{ a.GitPins }</span>, runs <span class="mono">{ a.Tag }</span></div>
 								}
 								if a.PRURL != "" {
-									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener">{ pullLabel(a.To, a.PRState) }</a>
+									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener" title={ othersTitle(a.PRTitle) }>{ pullLabel(a.To, a.PRState) }</a>
 								} else if canEdit && a.To != "" {
 									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, "")) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
 								}

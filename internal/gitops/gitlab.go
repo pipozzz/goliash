@@ -270,3 +270,25 @@ func (g *GitLab) PullState(ctx context.Context, mrURL string) (string, error) {
 	}
 	return "open", nil
 }
+
+// OpenPulls lists the project's open merge requests (the 100 newest).
+func (g *GitLab) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
+	if !g.Supports(repo) {
+		return nil, fmt.Errorf("%s is not on %s", repo, g.base)
+	}
+	u, _ := url.Parse(repo)
+	var list []struct {
+		WebURL       string `json:"web_url"`
+		Title        string `json:"title"`
+		SourceBranch string `json:"source_branch"`
+	}
+	project := "/projects/" + url.PathEscape(strings.Trim(strings.TrimSuffix(u.Path, ".git"), "/"))
+	if err := g.do(ctx, http.MethodGet, project+"/merge_requests?state=opened&per_page=100", nil, &list); err != nil {
+		return nil, err
+	}
+	out := make([]Pull, 0, len(list))
+	for _, p := range list {
+		out = append(out, Pull{URL: p.WebURL, Title: p.Title, Branch: p.SourceBranch})
+	}
+	return out, nil
+}

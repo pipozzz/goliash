@@ -84,6 +84,9 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			if _, done := s.pullFor(ctx, sc, a, to); done { // opened once: closed without merging is a no
 				continue
 			}
+			if _, theirs := s.othersPullNow(ctx, a, to); theirs { // Renovate, Dependabot or a person proposed it
+				continue
+			}
 			key := sc.WorkspaceID + "|" + a.TargetID + "|" + a.WorkloadID + "|" + to
 			s.autoMu.Lock()
 			failedAt, failed := s.autoFailed[key]

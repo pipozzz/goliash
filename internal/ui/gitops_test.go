@@ -64,6 +64,7 @@ type fakePulls struct {
 	got    []gitops.Bump
 	state  string
 	pinned []string
+	others []gitops.Pull
 }
 
 func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
@@ -71,6 +72,8 @@ func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, 
 func (f *fakePulls) PullState(context.Context, string) (string, error) { return f.state, nil }
 
 func (f *fakePulls) Pinned(context.Context, gitops.Bump) ([]string, error) { return f.pinned, nil }
+
+func (f *fakePulls) OpenPulls(context.Context, string) ([]gitops.Pull, error) { return f.others, nil }
 
 func (f *fakePulls) Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error) {
 	return gitops.Demo{}.Plan(ctx, b)
@@ -603,5 +606,52 @@ func TestReportPulls(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("report lacks %q", want)
 		}
+	}
+}
+
+// A pull request Renovate (or anyone) opened for the same upgrade is linked, not duplicated: by the page, the form
+// and the version policy.
+func TestOthersPull(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	renovate := gitops.Pull{URL: "https://github.com/acme/others/pull/41", Title: "Update docker.io/library/nginx Docker tag to v1.28.0", Branch: "renovate/nginx-1.x"}
+	pulls := &fakePulls{others: []gitops.Pull{renovate}}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/others.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svcName := e.serviceOf("evil")
+	svc, _ := e.st.GetServiceByName(ctx, sc, svcName)
+	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"1.28.0"}); err != nil { // the fixture runs nginx 1.27.2
+		t.Fatal(err)
+	}
+	page := e.srv.URL + "/services/" + url.PathEscape(svcName)
+	member := e.as(store.RoleMember)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, body := get(t, member, page, nil)
+		if strings.Contains(body, renovate.URL) && strings.Contains(body, "Opened outside Goliash: "+renovate.Title) && !strings.Contains(body, "Open PR → 1.28.0") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Renovate's pull request is not linked")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	_, body, _ := post(t, member, page+"/gitops/pr", url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {"1.28.0"}})
+	if !strings.Contains(body, "Someone opened this upgrade already: "+renovate.URL) || len(pulls.got) != 0 {
+		t.Fatalf("a duplicate was opened: %d", len(pulls.got))
+	}
+	svc.VersionPolicy = json.RawMessage(`{"auto_pr":{"prod":"minor"}}`)
+	if err := e.st.UpdateService(ctx, svc); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := e.ui.AutoPRs(ctx); n != 0 || len(pulls.got) != 0 {
+		t.Fatal("the version policy duplicated Renovate's pull request")
 	}
 }
