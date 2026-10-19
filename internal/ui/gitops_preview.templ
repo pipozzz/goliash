@@ -33,7 +33,9 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 		}
 		<section class="panel">
 			<div class="panel-head"><h2>Description</h2></div>
-			<pre class="pr-body">{ v.Body }</pre>
+			<div class="pr-body">
+				@templ.Raw(markdownHTML(v.Body))
+			</div>
 		</section>
 		if v.OpenAlready == "" && !v.CanOpen && v.PreviewPRs {
 			<p class="notice">This is the demo: it shows the pull request Goliash would open, and opens none. With your own repository it opens on a click.</p>

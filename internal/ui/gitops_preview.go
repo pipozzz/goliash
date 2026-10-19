@@ -4,8 +4,10 @@
 package ui
 
 import (
+	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -165,4 +167,46 @@ func previewQuery(targetID, workloadID, to, ret string) string {
 		q.Set("return", ret)
 	}
 	return q.Encode()
+}
+
+var (
+	prBold = regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	prCode = regexp.MustCompile("`([^`]+)`")
+	prLink = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^\s)]+)\)`)
+)
+
+// markdownHTML renders the little markdown Goliash writes in pull requests (paragraphs, "- " lists, "### "
+// headings, bold, code, links) as HTML. Everything is escaped first, so only these few tags come out.
+func markdownHTML(md string) string {
+	var b strings.Builder
+	inList := false
+	inline := func(s string) string {
+		s = html.EscapeString(s)
+		s = prCode.ReplaceAllString(s, "<code>$1</code>")
+		s = prBold.ReplaceAllString(s, "<strong>$1</strong>")
+		return prLink.ReplaceAllString(s, `<a href="$2" target="_blank" rel="noopener">$1</a>`)
+	}
+	for _, line := range strings.Split(md, "\n") {
+		item, isItem := strings.CutPrefix(line, "- ")
+		if inList && !isItem {
+			b.WriteString("</ul>")
+			inList = false
+		}
+		switch {
+		case isItem:
+			if !inList {
+				b.WriteString("<ul>")
+				inList = true
+			}
+			b.WriteString("<li>" + inline(item) + "</li>")
+		case strings.HasPrefix(line, "### "):
+			b.WriteString("<h3>" + inline(strings.TrimPrefix(line, "### ")) + "</h3>")
+		case strings.TrimSpace(line) != "":
+			b.WriteString("<p>" + inline(line) + "</p>")
+		}
+	}
+	if inList {
+		b.WriteString("</ul>")
+	}
+	return b.String()
 }

@@ -297,7 +297,7 @@ func TestPreviewGitOpsPR(t *testing.T) {
 	_, page := get(t, member, preview, nil)
 	for _, want := range []string{
 		"Pull request preview", "apps/evil/prod/kustomization.yaml", `diff-del">- `, "newTag: &#34;1.27.2&#34;",
-		"newTag: &#34;1.28.0&#34;", "goliash/", "Upgrades **", "Open the pull request",
+		"newTag: &#34;1.28.0&#34;", "goliash/", "Upgrades <strong>", "Open the pull request",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("preview misses %q", want)
@@ -327,5 +327,13 @@ func TestDiffLines(t *testing.T) {
 	}
 	if b.String() != "…|  g|- h|+ H|  i|" {
 		t.Fatalf("diff %q", b.String())
+	}
+}
+
+func TestMarkdownHTML(t *testing.T) {
+	got := markdownHTML("Upgrades **a** to `1.2`: <script>.\n\n- one [x](https://e.com/p)\n- two\n\n### Known\n\ntext")
+	want := `<p>Upgrades <strong>a</strong> to <code>1.2</code>: &lt;script&gt;.</p><ul><li>one <a href="https://e.com/p" target="_blank" rel="noopener">x</a></li><li>two</li></ul><h3>Known</h3><p>text</p>`
+	if got != want {
+		t.Fatalf("markdown\n got: %s\nwant: %s", got, want)
 	}
 }
