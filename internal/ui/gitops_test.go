@@ -714,3 +714,17 @@ func TestRollbackOldChange(t *testing.T) {
 		t.Fatalf("a change three days before the trouble offered as its cause: %s", to)
 	}
 }
+
+// A service without a GitOps panel is told how to name its place in Git on the platforms that take labels; on
+// Kubernetes (labels cannot hold an address) Argo CD or Flux tells, so it is not.
+func TestGitLabelTip(t *testing.T) {
+	if sn := gitLabelSnippets("vault", []string{"kubernetes", "nomad", "ecs"}); len(sn) != 2 ||
+		!strings.Contains(sn[0].Code, `"goliash.git.path" = "nomad/vault.nomad.hcl"`) || !strings.Contains(sn[1].Where, "ECS") {
+		t.Fatalf("snippets %+v", sn)
+	}
+	e := newUIEnv(t)
+	e.ui.pulls = &fakePulls{}
+	if _, body := get(t, e.as(store.RoleMember), e.srv.URL+"/services/"+url.PathEscape(e.serviceOf("evil")), nil); strings.Contains(body, "Open upgrades as pull requests") {
+		t.Fatal("a label tip for a service on Kubernetes")
+	}
+}

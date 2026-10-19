@@ -102,6 +102,19 @@ templ ServicePage(v ServiceView) {
 		}
 		if len(v.GitOps) > 0 {
 			@gitOpsPanel(v.GitOps, v.CanMember || v.PreviewPRs, false)
+		} else if v.CanPR && v.CanMember && v.Runs && len(gitLabelSnippets(v.Name, v.Platforms)) > 0 {
+			<details class="panel git-tip">
+				<summary><strong>Open upgrades as pull requests</strong> <span class="muted">Name where { v.Name } is pinned in Git, and its upgrades open as pull requests from here.</span></summary>
+				<div class="panel-body stack">
+					for _, sn := range gitLabelSnippets(v.Name, v.Platforms) {
+						<div>
+							<p class="muted">{ sn.Where }</p>
+							<pre class="code"><code>{ sn.Code }</code></pre>
+						</div>
+					}
+					<p class="muted">Change the repository and the path (a file, or a directory of files) to yours; <code>goliash.git.branch</code> picks a branch other than the default. <a href="https://goliash.dev/guide/argocd/#without-argo-cd-or-flux" target="_blank" rel="noopener">How it works</a></p>
+				</div>
+			</details>
 		}
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">

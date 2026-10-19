@@ -608,6 +608,10 @@ type ServiceView struct {
 	// environments to choose from.
 	Manual   []ManualEntry
 	EnvNames []string
+	// Platforms are those of the targets it runs on, and CanPR whether the server opens pull requests: without a
+	// GitOps panel, the page says how to name the service's place in Git.
+	Platforms []string
+	CanPR     bool
 }
 
 // SplitApp is one application of a service that runs in several.
