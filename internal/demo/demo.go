@@ -106,6 +106,8 @@ var targets = []demoTarget{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.0.4", "grafana": "11.1.0"}},
 		{6, map[string]string{"payments-api": "1.5.0", "checkout": "2.4.0", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.1.2", "grafana": "11.2.0"}},
 		{17, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.1", "traefik": "v3.1.2", "grafana": "11.2.0", "shop-db": "15.7"}},
+		// keycloak 25.0.6 went out yesterday, and identity has been degraded since: a rollback to offer.
+		{20, map[string]string{"payments-api": "1.6.0", "checkout": "2.4.0", "postgres": "15.7", "redis": "7.2.5", "keycloak": "25.0.6", "traefik": "v3.1.2", "grafana": "11.2.0", "shop-db": "15.7"}},
 	}},
 	{name: "demo-prod-eu", env: "prod", platform: "kubernetes", steps: []step{
 		{0, map[string]string{"payments-api": "1.4.2", "checkout": "2.3.1", "postgres": "15.6", "redis": "7.2.4", "keycloak": "24.0.5", "traefik": "v3.0.4", "grafana": "11.1.0"}},
@@ -640,9 +642,9 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 }
 
 // demoGitOps is the Argo CD application that deploys a Kubernetes workload, one per application and environment
-// from one deploy repository. Two stories: since day 19 the webshop's staging application waits for a manual sync
-// (out of sync, the old version still running), and the last day prod's edge application, with traefik's rollout
-// stuck, is degraded.
+// from one deploy repository. Three stories: since day 19 the webshop's staging application waits for a manual
+// sync (out of sync, the old version still running); the last day prod's edge application, with traefik's rollout
+// stuck, is degraded; and so is staging's identity application, the day after keycloak 25.0.6 replaced 25.0.1.
 func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps {
 	app := w.Labels["app.kubernetes.io/part-of"]
 	if app == "" {
@@ -658,6 +660,8 @@ func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps
 		sync = "OutOfSync"
 	case name == "edge-prod" && day == 21:
 		sync, health = "OutOfSync", "Degraded"
+	case name == "identity-staging" && day == 21:
+		health = "Degraded"
 	}
 	return &agentproto.GitOps{
 		Tool: agentproto.Argocd, App: name, AppNamespace: &ns, Project: &project, Repo: &repo,

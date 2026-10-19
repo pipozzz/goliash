@@ -56,6 +56,19 @@ opening*) and the median over them all at the top: your time from proposal to pr
 asks the forge every 30 minutes; one closed without merging is offered again on the page (the version policy does not
 open it again: closing it was a no).
 
+### Roll back
+
+When an application turns **Degraded** or **Missing** (for more than ten minutes) within a week of its version
+replacing another on that cluster, the panel offers **Rollback PR → 1.6.2**: a pull request that pins the version
+before again. Hover it to see why. The pull request says it rolls back, what went wrong and since when, and which
+known vulnerabilities the older version brings back. As with every pull request, you review and merge it, and
+GitOps deploys it.
+
+![The Argo CD panel of keycloak: identity-staging is Synced but Degraded since 48 minutes, with Open PR → 26.0.0 and a red Rollback PR → 25.0.1](../../../assets/gitops-rollback.png)
+
+The alert for a degraded or missing application says the same: *degraded on k8s-prod, an hour after 1.7.0
+replaced 1.6.2*, the likeliest cause first.
+
 ### Automatic pull requests
 
 A service's version policy can ask for them per environment: **Automatic pull requests** `dev=minor, staging=patch`

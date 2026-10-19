@@ -765,6 +765,11 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 								} else if canEdit && a.To != "" {
 									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, "")) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
 								}
+								if a.RollbackPRURL != "" {
+									<a class="gitops-pr" href={ templ.SafeURL(a.RollbackPRURL) } target="_blank" rel="noopener">Rollback PR → { a.Rollback }</a>
+								} else if canEdit && a.Rollback != "" {
+									<a class="button secondary gitops-pr rollback" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.Rollback, "")) } title={ "Why: " + a.RollbackWhy + ". See the pull request that pins " + a.Rollback + " again before opening it." }>Rollback PR → { a.Rollback }</a>
+								}
 							</td>
 						</tr>
 					}
