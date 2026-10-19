@@ -136,7 +136,11 @@ templ MatrixGridView(g MatrixGrid) {
 										if g.GroupBy == "app" || g.GroupBy == "team" {
 											<span class={ "app-avatar", versionColour(grp.Name) } aria-hidden="true">{ initial(grp.Name) }</span>
 										}
-										<span class="group-name">{ grp.Name }</span>
+										if grp.URL != "" {
+											<a class="group-name" href={ templ.URL(grp.URL) } title={ "The target page of " + grp.Name }>{ grp.Name }</a>
+										} else {
+											<span class="group-name">{ grp.Name }</span>
+										}
 										<span class="count-pill">{ itoa(len(grp.Rows)) }</span>
 										if grp.Caption != "" {
 											<small>{ grp.Caption }</small>

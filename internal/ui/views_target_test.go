@@ -14,7 +14,7 @@ func TestGroupRowsByTarget(t *testing.T) {
 	v := func(tag string, targets ...string) VersionView {
 		vv := VersionView{Tag: tag}
 		for _, n := range targets {
-			vv.On = append(vv.On, TargetTag{Name: n, Caption: "Kubernetes · " + n[:strings.Index(n, "-")]})
+			vv.On = append(vv.On, TargetTag{ID: "id-" + n, Name: n, Caption: "Kubernetes · " + n[:strings.Index(n, "-")]})
 		}
 		return vv
 	}
@@ -41,5 +41,8 @@ func TestGroupRowsByTarget(t *testing.T) {
 	want := "dev-k8s(Kubernetes · dev):api=2.0 | prod-eu(Kubernetes · prod):api=1.9,web=3.1 | prod-us(Kubernetes · prod):api=1.9+1.8 | not running():ghost="
 	if strings.Join(got, " | ") != want {
 		t.Fatalf("got  %s\nwant %s", strings.Join(got, " | "), want)
+	}
+	if groups[0].URL != "/targets/id-dev-k8s" || groups[3].URL != "" {
+		t.Fatalf("target pages %q %q", groups[0].URL, groups[3].URL)
 	}
 }

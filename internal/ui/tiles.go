@@ -53,6 +53,7 @@ type TilesView struct {
 	Envs    []string
 	App     string // the application (team, status) drilled into; empty on the global board
 	AppNote string
+	AppURL  string // grouped by target: the target's page
 	// Part is the part of App drilled into: an application made of several (Dokploy
 	// and Nomploy deploy each service of a project as "<project>-<service>"). PartName
 	// is how it is shown, without the project.
@@ -248,7 +249,7 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		var rows []MatrixRow
 		for _, grp := range groups {
 			if grp.Name == v.App {
-				rows, v.AppNote = grp.Rows, grp.Caption
+				rows, v.AppNote, v.AppURL = grp.Rows, grp.Caption, grp.URL
 			}
 		}
 		// An application made of several parts shows its parts first, like the project it
@@ -803,5 +804,5 @@ func tilesWithAt(v TilesView, at string) string {
 
 // singularWord names one of what the board groups by.
 func singularWord(by string) string {
-	return map[string]string{"app": "application", "team": "team", "status": "state"}[by]
+	return map[string]string{"app": "application", "team": "team", "target": "target", "status": "state"}[by]
 }

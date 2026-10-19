@@ -92,6 +92,7 @@ type MatrixGrid struct {
 // MatrixGroup is a run of matrix rows under one heading.
 type MatrixGroup struct {
 	Name, Caption string
+	URL           string // grouped by target: the target's page
 	Rows          []MatrixRow
 	OK, Warn, Bad int // rows by health, for the group's bar
 }
@@ -126,9 +127,9 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 	if by == "none" {
 		return []MatrixGroup{{Rows: rows}}
 	}
-	captions := map[string]string{}
+	targets := map[string]TargetTag{}
 	if by == "target" {
-		rows, captions = rowsByTarget(rows)
+		rows, targets = rowsByTarget(rows)
 	}
 	byKey := map[string][]MatrixRow{}
 	sources := map[string]map[string]bool{}
@@ -217,8 +218,11 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		if by == "app" {
 			g.Caption = familyCaption(fams, k, sources[k])
 		}
-		if by == "target" {
-			g.Caption = captions[k]
+		if t, ok := targets[k]; ok {
+			g.Caption = t.Caption
+			if t.ID != "" {
+				g.URL = "/targets/" + url.PathEscape(t.ID)
+			}
 		}
 		out = append(out, g)
 	}
@@ -227,10 +231,10 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 
 // rowsByTarget splits each row into one per target it runs on, each keeping only that target's versions (and its
 // environment's drifts): the services of a cluster or a cloud account. A row running nowhere is kept once, without
-// a target. It returns the captions of the targets too.
-func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]string) {
+// a target. It returns the targets by name too.
+func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
 	var out []MatrixRow
-	captions := map[string]string{}
+	byName := map[string]TargetTag{}
 	for _, r := range rows {
 		var targets []string
 		for _, c := range r.Cells {
@@ -238,7 +242,7 @@ func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]string) {
 				for _, t := range v.On {
 					if !slices.Contains(targets, t.Name) {
 						targets = append(targets, t.Name)
-						captions[t.Name] = t.Caption
+						byName[t.Name] = t
 					}
 				}
 			}
@@ -274,7 +278,7 @@ func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]string) {
 			out = append(out, cp)
 		}
 	}
-	return out, captions
+	return out, byName
 }
 
 func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
@@ -354,7 +358,7 @@ type VersionView struct {
 }
 
 // TargetTag is a target a version runs on, named and described for a heading: "Kubernetes · prod".
-type TargetTag struct{ Name, Caption string }
+type TargetTag struct{ ID, Name, Caption string }
 
 // DriftBadge is a short drift label with an explanation on hover.
 type DriftBadge struct {
@@ -454,7 +458,11 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 				if i < len(v.TargetIDs) {
 					caption = targetCaption(o, v.TargetIDs[i], caption)
 				}
-				vv.On = append(vv.On, TargetTag{Name: name, Caption: caption})
+				tag := TargetTag{Name: name, Caption: caption}
+				if i < len(v.TargetIDs) {
+					tag.ID = v.TargetIDs[i]
+				}
+				vv.On = append(vv.On, tag)
 			}
 			cell.Versions = append(cell.Versions, vv)
 			for i, id := range v.TargetIDs {

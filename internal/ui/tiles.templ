@@ -133,6 +133,9 @@ templ stack(v TilesView) {
 						if v.AppNote != "" && v.Part == "" && !v.Parts {
 							{ " · " + v.AppNote }
 						}
+						if v.AppURL != "" {
+							{ " · " }<a href={ templ.URL(v.AppURL) }>Target page</a>
+						}
 					</span>
 				</div>
 				@envStrip(v.AppItem.Envs)
