@@ -774,7 +774,11 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 										<span class={ "badge", syncBadge(a.Health) }>{ a.Health }</span>
 									}
 								</span>
-								<div class="targets">since @timeAgo(a.Since)</div>
+								if a.Sync != "" || a.Health != "" {
+									<div class="targets">since @timeAgo(a.Since)</div>
+								} else {
+									<div class="targets">from goliash.git labels</div>
+								}
 								if a.GitPins != "" {
 									<div class="git-pins" title={ a.Path + " on " + a.TargetRevision + " pins " + a.GitPins + "; " + a.Tag + " runs: the change has not been synced" }>Git pins <span class="mono">{ a.GitPins }</span>, runs <span class="mono">{ a.Tag }</span></div>
 								}

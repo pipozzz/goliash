@@ -26,9 +26,11 @@ func (Demo) Supports(repo string) bool {
 	return err == nil && u.Host == "github.com" && strings.HasPrefix(u.Path, "/acme/")
 }
 
-// Plan makes up the Kustomization the demo repository would have, and its change.
+// Plan makes up the file the demo repository would have (a Kustomization, a Nomad job or a Compose file, as the
+// path says), and its change.
 func (Demo) Plan(_ context.Context, b Bump) (Plan, error) {
 	name := b.Image[strings.LastIndex(b.Image, "/")+1:]
+	file := strings.Trim(b.Path, "/") + "/kustomization.yaml"
 	old := fmt.Sprintf(`apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: shop
@@ -38,12 +40,34 @@ images:
   - name: %s
     newTag: "%s"
 `, name, b.Image, b.From)
+	switch {
+	case strings.HasSuffix(b.Path, ".hcl"):
+		file = strings.Trim(b.Path, "/")
+		old = fmt.Sprintf(`job "%s" {
+  group "%s" {
+    task "%s" {
+      driver = "docker"
+      config {
+        image = "%s:%s"
+      }
+    }
+  }
+}
+`, name, name, name, b.Image, b.From)
+	case strings.HasSuffix(b.Path, ".yaml") || strings.HasSuffix(b.Path, ".yml"):
+		file = strings.Trim(b.Path, "/")
+		old = fmt.Sprintf(`services:
+  %s:
+    image: %s:%s
+    restart: unless-stopped
+`, name, b.Image, b.From)
+	}
 	res := versions.BumpImageTag([]byte(old), b.Image, b.From, b.To)
 	base := b.Branch
 	if base == "" || base == "HEAD" {
 		base = "main"
 	}
-	return Plan{Base: base, Changes: []Change{{Path: strings.Trim(b.Path, "/") + "/kustomization.yaml", Old: []byte(old), New: res.Content}}}, nil
+	return Plan{Base: base, Changes: []Change{{Path: file, Old: []byte(old), New: res.Content}}}, nil
 }
 
 // OpenBump opens nothing in the demo.

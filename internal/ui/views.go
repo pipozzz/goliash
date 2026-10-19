@@ -1643,7 +1643,7 @@ type GitOpsView struct {
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {
 	v := GitOpsView{
 		Tool: a.Tool, Environment: a.Environment, Target: a.Target, Workload: a.Workload, App: a.App,
-		AppURL: versions.ArgoAppURL(argoURL, a.AppNamespace, a.App), Sync: a.Sync, Health: a.Health, Since: a.SyncSince,
+		AppURL: argoAppURL(a, argoURL), Sync: a.Sync, Health: a.Health, Since: a.SyncSince,
 		Trouble: a.Trouble(now), Repo: a.Repo, RepoURL: versions.RepoWebURL(a.Repo), Path: a.Path,
 		TargetRevision: a.TargetRevision, Revision: a.Revision, TargetID: a.TargetID, WorkloadID: a.WorkloadID, Tag: a.Tag,
 	}
@@ -1656,6 +1656,14 @@ func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView 
 		v.Repo = strings.TrimPrefix(v.RepoURL, "https://")
 	}
 	return v
+}
+
+// argoAppURL is the application's page in the Argo CD UI, for an Argo CD application.
+func argoAppURL(a versions.GitOpsApp, argoURL string) string {
+	if a.Tool != "argocd" {
+		return ""
+	}
+	return versions.ArgoAppURL(argoURL, a.AppNamespace, a.App)
 }
 
 // syncBadge is the badge class of an application's sync or health state.

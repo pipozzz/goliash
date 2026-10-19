@@ -112,12 +112,18 @@ func (g *GitLab) walk(ctx context.Context, b Bump, visit func(path string, raw [
 		q := url.Values{"ref": {p.Base}, "recursive": {"true"}, "per_page": {"100"}, "page": {fmt.Sprint(page)}}
 		if dir != "" {
 			q.Set("path", dir)
+			if deployFile(dir) { // a file: list its directory, and keep only the file
+				q.Del("path")
+				if d := path.Dir(dir); d != "." {
+					q.Set("path", d)
+				}
+			}
 		}
 		if err := g.do(ctx, http.MethodGet, project+"/repository/tree?"+q.Encode(), nil, &tree); err != nil {
 			return project, p, fmt.Errorf("branch %s: %w", p.Base, err)
 		}
 		for _, f := range tree {
-			if f.Type != "blob" || !strings.HasSuffix(f.Path, ".yaml") && !strings.HasSuffix(f.Path, ".yml") {
+			if f.Type != "blob" || !deployFile(f.Path) || !underPath(f.Path, dir) {
 				continue
 			}
 			if read++; read > maxFiles {

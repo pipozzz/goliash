@@ -173,11 +173,21 @@ func (s *Service) RunProcessor(ctx context.Context, interval time.Duration) {
 // (notifications). It must be set before RunProcessor starts.
 func (s *Service) OnEvents(fn func(store.Scope, []store.Event)) { s.onEvents = fn }
 
-// gitOps are the GitOps applications a snapshot reports for its workloads.
+// gitOps are the GitOps applications a snapshot reports for its workloads: Argo CD and Flux as the collectors
+// read them, or a Git repository a workload names in its labels (Nomad meta, Docker and Compose labels, ECS tags):
+// goliash.git.repo, goliash.git.path (a directory or a file) and goliash.git.branch, so that upgrades open as
+// pull requests without a GitOps tool.
 func gitOps(ws []agentproto.Workload) []store.WorkloadGitOps {
 	var out []store.WorkloadGitOps
 	for _, w := range ws {
 		g := w.Gitops
+		if g == nil && w.Labels["goliash.git.repo"] != "" {
+			out = append(out, store.WorkloadGitOps{
+				WorkloadID: w.ID, Tool: "git", App: w.Name, Repo: w.Labels["goliash.git.repo"],
+				Path: w.Labels["goliash.git.path"], TargetRevision: w.Labels["goliash.git.branch"],
+			})
+			continue
+		}
 		if g == nil || g.App == "" {
 			continue
 		}

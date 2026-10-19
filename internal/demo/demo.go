@@ -623,6 +623,12 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		},
 		Containers: []agentproto.Container{{Name: service, Image: images[service] + ":" + tag, Running: replicas}},
 	}
+	switch t.platform { // no GitOps tool here: the jobs and the Compose file name their place in Git
+	case "nomad":
+		w.Labels["goliash.git.repo"], w.Labels["goliash.git.path"] = "https://github.com/acme/infra", "nomad/"+service+".nomad.hcl"
+	case "docker":
+		w.Labels["goliash.git.repo"], w.Labels["goliash.git.path"] = "https://github.com/acme/infra", "compose/dev-tools/compose.yaml"
+	}
 	if service == "shop-db" {
 		// The same postgres service as identity's database, in another application.
 		w.Labels["goliash.service"] = "postgres"
