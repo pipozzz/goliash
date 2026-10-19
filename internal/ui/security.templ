@@ -16,7 +16,7 @@ templ SecurityPage(v SecurityView) {
 		<div class="head">
 			<div>
 				<h1>Security posture</h1>
-				<p class="sub">How long { orDash(v.Prod.Name) } runs behind available releases, what is past its end of life, and where Goliash cannot see. Counted from when the first newer release came out; for risk registers and audits.</p>
+				@aboutText("How long " + orDash(v.Prod.Name) + " runs behind available releases, what is past its end of life, and where Goliash cannot see. Counted from when the first newer release came out; for risk registers and audits.")
 			</div>
 			<div class="actions noprint">
 				<a class="button secondary" href="/security.csv" hx-boost="false">Export CSV</a>

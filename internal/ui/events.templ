@@ -8,7 +8,7 @@ templ EventsPage(v EventsView) {
 		<div class="head">
 			<div>
 				<h1>History</h1>
-				<p class="sub">Every deploy, version change, release and drift, newest first.</p>
+				@aboutText("Every deploy, version change, release and drift, newest first.")
 			</div>
 			<form class="inline" method="get" action="/events">
 				<label>

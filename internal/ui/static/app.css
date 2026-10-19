@@ -1280,6 +1280,15 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .gitops-pr { margin-top: 6px; }
 .gitops-pr { display: inline-block; }
 
+/* A page's explanation, folded under its title: hover shows it, a click or tap opens it. */
+.about { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.about > summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); }
+.about > summary::-webkit-details-marker { display: none; }
+.about > summary::before { content: "i"; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid currentColor; font: 600 10px/1 var(--sans); }
+.about > summary:hover, .about[open] > summary { color: var(--ink); }
+.about-text { margin-top: 6px; max-width: 75ch; line-height: 1.5; }
+@media print { .about { display: none; } }
+
 /* A panel's explanation: an icon in its header; hover shows it, a click or a tap opens it under the icon. */
 .panel-info { position: relative; display: inline-block; vertical-align: middle; }
 .panel-info > summary { list-style: none; cursor: pointer; display: inline-grid; place-items: center; width: 18px; height: 18px;

@@ -46,25 +46,25 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Integrations</h1><p class=\"sub\">Goliash on the dashboards and in the tools you already use. Open one for its steps, filled in for this server.</p></div><a class=\"button secondary\" href=\"https://goliash.dev/guide/observability/\" target=\"_blank\" rel=\"noopener noreferrer\">Guide</a></div><div class=\"integrations\"><details class=\"panel integration\" id=\"prometheus\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Integrations</h1>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = aboutText("Goliash on the dashboards and in the tools you already use. Open one for its steps, filled in for this server.").Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><a class=\"button secondary\" href=\"https://goliash.dev/guide/observability/\" target=\"_blank\" rel=\"noopener noreferrer\">Guide</a></div><div class=\"integrations\"><details class=\"panel integration\" id=\"prometheus\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Tool == "prometheus" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " open")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "><summary class=\"panel-head\"><h2>Prometheus and Grafana</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = panelInfo("scrape /metrics, import the dashboard").Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</summary><div class=\"panel-body stack\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "><summary class=\"panel-head\"><h2>Prometheus and Grafana</h2><span class=\"muted\">scrape /metrics, import the dashboard</span></summary><div class=\"panel-body stack\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -95,15 +95,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "><summary class=\"panel-head\"><h2>SigNoz</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = panelInfo("the OpenTelemetry Collector reads /metrics").Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</summary><div class=\"panel-body stack\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "><summary class=\"panel-head\"><h2>SigNoz</h2><span class=\"muted\">the OpenTelemetry Collector reads /metrics</span></summary><div class=\"panel-body stack\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -111,7 +103,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div><h3>2. Add to the collector</h3><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-signoz\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div><h3>2. Add to the collector</h3><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-signoz\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -124,25 +116,17 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-signoz\">Copy</button></div></div><div><h3>3. Dashboard</h3><p class=\"hint\">SigNoz → Dashboards → New dashboard → Import JSON. Metrics show up about a minute after the collector restarts.</p><div class=\"actions\"><a class=\"button\" href=\"/integrations/dashboards/signoz.json\" hx-boost=\"false\" download>Download the SigNoz dashboard</a></div></div></div></details> <details class=\"panel integration\" id=\"dtrack\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-signoz\">Copy</button></div></div><div><h3>3. Dashboard</h3><p class=\"hint\">SigNoz → Dashboards → New dashboard → Import JSON. Metrics show up about a minute after the collector restarts.</p><div class=\"actions\"><a class=\"button\" href=\"/integrations/dashboards/signoz.json\" hx-boost=\"false\" download>Download the SigNoz dashboard</a></div></div></div></details> <details class=\"panel integration\" id=\"dtrack\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Tool == "dtrack" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, " open")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "><summary class=\"panel-head\"><h2>Dependency-Track</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = panelInfo("what runs, as an SBOM per environment").Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</summary><div class=\"panel-body stack\"><p class=\"muted\">Dependency-Track then tracks every package that runs in each environment against its vulnerability feeds and policies: a project per environment, kept current by a small script.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "><summary class=\"panel-head\"><h2>Dependency-Track</h2><span class=\"muted\">what runs, as an SBOM per environment</span></summary><div class=\"panel-body stack\"><p class=\"muted\">Dependency-Track then tracks every package that runs in each environment against its vulnerability feeds and policies: a project per environment, kept current by a small script.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -150,7 +134,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div><h3>2. Upload on a schedule</h3><p class=\"hint\">Fill in Dependency-Track's URL and an API key of a team with BOM_UPLOAD and PROJECT_CREATION_UPLOAD, then run it from cron or a scheduled CI job.</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-dtrack\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div><h3>2. Upload on a schedule</h3><p class=\"hint\">Fill in Dependency-Track's URL and an API key of a team with BOM_UPLOAD and PROJECT_CREATION_UPLOAD, then run it from cron or a scheduled CI job.</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-dtrack\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -163,25 +147,17 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-dtrack\">Copy</button> <a href=\"/api/v1/inventory?format=cyclonedx\" hx-boost=\"false\">Download the SBOM now</a></div></div></div></details> <details class=\"panel integration\" id=\"cli\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-dtrack\">Copy</button> <a href=\"/api/v1/inventory?format=cyclonedx\" hx-boost=\"false\">Download the SBOM now</a></div></div></div></details> <details class=\"panel integration\" id=\"cli\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Tool == "cli" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, " open")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "><summary class=\"panel-head\"><h2>Terminal</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = panelInfo("goliash ask and goliash mcp, signed in through the browser").Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</summary><div class=\"panel-body stack\"><div><h3>Install and sign in</h3><p class=\"hint\">The CLI of this server's release; <code>goliash login</code> opens the browser: sign in and allow it. It reads as you, read only, until <code>goliash logout</code>. Windows and other systems: <a href=\"https://github.com/pipozzz/goliash/releases\" target=\"_blank\" rel=\"noopener noreferrer\">releases</a>.</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-cli\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "><summary class=\"panel-head\"><h2>Terminal</h2><span class=\"muted\">goliash ask and goliash mcp, signed in through the browser</span></summary><div class=\"panel-body stack\"><div><h3>Install and sign in</h3><p class=\"hint\">The CLI of this server's release; <code>goliash login</code> opens the browser: sign in and allow it. It reads as you, read only, until <code>goliash logout</code>. Windows and other systems: <a href=\"https://github.com/pipozzz/goliash/releases\" target=\"_blank\" rel=\"noopener noreferrer\">releases</a>.</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-cli\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -194,25 +170,17 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-cli\">Copy</button></div></div><div><h3>Then</h3><pre tabindex=\"0\" class=\"mono install-cmd\">goliash ask \"what changed in prod in the last two hours?\" goliash ask -i                 # a conversation goliash mcp                    # MCP over stdio, for apps that start local servers</pre></div></div></details> <details class=\"panel integration\" id=\"widgets\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-cli\">Copy</button></div></div><div><h3>Then</h3><pre tabindex=\"0\" class=\"mono install-cmd\">goliash ask \"what changed in prod in the last two hours?\" goliash ask -i                 # a conversation goliash mcp                    # MCP over stdio, for apps that start local servers</pre></div></div></details> <details class=\"panel integration\" id=\"widgets\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Tool == "widget" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, " open")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "><summary class=\"panel-head\"><h2>Widgets</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = panelInfo("the numbers on an iPhone, the Mac menu bar or the Windows 11 Widgets board").Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</summary><div class=\"panel-body stack\"><div><h3>iPhone and iPad</h3><p class=\"muted\">A home or lock screen widget made with <a href=\"https://scriptable.app\" target=\"_blank\" rel=\"noopener noreferrer\">Scriptable</a>, a free app: drift, updates, exploited vulnerabilities, how long production runs behind and end of life. It refreshes about every 15 minutes, as iOS allows, and a tap opens the Security page.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "><summary class=\"panel-head\"><h2>Widgets</h2><span class=\"muted\">the numbers on an iPhone, the Mac menu bar or the Windows 11 Widgets board</span></summary><div class=\"panel-body stack\"><div><h3>iPhone and iPad</h3><p class=\"muted\">A home or lock screen widget made with <a href=\"https://scriptable.app\" target=\"_blank\" rel=\"noopener noreferrer\">Scriptable</a>, a free app: drift, updates, exploited vulnerabilities, how long production runs behind and end of life. It refreshes about every 15 minutes, as iOS allows, and a tap opens the Security page.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -220,7 +188,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<div><h3>2. Add it to Scriptable</h3><p class=\"hint\">On the iPhone, open this page and download the widget, then open the file in Scriptable (Share → Scriptable). Long-press the home screen, add a Scriptable widget of any size, tap it and pick <strong>Goliash</strong>. The server's address and the token are already in it.</p><div class=\"actions\"><button type=\"button\" data-download=\"cfg-widget\" data-filename=\"Goliash.js\">Download Goliash.js</button> <button type=\"button\" class=\"secondary\" data-copy=\"cfg-widget\">Copy</button></div><details class=\"script\"><summary>What it runs</summary><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-widget\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<div><h3>2. Add it to Scriptable</h3><p class=\"hint\">On the iPhone, open this page and download the widget, then open the file in Scriptable (Share → Scriptable). Long-press the home screen, add a Scriptable widget of any size, tap it and pick <strong>Goliash</strong>. The server's address and the token are already in it.</p><div class=\"actions\"><button type=\"button\" data-download=\"cfg-widget\" data-filename=\"Goliash.js\">Download Goliash.js</button> <button type=\"button\" class=\"secondary\" data-copy=\"cfg-widget\">Copy</button></div><details class=\"script\"><summary>What it runs</summary><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-widget\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -233,7 +201,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</pre></details></div><div><h3>Mac menu bar</h3><p class=\"hint\">A plugin for <a href=\"https://swiftbar.app\" target=\"_blank\" rel=\"noopener noreferrer\">SwiftBar</a> or <a href=\"https://xbarapp.com\" target=\"_blank\" rel=\"noopener noreferrer\">xbar</a> (both free): Goliash and a count in the menu bar, red for exploited vulnerabilities or end of life, amber for drift, with the numbers and links in its menu. Download it into the plugin folder and run <code>chmod +x goliash.15m.sh</code>; it uses the same token.</p><div class=\"actions\"><button type=\"button\" data-download=\"cfg-menubar\" data-filename=\"goliash.15m.sh\">Download goliash.15m.sh</button> <button type=\"button\" class=\"secondary\" data-copy=\"cfg-menubar\">Copy</button></div><details class=\"script\"><summary>What it runs</summary><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-menubar\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</pre></details></div><div><h3>Mac menu bar</h3><p class=\"hint\">A plugin for <a href=\"https://swiftbar.app\" target=\"_blank\" rel=\"noopener noreferrer\">SwiftBar</a> or <a href=\"https://xbarapp.com\" target=\"_blank\" rel=\"noopener noreferrer\">xbar</a> (both free): Goliash and a count in the menu bar, red for exploited vulnerabilities or end of life, amber for drift, with the numbers and links in its menu. Download it into the plugin folder and run <code>chmod +x goliash.15m.sh</code>; it uses the same token.</p><div class=\"actions\"><button type=\"button\" data-download=\"cfg-menubar\" data-filename=\"goliash.15m.sh\">Download goliash.15m.sh</button> <button type=\"button\" class=\"secondary\" data-copy=\"cfg-menubar\">Copy</button></div><details class=\"script\"><summary>What it runs</summary><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-menubar\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -246,25 +214,17 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</pre></details></div><div><h3>Windows 11</h3><p class=\"hint\">Install Goliash as an app from Microsoft Edge (the app icon in the address bar), sign in there, then open the Widgets board (Win+W), choose <strong>Add widgets</strong> and add <strong>Goliash</strong>. It uses the app's sign-in, so no token is needed.</p></div></div></details> <details class=\"panel integration\" id=\"mcp\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</pre></details></div><div><h3>Windows 11</h3><p class=\"hint\">Install Goliash as an app from Microsoft Edge (the app icon in the address bar), sign in there, then open the Widgets board (Win+W), choose <strong>Add widgets</strong> and add <strong>Goliash</strong>. It uses the app's sign-in, so no token is needed.</p></div></div></details> <details class=\"panel integration\" id=\"mcp\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Tool == "mcp" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, " open")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "><summary class=\"panel-head\"><h2>AI assistants</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = panelInfo("Claude, Cursor and others ask Goliash over MCP").Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</summary><div class=\"panel-body stack\"><div><h3>Sign in from the app</h3><p class=\"hint\">Add the server without a token: the first time, the app opens Goliash in the browser, you sign in and allow it, and it reads as you, read only, until you revoke it under Your account → Apps with access. Claude Code, Claude Desktop, Cursor and VS Code do this.</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-mcp-oauth\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "><summary class=\"panel-head\"><h2>AI assistants</h2><span class=\"muted\">Claude, Cursor and others ask Goliash over MCP</span></summary><div class=\"panel-body stack\"><div><h3>Sign in from the app</h3><p class=\"hint\">Add the server without a token: the first time, the app opens Goliash in the browser, you sign in and allow it, and it reads as you, read only, until you revoke it under Your account → Apps with access. Claude Code, Claude Desktop, Cursor and VS Code do this.</p><pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-mcp-oauth\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -277,7 +237,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-mcp-oauth\">Copy</button> <span class=\"hint\">then <code>/mcp</code> in Claude Code and <strong>Authenticate</strong></span></div></div><details class=\"script\"><summary>With an API token instead (scripts, apps without OAuth)</summary><div class=\"stack\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-mcp-oauth\">Copy</button> <span class=\"hint\">then <code>/mcp</code> in Claude Code and <strong>Authenticate</strong></span></div></div><details class=\"script\"><summary>With an API token instead (scripts, apps without OAuth)</summary><div class=\"stack\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -285,7 +245,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-mcp\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<pre tabindex=\"0\" class=\"mono install-cmd\" id=\"cfg-mcp\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -298,7 +258,7 @@ func IntegrationsPage(v IntegrationsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-mcp\">Copy</button> <a href=\"https://goliash.dev/reference/mcp/\" target=\"_blank\" rel=\"noopener noreferrer\">Cursor, Claude Desktop and more</a></div></div></details></div></details></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"cfg-mcp\">Copy</button> <a href=\"https://goliash.dev/reference/mcp/\" target=\"_blank\" rel=\"noopener noreferrer\">Cursor, Claude Desktop and more</a></div></div></details></div></details></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -334,13 +294,13 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div><h3>1. A token</h3>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div><h3>1. A token</h3>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if v.Tool == tool && v.Token != "" {
 			if file != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<p class=\"hint\">Save it as <code>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<p class=\"hint\">Save it as <code>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -353,17 +313,17 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</code>, nothing else in the file. Shown only now.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</code>, nothing else in the file. Shown only now.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<p class=\"hint\">It is in the command below. Shown only now.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<p class=\"hint\">It is in the command below. Shown only now.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, " <pre tabindex=\"0\" class=\"mono install-cmd\" id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " <pre tabindex=\"0\" class=\"mono install-cmd\" id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -376,7 +336,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -389,7 +349,7 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</pre><div class=\"actions\"><button type=\"button\" class=\"secondary\" data-copy=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -402,12 +362,12 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\">Copy</button> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\">Copy</button> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if tool == "widget" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<span class=\"hint\">Check it: <code>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<span class=\"hint\">Check it: <code>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -420,12 +380,12 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</code> prints the widget's numbers.</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</code> prints the widget's numbers.</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<span class=\"hint\">Check it: <code>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<span class=\"hint\">Check it: <code>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -438,17 +398,17 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</code> prints how many samples it reads.</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</code> prints how many samples it reads.</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else if v.CanAdmin && !v.Demo {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<form class=\"inline\" method=\"post\" action=\"/integrations/token\"><input type=\"hidden\" name=\"tool\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<form class=\"inline\" method=\"post\" action=\"/integrations/token\"><input type=\"hidden\" name=\"tool\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -461,12 +421,12 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\"> <button type=\"submit\" class=\"secondary\">Create a viewer token</button> <span class=\"hint\">reads only; revoke it any time under <a href=\"/settings\">Workspace settings</a></span></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\"> <button type=\"submit\" class=\"secondary\">Create a viewer token</button> <span class=\"hint\">reads only; revoke it any time under <a href=\"/settings\">Workspace settings</a></span></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<p class=\"hint\">An admin creates a viewer token under Workspace settings, or with <code>goliash token create -name ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<p class=\"hint\">An admin creates a viewer token under Workspace settings, or with <code>goliash token create -name ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -479,12 +439,12 @@ func integrationToken(v IntegrationsView, tool, file string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, " -role viewer</code>.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, " -role viewer</code>.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

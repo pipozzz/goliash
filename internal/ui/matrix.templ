@@ -11,7 +11,7 @@ templ MatrixPage(v MatrixView) {
 			<div>
 				<h1>Service × environment</h1>
 				<p class="sub" data-tl-asof hidden?={ v.At == "" }>As of <strong data-tl-asof-date>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then, against the newest releases out by then, with drift as it was. <a href="/">Back to now</a></p>
-				<p class="sub" data-tl-live hidden?={ v.At != "" }>What runs where, the newest release upstream, and where versions drift apart.</p>
+				<div data-tl-live hidden?={ v.At != "" }>@aboutText("What runs where, the newest release upstream, and where versions drift apart.")</div>
 			</div>
 			if v.At == "" && len(v.Grid.Rows) > 0 {
 				<div class="legend" data-tl-live>

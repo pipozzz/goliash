@@ -14,7 +14,7 @@ templ HygienePage(v HygieneView) {
 		<div class="head">
 			<div>
 				<h1>Image hygiene</h1>
-				<p class="sub">Images that make "what runs" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, images over their size budget, and images without a known digest.</p>
+				@aboutText("Images that make \"what runs\" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, images over their size budget, and images without a known digest.")
 			</div>
 		</div>
 		if v.Total > 0 {
