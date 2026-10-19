@@ -835,7 +835,17 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if len(se.Versions) > 0 {
 			v.Runs = true
 		}
+		for _, ver := range running {
+			for _, id := range ver.TargetIDs {
+				for _, t := range o.Targets {
+					if t.ID == id && !slices.Contains(v.Platforms, t.Platform) {
+						v.Platforms = append(v.Platforms, t.Platform)
+					}
+				}
+			}
+		}
 	}
+	v.CanPR = s.pulls != nil
 
 	releases, err := s.store.ListReleases(ctx, p.Scope, svc.ID)
 	if err != nil {

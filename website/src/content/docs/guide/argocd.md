@@ -171,7 +171,8 @@ job "vault" {
 
 The service page then shows a **Git** panel with **Open PR**, and the Updates, Security and Delivery pages, the
 `auto_pr` version policy, the preview and the reminders work as for Argo CD. Goliash changes the tag where the file
-pins it, in HCL (`image = "hashicorp/vault:1.17.2"`) as in YAML. With no sync state to read, there is no *out of
+pins it, in HCL (`image = "hashicorp/vault:1.17.2"`), YAML, JSON task definitions or Terraform. A service without
+the labels shows its members the lines to add, for the platforms it runs on. With no sync state to read, there is no *out of
 sync*, *Git pins* or rollback offer: those need Argo CD or Flux.
 
 ## Why it helps

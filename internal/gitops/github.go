@@ -66,9 +66,9 @@ var ErrNoTag = errors.New("no file pins the image at that version")
 var ErrPinned = errors.New("the image is pinned by digest")
 
 // deployFile says whether a repository file may pin an image: Kubernetes, Kustomize, Helm and Compose YAML, Nomad
-// jobs (HCL).
+// jobs (HCL), ECS task definitions (JSON) and Terraform.
 func deployFile(name string) bool {
-	for _, ext := range []string{".yaml", ".yml", ".hcl", ".nomad"} {
+	for _, ext := range []string{".yaml", ".yml", ".hcl", ".nomad", ".json", ".tf"} {
 		if strings.HasSuffix(name, ext) {
 			return true
 		}

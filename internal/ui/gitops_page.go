@@ -122,3 +122,29 @@ func gitOpsReturn(all bool) string {
 	}
 	return ""
 }
+
+// GitLabelSnippet is how to name a service's place in Git on one platform.
+type GitLabelSnippet struct{ Where, Code string }
+
+// gitLabelSnippets are the goliash.git labels a service's workloads could carry, for the platforms it runs on
+// that take them (Kubernetes labels cannot hold an address: there Argo CD or Flux tells).
+func gitLabelSnippets(service string, platforms []string) []GitLabelSnippet {
+	var out []GitLabelSnippet
+	for _, p := range platforms {
+		switch p {
+		case "nomad":
+			out = append(out, GitLabelSnippet{"In the Nomad job (job, group or task):", `meta {
+  "goliash.git.repo" = "https://github.com/acme/infra"
+  "goliash.git.path" = "nomad/` + service + `.nomad.hcl"
+}`})
+		case "docker", "compose", "swarm":
+			out = append(out, GitLabelSnippet{"In the Compose file, on the service:", `labels:
+  goliash.git.repo: https://github.com/acme/infra
+  goliash.git.path: compose/` + service + `/compose.yaml`})
+		case "ecs":
+			out = append(out, GitLabelSnippet{"As tags on the ECS service or task definition:", `goliash.git.repo = https://github.com/acme/infra
+goliash.git.path = ecs/` + service + `/task-definition.json`})
+		}
+	}
+	return out
+}
