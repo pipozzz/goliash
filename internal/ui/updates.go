@@ -110,7 +110,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns,
 		}
-		if p.Can(store.RoleMember) {
+		if p.Can(store.RoleMember) || s.demoPulls() {
 			latest := ""
 			if up, ok := o.Upstreams[u.Service.ID]; ok && up.HasLatest {
 				latest = up.Latest.Raw

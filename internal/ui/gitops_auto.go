@@ -88,9 +88,12 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			if failed && time.Since(failedAt) < 24*time.Hour { // e.g. no file pins the tag: try again tomorrow
 				continue
 			}
-			vulns, _ := versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
-			why := "the newest release its version policy accepts, opened by the policy (auto_pr: " + string(pol.AutoPR[a.Environment]) + ")"
-			if _, msg := s.bump(ctx, sc, autoPRActor, svc.Name, "/services/"+svc.Name, a, to, why, o.ReleaseURL[a.ServiceID+"|"+to], vulns); msg != "" {
+			u := upgrade{
+				app: a, service: svc.Name, page: "/services/" + svc.Name, to: to, notes: o.ReleaseURL[a.ServiceID+"|"+to],
+				why: "the newest release its version policy accepts, opened by the policy (auto_pr: " + string(pol.AutoPR[a.Environment]) + ")",
+			}
+			u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
+			if _, msg := s.bump(ctx, sc, autoPRActor, u); msg != "" {
 				s.log.WarnContext(ctx, "automatic pull request not opened", "service", svc.Name, "environment", a.Environment, "to", to, "reason", msg)
 				s.autoMu.Lock()
 				s.autoFailed[key] = time.Now()

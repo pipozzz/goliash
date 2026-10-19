@@ -101,7 +101,7 @@ templ ServicePage(v ServiceView) {
 			<p class="muted">{ v.LatestAny } is out, outside the pinned major; it is shown as information, not alerted.</p>
 		}
 		if len(v.GitOps) > 0 {
-			@gitOpsPanel(v.GitOps, v.Name, v.CanMember)
+			@gitOpsPanel(v.GitOps, v.Name, v.CanMember || v.PreviewPRs)
 		}
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">
@@ -763,12 +763,7 @@ templ gitOpsPanel(apps []GitOpsView, service string, canEdit bool) {
 								if a.PRURL != "" {
 									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener">{ "Pull request → " + a.To }</a>
 								} else if canEdit && a.To != "" {
-									<form method="post" action={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/pr") } class="gitops-pr">
-										<input type="hidden" name="target_id" value={ a.TargetID }/>
-										<input type="hidden" name="workload_id" value={ a.WorkloadID }/>
-										<input type="hidden" name="to" value={ a.To }/>
-										<button type="submit" class="secondary" title={ "Open a pull request that pins " + a.To + " in " + a.Path }>Open PR → { a.To }</button>
-									</form>
+									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, "")) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
 								}
 							</td>
 						</tr>

@@ -34,6 +34,7 @@ type Base struct {
 	Workspace  string
 	Workspaces []WorkspaceOption
 	Demo       bool   // a public, read-only demo
+	PreviewPRs bool   // everyone may preview pull requests: the demo's, which open none
 	Goli       bool   // Goli, the assistant, answers questions
 	GoliVia    string // who answers for Goli: the model's provider, which sees questions and what Goli reads
 }

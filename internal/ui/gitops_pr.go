@@ -20,6 +20,7 @@ import (
 // PullRequester opens an upgrade as a pull (or merge) request in a GitOps repository it supports.
 type PullRequester interface {
 	Supports(repo string) bool
+	Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error)
 	OpenBump(ctx context.Context, b gitops.Bump) (string, error)
 }
 
@@ -37,46 +38,79 @@ func (s *Server) pullRequestTo(a versions.GitOpsApp, latest string) string {
 	return latest
 }
 
-// openGitOpsPR opens a pull request that pins the service's newest acceptable release in the file its Argo CD
-// application deploys from.
-func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	ctx := r.Context()
-	name := r.PathValue("name")
-	path := "/services/" + url.PathEscape(name)
-	svc, err := s.store.GetServiceByName(ctx, p.Scope, name)
+// upgrade is a pull request Goliash may open: an application, the version to pin, and why.
+type upgrade struct {
+	app            versions.GitOpsApp
+	service, page  string
+	to, why, notes string
+	vulns          versions.VulnDelta
+}
+
+// findUpgrade finds the upgrade a form names and checks the page would still offer it: the newest acceptable
+// release, or a promotion of the version that waits in the environment before.
+func (s *Server) findUpgrade(ctx context.Context, sc store.Scope, service, targetID, workloadID, to string) (upgrade, bool, error) {
+	o, err := versions.LoadOverview(ctx, s.store, sc)
 	if err != nil {
-		http.NotFound(w, r)
-		return nil
+		return upgrade{}, false, err
 	}
-	if s.pulls == nil {
-		return back(w, r, path, "error", "Set GOLIASH_GITOPS_TOKEN on the server to open pull requests.")
-	}
-	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	apps, err := versions.GitOpsApps(ctx, s.store, sc, o)
 	if err != nil {
-		return err
-	}
-	apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o)
-	if err != nil {
-		return err
-	}
-	latest := ""
-	if u, ok := o.Upstreams[svc.ID]; ok && u.HasLatest {
-		latest = u.Latest.Raw
+		return upgrade{}, false, err
 	}
 	var app *versions.GitOpsApp
 	for i := range apps {
 		a := &apps[i]
-		if a.ServiceID == svc.ID && a.TargetID == r.FormValue("target_id") && a.WorkloadID == r.FormValue("workload_id") {
+		if o.Services[a.ServiceID].Name == service && a.TargetID == targetID && a.WorkloadID == workloadID && s.canPR(*a) {
 			app = a
 		}
 	}
-	to := r.FormValue("to")
-	if app == nil || to == "" || s.pullRequestTo(*app, latest) != to {
+	if app == nil || to == "" {
+		return upgrade{}, false, nil
+	}
+	u := upgrade{
+		app: *app, service: service, page: "/services/" + url.PathEscape(service), to: to,
+		notes: o.ReleaseURL[app.ServiceID+"|"+to],
+	}
+	if up, ok := o.Upstreams[app.ServiceID]; ok && up.HasLatest && s.pullRequestTo(*app, up.Latest.Raw) == to {
+		u.why = "the newest release its version policy accepts"
+	} else {
+		list, err := versions.Promotions(ctx, s.store, sc, o)
+		if err != nil {
+			return upgrade{}, false, err
+		}
+		for _, pr := range list {
+			if pr.Service.ID == app.ServiceID && pr.To.Name == app.Environment && pr.Version == to && pr.Running == app.Tag {
+				u.why = fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006"))
+			}
+		}
+	}
+	if u.why == "" {
+		return upgrade{}, false, nil
+	}
+	u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, app.ServiceID, envID(o, app.Environment), app.Tag, to)
+	return u, true, nil
+}
+
+// openGitOpsPR opens the pull request a form names: an upgrade from a service page or the Updates page, or a
+// promotion from the Delivery page.
+func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	name := r.PathValue("name")
+	path := "/services/" + url.PathEscape(name)
+	if ret := r.FormValue("return"); ret == "/delivery" || ret == "/updates" {
+		path = ret
+	}
+	if s.pulls == nil {
+		return back(w, r, path, "error", "Set GOLIASH_GITOPS_TOKEN on the server to open pull requests.")
+	}
+	u, ok, err := s.findUpgrade(ctx, p.Scope, name, r.FormValue("target_id"), r.FormValue("workload_id"), r.FormValue("to"))
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return back(w, r, path, "error", "That upgrade is no longer offered; the page is reloaded with what runs now.")
 	}
-	why := "the newest release its version policy accepts"
-	vulns, _ := versions.UpgradeVulns(ctx, s.store, p.Scope, svc.ID, envID(o, app.Environment), app.Tag, to)
-	pr, msg := s.bump(ctx, p.Scope, p.User.Email, svc.Name, path, *app, to, why, o.ReleaseURL[svc.ID+"|"+to], vulns)
+	pr, msg := s.bump(ctx, p.Scope, p.User.Email, u)
 	if msg != "" {
 		return back(w, r, path, "error", msg)
 	}
@@ -99,47 +133,63 @@ func (s *Server) canPR(a versions.GitOpsApp) bool {
 	return s.pulls != nil && a.Tag != "" && s.pulls.Supports(versions.RepoWebURL(a.Repo))
 }
 
-// bump opens the pull request that pins to in the application's repository; why says why this version, notes is
-// a release notes address. It returns the pull request's address, or a message for the person who asked.
-func (s *Server) bump(ctx context.Context, sc store.Scope, by, service, page string, app versions.GitOpsApp, to, why, notes string, vulns versions.VulnDelta) (string, string) {
-	if open, ok := s.openPull(ctx, sc, app, to); ok { // proposed already: never twice
-		return open, ""
-	}
-	image := versions.ParseImage(app.Image).Repo()
+// bumpRequest is the pull request an upgrade opens: branch, title, commit and the body that says what, where, why,
+// who and what it does to known vulnerabilities.
+func (s *Server) bumpRequest(u upgrade, by string) gitops.Bump {
+	app, image := u.app, versions.ParseImage(u.app.Image).Repo()
 	where := app.Path
 	if app.TargetRevision != "" {
 		where += " @ " + app.TargetRevision
 	}
 	body := fmt.Sprintf("Upgrades **%s** in **%s** from `%s` to `%s`: %s.\n\n"+
 		"- %s: `%s` (%s)\n- Image: `%s`\n- Opened by %s from [Goliash](%s%s)\n",
-		service, app.Environment, app.Tag, to, why, versions.GitOpsObject(app.Tool), app.App, where, image, by, s.publicURL, page)
-	if notes != "" {
-		body += "- Release notes: " + notes + "\n"
+		u.service, app.Environment, app.Tag, u.to, u.why, versions.GitOpsObject(app.Tool), app.App, where, image, by, s.publicURL, u.page)
+	if u.notes != "" {
+		body += "- Release notes: " + u.notes + "\n"
 	}
-	body += vulnsMarkdown(vulns)
-	pr, err := s.pulls.OpenBump(ctx, gitops.Bump{
+	body += vulnsMarkdown(u.vulns)
+	return gitops.Bump{
 		Repo: versions.RepoWebURL(app.Repo), Branch: app.TargetRevision, Path: app.Path, Image: image,
-		From: app.Tag, To: to, Head: "goliash/" + branchSafe(service+"-"+to+"-"+app.Environment),
-		Title: fmt.Sprintf("%s %s in %s", service, to, app.Environment), Body: body,
-		CommitMsg: fmt.Sprintf("%s: %s → %s in %s", service, app.Tag, to, app.Environment),
-	})
+		From: app.Tag, To: u.to, Head: "goliash/" + branchSafe(u.service+"-"+u.to+"-"+app.Environment),
+		Title: fmt.Sprintf("%s %s in %s", u.service, u.to, app.Environment), Body: body,
+		CommitMsg: fmt.Sprintf("%s: %s → %s in %s", u.service, app.Tag, u.to, app.Environment),
+	}
+}
+
+// bumpError says why a pull request could not be opened or previewed.
+func bumpError(err error, b gitops.Bump) string {
 	switch {
 	case errors.Is(err, gitops.ErrNoTag):
-		return "", fmt.Sprintf("No file under %s pins %s at %s.", app.Path, image, app.Tag)
+		return fmt.Sprintf("No file under %s pins %s at %s.", b.Path, b.Image, b.From)
 	case errors.Is(err, gitops.ErrPinned):
-		return "", "The repository pins the image by digest: change it there, with the new digest."
-	case err != nil:
-		return "", "The pull request could not be opened: " + err.Error()
+		return "The repository pins the image by digest: change it there, with the new digest."
+	case errors.Is(err, gitops.ErrDemo):
+		return "This is the demo: it shows the pull request it would open, and opens none."
+	}
+	return "The pull request could not be opened: " + err.Error()
+}
+
+// bump opens an upgrade's pull request, once: one opened before is returned as is. It returns the pull request's
+// address, or a message for the person who asked.
+func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade) (string, string) {
+	app := u.app
+	if open, ok := s.openPull(ctx, sc, app, u.to); ok { // proposed already: never twice
+		return open, ""
+	}
+	req := s.bumpRequest(u, by)
+	pr, err := s.pulls.OpenBump(ctx, req)
+	if err != nil {
+		return "", bumpError(err, req)
 	}
 	if err := s.store.RecordGitOpsPull(ctx, store.GitOpsPull{
 		Scope: sc, ServiceID: app.ServiceID, Environment: app.Environment,
-		TargetID: app.TargetID, WorkloadID: app.WorkloadID, From: app.Tag, To: to, URL: pr, OpenedBy: by,
+		TargetID: app.TargetID, WorkloadID: app.WorkloadID, From: app.Tag, To: u.to, URL: pr, OpenedBy: by,
 	}); err != nil {
 		s.log.ErrorContext(ctx, "recording a pull request failed", "url", pr, "err", err)
 	}
 	if err := s.store.Audit(ctx, store.AuditEntry{
 		OrgID: sc.OrgID, WorkspaceID: sc.WorkspaceID, Actor: by, Action: "gitops.pull_request",
-		Details: map[string]string{"service": service, "environment": app.Environment, "to": to, "url": pr},
+		Details: map[string]string{"service": u.service, "environment": app.Environment, "to": u.to, "url": pr},
 	}); err != nil {
 		s.log.ErrorContext(ctx, "audit log write failed", "action", "gitops.pull_request", "err", err)
 	}
@@ -168,36 +218,19 @@ func (s *Server) promotePR(w http.ResponseWriter, r *http.Request, p auth.Princi
 	if s.pulls == nil {
 		return back(w, r, page, "error", "Set GOLIASH_GITOPS_TOKEN on the server to open pull requests.")
 	}
-	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	u, ok, err := s.findUpgrade(ctx, p.Scope, r.FormValue("service"), r.FormValue("target_id"), r.FormValue("workload_id"), r.FormValue("version"))
 	if err != nil {
 		return err
 	}
-	list, err := versions.Promotions(ctx, s.store, p.Scope, o)
-	if err != nil {
-		return err
+	if !ok || u.app.Environment != r.FormValue("env") {
+		return back(w, r, page, "error", "That promotion is no longer waiting; the page is reloaded with what runs now.")
 	}
-	apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o)
-	if err != nil {
-		return err
+	u.page = page
+	url, msg := s.bump(ctx, p.Scope, p.User.Email, u)
+	if msg != "" {
+		return back(w, r, page, "error", msg)
 	}
-	for _, pr := range list {
-		if pr.Service.Name != r.FormValue("service") || pr.To.Name != r.FormValue("env") || pr.Version != r.FormValue("version") {
-			continue
-		}
-		for _, a := range promotionApps(apps, pr, s.canPR) {
-			if a.TargetID != r.FormValue("target_id") || a.WorkloadID != r.FormValue("workload_id") {
-				continue
-			}
-			why := fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006"))
-			vulns, _ := versions.UpgradeVulns(ctx, s.store, p.Scope, pr.Service.ID, pr.To.ID, a.Tag, pr.Version)
-			url, msg := s.bump(ctx, p.Scope, p.User.Email, pr.Service.Name, page, a, pr.Version, why, o.ReleaseURL[pr.Service.ID+"|"+pr.Version], vulns)
-			if msg != "" {
-				return back(w, r, page, "error", msg)
-			}
-			return back(w, r, page, "notice", "Pull request opened: "+url)
-		}
-	}
-	return back(w, r, page, "error", "That promotion is no longer waiting; the page is reloaded with what runs now.")
+	return back(w, r, page, "notice", "Pull request opened: "+url)
 }
 
 // promotionApps are the Argo CD applications a promotion would change: the service's, in the environment behind,

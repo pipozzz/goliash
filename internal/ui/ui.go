@@ -170,6 +170,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
 	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
+	mux.Handle("GET /services/{name}/gitops/preview", s.page(store.RoleViewer, s.previewGitOpsPR))
 	mux.Handle("POST /delivery/promote", s.page(m, s.promotePR))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
 	mux.Handle("GET /services/new", s.page(m, s.newService))
@@ -385,7 +386,7 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 func (s *Server) base(ctx context.Context, p auth.Principal, page, title string) Base {
 	b := Base{
 		Title: title, Page: page, Email: p.User.Email, Role: p.Role,
-		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(),
+		CanMember: p.Can(store.RoleMember), CanAdmin: p.Can(store.RoleAdmin), OrgAdmin: p.OrgWide(), PreviewPRs: s.demoPulls(),
 		Workspace: p.Workspace.Name, Demo: s.auth.Demo(), Goli: s.goliOn(),
 	}
 	if b.Goli {

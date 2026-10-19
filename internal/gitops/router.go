@@ -11,6 +11,7 @@ import (
 // Provider opens pull or merge requests in the repositories it supports.
 type Provider interface {
 	Supports(repo string) bool
+	Plan(ctx context.Context, b Bump) (Plan, error)
 	OpenBump(ctx context.Context, b Bump) (string, error)
 }
 
@@ -35,4 +36,26 @@ func (r Router) OpenBump(ctx context.Context, b Bump) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no token for %s", b.Repo)
+}
+
+// Plan is what a bump would change: the branch it starts from and each file before and after.
+type Plan struct {
+	Base    string
+	Changes []Change
+}
+
+// Change is one file a bump changes.
+type Change struct {
+	Path     string
+	Old, New []byte
+}
+
+// Plan reads what the upgrade would change with the repository's provider, and changes nothing.
+func (r Router) Plan(ctx context.Context, b Bump) (Plan, error) {
+	for _, p := range r {
+		if p.Supports(b.Repo) {
+			return p.Plan(ctx, b)
+		}
+	}
+	return Plan{}, fmt.Errorf("no token for %s", b.Repo)
 }

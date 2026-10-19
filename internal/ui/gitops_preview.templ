@@ -1,0 +1,56 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// GitOpsPreviewPage shows a pull request before it is opened: the files it changes and what it says.
+templ GitOpsPreviewPage(v GitOpsPreviewView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href={ templ.URL(v.ServiceURL) }>{ v.Service }</a> /</p>
+				<h1>Pull request preview</h1>
+				@aboutText("What Goliash would open in the repository the application deploys from: the files that pin the image, changed to the new version, and the pull request's text. Nothing is sent until you open it.")
+			</div>
+		</div>
+		<dl class="facts">
+			<div class="fact"><dt>Repository</dt><dd><a href={ templ.SafeURL(v.RepoURL) } target="_blank" rel="noopener" class="mono">{ v.Repo }</a></dd></div>
+			<div class="fact"><dt>Branch</dt><dd class="mono">{ v.Head }<div class="targets">{ "from " + orDash(v.From) }</div></dd></div>
+			<div class="fact"><dt>Title</dt><dd>{ v.Title }</dd></div>
+		</dl>
+		if v.Problem != "" {
+			<div class="notice error">{ v.Problem }</div>
+		}
+		for _, f := range v.Files {
+			<section class="panel">
+				<div class="panel-head"><h2 class="mono diff-path">{ f.Path }</h2></div>
+				<pre class="diff">
+					for _, l := range f.Lines {
+						<span class={ "diff-line", diffClass(l.Kind) }>{ diffMark(l.Kind) }{ l.Text }</span>
+					}
+				</pre>
+			</section>
+		}
+		<section class="panel">
+			<div class="panel-head"><h2>Description</h2></div>
+			<pre class="pr-body">{ v.Body }</pre>
+		</section>
+		if v.OpenAlready == "" && !v.CanOpen && v.PreviewPRs {
+			<p class="notice">This is the demo: it shows the pull request Goliash would open, and opens none. With your own repository it opens on a click.</p>
+		}
+		<div class="actions">
+			if v.OpenAlready != "" {
+				<a class="button" href={ templ.SafeURL(v.OpenAlready) } target="_blank" rel="noopener">Open the pull request it opened</a>
+			} else if v.CanOpen {
+				<form method="post" action={ templ.URL(v.OpenURL) }>
+					<input type="hidden" name="target_id" value={ v.TargetID }/>
+					<input type="hidden" name="workload_id" value={ v.WorkloadID }/>
+					<input type="hidden" name="to" value={ v.To }/>
+					<input type="hidden" name="return" value={ v.Return }/>
+					<button type="submit">Open the pull request</button>
+				</form>
+			}
+			<a class="button secondary" href={ templ.URL(v.ServiceURL) }>Back</a>
+		</div>
+	}
+}

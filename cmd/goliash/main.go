@@ -436,6 +436,7 @@ func serve(ctx context.Context, args []string) error {
 		"on shutdown, answer /readyz with 503 this long before closing, so load balancers stop sending (env GOLIASH_DRAIN)")
 	backupDir := fs.String("backup-dir", os.Getenv("GOLIASH_BACKUP_DIR"), "SQLite: write a backup here every day (env GOLIASH_BACKUP_DIR)")
 	demoUser := fs.String("demo-user", "", "a public read-only demo: sign every visitor in as this existing viewer and refuse all changes")
+	demoPulls := fs.Bool("demo-pulls", false, "demo data: preview the pull requests GitOps upgrades would open, open none (goliash try sets it)")
 	backupKeep := fs.Int("backup-keep", envInt("GOLIASH_BACKUP_KEEP", 7), "backups kept in -backup-dir (env GOLIASH_BACKUP_KEEP)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -612,7 +613,7 @@ func serve(ctx context.Context, args []string) error {
 		SMTP: smtpFromEnv().Addr != "", PushSubject: pushSubject(*publicURL), Version: buildinfo.Version,
 		Snapshots: svc, UpdateCheck: os.Getenv("GOLIASH_UPDATE_CHECK") != "off", Goli: assistant, API: mux,
 		GoliInDemo: os.Getenv("GOLIASH_DEMO_GOLI") == "true", GoliDocs: docs, Slack: slackFromEnv(log),
-		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"), PullRequests: gitOpsPulls(),
+		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"), PullRequests: gitOpsPulls(*demoPulls),
 	})
 	uiServer.Register(mux)
 	// An API token, or an OAuth access token an app got when someone allowed it (the 401 tells apps where).
@@ -1933,7 +1934,7 @@ func tryCmd(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	serveArgs := []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "warn"}
+	serveArgs := []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "warn", "-demo-pulls"}
 	if *public {
 		serveArgs = append(serveArgs, "-demo-user", "demo@goliash.dev")
 	}
@@ -2823,7 +2824,10 @@ func slackFromEnv(log *slog.Logger) *ui.SlackConfig {
 // GOLIASH_GITOPS_TOKEN (a token that may write contents and pull requests of the deploy repositories;
 // GOLIASH_GITOPS_GITHUB_API for GitHub Enterprise), on GitLab with GOLIASH_GITOPS_GITLAB_TOKEN (gitlab.com, or
 // GOLIASH_GITLAB_URL).
-func gitOpsPulls() ui.PullRequester {
+func gitOpsPulls(demo bool) ui.PullRequester {
+	if demo { // the demo data's repositories are made up: show what would be opened, open nothing
+		return gitops.Demo{}
+	}
 	var r gitops.Router
 	if token := os.Getenv("GOLIASH_GITOPS_TOKEN"); token != "" {
 		r = append(r, gitops.NewGitHub(token, os.Getenv("GOLIASH_GITOPS_GITHUB_API")))

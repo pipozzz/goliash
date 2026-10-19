@@ -1301,3 +1301,12 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
   font-size: 13px; font-weight: 400; line-height: 1.45; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); white-space: normal; }
 @media (pointer: coarse) { .panel-info > summary { width: 28px; height: 28px; } }
 @media print { .panel-info { display: none; } }
+
+/* A pull request preview: the change, line by line, and its description. */
+.diff, .pr-body { margin: 0; padding: 12px 16px; overflow-x: auto; font: 13px/1.55 var(--mono); }
+.diff-line { display: block; white-space: pre; }
+.diff-add { background: var(--ok-soft); color: var(--ok); }
+.diff-del { background: var(--bad-soft); color: var(--bad); }
+.diff-gap { color: var(--faint); }
+.diff-path { font-size: 14px; }
+.pr-body { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }

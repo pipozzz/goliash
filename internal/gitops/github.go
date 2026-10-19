@@ -68,32 +68,54 @@ var ErrPinned = errors.New("the image is pinned by digest")
 // maxFiles bounds how many YAML files under the path are read.
 const maxFiles = 200
 
-// OpenBump changes the tag in every YAML file under the path that pins it, on a new branch, and opens a pull
-// request; it returns the pull request's address. An open pull request from the same branch is returned as is.
-func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
+// ghPlan is what OpenBump would change, with what it needs to commit it.
+type ghPlan struct {
+	repoAPI, owner, base, baseSHA string
+	changes                       []ghChange
+}
+
+type ghChange struct {
+	path, sha string
+	old, new  []byte
+}
+
+// Plan reads what OpenBump would change, and changes nothing.
+func (g *GitHub) Plan(ctx context.Context, b Bump) (Plan, error) {
+	gp, err := g.plan(ctx, b)
+	if err != nil {
+		return Plan{}, err
+	}
+	p := Plan{Base: gp.base}
+	for _, c := range gp.changes {
+		p.Changes = append(p.Changes, Change{Path: c.path, Old: c.old, New: c.new})
+	}
+	return p, nil
+}
+
+func (g *GitHub) plan(ctx context.Context, b Bump) (ghPlan, error) {
 	owner, name, ok := g.ownerRepo(b.Repo)
 	if !ok {
-		return "", fmt.Errorf("%s is not a GitHub repository", b.Repo)
+		return ghPlan{}, fmt.Errorf("%s is not a GitHub repository", b.Repo)
 	}
-	repoAPI := "/repos/" + owner + "/" + name
-	base := b.Branch
-	if base == "" || base == "HEAD" {
+	gp := ghPlan{repoAPI: "/repos/" + owner + "/" + name, owner: owner, base: b.Branch}
+	if gp.base == "" || gp.base == "HEAD" {
 		var info struct {
 			DefaultBranch string `json:"default_branch"`
 		}
-		if err := g.do(ctx, http.MethodGet, repoAPI, nil, &info); err != nil {
-			return "", err
+		if err := g.do(ctx, http.MethodGet, gp.repoAPI, nil, &info); err != nil {
+			return gp, err
 		}
-		base = info.DefaultBranch
+		gp.base = info.DefaultBranch
 	}
 	var ref struct {
 		Object struct {
 			SHA string `json:"sha"`
 		} `json:"object"`
 	}
-	if err := g.do(ctx, http.MethodGet, repoAPI+"/git/ref/heads/"+escapePath(base), nil, &ref); err != nil {
-		return "", fmt.Errorf("branch %s: %w", base, err)
+	if err := g.do(ctx, http.MethodGet, gp.repoAPI+"/git/ref/heads/"+escapePath(gp.base), nil, &ref); err != nil {
+		return gp, fmt.Errorf("branch %s: %w", gp.base, err)
 	}
+	gp.baseSHA = ref.Object.SHA
 	var tree struct {
 		Tree []struct {
 			Path string `json:"path"`
@@ -101,15 +123,10 @@ func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
 			Size int    `json:"size"`
 		} `json:"tree"`
 	}
-	if err := g.do(ctx, http.MethodGet, repoAPI+"/git/trees/"+ref.Object.SHA+"?recursive=1", nil, &tree); err != nil {
-		return "", err
+	if err := g.do(ctx, http.MethodGet, gp.repoAPI+"/git/trees/"+gp.baseSHA+"?recursive=1", nil, &tree); err != nil {
+		return gp, err
 	}
 	dir := strings.Trim(path.Clean("/"+b.Path), "/")
-	type change struct {
-		path, sha string
-		content   []byte
-	}
-	var changes []change
 	pinned, read := false, 0
 	for _, f := range tree.Tree {
 		if f.Type != "blob" || f.Size > 512<<10 || !strings.HasSuffix(f.Path, ".yaml") && !strings.HasSuffix(f.Path, ".yml") {
@@ -125,25 +142,39 @@ func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
 			SHA     string `json:"sha"`
 			Content string `json:"content"`
 		}
-		if err := g.do(ctx, http.MethodGet, repoAPI+"/contents/"+escapePath(f.Path)+"?ref="+url.QueryEscape(base), nil, &file); err != nil {
-			return "", err
+		if err := g.do(ctx, http.MethodGet, gp.repoAPI+"/contents/"+escapePath(f.Path)+"?ref="+url.QueryEscape(gp.base), nil, &file); err != nil {
+			return gp, err
 		}
 		raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(file.Content, "\n", ""))
 		if err != nil {
-			return "", fmt.Errorf("%s: %w", f.Path, err)
+			return gp, fmt.Errorf("%s: %w", f.Path, err)
 		}
 		res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
 		pinned = pinned || res.Pinned
 		if res.Changes > 0 {
-			changes = append(changes, change{f.Path, file.SHA, res.Content})
+			gp.changes = append(gp.changes, ghChange{f.Path, file.SHA, raw, res.Content})
 		}
 	}
-	if len(changes) == 0 {
+	if len(gp.changes) == 0 {
 		if pinned {
-			return "", ErrPinned
+			return gp, ErrPinned
 		}
-		return "", ErrNoTag
+		return gp, ErrNoTag
 	}
+	return gp, nil
+}
+
+// OpenBump changes the tag in every YAML file under the path that pins it, on a new branch, and opens a pull
+// request; it returns the pull request's address. An open pull request from the same branch is returned as is.
+func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
+	gp, err := g.plan(ctx, b)
+	if err != nil {
+		return "", err
+	}
+	repoAPI, owner, base := gp.repoAPI, gp.owner, gp.base
+	ref := struct{ Object struct{ SHA string } }{}
+	ref.Object.SHA = gp.baseSHA
+	changes := gp.changes
 
 	// A branch of our own; one left from an earlier try gets a suffix.
 	head := b.Head
@@ -164,7 +195,7 @@ func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
 	}
 	for _, c := range changes {
 		body := map[string]string{
-			"message": b.CommitMsg, "content": base64.StdEncoding.EncodeToString(c.content), "sha": c.sha, "branch": head,
+			"message": b.CommitMsg, "content": base64.StdEncoding.EncodeToString(c.new), "sha": c.sha, "branch": head,
 		}
 		if err := g.do(ctx, http.MethodPut, repoAPI+"/contents/"+escapePath(c.path), body, nil); err != nil {
 			return "", fmt.Errorf("commit %s: %w", c.path, err)

@@ -48,43 +48,41 @@ func (g *GitLab) Supports(repo string) bool {
 	return err == nil && u.Host == g.host && strings.Count(strings.Trim(u.Path, "/"), "/") >= 1
 }
 
-// OpenBump changes the tag in every YAML file under the path that pins it, in one commit on a new branch, and
-// opens a merge request; it returns the merge request's address. An open merge request from the same branch is
-// returned as is.
-func (g *GitLab) OpenBump(ctx context.Context, b Bump) (string, error) {
+// Plan reads what OpenBump would change, and changes nothing.
+func (g *GitLab) Plan(ctx context.Context, b Bump) (Plan, error) {
+	_, p, err := g.plan(ctx, b)
+	return p, err
+}
+
+func (g *GitLab) plan(ctx context.Context, b Bump) (string, Plan, error) {
 	if !g.Supports(b.Repo) {
-		return "", fmt.Errorf("%s is not on %s", b.Repo, g.base)
+		return "", Plan{}, fmt.Errorf("%s is not on %s", b.Repo, g.base)
 	}
 	u, _ := url.Parse(b.Repo)
 	project := "/projects/" + url.PathEscape(strings.Trim(u.Path, "/"))
-	base := b.Branch
-	if base == "" || base == "HEAD" {
+	p := Plan{Base: b.Branch}
+	if p.Base == "" || p.Base == "HEAD" {
 		var info struct {
 			DefaultBranch string `json:"default_branch"`
 		}
 		if err := g.do(ctx, http.MethodGet, project, nil, &info); err != nil {
-			return "", err
+			return project, p, err
 		}
-		base = info.DefaultBranch
+		p.Base = info.DefaultBranch
 	}
 	dir := strings.Trim(path.Clean("/"+b.Path), "/")
-	type change struct {
-		path    string
-		content []byte
-	}
-	var changes []change
 	pinned, read := false, 0
 	for page := 1; page <= 10 && read < maxFiles; page++ {
 		var tree []struct {
 			Path string `json:"path"`
 			Type string `json:"type"`
 		}
-		q := url.Values{"ref": {base}, "recursive": {"true"}, "per_page": {"100"}, "page": {fmt.Sprint(page)}}
+		q := url.Values{"ref": {p.Base}, "recursive": {"true"}, "per_page": {"100"}, "page": {fmt.Sprint(page)}}
 		if dir != "" {
 			q.Set("path", dir)
 		}
 		if err := g.do(ctx, http.MethodGet, project+"/repository/tree?"+q.Encode(), nil, &tree); err != nil {
-			return "", fmt.Errorf("branch %s: %w", base, err)
+			return project, p, fmt.Errorf("branch %s: %w", p.Base, err)
 		}
 		for _, f := range tree {
 			if f.Type != "blob" || !strings.HasSuffix(f.Path, ".yaml") && !strings.HasSuffix(f.Path, ".yml") {
@@ -93,25 +91,45 @@ func (g *GitLab) OpenBump(ctx context.Context, b Bump) (string, error) {
 			if read++; read > maxFiles {
 				break
 			}
-			raw, err := g.raw(ctx, project+"/repository/files/"+url.PathEscape(f.Path)+"/raw?ref="+url.QueryEscape(base))
+			raw, err := g.raw(ctx, project+"/repository/files/"+url.PathEscape(f.Path)+"/raw?ref="+url.QueryEscape(p.Base))
 			if err != nil {
-				return "", err
+				return project, p, err
 			}
 			res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
 			pinned = pinned || res.Pinned
 			if res.Changes > 0 {
-				changes = append(changes, change{f.Path, res.Content})
+				p.Changes = append(p.Changes, Change{Path: f.Path, Old: raw, New: res.Content})
 			}
 		}
 		if len(tree) < 100 {
 			break
 		}
 	}
-	if len(changes) == 0 {
+	if len(p.Changes) == 0 {
 		if pinned {
-			return "", ErrPinned
+			return project, p, ErrPinned
 		}
-		return "", ErrNoTag
+		return project, p, ErrNoTag
+	}
+	return project, p, nil
+}
+
+// OpenBump changes the tag in every YAML file under the path that pins it, in one commit on a new branch, and
+// opens a merge request; it returns the merge request's address. An open merge request from the same branch is
+// returned as is.
+func (g *GitLab) OpenBump(ctx context.Context, b Bump) (string, error) {
+	project, p, err := g.plan(ctx, b)
+	if err != nil {
+		return "", err
+	}
+	base := p.Base
+	type change struct {
+		path    string
+		content []byte
+	}
+	var changes []change
+	for _, c := range p.Changes {
+		changes = append(changes, change{c.Path, c.New})
 	}
 
 	actions := make([]map[string]string, 0, len(changes))

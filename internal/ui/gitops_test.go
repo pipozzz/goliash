@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -63,6 +64,10 @@ type fakePulls struct{ got []gitops.Bump }
 
 func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
 
+func (f *fakePulls) Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error) {
+	return gitops.Demo{}.Plan(ctx, b)
+}
+
 func (f *fakePulls) OpenBump(_ context.Context, b gitops.Bump) (string, error) {
 	f.got = append(f.got, b)
 	return "https://github.com/acme/deploy/pull/7", nil
@@ -117,10 +122,10 @@ func TestOpenGitOpsPR(t *testing.T) {
 		t.Fatal("a viewer is offered a pull request")
 	}
 	_ = e.ui.checker.EvaluateDrift(ctx, sc) // the Updates page lists upstream drift (already recorded: fine)
-	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, "/gitops/pr") || !strings.Contains(page, `name="to" value="`+newer+`"`) {
+	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, "/gitops/preview?") || !strings.Contains(page, "to="+newer) {
 		t.Fatal("no Open PR on the Updates page")
 	}
-	if _, page := get(t, viewer, e.srv.URL+"/updates", nil); strings.Contains(page, "/gitops/pr") {
+	if _, page := get(t, viewer, e.srv.URL+"/updates", nil); strings.Contains(page, "/gitops/preview") {
 		t.Fatal("a viewer is offered a pull request on the Updates page")
 	}
 	_, body, _ = post(t, member, e.srv.URL+"/services/"+url.PathEscape(svc)+"/gitops/pr",
@@ -265,5 +270,62 @@ func TestAutoPRs(t *testing.T) {
 	}
 	if _, err := parseAutoPR("prod=everything"); err == nil {
 		t.Fatal("a bad jump accepted")
+	}
+}
+
+// The preview shows the change and the text before anything is opened; in the demo anyone may look, no one opens.
+func TestPreviewGitOpsPR(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svc := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, svc)
+	if _, err := e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	preview := e.srv.URL + "/services/" + url.PathEscape(svc) + "/gitops/preview?" + previewQuery(e.tgt.ID, "w1", "1.28.0", "")
+	member, viewer := e.as(store.RoleMember), e.as(store.RoleViewer)
+	_, page := get(t, member, preview, nil)
+	for _, want := range []string{
+		"Pull request preview", "apps/evil/prod/kustomization.yaml", `diff-del">- `, "newTag: &#34;1.27.2&#34;",
+		"newTag: &#34;1.28.0&#34;", "goliash/", "Upgrades **", "Open the pull request",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("preview misses %q", want)
+		}
+	}
+	if len(pulls.got) != 0 {
+		t.Fatal("the preview opened a pull request")
+	}
+	if code, _ := get(t, viewer, preview, nil); code != http.StatusNotFound {
+		t.Fatalf("a viewer previews: %d", code)
+	}
+
+	// The demo: a viewer sees the preview, without a button to open it.
+	e.ui.pulls = gitops.Demo{}
+	_, page = get(t, viewer, preview, nil)
+	if !strings.Contains(page, "This is the demo") || strings.Contains(page, "Open the pull request") || !strings.Contains(page, "kustomization.yaml") {
+		t.Fatal("the demo preview")
+	}
+}
+
+func TestDiffLines(t *testing.T) {
+	old := "a\nb\nc\nd\ne\nf\ng\nh\ni\n"
+	got := diffLines(old, strings.Replace(old, "h", "H", 1), 1)
+	var b strings.Builder
+	for _, l := range got {
+		b.WriteString(diffMark(l.Kind) + l.Text + "|")
+	}
+	if b.String() != "…|  g|- h|+ H|  i|" {
+		t.Fatalf("diff %q", b.String())
 	}
 }
