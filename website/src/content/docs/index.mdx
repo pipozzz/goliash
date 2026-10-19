@@ -4,10 +4,9 @@ description: Self-hosted, open-source version tracking for Kubernetes, Amazon EC
 template: splash
 hero:
   title: Goliash
-  tagline: What runs where, on which version, in which environment. One matrix for Kubernetes, Amazon ECS, AWS Lambda, Nomad, Docker Swarm and Compose, with upstream releases and drift.
+  tagline: What runs where, on which version, and the pull request that fixes it. Kubernetes, Amazon ECS, AWS Lambda, Nomad, Docker Swarm and Compose in one view, with upstream releases, drift, exploited vulnerabilities, Argo CD and Flux.
   image:
-    file: ../../assets/hero-matrix.webp
-    alt: 'The Goliash matrix: every service in every environment, with drift and upstream releases'
+    html: '<div class="hb" role="img" aria-label="Goliash service tiles: applications on a navy board, coloured by how current they are, with alerts that offer the pull request to fix them"><div class="hb-board"><div class="hb-t b"><b>webshop</b><s><i></i><em></em></s><span>payments-api 1.6.0 → 1.7.0</span></div><div class="hb-t w pulse"><b>identity</b><s><i></i><em></em></s><span>keycloak · Rollback PR</span></div><div class="hb-t w"><b>edge</b><s><i></i><em></em></s><span>traefik rollout stuck</span></div><div class="hb-t c"><b>monitoring</b><s><i></i><em></em></s><span>grafana 11.2.0</span></div><div class="hb-t b"><b>commerce</b><s><i></i><em></em></s><span>orders-api 3.10 → 3.11</span></div><div class="hb-t c"><b>search</b><s><i></i><em></em></s><span>elasticsearch 8.15.0</span></div><div class="hb-t b"><b>data</b><s><i></i><em></em></s><span>postgres 15.7 → 15.8</span></div><div class="hb-t c"><b>payments</b><s><i></i><em></em></s><span>4 of 4 up to date</span></div><div class="hb-t b"><b>dev-tools</b><s><i></i><em></em></s><span>gitea 1.22.1 → 1.22.3</span></div></div><div class="hb-feed"><p class="hb-n"><span>🔀</span>identity-staging degraded after keycloak 25.0.6<strong>Rollback PR → 25.0.1</strong></p><p class="hb-n"><span>🎯</span>webshop-staging out of sync: Git pins 1.7.0, 1.6.0 runs<strong>Sync it</strong></p><p class="hb-n"><span>📬</span>Renovate already proposed payments-api 1.7.0<strong>Linked, not duplicated</strong></p><p class="hb-n"><span>🚨</span>CVE-2024-6387 exploited in the wild, runs in prod<strong>Open PR → 9.8p1</strong></p></div></div>'
   actions:
     - text: Live demo
       link: https://demo.goliash.dev
@@ -37,9 +36,30 @@ import vulns from '../../assets/vulns.png';
 import timeline from '../../assets/timeline-tiles.png';
 import gitops from '../../assets/gitops.png';
 import gitopsPreview from '../../assets/gitops-preview.png';
+import gitopsPage from '../../assets/gitops-page.png';
+import gitopsRollback from '../../assets/gitops-rollback.png';
+import tiles from '../../assets/tiles.png';
 import goli from '../../assets/goli.svg';
 
-<Image src={matrix} alt="The Goliash matrix grouped by application: each application with its avatar and health bar, its services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" />
+<div class="tour">
+<input type="radio" name="tour" id="tour-tiles" checked />
+<input type="radio" name="tour" id="tour-matrix" />
+<input type="radio" name="tour" id="tour-gitops" />
+<input type="radio" name="tour" id="tour-rollback" />
+<input type="radio" name="tour" id="tour-security" />
+<div class="tour-tabs" role="tablist">
+<label for="tour-tiles">Tiles</label>
+<label for="tour-matrix">Matrix</label>
+<label for="tour-gitops">GitOps</label>
+<label for="tour-rollback">Rollback</label>
+<label for="tour-security">Security</label>
+</div>
+<figure class="tour-tiles"><Image src={tiles} alt="Service tiles: every application as a cell of a navy board, coloured by how current it is, with a strip of its state per environment" class="screenshot" /><figcaption>Every application as a tile, coloured by how current it is: by application, team, target or status, on any screen or a TV.</figcaption></figure>
+<figure class="tour-matrix"><Image src={matrix} alt="The Goliash matrix grouped by application: services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" /><figcaption>The matrix: every service in every environment, what drifts, and the newest upstream release.</figcaption></figure>
+<figure class="tour-gitops"><Image src={gitopsPage} alt="The GitOps applications page: every Argo CD application on every cluster, degraded and out of sync first, with Git pins, pull requests and Rollback PR buttons" class="screenshot" /><figcaption>Every Argo CD application and Flux Kustomization on every cluster: what Git pins, what runs, the pull request that moves it.</figcaption></figure>
+<figure class="tour-rollback"><Image src={gitopsRollback} alt="The Argo CD panel of keycloak: identity-staging Synced but Degraded since 48 minutes, with Open PR and a red Rollback PR → 25.0.1" class="screenshot" /><figcaption>Degraded right after a deploy? Goliash names the change and offers the rollback, as a pull request.</figcaption></figure>
+<figure class="tour-security"><Image src={security} alt="The Security page: median exposure of production, services behind for 30 or more days, end of life, accepted risk and blind spots" class="screenshot" /><figcaption>How long production has run behind a fix, what is past its end of life, and the pull request that closes it.</figcaption></figure>
+</div>
 
 Goliash watches what actually runs and tells you when a new release ships or when environments drift apart:
 staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
