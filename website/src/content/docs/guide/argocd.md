@@ -62,6 +62,8 @@ before again. Hover it to see why. The pull request says it rolls back, what wen
 known vulnerabilities the older version brings back. As with every pull request, you review and merge it, and
 GitOps deploys it.
 
+![The Argo CD panel of keycloak: identity-staging is Synced but Degraded since 48 minutes, with Open PR → 26.0.0 and a red Rollback PR → 25.0.1](../../../assets/gitops-rollback.png)
+
 The alert for a degraded or missing application says the same: *degraded on k8s-prod, an hour after 1.7.0
 replaced 1.6.2*, the likeliest cause first.
 

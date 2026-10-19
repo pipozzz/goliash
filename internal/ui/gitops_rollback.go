@@ -32,6 +32,6 @@ func (s *Server) rollbackFor(ctx context.Context, sc store.Scope, a versions.Git
 			from = "v" + from
 		}
 	}
-	return from, fmt.Sprintf("%s has been %s since %s, after it replaced %s on %s on %s",
-		a.App, trouble, a.SyncSince.UTC().Format("2 Jan 15:04 MST"), from, a.Target, at.UTC().Format("2 Jan 15:04 MST"))
+	return from, fmt.Sprintf("%s has been %s since %s, after %s replaced %s on %s on %s",
+		a.App, trouble, a.SyncSince.UTC().Format("2 Jan 15:04 MST"), a.Tag, from, a.Target, at.UTC().Format("2 Jan 15:04 MST"))
 }
