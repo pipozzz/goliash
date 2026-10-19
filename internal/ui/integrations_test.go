@@ -155,6 +155,18 @@ func TestSecurityPage(t *testing.T) {
 			t.Errorf("trend misses %q", want)
 		}
 	}
+	// The tiles filter the exposures: one just behind is listed, not among those behind for 30+ days.
+	svc, _ := e.st.GetServiceByName(t.Context(), e.ws.Scope(), e.serviceOf("evil"))
+	if _, err := e.st.InsertReleases(t.Context(), e.ws.Scope(), svc.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.ui.checker.EvaluateDrift(t.Context(), e.ws.Scope())
+	if _, page = get(t, viewer, e.srv.URL+"/security?env=all", nil); !strings.Contains(page, `class="mono">1.28.0`) || !strings.Contains(page, `href="/security?env=all&amp;show=eol#exposure"`) {
+		t.Fatal("the exposure or the tiles' links are missing")
+	}
+	if _, page = get(t, viewer, e.srv.URL+"/security?env=all&show=30", nil); strings.Contains(page, `class="mono">1.28.0`) || !strings.Contains(page, "Nothing behind for 30+ days.") || !strings.Contains(page, "Show all") {
+		t.Fatal("the 30+ days tile does not filter")
+	}
 	code, body := get(t, viewer, e.srv.URL+"/security.csv", nil)
 	if code != 200 || !strings.HasPrefix(body, "service,application,environment,targets,running,fix,behind_since,days_exposed,date_known") {
 		t.Errorf("csv %d: %.120s", code, body)

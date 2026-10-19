@@ -25,31 +25,31 @@ templ SecurityPage(v SecurityView) {
 			</div>
 		</div>
 		<div class="tiles">
-			<div class={ "tile", templ.KV("warn", v.ProdMedian > 30) }>
+			<a class={ "tile", templ.KV("warn", v.ProdMedian > 30), templ.KV("on", v.Show == "") } href={ templ.URL(securityHref(v, "") + "#exposure") } title="Every exposure">
 				<strong>{ days(v.ProdMedian) }</strong>
 				<span>Median exposure</span>
 				<small>{ "90th percentile " + days(v.ProdP90) + ", in " + v.Prod.Name }</small>
-			</div>
-			<div class={ "tile", templ.KV("warn", v.Prod30 > 0) }>
+			</a>
+			<a class={ "tile", templ.KV("warn", v.Prod30 > 0), templ.KV("on", v.Show == "30") } href={ templ.URL(securityHref(v, "30") + "#exposure") } title="Only what has run behind for more than 30 days">
 				<strong>{ itoa(v.Prod30) }</strong>
 				<span>Behind for 30+ days</span>
 				<small>{ itoa(v.Prod90) } of them 90+ days</small>
-			</div>
-			<div class={ "tile", templ.KV("warn", v.EOLPassed > 0) }>
+			</a>
+			<a class={ "tile", templ.KV("warn", v.EOLPassed > 0), templ.KV("on", v.Show == "eol") } href={ templ.URL(securityHref(v, "eol") + "#exposure") } title="Only what runs past its end of life">
 				<strong>{ itoa(v.EOLPassed) }</strong>
 				<span>Past end of life</span>
 				<small>{ itoa(v.EOLSoon) } more within 60 days</small>
-			</div>
-			<div class="tile">
+			</a>
+			<a class={ "tile", templ.KV("on", v.Show == "accepted") } href={ templ.URL(securityHref(v, "accepted") + "#exposure") } title="Only the exposures acknowledged as accepted risk">
 				<strong>{ itoa(v.Accepted) }</strong>
 				<span>Accepted risk</span>
 				<small>acknowledged in Goliash, with who and until when</small>
-			</div>
-			<div class={ "tile", templ.KV("warn", len(v.Stale) > 0 || !v.DigestOK) }>
+			</a>
+			<a class={ "tile", templ.KV("warn", len(v.Stale) > 0 || !v.DigestOK) } href="#blind-spots" title="Where the numbers may be incomplete">
 				<strong>{ itoa(len(v.Stale) + len(v.NoUpstream) + v.NoDigest) }</strong>
 				<span>Blind spots</span>
 				<small>stale targets, targets without digests, services without a known upstream</small>
-			</div>
+			</a>
 		</div>
 		if len(v.Trend) > 0 {
 			<section class="panel">
@@ -81,7 +81,7 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			</section>
 		}
-		<section class="panel">
+		<section class="panel" id="exposure">
 			<div class="panel-head">
 				<h2>
 					if v.All {
@@ -89,16 +89,24 @@ templ SecurityPage(v SecurityView) {
 					} else {
 						{ "Exposure in " + v.Prod.Name }
 					}
+					if v.Show != "" {
+						<span class="muted">{ " · " + securityShowLabel(v.Show) }</span>
+					}
 				</h2>
 				<span class="noprint">
+					if v.Show != "" {
+						<a href={ templ.URL(securityHref(v, "") + "#exposure") }>Show all</a>{ " · " }
+					}
 					if v.All {
-						<a href="/security">{ "Only " + v.Prod.Name }</a>
+						<a href={ templ.URL(securityHrefEnv(v, false)) }>{ "Only " + v.Prod.Name }</a>
 					} else {
-						<a href="/security?env=all">Every environment</a>
+						<a href={ templ.URL(securityHrefEnv(v, true)) }>Every environment</a>
 					}
 				</span>
 			</div>
-			if len(v.Exposures) == 0 {
+			if len(v.Exposures) == 0 && v.Show != "" {
+				<div class="empty">{ "Nothing " + securityShowLabel(v.Show) + "." }</div>
+			} else if len(v.Exposures) == 0 {
 				<div class="empty">Nothing runs behind a newer release{ " " }{ "in " + v.Prod.Name }.</div>
 			} else {
 				<div class="scroll" tabindex="0">
@@ -330,7 +338,7 @@ templ SecurityPage(v SecurityView) {
 					</table>
 				</div>
 			</section>
-			<section class="panel">
+			<section class="panel" id="blind-spots">
 				<div class="panel-head"><h2>Blind spots</h2>@panelInfo("where the numbers above may be incomplete")</div>
 				<div class="panel-body stack">
 					if len(v.Stale) == 0 {

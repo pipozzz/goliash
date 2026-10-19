@@ -34,6 +34,7 @@ type SecurityView struct {
 	NoDigest int // targets reporting no digest at all
 	At       time.Time
 	PRs      map[string][]PromotePR // service ID|environment ID: pull requests offered for an exposure
+	Show     string                 // the exposures shown: "" all, "30", "eol" or "accepted" (a tile clicked)
 	Trend    []TrendLine            // production over the last 90 days; empty until there are two days
 	Since    string                 // the first day of the trend
 }
@@ -145,6 +146,17 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		}
 		v.Exposures = prod
 	}
+	switch show := r.URL.Query().Get("show"); show {
+	case "30", "eol", "accepted":
+		v.Show = show
+		shown := v.Exposures[:0:0]
+		for _, ex := range v.Exposures {
+			if show == "30" && ex.Days > 30 || show == "eol" && ex.EOLPassed || show == "accepted" && ex.Acked {
+				shown = append(shown, ex)
+			}
+		}
+		v.Exposures = shown
+	}
 	if p.Can(store.RoleMember) || s.demoPulls() {
 		if v.PRs, err = s.exposurePRs(r.Context(), p.Scope, v.Exposures); err != nil {
 			return err
@@ -174,6 +186,32 @@ func (s *Server) exposurePRs(ctx context.Context, sc store.Scope, exs []versions
 		}
 	}
 	return out, nil
+}
+
+// securityHref links the Security page with its environment choice and the exposures to show.
+func securityHref(v SecurityView, show string) string {
+	q := url.Values{}
+	if v.All {
+		q.Set("env", "all")
+	}
+	if show != "" {
+		q.Set("show", show)
+	}
+	if len(q) == 0 {
+		return "/security"
+	}
+	return "/security?" + q.Encode()
+}
+
+// securityHrefEnv links the Security page in production only or every environment, keeping what it shows.
+func securityHrefEnv(v SecurityView, all bool) string {
+	v.All = all
+	return securityHref(v, v.Show) + "#exposure"
+}
+
+// securityShowLabel says what a tile shows: "behind for 30+ days".
+func securityShowLabel(show string) string {
+	return map[string]string{"30": "behind for 30+ days", "eol": "past end of life", "accepted": "accepted risk"}[show]
 }
 
 // securityCSV is every exposure as a spreadsheet, for audits and risk registers.
