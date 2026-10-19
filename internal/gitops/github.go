@@ -249,7 +249,7 @@ type httpError struct {
 	msg    string
 }
 
-func (e *httpError) Error() string { return fmt.Sprintf("GitHub answered %d: %s", e.status, e.msg) }
+func (e *httpError) Error() string { return fmt.Sprintf("the forge answered %d: %s", e.status, e.msg) }
 
 func (g *GitHub) do(ctx context.Context, method, p string, in, out any) error {
 	var body io.Reader

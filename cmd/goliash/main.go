@@ -2824,7 +2824,7 @@ func slackFromEnv(log *slog.Logger) *ui.SlackConfig {
 // gitOpsPulls opens upgrades as pull or merge requests in GitOps repositories: on GitHub with
 // GOLIASH_GITOPS_TOKEN (a token that may write contents and pull requests of the deploy repositories;
 // GOLIASH_GITOPS_GITHUB_API for GitHub Enterprise), on GitLab with GOLIASH_GITOPS_GITLAB_TOKEN (gitlab.com, or
-// GOLIASH_GITLAB_URL).
+// GOLIASH_GITLAB_URL), on Gitea or Forgejo with GOLIASH_GITOPS_GITEA_TOKEN and GOLIASH_GITEA_URL.
 func gitOpsPulls(demo bool) ui.PullRequester {
 	if demo { // the demo data's repositories are made up: show what would be opened, open nothing
 		return gitops.Demo{}
@@ -2835,6 +2835,9 @@ func gitOpsPulls(demo bool) ui.PullRequester {
 	}
 	if token := os.Getenv("GOLIASH_GITOPS_GITLAB_TOKEN"); token != "" {
 		r = append(r, gitops.NewGitLab(token, os.Getenv("GOLIASH_GITLAB_URL")))
+	}
+	if token, base := os.Getenv("GOLIASH_GITOPS_GITEA_TOKEN"), os.Getenv("GOLIASH_GITEA_URL"); token != "" && base != "" {
+		r = append(r, gitops.NewGitea(token, base))
 	}
 	if len(r) == 0 {
 		return nil

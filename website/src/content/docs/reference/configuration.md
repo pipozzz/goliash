@@ -27,6 +27,8 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITOPS_TOKEN` | | | A GitHub token that may write contents and pull requests of the GitOps repositories: upgrades open as pull requests from the Argo CD panel. See [Argo CD](/guide/argocd/#upgrade-with-a-pull-request) |
 | `GOLIASH_GITOPS_GITHUB_API` | | `https://api.github.com` | The GitHub API for `GOLIASH_GITOPS_TOKEN`, for GitHub Enterprise |
 | `GOLIASH_GITOPS_GITLAB_TOKEN` | | | A GitLab token (`api` scope, Developer on the deploy projects) for merge requests on gitlab.com, or on `GOLIASH_GITLAB_URL` |
+| `GOLIASH_GITOPS_GITEA_TOKEN` | | | A Gitea or Forgejo access token (`write:repository`) for pull requests on `GOLIASH_GITEA_URL` |
+| `GOLIASH_GITEA_URL` | | | The Gitea or Forgejo instance, e.g. `https://git.example.com` or `https://codeberg.org` |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |

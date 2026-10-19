@@ -76,7 +76,7 @@ func (r Router) PullState(ctx context.Context, pullURL string) (string, error) {
 
 // repoOf is the repository address of a pull or merge request address.
 func repoOf(pullURL string) string {
-	for _, sep := range []string{"/-/merge_requests/", "/pull/"} {
+	for _, sep := range []string{"/-/merge_requests/", "/pull/", "/pulls/"} {
 		if i := strings.Index(pullURL, sep); i > 0 {
 			return pullURL[:i]
 		}

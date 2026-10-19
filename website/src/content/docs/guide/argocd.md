@@ -89,7 +89,10 @@ application follows, and offers only the release the policy accepts. An image pi
 The token is a [fine-grained GitHub token](https://github.com/settings/personal-access-tokens) limited to the deploy
 repositories, with *Contents* and *Pull requests* read and write. For GitHub Enterprise set `GOLIASH_GITOPS_GITHUB_API`
 to its API address (`https://github.example.com/api/v3`). For GitLab set `GOLIASH_GITOPS_GITLAB_TOKEN`: a project or
-group access token with the `api` scope and the Developer role, on gitlab.com or the instance in `GOLIASH_GITLAB_URL`. Only members and admins see the button; each pull request is
+group access token with the `api` scope and the Developer role, on gitlab.com or the instance in `GOLIASH_GITLAB_URL`.
+For **Gitea or Forgejo** (Codeberg too) set `GOLIASH_GITEA_URL` to the instance (`https://git.example.com`) and
+`GOLIASH_GITOPS_GITEA_TOKEN` to an access token with `write:repository`; it needs Gitea 1.20 or Forgejo 1.20 or
+newer. Several can be set at once: each repository goes to the forge of its host. Only members and admins see the button; each pull request is
 in the audit log.
 
 ## Set up
