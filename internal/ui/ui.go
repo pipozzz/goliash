@@ -91,15 +91,16 @@ type Server struct {
 
 // Options wire the UI to the rest of the server.
 type Options struct {
-	Store     *store.Store
-	Auth      *auth.Auth
-	Checker   *versions.Checker
-	Notifier  *notifier.Notifier
-	Hub       *Hub
-	Log       *slog.Logger
-	PublicURL string
-	SMTP      bool   // whether e-mail is configured
-	Version   string // the server's release
+	GoliSeason string // GOLIASH_GOLI_SEASON: "" by the calendar, "off", or a season Goli always wears
+	Store      *store.Store
+	Auth       *auth.Auth
+	Checker    *versions.Checker
+	Notifier   *notifier.Notifier
+	Hub        *Hub
+	Log        *slog.Logger
+	PublicURL  string
+	SMTP       bool   // whether e-mail is configured
+	Version    string // the server's release
 	// UpdateCheck lets the status page ask Goliash's registry for a newer release of Goliash.
 	UpdateCheck bool
 	// ArgoCDURL is the Argo CD UI (GOLIASH_ARGOCD_URL), for links to applications; empty, no links.
@@ -133,6 +134,7 @@ var publicBase string
 // New returns the UI server.
 func New(o Options) *Server {
 	publicBase = strings.TrimSuffix(o.PublicURL, "/")
+	goliSeasonSetting = o.GoliSeason
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
 		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests, autoFailed: map[string]time.Time{},

@@ -1097,6 +1097,10 @@ a.live:hover { text-decoration: underline; }
 }
 .goli-fab .goli-art { width: 100%; height: 100%; transform-origin: 50% 100%; animation: goli-sway 5s ease-in-out infinite; }
 .goli-fab:hover { transform: translateY(-4px); }
+.goli-glow { animation: goli-flicker 2.4s ease-in-out infinite; }
+@keyframes goli-flicker { 0%, 100% { fill: #ffd56b; } 45% { fill: #ffb43d; } 55% { fill: #fff0a8; } }
+.goli-bat { transform-box: fill-box; transform-origin: 50% 50%; animation: goli-flap 1.2s ease-in-out infinite; }
+@keyframes goli-flap { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.6) translateY(-3px); } }
 .goli-fab:hover .goli-arm { animation: goli-wave 0.7s ease-in-out 2; }
 .goli-fab:active { transform: translateY(-1px) scale(0.96); }
 .goli-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 14px; }
@@ -1118,7 +1122,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .goli-corner { font-size: inherit; }
 .goli-thinking { display: flex; align-items: center; gap: 8px; }
 @media (prefers-reduced-motion: reduce) {
-  .goli-fab .goli-art, .goli-fab:hover .goli-arm, .goli-eyes, html.goli-busy .goli-bell, html.goli-done .goli-bell { animation: none; }
+  .goli-fab .goli-art, .goli-fab:hover .goli-arm, .goli-eyes, .goli-glow, .goli-bat, html.goli-busy .goli-bell, html.goli-done .goli-bell { animation: none; }
   .goli-fab, .goli-pupils, .goli-brow { transition: none; }
   .goli-pupils { transform: none; }
 }

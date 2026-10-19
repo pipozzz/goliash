@@ -3,10 +3,13 @@
 
 package ui
 
+import "time"
+
 // goliMascot is Goli, the plushie: the gentle giant with the release bell, round glasses, one raised eyebrow
-// and a stack of containers in its arm. Parts carry classes so CSS can make it blink and ring its bell.
+// and a stack of containers in its arm. Parts carry classes so CSS can make it blink and ring its bell. It dresses
+// for the season (goliSeason).
 templ goliMascot(class string) {
-	<svg class={ "goli-art", class } viewBox="128 64 404 534" aria-hidden="true" focusable="false">
+	<svg class={ "goli-art", class, seasonClass(goliSeason(time.Now())) } viewBox="128 64 404 534" aria-hidden="true" focusable="false">
 		<g class="goli-bell">
 			<path d="M320 178 Q312 145 320 118" stroke="#4a55b8" stroke-width="8" fill="none" stroke-linecap="round"></path>
 			<path d="M300 112 Q300 78 320 76 Q340 78 340 112 L346 120 L294 120 Z" fill="#f2b84b" stroke="#c98f27" stroke-width="3" stroke-linejoin="round"></path>
@@ -55,7 +58,72 @@ templ goliMascot(class string) {
 		</g>
 		<path d="M466 460 v24 M478 460 v24 M490 460 v24 M502 460 v24 M472 420 v22 M484 420 v22 M496 420 v22 M508 420 v22 M476 382 v20 M488 382 v20 M500 382 v20" stroke="#2b2d42" stroke-width="2" opacity="0.45"></path>
 		<ellipse cx="462" cy="440" rx="30" ry="58" transform="rotate(-30 462 440)" fill="#5f6cd6"></ellipse>
+		switch goliSeason(time.Now()) {
+			case "halloween":
+				@goliHalloween()
+			case "christmas":
+				@goliChristmas()
+			case "winter":
+				@goliWinter()
+			case "summer":
+				@goliSummer()
+		}
 	</svg>
+}
+
+// goliHalloween: a carved pumpkin in the free arm, glowing, and a bat by the bell.
+templ goliHalloween() {
+	<g class="goli-season">
+		<path d="M196 404 q-4 -14 6 -22" stroke="#4d7a2a" stroke-width="7" fill="none" stroke-linecap="round"></path>
+		<ellipse cx="200" cy="452" rx="58" ry="48" fill="#ef8a2b" stroke="#b85f12" stroke-width="3"></ellipse>
+		<path d="M200 405 Q178 452 200 499 M200 405 Q222 452 200 499 M168 414 Q150 452 168 492 M232 414 Q250 452 232 492" stroke="#c96a16" stroke-width="3" fill="none"></path>
+		<path class="goli-glow" d="M172 438 l14 -12 l6 16 Z M228 438 l-14 -12 l-6 16 Z M170 466 q30 22 60 0 l-8 10 l-8 -6 l-7 8 l-7 -8 l-7 8 l-8 -6 Z" fill="#ffd56b" stroke="#2b2d42" stroke-width="2.5" stroke-linejoin="round"></path>
+		<path class="goli-bat" d="M404 132 q10 -14 22 -4 q4 -8 10 0 q4 -8 10 0 q12 -10 22 4 q-14 -2 -18 10 q-6 -6 -12 0 q-6 -6 -12 0 q-4 -12 -22 -10 Z" fill="#2b2d42"></path>
+		<circle cx="430" cy="128" r="1.6" fill="#ffd56b"></circle>
+		<circle cx="438" cy="128" r="1.6" fill="#ffd56b"></circle>
+	</g>
+}
+
+// goliChristmas: a Santa hat the bell hangs from, and snowflakes.
+templ goliChristmas() {
+	<g class="goli-season">
+		<g transform="translate(0 -8)">
+		<path d="M232 204 Q262 120 352 108 Q420 102 452 156 Q414 150 408 204 Z" fill="#d94848" stroke="#a83232" stroke-width="3" stroke-linejoin="round"></path>
+		<ellipse cx="320" cy="204" rx="96" ry="20" fill="#fff" stroke="#e1e4ee" stroke-width="3"></ellipse>
+		<circle cx="454" cy="160" r="18" fill="#fff" stroke="#e1e4ee" stroke-width="3"></circle>
+		</g>
+		@goliSnow()
+	</g>
+}
+
+// goliWinter: a striped scarf, and snowflakes.
+templ goliWinter() {
+	<g class="goli-season">
+		<path d="M186 372 Q320 410 452 372 L456 400 Q320 440 182 400 Z" fill="#d94848" stroke="#a83232" stroke-width="3" stroke-linejoin="round"></path>
+		<path d="M226 384 l-4 26 M276 394 l-2 28 M330 398 l0 28 M384 392 l2 28 M430 380 l4 26" stroke="#fff" stroke-width="7" opacity="0.85"></path>
+		<path d="M380 404 L392 486 L428 480 L414 398 Z" fill="#d94848" stroke="#a83232" stroke-width="3" stroke-linejoin="round"></path>
+		<path d="M394 486 l-2 12 M406 484 l-1 13 M418 482 l0 13" stroke="#a83232" stroke-width="3" stroke-linecap="round"></path>
+		<path d="M384 430 l38 -6 M388 456 l38 -6" stroke="#fff" stroke-width="7" opacity="0.85"></path>
+		@goliSnow()
+	</g>
+}
+
+// goliSummer: sunglasses over the round ones.
+templ goliSummer() {
+	<g class="goli-season">
+		<circle cx="275" cy="290" r="39" fill="#2b2d42" opacity="0.88"></circle>
+		<circle cx="365" cy="290" r="39" fill="#2b2d42" opacity="0.88"></circle>
+		<path d="M252 274 l18 -12 M342 274 l18 -12" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity="0.6"></path>
+	</g>
+}
+
+// goliSnow: snowflakes around Goli.
+templ goliSnow() {
+	<g class="goli-snow" stroke="#8fb3e8" stroke-width="3" stroke-linecap="round">
+		<path d="M164 160 v24 M152 172 h24 M156 164 l16 16 M172 164 l-16 16"></path>
+		<path d="M500 250 v18 M491 259 h18 M494 253 l12 12 M506 253 l-12 12"></path>
+		<path d="M150 300 v14 M143 307 h14"></path>
+	</g>
 }
 
 // goliCorner is Goli waiting in the page's corner: a click opens the panel. It never speaks first.

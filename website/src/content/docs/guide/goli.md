@@ -64,6 +64,8 @@ stale. It never invents versions, services or CVEs, but it is a language model: 
 
 - **Ask Goli** in the header, or **Goli in the corner** of every page: the plushie opens the panel. It never pops up
   by itself; *Hide Goli from the corner* in the panel sends it away for your browser (the header button stays).
+  Goli dresses for the season: a carved pumpkin around Halloween, a Santa hat in December, a scarf in January and
+  February, sunglasses in summer (`GOLIASH_GOLI_SEASON=off` keeps it plain).
 - **Ctrl+K** (⌘K): type a question and pick *Ask Goli*.
 - **Brief** on every upgrade and next to a service's latest version (see above).
 - **Explain** on every [vulnerability](/guide/security/): what it is in plain words, where it runs, whether it is
