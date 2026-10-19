@@ -59,6 +59,11 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 				where += " @ " + a.TargetRevision
 			}
 			it.Text = Describe(it) + fmt.Sprintf(" (%s)", where)
+			if trouble == "out of sync" && n.pins != nil { // what did not go out
+				if pinned := n.pins(ctx, a); pinned != "" {
+					it.Text += fmt.Sprintf(": Git pins %s, %s runs", pinned, a.Tag)
+				}
+			}
 			if trouble != "out of sync" { // unhealthy: say what changed just before, the likeliest cause
 				if from, at, ok := versions.Replaced(ctx, n.store, sc, a, now.Add(-7*24*time.Hour)); ok {
 					it.Text += fmt.Sprintf(", %s after %s replaced %s",
@@ -72,6 +77,11 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// SetGitPins lets an out-of-sync alert say which version Git pins, read through the GitOps repository's forge.
+func (n *Notifier) SetGitPins(pins func(ctx context.Context, a versions.GitOpsApp) string) {
+	n.pins = pins
 }
 
 // linkLabel names an item's link: release notes, or for an Argo CD alert the commit last synced.

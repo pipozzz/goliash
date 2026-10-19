@@ -1334,8 +1334,9 @@ func markRollouts(g *MatrixGrid, issues []versions.RolloutIssue) {
 }
 
 // markGitOps badges the cells whose Argo CD application has been out of sync, degraded or missing for a while:
-// what Git declares is not what runs, or what runs is not healthy.
-func markGitOps(g *MatrixGrid, apps []versions.GitOpsApp, now time.Time) {
+// what Git declares is not what runs, or what runs is not healthy. pinned, when not nil, is the version Git pins
+// for an application out of sync, or "".
+func markGitOps(g *MatrixGrid, apps []versions.GitOpsApp, now time.Time, pinned func(versions.GitOpsApp) string) {
 	byCell := map[string][]versions.GitOpsApp{} // service + "|" + environment
 	for _, a := range apps {
 		if a.Trouble(now) != "" {
@@ -1357,7 +1358,13 @@ func markGitOps(g *MatrixGrid, apps []versions.GitOpsApp, now time.Time) {
 			}
 			var details []string
 			for _, a := range list {
-				details = append(details, gitOpsLine(a, now))
+				line := gitOpsLine(a, now)
+				if pinned != nil {
+					if p := pinned(a); p != "" {
+						line += ", Git pins " + p + " (" + a.Tag + " runs)"
+					}
+				}
+				details = append(details, line)
 			}
 			short := map[string]string{"flux": "Flux"}[list[0].Tool]
 			if short == "" {

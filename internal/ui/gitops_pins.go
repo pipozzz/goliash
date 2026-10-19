@@ -52,6 +52,37 @@ func (s *Server) gitPins(a versions.GitOpsApp, now time.Time) string {
 	return e.tags[0]
 }
 
+// GitPinsNow is gitPins for an alert, which may wait: what was last read when it is fresh, else read now. ""
+// when the application is not out of sync, Git pins what runs, or nothing is known.
+func (s *Server) GitPinsNow(ctx context.Context, a versions.GitOpsApp) string {
+	now := time.Now()
+	if s.pulls == nil || a.Trouble(now) != "out of sync" || !s.canPR(a) {
+		return ""
+	}
+	b := gitops.Bump{Repo: versions.RepoWebURL(a.Repo), Branch: a.TargetRevision, Path: a.Path, Image: versions.ParseImage(a.Image).Repo()}
+	key := b.Repo + "|" + b.Branch + "|" + b.Path + "|" + b.Image
+	pins.mu.Lock()
+	e, ok := pins.byID[key]
+	pins.mu.Unlock()
+	tags := e.tags
+	if !ok || now.Sub(e.at) > pinsTTL {
+		rctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		read, err := s.pulls.Pinned(rctx, b)
+		if err != nil {
+			return ""
+		}
+		tags = read
+		pins.mu.Lock()
+		pins.byID[key] = pinsEntry{tags: tags, at: time.Now()}
+		pins.mu.Unlock()
+	}
+	if len(tags) != 1 || tags[0] == a.Tag {
+		return ""
+	}
+	return tags[0]
+}
+
 // readPins reads what the application's files pin, and keeps it, failures included (as nothing), until pinsTTL.
 func (s *Server) readPins(key string, b gitops.Bump) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

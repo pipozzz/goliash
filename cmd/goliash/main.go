@@ -616,6 +616,7 @@ func serve(ctx context.Context, args []string) error {
 		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"), PullRequests: gitOpsPulls(*demoPulls),
 	})
 	uiServer.Register(mux)
+	notify.SetGitPins(uiServer.GitPinsNow)
 	// An API token, or an OAuth access token an app got when someone allowed it (the 401 tells apps where).
 	mux.Handle("/mcp", mcpserver.HTTPHandler(loopbackURL(*listen), uiServer.OAuthResourceMetadataURL))
 	// Goli answering questions about Goliash on a website, from its documentation only.

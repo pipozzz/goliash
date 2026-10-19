@@ -494,7 +494,7 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 		markRollouts(&g, issues)
 	}
 	if apps, err := versions.GitOpsApps(ctx, s.store, sc, o); err == nil {
-		markGitOps(&g, apps, time.Now())
+		markGitOps(&g, apps, time.Now(), func(a versions.GitOpsApp) string { return s.gitPins(a, time.Now()) })
 	}
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {

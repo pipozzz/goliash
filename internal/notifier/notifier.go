@@ -149,6 +149,7 @@ type Notifier struct {
 	goli    bool
 	running string                                                    // this server's version
 	newer   func(ctx context.Context, running string) (string, error) // a newer Goliash, or ""
+	pins    func(ctx context.Context, a versions.GitOpsApp) string    // the version Git pins, out of sync, or ""
 }
 
 // TakeFunc writes Goli's take on a message: plain text, a few sentences. plan says whether it is an upgrade plan

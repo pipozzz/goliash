@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 func TestGitOpsAlerts(t *testing.T) {
@@ -41,6 +42,7 @@ func TestGitOpsAlerts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	e.n.SetGitPins(func(context.Context, versions.GitOpsApp) string { return "1.6.0" })
 	set(now.Add(-2 * time.Minute)) // just changed: not yet
 	if err := e.n.CheckGitOps(ctx); err != nil {
 		t.Fatal(err)
@@ -60,7 +62,7 @@ func TestGitOpsAlerts(t *testing.T) {
 		_ = e.n.DeliverDue(ctx)
 	}
 	all := strings.Join(slack.all(), "\n")
-	if slack.count() != 1 || !strings.Contains(all, "Argo CD application api-prod is out of sync on k8s-prod (apps/api/prod @ main)") ||
+	if slack.count() != 1 || !strings.Contains(all, "Argo CD application api-prod is out of sync on k8s-prod (apps/api/prod @ main): Git pins 1.6.0, 1.5.0 runs") ||
 		!strings.Contains(all, "https://github.com/acme/deploy/commit/4f1c2e9") {
 		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
 	}

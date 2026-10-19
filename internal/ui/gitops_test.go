@@ -549,6 +549,14 @@ func TestGitPins(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+	if _, matrix := get(t, viewer, e.srv.URL+"/?view=table", nil); !strings.Contains(matrix, "Git pins 9.9.9 (") {
+		t.Fatal("the matrix does not say what Git pins")
+	}
+	o, _ := versions.LoadOverview(ctx, e.st, sc)
+	apps, _ := versions.GitOpsApps(ctx, e.st, sc, o)
+	if got := e.ui.GitPinsNow(ctx, apps[0]); got != "9.9.9" {
+		t.Fatalf("GitPinsNow = %q", got)
+	}
 	// Git pins the newest release already: no pull request to offer, it waits for a sync.
 	svc, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
 	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"9.9.9"}); err != nil {
