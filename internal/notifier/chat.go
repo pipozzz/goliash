@@ -29,6 +29,9 @@ func lines(msg Message, link func(text, url string) string) (title string, body 
 		if it.URL != "" {
 			line += " " + link(strings.ToLower(linkLabel(it)), it.URL)
 		}
+		if a := actionURL(msg.Link, it); a != "" {
+			line += " " + link(it.Action, a)
+		}
 		body = append(body, line)
 	}
 	return title, body

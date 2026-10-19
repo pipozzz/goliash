@@ -274,6 +274,11 @@ func slackBlocks(msg Message) []map[string]any {
 			}
 		}
 		actions := []any{button(label, u, true)}
+		if single {
+			if a := actionURL(msg.Link, msg.Items[0]); a != "" {
+				actions = append(actions, button(msg.Items[0].Action, a, false))
+			}
+		}
 		if g := goliLink(msg); g != "" {
 			actions = append(actions, button("Ask Goli", g, false))
 		}
@@ -333,6 +338,9 @@ func discordEmbeds(msg Message) []map[string]any {
 		}
 		if it.URL != "" {
 			fields = append(fields, map[string]any{"name": linkLabel(it), "value": "[open](" + it.URL + ")", "inline": true})
+		}
+		if a := actionURL(msg.Link, it); a != "" {
+			fields = append(fields, map[string]any{"name": it.Action, "value": "[preview](" + a + ")", "inline": true})
 		}
 		if fields != nil {
 			e["fields"] = fields

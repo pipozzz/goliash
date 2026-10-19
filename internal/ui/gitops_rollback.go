@@ -34,3 +34,10 @@ func (s *Server) rollbackFor(ctx context.Context, sc store.Scope, a versions.Git
 	return from, fmt.Sprintf("%s has been %s since %s, after %s replaced %s on %s on %s",
 		a.App, trouble, a.SyncSince.UTC().Format("2 Jan 15:04 MST"), a.Tag, from, a.Target, at.UTC().Format("2 Jan 15:04 MST"))
 }
+
+// RollbackOffer is the version the service page offers a degraded application a rollback pull request to, for its
+// alert's button; "" when it offers none.
+func (s *Server) RollbackOffer(ctx context.Context, sc store.Scope, a versions.GitOpsApp) string {
+	to, _ := s.rollbackFor(ctx, sc, a, time.Now())
+	return to
+}

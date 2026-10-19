@@ -6,6 +6,7 @@ package notifier
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -68,6 +69,12 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 				if from, at, ok := versions.Cause(ctx, n.store, sc, a); ok {
 					it.Text += fmt.Sprintf(", %s after %s replaced %s",
 						since(at, a.SyncSince), a.Tag, from)
+					if n.rollback != nil {
+						if to := n.rollback(ctx, sc, a); to != "" { // one click from the alert to the pull request
+							q := url.Values{"target_id": {a.TargetID}, "workload_id": {a.WorkloadID}, "to": {to}}
+							it.Action, it.ActionPath = "Rollback PR → "+to, "/services/"+url.PathEscape(a.Service)+"/gitops/preview?"+q.Encode()
+						}
+					}
 				}
 			}
 			dedup := fmt.Sprintf("%s|%s|%s|%s|%d", EventGitOps, trouble, a.TargetID, a.WorkloadID, a.SyncSince.Unix())
@@ -77,6 +84,19 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// SetRollback lets an alert about a degraded application offer the rollback pull request Goliash would open.
+func (n *Notifier) SetRollback(rollback func(ctx context.Context, sc store.Scope, a versions.GitOpsApp) string) {
+	n.rollback = rollback
+}
+
+// actionURL is where an item's action button leads, or "".
+func actionURL(base string, it Item) string {
+	if base == "" || it.Action == "" || it.ActionPath == "" {
+		return ""
+	}
+	return base + it.ActionPath
 }
 
 // SetGitPins lets an out-of-sync alert say which version Git pins, read through the GitOps repository's forge.

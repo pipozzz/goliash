@@ -80,7 +80,8 @@ GitOps deploys it.
 ![The Argo CD panel of keycloak: identity-staging is Synced but Degraded since 48 minutes, with Open PR → 26.0.0 and a red Rollback PR → 25.0.1](../../../assets/gitops-rollback.png)
 
 The alert for a degraded or missing application says the same: *degraded on k8s-prod, an hour after 1.7.0
-replaced 1.6.2*, the likeliest cause first.
+replaced 1.6.2*, the likeliest cause first. Its **Rollback PR → 1.6.2** button (Slack, Teams,
+Discord, chat, e-mail) opens that pull request's preview in Goliash: from the alert to the fix in one click.
 
 ### Automatic pull requests
 

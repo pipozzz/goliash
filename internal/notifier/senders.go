@@ -113,7 +113,7 @@ func (s Slack) Send(ctx context.Context, ch store.Channel, msg Message) error {
 
 func slackLine(it Item) string {
 	if it.URL != "" {
-		return it.Text + " <" + it.URL + "|release notes>"
+		return it.Text + " <" + it.URL + "|" + strings.ToLower(linkLabel(it)) + ">"
 	}
 	return it.Text
 }
@@ -186,6 +186,9 @@ func (e Email) Send(ctx context.Context, ch store.Channel, msg Message) error {
 		fmt.Fprintf(&body, "- %s (%s)\r\n", it.Text, it.At.Format("2006-01-02 15:04 MST"))
 		if it.URL != "" {
 			fmt.Fprintf(&body, "  %s\r\n", it.URL)
+		}
+		if a := actionURL(msg.Link, it); a != "" {
+			fmt.Fprintf(&body, "  %s: %s\r\n", it.Action, a)
 		}
 	}
 	if u := openLink(msg); u != "" {

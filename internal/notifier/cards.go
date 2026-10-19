@@ -97,8 +97,15 @@ func teamsCard(msg Message) map[string]any {
 		if u := itemLink(msg.Link, it); u != "" {
 			c["selectAction"] = map[string]any{"type": "Action.OpenUrl", "url": u}
 		}
+		var acts []any
 		if it.URL != "" {
-			items = append(items, map[string]any{"type": "ActionSet", "actions": []any{map[string]any{"type": "Action.OpenUrl", "title": linkLabel(it), "url": it.URL}}})
+			acts = append(acts, map[string]any{"type": "Action.OpenUrl", "title": linkLabel(it), "url": it.URL})
+		}
+		if a := actionURL(msg.Link, it); a != "" {
+			acts = append(acts, map[string]any{"type": "Action.OpenUrl", "title": it.Action, "url": a})
+		}
+		if len(acts) > 0 {
+			items = append(items, map[string]any{"type": "ActionSet", "actions": acts})
 			c["items"] = items
 		}
 		body = append(body, c)

@@ -36,7 +36,9 @@ type Item struct {
 	Note        string    `json:"note,omitempty"`
 	At          time.Time `json:"at"`
 	Text        string    `json:"text"`
-	URL         string    `json:"url,omitempty"` // release notes of a new release
+	URL         string    `json:"url,omitempty"`         // release notes of a new release
+	Action      string    `json:"action,omitempty"`      // a button for what to do about it: "Rollback PR → 1.4.2"
+	ActionPath  string    `json:"action_path,omitempty"` // and where it leads in Goliash, a path under the public URL
 }
 
 // Message is what one delivery sends: one item, or a digest of many.
@@ -150,6 +152,8 @@ type Notifier struct {
 	running string                                                    // this server's version
 	newer   func(ctx context.Context, running string) (string, error) // a newer Goliash, or ""
 	pins    func(ctx context.Context, a versions.GitOpsApp) string    // the version Git pins, out of sync, or ""
+	// rollback is the version a rollback pull request would pin for a degraded application, or "".
+	rollback func(ctx context.Context, sc store.Scope, a versions.GitOpsApp) string
 }
 
 // TakeFunc writes Goli's take on a message: plain text, a few sentences. plan says whether it is an upgrade plan

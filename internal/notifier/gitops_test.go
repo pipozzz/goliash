@@ -74,6 +74,8 @@ func TestGitOpsAlerts(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	e.n.SetPublicURL("https://goliash.example.com")
+	e.n.SetRollback(func(context.Context, store.Scope, versions.GitOpsApp) string { return "1.4.2" })
 	g.Sync, g.Health = "Synced", "Degraded"
 	set(now.Add(-time.Hour))
 	if err := e.n.CheckGitOps(ctx); err != nil {
@@ -82,6 +84,10 @@ func TestGitOpsAlerts(t *testing.T) {
 	_ = e.n.DeliverDue(ctx)
 	if all := strings.Join(slack.all(), "\n"); slack.count() != 2 || !strings.Contains(all, "is degraded on k8s-prod (apps/api/prod @ main), an hour after 1.5.0 replaced 1.4.2") {
 		t.Fatalf("want the degraded alert with its cause, got %d:\n%s", slack.count(), all)
+	}
+	if all := strings.Join(slack.all(), "\n"); !strings.Contains(all, "Rollback PR → 1.4.2") ||
+		!strings.Contains(all, "https://goliash.example.com/services/payments-api/gitops/preview?") {
+		t.Fatalf("no rollback button:\n%s", all)
 	}
 }
 
