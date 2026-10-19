@@ -13,7 +13,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Whether a pull request changes anything the jobs below check. One that only changes the documentation or the
+  # Nomad pack (the release's version bump) skips them; a push to main runs them all.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -Ev '^(website/|deploy/nomad/pack/)|\.md$' || true)
+          echo "$changed"
+          if [ -n "$changed" ]; then echo code=true >> "$GITHUB_OUTPUT"; else echo code=false >> "$GITHUB_OUTPUT"; fi
+
   lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,6 +48,8 @@ jobs:
           version: v2.14
 
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,6 +82,8 @@ jobs:
   # A database filled by an older release must migrate and keep its data: from the
   # first release and from the latest one, on SQLite and PostgreSQL.
   upgrade:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -99,6 +122,8 @@ jobs:
           done
 
   docker:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -115,6 +140,8 @@ jobs:
           args: check
 
   e2e-kubernetes:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     # Server and agent installed with the Helm charts into a kind cluster; a rollout
     # must show up in the matrix and as a version_changed event.
     runs-on: ubuntu-latest
@@ -131,6 +158,8 @@ jobs:
         run: scripts/e2e/kubernetes.sh
 
   deploy:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -156,6 +185,8 @@ jobs:
         run: pipx run cfn-lint deploy/ecs/goliash-agent.cfn.yaml
 
   build:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
