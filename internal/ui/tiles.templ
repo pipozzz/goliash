@@ -33,10 +33,14 @@ templ TilesPage(v TilesView) {
 					<p class="sub" data-tl-asof hidden?={ v.At == "" }>As of <strong data-tl-asof-date>{ strings.Replace(v.At, "T", " ", 1) } UTC</strong>: what ran then, against the newest releases out by then, with drift as it was.</p>
 					<div data-tl-live hidden?={ v.At != "" }>@aboutText("Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.")</div>
 				</div>
+				<div class="tiles-head-end">
+					if v.At == "" {
+						@viewTabsBar(v.Views)
+						<a href={ templ.URL(tilesWithAt(v, v.Yesterday)) } class="toolbar-link timetravel-open" data-tl-open hx-boost="false" title="Scrub through what ran when, deployment by deployment">Time travel</a>
+					}
+					<a class="toolbar-link" href={ templ.URL(tilesWith(v, "tv", "1")) } title="Full screen, for a wall screen">TV mode</a>
+				</div>
 			</div>
-			if v.At == "" {
-				@viewTabsBar(v.Views)
-			}
 			<div class="toolbar tiles-toolbar">
 				<nav class="segmented" aria-label="View">
 					<span class="muted">View</span>
@@ -60,10 +64,11 @@ templ TilesPage(v TilesView) {
 					<a href={ templ.URL(tilesWith(v, "env", "side")) } class={ templ.KV("on", v.Env == "side") } title="One board per environment">Side by side</a>
 				</nav>
 				<span class="spacer"></span>
-				if v.At == "" {
-					<a href={ templ.URL(tilesWithAt(v, v.Yesterday)) } class="toolbar-link timetravel-open" data-tl-open hx-boost="false" title="Scrub through what ran when, deployment by deployment">Time travel</a>
+				if v.App == "" {
+					<div id="tiles-legend">
+						@tileLegend(v.Counts)
+					</div>
 				}
-				<a class="toolbar-link" href={ templ.URL(tilesWith(v, "tv", "1")) } title="Full screen, for a wall screen">TV mode</a>
 			</div>
 			@timeTravel(newTimeTravel("tiles", tilesWithAt(v, ""), v.GroupBy, v.At))
 		}
@@ -72,10 +77,13 @@ templ TilesPage(v TilesView) {
 			hx-get={ tilesHref(v, v.App) }
 			hx-trigger="goliash:changed from:body, every 60s"
 			hx-select=".tiles-live"
+			if !v.TV && v.App == "" {
+				hx-select-oob="#tiles-legend"
+			}
 			hx-swap="outerHTML"
 			hx-disinherit="*"
 		>
-			if v.App == "" {
+			if v.App == "" && v.TV {
 				@tileLegend(v.Counts)
 			}
 			if v.App != "" && v.Only {
@@ -87,7 +95,7 @@ templ TilesPage(v TilesView) {
 			} else if v.Env == "side" {
 				@envBoards(v)
 			} else {
-				<div style={ "--rows:" + itoa(v.Rows) }>
+				<div class="board-fit" style={ "--rows:" + itoa(v.Rows) }>
 					@board(v.Items, v.Cols, false)
 				</div>
 			}

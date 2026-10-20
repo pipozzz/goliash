@@ -690,6 +690,14 @@ body.kiosk main { max-width: none; padding: 18px 28px; }
 .tv-exit { font-size: 13px; color: var(--muted); }
 .tv-exit:hover { color: var(--accent); }
 body.kiosk .logo-board:not(.compact) { max-width: min(100%, calc((100vh - 150px) * var(--cols) / var(--rows, 3))); }
+/* Outside TV mode the board fits the screen's height too, under the header and the toolbar, never smaller than
+   a readable 420px. */
+body:not(.kiosk) .board-fit > .logo-board:not(.compact) {
+  max-width: min(calc(var(--cols) * 190px + 120px), max(420px, calc((100vh - 290px) * var(--cols) / var(--rows, 3))));
+}
+.tiles-toolbar #tiles-legend .tile-legend { justify-content: flex-end; }
+.tiles-head-end { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+.tiles-head-end .view-tabs { margin: 0; }
 body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px; }
 /* Tiles: focus, and small screens (names and env strips only). */
 .board-cell:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
