@@ -16,6 +16,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/api"
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -115,7 +116,10 @@ type BoardItem struct {
 }
 
 // TileEnv is a cell's state in one environment.
-type TileEnv struct{ Env, State, Title string }
+type TileEnv struct {
+	Env, State, Title string
+	PRs               []CellPR // the pull request that moves it to the newest release: its preview, or the one opened
+}
 
 // TileCell is one service, for the icons and the details panel.
 type TileCell struct {
@@ -177,7 +181,7 @@ func service(r MatrixRow, envs []EnvHeader, env string) (TileCell, string, strin
 		} else {
 			title += versionOf(cell) + " · " + tileLabel(st)
 		}
-		c.Envs = append(c.Envs, TileEnv{Env: envs[i].Name, State: st, Title: title})
+		c.Envs = append(c.Envs, TileEnv{Env: envs[i].Name, State: st, Title: title, PRs: cell.PRs})
 		if env == "" || env == envs[i].Name {
 			c.State = worse(c.State, st)
 			if st != stNone {
@@ -214,6 +218,9 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		var err error
 		if g, err = s.overview(r.Context(), p.Scope, matrixGroupBy(q.Get("group"))); err != nil {
 			return err
+		}
+		if q.Get("app") != "" && q.Get("tv") != "1" && (p.Can(store.RoleMember) || s.demoPulls()) {
+			s.markPRs(r.Context(), p.Scope, &g) // an application's services offer their upgrade, as the matrix does
 		}
 	}
 	v := TilesView{

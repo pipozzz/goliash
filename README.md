@@ -79,7 +79,7 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Upgrades as pull requests.** Upgrades, promotions and rollbacks open as pull requests (GitHub, GitHub Enterprise,
   GitLab, Gitea and Forgejo) that change the tag where manifests, Kustomize, Helm values, Nomad jobs, Compose files,
   ECS task definitions or Terraform pin it — with Argo CD or Flux, or without, from `goliash.git.*` labels. Each
-  is previewed first and says why, what it fixes and which licenses it brings. Open one from the service page, the
+  is previewed first and says why, what it fixes and which licenses it brings. Open one from the service page, the tiles, the
   matrix, Updates, Security, the alert or the weekly plan; tick several to open them together, or one per repository;
   promote a whole application in one; let a version policy open them by itself. Renovate's and Dependabot's are
   linked, not duplicated; reviewers, labels, CI checks and reminders included. You review, GitOps deploys.

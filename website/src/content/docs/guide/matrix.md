@@ -85,7 +85,9 @@ to compare with, and warm means it needs attention: end of life, or targets disa
   screen (`&env=prod&tv=1`); save it as a [view](#saved-views) to keep it a click away.
 
 ![An application's card laid over the global board: webshop's services as cells, the board behind dimmed with webshop marked](../../../assets/tiles-card.png) Open a service for its versions per environment, the newest release with its notes, its drift and a link to
-  its page; Escape closes it.
+  its page; Escape closes it. Where a GitOps application deploys it, each environment behind offers **PR → version**
+  (its [pull request](/guide/argocd/#upgrade-with-a-pull-request), previewed first), or links the one already open;
+  when its newest release is unknown, it says [why](/guide/security/#newest-release-unknown).
 - **Env** colours the board for one environment. **Side by side** draws one board per environment with every
   application in the same place, so you can see at a glance where prod lags behind staging.
 

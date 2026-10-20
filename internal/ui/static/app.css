@@ -1339,3 +1339,5 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .cell-pr.offer { padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); }
 .cell-pr.offer:hover { border-color: var(--accent); text-decoration: none; }
 .freeze-banner { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid #8fb3e8; background: color-mix(in srgb, #8fb3e8 18%, var(--surface)); color: var(--ink); }
+.tile-services .tile-pr { margin-left: auto; flex: none; align-self: center; font-size: 13px; white-space: nowrap; }
+.tile-services .button.tile-pr { padding: 6px 10px; border-radius: 8px; }

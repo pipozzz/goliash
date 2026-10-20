@@ -3,7 +3,10 @@
 
 package ui
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 templ TilesPage(v TilesView) {
 	@Layout(v.Base) {
@@ -305,6 +308,13 @@ templ servicePanel(v TilesView, c TileCell) {
 					<li>
 						<span class={ "tcell", e.State }></span>
 						<div><strong>{ e.Env }</strong><div class="tile-ver">{ envDetail(e) }</div></div>
+						for _, pr := range e.PRs {
+							if pr.Open {
+								<a class="tile-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ pr.Title }>{ pr.Label }</a>
+							} else {
+								<a class="button secondary tile-pr" href={ templ.URL(pr.URL + "&return=" + url.QueryEscape("/tiles")) } title={ pr.Title }>{ pr.Label }</a>
+							}
+						}
 					</li>
 				}
 			</ul>

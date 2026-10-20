@@ -9,6 +9,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -1038,5 +1039,40 @@ func TestChangeFreeze(t *testing.T) {
 	post(t, admin, e.srv.URL+"/settings/freezes/"+list[0].ID+"/delete", nil)
 	if _, page := get(t, admin, e.srv.URL+"/updates", nil); strings.Contains(page, "freeze-banner") {
 		t.Fatal("the banner stays once the freeze is ended")
+	}
+}
+
+// Drilled into an application, the tiles offer each service's upgrade pull request per environment, as the matrix
+// does; viewers see none.
+func TestTilesOfferPullRequests(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	e.ui.pulls = &fakePulls{}
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
+	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	m := e.as(store.RoleMember)
+	_, board := get(t, m, e.srv.URL+"/tiles?group=app", nil)
+	app := regexp.MustCompile(`\?app=([^&"]+)`).FindStringSubmatch(board)
+	if app == nil {
+		t.Fatal("no application on the board")
+	}
+	drill := e.srv.URL + "/tiles?group=app&app=" + app[1]
+	_, page := get(t, m, drill, nil)
+	if !strings.Contains(page, `class="button secondary tile-pr"`) || !strings.Contains(page, ">PR → 1.28.0</a>") ||
+		!strings.Contains(page, "return=%2Ftiles") {
+		t.Fatal("the tile panel offers no pull request")
+	}
+	if _, page := get(t, e.as(store.RoleViewer), drill, nil); strings.Contains(page, "tile-pr") {
+		t.Fatal("a viewer is offered a pull request")
 	}
 }
