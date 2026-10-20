@@ -54,10 +54,16 @@ func (s *Server) freezeViews(ctx context.Context, sc store.Scope) ([]FreezeView,
 	}
 	var out []FreezeView
 	for _, f := range list {
-		out = append(out, FreezeView{
+		v := FreezeView{
 			ID: f.ID, From: f.StartsAt.Format("2 Jan 2006 15:04 MST"), To: f.EndsAt.Format("2 Jan 2006 15:04 MST"),
-			Note: f.Note, By: f.CreatedBy, Active: !f.StartsAt.After(now),
-		})
+			Note: f.Note, By: f.CreatedBy, Active: !f.StartsAt.After(now) && f.EndsAt.After(now),
+		}
+		if f.Weekly {
+			cur := f.At(now)
+			v.From, v.To = "every "+f.StartsAt.Format("Monday 15:04"), f.EndsAt.Format("Monday 15:04 MST")
+			v.Active = !cur.StartsAt.After(now) && cur.EndsAt.After(now)
+		}
+		out = append(out, v)
 	}
 	return out, nil
 }
@@ -78,11 +84,15 @@ func (s *Server) addFreeze(w http.ResponseWriter, r *http.Request, p auth.Princi
 	if to.Sub(from) > 90*24*time.Hour {
 		return back(w, r, page, "error", "A change freeze lasts 90 days at most.")
 	}
+	weekly := r.FormValue("weekly") == "1"
+	if weekly && to.Sub(from) >= 7*24*time.Hour {
+		return back(w, r, page, "error", "A weekly freeze lasts less than a week: from its first start to its first end.")
+	}
 	note := strings.TrimSpace(r.FormValue("note"))
 	if len(note) > 200 {
 		note = note[:200]
 	}
-	if _, err := s.store.AddFreeze(r.Context(), store.Freeze{Scope: p.Scope, StartsAt: from, EndsAt: to, Note: note, CreatedBy: p.User.Email}); err != nil {
+	if _, err := s.store.AddFreeze(r.Context(), store.Freeze{Scope: p.Scope, StartsAt: from, EndsAt: to, Note: note, CreatedBy: p.User.Email, Weekly: weekly}); err != nil {
 		return err
 	}
 	s.audit(r.Context(), p, "workspace.freeze", "from", from.Format(time.RFC3339), "to", to.Format(time.RFC3339), "note", note)

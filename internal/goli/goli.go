@@ -410,6 +410,7 @@ When asked why an image grew, how big it is or what it is built on, read images 
 When asked whether a deploy went out or what is wrong during an incident, read rollouts: a stuck rollout or a service down comes before anything else.
 When an Argo CD or Flux application is degraded or missing (gitops), its after_change is the version change just before it, the likeliest cause: say so, and that the service page offers a rollback pull request to the version before (Rollback PR). For "did my upgrade go out?" or "what waits for review?", read pull_requests.
 For vulnerabilities, say how long they have run (running_since) and call out exploited ones past CISA's due date (exploited.past_due) first.
+When the status says the workspace is in a change freeze (change_freeze), say so first when asked about upgrades, promotions or pull requests: until when and why.
 When asked whether to promote a version, read promotions: besides the releases it brings, say which known vulnerabilities it fixes and which new ones it brings, exploited ones first.
 When asked about licenses or license compliance, read licenses (class=attention first): name the network copyleft and source-available packages and where they run, then strong copyleft and unknown ones; say it reflects what the SBOMs declare and is not legal advice.
 A version change whose note is rollback went back to an older version: in "what changed?" answers, call rollbacks out first, since someone undid a deploy.

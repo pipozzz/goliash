@@ -40,3 +40,31 @@ func TestFreezes(t *testing.T) {
 		}
 	})
 }
+
+// A weekly freeze comes back every week: Friday 15:00 to Monday 08:00.
+func TestWeeklyFreeze(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		ws, _ := s.EnsureDefaultWorkspace(ctx)
+		sc := ws.Scope()
+		fri := time.Date(2026, 10, 2, 15, 0, 0, 0, time.UTC) // a Friday
+		if _, err := s.AddFreeze(ctx, Freeze{Scope: sc, StartsAt: fri, EndsAt: fri.Add(65 * time.Hour), Note: "weekend", Weekly: true}); err != nil {
+			t.Fatal(err)
+		}
+		for at, want := range map[time.Time]bool{
+			fri.AddDate(0, 0, 21).Add(time.Hour):      true,  // a Friday weeks later, 16:00
+			fri.AddDate(0, 0, 24).Add(-8 * time.Hour): true,  // that Monday, 07:00
+			fri.AddDate(0, 0, 24).Add(-6 * time.Hour): false, // that Monday, 09:00
+			fri.AddDate(0, 0, 19):                     false, // a Wednesday
+			fri.Add(-time.Hour):                       false, // before it ever started
+		} {
+			f, ok, err := s.ActiveFreeze(ctx, sc, at)
+			if err != nil || ok != want {
+				t.Errorf("%s: active %v, want %v (%v)", at.Format(time.RFC3339), ok, want, err)
+			}
+			if ok && (f.StartsAt.After(at) || !f.EndsAt.After(at)) {
+				t.Errorf("%s: occurrence %s..%s", at.Format(time.RFC3339), f.StartsAt, f.EndsAt)
+			}
+		}
+	})
+}

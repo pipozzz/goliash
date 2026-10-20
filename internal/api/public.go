@@ -1385,7 +1385,18 @@ func (h *PublicHandler) status(w http.ResponseWriter, r *http.Request, p auth.Pr
 		h.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, hl)
+	type apiFreeze struct {
+		Until time.Time `json:"until"`
+		Note  string    `json:"note,omitempty"`
+	}
+	out := struct {
+		versions.Health
+		ChangeFreeze *apiFreeze `json:"change_freeze,omitempty"`
+	}{Health: hl}
+	if f, ok, err := h.store.ActiveFreeze(r.Context(), p.Scope, time.Now()); err == nil && ok {
+		out.ChangeFreeze = &apiFreeze{Until: f.EndsAt, Note: f.Note}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // vulnMetrics are the known vulnerabilities of running images per environment: how many per severity and

@@ -98,7 +98,9 @@ Discord, chat, e-mail) opens that pull request's preview in Goliash: from the al
 **Settings → Change freezes** takes periods without changes you do not have to make (from, to in UTC, and why:
 *Christmas*, *the Black Friday sale*). While one runs, every page says so, the version policy's automatic pull
 requests wait, and a pull request opened by hand starts with *❄️ Opened during a change freeze (until 3 Jan 08:00
-UTC: Christmas)*; its preview warns first. Rollbacks are not held back. Admins add and end them; each is in the
+UTC: Christmas)*; its preview warns first. Rollbacks are not held back. Tick *every week* for one that comes
+back (*no deploys from Friday 15:00 to Monday 08:00*): give its first start and end. `GET /api/v1/status` says
+`change_freeze` while one runs, and Goli mentions it. Admins add and end them; each is in the
 audit log.
 
 ### Reviewers and labels

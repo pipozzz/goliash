@@ -691,6 +691,13 @@ paths:
                 properties:
                   state: { type: string, enum: [ok, warn, bad, off] }
                   checked_at: { type: string, format: date-time }
+                  change_freeze:
+                    type: object
+                    description: The change freeze the workspace is in now, absent outside one.
+                    required: [until]
+                    properties:
+                      until: { type: string, format: date-time }
+                      note: { type: string, example: Black Friday sale }
                   checks:
                     type: array
                     items:

@@ -395,6 +395,7 @@ templ SettingsPage(v SettingsView) {
 					<label>From (UTC) <input type="datetime-local" name="from" required/></label>
 					<label>To (UTC) <input type="datetime-local" name="to" required/></label>
 					<label class="grow">Why <input name="note" maxlength="200" placeholder="Christmas, the Black Friday sale"/></label>
+					<label class="check" title="Comes back every week, the same days and hours: Friday 15:00 to Monday 08:00"><input type="checkbox" name="weekly" value="1"/> every week</label>
 					<button type="submit">Add a change freeze</button>
 				</form>
 			</div>
