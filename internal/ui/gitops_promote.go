@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -60,6 +61,9 @@ func (s *Server) appPromotions(ctx context.Context, sc store.Scope, o versions.O
 				why: fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006")),
 			}
 			u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, pr.Version)
+			if pol, _, err := versions.PolicyFor(o.Services[a.ServiceID], o.Refs[a.ServiceID].Repo); err == nil {
+				u.reviewers, u.labels = pol.PRReviewers, pol.PRLabels
+			}
 			g.items = append(g.items, u)
 		}
 	}
@@ -131,6 +135,7 @@ func (s *Server) groupBump(items []upgrade, by, title, head, intro, page string)
 		body.WriteString("\n")
 		if i > 0 {
 			b.Also = append(b.Also, gitops.Pin{Path: u.app.Path, Image: versions.ParseImage(u.app.Image).Repo(), From: u.app.Tag, To: u.to})
+			b.Reviewers, b.Labels = union(b.Reviewers, u.reviewers), union(b.Labels, u.labels) // every service's people
 		}
 	}
 	where := items[0].app.TargetRevision
@@ -254,4 +259,15 @@ func joinList(items []string) string {
 		return items[0]
 	}
 	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
+}
+
+// union is a with the items of b it lacks, in order.
+func union(a, b []string) []string {
+	out := append([]string(nil), a...)
+	for _, x := range b {
+		if !slices.Contains(out, x) {
+			out = append(out, x)
+		}
+	}
+	return out
 }

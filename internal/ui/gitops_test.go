@@ -9,6 +9,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -875,12 +876,19 @@ func TestBulkPRsGrouped(t *testing.T) {
 	}
 	_, _ = e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"})
 	_, _ = e.st.InsertReleases(ctx, sc, cache.ID, []string{"7.2.5"})
+	rec.VersionPolicy = json.RawMessage(`{"pr_reviewers":["alice"],"pr_labels":["deps"]}`)
+	_ = e.st.UpdateService(ctx, rec)
+	cache.VersionPolicy = json.RawMessage(`{"pr_reviewers":["@acme/cache","alice"]}`)
+	_ = e.st.UpdateService(ctx, cache)
 	_ = e.ui.checker.EvaluateDrift(ctx, sc)
 	_, body, _ := post(t, e.as(store.RoleMember), e.srv.URL+"/updates/prs", url.Values{
 		"pr": {evil + "|" + e.tgt.ID + "|w1|1.28.0", "cache|" + e.tgt.ID + "|w2|7.2.5"}, "group": {"repo"}, "return": {"/updates"},
 	})
 	if len(pulls.got) != 1 || !strings.Contains(body, "(one pull request)") {
 		t.Fatalf("opened %d: %.200s", len(pulls.got), body)
+	}
+	if b := pulls.got[0]; len(b.Reviewers) != 2 || !slices.Contains(b.Reviewers, "@acme/cache") || strings.Join(b.Labels, ",") != "deps" {
+		t.Fatalf("reviewers %v labels %v", b.Reviewers, b.Labels)
 	}
 	if b := pulls.got[0]; len(b.Also) != 1 || !strings.HasPrefix(b.Title, "Upgrade 2 services in prod: ") || !strings.HasPrefix(b.Head, "goliash/upgrade-prod-") {
 		t.Fatalf("bump %+v", b)

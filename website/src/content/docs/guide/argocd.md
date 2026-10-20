@@ -96,7 +96,8 @@ A service's version policy can name who reviews its pull requests and how they a
 reviewers** `alice, @acme/payments` (people, and teams as `@org/team`) and **Pull request labels**
 `dependencies, goliash` (`pr_reviewers` and `pr_labels` in the policy's JSON). GitHub and Gitea/Forgejo get both;
 GitLab gets the labels and the people as reviewers. A name the forge does not know is skipped: the pull request
-opens either way.
+opens either way. A pull request for several services (a grouped upgrade, an application's promotion) asks
+every service's reviewers and carries every service's labels.
 
 ### Automatic pull requests
 
