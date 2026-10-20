@@ -88,6 +88,9 @@ templ PromotionsPage(v PromotionsView) {
 										if p.Vulns.Known && (len(p.Vulns.Fixed) > 0 || len(p.Vulns.New) > 0) {
 											@promotionVulns(p.Vulns)
 										}
+										if p.Licenses.Known && len(p.Licenses.Changes) > 0 {
+											<div class="error-text promo-licenses" title={ "From the SBOMs of both images; not legal advice: " + licensePlain(p.Licenses.Changes) }>{ "⚖️ brings " + licenseShort(p.Licenses.Changes) }</div>
+										}
 										if v.CanMember || v.PreviewPRs {
 											for _, pr := range p.PRs {
 												if pr.URL != "" {

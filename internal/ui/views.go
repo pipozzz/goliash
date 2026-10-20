@@ -673,6 +673,7 @@ type PromotionView struct {
 	Since                                    time.Time
 	Releases                                 []ReleaseView
 	Vulns                                    versions.VulnDelta
+	Licenses                                 versions.LicenseDelta
 	PRs                                      []PromotePR // Argo CD applications it can be opened in as a pull request
 }
 

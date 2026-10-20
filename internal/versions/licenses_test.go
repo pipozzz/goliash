@@ -151,4 +151,8 @@ func TestUpgradeLicenses(t *testing.T) {
 	if d, _ := UpgradeLicenses(ctx, l.st, l.sc, l.svc.ID, l.envs["prod"].ID, "1.0.0", "9.9.9"); d.Known {
 		t.Error("known without the newer image's SBOM")
 	}
+	list := []Promotion{{Service: l.svc, From: l.envs["staging"], To: l.envs["prod"], Version: "2.0.0", Running: "1.0.0"}}
+	if err := AddLicenseDeltas(ctx, l.st, l.sc, list); err != nil || len(list[0].Licenses.Changes) != 2 {
+		t.Fatalf("promotion %+v %v", list[0].Licenses, err)
+	}
 }

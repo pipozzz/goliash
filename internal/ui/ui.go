@@ -1233,6 +1233,9 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if err != nil {
 		return err
 	}
+	if err := versions.AddLicenseDeltas(ctx, s.store, p.Scope, list); err != nil {
+		return err
+	}
 	if err := versions.AddVulnDeltas(ctx, s.store, p.Scope, list); err != nil {
 		return err
 	}
@@ -1281,7 +1284,7 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 	}
 	for _, pr := range list {
-		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}
+		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns, Licenses: pr.Licenses}
 		for _, a := range promotionApps(apps, pr, s.canPR) {
 			pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
 			if open, ok := s.pullFor(ctx, p.Scope, a, pr.Version); ok && open.State != "closed" {

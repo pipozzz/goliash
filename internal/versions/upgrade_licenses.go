@@ -29,52 +29,58 @@ func licenseNews(c LicenseClass) bool {
 	return c == NetworkCopyleft || c == SourceAvailable || c == StrongCopyleft
 }
 
-// UpgradeLicenses is what moving a service in one environment from a version to another does to the licenses of
-// its application packages (operating system packages left out): packages the newer version brings, or has
-// relicensed, under network copyleft, source-available or strong copyleft terms.
-func UpgradeLicenses(ctx context.Context, st *store.Store, sc store.Scope, serviceID, envID, from, to string) (LicenseDelta, error) {
+// licenseIndex knows the application packages, with their licenses, of every running main image, by service,
+// environment ("" anywhere) and version.
+type licenseIndex map[vulnSide]map[string]LicensedPackage
+
+func loadLicenseIndex(ctx context.Context, st *store.Store, sc store.Scope) (licenseIndex, error) {
+	idx := licenseIndex{}
 	active, err := st.ListActiveInstances(ctx, sc)
 	if err != nil {
-		return LicenseDelta{}, err
+		return idx, err
 	}
 	sboms, err := st.ListImageSBOMs(ctx, sc)
 	if err != nil {
-		return LicenseDelta{}, err
+		return idx, err
 	}
-	// The packages of each side's main image, by name: the running version in the environment, the newer one
-	// wherever it runs.
-	side := func(env, tag string) (map[string]LicensedPackage, bool) {
-		for _, in := range active {
-			if !in.IsMain || in.Digest == "" || in.ServiceID != serviceID || in.Tag != tag || env != "" && in.EnvironmentID != env {
-				continue
-			}
-			b := sboms[ParseImage(in.Image).Repo()+"@"+in.Digest]
-			if len(b.Purls) == 0 || NeedsLicenses(b) {
-				continue
-			}
-			pkgs := map[string]LicensedPackage{}
-			for _, p := range b.Purls {
-				if osPackage(p) {
-					continue
-				}
-				lic := b.Licenses[p]
-				pkgs[purlPackage(p)] = LicensedPackage{Purl: p, Name: purlPackage(p), Version: purlVersion(p), License: lic, Class: ClassifyLicense(lic)}
-			}
-			return pkgs, true
+	for _, in := range active {
+		if !in.IsMain || in.Digest == "" {
+			continue
 		}
-		return nil, false
+		b := sboms[ParseImage(in.Image).Repo()+"@"+in.Digest]
+		if len(b.Purls) == 0 || NeedsLicenses(b) {
+			continue
+		}
+		pkgs := map[string]LicensedPackage{}
+		for _, p := range b.Purls {
+			if osPackage(p) {
+				continue
+			}
+			lic := b.Licenses[p]
+			pkgs[purlPackage(p)] = LicensedPackage{Purl: p, Name: purlPackage(p), Version: purlVersion(p), License: lic, Class: ClassifyLicense(lic)}
+		}
+		for _, k := range []vulnSide{{in.ServiceID, in.EnvironmentID, in.Tag}, {in.ServiceID, "", in.Tag}} {
+			if _, ok := idx[k]; !ok {
+				idx[k] = pkgs
+			}
+		}
 	}
-	running, ok1 := side(envID, from)
-	newer, ok2 := side("", to)
+	return idx, nil
+}
+
+// delta is what moving from the running side to the newer one does to licenses.
+func (idx licenseIndex) delta(newer, running vulnSide) LicenseDelta {
+	run, ok1 := idx[running]
+	nw, ok2 := idx[newer]
 	d := LicenseDelta{Known: ok1 && ok2}
 	if !d.Known {
-		return d, nil
+		return d
 	}
-	for name, p := range newer {
+	for name, p := range nw {
 		if !licenseNews(p.Class) {
 			continue
 		}
-		was, had := running[name]
+		was, had := run[name]
 		if had && was.Class.rank() >= p.Class.rank() {
 			continue // as demanding before: nothing new to look at
 		}
@@ -91,5 +97,34 @@ func UpgradeLicenses(ctx context.Context, st *store.Store, sc store.Scope, servi
 		}
 		return a.Name < b.Name
 	})
-	return d, nil
+	return d
+}
+
+// UpgradeLicenses is what moving a service in one environment from a version to another does to the licenses of
+// its application packages (operating system packages left out): packages the newer version brings, or has
+// relicensed, under network copyleft, source-available or strong copyleft terms. The running version is read in
+// the environment, the newer one wherever it runs.
+func UpgradeLicenses(ctx context.Context, st *store.Store, sc store.Scope, serviceID, envID, from, to string) (LicenseDelta, error) {
+	idx, err := loadLicenseIndex(ctx, st, sc)
+	if err != nil {
+		return LicenseDelta{}, err
+	}
+	return idx.delta(vulnSide{serviceID, "", to}, vulnSide{serviceID, envID, from}), nil
+}
+
+// AddLicenseDeltas fills in each promotion's license delta, comparing the main images of the version waiting and
+// the version running.
+func AddLicenseDeltas(ctx context.Context, st *store.Store, sc store.Scope, list []Promotion) error {
+	if len(list) == 0 {
+		return nil
+	}
+	idx, err := loadLicenseIndex(ctx, st, sc)
+	if err != nil {
+		return err
+	}
+	for i := range list {
+		p := &list[i]
+		p.Licenses = idx.delta(vulnSide{p.Service.ID, p.From.ID, p.Version}, vulnSide{p.Service.ID, p.To.ID, p.Running})
+	}
+	return nil
 }

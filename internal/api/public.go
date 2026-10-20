@@ -442,6 +442,17 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		h.fail(w, r, err)
 		return
 	}
+	if err := versions.AddLicenseDeltas(r.Context(), h.store, p.Scope, list); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	type apiLicense struct {
+		Package string `json:"package"`
+		Version string `json:"version"`
+		License string `json:"license"`
+		Class   string `json:"class"`
+		Was     string `json:"was,omitempty"`
+	}
 	type apiRelease struct {
 		Version      string     `json:"version"`
 		PublishedAt  *time.Time `json:"published_at,omitempty"`
@@ -457,6 +468,7 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 		Since    time.Time     `json:"since"`
 		Releases []apiRelease  `json:"releases"`
 		Vulns    *apiVulnDelta `json:"vulnerabilities,omitempty"`
+		Licenses []apiLicense  `json:"licenses,omitempty"`
 	}
 	out := []apiPromotion{}
 	for _, pr := range list {
@@ -470,6 +482,9 @@ func (h *PublicHandler) promotions(w http.ResponseWriter, r *http.Request, p aut
 			ap.Releases = append(ap.Releases, ar)
 		}
 		ap.Vulns = toAPIVulnDelta(pr.Vulns)
+		for _, c := range pr.Licenses.Changes {
+			ap.Licenses = append(ap.Licenses, apiLicense{Package: c.Name, Version: c.Version, License: c.License, Class: string(c.Class), Was: c.Was})
+		}
 		out = append(out, ap)
 	}
 	writeJSON(w, http.StatusOK, out)

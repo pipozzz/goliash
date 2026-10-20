@@ -1139,6 +1139,20 @@ components:
           description: >-
             What promoting does to the known vulnerabilities of `to`, comparing the SBOMs of the two versions' images on
             OSV: those it fixes and those it brings, exploited ones first. Absent unless both images have an SBOM.
+        licenses:
+          type: array
+          description: >-
+            Application packages the promoted version brings, or relicenses, under network copyleft, source-available
+            or strong copyleft terms, from the SBOMs of both images; not legal advice. Absent when there are none.
+          items:
+            type: object
+            required: [package, version, license, class]
+            properties:
+              package: { type: string, example: github.com/hashicorp/vault }
+              version: { type: string, example: 1.15.0 }
+              license: { type: string, example: BUSL-1.1 }
+              class: { type: string, enum: [network-copyleft, source-available, strong-copyleft] }
+              was: { type: string, description: "Its license in the running version, when it had the package.", example: MPL-2.0 }
 
     VulnDelta:
       type: object

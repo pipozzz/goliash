@@ -666,3 +666,30 @@ func licensesMarkdown(d versions.LicenseDelta) string {
 	return "\n### Licenses\n\nBrings " + licenseList(d.Changes, 10) +
 		".\n\nFrom the SBOMs of both images, as Goliash reads them; not legal advice.\n"
 }
+
+// licenseShort says a promotion's license changes in a few words: "AGPL-3.0-only (itextpdf) and 1 more".
+func licenseShort(changes []versions.LicenseChange) string {
+	c := changes[0]
+	name := c.Name[strings.LastIndex(c.Name, "/")+1:]
+	s := orUnknown(c.License) + " (" + name + ")"
+	if len(changes) > 1 {
+		s += fmt.Sprintf(" and %d more", len(changes)-1)
+	}
+	return s
+}
+
+// licensePlain lists license changes for a tooltip.
+func licensePlain(changes []versions.LicenseChange) string {
+	var parts []string
+	for _, c := range changes {
+		parts = append(parts, c.Name+" "+c.Version+" "+orUnknown(c.License))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func orUnknown(license string) string {
+	if license == "" {
+		return "an unknown license"
+	}
+	return license
+}
