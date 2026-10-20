@@ -795,7 +795,7 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 									if a.Health != "" {
 										<span class={ "badge", syncBadge(a.Health) }>{ a.Health }</span>
 									}
-									if a.SyncWindow != "" && a.Tool != "flux" { // Flux's says Suspended already
+									if a.SyncWindow != "" && a.Tool != "flux" {
 										<span class="badge neutral sync-window" title={ a.SyncWindow }>sync window</span>
 									}
 								</span>
