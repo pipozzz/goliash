@@ -104,6 +104,10 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 	if err != nil {
 		return err
 	}
+	offer := func(string, string, string, string) string { return "" }
+	if n.planPRs != nil {
+		offer = n.planPRs(ctx, sc)
+	}
 	for _, r := range rules {
 		var f Filter
 		_ = json.Unmarshal(r.Filter, &f)
@@ -113,6 +117,9 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 				continue
 			}
 			it := planItem(u, now, apps)
+			if p := offer(u.Service.ID, u.Environment.Name, u.Running, u.Target); p != "" { // a click from the plan to the fix
+				it.Action, it.ActionPath = "Open PR → "+u.Target, p
+			}
 			if !matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
 				continue
 			}
@@ -227,4 +234,9 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 		}
 	}
 	return it
+}
+
+// SetPlanPRs lets the upgrade plan link, per upgrade, the preview of the pull request Goliash would open for it.
+func (n *Notifier) SetPlanPRs(planPRs func(ctx context.Context, sc store.Scope) func(serviceID, env, running, target string) string) {
+	n.planPRs = planPRs
 }

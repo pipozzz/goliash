@@ -251,6 +251,9 @@ func slackBlocks(msg Message) []map[string]any {
 		if it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps || it.Type == "update" {
 			body += "\n`" + slackEscape(orDash(it.From)) + "` → `" + slackEscape(orDash(it.To)) + "`"
 		}
+		if a := actionURL(msg.Link, it); a != "" && !single { // the single item's goes in its buttons
+			body += " · <" + a + "|" + slackEscape(it.Action) + ">"
+		}
 		sec := map[string]any{"type": "section", "text": text("mrkdwn", truncate(body, 3000))}
 		if it.URL != "" {
 			sec["accessory"] = button(linkLabel(it), it.URL, false)

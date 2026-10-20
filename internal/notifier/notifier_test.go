@@ -412,6 +412,15 @@ func TestUpgradePlan(t *testing.T) {
 	drift(e.db, "eol", `{"running":"13.4","other":"13","eol":"2025-11-13"}`)
 	drift(e.svc, "upstream", `{"running":"1.5.0","other":"1.7.0","jump":"minor"}`)
 
+	e.n.SetPublicURL("https://goliash.example.com")
+	e.n.SetPlanPRs(func(context.Context, store.Scope) func(string, string, string, string) string {
+		return func(serviceID, _, _, target string) string {
+			if serviceID == e.svc.ID {
+				return "/services/payments-api/gitops/preview?to=" + target
+			}
+			return ""
+		}
+	})
 	e.clock = time.Date(2026, 10, 5, 8, 30, 0, 0, time.UTC) // Monday, before 9:00
 	if err := e.n.PlanUpdates(ctx); err != nil {
 		t.Fatal(err)
@@ -431,7 +440,10 @@ func TestUpgradePlan(t *testing.T) {
 		t.Fatalf("plan sent %d times", slack.count())
 	}
 	msg := slack.last()
-	for _, want := range []string{"upgrade plan", "postgres @ prod: 13.4", "end of life", "payments-api @ prod: 1.5.0 → 1.7.0 (minor)"} {
+	for _, want := range []string{
+		"upgrade plan", "postgres @ prod: 13.4", "end of life", "payments-api @ prod: 1.5.0 → 1.7.0 (minor)",
+		"https://goliash.example.com/services/payments-api/gitops/preview?to=1.7.0|Open PR → 1.7.0",
+	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("plan misses %q: %s", want, msg)
 		}

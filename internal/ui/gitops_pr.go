@@ -693,3 +693,28 @@ func orUnknown(license string) string {
 	}
 	return license
 }
+
+// PlanPRs is, for a workspace, where the upgrade plan links the pull request for an upgrade: the preview of one
+// the pages would offer and nobody opened yet, "" otherwise. What it needs is read once per plan.
+func (s *Server) PlanPRs(ctx context.Context, sc store.Scope) func(serviceID, env, running, target string) string {
+	none := func(string, string, string, string) string { return "" }
+	if s.pulls == nil || s.demoPulls() {
+		return none
+	}
+	o, err := versions.LoadOverview(ctx, s.store, sc)
+	if err != nil {
+		return none
+	}
+	apps, err := versions.GitOpsApps(ctx, s.store, sc, o)
+	if err != nil || len(apps) == 0 {
+		return none
+	}
+	return func(serviceID, env, running, target string) string {
+		for _, pr := range s.upgradePRs(ctx, sc, o, apps, serviceID, env, running, target) {
+			if pr.URL == "" {
+				return "/services/" + url.PathEscape(o.Services[serviceID].Name) + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, target, "/updates")
+			}
+		}
+		return ""
+	}
+}

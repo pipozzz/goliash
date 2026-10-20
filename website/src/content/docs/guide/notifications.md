@@ -176,7 +176,8 @@ service answered.
 
 A rule with the event type `updates_plan` (*upgrade plan* in the form) sends the [Updates](/guide/versions/#updates)
 list at its digest time: every day for a daily rule, on Mondays for a weekly (or instant) one. It is one message, most
-urgent first: what runs, the version to move to, why, and the release notes. Updates put off with an acknowledgement
+urgent first: what runs, the version to move to, why, and the release notes; an upgrade that can open as a
+[pull request](/guide/argocd/#upgrade-with-a-pull-request) links its preview (*Open PR → 1.7.0*). Updates put off with an acknowledgement
 are left out, and the rule's services, owners and environments apply, so each team can get its own plan:
 
 ```sh
