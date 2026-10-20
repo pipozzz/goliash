@@ -201,9 +201,9 @@ func GitOpsPreviewPage(v GitOpsPreviewView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var12 string
-				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("⏸️ " + v.SyncWindow + ". Merged, the change deploys when the window allows it; the pull request says so.")
+				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("⏸️ " + v.SyncWindow + ". Merged, the change deploys only once it syncs again; the pull request says so.")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gitops_preview.templ`, Line: 28, Col: 135}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `gitops_preview.templ`, Line: 28, Col: 134}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {

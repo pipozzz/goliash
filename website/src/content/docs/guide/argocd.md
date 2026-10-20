@@ -180,6 +180,10 @@ sources:
 - a **HelmRelease**: its chart, the version it follows and the one applied, and its HelmRepository; a HelmRelease
   wins over the Kustomization that applied it.
 
+A suspended Kustomization or HelmRelease (`spec.suspend: true`) is treated like an Argo CD
+[sync window](#sync-windows): automatic pull requests wait until it is resumed, and one opened by hand says it deploys
+once it is.
+
 `ssh://git@github.com/acme/deploy` and `git@…` addresses link to the repository's web page, and pull requests work
 for them as for Argo CD. The Helm charts grant `get` and `list` on Flux's `kustomizations`, `helmreleases`,
 `gitrepositories` and `helmrepositories`.

@@ -48,7 +48,7 @@ func TestSyncWindowHoldsPullRequests(t *testing.T) {
 		t.Fatal("the policy opened a pull request inside a sync window")
 	}
 	_, preview := get(t, m, e.srv.URL+"/services/"+url.PathEscape(name)+"/gitops/preview?"+previewQuery(e.tgt.ID, "w1", "1.28.0", ""), nil)
-	if !strings.Contains(preview, "Merged, the change deploys when the window allows it") || !strings.Contains(preview, "until "+until.UTC().Format("Mon 2 Jan 15:04")) {
+	if !strings.Contains(preview, "Merged, the change deploys only once it syncs again") || !strings.Contains(preview, "until "+until.UTC().Format("Mon 2 Jan 15:04")) {
 		t.Fatal("the preview does not warn of the sync window")
 	}
 
@@ -58,5 +58,17 @@ func TestSyncWindowHoldsPullRequests(t *testing.T) {
 	}
 	if n, _ := e.ui.AutoPRs(ctx); n != 1 || strings.Contains(pulls.got[0].Body, "sync window") {
 		t.Fatalf("after the window: opened %d %+v", n, pulls.got)
+	}
+}
+
+// A suspended Flux application says so in its own words: resumed, not a window.
+func TestSyncWindowTextFlux(t *testing.T) {
+	a := store.WorkloadGitOps{Tool: "flux", App: "payments", SyncBlocked: "suspended in Flux (spec.suspend): it applies nothing until resumed"}
+	now := time.Now()
+	if s := syncWindowText(a, now); s != "payments is suspended in Flux (spec.suspend): it applies nothing until resumed" {
+		t.Fatalf("text %q", s)
+	}
+	if n := syncWindowNote(a, now); !strings.Contains(n, "deploys once it is resumed") {
+		t.Fatalf("note %q", n)
 	}
 }

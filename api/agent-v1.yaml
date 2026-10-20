@@ -757,8 +757,8 @@ components:
         sync_blocked:
           type: string
           description: |
-            Why Argo CD will not sync the application now, when one of its AppProject's sync windows keeps it from
-            syncing: an open deny window, or allow windows none of which is open.
+            Why the application will not sync now: one of its Argo CD AppProject's sync windows keeps it from
+            syncing (an open deny window, or allow windows none of which is open), or Flux has it suspended.
           example: deny window "0 22 * * 5" for 56h
         sync_blocked_until:
           type: string

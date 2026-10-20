@@ -9,11 +9,14 @@ import (
 	"github.com/pipozzz/goliash/internal/store"
 )
 
-// syncWindowText says that Argo CD's sync windows keep the application from syncing at now, and until when; ""
-// when they do not.
+// syncWindowText says that the application does not sync at now, and until when: Argo CD's sync windows keep it
+// from syncing, or Flux has it suspended; "" when neither.
 func syncWindowText(a store.WorkloadGitOps, now time.Time) string {
 	if !a.Blocked(now) {
 		return ""
+	}
+	if a.Tool == "flux" {
+		return a.App + " is " + a.SyncBlocked
 	}
 	s := "Argo CD's sync windows keep " + a.App + " from syncing (" + a.SyncBlocked + ")"
 	if !a.SyncBlockedUntil.IsZero() {
@@ -26,6 +29,9 @@ func syncWindowText(a store.WorkloadGitOps, now time.Time) string {
 // does not.
 func syncWindowNote(a store.WorkloadGitOps, now time.Time) string {
 	if s := syncWindowText(a, now); s != "" {
+		if a.Tool == "flux" {
+			return "> ⏸️ " + s + ": merged, the change deploys once it is resumed.\n\n"
+		}
 		return "> ⏸️ " + s + ": merged, the change deploys when the window allows it.\n\n"
 	}
 	return ""

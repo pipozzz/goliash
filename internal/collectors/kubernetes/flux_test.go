@@ -4,6 +4,7 @@
 package kubernetes
 
 import (
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -76,5 +77,20 @@ func TestFlux(t *testing.T) {
 	}
 	if got["monitoring/node-exporter"].Gitops != nil {
 		t.Error("a workload Flux did not label has gitops")
+	}
+}
+
+// A suspended Kustomization or HelmRelease applies nothing: suspended, and blocked until resumed.
+func TestFluxSuspended(t *testing.T) {
+	k := fluxObj("kustomize.toolkit.fluxcd.io/v1", "Kustomization", "flux-system", "payments",
+		map[string]any{"path": "./apps/payments/prod", "suspend": true}, map[string]any{"conditions": ready("True", "Succeeded")})
+	g := fluxGitOps(*k, "https://github.com/acme/deploy", "./apps/payments/prod", "main", "")
+	if *g.Health != "Suspended" || g.SyncBlocked == nil || !strings.Contains(*g.SyncBlocked, "suspended in Flux") || g.SyncBlockedUntil != nil {
+		t.Fatalf("suspended %+v", g)
+	}
+	k = fluxObj("kustomize.toolkit.fluxcd.io/v1", "Kustomization", "flux-system", "payments",
+		map[string]any{"path": "./apps/payments/prod"}, map[string]any{"conditions": ready("True", "Succeeded")})
+	if g := fluxGitOps(*k, "", "", "", ""); g.SyncBlocked != nil {
+		t.Fatalf("not suspended, blocked %q", *g.SyncBlocked)
 	}
 }

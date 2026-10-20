@@ -25,7 +25,7 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 			<div class="notice error">{ "❄️ The workspace is in a change freeze " + v.Base.Freeze + ". Open it only if it cannot wait; the pull request says it was opened during the freeze." }</div>
 		}
 		if v.SyncWindow != "" {
-			<div class="notice">{ "⏸️ " + v.SyncWindow + ". Merged, the change deploys when the window allows it; the pull request says so." }</div>
+			<div class="notice">{ "⏸️ " + v.SyncWindow + ". Merged, the change deploys only once it syncs again; the pull request says so." }</div>
 		}
 		for _, f := range v.Files {
 			<section class="panel">

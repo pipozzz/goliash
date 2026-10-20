@@ -133,6 +133,8 @@ func fluxGitOps(obj unstructured.Unstructured, repo, path, ref, applied string) 
 	health := "Unknown"
 	if suspended, _, _ := unstructured.NestedBool(obj.Object, "spec", "suspend"); suspended {
 		health = "Suspended"
+		why := "suspended in Flux (spec.suspend): it applies nothing until resumed"
+		g.SyncBlocked = &why
 	} else {
 		conds, _, _ := unstructured.NestedSlice(obj.Object, "status", "conditions")
 		for _, c := range conds {
