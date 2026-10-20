@@ -51,21 +51,23 @@
 .brief-video { display: block; width: 100%; height: auto; background: #0e1117; }
 
 /* The home page's hero: the product's own board of service tiles, with the alerts that come out of it. */
-.hero .hb { width: 100%; max-width: 40rem; justify-self: center; position: relative; padding-bottom: 3.2rem; }
+.hero .hb { width: 100%; max-width: 40rem; justify-self: center; position: relative; }
 .hero .hb > .hb-img {
   display: block; width: 100%; height: auto; max-width: none; border: 0; border-radius: 6.5%;
   box-shadow: 0 30px 70px -20px rgb(27 42 107 / 0.55);
 }
-.hb-feed { position: absolute; left: 50%; bottom: 0; width: min(92%, 34rem); height: 3.4rem; transform: translateX(-50%); }
+/* The alerts take turns in one cell: the card is as tall as the longest, never cut. */
+.hb-feed { position: relative; display: grid; width: min(92%, 34rem); margin: -1.4rem auto 0; }
 .hb-n {
-  position: absolute; inset: 0; margin: 0; display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.9rem;
+  grid-area: 1 / 1; margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  gap: 0.6rem; padding: 0.55rem 0.9rem;
   border-radius: 0.9rem; background: var(--sl-color-black); border: 1px solid var(--sl-color-gray-5);
   box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.45); font-size: 0.8rem; line-height: 1.3; color: var(--sl-color-white);
   opacity: 0; animation: hb-feed 16s infinite;
 }
 .hb-n > span { font-size: 1.2rem; }
 .hb-n strong {
-  margin-left: auto; flex: none; padding: 0.3rem 0.6rem; border-radius: 0.5rem; font-size: 0.72rem;
+  white-space: nowrap; padding: 0.3rem 0.6rem; border-radius: 0.5rem; font-size: 0.72rem;
   background: var(--sl-color-accent); color: var(--sl-color-black);
 }
 .hb-n:nth-child(2) { animation-delay: 4s; }
@@ -75,11 +77,10 @@
   0% { opacity: 0; transform: translateY(0.6rem); } 3%, 22% { opacity: 1; transform: none; } 25%, 100% { opacity: 0; transform: translateY(-0.4rem); }
 }
 @media (max-width: 40rem) {
-  .hero .hb { padding-bottom: 5rem; }
-  .hb-feed { width: 100%; height: 4.4rem; }
-  .hb-n { font-size: 0.74rem; flex-wrap: wrap; gap: 0.2rem 0.5rem; }
+  .hb-feed { width: 100%; margin-top: -1rem; }
+  .hb-n { font-size: 0.74rem; grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
   .hb-n > span { display: none; }
-  .hb-n strong { margin-left: 0; }
+  .hb-n strong { justify-self: start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hb-n { animation: none; }
