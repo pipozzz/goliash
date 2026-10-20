@@ -216,7 +216,7 @@ func (s *Server) bump(ctx context.Context, sc store.Scope, by string, u upgrade)
 	}
 	s.addSummary(ctx, sc, &u)
 	req := s.bumpRequest(u, by)
-	req.Body = s.freezeNote(ctx, sc) + syncWindowNote(app.WorkloadGitOps, time.Now()) + req.Body
+	req.Body = s.freezeNote(ctx, sc) + syncWindowNote(app.WorkloadGitOps, time.Now()) + s.manualSyncNote(app) + req.Body
 	pr, err := s.pulls.OpenBump(ctx, req)
 	if err != nil {
 		return "", bumpError(err, req)

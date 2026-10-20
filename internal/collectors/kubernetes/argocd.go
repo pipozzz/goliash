@@ -108,6 +108,11 @@ func argoGitOps(app unstructured.Unstructured) agentproto.GitOps {
 	set(&g.Revision, revision)
 	health, _, _ := unstructured.NestedString(app.Object, "status", "health", "status")
 	set(&g.Health, health)
+	_, auto, _ := unstructured.NestedMap(app.Object, "spec", "syncPolicy", "automated")
+	if enabled, found, _ := unstructured.NestedBool(app.Object, "spec", "syncPolicy", "automated", "enabled"); found && !enabled {
+		auto = false // Argo CD 3.x can turn an automated policy off without removing it
+	}
+	g.AutoSync = &auto
 	return g
 }
 

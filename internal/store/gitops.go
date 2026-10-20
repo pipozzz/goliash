@@ -32,6 +32,8 @@ type WorkloadGitOps struct {
 	// SyncBlockedUntil is when that ends, zero when not known.
 	SyncBlocked      string
 	SyncBlockedUntil time.Time
+	// ManualSync is an application its tool syncs only by hand: Argo CD without an automated sync policy.
+	ManualSync bool
 }
 
 // Blocked tells whether a sync window keeps the application from syncing at now: one that was blocking when
@@ -97,11 +99,11 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 			}
 			if _, err := s.exec(ctx, tx, `INSERT INTO workload_gitops (target_id, workload_id, org_id, workspace_id, tool, app,
 				app_namespace, project, repo, path, target_revision, revision, sync, health, sync_since, updated_at,
-				prev_revision, revision_at, sync_blocked, sync_blocked_until)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				prev_revision, revision_at, sync_blocked, sync_blocked_until, manual_sync)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				targetID, g.WorkloadID, sc.OrgID, sc.WorkspaceID, g.Tool, g.App, g.AppNamespace, g.Project, g.Repo, g.Path,
 				g.TargetRevision, g.Revision, g.Sync, g.Health, g.SyncSince.UTC(), at.UTC(), g.PrevRevision, revAt,
-				g.SyncBlocked, blockedUntil); err != nil {
+				g.SyncBlocked, blockedUntil, g.ManualSync); err != nil {
 				return err
 			}
 		}
@@ -113,7 +115,7 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 func (s *Store) ListWorkloadGitOps(ctx context.Context, sc Scope) ([]WorkloadGitOps, error) {
 	rows, err := s.query(ctx, s.db, `SELECT target_id, workload_id, tool, app, app_namespace, project, repo, path,
 		target_revision, revision, sync, health, sync_since, updated_at, prev_revision, revision_at, sync_blocked,
-		sync_blocked_until FROM workload_gitops
+		sync_blocked_until, manual_sync FROM workload_gitops
 		WHERE org_id = ? AND workspace_id = ? ORDER BY app, target_id, workload_id`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -125,7 +127,7 @@ func (s *Store) ListWorkloadGitOps(ctx context.Context, sc Scope) ([]WorkloadGit
 		var revAt, blockedUntil sql.NullTime
 		if err := rows.Scan(&g.TargetID, &g.WorkloadID, &g.Tool, &g.App, &g.AppNamespace, &g.Project, &g.Repo, &g.Path,
 			&g.TargetRevision, &g.Revision, &g.Sync, &g.Health, &g.SyncSince, &g.UpdatedAt, &g.PrevRevision, &revAt,
-			&g.SyncBlocked, &blockedUntil); err != nil {
+			&g.SyncBlocked, &blockedUntil, &g.ManualSync); err != nil {
 			return nil, err
 		}
 		if blockedUntil.Valid {

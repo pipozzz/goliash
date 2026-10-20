@@ -764,6 +764,11 @@ components:
           type: string
           format: date-time
           description: When the sync window that blocks it closes, or the next allow window opens, when known.
+        auto_sync:
+          type: boolean
+          description: |
+            Whether the GitOps tool applies a new commit by itself: false for an Argo CD application without an automated
+            sync policy, which deploys only when someone syncs it. Absent when not known.
 
     Container:
       type: object

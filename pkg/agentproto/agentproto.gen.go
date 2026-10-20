@@ -353,6 +353,10 @@ type GitOps struct {
 	// AppNamespace Where the application object lives (argocd for Argo CD by default).
 	AppNamespace *string `json:"app_namespace,omitempty"`
 
+	// AutoSync Whether the GitOps tool applies a new commit by itself: false for an Argo CD application without an automated
+	// sync policy, which deploys only when someone syncs it. Absent when not known.
+	AutoSync *bool `json:"auto_sync,omitempty"`
+
 	// Health Healthy, Progressing, Degraded, Suspended, Missing or Unknown.
 	Health *string `json:"health,omitempty"`
 

@@ -798,6 +798,9 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 									if a.SyncWindow != "" && a.Tool != "flux" {
 										<span class="badge neutral sync-window" title={ a.SyncWindow }>sync window</span>
 									}
+									if a.ManualSync {
+										<span class="badge neutral manual-sync" title={ "Argo CD syncs " + a.App + " only when someone syncs it: a merged change waits for that" }>manual sync</span>
+									}
 								</span>
 								if a.Sync != "" || a.Health != "" {
 									<div class="targets">since @timeAgo(a.Since)</div>

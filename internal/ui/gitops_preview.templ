@@ -27,6 +27,9 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 		if v.SyncWindow != "" {
 			<div class="notice">{ "⏸️ " + v.SyncWindow + ". Merged, the change deploys only once it syncs again; the pull request says so." }</div>
 		}
+		if v.ManualSync {
+			<div class="notice">🖐️ Argo CD syncs this application by hand: merging does not deploy it, someone has to sync it in Argo CD. The pull request says so.</div>
+		}
 		for _, f := range v.Files {
 			<section class="panel">
 				<div class="panel-head"><h2 class="mono diff-path">{ f.Path }</h2></div>

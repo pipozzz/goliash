@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // syncWindowText says that the application does not sync at now, and until when: Argo CD's sync windows keep it
@@ -35,4 +36,17 @@ func syncWindowNote(a store.WorkloadGitOps, now time.Time) string {
 		return "> ⏸️ " + s + ": merged, the change deploys when the window allows it.\n\n"
 	}
 	return ""
+}
+
+// manualSyncNote is what a pull request for an application Argo CD syncs only by hand says first: merging is not
+// deploying. "" for one that syncs by itself.
+func (s *Server) manualSyncNote(a versions.GitOpsApp) string {
+	if !a.ManualSync {
+		return ""
+	}
+	where := "in Argo CD"
+	if u := argoAppURL(a, s.argoCDURL); u != "" {
+		where = "in [Argo CD](" + u + ")"
+	}
+	return "> 🖐️ Argo CD syncs " + a.App + " by hand (no automated sync policy): once merged, sync it " + where + ".\n\n"
 }

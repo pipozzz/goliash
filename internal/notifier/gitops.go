@@ -66,6 +66,14 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 					it.Text += fmt.Sprintf(": Git pins %s, %s runs", pinned, a.Tag)
 				}
 			}
+			if trouble == "out of sync" { // and why it waits, when Goliash knows
+				switch {
+				case a.Blocked(now):
+					it.Text += "; a sync window holds it (" + a.SyncBlocked + ")"
+				case a.ManualSync:
+					it.Text += "; Argo CD syncs it by hand"
+				}
+			}
 			if cmp := versions.CompareWebURL(versions.RepoWebURL(a.Repo), a.PrevRevision, a.Revision); cmp != "" &&
 				!a.RevisionAt.Before(a.SyncSince.Add(-24*time.Hour)) { // Git moved just before: link what changed
 				it.URL = cmp

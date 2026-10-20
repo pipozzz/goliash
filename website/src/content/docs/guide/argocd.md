@@ -113,6 +113,13 @@ Windows match an application by name, destination namespace or destination clust
 in their `timeZone`; schedules are standard five-field cron (names, ranges, steps and `@daily`-style descriptors).
 The API's `GET /api/v1/gitops` returns `sync_blocked` and `sync_blocked_until`.
 
+### Manual sync
+
+An application without an automated sync policy (`spec.syncPolicy.automated`, or with it `enabled: false`) deploys
+only when someone syncs it. Goliash badges it **manual sync**; its pull requests (opened by hand or by the policy)
+say that merging does not deploy it and link the application in Argo CD (with `GOLIASH_ARGOCD_URL`), and its
+*out of sync* alert says Argo CD waits for someone to sync it. The API returns `manual_sync`.
+
 ### Reviewers and labels
 
 A service's version policy can name who reviews its pull requests and how they are labelled: **Pull request

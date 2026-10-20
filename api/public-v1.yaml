@@ -570,6 +570,7 @@ paths:
                     prev_revision: { type: string, description: "The commit synced before revision, once it changed." }
                     compare_url: { type: string, description: "The forge's page of what changed in Git from prev_revision to revision." }
                     sync_blocked: { type: string, description: "Why the application does not sync now: Argo CD's sync windows, or suspended in Flux; absent otherwise." }
+                    manual_sync: { type: boolean, description: "Argo CD syncs it only by hand (no automated sync policy): a merged change waits for that." }
                     sync_blocked_until: { type: string, format: date-time, description: "When that sync window closes, or the next allow window opens." }
                     after_change:
                       type: object

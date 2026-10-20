@@ -60,12 +60,12 @@ func TestWorkloadGitOps(t *testing.T) {
 		}
 		// A sync window blocking it is kept, and stops counting once it has closed.
 		until := t0.Add(6 * time.Hour)
-		a.SyncBlocked, a.SyncBlockedUntil = `deny window "0 22 * * 5" for 56h`, until
+		a.SyncBlocked, a.SyncBlockedUntil, a.ManualSync = `deny window "0 22 * * 5" for 56h`, until, true
 		if err := s.SetWorkloadGitOps(ctx, sc, tgt.ID, []WorkloadGitOps{a}, true, t0.Add(5*time.Hour)); err != nil {
 			t.Fatal(err)
 		}
 		got, _ = s.ListWorkloadGitOps(ctx, sc)
-		if got[0].SyncBlocked != a.SyncBlocked || !got[0].SyncBlockedUntil.Equal(until) || !got[0].Blocked(t0.Add(5*time.Hour)) || got[0].Blocked(until) {
+		if !got[0].ManualSync || got[0].SyncBlocked != a.SyncBlocked || !got[0].SyncBlockedUntil.Equal(until) || !got[0].Blocked(t0.Add(5*time.Hour)) || got[0].Blocked(until) {
 			t.Fatalf("sync window %+v", got[0])
 		}
 	})

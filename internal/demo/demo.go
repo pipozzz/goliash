@@ -674,6 +674,8 @@ func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps
 		Tool: agentproto.Argocd, App: name, AppNamespace: &ns, Project: &project, Repo: &repo,
 		Path: &path, TargetRevision: &branch, Revision: &rev, Sync: &sync, Health: &health,
 	}
+	auto := name != "webshop-staging" // staging's webshop is synced by hand: it waits since day 19
+	g.AutoSync = &auto
 	if name == "webshop-prod" && day == 21 { // the webshop's project freezes prod syncs every evening
 		why, until := `deny window "0 18 * * *" for 14h`, time.Now().UTC().Add(12*time.Hour).Truncate(time.Hour)
 		g.SyncBlocked, g.SyncBlockedUntil = &why, &until

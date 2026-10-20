@@ -29,8 +29,9 @@ func argoApp(name string, spec, status map[string]any) *unstructured.Unstructure
 // from and whether the application is in sync.
 func TestArgoCD(t *testing.T) {
 	payments := argoApp("payments-prod", map[string]any{
-		"project": "shop",
-		"source":  map[string]any{"repoURL": "https://github.com/acme/deploy.git", "path": "apps/payments/prod", "targetRevision": "main"},
+		"project":    "shop",
+		"syncPolicy": map[string]any{"automated": map[string]any{"prune": true}},
+		"source":     map[string]any{"repoURL": "https://github.com/acme/deploy.git", "path": "apps/payments/prod", "targetRevision": "main"},
 	}, map[string]any{
 		"sync":   map[string]any{"status": "OutOfSync", "revision": "4f1c2e9"},
 		"health": map[string]any{"status": "Degraded"},
@@ -59,11 +60,12 @@ func TestArgoCD(t *testing.T) {
 	api := got["payments/payments-api"].Gitops
 	if api == nil || api.App != "payments-prod" || *api.Repo != "https://github.com/acme/deploy.git" || *api.Path != "apps/payments/prod" ||
 		*api.TargetRevision != "main" || *api.Revision != "4f1c2e9" || *api.Sync != "OutOfSync" || *api.Health != "Degraded" ||
-		*api.Project != "shop" || *api.AppNamespace != "argocd" || api.Tool != agentproto.Argocd {
+		*api.Project != "shop" || *api.AppNamespace != "argocd" || api.Tool != agentproto.Argocd || api.AutoSync == nil || !*api.AutoSync {
 		t.Fatalf("payments-api gitops %+v", api)
 	}
 	pg := got["data/postgres"].Gitops
-	if pg == nil || *pg.Path != "postgresql" || *pg.TargetRevision != "15.5.0" || *pg.Revision != "abc" || *pg.Sync != "Synced" {
+	if pg == nil || *pg.Path != "postgresql" || *pg.TargetRevision != "15.5.0" || *pg.Revision != "abc" || *pg.Sync != "Synced" ||
+		pg.AutoSync == nil || *pg.AutoSync { // no automated policy: synced by hand
 		t.Fatalf("postgres gitops %+v", pg)
 	}
 	if got["monitoring/node-exporter"].Gitops != nil {

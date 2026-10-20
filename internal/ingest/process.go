@@ -201,6 +201,7 @@ func gitOps(ws []agentproto.Workload) []store.WorkloadGitOps {
 			WorkloadID: w.ID, Tool: string(g.Tool), App: g.App, AppNamespace: str(g.AppNamespace), Project: str(g.Project),
 			Repo: str(g.Repo), Path: str(g.Path), TargetRevision: str(g.TargetRevision), Revision: str(g.Revision),
 			Sync: str(g.Sync), Health: str(g.Health), SyncBlocked: str(g.SyncBlocked),
+			ManualSync: g.AutoSync != nil && !*g.AutoSync,
 		}
 		if g.SyncBlockedUntil != nil {
 			row.SyncBlockedUntil = g.SyncBlockedUntil.UTC()

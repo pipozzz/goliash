@@ -53,8 +53,8 @@ func TestGitOpsAlerts(t *testing.T) {
 	}
 	g.Sync = "Synced"
 	set(now.Add(-time.Hour)) // in sync: nothing
-	g.Sync = "OutOfSync"
-	set(now.Add(-30 * time.Minute)) // out of sync for half an hour
+	g.Sync, g.ManualSync = "OutOfSync", true
+	set(now.Add(-30 * time.Minute)) // out of sync for half an hour, Argo CD waiting for someone to sync it
 	for range 2 {                   // once per episode
 		if err := e.n.CheckGitOps(ctx); err != nil {
 			t.Fatal(err)
@@ -62,7 +62,7 @@ func TestGitOpsAlerts(t *testing.T) {
 		_ = e.n.DeliverDue(ctx)
 	}
 	all := strings.Join(slack.all(), "\n")
-	if slack.count() != 1 || !strings.Contains(all, "Argo CD application api-prod is out of sync on k8s-prod (apps/api/prod @ main): Git pins 1.6.0, 1.5.0 runs") ||
+	if slack.count() != 1 || !strings.Contains(all, "Argo CD application api-prod is out of sync on k8s-prod (apps/api/prod @ main): Git pins 1.6.0, 1.5.0 runs; Argo CD syncs it by hand") ||
 		!strings.Contains(all, "https://github.com/acme/deploy/commit/4f1c2e9") {
 		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
 	}

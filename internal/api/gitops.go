@@ -44,6 +44,7 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		CompareURL     string     `json:"compare_url,omitempty"`
 		AfterChange    *change    `json:"after_change,omitempty"`
 		SyncBlocked    string     `json:"sync_blocked,omitempty"`
+		ManualSync     bool       `json:"manual_sync,omitempty"`
 		BlockedUntil   *time.Time `json:"sync_blocked_until,omitempty"`
 	}
 	now := time.Now()
@@ -55,6 +56,7 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now), Version: a.Tag, PrevRevision: a.PrevRevision,
 			CompareURL: versions.CompareWebURL(versions.RepoWebURL(a.Repo), a.PrevRevision, a.Revision),
 		}
+		x.ManualSync = a.ManualSync
 		if a.Blocked(now) {
 			x.SyncBlocked = a.SyncBlocked
 			if !a.SyncBlockedUntil.IsZero() {
