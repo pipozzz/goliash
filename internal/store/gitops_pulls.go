@@ -72,8 +72,9 @@ func (s *Store) SetGitOpsPullChecks(ctx context.Context, sc Scope, id, checks st
 	return expectOne(res, err)
 }
 
-// SetGitOpsPullState records what the forge says about a pull request now, and when it was first seen merged.
-func (s *Store) SetGitOpsPullState(ctx context.Context, sc Scope, id, state string) error {
+// SetGitOpsPullState records what the forge says about a pull request now, and for a merged one when it was
+// merged: mergedAt as the forge says, or now when it does not.
+func (s *Store) SetGitOpsPullState(ctx context.Context, sc Scope, id, state string, mergedAt time.Time) error {
 	now := s.now()
 	merged := "NULL"
 	if state == "merged" {
@@ -81,7 +82,10 @@ func (s *Store) SetGitOpsPullState(ctx context.Context, sc Scope, id, state stri
 	}
 	args := []any{state, now}
 	if state == "merged" {
-		args = append(args, now)
+		if mergedAt.IsZero() {
+			mergedAt = now
+		}
+		args = append(args, mergedAt.UTC())
 	}
 	res, err := s.exec(ctx, s.db, `UPDATE gitops_pulls SET state = ?, checked_at = ?, merged_at = `+merged+`
 		WHERE org_id = ? AND workspace_id = ? AND id = ?`, append(args, sc.OrgID, sc.WorkspaceID, id)...)

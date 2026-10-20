@@ -198,7 +198,7 @@ func TestMergedNotDeployed(t *testing.T) {
 		t.Fatal(err)
 	}
 	pulls, _ := e.st.ListGitOpsPulls(ctx, e.sc)
-	if err := e.st.SetGitOpsPullState(ctx, e.sc, pulls[0].ID, "merged"); err != nil {
+	if err := e.st.SetGitOpsPullState(ctx, e.sc, pulls[0].ID, "merged", time.Time{}); err != nil {
 		t.Fatal(err)
 	}
 	pulls, _ = e.st.ListGitOpsPulls(ctx, e.sc)

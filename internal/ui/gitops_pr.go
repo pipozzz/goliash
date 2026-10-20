@@ -27,7 +27,7 @@ type PullRequester interface {
 	Supports(repo string) bool
 	Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error)
 	OpenBump(ctx context.Context, b gitops.Bump) (string, error)
-	PullState(ctx context.Context, pullURL string) (string, error)
+	PullState(ctx context.Context, pullURL string) (gitops.PullStatus, error)
 	Pinned(ctx context.Context, b gitops.Bump) ([]string, error)
 	OpenPulls(ctx context.Context, repo string) ([]gitops.Pull, error)
 	PullChecks(ctx context.Context, pullURL string) (string, error)
@@ -322,13 +322,14 @@ func (s *Server) RefreshPulls(ctx context.Context) error {
 			if p.State != "open" {
 				continue
 			}
-			state, err := s.pulls.PullState(ctx, p.URL)
+			status, err := s.pulls.PullState(ctx, p.URL)
 			if err != nil {
 				s.log.WarnContext(ctx, "reading a pull request's state failed", "url", p.URL, "err", err)
 				continue
 			}
+			state := status.State
 			if state != p.State {
-				if err := s.store.SetGitOpsPullState(ctx, sc, p.ID, state); err != nil {
+				if err := s.store.SetGitOpsPullState(ctx, sc, p.ID, state, status.MergedAt); err != nil {
 					return err
 				}
 			}
@@ -482,6 +483,11 @@ func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overv
 			for _, e := range evs { // newest first: keep the first arrival after the pull request was opened
 				if e.TargetID == p.TargetID && e.ToVersion == p.To && !e.At.Before(p.OpenedAt) {
 					v.ToRunning = e.At.Sub(p.OpenedAt)
+					if !p.MergedAt.IsZero() && !e.At.Before(p.MergedAt) {
+						v.MergeToRunning = max(e.At.Sub(p.MergedAt), time.Second) // a sync within the second still counts
+					} else {
+						v.MergeToRunning = 0
+					}
 				}
 			}
 		}
@@ -493,10 +499,20 @@ func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overv
 // medianToRunning is the median time from opening a pull request to its version running, over those that run,
 // and how many; 0 when none does.
 func medianToRunning(pulls []PullView) (time.Duration, int) {
+	return medianOf(pulls, func(p PullView) time.Duration { return p.ToRunning })
+}
+
+// medianMergeToRunning is the median time from merging a pull request to its version running: what deploying a
+// merge takes (sync windows, manual syncs, slow pipelines).
+func medianMergeToRunning(pulls []PullView) (time.Duration, int) {
+	return medianOf(pulls, func(p PullView) time.Duration { return p.MergeToRunning })
+}
+
+func medianOf(pulls []PullView, d func(PullView) time.Duration) (time.Duration, int) {
 	var ds []time.Duration
 	for _, p := range pulls {
-		if p.ToRunning > 0 {
-			ds = append(ds, p.ToRunning)
+		if v := d(p); v > 0 {
+			ds = append(ds, v)
 		}
 	}
 	if len(ds) == 0 {

@@ -1734,6 +1734,7 @@ type PullView struct {
 	OpenedAt            time.Time
 	Deployed            bool          // the version it pins runs there now
 	ToRunning           time.Duration // from opening the pull request to the version running there; 0 unknown
+	MergeToRunning      time.Duration // from merging it to the version running there; 0 unknown
 	MergedAt            time.Time     // merged and not deployed: since when
 	Waiting             string        // merged and not deployed: why, when Goliash can tell
 }

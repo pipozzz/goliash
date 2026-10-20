@@ -226,26 +226,27 @@ func (g *Gitea) OpenBump(ctx context.Context, b Bump) (string, error) {
 }
 
 // PullState says whether a pull request on this instance is open, merged or closed.
-func (g *Gitea) PullState(ctx context.Context, pullURL string) (string, error) {
+func (g *Gitea) PullState(ctx context.Context, pullURL string) (PullStatus, error) {
 	repo, index, ok := strings.Cut(pullURL, "/pulls/")
 	owner, name, ok2 := g.ownerRepo(repo)
 	if !ok || !ok2 || index == "" || strings.Contains(index, "/") {
-		return "", fmt.Errorf("%s is not a pull request on %s", pullURL, g.base)
+		return PullStatus{}, fmt.Errorf("%s is not a pull request on %s", pullURL, g.base)
 	}
 	var pr struct {
-		State  string `json:"state"` // open, closed
-		Merged bool   `json:"merged"`
+		State    string     `json:"state"` // open, closed
+		Merged   bool       `json:"merged"`
+		MergedAt *time.Time `json:"merged_at"`
 	}
 	if err := g.do(ctx, http.MethodGet, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(name)+"/pulls/"+url.PathEscape(index), nil, &pr); err != nil {
-		return "", err
+		return PullStatus{}, err
 	}
 	switch {
 	case pr.Merged:
-		return "merged", nil
+		return mergedStatus(pr.MergedAt), nil
 	case pr.State == "closed":
-		return "closed", nil
+		return PullStatus{State: "closed"}, nil
 	}
-	return "open", nil
+	return PullStatus{State: "open"}, nil
 }
 
 func (g *Gitea) do(ctx context.Context, method, p string, in, out any) error {

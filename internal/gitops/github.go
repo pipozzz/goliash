@@ -337,29 +337,30 @@ func escapePath(p string) string {
 }
 
 // PullState says whether a pull request this GitHub holds is open, merged or closed.
-func (g *GitHub) PullState(ctx context.Context, pullURL string) (string, error) {
+func (g *GitHub) PullState(ctx context.Context, pullURL string) (PullStatus, error) {
 	u, err := url.Parse(pullURL)
 	if err != nil || u.Host != g.host {
-		return "", fmt.Errorf("%s is not a pull request on %s", pullURL, g.host)
+		return PullStatus{}, fmt.Errorf("%s is not a pull request on %s", pullURL, g.host)
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/") // owner/repo/pull/N
 	if len(parts) != 4 || parts[2] != "pull" {
-		return "", fmt.Errorf("%s is not a pull request address", pullURL)
+		return PullStatus{}, fmt.Errorf("%s is not a pull request address", pullURL)
 	}
 	var pr struct {
-		State  string `json:"state"`
-		Merged bool   `json:"merged"`
+		State    string     `json:"state"`
+		Merged   bool       `json:"merged"`
+		MergedAt *time.Time `json:"merged_at"`
 	}
 	if err := g.do(ctx, http.MethodGet, "/repos/"+parts[0]+"/"+parts[1]+"/pulls/"+parts[3], nil, &pr); err != nil {
-		return "", err
+		return PullStatus{}, err
 	}
 	switch {
 	case pr.Merged:
-		return "merged", nil
+		return mergedStatus(pr.MergedAt), nil
 	case pr.State == "closed":
-		return "closed", nil
+		return PullStatus{State: "closed"}, nil
 	}
-	return "open", nil
+	return PullStatus{State: "open"}, nil
 }
 
 // OpenPulls lists the repository's open pull requests (the 100 newest).

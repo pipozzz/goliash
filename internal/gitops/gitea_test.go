@@ -96,8 +96,8 @@ func TestGitea(t *testing.T) {
 	if pull["head"] != "goliash/checkout-1.5.0-prod" || pull["base"] != "main" || pull["title"] != "checkout 1.5.0 in prod" {
 		t.Fatalf("pull %v", pull)
 	}
-	if st, err := g.PullState(ctx, pr); err != nil || st != "merged" {
-		t.Fatalf("PullState = %q, %v", st, err)
+	if st, err := g.PullState(ctx, pr); err != nil || st.State != "merged" {
+		t.Fatalf("PullState = %+v, %v", st, err)
 	}
 	if repoOf(pr) != srv.URL+"/acme/deploy" {
 		t.Fatalf("repoOf = %q", repoOf(pr))

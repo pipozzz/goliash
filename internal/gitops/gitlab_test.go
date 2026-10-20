@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestGitLabOpenBump(t *testing.T) {
@@ -105,7 +106,7 @@ func TestPullState(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.EscapedPath() {
 		case "/repos/acme/deploy/pulls/7":
-			_, _ = w.Write([]byte(`{"state":"closed","merged":true}`))
+			_, _ = w.Write([]byte(`{"state":"closed","merged":true,"merged_at":"2026-10-20T09:15:00Z"}`))
 		case "/repos/acme/deploy/pulls/8":
 			_, _ = w.Write([]byte(`{"state":"closed","merged":false}`))
 		case "/api/v4/projects/acme%2Fdeploy/merge_requests/3":
@@ -123,8 +124,11 @@ func TestPullState(t *testing.T) {
 		"https://github.com/acme/deploy/pull/8":     "closed",
 		srv.URL + "/acme/deploy/-/merge_requests/3": "open",
 	} {
-		if got, err := r.PullState(context.Background(), pull); err != nil || got != want {
-			t.Errorf("PullState(%s) = %q, %v; want %q", pull, got, err, want)
+		if got, err := r.PullState(context.Background(), pull); err != nil || got.State != want {
+			t.Errorf("PullState(%s) = %+v, %v; want %q", pull, got, err, want)
 		}
+	}
+	if got, _ := r.PullState(context.Background(), "https://github.com/acme/deploy/pull/7"); !got.MergedAt.Equal(time.Date(2026, 10, 20, 9, 15, 0, 0, time.UTC)) {
+		t.Errorf("merged at %v", got.MergedAt)
 	}
 }

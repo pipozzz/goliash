@@ -262,26 +262,29 @@ func (g *GitLab) raw(ctx context.Context, p string) ([]byte, error) {
 }
 
 // PullState says whether a merge request on this GitLab is open, merged or closed.
-func (g *GitLab) PullState(ctx context.Context, mrURL string) (string, error) {
+func (g *GitLab) PullState(ctx context.Context, mrURL string) (PullStatus, error) {
 	u, err := url.Parse(mrURL)
 	if err != nil || u.Host != g.host {
-		return "", fmt.Errorf("%s is not a merge request on %s", mrURL, g.base)
+		return PullStatus{}, fmt.Errorf("%s is not a merge request on %s", mrURL, g.base)
 	}
 	project, iid, ok := strings.Cut(strings.Trim(u.Path, "/"), "/-/merge_requests/")
 	if !ok || iid == "" {
-		return "", fmt.Errorf("%s is not a merge request address", mrURL)
+		return PullStatus{}, fmt.Errorf("%s is not a merge request address", mrURL)
 	}
 	var mr struct {
-		State string `json:"state"` // opened, merged, closed, locked
+		State    string     `json:"state"` // opened, merged, closed, locked
+		MergedAt *time.Time `json:"merged_at"`
 	}
 	if err := g.do(ctx, http.MethodGet, "/projects/"+url.PathEscape(project)+"/merge_requests/"+url.PathEscape(iid), nil, &mr); err != nil {
-		return "", err
+		return PullStatus{}, err
 	}
 	switch mr.State {
-	case "merged", "closed":
-		return mr.State, nil
+	case "merged":
+		return mergedStatus(mr.MergedAt), nil
+	case "closed":
+		return PullStatus{State: "closed"}, nil
 	}
-	return "open", nil
+	return PullStatus{State: "open"}, nil
 }
 
 // OpenPulls lists the project's open merge requests (the 100 newest).

@@ -68,11 +68,15 @@ type fakePulls struct {
 	pinned []string
 	others []gitops.Pull
 	checks string
+	// mergedAt is when the forge says it was merged
+	mergedAt time.Time
 }
 
 func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
 
-func (f *fakePulls) PullState(context.Context, string) (string, error) { return f.state, nil }
+func (f *fakePulls) PullState(context.Context, string) (gitops.PullStatus, error) {
+	return gitops.PullStatus{State: f.state, MergedAt: f.mergedAt}, nil
+}
 
 func (f *fakePulls) Pinned(context.Context, gitops.Bump) ([]string, error) { return f.pinned, nil }
 
@@ -441,7 +445,7 @@ func TestClosedPullRequest(t *testing.T) {
 	}
 	pulls.state = "closed"
 	got, _ := e.st.ListGitOpsPulls(ctx, sc)
-	_ = e.st.SetGitOpsPullState(ctx, sc, got[0].ID, "closed")
+	_ = e.st.SetGitOpsPullState(ctx, sc, got[0].ID, "closed", time.Time{})
 	if p := page(); !strings.Contains(p, "Open PR → 1.28.0") {
 		t.Fatal("a closed pull request is not offered again")
 	}
@@ -539,6 +543,10 @@ func TestPullToRunning(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	pulls, _ := e.st.ListGitOpsPulls(ctx, sc) // merged two hours after opening, as the forge says
+	if err := e.st.SetGitOpsPullState(ctx, sc, pulls[0].ID, "merged", time.Now().Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.st.InsertEvent(ctx, sc, store.Event{
 		Type: "version_changed", ServiceID: svc.ID, TargetID: e.tgt.ID, FromVersion: "0.9.0", ToVersion: running,
 		At: time.Now().Add(3*time.Hour + time.Minute),
@@ -548,6 +556,9 @@ func TestPullToRunning(t *testing.T) {
 	_, d := get(t, e.as(store.RoleViewer), e.srv.URL+"/delivery", nil)
 	if !strings.Contains(d, "3h after opening") || !strings.Contains(d, "3h from pull request to running") {
 		t.Fatal("no time from pull request to running")
+	}
+	if !strings.Contains(d, "1h after merging") || !strings.Contains(d, "1h from merge to running") {
+		t.Fatal("no time from merge to running")
 	}
 }
 

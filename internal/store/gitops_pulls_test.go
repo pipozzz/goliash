@@ -6,6 +6,7 @@ package store
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestGitOpsPulls(t *testing.T) {
@@ -30,21 +31,21 @@ func TestGitOpsPulls(t *testing.T) {
 		if got, _ = s.ListGitOpsPulls(ctx, sc); got[0].Checks != "failing" {
 			t.Fatalf("checks %+v", got[0])
 		}
-		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "merged"); err != nil {
+		mergedAt := time.Date(2026, 10, 20, 9, 15, 0, 0, time.UTC) // as the forge says
+		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "merged", mergedAt); err != nil {
 			t.Fatal(err)
 		}
 		got, _ = s.ListGitOpsPulls(ctx, sc)
-		mergedAt := got[0].MergedAt
-		if got[0].State != "merged" || mergedAt.IsZero() {
+		if got[0].State != "merged" || !got[0].MergedAt.Equal(mergedAt) {
 			t.Fatalf("merged %+v", got[0])
 		}
-		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "merged"); err != nil { // seen merged again: still when first seen
+		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "merged", time.Time{}); err != nil { // seen merged again: still when first seen
 			t.Fatal(err)
 		}
 		if got, _ = s.ListGitOpsPulls(ctx, sc); !got[0].MergedAt.Equal(mergedAt) {
 			t.Fatalf("merged_at moved %+v", got[0])
 		}
-		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "closed"); err != nil {
+		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "closed", time.Time{}); err != nil {
 			t.Fatal(err)
 		}
 		p.URL = "https://github.com/acme/deploy/pull/8" // closed, then opened again: the new one, open

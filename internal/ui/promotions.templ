@@ -224,7 +224,10 @@ templ pullsPanel(pulls []PullView) {
 			if d, n := medianToRunning(pulls); n > 0 {
 				<span class="muted" title={ fmt.Sprintf("The median over %d pull requests whose version runs", n) }>{ versions.HumanDuration(d) } from pull request to running</span>
 			}
-			@panelInfo("Pull requests Goliash opened in the last 30 days, by someone or by a version policy (auto-pr): open, merged or closed, whether the version they pin runs there now, and how long after opening it began to.")
+			if d, n := medianMergeToRunning(pulls); n > 0 {
+				<span class="muted" title={ fmt.Sprintf("The median over %d merged pull requests whose version runs: how long a merge takes to deploy", n) }>{ versions.HumanDuration(d) } from merge to running</span>
+			}
+			@panelInfo("Pull requests Goliash opened in the last 30 days, by someone or by a version policy (auto-pr): open, merged or closed, whether the version they pin runs there now, and how long after opening and after merging it began to.")
 		</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">
@@ -254,7 +257,12 @@ templ pullsPanel(pulls []PullView) {
 									}
 								}
 								if p.ToRunning > 0 {
-									<div class="targets">{ versions.HumanDuration(p.ToRunning) } after opening</div>
+									<div class="targets">
+										{ versions.HumanDuration(p.ToRunning) } after opening
+										if p.MergeToRunning > 0 {
+											{ ", " + versions.HumanDuration(p.MergeToRunning) + " after merging" }
+										}
+									</div>
 								}
 							</td>
 							<td data-label="Opened">@timeAgo(p.OpenedAt)<div class="targets">{ "by " + p.OpenedBy }</div></td>
