@@ -645,6 +645,8 @@ type PolicyForm struct {
 	MaxSizeMB  string // the image size budget, empty: none
 	Signer     string // who should sign its images, empty: nobody named
 	AutoPR     string // "dev=minor, staging=patch": pull requests the policy opens by itself
+	Reviewers  string // "alice, @acme/payments": asked to review its pull requests
+	Labels     string // "dependencies, goliash": put on its pull requests
 }
 
 // ServiceEnv is one environment on a service page.

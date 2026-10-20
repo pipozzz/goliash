@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,7 +57,11 @@ func fakeGitHub(t *testing.T, kustomization string) (*httptest.Server, *sync.Map
 			_ = json.NewDecoder(r.Body).Decode(&b)
 			written.Store("pull", b["title"].(string)+"|"+b["head"].(string)+"|"+b["base"].(string))
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"html_url":"https://github.com/acme/deploy/pull/7"}`))
+			_, _ = w.Write([]byte(`{"html_url":"https://github.com/acme/deploy/pull/7","number":7}`))
+		case r.Method == http.MethodPost && (p == "/repos/acme/deploy/pulls/7/requested_reviewers" || p == "/repos/acme/deploy/issues/7/labels"):
+			raw, _ := io.ReadAll(r.Body)
+			written.Store(p, string(raw))
+			w.WriteHeader(http.StatusCreated)
 		default:
 			t.Errorf("unexpected %s %s", r.Method, p)
 			w.WriteHeader(http.StatusNotFound)
@@ -117,5 +122,26 @@ func TestPinned(t *testing.T) {
 	})
 	if err != nil || strings.Join(tags, ",") != "1.5.0" {
 		t.Fatalf("Pinned = %v, %v", tags, err)
+	}
+}
+
+// The policy's reviewers and labels go on the new pull request: people and teams told apart.
+func TestOpenBumpReviewers(t *testing.T) {
+	srv, written := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.4.2\n")
+	g := NewGitHub("tok", srv.URL)
+	g.host = "github.com"
+	if _, err := g.OpenBump(context.Background(), Bump{
+		Repo: "https://github.com/acme/deploy", Branch: "main", Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout",
+		From: "1.4.2", To: "1.5.0", Head: "goliash/x", Title: "t", CommitMsg: "c",
+		Reviewers: []string{"@alice", "@acme/payments"}, Labels: []string{"dependencies"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	get := func(k string) string { v, _ := written.Load(k); s, _ := v.(string); return s }
+	if r := get("/repos/acme/deploy/pulls/7/requested_reviewers"); r != `{"reviewers":["alice"],"team_reviewers":["payments"]}` {
+		t.Errorf("reviewers %q", r)
+	}
+	if l := get("/repos/acme/deploy/issues/7/labels"); l != `{"labels":["dependencies"]}` {
+		t.Errorf("labels %q", l)
 	}
 }

@@ -780,6 +780,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 		v.Policy.Signer = own.Signer
 		v.Policy.AutoPR = formatAutoPR(own.AutoPR)
+		v.Policy.Reviewers, v.Policy.Labels = strings.Join(own.PRReviewers, ", "), strings.Join(own.PRLabels, ", ")
 	}
 	if base := versions.BaseImage(svc); base != "" {
 		st := s.checker.BaseStatus(ctx, base, time.Now())
@@ -944,6 +945,10 @@ func (s *Server) savePolicy(w http.ResponseWriter, r *http.Request, p auth.Princ
 		return back(w, r, path, "error", "Automatic pull requests: "+err.Error()+", like dev=minor, staging=patch.")
 	}
 	pol.AutoPR = autoPR
+	pol.PRReviewers, pol.PRLabels = commaList(r.FormValue("pr_reviewers")), commaList(r.FormValue("pr_labels"))
+	if len(pol.PRReviewers) > 20 || len(pol.PRLabels) > 20 {
+		return back(w, r, path, "error", "At most 20 reviewers and 20 labels.")
+	}
 	pol.MaxSizeMB = 0
 	if ms := strings.TrimSpace(r.FormValue("max_size_mb")); ms != "" {
 		n, err := strconv.Atoi(ms)

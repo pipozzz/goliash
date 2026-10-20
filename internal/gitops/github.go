@@ -57,6 +57,8 @@ type Bump struct {
 	Title     string
 	Body      string // markdown
 	CommitMsg string
+	Reviewers []string // people (alice) and teams (@acme/payments) asked to review; best effort
+	Labels    []string // labels put on the pull request; best effort
 }
 
 // ErrNoTag is returned when no file under the path pins the image at the version.
@@ -241,11 +243,13 @@ func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {
 	}
 	var pr struct {
 		HTMLURL string `json:"html_url"`
+		Number  int    `json:"number"`
 	}
 	body := map[string]any{"title": b.Title, "head": head, "base": base, "body": b.Body, "maintainer_can_modify": true}
 	if err := g.do(ctx, http.MethodPost, repoAPI+"/pulls", body, &pr); err != nil {
 		return "", fmt.Errorf("open the pull request: %w", err)
 	}
+	g.dress(ctx, repoAPI, pr.Number, b)
 	return pr.HTMLURL, nil
 }
 
@@ -431,4 +435,34 @@ func (g *GitHub) PullChecks(ctx context.Context, pullURL string) (string, error)
 		states = append(states, map[string]string{"success": "passing", "failure": "failing", "error": "failing"}[status.State])
 	}
 	return worstChecks(states), nil
+}
+
+// dress asks the bump's reviewers and puts its labels on a new pull request. A reviewer or label GitHub refuses
+// (no such team, no access) leaves the pull request as it is: it is open either way.
+func (g *GitHub) dress(ctx context.Context, repoAPI string, number int, b Bump) {
+	users, teams := splitReviewers(b.Reviewers)
+	if len(users)+len(teams) > 0 {
+		_ = g.do(ctx, http.MethodPost, fmt.Sprintf("%s/pulls/%d/requested_reviewers", repoAPI, number),
+			map[string]any{"reviewers": users, "team_reviewers": teams}, nil)
+	}
+	if len(b.Labels) > 0 {
+		_ = g.do(ctx, http.MethodPost, fmt.Sprintf("%s/issues/%d/labels", repoAPI, number), map[string]any{"labels": b.Labels}, nil)
+	}
+}
+
+// splitReviewers tells people (alice, @alice) from teams (@acme/payments: the team's slug, payments).
+func splitReviewers(names []string) (users, teams []string) {
+	users, teams = []string{}, []string{}
+	for _, n := range names {
+		n = strings.TrimPrefix(strings.TrimSpace(n), "@")
+		if n == "" {
+			continue
+		}
+		if _, team, ok := strings.Cut(n, "/"); ok {
+			teams = append(teams, team)
+			continue
+		}
+		users = append(users, n)
+	}
+	return users, teams
 }

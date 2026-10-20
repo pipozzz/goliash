@@ -53,6 +53,8 @@ type upgrade struct {
 	vulns          versions.VulnDelta
 	summary        string // Goli's summary of the release notes, a markdown list; empty without Goli
 	rollback       bool   // back to the version the running one replaced, the application being degraded
+	reviewers      []string
+	labels         []string // from the service's version policy (pr_reviewers, pr_labels)
 }
 
 // findUpgrade finds the upgrade a form names and checks the page would still offer it: the newest acceptable
@@ -80,6 +82,9 @@ func (s *Server) findUpgrade(ctx context.Context, sc store.Scope, service, targe
 	u := upgrade{
 		app: *app, service: service, page: "/services/" + url.PathEscape(service), to: to,
 		notes: o.ReleaseURL[app.ServiceID+"|"+to],
+	}
+	if pol, _, err := versions.PolicyFor(o.Services[app.ServiceID], o.Refs[app.ServiceID].Repo); err == nil {
+		u.reviewers, u.labels = pol.PRReviewers, pol.PRLabels
 	}
 	if up, ok := o.Upstreams[app.ServiceID]; ok && up.HasLatest && s.pullRequestTo(*app, up.Latest.Raw) == to {
 		u.why = "the newest release its version policy accepts"
@@ -176,6 +181,7 @@ func (s *Server) bumpRequest(u upgrade, by string) gitops.Bump {
 	return gitops.Bump{
 		Repo: versions.RepoWebURL(app.Repo), Branch: app.TargetRevision, Path: app.Path, Image: image,
 		From: app.Tag, To: u.to, Head: "goliash/" + branchSafe(head), Title: title, Body: body,
+		Reviewers: u.reviewers, Labels: u.labels,
 		CommitMsg: fmt.Sprintf("%s: %s → %s in %s", u.service, app.Tag, u.to, app.Environment),
 	}
 }
@@ -564,4 +570,15 @@ func (s *Server) openBulkPRs(w http.ResponseWriter, r *http.Request, p auth.Prin
 		}
 	}
 	return back(w, r, ret, "notice", msg)
+}
+
+// commaList reads "a, b,c" into its items, blanks left out.
+func commaList(s string) []string {
+	var out []string
+	for _, f := range strings.Split(s, ",") {
+		if f = strings.TrimSpace(f); f != "" && len(f) <= 100 {
+			out = append(out, f)
+		}
+	}
+	return out
 }

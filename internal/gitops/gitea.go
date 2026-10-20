@@ -215,10 +215,12 @@ func (g *Gitea) OpenBump(ctx context.Context, b Bump) (string, error) {
 	}
 	var pr struct {
 		HTMLURL string `json:"html_url"`
+		Number  int    `json:"number"`
 	}
 	if err := g.do(ctx, http.MethodPost, repo+"/pulls", map[string]string{"head": head, "base": p.Base, "title": b.Title, "body": b.Body}, &pr); err != nil {
 		return "", fmt.Errorf("open the pull request: %w", err)
 	}
+	g.dress(ctx, repo, pr.Number, b)
 	return pr.HTMLURL, nil
 }
 
@@ -334,4 +336,35 @@ func (g *Gitea) PullChecks(ctx context.Context, pullURL string) (string, error) 
 		return "", err
 	}
 	return map[string]string{"success": "passing", "failure": "failing", "error": "failing", "pending": "pending"}[status.State], nil
+}
+
+// dress asks the bump's reviewers and puts its labels (those the repository has) on a new pull request; what the
+// instance refuses leaves the pull request as it is.
+func (g *Gitea) dress(ctx context.Context, repo string, number int, b Bump) {
+	users, teams := splitReviewers(b.Reviewers)
+	if len(users)+len(teams) > 0 {
+		_ = g.do(ctx, http.MethodPost, fmt.Sprintf("%s/pulls/%d/requested_reviewers", repo, number),
+			map[string]any{"reviewers": users, "team_reviewers": teams}, nil)
+	}
+	if len(b.Labels) == 0 {
+		return
+	}
+	var labels []struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if g.do(ctx, http.MethodGet, repo+"/labels?limit=50", nil, &labels) != nil {
+		return
+	}
+	var ids []int
+	for _, l := range labels {
+		for _, want := range b.Labels {
+			if strings.EqualFold(l.Name, want) {
+				ids = append(ids, l.ID)
+			}
+		}
+	}
+	if len(ids) > 0 {
+		_ = g.do(ctx, http.MethodPost, fmt.Sprintf("%s/issues/%d/labels", repo, number), map[string]any{"labels": ids}, nil)
+	}
 }

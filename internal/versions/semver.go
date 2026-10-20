@@ -184,6 +184,10 @@ type Policy struct {
 	// "staging": "patch"} upgrades dev to the newest acceptable release when it is at most a minor jump away. It
 	// needs a GitOps application (Argo CD, Flux) and a token for its repository.
 	AutoPR map[string]Jump `json:"auto_pr,omitempty"`
+	// PRReviewers are asked to review the pull requests Goliash opens for the service: people (alice) and teams
+	// (@acme/payments); PRLabels are put on them.
+	PRReviewers []string `json:"pr_reviewers,omitempty"`
+	PRLabels    []string `json:"pr_labels,omitempty"`
 }
 
 // ExpectedSigner is who should sign a service's images, empty when its policy names nobody.

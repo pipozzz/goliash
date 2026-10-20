@@ -188,6 +188,12 @@ func (g *GitLab) OpenBump(ctx context.Context, b Bump) (string, error) {
 		WebURL string `json:"web_url"`
 	}
 	body := map[string]any{"source_branch": head, "target_branch": base, "title": b.Title, "description": b.Body, "remove_source_branch": true}
+	if len(b.Labels) > 0 {
+		body["labels"] = strings.Join(b.Labels, ",")
+	}
+	if ids := g.userIDs(ctx, b.Reviewers); len(ids) > 0 {
+		body["reviewer_ids"] = ids
+	}
 	if err := g.do(ctx, http.MethodPost, project+"/merge_requests", body, &mr); err != nil {
 		return "", fmt.Errorf("open the merge request: %w", err)
 	}
@@ -329,4 +335,22 @@ func (g *GitLab) PullChecks(ctx context.Context, mrURL string) (string, error) {
 		return "", nil
 	}
 	return "pending", nil
+}
+
+// userIDs are the GitLab user IDs of the reviewers named (alice, @alice); groups and unknown names are left out.
+func (g *GitLab) userIDs(ctx context.Context, names []string) []int {
+	var ids []int
+	for _, n := range names {
+		n = strings.TrimPrefix(strings.TrimSpace(n), "@")
+		if n == "" || strings.Contains(n, "/") {
+			continue
+		}
+		var users []struct {
+			ID int `json:"id"`
+		}
+		if g.do(ctx, http.MethodGet, "/users?username="+url.QueryEscape(n), nil, &users) == nil && len(users) == 1 {
+			ids = append(ids, users[0].ID)
+		}
+	}
+	return ids
 }

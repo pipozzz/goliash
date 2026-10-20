@@ -87,6 +87,14 @@ The alert for a degraded or missing application says the same: *degraded on k8s-
 replaced 1.6.2*, the likeliest cause first. Its **Rollback PR → 1.6.2** button (Slack, Teams,
 Discord, chat, e-mail) opens that pull request's preview in Goliash: from the alert to the fix in one click.
 
+### Reviewers and labels
+
+A service's version policy can name who reviews its pull requests and how they are labelled: **Pull request
+reviewers** `alice, @acme/payments` (people, and teams as `@org/team`) and **Pull request labels**
+`dependencies, goliash` (`pr_reviewers` and `pr_labels` in the policy's JSON). GitHub and Gitea/Forgejo get both;
+GitLab gets the labels and the people as reviewers. A name the forge does not know is skipped: the pull request
+opens either way.
+
 ### Automatic pull requests
 
 A service's version policy can ask for them per environment: **Automatic pull requests** `dev=minor, staging=patch`

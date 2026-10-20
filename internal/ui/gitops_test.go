@@ -777,3 +777,36 @@ func TestBulkPRs(t *testing.T) {
 		t.Fatalf("opened %d: %.300s", len(pulls.got), body)
 	}
 }
+
+// The service's version policy names reviewers and labels for its pull requests: saved from the form, sent along.
+func TestPRReviewersFromPolicy(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svc := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, svc)
+	rec.VersionPolicy = json.RawMessage(`{"pr_reviewers":["alice","@acme/payments"],"pr_labels":["dependencies"]}`)
+	if err := e.st.UpdateService(ctx, rec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	member := e.as(store.RoleMember)
+	if _, page := get(t, member, e.srv.URL+"/services/"+url.PathEscape(svc), nil); !strings.Contains(page, `value="alice, @acme/payments"`) {
+		t.Fatal("the reviewers are not in the form")
+	}
+	post(t, member, e.srv.URL+"/services/"+url.PathEscape(svc)+"/gitops/pr", url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {"1.28.0"}})
+	if len(pulls.got) != 1 || strings.Join(pulls.got[0].Reviewers, ",") != "alice,@acme/payments" || strings.Join(pulls.got[0].Labels, ",") != "dependencies" {
+		t.Fatalf("bump %+v", pulls.got)
+	}
+}

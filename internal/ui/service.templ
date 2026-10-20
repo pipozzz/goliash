@@ -374,6 +374,15 @@ templ ServicePage(v ServiceView) {
 								<input name="auto_pr" value={ v.Policy.AutoPR } placeholder="dev=minor, staging=patch"/>
 								<span class="hint">Per environment, the biggest jump Goliash opens a pull request for by itself, in the repository its Argo CD or Flux application deploys from. Empty: only when someone asks.</span>
 							</label>
+							<label>
+								Pull request reviewers
+								<input name="pr_reviewers" value={ v.Policy.Reviewers } placeholder="alice, @acme/payments"/>
+								<span class="hint">{ "Asked to review the pull requests Goliash opens for it: people, and teams as @org/team." }</span>
+							</label>
+							<label>
+								Pull request labels
+								<input name="pr_labels" value={ v.Policy.Labels } placeholder="dependencies, goliash"/>
+							</label>
 							<label class="check">
 								<input type="checkbox" name="prerelease" value="1" checked?={ v.Policy.Prerelease }/>
 								Consider alpha, beta and rc tags
