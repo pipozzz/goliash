@@ -46,7 +46,7 @@ Ready-made Prometheus rules are in
 scrape, the background work not running exactly once, stale agents, a growing snapshot queue, failing notifications
 drift open for more than two weeks, production on a release past its end of life, production behind an available
 release for 90+ days, an image that grew by a quarter (and 20 MB) in a day, an image over its size budget, a
-base with a newer build for over a month, an image that lost its signature, SBOM or provenance, and an exploited vulnerability running past CISA's due date. The same queries work in Grafana alerting and SigNoz alerts:
+base with a newer build for over a month, an image that lost its signature, SBOM or provenance, an exploited vulnerability running past CISA's due date, a GitOps application out of sync or unhealthy for an hour, and merged pull requests that have not deployed in two hours. The same queries work in Grafana alerting and SigNoz alerts:
 
 | Alert | Query |
 |---|---|
@@ -60,6 +60,8 @@ base with a newer build for over a month, an image that lost its signature, SBOM
 | Background work not running exactly once | `sum(goliash_leader) != 1` |
 | Exploited vulnerability past CISA's due date | `goliash_vulnerabilities_past_due > 0` |
 | Rollout stuck or service down | `goliash_rollout_problem{kind=~"down|stuck"} == 1` for 10 minutes |
+| GitOps application out of sync or unhealthy | `goliash_gitops_trouble == 1` for an hour |
+| Merged pull requests not deployed | `goliash_pull_requests{state="undeployed"} > 0` for 2 hours |
 | Image grew a lot | `goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)` |
 | Image over its size budget | `goliash_image_size_bytes > on (service) group_left max by (service) (goliash_image_size_budget_bytes)` |
 | Base outdated for a month | `goliash_image_base_behind_days > 30` |
@@ -87,6 +89,13 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_exploited_vulnerability_days` | environment | days the longest-running exploited vulnerability has run |
 | `goliash_rollout_issues` | kind (down, stuck, short) | workloads whose replicas are not where they should be |
 | `goliash_rollout_problem` | service, environment, target, workload, kind, running, desired | 1 for each such workload, while it lasts |
+| `goliash_gitops_applications` | tool (argocd, flux, git) | GitOps applications deploying workloads |
+| `goliash_gitops_trouble` | service, environment, target, app, tool, trouble | 1 for each application out of sync, degraded or missing, while it lasts |
+| `goliash_gitops_sync_blocked` | service, environment, target, app, tool | 1 for each application an Argo CD sync window holds or Flux has suspended |
+| `goliash_gitops_manual_sync` | service, environment, target, app, tool | 1 for each Argo CD application without an automated sync policy |
+| `goliash_pull_requests` | state (open, merged, closed, undeployed) | pull requests Goliash opened in the last 30 days; undeployed: merged, version not running yet |
+| `goliash_pull_request_to_running_seconds` | | median time from opening a pull request to its version running, last 30 days |
+| `goliash_merge_to_running_seconds` | | median time from merging it to its version running, last 30 days |
 | `goliash_image_hygiene_findings` | kind | images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget or no digest |
 | `goliash_image_size_bytes` | service, environment | what pulling the service's image downloads, in bytes (compressed layers and config) |
 | `goliash_image_layers` | service, environment | layers in that image |

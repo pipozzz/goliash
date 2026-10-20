@@ -78,6 +78,20 @@ groups:
         annotations:
           summary: "{{ $labels.service }} in {{ $labels.environment }} on {{ $labels.target }}: {{ $labels.kind }} ({{ $labels.running }} of {{ $labels.desired }} replicas)"
           description: The workload runs none of the replicas it asks for, or two versions side by side for more than 30 minutes. Delivery in Goliash shows which versions run where; check the new version's logs and events.
+      - alert: GoliashGitOpsOutOfSync
+        expr: goliash_gitops_trouble == 1
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.tool }} {{ $labels.app }} ({{ $labels.service }} in {{ $labels.environment }}) is {{ $labels.trouble }}"
+          description: The GitOps application has been out of sync, degraded or missing for an hour. Goliash's GitOps page says what Git pins, what runs, and what changed just before.
+      - alert: GoliashMergedNotDeployed
+        expr: goliash_pull_requests{state="undeployed"} > 0
+        for: 2h
+        labels: { severity: info }
+        annotations:
+          summary: "{{ $value }} merged pull requests have not deployed"
+          description: Pull requests Goliash opened were merged two hours ago or more and their version does not run yet. The Delivery page says why each waits (a sync window, a manual sync, a sync that did not happen).
       - alert: GoliashImageGrew
         expr: |
           goliash_image_size_bytes > 1.25 * (goliash_image_size_bytes offset 1d)

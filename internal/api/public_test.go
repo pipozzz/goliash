@@ -420,3 +420,50 @@ func TestVulnerabilitiesAPI(t *testing.T) {
 		t.Fatalf("not running: %s", body)
 	}
 }
+
+// The GitOps metrics: applications per tool, those in trouble, held by a sync window or synced by hand, and the
+// pull requests Goliash opened by state, a merged one not deployed among them.
+func TestGitOpsMetrics(t *testing.T) {
+	e := newPublicEnv(t)
+	ctx := context.Background()
+	active, _ := e.st.ListActiveInstances(ctx, e.sc)
+	var in store.Instance
+	for _, a := range active {
+		if a.Tag == "1.27.2" {
+			in = a
+		}
+	}
+	now := time.Now()
+	g := store.WorkloadGitOps{
+		WorkloadID: in.WorkloadID, Tool: "argocd", App: "web-prod", Repo: "https://github.com/acme/deploy.git", Path: "apps/web/prod",
+		Sync: "OutOfSync", Health: "Healthy", ManualSync: true,
+		SyncBlocked: `deny window "0 22 * * 5" for 56h`, SyncBlockedUntil: now.Add(time.Hour),
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, e.sc, in.TargetID, []store.WorkloadGitOps{g}, true, now.Add(-2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: e.sc, ServiceID: in.ServiceID, Environment: "prod", TargetID: in.TargetID, WorkloadID: in.WorkloadID,
+		From: "1.27.2", To: "1.28.0", URL: "https://github.com/acme/deploy/pull/7", OpenedBy: "auto-pr",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pulls, _ := e.st.ListGitOpsPulls(ctx, e.sc)
+	if err := e.st.SetGitOpsPullState(ctx, e.sc, pulls[0].ID, "merged", now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	_, body := e.call(nil, "GET", "/metrics", e.token, "")
+	for _, want := range []string{
+		`goliash_gitops_applications{tool="argocd"} 1`,
+		`goliash_gitops_trouble{service="web",environment="prod",`, `trouble="out of sync"} 1`,
+		`goliash_gitops_sync_blocked{service="web",environment="prod",`,
+		`goliash_gitops_manual_sync{service="web",environment="prod",`,
+		`goliash_pull_requests{state="merged"} 1`,
+		`goliash_pull_requests{state="undeployed"} 1`,
+		`goliash_pull_requests{state="open"} 0`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s\n%s", want, body)
+		}
+	}
+}

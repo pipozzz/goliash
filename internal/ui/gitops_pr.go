@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -445,51 +444,25 @@ func envID(o versions.Overview, name string) string {
 // pullViews are the pull requests Goliash opened in the last 30 days, newest first, with whether the version each
 // pins runs where it was meant to.
 func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overview, apps []versions.GitOpsApp) ([]PullView, error) {
-	pulls, err := s.store.ListGitOpsPulls(ctx, sc)
+	now := time.Now()
+	timings, err := versions.PullTimings(ctx, s.store, sc, apps, now.Add(-30*24*time.Hour))
 	if err != nil {
 		return nil, err
 	}
-	running := map[string]versions.GitOpsApp{} // target|workload
 	targetName := map[string]string{}
 	for _, a := range apps {
-		running[a.TargetID+"|"+a.WorkloadID] = a
 		targetName[a.TargetID] = a.Target
 	}
-	now := time.Now()
-	var out []PullView
-	arrived := map[string][]store.Event{} // service -> its version changes since the oldest pull request shown
-	for _, p := range pulls {
-		if time.Since(p.OpenedAt) > 30*24*time.Hour {
-			continue
-		}
+	out := make([]PullView, 0, len(timings))
+	for _, p := range timings {
 		name := o.Services[p.ServiceID].Name
 		v := PullView{
 			Service: name, ServiceURL: "/services/" + url.PathEscape(name), Environment: p.Environment, Target: targetName[p.TargetID],
 			From: p.From, To: p.To, URL: p.URL, State: p.State, Checks: p.Checks, OpenedBy: p.OpenedBy, OpenedAt: p.OpenedAt,
+			Deployed: p.Deployed, ToRunning: p.ToRunning, MergeToRunning: p.MergeToRunning,
 		}
-		a, known := running[p.TargetID+"|"+p.WorkloadID]
-		v.Deployed = known && a.Tag == p.To
-		if known && !v.Deployed && p.State == "merged" && !p.MergedAt.IsZero() {
-			v.MergedAt, v.Waiting = p.MergedAt, versions.WhyWaiting(a, now)
-		}
-		if v.Deployed {
-			evs, ok := arrived[p.ServiceID]
-			if !ok {
-				evs, _ = s.store.ListEvents(ctx, sc, store.EventFilter{
-					ServiceID: p.ServiceID, Types: []string{"version_changed", "deployed"}, Since: time.Now().Add(-31 * 24 * time.Hour), Limit: 1000,
-				})
-				arrived[p.ServiceID] = evs
-			}
-			for _, e := range evs { // newest first: keep the first arrival after the pull request was opened
-				if e.TargetID == p.TargetID && e.ToVersion == p.To && !e.At.Before(p.OpenedAt) {
-					v.ToRunning = e.At.Sub(p.OpenedAt)
-					if !p.MergedAt.IsZero() && !e.At.Before(p.MergedAt) {
-						v.MergeToRunning = max(e.At.Sub(p.MergedAt), time.Second) // a sync within the second still counts
-					} else {
-						v.MergeToRunning = 0
-					}
-				}
-			}
+		if p.Undeployed() {
+			v.MergedAt, v.Waiting = p.MergedAt, versions.WhyWaiting(p.App, now)
 		}
 		out = append(out, v)
 	}
@@ -509,17 +482,11 @@ func medianMergeToRunning(pulls []PullView) (time.Duration, int) {
 }
 
 func medianOf(pulls []PullView, d func(PullView) time.Duration) (time.Duration, int) {
-	var ds []time.Duration
-	for _, p := range pulls {
-		if v := d(p); v > 0 {
-			ds = append(ds, v)
-		}
+	ds := make([]time.Duration, len(pulls))
+	for i, p := range pulls {
+		ds[i] = d(p)
 	}
-	if len(ds) == 0 {
-		return 0, 0
-	}
-	slices.Sort(ds)
-	return ds[len(ds)/2], len(ds)
+	return versions.MedianDuration(ds)
 }
 
 // pullStateClass is the badge of a pull request's state.

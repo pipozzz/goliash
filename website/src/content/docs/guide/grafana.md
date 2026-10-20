@@ -67,6 +67,9 @@ then in Grafana open **Dashboards → New → Import**, upload the file and pick
   images without a digest.
 - **Images:** what pulling each service's image downloads over time and against its size budget, bases with a newer
   build than the image is built on, images missing a signature, SBOM or provenance, and layer counts.
+- **GitOps and pull requests:** GitOps applications, those out of sync or unhealthy (and which), held by a sync
+  window or synced by hand; pull requests by state, merged ones not deployed, and the medians from opening and from
+  merging to running.
 - **Goliash itself:** agents online and stale, snapshots waiting, failing notifications, the server running the
   background work and the running version.
 

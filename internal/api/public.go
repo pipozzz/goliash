@@ -1082,6 +1082,7 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		rolloutMetrics(&b, issues)
 	}
 	h.imageSizeMetrics(r.Context(), &b, p.Scope, o)
+	h.gitOpsMetrics(r.Context(), &b, p.Scope, o, time.Now())
 	h.serverMetrics(r.Context(), &b, p.Scope)
 	if pos, err := versions.LoadPosture(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
 		postureMetrics(&b, pos)
@@ -1499,4 +1500,73 @@ func toAPIVulnDelta(d versions.VulnDelta) *apiVulnDelta {
 		return out
 	}
 	return &apiVulnDelta{Fixed: refs(d.Fixed), New: refs(d.New)}
+}
+
+// gitOpsMetrics describes the GitOps applications (those in trouble, held by a sync window or suspended, synced by
+// hand) and the pull requests Goliash opened in the last 30 days: by state, those merged whose version does not run,
+// and the medians from opening and from merging to running.
+func (h *PublicHandler) gitOpsMetrics(ctx context.Context, b *strings.Builder, sc store.Scope, o versions.Overview, now time.Time) {
+	apps, err := versions.GitOpsApps(ctx, h.store, sc, o)
+	if err != nil || len(apps) == 0 {
+		return
+	}
+	labels := func(a versions.GitOpsApp) string {
+		return fmt.Sprintf("service=%q,environment=%q,target=%q,app=%q,tool=%q", a.Service, a.Environment, a.Target, a.App, a.Tool)
+	}
+	byTool := map[string]int{}
+	var trouble, blocked, manual []string
+	for _, a := range apps {
+		byTool[a.Tool]++
+		if t := a.Trouble(now); t != "" {
+			trouble = append(trouble, fmt.Sprintf("goliash_gitops_trouble{%s,trouble=%q} 1", labels(a), t))
+		}
+		if a.Blocked(now) {
+			blocked = append(blocked, fmt.Sprintf("goliash_gitops_sync_blocked{%s} 1", labels(a)))
+		}
+		if a.ManualSync {
+			manual = append(manual, fmt.Sprintf("goliash_gitops_manual_sync{%s} 1", labels(a)))
+		}
+	}
+	b.WriteString("# HELP goliash_gitops_applications GitOps applications deploying workloads, per tool (argocd, flux, git labels).\n# TYPE goliash_gitops_applications gauge\n")
+	for _, tool := range []string{"argocd", "flux", "git"} {
+		fmt.Fprintf(b, "goliash_gitops_applications{tool=%q} %d\n", tool, byTool[tool])
+	}
+	for _, m := range []struct {
+		head  string
+		lines []string
+	}{
+		{"# HELP goliash_gitops_trouble 1 for each GitOps application out of sync, degraded or missing, while it lasts.\n# TYPE goliash_gitops_trouble gauge\n", trouble},
+		{"# HELP goliash_gitops_sync_blocked 1 for each GitOps application an Argo CD sync window holds or Flux has suspended.\n# TYPE goliash_gitops_sync_blocked gauge\n", blocked},
+		{"# HELP goliash_gitops_manual_sync 1 for each Argo CD application without an automated sync policy: merging does not deploy it.\n# TYPE goliash_gitops_manual_sync gauge\n", manual},
+	} {
+		b.WriteString(m.head)
+		for _, l := range m.lines {
+			b.WriteString(l + "\n")
+		}
+	}
+	pulls, err := versions.PullTimings(ctx, h.store, sc, apps, now.Add(-30*24*time.Hour))
+	if err != nil {
+		return
+	}
+	states := map[string]int{"open": 0, "merged": 0, "closed": 0, "undeployed": 0}
+	var toRunning, mergeToRunning []time.Duration
+	for _, p := range pulls {
+		states[p.State]++
+		if p.Undeployed() {
+			states["undeployed"]++
+		}
+		toRunning, mergeToRunning = append(toRunning, p.ToRunning), append(mergeToRunning, p.MergeToRunning)
+	}
+	b.WriteString("# HELP goliash_pull_requests Pull requests Goliash opened in the last 30 days by state; undeployed: merged, and the version does not run yet.\n# TYPE goliash_pull_requests gauge\n")
+	for _, s := range []string{"open", "merged", "closed", "undeployed"} {
+		fmt.Fprintf(b, "goliash_pull_requests{state=%q} %d\n", s, states[s])
+	}
+	if d, n := versions.MedianDuration(toRunning); n > 0 {
+		b.WriteString("# HELP goliash_pull_request_to_running_seconds Median time from opening a pull request to its version running, last 30 days.\n# TYPE goliash_pull_request_to_running_seconds gauge\n")
+		fmt.Fprintf(b, "goliash_pull_request_to_running_seconds %.0f\n", d.Seconds())
+	}
+	if d, n := versions.MedianDuration(mergeToRunning); n > 0 {
+		b.WriteString("# HELP goliash_merge_to_running_seconds Median time from merging a pull request to its version running, last 30 days.\n# TYPE goliash_merge_to_running_seconds gauge\n")
+		fmt.Fprintf(b, "goliash_merge_to_running_seconds %.0f\n", d.Seconds())
+	}
 }
