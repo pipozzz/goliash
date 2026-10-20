@@ -71,7 +71,7 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
 <CardGrid stagger>
   <Card title="One matrix for every orchestrator" icon="seti:docker">
     Kubernetes, Amazon ECS, AWS Lambda, Nomad, Docker Swarm, Docker hosts and plain Compose files side by side, per
-    environment, with replicas and rollouts in progress. Grouped by application, team or status.
+    environment, with replicas and rollouts in progress. Grouped by application, team, cluster or status.
   </Card>
   <Card title="Applications, not just containers" icon="puzzle">
     Workloads are grouped by the application they belong to, from Kubernetes, Helm and Compose labels or Nomad jobs.
@@ -87,6 +87,12 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
     The Updates page lists every upgrade with its target version, most urgent first: an image with a vulnerability
     exploited in the wild, end of life, then major, minor and patch, production first. Put items off, copy the list as a checklist, or get it every Monday as an upgrade
     plan in Slack or e-mail.
+  </Card>
+  <Card title="Upgrades as pull requests" icon="seti:git">
+    Upgrades, promotions and rollbacks open as pull requests on GitHub, GitLab, Gitea or Forgejo, changing the tag in
+    manifests, Kustomize, Helm values, Nomad jobs, Compose files or Terraform. Previewed first, with why, the
+    vulnerabilities they fix and the licenses they bring; a whole application in one; Renovate's linked, not duplicated;
+    held back during a change freeze.
   </Card>
   <Card title="Drift that matters" icon="warning">
     An environment behind the one before it, a version behind upstream, a release cycle at its end of life, a

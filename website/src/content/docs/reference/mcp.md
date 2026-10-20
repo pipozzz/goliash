@@ -25,7 +25,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `updates` | What to upgrade, most urgent first: running → target version, release notes and why; filter by owner, environment or urgency |
 | `release_notes` | What changed between two versions of a service: the release notes in between, from its GitHub or GitLab releases |
 | `changes` | What changed: recently (default: last 24 hours), or in a window of the past (`since` and `before` as times) |
-| `promotions` | What waits for the next environment, with the releases it brings |
+| `promotions` | What waits for the next environment, with the releases it brings, the vulnerabilities it fixes and brings, and the packages it brings under demanding licenses |
 | `rollouts` | Rollouts that do not finish: workloads down, stuck with two versions side by side, or short of replicas |
 | `gitops` | Is Git what runs? Argo CD applications and Flux Kustomizations: repository, path, commit, sync and health; for a degraded one, the version change just before it and so the version to roll back to |
 | `pull_requests` | Pull requests Goliash opened to upgrade, promote or roll back: open, merged or closed, by whom, and whether the version runs now |
@@ -37,7 +37,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `vulnerabilities` | Is a CVE running? Known vulnerabilities of running images, exploited ones first, with the services and the version that fixes each |
 | `posture` | The security posture: exposure days (median, p90, 30+, 90+), end of life, accepted risk, blind spots and every exposure |
 | `notifications` | What Goliash sent: alerts, digests and upgrade plans, each once, newest first (default: 7 days) |
-| `status` | Goliash's own health: agents reporting, releases checked, vulnerability data current, notifications going out; whether an answer can be trusted |
+| `status` | Whether the workspace is in a change freeze (`change_freeze`), and Goliash's own health: agents reporting, releases checked, vulnerability data current, notifications going out; whether an answer can be trusted |
 | `acknowledge` | Quiet notifications until a version or a time (needs a member token; the only tool that writes) |
 
 ## Remote (HTTP)

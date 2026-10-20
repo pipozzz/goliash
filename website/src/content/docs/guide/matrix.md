@@ -38,6 +38,10 @@ one most of its workloads belong to (see below how it is found). Each heading sh
 to date, as a bar, and the filter hides headings with nothing left under them. The choice stays in the link, also
 while looking back with time travel.
 
+Where a GitOps application (or a Git repository named in labels) deploys a cell and a newer acceptable release is
+out, members see **PR → 1.7.0** in the cell: the preview of the [pull request](/guide/argocd/#upgrade-with-a-pull-request)
+that pins it, or, once opened, a link to it (Goliash's or Renovate's).
+
 ### One image, several applications
 
 A service such as `postgres` or `redis` often serves several applications, each with its own database on its own
@@ -277,8 +281,8 @@ Every snapshot is compared with the previous one of the same target. The differe
 | `new_release` | An upstream release newer than everything known appears. |
 | `drift_detected`, `drift_resolved` | Drift is announced, or ends. |
 | `agent_stale` | An agent stops sending heartbeats. |
-| `gitops` | An Argo CD application has been out of sync, degraded or missing for 10 minutes; see [Argo CD](/guide/argocd/). |
-| `pull_request` | Goliash opened a pull request to upgrade a service, asked by someone or by the version policy's `auto_pr`, and once more when one has waited for review for more than three days; see [Argo CD and Flux](/guide/argocd/#upgrade-with-a-pull-request). |
+| `gitops` | An Argo CD application or Flux Kustomization has been out of sync, degraded or missing for 10 minutes: out of sync with what Git pins, degraded with the version change and the Git diff just before it, and a **Rollback PR** button when one is on offer; see [Argo CD and Flux](/guide/argocd/). |
+| `pull_request` | Goliash opened a pull request to upgrade, promote or roll back a service, asked by someone or by the version policy's `auto_pr`; once more when one has waited for review for more than three days, and when its checks (CI) fail; see [Argo CD and Flux](/guide/argocd/#upgrade-with-a-pull-request). |
 | `goliash_release` | A newer Goliash release is out (checked every 6 hours, once per release; off with `GOLIASH_UPDATE_CHECK=off`). |
 
 The first snapshot of a target is a baseline and creates no events. When a snapshot is incomplete, for example

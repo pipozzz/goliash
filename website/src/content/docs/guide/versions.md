@@ -169,6 +169,10 @@ planning board. **Put off** on a line skips that version (until a newer release 
 30 days; it is an [acknowledgement](#acknowledging) for that service and environment, so its notifications go quiet
 too. Updates put off are kept apart under *Acknowledged*.
 
+Where a GitOps application deploys the service, a line offers **Open PR** to the version to move to; tick several
+and **Open the ticked pull requests** opens them together, each on its own or, with *one per repository*, one per
+repository, branch and environment (see [Upgrade with a pull request](/guide/argocd/#upgrade-with-a-pull-request)).
+
 The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with. A notification rule
 with the upgrade plan sends it every week; see [Upgrade plan](/guide/notifications/#upgrade-plan).
 
@@ -188,7 +192,13 @@ The **Delivery** page lists every version that runs in one environment and waits
 first, with the releases a promotion would bring and their release notes. When both versions' images have an SBOM,
 it also says what the promotion does to known vulnerabilities: *fixes 3 vulnerabilities (1 exploited) · brings 1
 new one*, with their IDs one click away. It is the list to go through before a release to production;
-`goliash promotions` and `GET /api/v1/promotions` (`vulnerabilities.fixed` and `.new`) show the same.
+When the promoted version brings packages under network copyleft, source-available or strong copyleft licenses, the
+line says that too (*⚖️ brings AGPL-3.0-only (itextpdf)*). With a GitOps application in the environment behind,
+**Open PR → prod** opens the promotion as a pull request; when several services of one application wait together,
+**Promote webshop-prod → prod** opens one pull request for all of them. Below, **Pull requests** lists those Goliash
+opened in the last 30 days, open, merged or closed, with their checks, whether their version runs and how long after
+opening it began to, and the median of that: your time from proposal to production.
+`goliash promotions` and `GET /api/v1/promotions` (`vulnerabilities.fixed` and `.new`, `licenses`) show the same.
 
 ```sh
 goliash promotions

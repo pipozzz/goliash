@@ -44,7 +44,7 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 
 - **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, AWS Lambda (per alias), Nomad, Docker Swarm
   and plain Docker/Compose hosts, side by side, per environment — with replicas, targets and rollouts in progress,
-  grouped by application, team or status.
+  grouped by application, team, target (a cluster or cloud account) or status.
 - **Connected in two clicks.** Pick the platform, copy one command: the agent registers itself with an enrollment
   code and finds what to watch — the cluster, the Docker host, every ECS cluster and Lambda function of the region.
   One code for a whole fleet works too.
@@ -73,9 +73,18 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Drift that matters.** An environment behind the one before it, a version behind upstream, targets that
   disagree — shown at once, announced only when it lasts.
 - **Argo CD and Flux, next to what runs.** Each service shows the Git repository, path and commit its Argo CD
-  application or Flux Kustomization/HelmRelease deploys, whether it is in sync and healthy, with alerts when it is not.
-  Upgrades and promotions open as **pull requests** (GitHub, GitHub Enterprise, GitLab) that change the tag where
-  manifests, Kustomize or Helm values pin it; you review, GitOps deploys.
+  application or Flux Kustomization/HelmRelease deploys, whether it is in sync and healthy and since when, with alerts
+  when it is not: *Git pins 1.7.0, 1.6.0 runs* for one out of sync, the version change and Git diff just before one
+  that degraded. One page lists every application on every cluster, those in trouble first.
+- **Upgrades as pull requests.** Upgrades, promotions and rollbacks open as pull requests (GitHub, GitHub Enterprise,
+  GitLab, Gitea and Forgejo) that change the tag where manifests, Kustomize, Helm values, Nomad jobs, Compose files,
+  ECS task definitions or Terraform pin it — with Argo CD or Flux, or without, from `goliash.git.*` labels. Each
+  is previewed first and says why, what it fixes and which licenses it brings. Open one from the service page, the
+  matrix, Updates, Security, the alert or the weekly plan; tick several to open them together, or one per repository;
+  promote a whole application in one; let a version policy open them by itself. Renovate's and Dependabot's are
+  linked, not duplicated; reviewers, labels, CI checks and reminders included. You review, GitOps deploys.
+- **Change freezes.** Holidays, a big sale, Friday afternoons: automatic pull requests wait, the ones opened by hand
+  say so, and every page shows it.
 - **Did the deploy go out?** Rollouts stuck half way (two versions side by side for half an hour), services running
   none of their replicas, and rollbacks to an older version, read from Kubernetes, ECS, Nomad, Swarm and Compose:
   first on the Delivery page, announced, and counted against deploys as a change failure rate. Each version waiting

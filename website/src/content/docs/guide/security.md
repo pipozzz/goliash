@@ -20,6 +20,10 @@ than from tickets or pipelines:
 - **Where are we blind?** Targets that stopped reporting, targets that report no digests, and services whose newest
   release is unknown, so their exposure cannot be measured.
 
+The tiles are filters: *Behind for 30+ days*, *Past end of life* and *Accepted risk* show only those exposures
+(*Show all* lifts it, and it stays when you switch between production and every environment), *Blind spots* jumps to
+its section. Where a GitOps application deploys an exposed service, **Open PR** proposes the fix next to it.
+
 ## Base images
 
 A service's own image is only as supported as the image it is built on: `node:18-alpine` reached its end of life in
