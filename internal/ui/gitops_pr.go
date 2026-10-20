@@ -5,6 +5,8 @@ package ui
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -536,6 +538,7 @@ func (s *Server) openBulkPRs(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, ret, "error", fmt.Sprintf("At most %d at a time.", bulkMax))
 	}
 	var opened, failed []string
+	var ups []upgrade
 	for _, pick := range picks {
 		i := strings.LastIndex(pick, "|") // service|target|workload|version; the service's name may hold a "|"
 		head, to := pick[:max(i, 0)], pick[i+1:]
@@ -553,11 +556,51 @@ func (s *Server) openBulkPRs(w http.ResponseWriter, r *http.Request, p auth.Prin
 			failed = append(failed, f[0]+" "+f[3]+" (no longer offered)")
 			continue
 		}
-		if _, msg := s.bump(ctx, p.Scope, p.User.Email, u); msg != "" {
-			failed = append(failed, f[0]+" "+f[3]+" ("+strings.TrimSuffix(msg, ".")+")")
+		ups = append(ups, u)
+	}
+	// One pull request per repository, branch and environment when asked; each on its own otherwise.
+	groups := map[string][]upgrade{}
+	var order []string
+	for _, u := range ups {
+		k := u.service + "|" + u.app.TargetID + "|" + u.app.WorkloadID
+		if r.PostForm.Get("group") == "repo" {
+			_, open := s.openPull(ctx, p.Scope, u.app, u.to)
+			if _, theirs := s.othersPullNow(ctx, u.app, u.to); !open && !theirs { // proposed already: on its own, linked
+				k = versions.RepoWebURL(u.app.Repo) + "|" + u.app.TargetRevision + "|" + u.app.Environment
+			}
+		}
+		if _, ok := groups[k]; !ok {
+			order = append(order, k)
+		}
+		groups[k] = append(groups[k], u)
+	}
+	for _, k := range order {
+		items := groups[k]
+		if len(items) == 1 {
+			u := items[0]
+			if _, msg := s.bump(ctx, p.Scope, p.User.Email, u); msg != "" {
+				failed = append(failed, u.service+" "+u.to+" ("+strings.TrimSuffix(msg, ".")+")")
+				continue
+			}
+			opened = append(opened, u.service+" "+u.to+" in "+u.app.Environment)
 			continue
 		}
-		opened = append(opened, f[0]+" "+f[3]+" in "+u.app.Environment)
+		var names []string
+		for _, u := range items {
+			names = append(names, u.service+" "+u.to)
+		}
+		env := items[0].app.Environment
+		sum := sha256.Sum256([]byte(strings.Join(names, ",")))
+		req := s.groupBump(items, p.User.Email,
+			fmt.Sprintf("Upgrade %d services in %s: %s", len(items), env, strings.Join(names, ", ")),
+			"upgrade-"+env+"-"+hex.EncodeToString(sum[:4]),
+			fmt.Sprintf("Upgrades **%d services** in **%s** to the newest releases their version policies accept", len(items), env),
+			"/updates")
+		if _, msg := s.openGroup(ctx, p.Scope, p.User.Email, req, items, fmt.Sprintf("%d services", len(items))); msg != "" {
+			failed = append(failed, strings.Join(names, ", ")+" ("+strings.TrimSuffix(msg, ".")+")")
+			continue
+		}
+		opened = append(opened, strings.Join(names, ", ")+" in "+env+" (one pull request)")
 	}
 	msg := fmt.Sprintf("Opened %d pull requests: %s.", len(opened), strings.Join(opened, ", "))
 	if len(opened) == 1 {

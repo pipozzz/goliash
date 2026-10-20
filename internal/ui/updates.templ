@@ -57,6 +57,7 @@ templ UpdatesPage(v UpdatesView) {
 			if v.Bulk {
 				<form id="bulk-prs" method="post" action="/updates/prs" class="inline">
 					<input type="hidden" name="return" value={ updatesURL(v, "level", levelParam(v)) }/>
+					<label class="muted" title="Upgrades ticked in the same repository, branch and environment go as one pull request"><input type="checkbox" name="group" value="repo"/> one per repository</label>
 					<button type="submit" title="Open a pull request for every upgrade ticked below">Open the ticked pull requests</button>
 				</form>
 			}

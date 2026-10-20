@@ -778,6 +778,118 @@ func TestBulkPRs(t *testing.T) {
 	}
 }
 
+// Two services of one Argo CD application waiting for prod go as one pull request: its preview, and opening it
+// records it for both.
+func TestPromoteApplication(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	evil := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, evil)
+	cache, err := e.st.EnsureService(ctx, sc, "cache")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging, _ := e.st.CreateEnvironment(ctx, sc, "staging", 20)
+	stg, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: staging.ID, Platform: "kubernetes", Name: "k8s-staging"})
+	inst := func(tgt, env, svc, wl, image, tag string) store.Instance {
+		return store.Instance{
+			TargetID: tgt, EnvironmentID: env, ServiceID: svc, WorkloadID: wl, WorkloadKind: "deployment",
+			WorkloadName: wl, ContainerName: "app", Image: image + ":" + tag, Tag: tag, Running: 1, IsMain: true,
+		}
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: sc, SnapshotID: store.NewID(), TargetID: stg.ID, At: time.Now().Add(-48 * time.Hour),
+		Upsert: []store.Instance{inst(stg.ID, staging.ID, rec.ID, "s1", "nginx", "1.28.0"), inst(stg.ID, staging.ID, cache.ID, "s2", "redis", "7.2.5")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: sc, SnapshotID: store.NewID(), TargetID: e.tgt.ID, At: time.Now().Add(-72 * time.Hour),
+		Upsert: []store.Instance{inst(e.tgt.ID, e.prod.ID, cache.ID, "w2", "redis", "7.2.4")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	apps := []store.WorkloadGitOps{
+		{WorkloadID: "w1", Tool: "argocd", App: "shop-prod", Repo: "https://github.com/acme/deploy.git", Path: "apps/shop/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy"},
+		{WorkloadID: "w2", Tool: "argocd", App: "shop-prod", Repo: "https://github.com/acme/deploy.git", Path: "apps/shop/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy"},
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, apps, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.ui.checker.EvaluateDrift(ctx, sc); err != nil {
+		t.Fatal(err)
+	}
+	member := e.as(store.RoleMember)
+	_, page := get(t, member, e.srv.URL+"/delivery", nil)
+	if !strings.Contains(page, "Promote shop-prod → prod") {
+		t.Fatal("no application promotion on the Delivery page")
+	}
+	q := url.Values{"app": {"shop-prod"}, "target_id": {e.tgt.ID}, "from": {"staging"}, "to": {"prod"}}
+	if _, prev := get(t, member, e.srv.URL+"/delivery/promote-app/preview?"+q.Encode(), nil); !strings.Contains(prev, "Promote shop-prod to prod: ") || !strings.Contains(prev, "cache 7.2.5") {
+		t.Fatal("no preview of the application promotion")
+	}
+	_, body, _ := post(t, member, e.srv.URL+"/delivery/promote-app", q)
+	if len(pulls.got) != 1 || !strings.Contains(body, "Pull request opened for shop-prod") {
+		t.Fatalf("not opened (%d)", len(pulls.got))
+	}
+	b := pulls.got[0]
+	if len(b.Also) != 1 || b.Head != "goliash/promote-shop-prod-prod" || !strings.Contains(b.Body, "Promotes **2 services**") {
+		t.Fatalf("bump %+v", b)
+	}
+	if got, _ := e.st.ListGitOpsPulls(ctx, sc); len(got) != 2 || got[0].URL != got[1].URL {
+		t.Fatalf("recorded %+v", got)
+	}
+	if _, page = get(t, member, e.srv.URL+"/delivery", nil); strings.Contains(page, "Promote shop-prod → prod") {
+		t.Fatal("offered again once opened")
+	}
+}
+
+// Ticked upgrades in one repository, branch and environment go as one pull request when asked.
+func TestBulkPRsGrouped(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	evil := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, evil)
+	cache, _ := e.st.EnsureService(ctx, sc, "cache")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: sc, SnapshotID: store.NewID(), TargetID: e.tgt.ID, At: time.Now(),
+		Upsert: []store.Instance{{
+			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: cache.ID, WorkloadID: "w2", WorkloadKind: "deployment",
+			WorkloadName: "cache", ContainerName: "app", Image: "redis:7.2.4", Tag: "7.2.4", Running: 1, IsMain: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	apps := []store.WorkloadGitOps{
+		{WorkloadID: "w1", Tool: "argocd", App: "a", Repo: "https://github.com/acme/deploy.git", Path: "apps/a", TargetRevision: "main", Sync: "Synced", Health: "Healthy"},
+		{WorkloadID: "w2", Tool: "argocd", App: "b", Repo: "https://github.com/acme/deploy.git", Path: "apps/b", TargetRevision: "main", Sync: "Synced", Health: "Healthy"},
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, apps, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"})
+	_, _ = e.st.InsertReleases(ctx, sc, cache.ID, []string{"7.2.5"})
+	_ = e.ui.checker.EvaluateDrift(ctx, sc)
+	_, body, _ := post(t, e.as(store.RoleMember), e.srv.URL+"/updates/prs", url.Values{
+		"pr": {evil + "|" + e.tgt.ID + "|w1|1.28.0", "cache|" + e.tgt.ID + "|w2|7.2.5"}, "group": {"repo"}, "return": {"/updates"},
+	})
+	if len(pulls.got) != 1 || !strings.Contains(body, "(one pull request)") {
+		t.Fatalf("opened %d: %.200s", len(pulls.got), body)
+	}
+	if b := pulls.got[0]; len(b.Also) != 1 || !strings.HasPrefix(b.Title, "Upgrade 2 services in prod: ") || !strings.HasPrefix(b.Head, "goliash/upgrade-prod-") {
+		t.Fatalf("bump %+v", b)
+	}
+	if got, _ := e.st.ListGitOpsPulls(ctx, sc); len(got) != 2 {
+		t.Fatalf("recorded %d", len(got))
+	}
+}
+
 // The service's version policy names reviewers and labels for its pull requests: saved from the form, sent along.
 func TestPRReviewersFromPolicy(t *testing.T) {
 	e := newUIEnv(t)

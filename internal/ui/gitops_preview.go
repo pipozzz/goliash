@@ -36,7 +36,8 @@ type GitOpsPreviewView struct {
 	WorkloadID          string
 	To                  string
 	Return              string
-	OpenAlready         string // the pull request opened before for it
+	OpenAlready         string      // the pull request opened before for it
+	Fields              [][2]string // the form's fields when not those of one upgrade (a whole application's promotion)
 }
 
 // PreviewFile is one changed file, as the lines around its changes.

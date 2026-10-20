@@ -3,6 +3,14 @@
 Thanks for your interest. Goliash is in early development, so please open an issue to discuss larger changes before
 writing code.
 
+## Where to start
+
+Issues labelled [good first issue](https://github.com/pipozzz/goliash/labels/good%20first%20issue) are small and
+self-contained, each saying where in the code to start and when it is done; [help
+wanted](https://github.com/pipozzz/goliash/labels/help%20wanted) ones are bigger. Comment on an issue to take it, so
+two people do not do the same work. During Hacktoberfest, pull requests merged here count: they get the
+`hacktoberfest-accepted` label.
+
 ## Contributor License Agreement
 
 External contributions require signing the [Contributor License Agreement](CLA.md) — a DCO sign-off is not enough.

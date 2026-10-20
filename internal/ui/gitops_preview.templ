@@ -45,10 +45,16 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 				<a class="button" href={ templ.SafeURL(v.OpenAlready) } target="_blank" rel="noopener">Open the pull request it opened</a>
 			} else if v.CanOpen {
 				<form method="post" action={ templ.URL(v.OpenURL) }>
-					<input type="hidden" name="target_id" value={ v.TargetID }/>
-					<input type="hidden" name="workload_id" value={ v.WorkloadID }/>
-					<input type="hidden" name="to" value={ v.To }/>
-					<input type="hidden" name="return" value={ v.Return }/>
+					if len(v.Fields) > 0 {
+						for _, f := range v.Fields {
+							<input type="hidden" name={ f[0] } value={ f[1] }/>
+						}
+					} else {
+						<input type="hidden" name="target_id" value={ v.TargetID }/>
+						<input type="hidden" name="workload_id" value={ v.WorkloadID }/>
+						<input type="hidden" name="to" value={ v.To }/>
+						<input type="hidden" name="return" value={ v.Return }/>
+					}
 					<button type="submit">Open the pull request</button>
 				</form>
 			}
