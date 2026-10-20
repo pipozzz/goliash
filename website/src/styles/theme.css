@@ -127,10 +127,10 @@
 .tour-tabs label:hover { color: var(--sl-color-white); border-color: var(--sl-color-accent); }
 .tour figure { display: none; margin: 0; }
 .tour figcaption { text-align: center; margin-top: 0.8rem; color: var(--sl-color-gray-2); }
-#tour-tiles:checked ~ .tour-tiles, #tour-matrix:checked ~ .tour-matrix, #tour-gitops:checked ~ .tour-gitops,
+#tour-tiles:checked ~ .tour-tiles, #tour-matrix:checked ~ .tour-matrix, #tour-gitops:checked ~ .tour-gitops, #tour-promote:checked ~ .tour-promote,
 #tour-rollback:checked ~ .tour-rollback, #tour-security:checked ~ .tour-security { display: block; }
 #tour-tiles:checked ~ .tour-tabs [for='tour-tiles'], #tour-matrix:checked ~ .tour-tabs [for='tour-matrix'],
-#tour-gitops:checked ~ .tour-tabs [for='tour-gitops'], #tour-rollback:checked ~ .tour-tabs [for='tour-rollback'],
+#tour-gitops:checked ~ .tour-tabs [for='tour-gitops'], #tour-promote:checked ~ .tour-tabs [for='tour-promote'], #tour-rollback:checked ~ .tour-tabs [for='tour-rollback'],
 #tour-security:checked ~ .tour-tabs [for='tour-security'] {
   background: var(--sl-color-accent); border-color: var(--sl-color-accent); color: var(--sl-color-black);
 }

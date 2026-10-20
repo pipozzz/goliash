@@ -39,24 +39,28 @@ import gitopsPreview from '../../assets/gitops-preview.png';
 import gitopsPage from '../../assets/gitops-page.png';
 import gitopsRollback from '../../assets/gitops-rollback.png';
 import tiles from '../../assets/tiles.png';
+import promoteApp from '../../assets/promote-app.png';
 import goli from '../../assets/goli.svg';
 
 <div class="tour">
 <input type="radio" name="tour" id="tour-tiles" checked />
 <input type="radio" name="tour" id="tour-matrix" />
 <input type="radio" name="tour" id="tour-gitops" />
+<input type="radio" name="tour" id="tour-promote" />
 <input type="radio" name="tour" id="tour-rollback" />
 <input type="radio" name="tour" id="tour-security" />
 <div class="tour-tabs" role="tablist">
 <label for="tour-tiles">Tiles</label>
 <label for="tour-matrix">Matrix</label>
 <label for="tour-gitops">GitOps</label>
+<label for="tour-promote">Promote</label>
 <label for="tour-rollback">Rollback</label>
 <label for="tour-security">Security</label>
 </div>
 <figure class="tour-tiles"><Image src={tiles} alt="Service tiles: every application as a cell of a navy board, coloured by how current it is, with a strip of its state per environment" class="screenshot" /><figcaption>Every application as a tile, coloured by how current it is: by application, team, target or status, on any screen or a TV.</figcaption></figure>
 <figure class="tour-matrix"><Image src={matrix} alt="The Goliash matrix grouped by application: services against dev, staging and prod with running versions, drift badges and the latest upstream release" class="screenshot" /><figcaption>The matrix: every service in every environment, what drifts, and the newest upstream release.</figcaption></figure>
 <figure class="tour-gitops"><Image src={gitopsPage} alt="The GitOps applications page: every Argo CD application on every cluster, degraded and out of sync first, with Git pins, pull requests and Rollback PR buttons" class="screenshot" /><figcaption>Every Argo CD application and Flux Kustomization on every cluster: what Git pins, what runs, the pull request that moves it.</figcaption></figure>
+<figure class="tour-promote"><Image src={promoteApp} alt="A pull request preview promoting the webshop application to prod: one kustomization.yaml with the tags of checkout, payments-api, postgres and redis changed, and a line per service in the description" class="screenshot" /><figcaption>A whole application to production in one pull request: every service's tag, with why and since when it has run in staging.</figcaption></figure>
 <figure class="tour-rollback"><Image src={gitopsRollback} alt="The Argo CD panel of keycloak: identity-staging Synced but Degraded since 48 minutes, with Open PR and a red Rollback PR → 25.0.1" class="screenshot" /><figcaption>Degraded right after a deploy? Goliash names the change and offers the rollback, as a pull request.</figcaption></figure>
 <figure class="tour-security"><Image src={security} alt="The Security page: median exposure of production, services behind for 30 or more days, end of life, accepted risk and blind spots" class="screenshot" /><figcaption>How long production has run behind a fix, what is past its end of life, and the pull request that closes it.</figcaption></figure>
 </div>
