@@ -24,6 +24,12 @@ func TestGitOpsPulls(t *testing.T) {
 		if err != nil || len(got) != 1 || got[0].URL != "https://github.com/acme/deploy/pull/7" || got[0].To != "1.5.0" || got[0].State != "open" {
 			t.Fatalf("pulls %+v %v", got, err)
 		}
+		if err := s.SetGitOpsPullChecks(ctx, sc, got[0].ID, "failing"); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ = s.ListGitOpsPulls(ctx, sc); got[0].Checks != "failing" {
+			t.Fatalf("checks %+v", got[0])
+		}
 		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "closed"); err != nil {
 			t.Fatal(err)
 		}
@@ -31,7 +37,7 @@ func TestGitOpsPulls(t *testing.T) {
 		if err := s.RecordGitOpsPull(ctx, p); err != nil {
 			t.Fatal(err)
 		}
-		if got, _ = s.ListGitOpsPulls(ctx, sc); len(got) != 1 || got[0].URL != "https://github.com/acme/deploy/pull/8" || got[0].State != "open" {
+		if got, _ = s.ListGitOpsPulls(ctx, sc); len(got) != 1 || got[0].URL != "https://github.com/acme/deploy/pull/8" || got[0].State != "open" || got[0].Checks != "" {
 			t.Fatalf("after opening again %+v", got)
 		}
 	})

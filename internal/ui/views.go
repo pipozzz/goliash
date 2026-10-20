@@ -686,6 +686,7 @@ type PromotePR struct {
 	TargetID, WorkloadID, Target, App string
 	URL                               string // the pull request Goliash (or, with Title, someone else) opened already
 	State                             string // open or merged
+	Checks                            string // its checks: passing, failing, pending or ""
 	Title                             string // someone else's pull request: its title
 }
 
@@ -1646,6 +1647,7 @@ type GitOpsView struct {
 	To                            string // the version a pull request would pin; empty, no button
 	PRURL                         string // the pull request Goliash opened for To, when it did
 	PRState                       string // open or merged
+	PRChecks                      string // its checks: passing, failing, pending or ""
 	PRTitle                       string // the pull request someone else opened for To: its title
 	Rollback, RollbackWhy         string // the version a rollback pull request would pin, degraded; empty, no button
 	RollbackPRURL                 string // the rollback pull request Goliash opened, when it did
@@ -1711,6 +1713,7 @@ type PullView struct {
 	Environment, Target string
 	From, To            string
 	URL, State          string // open, merged or closed
+	Checks              string // passing, failing, pending or "", while open
 	OpenedBy            string
 	OpenedAt            time.Time
 	Deployed            bool          // the version it pins runs there now

@@ -311,3 +311,28 @@ func (g *Gitea) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
 	}
 	return out, nil
 }
+
+// PullChecks says what the commit statuses of a pull request on this instance say.
+func (g *Gitea) PullChecks(ctx context.Context, pullURL string) (string, error) {
+	repo, index, ok := strings.Cut(pullURL, "/pulls/")
+	owner, name, ok2 := g.ownerRepo(repo)
+	if !ok || !ok2 || index == "" || strings.Contains(index, "/") {
+		return "", fmt.Errorf("%s is not a pull request on %s", pullURL, g.base)
+	}
+	api := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
+	var pr struct {
+		Head struct {
+			SHA string `json:"sha"`
+		} `json:"head"`
+	}
+	if err := g.do(ctx, http.MethodGet, api+"/pulls/"+url.PathEscape(index), nil, &pr); err != nil {
+		return "", err
+	}
+	var status struct {
+		State string `json:"state"`
+	}
+	if err := g.do(ctx, http.MethodGet, api+"/commits/"+pr.Head.SHA+"/status", nil, &status); err != nil {
+		return "", err
+	}
+	return map[string]string{"success": "passing", "failure": "failing", "error": "failing", "pending": "pending"}[status.State], nil
+}

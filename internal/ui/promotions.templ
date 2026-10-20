@@ -91,7 +91,7 @@ templ PromotionsPage(v PromotionsView) {
 										if v.CanMember || v.PreviewPRs {
 											for _, pr := range p.PRs {
 												if pr.URL != "" {
-													<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener">{ pullLabel(p.To, pr.State) }</a>
+													<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener">{ pullLabel(p.To, pr.State) }</a>@prChecks(pr.Checks)
 													continue
 												}
 												<a class="button secondary gitops-pr noprint" href={ templ.URL("/services/" + p.Service + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, p.Version, "/delivery")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
@@ -235,6 +235,9 @@ templ pullsPanel(pulls []PullView) {
 							<td data-label="State">
 								<span class="badges">
 									<span class={ "badge", pullStateClass(p.State) }>{ p.State }</span>
+									if p.State == "open" {
+										@prChecks(p.Checks)
+									}
 									if p.Deployed {
 										<span class="badge ok">running</span>
 									}

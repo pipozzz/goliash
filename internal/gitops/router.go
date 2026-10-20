@@ -18,6 +18,7 @@ type Provider interface {
 	PullState(ctx context.Context, pullURL string) (string, error)
 	Pinned(ctx context.Context, b Bump) ([]string, error)
 	OpenPulls(ctx context.Context, repo string) ([]Pull, error)
+	PullChecks(ctx context.Context, pullURL string) (string, error)
 }
 
 // Router sends each upgrade to the provider of its repository's host: GitHub, GitHub Enterprise, GitLab.
@@ -103,6 +104,33 @@ func (r Router) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
 		}
 	}
 	return nil, fmt.Errorf("no provider for %s", repo)
+}
+
+// PullChecks asks the provider of a pull request's host what its checks say.
+func (r Router) PullChecks(ctx context.Context, pullURL string) (string, error) {
+	repo := repoOf(pullURL)
+	for _, p := range r {
+		if p.Supports(repo) {
+			return p.PullChecks(ctx, pullURL)
+		}
+	}
+	return "", fmt.Errorf("no provider for %s", pullURL)
+}
+
+// worstChecks is the worst of a pull request's checks: failing over pending over passing; "" for none.
+func worstChecks(states []string) string {
+	worst := ""
+	for _, s := range states {
+		switch {
+		case s == "failing":
+			return "failing"
+		case s == "pending":
+			worst = "pending"
+		case s == "passing" && worst == "":
+			worst = "passing"
+		}
+	}
+	return worst
 }
 
 // appendNew appends the tags not in tags yet.

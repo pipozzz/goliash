@@ -66,6 +66,7 @@ type fakePulls struct {
 	state  string
 	pinned []string
 	others []gitops.Pull
+	checks string
 }
 
 func (f *fakePulls) Supports(repo string) bool { return strings.HasPrefix(repo, "https://github.com/") }
@@ -75,6 +76,8 @@ func (f *fakePulls) PullState(context.Context, string) (string, error) { return 
 func (f *fakePulls) Pinned(context.Context, gitops.Bump) ([]string, error) { return f.pinned, nil }
 
 func (f *fakePulls) OpenPulls(context.Context, string) ([]gitops.Pull, error) { return f.others, nil }
+
+func (f *fakePulls) PullChecks(context.Context, string) (string, error) { return f.checks, nil }
 
 func (f *fakePulls) Plan(ctx context.Context, b gitops.Bump) (gitops.Plan, error) {
 	return gitops.Demo{}.Plan(ctx, b)
@@ -412,6 +415,17 @@ func TestClosedPullRequest(t *testing.T) {
 	if _, d := get(t, m, e.srv.URL+"/delivery", nil); !strings.Contains(d, "<h2>Pull requests</h2>") || !strings.Contains(d, "1.27.2 → 1.28.0") ||
 		!strings.Contains(d, "by auto-pr") || !strings.Contains(d, `class="badge upstream">open`) {
 		t.Fatal("the Delivery page does not list the pull request")
+	}
+	// Its checks fail: the service page and the Delivery page say so next to the link.
+	pulls.checks = "failing"
+	if err := e.ui.RefreshPulls(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(page(), "checks fail") {
+		t.Fatal("failing checks not shown on the service page")
+	}
+	if _, d := get(t, m, e.srv.URL+"/delivery", nil); !strings.Contains(d, "checks fail") {
+		t.Fatal("failing checks not shown on the Delivery page")
 	}
 	pulls.state = "merged"
 	if err := e.ui.RefreshPulls(ctx); err != nil {

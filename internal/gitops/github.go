@@ -380,3 +380,56 @@ func (g *GitHub) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
 	}
 	return out, nil
 }
+
+// PullChecks says what the checks of a pull request this GitHub holds say: failing when any failed, pending while
+// any runs, passing when all passed, "" when it has none.
+func (g *GitHub) PullChecks(ctx context.Context, pullURL string) (string, error) {
+	u, err := url.Parse(pullURL)
+	if err != nil || u.Host != g.host {
+		return "", fmt.Errorf("%s is not a pull request on %s", pullURL, g.host)
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/") // owner/repo/pull/N
+	if len(parts) != 4 || parts[2] != "pull" {
+		return "", fmt.Errorf("%s is not a pull request address", pullURL)
+	}
+	repo := "/repos/" + parts[0] + "/" + parts[1]
+	var pr struct {
+		Head struct {
+			SHA string `json:"sha"`
+		} `json:"head"`
+	}
+	if err := g.do(ctx, http.MethodGet, repo+"/pulls/"+parts[3], nil, &pr); err != nil {
+		return "", err
+	}
+	var runs struct {
+		CheckRuns []struct {
+			Status     string `json:"status"`
+			Conclusion string `json:"conclusion"`
+		} `json:"check_runs"`
+	}
+	if err := g.do(ctx, http.MethodGet, repo+"/commits/"+pr.Head.SHA+"/check-runs?per_page=100", nil, &runs); err != nil {
+		return "", err
+	}
+	var status struct {
+		State    string `json:"state"`
+		Statuses []any  `json:"statuses"`
+	}
+	if err := g.do(ctx, http.MethodGet, repo+"/commits/"+pr.Head.SHA+"/status", nil, &status); err != nil {
+		return "", err
+	}
+	var states []string
+	for _, r := range runs.CheckRuns {
+		switch {
+		case r.Status != "completed":
+			states = append(states, "pending")
+		case r.Conclusion == "failure" || r.Conclusion == "timed_out" || r.Conclusion == "cancelled" || r.Conclusion == "action_required":
+			states = append(states, "failing")
+		default:
+			states = append(states, "passing")
+		}
+	}
+	if len(status.Statuses) > 0 {
+		states = append(states, map[string]string{"success": "passing", "failure": "failing", "error": "failing"}[status.State])
+	}
+	return worstChecks(states), nil
+}

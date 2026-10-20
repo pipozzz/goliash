@@ -36,3 +36,15 @@ templ GitOpsPage(v GitOpsPageView) {
 		}
 	}
 }
+
+// prChecks is what a pull request's checks say, next to its link: nothing when it runs none.
+templ prChecks(checks string) {
+	switch checks {
+		case "passing":
+			<span class="badge ok pr-checks" title="Its checks (CI) pass">checks pass</span>
+		case "failing":
+			<span class="badge eol pr-checks" title="Its checks (CI) fail: look before merging">checks fail</span>
+		case "pending":
+			<span class="badge neutral pr-checks" title="Its checks (CI) are running">checks running</span>
+	}
+}

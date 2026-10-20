@@ -67,6 +67,9 @@ func kindOf(it Item) kind {
 	case EventGoliashRelease:
 		return kind{"🆕", "#1b2a6b", "Goliash release"}
 	case EventPullRequest:
+		if it.Note == "failing" {
+			return kind{"❌", "#e5484d", "Pull request failing"}
+		}
 		if strings.HasPrefix(it.Note, "waiting ") {
 			return kind{"⏳", "#d9822b", "Pull request waiting"}
 		}
