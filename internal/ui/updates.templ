@@ -210,7 +210,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			<td class="update-actions" data-label="">
 				for _, pr := range it.PRs {
 					if pr.URL != "" {
-						<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(it.Target, pr.State) }</a>
+						<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(it.Target, pr.State) }</a>@prChecks(pr.Checks)
 					} else {
 						<a class="button secondary gitops-pr" href={ templ.URL(it.ServiceURL + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, it.Target, "/updates")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
 							Open PR
@@ -226,7 +226,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			<td class="update-actions" data-label="">
 				for _, pr := range it.PRs {
 					if pr.URL != "" {
-						<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(it.Target, pr.State) }</a>
+						<a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(it.Target, pr.State) }</a>@prChecks(pr.Checks)
 					} else {
 						<label class="bulk-pick" title="Tick to open with the others">
 							<input type="checkbox" name="pr" form="bulk-prs" value={ bulkValue(it.Service, pr, it.Target) }/>

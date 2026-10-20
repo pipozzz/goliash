@@ -298,3 +298,35 @@ func (g *GitLab) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
 	}
 	return out, nil
 }
+
+// PullChecks says what the pipeline of a merge request on this GitLab says.
+func (g *GitLab) PullChecks(ctx context.Context, mrURL string) (string, error) {
+	u, err := url.Parse(mrURL)
+	if err != nil || u.Host != g.host {
+		return "", fmt.Errorf("%s is not a merge request on %s", mrURL, g.base)
+	}
+	project, iid, ok := strings.Cut(strings.Trim(u.Path, "/"), "/-/merge_requests/")
+	if !ok || iid == "" {
+		return "", fmt.Errorf("%s is not a merge request address", mrURL)
+	}
+	var mr struct {
+		HeadPipeline *struct {
+			Status string `json:"status"`
+		} `json:"head_pipeline"`
+	}
+	if err := g.do(ctx, http.MethodGet, "/projects/"+url.PathEscape(project)+"/merge_requests/"+url.PathEscape(iid), nil, &mr); err != nil {
+		return "", err
+	}
+	if mr.HeadPipeline == nil {
+		return "", nil
+	}
+	switch mr.HeadPipeline.Status {
+	case "success":
+		return "passing", nil
+	case "failed", "canceled":
+		return "failing", nil
+	case "skipped", "manual":
+		return "", nil
+	}
+	return "pending", nil
+}

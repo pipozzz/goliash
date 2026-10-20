@@ -69,3 +69,35 @@ func TestDeployFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubPullChecks(t *testing.T) {
+	for _, c := range []struct {
+		runs, status, want string
+	}{
+		{`[{"status":"completed","conclusion":"success"}]`, `{"state":"success","statuses":[{}]}`, "passing"},
+		{`[{"status":"completed","conclusion":"success"},{"status":"in_progress","conclusion":null}]`, `{"state":"pending","statuses":[]}`, "pending"},
+		{`[{"status":"completed","conclusion":"failure"},{"status":"in_progress","conclusion":null}]`, `{"state":"","statuses":[]}`, "failing"},
+		{`[]`, `{"state":"failure","statuses":[{}]}`, "failing"},
+		{`[]`, `{"state":"pending","statuses":[]}`, ""},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/repos/acme/deploy/pulls/5":
+				_, _ = w.Write([]byte(`{"head":{"sha":"abc"}}`))
+			case "/repos/acme/deploy/commits/abc/check-runs":
+				_, _ = w.Write([]byte(`{"check_runs":` + c.runs + `}`))
+			case "/repos/acme/deploy/commits/abc/status":
+				_, _ = w.Write([]byte(c.status))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		g := NewGitHub("tok", srv.URL)
+		g.host = "github.com"
+		got, err := g.PullChecks(context.Background(), "https://github.com/acme/deploy/pull/5")
+		srv.Close()
+		if err != nil || got != c.want {
+			t.Errorf("%s %s: %q, %v; want %q", c.runs, c.status, got, err, c.want)
+		}
+	}
+}

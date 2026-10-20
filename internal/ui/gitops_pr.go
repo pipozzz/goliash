@@ -28,6 +28,7 @@ type PullRequester interface {
 	PullState(ctx context.Context, pullURL string) (string, error)
 	Pinned(ctx context.Context, b gitops.Bump) ([]string, error)
 	OpenPulls(ctx context.Context, repo string) ([]gitops.Pull, error)
+	PullChecks(ctx context.Context, pullURL string) (string, error)
 }
 
 // pullRequestTo is the version a pull request for the application would pin: the newest acceptable release, when
@@ -246,7 +247,7 @@ func (s *Server) upgradePRs(ctx context.Context, sc store.Scope, o versions.Over
 		if a.ServiceID == serviceID && a.Environment == env && a.Tag == running && s.pullRequestTo(a, target) == target {
 			pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
 			if open, ok := s.pullFor(ctx, sc, a, target); ok && open.State != "closed" {
-				pp.URL, pp.State = open.URL, open.State
+				pp.URL, pp.State, pp.Checks = open.URL, open.State, open.Checks
 			} else if other, ok := s.othersPull(a, target); ok {
 				pp.URL, pp.State, pp.Title = other.URL, "open", other.Title
 			}
@@ -318,6 +319,26 @@ func (s *Server) RefreshPulls(ctx context.Context) error {
 				if err := s.store.SetGitOpsPullState(ctx, sc, p.ID, state); err != nil {
 					return err
 				}
+			}
+			if state != "open" {
+				continue
+			}
+			checks, err := s.pulls.PullChecks(ctx, p.URL)
+			if err != nil {
+				s.log.WarnContext(ctx, "reading a pull request's checks failed", "url", p.URL, "err", err)
+				continue
+			}
+			if checks == p.Checks {
+				continue
+			}
+			if err := s.store.SetGitOpsPullChecks(ctx, sc, p.ID, checks); err != nil {
+				return err
+			}
+			if checks == "failing" && s.notify != nil { // a red pull request nobody looks at helps nobody
+				svc, _ := s.store.GetService(ctx, sc, p.ServiceID)
+				s.notify.PullRequestFailing(sc, notifier.Item{
+					Service: svc.Name, Owner: svc.Owner, Environment: p.Environment, From: p.From, To: p.To, URL: p.URL,
+				})
 			}
 		}
 	}
@@ -430,7 +451,7 @@ func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overv
 		name := o.Services[p.ServiceID].Name
 		v := PullView{
 			Service: name, ServiceURL: "/services/" + url.PathEscape(name), Environment: p.Environment, Target: targetName[p.TargetID],
-			From: p.From, To: p.To, URL: p.URL, State: p.State, OpenedBy: p.OpenedBy, OpenedAt: p.OpenedAt,
+			From: p.From, To: p.To, URL: p.URL, State: p.State, Checks: p.Checks, OpenedBy: p.OpenedBy, OpenedAt: p.OpenedAt,
 			Deployed: running[p.TargetID+"|"+p.WorkloadID] == p.To,
 		}
 		if v.Deployed {

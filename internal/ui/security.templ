@@ -138,7 +138,7 @@ templ SecurityPage(v SecurityView) {
 										}
 										for _, pr := range v.PRs[ex.Service.ID+"|"+ex.Environment.ID] {
 											if pr.URL != "" {
-												<div><a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(ex.Target, pr.State) }</a></div>
+												<div><a class="gitops-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ othersTitle(pr.Title) }>{ pullLabel(ex.Target, pr.State) }</a>@prChecks(pr.Checks)</div>
 											} else {
 												<div class="noprint"><a class="button secondary gitops-pr" href={ templ.URL(serviceURL(ex.Service.Name) + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, ex.Target, "/security")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
 													Open PR

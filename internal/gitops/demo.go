@@ -91,3 +91,6 @@ func (Demo) OpenPulls(context.Context, string) ([]Pull, error) {
 		URL: "https://github.com/acme/deploy/pull/412", Title: "Update ghcr.io/acme/payments-api Docker tag to v1.7.0", Branch: "renovate/payments-api-1.x",
 	}}, nil
 }
+
+// PullChecks says the demo's pull requests pass their checks.
+func (Demo) PullChecks(context.Context, string) (string, error) { return "passing", nil }

@@ -147,3 +147,19 @@ func TestWaitingPulls(t *testing.T) {
 		t.Fatalf("want one reminder, got %d:\n%s", slack.count(), all)
 	}
 }
+
+// Failing checks on a pull request Goliash opened are announced once.
+func TestPullRequestFailing(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventPullRequest}, Filter{})
+	for range 2 {
+		e.n.PullRequestFailing(e.sc, Item{Service: "checkout", Environment: "prod", From: "2.3.1", To: "2.4.0", URL: "https://github.com/acme/deploy/pull/7"})
+		_ = e.n.DeliverDue(ctx)
+	}
+	all := strings.Join(slack.all(), "\n")
+	if slack.count() != 1 || !strings.Contains(all, "the checks of the pull request to move 2.3.1 to 2.4.0 fail") || !strings.Contains(all, "Pull request failing") {
+		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
+	}
+}

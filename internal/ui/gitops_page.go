@@ -33,7 +33,7 @@ func (s *Server) gitOpsRow(ctx context.Context, sc store.Scope, a versions.GitOp
 	g.To = s.pullRequestTo(a, latest)
 	if g.To != "" {
 		if pr, ok := s.pullFor(ctx, sc, a, g.To); ok && pr.State != "closed" {
-			g.PRURL, g.PRState = pr.URL, pr.State
+			g.PRURL, g.PRState, g.PRChecks = pr.URL, pr.State, pr.Checks
 		} else if other, ok := s.othersPull(a, g.To); ok {
 			g.PRURL, g.PRState, g.PRTitle = other.URL, "open", other.Title
 		}

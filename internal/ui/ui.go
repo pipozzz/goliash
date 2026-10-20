@@ -1269,7 +1269,7 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 		for _, a := range promotionApps(apps, pr, s.canPR) {
 			pp := PromotePR{TargetID: a.TargetID, WorkloadID: a.WorkloadID, Target: a.Target, App: a.App}
 			if open, ok := s.pullFor(ctx, p.Scope, a, pr.Version); ok && open.State != "closed" {
-				pp.URL, pp.State = open.URL, open.State
+				pp.URL, pp.State, pp.Checks = open.URL, open.State, open.Checks
 			}
 			pv.PRs = append(pv.PRs, pp)
 		}

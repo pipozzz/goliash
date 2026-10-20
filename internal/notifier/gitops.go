@@ -91,6 +91,22 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 	return nil
 }
 
+// PullRequestFailing queues, once per pull request, the news that the checks of one Goliash opened fail.
+func (n *Notifier) PullRequestFailing(sc store.Scope, it Item) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rules, err := n.store.ActiveRules(ctx, sc)
+	if err != nil {
+		n.log.Error("queueing notifications failed", "err", err)
+		return
+	}
+	it.Type, it.At, it.Note = EventPullRequest, n.now(), "failing"
+	it.Text = Describe(it)
+	if err := n.enqueue(ctx, sc, rules, it, EventPullRequest+"|failing|"+it.URL); err != nil {
+		n.log.Error("queueing notifications failed", "err", err)
+	}
+}
+
 // SetRollback lets an alert about a degraded application offer the rollback pull request Goliash would open.
 func (n *Notifier) SetRollback(rollback func(ctx context.Context, sc store.Scope, a versions.GitOpsApp) string) {
 	n.rollback = rollback

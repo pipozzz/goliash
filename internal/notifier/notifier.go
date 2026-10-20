@@ -746,6 +746,9 @@ func Describe(it Item) string {
 	case EventGitOps:
 		return fmt.Sprintf("%s: %s %s is %s%s", where, versions.GitOpsObject(it.Tool), it.From, it.Note, on)
 	case EventPullRequest:
+		if it.Note == "failing" {
+			return fmt.Sprintf("%s: the checks of the pull request to move %s to %s%s fail", where, it.From, it.To, on)
+		}
 		if days, ok := strings.CutPrefix(it.Note, "waiting "); ok {
 			return fmt.Sprintf("%s: the pull request to move %s to %s%s has waited %s days for review", where, it.From, it.To, on, days)
 		}
