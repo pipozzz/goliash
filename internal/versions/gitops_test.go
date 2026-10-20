@@ -59,3 +59,21 @@ func TestGitOpsTrouble(t *testing.T) {
 		}
 	}
 }
+
+func TestWhyWaiting(t *testing.T) {
+	now := time.Now()
+	for _, c := range []struct {
+		a    store.WorkloadGitOps
+		want string
+	}{
+		{store.WorkloadGitOps{Tool: "argocd", SyncBlocked: `deny window "0 22 * * 5" for 56h`, SyncBlockedUntil: now.Add(time.Hour)}, `a sync window holds it (deny window "0 22 * * 5" for 56h)`},
+		{store.WorkloadGitOps{Tool: "argocd", SyncBlocked: "x", SyncBlockedUntil: now.Add(-time.Hour), ManualSync: true}, "Argo CD syncs it by hand"},
+		{store.WorkloadGitOps{Tool: "flux", SyncBlocked: "suspended in Flux"}, "it is suspended in Flux"},
+		{store.WorkloadGitOps{Tool: "flux", Sync: "OutOfSync"}, "Flux has not synced it yet"},
+		{store.WorkloadGitOps{Tool: "argocd", Sync: "Synced"}, ""},
+	} {
+		if got := WhyWaiting(GitOpsApp{WorkloadGitOps: c.a}, now); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.a, got, c.want)
+		}
+	}
+}

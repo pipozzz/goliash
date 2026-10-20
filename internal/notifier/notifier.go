@@ -751,6 +751,9 @@ func Describe(it Item) string {
 		if it.Note == "failing" {
 			return fmt.Sprintf("%s: the checks of the pull request to move %s to %s%s fail", where, it.From, it.To, on)
 		}
+		if ago, ok := strings.CutPrefix(it.Note, "undeployed "); ok {
+			return fmt.Sprintf("%s: the pull request moving %s to %s%s was merged %s ago and has not deployed", where, it.From, it.To, on, ago)
+		}
 		if days, ok := strings.CutPrefix(it.Note, "waiting "); ok {
 			return fmt.Sprintf("%s: the pull request to move %s to %s%s has waited %s days for review", where, it.From, it.To, on, days)
 		}

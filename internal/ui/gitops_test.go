@@ -435,6 +435,10 @@ func TestClosedPullRequest(t *testing.T) {
 	if !strings.Contains(page(), "Pull request → 1.28.0 · merged") {
 		t.Fatal("not shown as merged")
 	}
+	// Merged while 1.27.2 still runs: the Delivery page says it has not deployed.
+	if _, d := get(t, m, e.srv.URL+"/delivery", nil); !strings.Contains(d, ">not deployed</span>") || !strings.Contains(d, "merged ") {
+		t.Fatal("a merged pull request not deployed yet is not shown as such")
+	}
 	pulls.state = "closed"
 	got, _ := e.st.ListGitOpsPulls(ctx, sc)
 	_ = e.st.SetGitOpsPullState(ctx, sc, got[0].ID, "closed")

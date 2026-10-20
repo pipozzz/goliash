@@ -30,6 +30,20 @@ func TestGitOpsPulls(t *testing.T) {
 		if got, _ = s.ListGitOpsPulls(ctx, sc); got[0].Checks != "failing" {
 			t.Fatalf("checks %+v", got[0])
 		}
+		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "merged"); err != nil {
+			t.Fatal(err)
+		}
+		got, _ = s.ListGitOpsPulls(ctx, sc)
+		mergedAt := got[0].MergedAt
+		if got[0].State != "merged" || mergedAt.IsZero() {
+			t.Fatalf("merged %+v", got[0])
+		}
+		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "merged"); err != nil { // seen merged again: still when first seen
+			t.Fatal(err)
+		}
+		if got, _ = s.ListGitOpsPulls(ctx, sc); !got[0].MergedAt.Equal(mergedAt) {
+			t.Fatalf("merged_at moved %+v", got[0])
+		}
 		if err := s.SetGitOpsPullState(ctx, sc, got[0].ID, "closed"); err != nil {
 			t.Fatal(err)
 		}

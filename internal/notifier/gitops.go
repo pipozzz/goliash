@@ -66,13 +66,8 @@ func (n *Notifier) CheckGitOps(ctx context.Context) error {
 					it.Text += fmt.Sprintf(": Git pins %s, %s runs", pinned, a.Tag)
 				}
 			}
-			if trouble == "out of sync" { // and why it waits, when Goliash knows
-				switch {
-				case a.Blocked(now):
-					it.Text += "; a sync window holds it (" + a.SyncBlocked + ")"
-				case a.ManualSync:
-					it.Text += "; Argo CD syncs it by hand"
-				}
+			if trouble == "out of sync" && (a.Blocked(now) || a.ManualSync) { // why it waits, beyond "out of sync"
+				it.Text += "; " + versions.WhyWaiting(a, now)
 			}
 			if cmp := versions.CompareWebURL(versions.RepoWebURL(a.Repo), a.PrevRevision, a.Revision); cmp != "" &&
 				!a.RevisionAt.Before(a.SyncSince.Add(-24*time.Hour)) { // Git moved just before: link what changed
@@ -189,8 +184,13 @@ func since(change, then time.Time) string {
 // upgrade proposed and then forgotten does nobody any good.
 const pullWaitsAfter = 3 * 24 * time.Hour
 
+// pullDeploysWithin is how long after its merge the version a pull request pins should run: GitOps tools sync
+// within minutes, so an hour later something holds it.
+const pullDeploysWithin = time.Hour
+
 // CheckWaitingPulls queues, once per pull request, a reminder of those Goliash opened that have waited for review
-// longer than pullWaitsAfter (as the forge last said: open).
+// longer than pullWaitsAfter (as the forge last said: open), and of those merged more than pullDeploysWithin ago
+// whose version does not run yet, with why when Goliash can tell.
 func (n *Notifier) CheckWaitingPulls(ctx context.Context) error {
 	wss, err := n.store.ListWorkspaces(ctx)
 	if err != nil {
@@ -215,13 +215,25 @@ func (n *Notifier) CheckWaitingPulls(ctx context.Context) error {
 			return err
 		}
 		var o versions.Overview
+		var apps map[string]versions.GitOpsApp // target|workload
 		for _, p := range pulls {
-			if p.State != "open" || now.Sub(p.OpenedAt) < pullWaitsAfter {
+			waiting := p.State == "open" && now.Sub(p.OpenedAt) >= pullWaitsAfter
+			merged := p.State == "merged" && !p.MergedAt.IsZero() && now.Sub(p.MergedAt) >= pullDeploysWithin &&
+				now.Sub(p.MergedAt) < 7*24*time.Hour
+			if !waiting && !merged {
 				continue
 			}
 			if o.Services == nil {
 				if o, err = versions.LoadOverview(ctx, n.store, sc); err != nil {
 					return err
+				}
+				list, err := versions.GitOpsApps(ctx, n.store, sc, o)
+				if err != nil {
+					return err
+				}
+				apps = map[string]versions.GitOpsApp{}
+				for _, a := range list {
+					apps[a.TargetID+"|"+a.WorkloadID] = a
 				}
 			}
 			target := ""
@@ -235,8 +247,21 @@ func (n *Notifier) CheckWaitingPulls(ctx context.Context) error {
 				Type: EventPullRequest, Service: svc.Name, Owner: svc.Owner, Environment: p.Environment, Target: target,
 				From: p.From, To: p.To, URL: p.URL, At: now, Note: fmt.Sprintf("waiting %d", int(now.Sub(p.OpenedAt).Hours()/24)),
 			}
-			it.Text = Describe(it)
-			if err := n.enqueue(ctx, sc, rules, it, EventPullRequest+"|waiting|"+p.URL); err != nil {
+			dedup := EventPullRequest + "|waiting|" + p.URL
+			if merged {
+				a, known := apps[p.TargetID+"|"+p.WorkloadID]
+				if !known || strings.TrimPrefix(a.Tag, "v") == strings.TrimPrefix(p.To, "v") { // gone, or deployed
+					continue
+				}
+				it.Note, it.Tool, dedup = "undeployed "+since(p.MergedAt, now), a.Tool, EventPullRequest+"|undeployed|"+p.URL
+				it.Text = Describe(it) + fmt.Sprintf(": %s still runs", a.Tag)
+				if why := versions.WhyWaiting(a, now); why != "" {
+					it.Text += ", " + why
+				}
+			} else {
+				it.Text = Describe(it)
+			}
+			if err := n.enqueue(ctx, sc, rules, it, dedup); err != nil {
 				return err
 			}
 		}

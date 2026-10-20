@@ -218,3 +218,20 @@ func GitOpsObject(tool string) string {
 	}
 	return "Argo CD application"
 }
+
+// WhyWaiting is why the application has not deployed what Git asks for, when Goliash can tell: a sync window
+// holds it, Flux has it suspended, Argo CD syncs it only by hand, or its tool has not synced the new commit
+// yet. "" when nothing says it waits.
+func WhyWaiting(a GitOpsApp, now time.Time) string {
+	switch {
+	case a.Blocked(now) && a.Tool == "flux":
+		return "it is suspended in Flux"
+	case a.Blocked(now):
+		return "a sync window holds it (" + a.SyncBlocked + ")"
+	case a.ManualSync:
+		return "Argo CD syncs it by hand"
+	case a.Sync == "OutOfSync":
+		return GitOpsToolName(a.Tool) + " has not synced it yet"
+	}
+	return ""
+}

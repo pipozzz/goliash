@@ -163,3 +163,63 @@ func TestPullRequestFailing(t *testing.T) {
 		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
 	}
 }
+
+// A pull request merged an hour ago whose version does not run yet is called out once, with why it waits.
+func TestMergedNotDeployed(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventPullRequest}, Filter{})
+	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s-prod"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: e.sc, SnapshotID: store.NewID(), TargetID: tgt.ID, At: now.Add(-time.Hour),
+		Upsert: []store.Instance{{
+			TargetID: tgt.ID, EnvironmentID: e.prod.ID, ServiceID: e.svc.ID, WorkloadID: "w1", WorkloadName: "api",
+			ContainerName: "api", Image: "ghcr.io/acme/api:1.4.2", Tag: "1.4.2", Running: 1, IsMain: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "api-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/api/prod", TargetRevision: "main", Sync: "OutOfSync", Health: "Healthy", ManualSync: true,
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, e.sc, tgt.ID, []store.WorkloadGitOps{g}, true, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: e.sc, ServiceID: e.svc.ID, Environment: "prod", TargetID: tgt.ID, WorkloadID: "w1",
+		From: "1.4.2", To: "1.5.0", URL: "https://github.com/acme/deploy/pull/9", OpenedBy: "alice@example.com",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pulls, _ := e.st.ListGitOpsPulls(ctx, e.sc)
+	if err := e.st.SetGitOpsPullState(ctx, e.sc, pulls[0].ID, "merged"); err != nil {
+		t.Fatal(err)
+	}
+	pulls, _ = e.st.ListGitOpsPulls(ctx, e.sc)
+	merged := pulls[0].MergedAt
+	check := func() {
+		if err := e.n.CheckWaitingPulls(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	e.clock = merged.Add(20 * time.Minute)
+	check()
+	if slack.count() != 0 {
+		t.Fatalf("called out 20 minutes after the merge: %v", slack.all())
+	}
+	e.clock = merged.Add(2 * time.Hour)
+	check()
+	check() // once
+	all := strings.Join(slack.all(), "\n")
+	if slack.count() != 1 || !strings.Contains(all, "the pull request moving 1.4.2 to 1.5.0 on k8s-prod was merged 2 hours ago and has not deployed: 1.4.2 still runs, Argo CD syncs it by hand") ||
+		!strings.Contains(all, "Merged, not deployed") {
+		t.Fatalf("want one alert, got %d:\n%s", slack.count(), all)
+	}
+}

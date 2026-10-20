@@ -448,12 +448,13 @@ func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overv
 	if err != nil {
 		return nil, err
 	}
-	running := map[string]string{} // target|workload -> tag
+	running := map[string]versions.GitOpsApp{} // target|workload
 	targetName := map[string]string{}
 	for _, a := range apps {
-		running[a.TargetID+"|"+a.WorkloadID] = a.Tag
+		running[a.TargetID+"|"+a.WorkloadID] = a
 		targetName[a.TargetID] = a.Target
 	}
+	now := time.Now()
 	var out []PullView
 	arrived := map[string][]store.Event{} // service -> its version changes since the oldest pull request shown
 	for _, p := range pulls {
@@ -464,7 +465,11 @@ func (s *Server) pullViews(ctx context.Context, sc store.Scope, o versions.Overv
 		v := PullView{
 			Service: name, ServiceURL: "/services/" + url.PathEscape(name), Environment: p.Environment, Target: targetName[p.TargetID],
 			From: p.From, To: p.To, URL: p.URL, State: p.State, Checks: p.Checks, OpenedBy: p.OpenedBy, OpenedAt: p.OpenedAt,
-			Deployed: running[p.TargetID+"|"+p.WorkloadID] == p.To,
+		}
+		a, known := running[p.TargetID+"|"+p.WorkloadID]
+		v.Deployed = known && a.Tag == p.To
+		if known && !v.Deployed && p.State == "merged" && !p.MergedAt.IsZero() {
+			v.MergedAt, v.Waiting = p.MergedAt, versions.WhyWaiting(a, now)
 		}
 		if v.Deployed {
 			evs, ok := arrived[p.ServiceID]

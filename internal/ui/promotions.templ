@@ -243,8 +243,16 @@ templ pullsPanel(pulls []PullView) {
 									}
 									if p.Deployed {
 										<span class="badge ok">running</span>
+									} else if !p.MergedAt.IsZero() {
+										<span class="badge neutral not-deployed" title={ "Merged, and " + p.To + " does not run there yet" }>not deployed</span>
 									}
 								</span>
+								if !p.MergedAt.IsZero() {
+									<div class="targets">merged @timeAgo(p.MergedAt)</div>
+									if p.Waiting != "" {
+										<div class="targets">{ p.Waiting }</div>
+									}
+								}
 								if p.ToRunning > 0 {
 									<div class="targets">{ versions.HumanDuration(p.ToRunning) } after opening</div>
 								}

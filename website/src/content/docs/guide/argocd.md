@@ -75,9 +75,14 @@ or a person** may have proposed it first: when an open pull request in the repos
 in its title (*Update ghcr.io/acme/api Docker tag to v1.5.0*, *Bump api from 1.4.2 to 1.5.0*), the pages link that
 one instead (hover: *Opened outside Goliash*), and neither a click nor a version policy opens a second. The **Delivery** page lists the pull
 requests of the last 30 days, open, merged or closed, who opened them, and *running* once the version runs, with how long after opening it began to (*3h after
-opening*) and the median over them all at the top: your time from proposal to production. asks the forge every 30 minutes, also what the checks (CI) say: *checks pass*, *checks running* or *checks fail*
+opening*) and the median over them all at the top: your time from proposal to production. Goliash asks the forge every 30 minutes, also what the checks (CI) say: *checks pass*, *checks running* or *checks fail*
 next to the link, and once an alert (*Pull request failing*) when they fail; one closed without merging is offered again on the page (the version policy does not
 open it again: closing it was a no).
+
+A merged pull request whose version does not run yet is marked **not deployed**, with when it was merged and why it
+waits when Goliash can tell: a [sync window](#sync-windows) holds it, Flux has it suspended, Argo CD
+[syncs it by hand](#manual-sync), or the tool has not synced the commit yet. An hour after the merge it is
+announced once (*Merged, not deployed*): a merge is not a deploy.
 
 ### Roll back
 
