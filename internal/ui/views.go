@@ -87,6 +87,7 @@ type MatrixGrid struct {
 	Unread   []UnreadRegistry // private registries whose services have no known release
 	Past     bool             // the matrix as of a moment in the past
 	CanAdmin bool
+	gitops   []versions.GitOpsApp // the GitOps applications the grid was built with, for markPRs
 }
 
 // MatrixGroup is a run of matrix rows under one heading.
@@ -339,8 +340,15 @@ type MatrixRow struct {
 	Target    string // grouped by target: the one target this row shows
 }
 
+// CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
+type CellPR struct {
+	URL, Label, Title string
+	Open              bool // opened already: a link to it, not to its preview
+}
+
 // MatrixCell is one service in one environment.
 type MatrixCell struct {
+	PRs          []CellPR
 	Versions     []VersionView
 	FromDeclared bool // nothing reports what runs; the versions come from Compose files
 	Drifts       []DriftBadge

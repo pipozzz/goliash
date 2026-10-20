@@ -6,7 +6,9 @@ package ui
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -147,4 +149,74 @@ goliash.git.path = ecs/` + service + `/task-definition.json`})
 		}
 	}
 	return out
+}
+
+// markPRs puts on each matrix cell the pull request that would move it to its newest acceptable release: a link to
+// its preview, or to the pull request opened for it (by Goliash or someone else). The grid's rows must be the
+// current ones, built with their GitOps applications.
+func (s *Server) markPRs(ctx context.Context, sc store.Scope, g *MatrixGrid) {
+	if s.pulls == nil || len(g.gitops) == 0 {
+		return
+	}
+	pulls, err := s.store.ListGitOpsPulls(ctx, sc)
+	if err != nil {
+		return
+	}
+	opened := map[string]store.GitOpsPull{}
+	for _, p := range pulls {
+		if p.State != "closed" {
+			opened[p.TargetID+"|"+p.WorkloadID+"|"+p.To] = p
+		}
+	}
+	envIndex := map[string]int{}
+	for i, e := range g.Envs {
+		envIndex[e.Name] = i
+	}
+	mark := func(rows []MatrixRow) {
+		for ri := range rows {
+			r := &rows[ri]
+			for _, a := range g.gitops {
+				i, ok := envIndex[a.Environment]
+				if !ok || a.Service != r.Service || i >= len(r.Cells) {
+					continue
+				}
+				if r.Split && !partOf(a.App, r.App) { // a service in several applications: this row's part only
+					continue
+				}
+				to := s.pullRequestTo(a, r.Latest)
+				if to == "" {
+					continue
+				}
+				c := &r.Cells[i]
+				if p, ok := opened[a.TargetID+"|"+a.WorkloadID+"|"+to]; ok {
+					c.PRs = append(c.PRs, CellPR{URL: p.URL, Label: pullLabel(to, p.State), Title: "The pull request Goliash opened on " + a.Target, Open: true})
+					continue
+				}
+				if other, ok := s.othersPull(a, to); ok {
+					c.PRs = append(c.PRs, CellPR{URL: other.URL, Label: pullLabel(to, "open"), Title: othersTitle(other.Title), Open: true})
+					continue
+				}
+				c.PRs = append(c.PRs, CellPR{
+					URL:   "/services/" + url.PathEscape(r.Service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, to, ""),
+					Label: "PR → " + to, Title: "See the pull request that pins " + to + " in " + a.Path + " on " + a.Target,
+				})
+			}
+		}
+	}
+	mark(g.Rows)
+	g.Groups = groupRows(g.Rows, g.GroupBy) // the groups share or copy the rows' cells: build them again
+}
+
+// partOf says whether a GitOps application deploys a part of a Goliash application, by name: identity-staging and
+// identity_prod deploy identity.
+func partOf(gitopsApp, app string) bool {
+	if app == "" {
+		return false
+	}
+	for _, w := range strings.FieldsFunc(gitopsApp, func(r rune) bool { return r == '-' || r == '_' || r == '.' || r == '/' }) {
+		if strings.EqualFold(w, app) {
+			return true
+		}
+	}
+	return strings.EqualFold(gitopsApp, app)
 }

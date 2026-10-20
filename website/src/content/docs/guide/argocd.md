@@ -46,6 +46,7 @@ Goliash then, in the repository the application deploys from (GitHub, GitHub Ent
 3. opens a pull request (a merge request on GitLab, in one commit) saying what, where and why, with the release
    notes when known.
 
+The **matrix** offers it too, in the cell (*PR → 1.7.0*, a link to the pull request once opened), to members.
 The **Updates** page offers **Open PR** on the same lines, next to *Put off*, with a tick to open several at once
 (**Open the ticked pull requests**, up to 20, each as its own pull request, or with *one per repository* as one
 pull request per repository, branch and environment, a line per service), and the **Security** page next to

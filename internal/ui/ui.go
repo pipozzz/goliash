@@ -501,6 +501,7 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 	}
 	if apps, err := versions.GitOpsApps(ctx, s.store, sc, o); err == nil {
 		markGitOps(&g, apps, time.Now(), func(a versions.GitOpsApp) string { return s.gitPins(a, time.Now()) })
+		g.gitops = apps
 	}
 	if len(g.Rows) == 0 {
 		if g.Steps, err = s.firstSteps(ctx, sc, g); err != nil {
@@ -624,6 +625,9 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
 	g.CanAdmin = p.Can(store.RoleAdmin)
+	if p.Can(store.RoleMember) || s.demoPulls() {
+		s.markPRs(r.Context(), p.Scope, &g)
+	}
 	v.Grid = g
 	if findings, err := versions.LoadHygiene(r.Context(), s.store, p.Scope); err == nil {
 		for _, f := range findings {
@@ -658,6 +662,9 @@ func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Princ
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
 	g.CanAdmin = p.Can(store.RoleAdmin)
+	if p.Can(store.RoleMember) || s.demoPulls() {
+		s.markPRs(r.Context(), p.Scope, &g)
+	}
 	return render(w, r, MatrixGridView(g))
 }
 

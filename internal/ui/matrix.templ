@@ -244,6 +244,13 @@ templ cellView(c MatrixCell) {
 					}
 				</div>
 			}
+			for _, pr := range c.PRs {
+				if pr.Open {
+					<a class="cell-pr" href={ templ.SafeURL(pr.URL) } target="_blank" rel="noopener" title={ pr.Title }>{ pr.Label }</a>
+				} else {
+					<a class="cell-pr offer noprint" href={ templ.URL(pr.URL) } title={ pr.Title }>{ pr.Label }</a>
+				}
+			}
 		</div>
 	}
 }

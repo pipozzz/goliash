@@ -945,3 +945,40 @@ func TestLicensesMarkdown(t *testing.T) {
 		}
 	}
 }
+
+// A matrix cell offers the pull request to its newest acceptable release to members, and links one opened.
+func TestMatrixCellPR(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	e.ui.pulls = &fakePulls{}
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	rec, _ := e.st.GetServiceByName(ctx, sc, e.serviceOf("evil"))
+	if _, err := e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.ui.checker.EvaluateDrift(ctx, sc)
+	member := e.as(store.RoleMember)
+	_, page := get(t, member, e.srv.URL+"/?view=table", nil)
+	if strings.Count(page, `class="cell-pr offer noprint"`) != 1 || !strings.Contains(page, "PR → 1.28.0") {
+		t.Fatal("no pull request offered in the matrix")
+	}
+	if _, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/?view=table", nil); strings.Contains(page, "cell-pr") {
+		t.Fatal("a viewer is offered a pull request in the matrix")
+	}
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: sc, ServiceID: rec.ID, Environment: "prod", TargetID: e.tgt.ID, WorkloadID: "w1",
+		From: "1.27.2", To: "1.28.0", URL: "https://github.com/acme/deploy/pull/7", OpenedBy: "x",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, page := get(t, member, e.srv.URL+"/?view=table", nil); !strings.Contains(page, `href="https://github.com/acme/deploy/pull/7"`) || strings.Contains(page, "cell-pr offer") {
+		t.Fatal("the opened pull request is not linked in the matrix")
+	}
+}

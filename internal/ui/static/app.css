@@ -1327,3 +1327,6 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bulk-pick { display: inline-flex; align-items: center; margin-right: 6px; cursor: pointer; }
 .bulk-pick input { width: 18px; height: 18px; }
 .app-promote { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--accent-soft, transparent); }
+.cell-pr { display: inline-block; align-self: flex-start; width: fit-content; margin-top: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cell-pr.offer { padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); }
+.cell-pr.offer:hover { border-color: var(--accent); text-decoration: none; }
