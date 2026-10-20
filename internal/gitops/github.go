@@ -57,7 +57,7 @@ type Bump struct {
 	Title     string
 	Body      string // markdown
 	CommitMsg string
-	Also      []Pin // more images to change in the same pull request (same repository and branch)
+	Also      []Pin    // more images to change in the same pull request (same repository and branch)
 	Reviewers []string // people (alice) and teams (@acme/payments) asked to review; best effort
 	Labels    []string // labels put on the pull request; best effort
 }
