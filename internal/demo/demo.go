@@ -651,6 +651,7 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 // from one deploy repository. Three stories: since day 19 the webshop's staging application waits for a manual
 // sync (out of sync, the old version still running); the last day prod's edge application, with traefik's rollout
 // stuck, is degraded; and so is staging's identity application, the day after keycloak 25.0.6 replaced 25.0.1.
+// The webshop's prod application is, the last day, inside an Argo CD deny sync window.
 func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps {
 	app := w.Labels["app.kubernetes.io/part-of"]
 	if app == "" {
@@ -669,10 +670,15 @@ func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps
 	case name == "identity-staging" && day == 21:
 		health = "Degraded"
 	}
-	return &agentproto.GitOps{
+	g := &agentproto.GitOps{
 		Tool: agentproto.Argocd, App: name, AppNamespace: &ns, Project: &project, Repo: &repo,
 		Path: &path, TargetRevision: &branch, Revision: &rev, Sync: &sync, Health: &health,
 	}
+	if name == "webshop-prod" && day == 21 { // the webshop's project freezes prod syncs every evening
+		why, until := `deny window "0 18 * * *" for 14h`, time.Now().UTC().Add(12*time.Hour).Truncate(time.Hour)
+		g.SyncBlocked, g.SyncBlockedUntil = &why, &until
+	}
+	return g
 }
 
 // demoDigest is a stable made-up digest for an image reference: the same tag is the same image everywhere.

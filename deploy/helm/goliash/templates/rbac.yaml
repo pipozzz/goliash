@@ -21,9 +21,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
-  # Argo CD Applications: which Git repository, path and commit deploy each workload, and whether it is in sync.
+  # Argo CD Applications: which Git repository, path and commit deploy each workload, and whether it is in sync;
+  # AppProjects: the sync windows that keep an application from syncing.
   - apiGroups: ["argoproj.io"]
-    resources: ["applications"]
+    resources: ["applications", "appprojects"]
     verbs: ["get", "list"]
   # Flux: the Kustomizations and HelmReleases that applied each workload, and their Git or Helm sources.
   - apiGroups: ["kustomize.toolkit.fluxcd.io", "helm.toolkit.fluxcd.io", "source.toolkit.fluxcd.io"]

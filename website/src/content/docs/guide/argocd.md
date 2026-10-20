@@ -98,6 +98,21 @@ Discord, chat, e-mail) opens that pull request's preview in Goliash: from the al
 During a [change freeze](/guide/change-freezes/) automatic pull requests wait, those opened by hand say they
 were opened during one and their preview warns first; rollbacks are not held back.
 
+### Sync windows
+
+Argo CD's [sync windows](https://argo-cd.readthedocs.io/en/stable/user-guide/sync_windows/) are read from each
+application's `AppProject`: while an open **deny** window matches an application, or it has **allow** windows none
+of which is open, Argo CD will not sync it, and Goliash says so:
+
+- the application gets a **sync window** badge, its title saying which window and until when (Monday 06:00 for a
+  weekend freeze, or when the next allow window opens);
+- automatic pull requests for it wait until the window allows a sync again: merged now, the change would sit in Git;
+- a pull request opened by hand says it deploys when the window allows it, and its preview warns first.
+
+Windows match an application by name, destination namespace or destination cluster (globs, `andOperator` honoured),
+in their `timeZone`; schedules are standard five-field cron (names, ranges, steps and `@daily`-style descriptors).
+The API's `GET /api/v1/gitops` returns `sync_blocked` and `sync_blocked_until`.
+
 ### Reviewers and labels
 
 A service's version policy can name who reviews its pull requests and how they are labelled: **Pull request
@@ -131,14 +146,17 @@ in the audit log.
 ## Set up
 
 Nothing to configure in Argo CD. The agent (or the server collecting its own cluster) reads Argo CD's
-`Application` objects, read-only, and finds each workload among the resources an application lists. The Helm charts
-grant `get` and `list` on `applications.argoproj.io`; with your own RBAC add:
+`Application` objects, read-only, and finds each workload among the resources an application lists, and the
+`AppProject` objects for their [sync windows](#sync-windows). The Helm charts grant `get` and `list` on both; with
+your own RBAC add:
 
 ```yaml
 - apiGroups: ["argoproj.io"]
-  resources: ["applications"]
+  resources: ["applications", "appprojects"]
   verbs: ["get", "list"]
 ```
+
+Without `appprojects` everything works but sync windows.
 
 Applications in any namespace are found (Argo CD's *apps in any namespace* included), and multi-source applications
 show the source with a path or chart. Without Argo CD in the cluster, or without the permission, nothing changes.

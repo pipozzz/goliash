@@ -754,6 +754,16 @@ components:
         health:
           type: string
           description: Healthy, Progressing, Degraded, Suspended, Missing or Unknown.
+        sync_blocked:
+          type: string
+          description: |
+            Why Argo CD will not sync the application now, when one of its AppProject's sync windows keeps it from
+            syncing: an open deny window, or allow windows none of which is open.
+          example: deny window "0 22 * * 5" for 56h
+        sync_blocked_until:
+          type: string
+          format: date-time
+          description: When the sync window that blocks it closes, or the next allow window opens, when known.
 
     Container:
       type: object

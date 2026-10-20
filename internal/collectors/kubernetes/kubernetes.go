@@ -94,6 +94,8 @@ type Collector struct {
 
 	// Argo CD Applications, read when the cluster has them and the role allows it.
 	dyn dynamic.Interface
+	// clock is the time sync windows are evaluated at; time.Now unless a test sets it.
+	clock func() time.Time
 
 	// Image pull secrets, read only when GOLIASH_READ_PULL_SECRETS allows it.
 	readSecrets bool
@@ -114,6 +116,7 @@ var _ collectors.Watcher = (*Collector)(nil)
 func newCollector(cs k8sclient.Interface, s agentproto.KubernetesSettings) *Collector {
 	f := informers.NewSharedInformerFactory(cs, 0)
 	c := &Collector{
+		clock:   time.Now,
 		cs:      cs,
 		factory: f,
 		include: set(s.IncludeNamespaces),

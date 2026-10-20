@@ -371,6 +371,16 @@ type GitOps struct {
 	// Sync Synced, OutOfSync or Unknown.
 	Sync *string `json:"sync,omitempty"`
 
+	// SyncBlocked Why Argo CD will not sync the application now, when one of its AppProject's sync windows keeps it from
+	// syncing: an open deny window, or allow windows none of which is open.
+	//
+	//
+	// Example: deny window "0 22 * * 5" for 56h
+	SyncBlocked *string `json:"sync_blocked,omitempty"`
+
+	// SyncBlockedUntil When the sync window that blocks it closes, or the next allow window opens, when known.
+	SyncBlockedUntil *time.Time `json:"sync_blocked_until,omitempty"`
+
 	// TargetRevision The branch, tag or chart version it follows.
 	//
 	// Example: main

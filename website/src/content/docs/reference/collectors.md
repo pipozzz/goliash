@@ -33,7 +33,8 @@ Each target has the settings object of its platform:
 
 Kubernetes with Argo CD: when the agent may read `applications.argoproj.io` (the Helm charts grant `get` and `list`),
 each workload an Application lists among its resources carries where it is deployed from: the application, its
-repository, path or chart, target revision, the commit last synced, and its sync and health status. With Flux, the
+repository, path or chart, target revision, the commit last synced, and its sync and health status; with
+`appprojects.argoproj.io` readable too, whether a sync window keeps it from syncing now, and until when. With Flux, the
 workloads a Kustomization or HelmRelease labelled carry the same from it and its GitRepository or HelmRepository.
 Without Argo CD or Flux, or without the permission, nothing changes.
 

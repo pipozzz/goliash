@@ -84,7 +84,7 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   promote a whole application in one; let a version policy open them by itself. Renovate's and Dependabot's are
   linked, not duplicated; reviewers, labels, CI checks and reminders included. You review, GitOps deploys.
 - **Change freezes.** Holidays, a big sale, Friday afternoons: automatic pull requests wait, the ones opened by hand
-  say so, and every page shows it.
+  say so, and every page shows it. Argo CD's sync windows are honoured the same way, per application.
 - **Did the deploy go out?** Rollouts stuck half way (two versions side by side for half an hour), services running
   none of their replicas, and rollbacks to an older version, read from Kubernetes, ECS, Nomad, Swarm and Compose:
   first on the Delivery page, announced, and counted against deploys as a change failure rate. Each version waiting

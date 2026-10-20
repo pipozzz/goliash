@@ -1665,6 +1665,7 @@ type GitOpsView struct {
 	Rollback, RollbackWhy         string // the version a rollback pull request would pin, degraded; empty, no button
 	RollbackPRURL                 string // the rollback pull request Goliash opened, when it did
 	GitPins                       string // out of sync: the version Git pins, when not the one running
+	SyncWindow                    string // Argo CD's sync windows keep it from syncing now: why and until when
 }
 
 func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView {
@@ -1674,6 +1675,7 @@ func gitOpsView(a versions.GitOpsApp, argoURL string, now time.Time) GitOpsView 
 		Trouble: a.Trouble(now), Repo: a.Repo, RepoURL: versions.RepoWebURL(a.Repo), Path: a.Path,
 		TargetRevision: a.TargetRevision, Revision: a.Revision, TargetID: a.TargetID, WorkloadID: a.WorkloadID, Tag: a.Tag,
 	}
+	v.SyncWindow = syncWindowText(a.WorkloadGitOps, now)
 	v.CommitURL = versions.CommitWebURL(v.RepoURL, a.Revision)
 	v.CompareURL, v.RevisionAt = versions.CompareWebURL(v.RepoURL, a.PrevRevision, a.Revision), a.RevisionAt
 	if v.CommitURL != "" && len(v.Revision) > 7 {

@@ -45,9 +45,12 @@ func (c *Collector) argoCD(ctx context.Context) map[workloadKey]agentproto.GitOp
 	if err != nil { // no Argo CD here, no permission, or a passing failure: the workloads still count
 		return nil
 	}
+	windows := c.argoSyncWindows(ctx)
+	now := c.clock()
 	out := map[workloadKey]agentproto.GitOps{}
 	for _, app := range list.Items {
 		g := argoGitOps(app)
+		blockedBy(&g, app, windows, now)
 		resources, _, _ := unstructured.NestedSlice(app.Object, "status", "resources")
 		for _, r := range resources {
 			res, ok := r.(map[string]any)
@@ -106,6 +109,26 @@ func argoGitOps(app unstructured.Unstructured) agentproto.GitOps {
 	health, _, _ := unstructured.NestedString(app.Object, "status", "health", "status")
 	set(&g.Health, health)
 	return g
+}
+
+// blockedBy sets whether the sync windows of the application's project keep it from syncing at now.
+func blockedBy(g *agentproto.GitOps, app unstructured.Unstructured, windows map[string][]syncWindow, now time.Time) {
+	project := "default"
+	if g.Project != nil {
+		project = *g.Project
+	}
+	if len(windows[project]) == 0 {
+		return
+	}
+	dest, _, _ := unstructured.NestedStringMap(app.Object, "spec", "destination")
+	why, until := syncBlocked(windows[project], now, app.GetName(), dest["namespace"], dest["server"], dest["name"])
+	if why == "" {
+		return
+	}
+	g.SyncBlocked = &why
+	if !until.IsZero() {
+		g.SyncBlockedUntil = &until
+	}
 }
 
 func str(v any) string {

@@ -67,6 +67,9 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			return opened, err
 		}
 		for _, a := range apps {
+			if a.Blocked(time.Now()) { // Argo CD would not sync it now: the policy waits for the window
+				continue
+			}
 			svc := o.Services[a.ServiceID]
 			pol, _, err := versions.PolicyFor(svc, o.Refs[a.ServiceID].Repo)
 			if err != nil || pol.AutoPR[a.Environment] == "" {

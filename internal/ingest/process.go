@@ -197,11 +197,15 @@ func gitOps(ws []agentproto.Workload) []store.WorkloadGitOps {
 			}
 			return *p
 		}
-		out = append(out, store.WorkloadGitOps{
+		row := store.WorkloadGitOps{
 			WorkloadID: w.ID, Tool: string(g.Tool), App: g.App, AppNamespace: str(g.AppNamespace), Project: str(g.Project),
 			Repo: str(g.Repo), Path: str(g.Path), TargetRevision: str(g.TargetRevision), Revision: str(g.Revision),
-			Sync: str(g.Sync), Health: str(g.Health),
-		})
+			Sync: str(g.Sync), Health: str(g.Health), SyncBlocked: str(g.SyncBlocked),
+		}
+		if g.SyncBlockedUntil != nil {
+			row.SyncBlockedUntil = g.SyncBlockedUntil.UTC()
+		}
+		out = append(out, row)
 	}
 	return out
 }

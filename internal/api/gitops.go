@@ -25,24 +25,26 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 		return
 	}
 	type apiApp struct {
-		Tool           string    `json:"tool"`
-		App            string    `json:"app"`
-		Service        string    `json:"service"`
-		Environment    string    `json:"environment"`
-		Target         string    `json:"target"`
-		Workload       string    `json:"workload"`
-		Repo           string    `json:"repo"`
-		Path           string    `json:"path"`
-		TargetRevision string    `json:"target_revision"`
-		Revision       string    `json:"revision"`
-		Sync           string    `json:"sync"`
-		Health         string    `json:"health"`
-		Since          time.Time `json:"since"`
-		Trouble        string    `json:"trouble"`
-		Version        string    `json:"version,omitempty"`
-		PrevRevision   string    `json:"prev_revision,omitempty"`
-		CompareURL     string    `json:"compare_url,omitempty"`
-		AfterChange    *change   `json:"after_change,omitempty"`
+		Tool           string     `json:"tool"`
+		App            string     `json:"app"`
+		Service        string     `json:"service"`
+		Environment    string     `json:"environment"`
+		Target         string     `json:"target"`
+		Workload       string     `json:"workload"`
+		Repo           string     `json:"repo"`
+		Path           string     `json:"path"`
+		TargetRevision string     `json:"target_revision"`
+		Revision       string     `json:"revision"`
+		Sync           string     `json:"sync"`
+		Health         string     `json:"health"`
+		Since          time.Time  `json:"since"`
+		Trouble        string     `json:"trouble"`
+		Version        string     `json:"version,omitempty"`
+		PrevRevision   string     `json:"prev_revision,omitempty"`
+		CompareURL     string     `json:"compare_url,omitempty"`
+		AfterChange    *change    `json:"after_change,omitempty"`
+		SyncBlocked    string     `json:"sync_blocked,omitempty"`
+		BlockedUntil   *time.Time `json:"sync_blocked_until,omitempty"`
 	}
 	now := time.Now()
 	var trouble, fine []apiApp
@@ -52,6 +54,13 @@ func (h *PublicHandler) gitOps(w http.ResponseWriter, r *http.Request, p auth.Pr
 			Repo: a.Repo, Path: a.Path, TargetRevision: a.TargetRevision, Revision: a.Revision, Sync: a.Sync, Health: a.Health,
 			Since: a.SyncSince.UTC(), Trouble: a.Trouble(now), Version: a.Tag, PrevRevision: a.PrevRevision,
 			CompareURL: versions.CompareWebURL(versions.RepoWebURL(a.Repo), a.PrevRevision, a.Revision),
+		}
+		if a.Blocked(now) {
+			x.SyncBlocked = a.SyncBlocked
+			if !a.SyncBlockedUntil.IsZero() {
+				until := a.SyncBlockedUntil.UTC()
+				x.BlockedUntil = &until
+			}
 		}
 		if x.Trouble == "degraded" || x.Trouble == "missing" { // unhealthy: the version change just before, the likeliest cause
 			if from, at, ok := versions.Cause(r.Context(), h.store, p.Scope, a); ok {

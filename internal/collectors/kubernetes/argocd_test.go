@@ -95,7 +95,7 @@ func TestNoArgoCD(t *testing.T) {
 // fakeDynamic is a dynamic client that lists Argo CD's and Flux's objects.
 func fakeDynamic(objs ...runtime.Object) *dynamicfake.FakeDynamicClient {
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
-		argoApplications: "ApplicationList", fluxKustomizations: "KustomizationList", fluxHelmReleases: "HelmReleaseList",
+		argoApplications: "ApplicationList", argoProjects: "AppProjectList", fluxKustomizations: "KustomizationList", fluxHelmReleases: "HelmReleaseList",
 		fluxGitRepositories: "GitRepositoryList", fluxHelmRepos: "HelmRepositoryList",
 	}, objs...)
 }

@@ -28,6 +28,16 @@ type WorkloadGitOps struct {
 	Health         string    // Healthy, Progressing, Degraded, Suspended, Missing, Unknown
 	SyncSince      time.Time // since when Sync and Health are what they are
 	UpdatedAt      time.Time
+	// SyncBlocked is why Argo CD's sync windows keep the application from syncing now, "" when they do not;
+	// SyncBlockedUntil is when that ends, zero when not known.
+	SyncBlocked      string
+	SyncBlockedUntil time.Time
+}
+
+// Blocked tells whether a sync window keeps the application from syncing at now: one that was blocking when
+// the snapshot was taken and has not closed since.
+func (g WorkloadGitOps) Blocked(now time.Time) bool {
+	return g.SyncBlocked != "" && (g.SyncBlockedUntil.IsZero() || now.Before(g.SyncBlockedUntil))
 }
 
 // SetWorkloadGitOps records what a target's snapshot says about the GitOps applications of its workloads. A
@@ -72,9 +82,12 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 					g.PrevRevision, g.RevisionAt = old.Revision, at
 				}
 			}
-			var revAt any
+			var revAt, blockedUntil any
 			if !g.RevisionAt.IsZero() {
 				revAt = g.RevisionAt.UTC()
+			}
+			if !g.SyncBlockedUntil.IsZero() {
+				blockedUntil = g.SyncBlockedUntil.UTC()
 			}
 			if !complete {
 				if _, err := s.exec(ctx, tx, `DELETE FROM workload_gitops WHERE org_id = ? AND workspace_id = ? AND target_id = ? AND workload_id = ?`,
@@ -84,10 +97,11 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 			}
 			if _, err := s.exec(ctx, tx, `INSERT INTO workload_gitops (target_id, workload_id, org_id, workspace_id, tool, app,
 				app_namespace, project, repo, path, target_revision, revision, sync, health, sync_since, updated_at,
-				prev_revision, revision_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				prev_revision, revision_at, sync_blocked, sync_blocked_until)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				targetID, g.WorkloadID, sc.OrgID, sc.WorkspaceID, g.Tool, g.App, g.AppNamespace, g.Project, g.Repo, g.Path,
-				g.TargetRevision, g.Revision, g.Sync, g.Health, g.SyncSince.UTC(), at.UTC(), g.PrevRevision, revAt); err != nil {
+				g.TargetRevision, g.Revision, g.Sync, g.Health, g.SyncSince.UTC(), at.UTC(), g.PrevRevision, revAt,
+				g.SyncBlocked, blockedUntil); err != nil {
 				return err
 			}
 		}
@@ -98,7 +112,8 @@ func (s *Store) SetWorkloadGitOps(ctx context.Context, sc Scope, targetID string
 // ListWorkloadGitOps returns every workload's GitOps application in the workspace.
 func (s *Store) ListWorkloadGitOps(ctx context.Context, sc Scope) ([]WorkloadGitOps, error) {
 	rows, err := s.query(ctx, s.db, `SELECT target_id, workload_id, tool, app, app_namespace, project, repo, path,
-		target_revision, revision, sync, health, sync_since, updated_at, prev_revision, revision_at FROM workload_gitops
+		target_revision, revision, sync, health, sync_since, updated_at, prev_revision, revision_at, sync_blocked,
+		sync_blocked_until FROM workload_gitops
 		WHERE org_id = ? AND workspace_id = ? ORDER BY app, target_id, workload_id`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -107,10 +122,14 @@ func (s *Store) ListWorkloadGitOps(ctx context.Context, sc Scope) ([]WorkloadGit
 	var out []WorkloadGitOps
 	for rows.Next() {
 		var g WorkloadGitOps
-		var revAt sql.NullTime
+		var revAt, blockedUntil sql.NullTime
 		if err := rows.Scan(&g.TargetID, &g.WorkloadID, &g.Tool, &g.App, &g.AppNamespace, &g.Project, &g.Repo, &g.Path,
-			&g.TargetRevision, &g.Revision, &g.Sync, &g.Health, &g.SyncSince, &g.UpdatedAt, &g.PrevRevision, &revAt); err != nil {
+			&g.TargetRevision, &g.Revision, &g.Sync, &g.Health, &g.SyncSince, &g.UpdatedAt, &g.PrevRevision, &revAt,
+			&g.SyncBlocked, &blockedUntil); err != nil {
 			return nil, err
+		}
+		if blockedUntil.Valid {
+			g.SyncBlockedUntil = blockedUntil.Time.UTC()
 		}
 		g.SyncSince, g.UpdatedAt = g.SyncSince.UTC(), g.UpdatedAt.UTC()
 		if revAt.Valid {
