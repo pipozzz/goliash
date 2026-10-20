@@ -112,14 +112,21 @@ func (n *Notifier) postureItem(ctx context.Context, sc store.Scope, now time.Tim
 			return Item{}, err
 		}
 	}
+	if apps, err := versions.GitOpsApps(ctx, n.store, sc, o); err == nil && len(apps) > 0 {
+		if supply.Pulls, err = versions.PullTimings(ctx, n.store, sc, apps, now.Add(-7*24*time.Hour)); err != nil {
+			return Item{}, err
+		}
+	}
 	return PostureItem(pos, supply, n.weekAgo(ctx, sc, now), now), nil
 }
 
 // SupplyChain is what the SBOMs of production's images say, for the posture report: known vulnerabilities and
-// licenses that need a look. Zero values leave them out.
+// licenses that need a look; and how the week's upgrades went out (the pull requests Goliash opened in it). Zero
+// values leave them out.
 type SupplyChain struct {
 	Vulns    versions.VulnReport
 	Licenses versions.LicenseReport
+	Pulls    []versions.PullTiming
 }
 
 // supplyChainText says what the SBOMs of production's images say: known vulnerabilities, exploited ones first, and
@@ -223,6 +230,7 @@ func PostureItem(pos versions.Posture, supply SupplyChain, prev *store.PostureSa
 		b.WriteString(" Longest: " + strings.Join(worst, "; ") + ".")
 	}
 	b.WriteString(supplyChainText(supply))
+	b.WriteString(pullsText(supply.Pulls, now))
 	if prev != nil {
 		fmt.Fprintf(&b, " A week ago (%s): %d behind, median %d days, %d behind 90+, %d past end of life.",
 			prev.Day, prev.Exposed, prev.Median, prev.Behind90, prev.EOLPassed)
@@ -236,4 +244,40 @@ func plural(n int, one, many string) string {
 		return "1 " + one
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+// pullsText says how the week's upgrades went out: the pull requests Goliash opened, merged and running, the median
+// from merge to running, and those merged whose version does not run yet, with why. Empty without any.
+func pullsText(pulls []versions.PullTiming, now time.Time) string {
+	if len(pulls) == 0 {
+		return ""
+	}
+	merged, running := 0, 0
+	var toRunning []time.Duration
+	var waiting []string
+	for _, p := range pulls {
+		if p.State == "merged" {
+			merged++
+		}
+		if p.Deployed {
+			running++
+			toRunning = append(toRunning, p.MergeToRunning)
+		}
+		if p.Undeployed() && len(waiting) < postureWorst {
+			w := p.App.Service + " " + p.To + " in " + p.Environment
+			if why := versions.WhyWaiting(p.App, now); why != "" {
+				w += " (" + why + ")"
+			}
+			waiting = append(waiting, w)
+		}
+	}
+	s := fmt.Sprintf(" Upgrades as pull requests this week: %d opened, %d merged, %d running", len(pulls), merged, running)
+	if d, n := versions.MedianDuration(toRunning); n > 0 {
+		s += ", median " + versions.HumanDuration(d) + " from merge to running"
+	}
+	s += "."
+	if len(waiting) > 0 {
+		s += " Merged, not deployed: " + strings.Join(waiting, "; ") + "."
+	}
+	return s
 }

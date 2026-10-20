@@ -114,3 +114,33 @@ func TestPostureItemSupplyChain(t *testing.T) {
 		t.Error("no SBOM, no vulnerability sentence")
 	}
 }
+
+// The report says how the week's upgrades went out: opened, merged, running, the median from merge to running, and
+// those merged and not deployed with why.
+func TestPostureItemPulls(t *testing.T) {
+	pos := versions.Posture{Prod: store.Environment{Name: "prod"}, ProdRunning: 9}
+	now := time.Now()
+	app := func(service string, manual bool) versions.GitOpsApp {
+		return versions.GitOpsApp{Service: service, WorkloadGitOps: store.WorkloadGitOps{Tool: "argocd", ManualSync: manual}}
+	}
+	merged := func(to string) store.GitOpsPull {
+		return store.GitOpsPull{State: "merged", To: to, Environment: "prod", MergedAt: now.Add(-3 * time.Hour)}
+	}
+	supply := SupplyChain{Pulls: []versions.PullTiming{
+		{GitOpsPull: store.GitOpsPull{State: "open", To: "2.0.0"}, App: app("api", false), Known: true},
+		{GitOpsPull: merged("1.5.0"), App: app("web", false), Known: true, Deployed: true, MergeToRunning: 20 * time.Minute},
+		{GitOpsPull: merged("3.1.0"), App: app("payments", true), Known: true},
+	}}
+	it := PostureItem(pos, supply, nil, now)
+	for _, want := range []string{
+		"Upgrades as pull requests this week: 3 opened, 2 merged, 1 running, median 20m from merge to running.",
+		"Merged, not deployed: payments 3.1.0 in prod (Argo CD syncs it by hand).",
+	} {
+		if !strings.Contains(it.Text, want) {
+			t.Errorf("missing %q in %s", want, it.Text)
+		}
+	}
+	if strings.Contains(PostureItem(pos, SupplyChain{}, nil, now).Text, "pull requests") {
+		t.Error("no pull requests, no sentence")
+	}
+}
