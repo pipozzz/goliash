@@ -674,6 +674,13 @@ type PromotionView struct {
 	PRs                                      []PromotePR // Argo CD applications it can be opened in as a pull request
 }
 
+// AppPromotionView is a whole application's promotion, offered as one pull request.
+type AppPromotionView struct {
+	App, Target, From, To string
+	Services              []string // "checkout 2.3.1 → 2.4.0"
+	URL                   string   // its preview
+}
+
 // PromotePR is one Argo CD application a promotion can be opened in as a pull request.
 type PromotePR struct {
 	TargetID, WorkloadID, Target, App string
@@ -685,14 +692,15 @@ type PromotePR struct {
 // PromotionsView is the delivery page: pending promotions and delivery statistics.
 type PromotionsView struct {
 	Base
-	Deploys    BarChart
-	Drift      LineChart
-	Promotions []PromotionView
-	Pulls      []PullView // pull requests Goliash opened, newest first
-	Rollouts   []versions.RolloutIssue
-	EnvNames   []string // delivery table columns
-	LeadNames  []string // "dev → staging", …
-	Delivery   []DeliveryRow
+	Deploys       BarChart
+	Drift         LineChart
+	Promotions    []PromotionView
+	AppPromotions []AppPromotionView // whole applications waiting, each as one pull request
+	Pulls         []PullView         // pull requests Goliash opened, newest first
+	Rollouts      []versions.RolloutIssue
+	EnvNames      []string // delivery table columns
+	LeadNames     []string // "dev → staging", …
+	Delivery      []DeliveryRow
 }
 
 // DeliveryRow is one service's delivery statistics over the last 30 days.

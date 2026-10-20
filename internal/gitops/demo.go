@@ -26,48 +26,65 @@ func (Demo) Supports(repo string) bool {
 	return err == nil && u.Host == "github.com" && strings.HasPrefix(u.Path, "/acme/")
 }
 
-// Plan makes up the file the demo repository would have (a Kustomization, a Nomad job or a Compose file, as the
-// path says), and its change.
+// Plan makes up the files the demo repository would have (a Kustomization, a Nomad job or a Compose file, as the
+// path says) and their change: one file per path, with every image the bump changes there.
 func (Demo) Plan(_ context.Context, b Bump) (Plan, error) {
-	name := b.Image[strings.LastIndex(b.Image, "/")+1:]
-	file := strings.Trim(b.Path, "/") + "/kustomization.yaml"
-	old := fmt.Sprintf(`apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: shop
-resources:
-  - ../../base/%s
-images:
-  - name: %s
-    newTag: "%s"
-`, name, b.Image, b.From)
-	switch {
-	case strings.HasSuffix(b.Path, ".hcl"):
-		file = strings.Trim(b.Path, "/")
-		old = fmt.Sprintf(`job "%s" {
-  group "%s" {
-    task "%s" {
-      driver = "docker"
-      config {
-        image = "%s:%s"
-      }
-    }
-  }
-}
-`, name, name, name, b.Image, b.From)
-	case strings.HasSuffix(b.Path, ".yaml") || strings.HasSuffix(b.Path, ".yml"):
-		file = strings.Trim(b.Path, "/")
-		old = fmt.Sprintf(`services:
-  %s:
-    image: %s:%s
-    restart: unless-stopped
-`, name, b.Image, b.From)
-	}
-	res := versions.BumpImageTag([]byte(old), b.Image, b.From, b.To)
 	base := b.Branch
 	if base == "" || base == "HEAD" {
 		base = "main"
 	}
-	return Plan{Base: base, Changes: []Change{{Path: file, Old: []byte(old), New: res.Content}}}, nil
+	var order []string
+	byFile := map[string][]Pin{}
+	for _, p := range b.Pins() {
+		file := strings.Trim(p.Path, "/")
+		if !deployFile(file) {
+			file += "/kustomization.yaml"
+		}
+		if _, ok := byFile[file]; !ok {
+			order = append(order, file)
+		}
+		byFile[file] = append(byFile[file], p)
+	}
+	plan := Plan{Base: base}
+	for _, file := range order {
+		old := demoFile(file, byFile[file])
+		cur := []byte(old)
+		for _, p := range byFile[file] {
+			cur = versions.BumpImageTag(cur, p.Image, p.From, p.To).Content
+		}
+		plan.Changes = append(plan.Changes, Change{Path: file, Old: []byte(old), New: cur})
+	}
+	return plan, nil
+}
+
+// demoFile is the demo repository's file pinning the images: a Nomad job, a Compose file or a Kustomization.
+func demoFile(file string, pins []Pin) string {
+	name := func(p Pin) string { return p.Image[strings.LastIndex(p.Image, "/")+1:] }
+	var b strings.Builder
+	switch {
+	case strings.HasSuffix(file, ".hcl"):
+		n := name(pins[0])
+		fmt.Fprintf(&b, "job %q {\n  group %q {\n", n, n)
+		for _, p := range pins {
+			fmt.Fprintf(&b, "    task %q {\n      driver = \"docker\"\n      config {\n        image = \"%s:%s\"\n      }\n    }\n", name(p), p.Image, p.From)
+		}
+		b.WriteString("  }\n}\n")
+	case strings.HasSuffix(file, "/kustomization.yaml"):
+		b.WriteString("apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n")
+		for _, p := range pins {
+			fmt.Fprintf(&b, "  - ../../base/%s\n", name(p))
+		}
+		b.WriteString("images:\n")
+		for _, p := range pins {
+			fmt.Fprintf(&b, "  - name: %s\n    newTag: %q\n", p.Image, p.From)
+		}
+	default:
+		b.WriteString("services:\n")
+		for _, p := range pins {
+			fmt.Fprintf(&b, "  %s:\n    image: %s:%s\n    restart: unless-stopped\n", name(p), p.Image, p.From)
+		}
+	}
+	return b.String()
 }
 
 // OpenBump opens nothing in the demo.

@@ -173,6 +173,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
 	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
 	mux.Handle("POST /updates/prs", s.page(m, s.openBulkPRs))
+	mux.Handle("GET /delivery/promote-app/preview", s.page(v, s.previewAppPromotion))
+	mux.Handle("POST /delivery/promote-app", s.page(m, s.openAppPromotion))
 	mux.Handle("GET /services/{name}/gitops/preview", s.page(store.RoleViewer, s.previewGitOpsPR))
 	mux.Handle("POST /delivery/promote", s.page(m, s.promotePR))
 	mux.Handle("POST /services/{name}/manual", s.page(m, s.setManualVersion))
@@ -1263,6 +1265,15 @@ func (s *Server) promotions(w http.ResponseWriter, r *http.Request, p auth.Princ
 	}
 	if v.Pulls, err = s.pullViews(ctx, p.Scope, o, apps); err != nil {
 		return err
+	}
+	if v.CanMember || v.PreviewPRs {
+		for _, g := range s.appPromotions(ctx, p.Scope, o, list, apps) {
+			av := AppPromotionView{App: g.App, Target: g.Target, From: g.From, To: g.To, URL: "/delivery/promote-app/preview?" + g.key().Encode()}
+			for _, u := range g.items {
+				av.Services = append(av.Services, u.service+" "+u.app.Tag+" → "+u.to)
+			}
+			v.AppPromotions = append(v.AppPromotions, av)
+		}
 	}
 	for _, pr := range list {
 		pv := PromotionView{Service: pr.Service.Name, App: pr.App, From: pr.From.Name, To: pr.To.Name, Version: pr.Version, Running: pr.Running, Since: pr.Since, Vulns: pr.Vulns}

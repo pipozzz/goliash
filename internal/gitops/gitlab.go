@@ -55,24 +55,25 @@ func (g *GitLab) Plan(ctx context.Context, b Bump) (Plan, error) {
 }
 
 func (g *GitLab) plan(ctx context.Context, b Bump) (string, Plan, error) {
-	pinned := false
-	var changes []Change
-	project, p, err := g.walk(ctx, b, func(path string, raw []byte) {
-		res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
-		pinned = pinned || res.Pinned
-		if res.Changes > 0 {
-			changes = append(changes, Change{Path: path, Old: raw, New: res.Content})
+	var project string
+	var p Plan
+	var e edits
+	for _, pin := range b.Pins() {
+		changed, pinned := false, false
+		var err error
+		project, p, err = g.walk(ctx, b.at(pin), func(path string, raw []byte) {
+			c, d := e.apply(path, "", raw, pin)
+			changed, pinned = changed || c, pinned || d
+		})
+		if err != nil {
+			return project, p, err
 		}
-	})
-	if err != nil {
-		return project, p, err
+		if !changed {
+			return project, p, pinErr(b, pin, pinned)
+		}
 	}
-	p.Changes = changes
-	if len(p.Changes) == 0 {
-		if pinned {
-			return project, p, ErrPinned
-		}
-		return project, p, ErrNoTag
+	for _, f := range e.list() {
+		p.Changes = append(p.Changes, Change{Path: f.path, Old: f.old, New: f.new})
 	}
 	return project, p, nil
 }

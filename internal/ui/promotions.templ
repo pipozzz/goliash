@@ -58,6 +58,15 @@ templ PromotionsPage(v PromotionsView) {
 		</section>
 		<section class="panel">
 			<div class="panel-head"><h2>Waiting for promotion</h2></div>
+			for _, ap := range v.AppPromotions {
+				<div class="app-promote">
+					<div>
+						<strong>{ ap.App }</strong> <span class="muted">{ "on " + ap.Target + ": " + itoa(len(ap.Services)) + " services wait for " + ap.To }</span>
+						<div class="targets">{ joinList(ap.Services) }</div>
+					</div>
+					<a class="button gitops-pr noprint" href={ templ.URL(ap.URL) } title="One pull request with every service's new tag: see it before opening it">{ "Promote " + ap.App + " → " + ap.To }</a>
+				</div>
+			}
 			if len(v.Promotions) == 0 {
 				<div class="empty">Nothing waits: every environment runs what the one before it runs.</div>
 			} else {

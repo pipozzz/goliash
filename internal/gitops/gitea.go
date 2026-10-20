@@ -136,26 +136,27 @@ func (g *Gitea) walk(ctx context.Context, b Bump, visit func(f giteaFile)) (stri
 
 // plan finds the files that pin the image at From, with their changes.
 func (g *Gitea) plan(ctx context.Context, b Bump) (string, Plan, []giteaFile, error) {
-	pinned := false
-	var files []giteaFile
-	var changes []Change
-	repo, branch, err := g.walk(ctx, b, func(f giteaFile) {
-		res := versions.BumpImageTag(f.raw, b.Image, b.From, b.To)
-		pinned = pinned || res.Pinned
-		if res.Changes > 0 {
-			files = append(files, giteaFile{f.path, f.sha, res.Content})
-			changes = append(changes, Change{Path: f.path, Old: f.raw, New: res.Content})
+	var repo, branch string
+	var e edits
+	for _, pin := range b.Pins() {
+		changed, pinned := false, false
+		var err error
+		repo, branch, err = g.walk(ctx, b.at(pin), func(f giteaFile) {
+			c, d := e.apply(f.path, f.sha, f.raw, pin)
+			changed, pinned = changed || c, pinned || d
+		})
+		if err != nil {
+			return repo, Plan{Base: branch}, nil, err
 		}
-	})
-	p := Plan{Base: branch, Changes: changes}
-	if err != nil {
-		return repo, p, nil, err
+		if !changed {
+			return repo, Plan{Base: branch}, nil, pinErr(b, pin, pinned)
+		}
 	}
-	if len(changes) == 0 {
-		if pinned {
-			return repo, p, nil, ErrPinned
-		}
-		return repo, p, nil, ErrNoTag
+	p := Plan{Base: branch}
+	var files []giteaFile
+	for _, f := range e.list() {
+		files = append(files, giteaFile{f.path, f.sha, f.new})
+		p.Changes = append(p.Changes, Change{Path: f.path, Old: f.old, New: f.new})
 	}
 	return repo, p, files, nil
 }

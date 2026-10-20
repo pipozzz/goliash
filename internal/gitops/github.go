@@ -57,6 +57,7 @@ type Bump struct {
 	Title     string
 	Body      string // markdown
 	CommitMsg string
+	Also      []Pin // more images to change in the same pull request (same repository and branch)
 }
 
 // ErrNoTag is returned when no file under the path pins the image at the version.
@@ -109,24 +110,24 @@ func (g *GitHub) Plan(ctx context.Context, b Bump) (Plan, error) {
 }
 
 func (g *GitHub) plan(ctx context.Context, b Bump) (ghPlan, error) {
-	pinned := false
-	var changes []ghChange
-	gp, err := g.walk(ctx, b, func(p, sha string, raw []byte) {
-		res := versions.BumpImageTag(raw, b.Image, b.From, b.To)
-		pinned = pinned || res.Pinned
-		if res.Changes > 0 {
-			changes = append(changes, ghChange{p, sha, raw, res.Content})
+	var gp ghPlan
+	var e edits
+	for _, pin := range b.Pins() {
+		changed, pinned := false, false
+		var err error
+		gp, err = g.walk(ctx, b.at(pin), func(p, sha string, raw []byte) {
+			c, d := e.apply(p, sha, raw, pin)
+			changed, pinned = changed || c, pinned || d
+		})
+		if err != nil {
+			return gp, err
 		}
-	})
-	if err != nil {
-		return gp, err
+		if !changed {
+			return gp, pinErr(b, pin, pinned)
+		}
 	}
-	gp.changes = changes
-	if len(gp.changes) == 0 {
-		if pinned {
-			return gp, ErrPinned
-		}
-		return gp, ErrNoTag
+	for _, f := range e.list() {
+		gp.changes = append(gp.changes, ghChange{f.path, f.sha, f.old, f.new})
 	}
 	return gp, nil
 }

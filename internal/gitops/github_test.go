@@ -119,3 +119,27 @@ func TestPinned(t *testing.T) {
 		t.Fatalf("Pinned = %v, %v", tags, err)
 	}
 }
+
+// A promotion of a whole application changes every image in one pull request, in the files that pin them: one file
+// changed twice goes out once, with both.
+func TestOpenBumpSeveral(t *testing.T) {
+	srv, written := fakeGitHub(t, "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.4.2\n  - name: ghcr.io/acme/cart\n    newTag: 3.0.0\n")
+	g := NewGitHub("tok", srv.URL)
+	g.host = "github.com"
+	b := Bump{
+		Repo: "https://github.com/acme/deploy", Branch: "main", Path: "apps/checkout/prod", Image: "ghcr.io/acme/checkout",
+		From: "1.4.2", To: "1.5.0", Head: "goliash/promote-shop-prod", Title: "Promote shop to prod", CommitMsg: "shop to prod",
+		Also: []Pin{{Path: "apps/checkout/prod", Image: "ghcr.io/acme/cart", From: "3.0.0", To: "3.1.0"}},
+	}
+	if _, err := g.OpenBump(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := written.Load("apps/checkout/prod/kustomization.yaml")
+	if s, _ := got.(string); !strings.HasPrefix(s, "images:\n  - name: ghcr.io/acme/checkout\n    newTag: 1.5.0\n  - name: ghcr.io/acme/cart\n    newTag: 3.1.0\n|") {
+		t.Fatalf("commit %q", s)
+	}
+	b.Also[0].From = "9.9.9"
+	if _, err := g.Plan(context.Background(), b); !errors.Is(err, ErrNoTag) || !strings.Contains(err.Error(), "ghcr.io/acme/cart 9.9.9") {
+		t.Fatalf("a pin found nowhere: %v", err)
+	}
+}
