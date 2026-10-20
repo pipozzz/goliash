@@ -106,3 +106,49 @@ func TestCSVExports(t *testing.T) {
 		t.Errorf("vulns csv:\n%s", b.String())
 	}
 }
+
+// An upgrade's license changes: a package it brings under network copyleft, one relicensed to source-available;
+// operating system packages, permissive and as-demanding-as-before ones are left out.
+func TestUpgradeLicenses(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	prod, _ := l.st.CreateTarget(ctx, store.Target{Scope: l.sc, EnvironmentID: l.envs["prod"].ID, Platform: "kubernetes", Name: "k8s"})
+	stg, _ := l.st.CreateTarget(ctx, store.Target{Scope: l.sc, EnvironmentID: l.envs["staging"].ID, Platform: "kubernetes", Name: "k8s-stg"})
+	run := func(tgt store.Target, tag string) {
+		if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+			TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "w", WorkloadName: "web", ContainerName: "app",
+			Image: "ghcr.io/acme/web:" + tag, Tag: tag, Digest: "sha256:" + tag, Running: 1, IsMain: true,
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run(prod, "1.0.0")
+	run(stg, "2.0.0")
+	old := map[string]string{"pkg:golang/github.com/hashicorp/vault@1.14.0": "MPL-2.0", "pkg:npm/gpl-thing@1.0.0": "GPL-3.0-only", "pkg:deb/debian/bash@5.2": "GPL-3.0"}
+	newer := map[string]string{
+		"pkg:golang/github.com/hashicorp/vault@1.15.0": "BUSL-1.1", "pkg:npm/gpl-thing@1.1.0": "GPL-3.0-only",
+		"pkg:deb/debian/bash@5.2": "GPL-3.0", "pkg:maven/com.itextpdf/itextpdf@5.5.13": "AGPL-3.0-only", "pkg:npm/lodash@4.17.21": "MIT",
+	}
+	for tag, lic := range map[string]map[string]string{"1.0.0": old, "2.0.0": newer} {
+		var purls []string
+		for p := range lic {
+			purls = append(purls, p)
+		}
+		if err := l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "ghcr.io/acme/web", Digest: "sha256:" + tag, Purls: purls, Licenses: lic}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d, err := UpgradeLicenses(ctx, l.st, l.sc, l.svc.ID, l.envs["prod"].ID, "1.0.0", "2.0.0")
+	if err != nil || !d.Known || len(d.Changes) != 2 {
+		t.Fatalf("delta %+v %v", d, err)
+	}
+	if c := d.Changes[0]; c.Name != "com.itextpdf/itextpdf" || c.Class != NetworkCopyleft || c.Was != "" {
+		t.Errorf("first %+v", c)
+	}
+	if c := d.Changes[1]; c.Name != "github.com/hashicorp/vault" || c.Class != SourceAvailable || c.Was != "MPL-2.0" || c.Version != "1.15.0" {
+		t.Errorf("second %+v", c)
+	}
+	if d, _ := UpgradeLicenses(ctx, l.st, l.sc, l.svc.ID, l.envs["prod"].ID, "1.0.0", "9.9.9"); d.Known {
+		t.Error("known without the newer image's SBOM")
+	}
+}

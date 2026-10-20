@@ -930,3 +930,18 @@ func TestPRReviewersFromPolicy(t *testing.T) {
 		t.Fatalf("bump %+v", pulls.got)
 	}
 }
+
+func TestLicensesMarkdown(t *testing.T) {
+	if licensesMarkdown(versions.LicenseDelta{}) != "" || licensesMarkdown(versions.LicenseDelta{Known: true}) != "" {
+		t.Fatal("a section without changes")
+	}
+	md := licensesMarkdown(versions.LicenseDelta{Known: true, Changes: []versions.LicenseChange{
+		{Name: "itextpdf", Version: "5.5.13", License: "AGPL-3.0-only", Class: versions.NetworkCopyleft},
+		{Name: "vault", Version: "1.15.0", License: "BUSL-1.1", Class: versions.SourceAvailable, Was: "MPL-2.0"},
+	}})
+	for _, want := range []string{"### Licenses", "`itextpdf` 5.5.13 under **AGPL-3.0-only** (network copyleft)", "`vault` 1.15.0 under **BUSL-1.1** (source-available, was MPL-2.0)", "not legal advice"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("missing %q in %s", want, md)
+		}
+	}
+}

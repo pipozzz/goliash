@@ -99,6 +99,7 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 				why: "the newest release its version policy accepts, opened by the policy (auto_pr: " + string(pol.AutoPR[a.Environment]) + ")",
 			}
 			u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
+			u.licenses, _ = versions.UpgradeLicenses(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
 			u.reviewers, u.labels = pol.PRReviewers, pol.PRLabels
 			if _, msg := s.bump(ctx, sc, autoPRActor, u); msg != "" {
 				s.log.WarnContext(ctx, "automatic pull request not opened", "service", svc.Name, "environment", a.Environment, "to", to, "reason", msg)

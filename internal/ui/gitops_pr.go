@@ -53,8 +53,9 @@ type upgrade struct {
 	service, page  string
 	to, why, notes string
 	vulns          versions.VulnDelta
-	summary        string // Goli's summary of the release notes, a markdown list; empty without Goli
-	rollback       bool   // back to the version the running one replaced, the application being degraded
+	licenses       versions.LicenseDelta // packages it brings under more demanding licenses
+	summary        string                // Goli's summary of the release notes, a markdown list; empty without Goli
+	rollback       bool                  // back to the version the running one replaced, the application being degraded
 	reviewers      []string
 	labels         []string // from the service's version policy (pr_reviewers, pr_labels)
 }
@@ -110,6 +111,7 @@ func (s *Server) findUpgrade(ctx context.Context, sc store.Scope, service, targe
 		return upgrade{}, false, nil
 	}
 	u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, app.ServiceID, envID(o, app.Environment), app.Tag, to)
+	u.licenses, _ = versions.UpgradeLicenses(ctx, s.store, sc, app.ServiceID, envID(o, app.Environment), app.Tag, to)
 	return u, true, nil
 }
 
@@ -177,6 +179,7 @@ func (s *Server) bumpRequest(u upgrade, by string) gitops.Bump {
 		body += "- Release notes: " + u.notes + "\n"
 	}
 	body += vulnsMarkdown(u.vulns)
+	body += licensesMarkdown(u.licenses)
 	if u.summary != "" {
 		body += "\n### What changes\n\n" + u.summary + "\n\nSummarised from the release notes by Goli, Goliash's assistant: read them before merging.\n"
 	}
@@ -624,4 +627,42 @@ func commaList(s string) []string {
 		}
 	}
 	return out
+}
+
+// licenseClassNames say what a license class asks, for a reviewer.
+var licenseClassNames = map[versions.LicenseClass]string{
+	versions.NetworkCopyleft: "network copyleft", versions.SourceAvailable: "source-available",
+	versions.StrongCopyleft: "strong copyleft",
+}
+
+// licenseList names license changes for a line: "`minio-go` 7.1 under **AGPL-3.0** (network copyleft)", at most n.
+func licenseList(changes []versions.LicenseChange, n int) string {
+	var parts []string
+	for i, c := range changes {
+		if i == n {
+			parts = append(parts, fmt.Sprintf("and %d more", len(changes)-n))
+			break
+		}
+		lic := c.License
+		if lic == "" {
+			lic = "an unknown license"
+		}
+		item := fmt.Sprintf("`%s` %s under **%s** (%s", c.Name, c.Version, lic, licenseClassNames[c.Class])
+		if c.Was != "" {
+			item += ", was " + c.Was
+		}
+		parts = append(parts, item+")")
+	}
+	return strings.Join(parts, ", ")
+}
+
+// licensesMarkdown says in a pull request which packages the upgrade brings, or relicenses, under terms that need
+// a look before merging: network copyleft, source-available, strong copyleft. Nothing when there are none or the
+// SBOMs are not known.
+func licensesMarkdown(d versions.LicenseDelta) string {
+	if !d.Known || len(d.Changes) == 0 {
+		return ""
+	}
+	return "\n### Licenses\n\nBrings " + licenseList(d.Changes, 10) +
+		".\n\nFrom the SBOMs of both images, as Goliash reads them; not legal advice.\n"
 }

@@ -67,7 +67,9 @@ two versions and lists, in a few lines, what breaks or needs a migration first, 
 first. It is marked as Goli's, and asked once a day per upgrade.
 
 Each pull request lists the known vulnerabilities the upgrade fixes (exploited in the wild first) and those it
-brings, from the SBOMs of both images. A version is proposed once: after that the page links the pull request, marked *merged* once it is. **Renovate, Dependabot
+brings, from the SBOMs of both images. It also says which packages the upgrade brings, or relicenses, under terms that need a look
+before merging: network copyleft (AGPL, SSPL), source-available (BUSL, Elastic) or strong copyleft (GPL), with the
+license they had before (operating system packages and permissive licenses left out; not legal advice). A version is proposed once: after that the page links the pull request, marked *merged* once it is. **Renovate, Dependabot
 or a person** may have proposed it first: when an open pull request in the repository names the image and the version
 in its title (*Update ghcr.io/acme/api Docker tag to v1.5.0*, *Bump api from 1.4.2 to 1.5.0*), the pages link that
 one instead (hover: *Opened outside Goliash*), and neither a click nor a version policy opens a second. The **Delivery** page lists the pull

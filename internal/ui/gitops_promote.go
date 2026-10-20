@@ -61,6 +61,7 @@ func (s *Server) appPromotions(ctx context.Context, sc store.Scope, o versions.O
 				why: fmt.Sprintf("it has run in %s since %s", pr.From.Name, pr.Since.UTC().Format("2 Jan 2006")),
 			}
 			u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, pr.Version)
+			u.licenses, _ = versions.UpgradeLicenses(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, pr.Version)
 			if pol, _, err := versions.PolicyFor(o.Services[a.ServiceID], o.Refs[a.ServiceID].Repo); err == nil {
 				u.reviewers, u.labels = pol.PRReviewers, pol.PRLabels
 			}
@@ -131,6 +132,9 @@ func (s *Server) groupBump(items []upgrade, by, title, head, intro, page string)
 			if len(d.New) > 0 {
 				fmt.Fprintf(&body, ", brings %d", len(d.New))
 			}
+		}
+		if l := u.licenses; l.Known && len(l.Changes) > 0 {
+			fmt.Fprintf(&body, "; ⚖️ brings %s", licenseList(l.Changes, 3))
 		}
 		body.WriteString("\n")
 		if i > 0 {
