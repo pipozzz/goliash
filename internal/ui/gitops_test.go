@@ -832,3 +832,46 @@ func TestPromoteApplication(t *testing.T) {
 		t.Fatal("offered again once opened")
 	}
 }
+
+// Ticked upgrades in one repository, branch and environment go as one pull request when asked.
+func TestBulkPRsGrouped(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	evil := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, evil)
+	cache, _ := e.st.EnsureService(ctx, sc, "cache")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{
+		Scope: sc, SnapshotID: store.NewID(), TargetID: e.tgt.ID, At: time.Now(),
+		Upsert: []store.Instance{{
+			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: cache.ID, WorkloadID: "w2", WorkloadKind: "deployment",
+			WorkloadName: "cache", ContainerName: "app", Image: "redis:7.2.4", Tag: "7.2.4", Running: 1, IsMain: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	apps := []store.WorkloadGitOps{
+		{WorkloadID: "w1", Tool: "argocd", App: "a", Repo: "https://github.com/acme/deploy.git", Path: "apps/a", TargetRevision: "main", Sync: "Synced", Health: "Healthy"},
+		{WorkloadID: "w2", Tool: "argocd", App: "b", Repo: "https://github.com/acme/deploy.git", Path: "apps/b", TargetRevision: "main", Sync: "Synced", Health: "Healthy"},
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, apps, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"})
+	_, _ = e.st.InsertReleases(ctx, sc, cache.ID, []string{"7.2.5"})
+	_ = e.ui.checker.EvaluateDrift(ctx, sc)
+	_, body, _ := post(t, e.as(store.RoleMember), e.srv.URL+"/updates/prs", url.Values{
+		"pr": {evil + "|" + e.tgt.ID + "|w1|1.28.0", "cache|" + e.tgt.ID + "|w2|7.2.5"}, "group": {"repo"}, "return": {"/updates"},
+	})
+	if len(pulls.got) != 1 || !strings.Contains(body, "(one pull request)") {
+		t.Fatalf("opened %d: %.200s", len(pulls.got), body)
+	}
+	if b := pulls.got[0]; len(b.Also) != 1 || !strings.HasPrefix(b.Title, "Upgrade 2 services in prod: ") || !strings.HasPrefix(b.Head, "goliash/upgrade-prod-") {
+		t.Fatalf("bump %+v", b)
+	}
+	if got, _ := e.st.ListGitOpsPulls(ctx, sc); len(got) != 2 {
+		t.Fatalf("recorded %d", len(got))
+	}
+}

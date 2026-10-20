@@ -97,12 +97,25 @@ func (s *Server) findAppPromotion(ctx context.Context, sc store.Scope, q url.Val
 
 // promotionBump is the pull request that promotes a whole application: every service's tag, in one branch.
 func (s *Server) promotionBump(g appPromotion, by string) gitops.Bump {
-	b := s.bumpRequest(g.items[0], by)
+	var names []string
+	for _, u := range g.items {
+		names = append(names, u.service+" "+u.to)
+	}
+	return s.groupBump(g.items, by,
+		fmt.Sprintf("Promote %s to %s: %s", g.App, g.To, strings.Join(names, ", ")),
+		"promote-"+g.App+"-"+g.To,
+		fmt.Sprintf("Promotes **%d services** of `%s` in **%s** (%s) to the versions that run in **%s**", len(g.items), g.App, g.To, g.Target, g.From),
+		"/delivery")
+}
+
+// groupBump is one pull request for several upgrades in one repository and branch: the first upgrade's, carrying
+// the others' pins, with a line per service in its description.
+func (s *Server) groupBump(items []upgrade, by, title, head, intro, page string) gitops.Bump {
+	b := s.bumpRequest(items[0], by)
 	var names []string
 	var body strings.Builder
-	fmt.Fprintf(&body, "Promotes **%d services** of `%s` in **%s** (%s) to the versions that run in **%s**:\n\n",
-		len(g.items), g.App, g.To, g.Target, g.From)
-	for i, u := range g.items {
+	body.WriteString(intro + ":\n\n")
+	for i, u := range items {
 		names = append(names, u.service+" "+u.to)
 		fmt.Fprintf(&body, "- **%s** `%s` → `%s`: %s", u.service, u.app.Tag, u.to, u.why)
 		if u.notes != "" {
@@ -122,13 +135,48 @@ func (s *Server) promotionBump(g appPromotion, by string) gitops.Bump {
 			b.Also = append(b.Also, gitops.Pin{Path: u.app.Path, Image: versions.ParseImage(u.app.Image).Repo(), From: u.app.Tag, To: u.to})
 		}
 	}
-	fmt.Fprintf(&body, "\n- %s: `%s` (%s)\n- Opened by %s from [Goliash](%s/delivery)\n", versions.GitOpsObject(g.items[0].app.Tool), g.App,
-		b.Path, by, s.publicURL)
-	b.Head = "goliash/" + branchSafe("promote-"+g.App+"-"+g.To)
-	b.Title = fmt.Sprintf("Promote %s to %s: %s", g.App, g.To, strings.Join(names, ", "))
-	b.CommitMsg = fmt.Sprintf("%s: promote to %s (%s)", g.App, g.To, strings.Join(names, ", "))
+	where := items[0].app.TargetRevision
+	if where == "" {
+		where = "the default branch"
+	}
+	fmt.Fprintf(&body, "\n- Repository: %s (%s)\n- Opened by %s from [Goliash](%s%s)\n", b.Repo, where, by, s.publicURL, page)
+	b.Head = "goliash/" + branchSafe(head)
+	b.Title = title
+	b.CommitMsg = title
 	b.Body = body.String()
 	return b
+}
+
+// openGroup opens one pull request for several upgrades and records it for each: every service's page links it.
+// It returns the pull request's address, or why it could not be opened.
+func (s *Server) openGroup(ctx context.Context, sc store.Scope, by string, req gitops.Bump, items []upgrade, label string) (string, string) {
+	pr, err := s.pulls.OpenBump(ctx, req)
+	if err != nil {
+		return "", bumpError(err, req)
+	}
+	var names []string
+	for _, u := range items {
+		names = append(names, u.service)
+		if err := s.store.RecordGitOpsPull(ctx, store.GitOpsPull{
+			Scope: sc, ServiceID: u.app.ServiceID, Environment: u.app.Environment, TargetID: u.app.TargetID,
+			WorkloadID: u.app.WorkloadID, From: u.app.Tag, To: u.to, URL: pr, OpenedBy: by,
+		}); err != nil {
+			s.log.ErrorContext(ctx, "recording a pull request failed", "url", pr, "err", err)
+		}
+	}
+	if s.notify != nil {
+		s.notify.PullRequestOpened(sc, notifier.Item{
+			Service: label, Environment: items[0].app.Environment, Target: items[0].app.Target, From: items[0].app.Tag,
+			To: items[0].to, Note: by, URL: pr, Tool: items[0].app.Tool,
+		})
+	}
+	if err := s.store.Audit(ctx, store.AuditEntry{
+		OrgID: sc.OrgID, WorkspaceID: sc.WorkspaceID, Actor: by, Action: "gitops.pull_request",
+		Details: map[string]string{"group": label, "environment": items[0].app.Environment, "services": strings.Join(names, ","), "url": pr},
+	}); err != nil {
+		s.log.ErrorContext(ctx, "audit log write failed", "action", "gitops.pull_request", "err", err)
+	}
+	return pr, ""
 }
 
 // previewAppPromotion shows the pull request that would promote a whole application.
@@ -188,31 +236,13 @@ func (s *Server) openAppPromotion(w http.ResponseWriter, r *http.Request, p auth
 	if !ok {
 		return back(w, r, page, "error", "That promotion is no longer waiting; the page is reloaded with what runs now.")
 	}
-	req := s.promotionBump(g, p.User.Email)
-	pr, err := s.pulls.OpenBump(ctx, req)
-	if err != nil {
-		return back(w, r, page, "error", bumpError(err, req))
+	pr, msg := s.openGroup(ctx, p.Scope, p.User.Email, s.promotionBump(g, p.User.Email), g.items, g.App)
+	if msg != "" {
+		return back(w, r, page, "error", msg)
 	}
 	var names []string
 	for _, u := range g.items {
 		names = append(names, u.service)
-		if err := s.store.RecordGitOpsPull(ctx, store.GitOpsPull{
-			Scope: p.Scope, ServiceID: u.app.ServiceID, Environment: u.app.Environment, TargetID: u.app.TargetID,
-			WorkloadID: u.app.WorkloadID, From: u.app.Tag, To: u.to, URL: pr, OpenedBy: p.User.Email,
-		}); err != nil {
-			s.log.ErrorContext(ctx, "recording a pull request failed", "url", pr, "err", err)
-		}
-	}
-	if s.notify != nil {
-		s.notify.PullRequestOpened(p.Scope, notifier.Item{
-			Service: g.App, Environment: g.To, Target: g.Target, From: g.From, To: g.To, Note: p.User.Email, URL: pr,
-		})
-	}
-	if err := s.store.Audit(ctx, store.AuditEntry{
-		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID, Actor: p.User.Email, Action: "gitops.pull_request",
-		Details: map[string]string{"application": g.App, "environment": g.To, "services": strings.Join(names, ","), "url": pr},
-	}); err != nil {
-		s.log.ErrorContext(ctx, "audit log write failed", "action", "gitops.pull_request", "err", err)
 	}
 	return back(w, r, page, "notice", fmt.Sprintf("Pull request opened for %s (%s): %s", g.App, strings.Join(names, ", "), pr))
 }
