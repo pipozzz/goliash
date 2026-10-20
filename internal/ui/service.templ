@@ -91,6 +91,17 @@ templ ServicePage(v ServiceView) {
 				}
 			</div>
 		}
+		if v.Unknown.Reason != "" && v.CheckError == "" {
+			<div class="notice">
+				<strong>Newest release unknown.</strong>{ " " + v.Unknown.Reason }
+				if v.Unknown.Fix != "" {
+					{ " " + v.Unknown.Fix }
+				}
+				if l := unknownFix(v.Unknown); l.URL != "" && (l.Label != "Registry credentials" || v.CanAdmin) {
+					{ " " }<a class="u" href={ templ.URL(l.URL) }>{ l.Label }</a>
+				}
+			</div>
+		}
 		for _, is := range v.Rollouts {
 			<div class={ "notice", templ.KV("error", is.Kind != versions.RolloutShort) }>
 				<strong>{ rolloutHeadline(is) }</strong>
@@ -294,7 +305,7 @@ templ ServicePage(v ServiceView) {
 				<div class="panel-head"><h2>History</h2><a href={ templ.URL("/events?service=" + v.Name) }>All events →</a></div>
 				@timeline(v.Events, false)
 			</section>
-			<section class="panel">
+			<section class="panel" id="policy">
 				<div class="panel-head">
 					<h2>Version policy</h2>
 					if v.PolicyFrom == "catalog" {

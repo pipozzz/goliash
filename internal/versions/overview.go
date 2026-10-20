@@ -25,6 +25,9 @@ type Overview struct {
 	Envs      map[string]store.Environment // by ID
 	Targets   []store.Target
 	CheckErrs map[string]string // service ID -> last upstream check error
+	// CheckedAt is when each service's upstream was last looked at; TagCount how many of its tags Goliash knows.
+	CheckedAt map[string]time.Time
+	TagCount  map[string]int
 	// Stale lists targets whose data may be out of date (agent silent, or no recent
 	// snapshot), with their last snapshot time.
 	Stale map[string]time.Time
@@ -73,7 +76,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	o := Overview{
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, AppDrifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
-		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{},
+		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{}, CheckedAt: map[string]time.Time{}, TagCount: map[string]int{},
 	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -136,6 +139,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		if msg := checks[id].Error; msg != "" {
 			o.CheckErrs[id] = msg
 		}
+		o.CheckedAt[id] = checks[id].At
 	}
 	if err := loadUpstreams(ctx, st, sc, &o, nil); err != nil {
 		return o, err
@@ -191,6 +195,9 @@ func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Over
 			if r.ChangelogURL != "" {
 				o.ReleaseURL[id+"|"+r.Version] = r.ChangelogURL
 			}
+		}
+		if o.TagCount != nil {
+			o.TagCount[id] = len(tags)
 		}
 		if len(tags) > 0 {
 			o.Upstreams[id] = Latest(tags, ref.Tag, p)

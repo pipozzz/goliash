@@ -338,7 +338,8 @@ type MatrixRow struct {
 	LatestURL string
 	Note      string // e.g. "17.0 outside pin", "checked by agent"
 	NoteTitle string
-	Target    string // grouped by target: the one target this row shows
+	Target    string                  // grouped by target: the one target this row shows
+	Unknown   versions.UnknownService // why the newest release is not known; empty when it is
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -496,13 +497,9 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		if u.LatestAny.Raw != u.Latest.Raw {
 			r.Note = u.LatestAny.Raw + " outside pin"
 		}
-	} else if msg := o.CheckErrs[row.Service.ID]; msg != "" {
-		r.Note = "check failed"
-		r.NoteTitle = msg
-	} else if versions.CheckedByAgent(row.Service, ref.Repo, o.Registries) {
-		r.Note = "checked by agent"
-	} else if ref.Repo != "" {
-		r.Note = "not checked yet"
+	} else if u, ok := versions.WhyUnknown(o, row.Service.ID); ok {
+		r.Note, r.NoteTitle = u.Short, strings.TrimSpace(u.Reason+" "+u.Fix)
+		r.Unknown = versions.UnknownService{Service: row.Service.Name, Repo: ref.Repo, Unknown: u}
 	}
 	r.Health = healthOf(drifts, true)
 	return r
@@ -595,8 +592,9 @@ type ServiceView struct {
 	LatestAny      string
 	CheckedAt      time.Time
 	CheckError     string
-	Private        bool // the agents check the upstream
-	PublicRegistry bool // the server can try it: "check now"
+	Unknown        versions.UnknownService // why the newest release is not known; empty when it is
+	Private        bool                    // the agents check the upstream
+	PublicRegistry bool                    // the server can try it: "check now"
 	Policy         PolicyForm
 	BuiltOn        *versions.BaseStatus // the image the service is built on, when known
 	Envs           []ServiceEnv

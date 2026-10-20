@@ -32,8 +32,9 @@ type Posture struct {
 	EOLSoon     int
 	Accepted    int // production exposures quieted by an acknowledgement: accepted risk
 	Stale       []string
-	NoUpstream  []string // services whose newest release is unknown, so exposure cannot be measured
-	ProdRunning int      // services running in production
+	NoUpstream  []string         // services whose newest release is unknown, so exposure cannot be measured
+	Unknowns    []UnknownService // the same services, with why and what would let Goliash tell
+	ProdRunning int              // services running in production
 	// OutdatedBase names the production services whose image is built on an older build of its base than the
 	// base's tag has now: fixes the base shipped since are missing.
 	OutdatedBase []string
@@ -123,9 +124,13 @@ func LoadPosture(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 		p.ProdRunning++
 		if up, ok := o.Upstreams[row.Service.ID]; !ok || !up.HasLatest {
 			p.NoUpstream = append(p.NoUpstream, row.Service.Name)
+			if u, ok := WhyUnknown(o, row.Service.ID); ok {
+				p.Unknowns = append(p.Unknowns, UnknownService{Service: row.Service.Name, Repo: o.Refs[row.Service.ID].Repo, Unknown: u})
+			}
 		}
 	}
 	sort.Strings(p.NoUpstream)
+	sort.Slice(p.Unknowns, func(i, j int) bool { return p.Unknowns[i].Service < p.Unknowns[j].Service })
 	if err := p.findOutdatedBases(ctx, st, sc); err != nil {
 		return p, err
 	}

@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"net/url"
 	"strings"
 	"time"
 
@@ -349,7 +350,24 @@ templ SecurityPage(v SecurityView) {
 					if len(v.NoUpstream) == 0 {
 						<p>{ "The newest release is known for every service in " + v.Prod.Name + "." }</p>
 					} else {
-						<p><strong>{ itoa(len(v.NoUpstream)) } of { itoa(v.ProdRunning) } services</strong> have no known upstream release, so their exposure is not measured: { strings.Join(v.NoUpstream, ", ") }.</p>
+						if len(v.Unknowns) == 0 {
+							<p><strong>{ itoa(len(v.NoUpstream)) } of { itoa(v.ProdRunning) } services</strong> have no known upstream release, so their exposure is not measured: { strings.Join(v.NoUpstream, ", ") }.</p>
+						} else {
+							<p><strong>{ itoa(len(v.NoUpstream)) } of { itoa(v.ProdRunning) } services</strong> have no known upstream release, so their exposure is not measured. Why, and what would let Goliash tell:</p>
+							<ul class="unknowns">
+								for _, u := range v.Unknowns {
+									<li>
+										<a class="u" href={ templ.URL("/services/" + url.PathEscape(u.Service)) }><strong>{ u.Service }</strong></a>{ ": " + u.Reason }
+										if u.Fix != "" {
+											{ " " + u.Fix }
+										}
+										if l := unknownFix(u); l.URL != "" {
+											{ " " }<a class="u" href={ templ.URL(l.URL) }>{ l.Label }</a>
+										}
+									</li>
+								}
+							</ul>
+						}
 					}
 					if !v.DigestOK {
 						<p><strong>{ plural(v.NoDigest, "target", "targets") }</strong> report no image digests, so a tag pushed again would go unnoticed there; <a href="/hygiene?kind=unpinned">see why</a>.</p>
