@@ -289,6 +289,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
 	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
 	mux.Handle("POST /settings/app-label", s.page(a, s.setAppLabel))
+	mux.Handle("POST /settings/freezes", s.page(a, s.addFreeze))
+	mux.Handle("POST /settings/freezes/{id}/delete", s.page(a, s.deleteFreeze))
 	mux.Handle("POST /account/name", s.page(v, s.saveName))
 	mux.Handle("POST /account/home", s.page(v, s.saveHomeView))
 	mux.Handle("POST /account/password", s.page(v, s.changePassword))
@@ -405,6 +407,7 @@ func (s *Server) base(ctx context.Context, p auth.Principal, page, title string)
 		b.InboxCount = len(items)
 	}
 	b.Unread = s.bellUnread(ctx, p.Scope, p.User.ID)
+	b.Freeze = s.activeFreeze(ctx, p.Scope)
 	return b
 }
 
@@ -2186,6 +2189,9 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	v.Base = withFlash(v.Base, r)
+	if v.Freezes, err = s.freezeViews(r.Context(), p.Scope); err != nil {
+		return err
+	}
 	if h := registry.NormalizeHost(r.URL.Query().Get("registry")); validRegistryHost(h) {
 		v.RegistryHost = h
 	}

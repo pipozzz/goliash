@@ -21,6 +21,9 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 		if v.Problem != "" {
 			<div class="notice error">{ v.Problem }</div>
 		}
+		if v.Base.Freeze != "" && !v.Rollback {
+			<div class="notice error">{ "❄️ The workspace is in a change freeze " + v.Base.Freeze + ". Open it only if it cannot wait; the pull request says it was opened during the freeze." }</div>
+		}
 		for _, f := range v.Files {
 			<section class="panel">
 				<div class="panel-head"><h2 class="mono diff-path">{ f.Path }</h2></div>

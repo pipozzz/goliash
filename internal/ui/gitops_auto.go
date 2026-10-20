@@ -55,6 +55,9 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 	opened := 0
 	for _, ws := range wss {
 		sc := ws.Scope()
+		if s.activeFreeze(ctx, sc) != "" { // a change freeze: the policy waits, people still can
+			continue
+		}
 		o, err := versions.LoadOverview(ctx, s.store, sc)
 		if err != nil {
 			return opened, err

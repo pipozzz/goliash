@@ -220,6 +220,9 @@ templ Layout(b Base) {
 				</header>
 			}
 			<main id="content" tabindex="-1">
+				if b.Freeze != "" && !b.Kiosk {
+					<div class="freeze-banner" role="note">❄️ <strong>Change freeze</strong> { b.Freeze }. Automatic pull requests wait; those opened by hand say so.</div>
+				}
 				if b.Demo {
 					<div class="demo-banner" role="note">
 						<span><strong>Live demo</strong> with three weeks of example data: read-only, and the data starts over regularly.</span>

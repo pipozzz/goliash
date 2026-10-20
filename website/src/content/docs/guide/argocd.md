@@ -93,6 +93,14 @@ The alert for a degraded or missing application says the same: *degraded on k8s-
 replaced 1.6.2*, the likeliest cause first. Its **Rollback PR → 1.6.2** button (Slack, Teams,
 Discord, chat, e-mail) opens that pull request's preview in Goliash: from the alert to the fix in one click.
 
+### Change freezes
+
+**Settings → Change freezes** takes periods without changes you do not have to make (from, to in UTC, and why:
+*Christmas*, *the Black Friday sale*). While one runs, every page says so, the version policy's automatic pull
+requests wait, and a pull request opened by hand starts with *❄️ Opened during a change freeze (until 3 Jan 08:00
+UTC: Christmas)*; its preview warns first. Rollbacks are not held back. Admins add and end them; each is in the
+audit log.
+
 ### Reviewers and labels
 
 A service's version policy can name who reviews its pull requests and how they are labelled: **Pull request

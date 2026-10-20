@@ -355,6 +355,50 @@ templ SettingsPage(v SettingsView) {
 			</section>
 		}
 		@registriesPanel(v)
+		<section class="panel" id="freezes">
+			<div class="panel-head"><h2>Change freezes</h2>@panelInfo("periods without changes you do not have to make: automatic pull requests wait, pull requests opened by hand say they were opened during one, and every page shows it")</div>
+			<div class="panel-body stack">
+				if len(v.Freezes) > 0 {
+					<div class="scroll" tabindex="0">
+					<table class="cards">
+						<thead><tr><th>From</th><th>To</th><th>Why</th><th><span class="sr-only">Remove</span></th></tr></thead>
+						<tbody>
+							for _, f := range v.Freezes {
+								<tr>
+									<td data-label="From">{ f.From }</td>
+									<td data-label="To">{ f.To }</td>
+									<td data-label="Why">
+										{ orDash(f.Note) }
+										if f.Active {
+											<span class="badge warn">now</span>
+										}
+										<div class="targets">{ "by " + f.By }</div>
+									</td>
+									<td>
+										<form method="post" action={ templ.URL("/settings/freezes/" + f.ID + "/delete") }>
+											<button type="submit" class="link">
+												if f.Active {
+													End it
+												} else {
+													Remove
+												}
+											</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+					</div>
+				}
+				<form class="row" method="post" action="/settings/freezes">
+					<label>From (UTC) <input type="datetime-local" name="from" required/></label>
+					<label>To (UTC) <input type="datetime-local" name="to" required/></label>
+					<label class="grow">Why <input name="note" maxlength="200" placeholder="Christmas, the Black Friday sale"/></label>
+					<button type="submit">Add a change freeze</button>
+				</form>
+			</div>
+		</section>
 		<section class="panel" id="applications">
 			<div class="panel-head"><h2>Applications</h2>@panelInfo("how the target page groups workloads")</div>
 			<div class="panel-body stack">

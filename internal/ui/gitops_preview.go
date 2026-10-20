@@ -38,6 +38,7 @@ type GitOpsPreviewView struct {
 	Return              string
 	OpenAlready         string      // the pull request opened before for it
 	Fields              [][2]string // the form's fields when not those of one upgrade (a whole application's promotion)
+	Rollback            bool        // a rollback: a change freeze does not hold it back
 }
 
 // PreviewFile is one changed file, as the lines around its changes.
@@ -81,11 +82,12 @@ func (s *Server) previewGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.
 	}
 	s.addSummary(ctx, p.Scope, &u)
 	req := s.bumpRequest(u, by)
+	req.Body = s.freezeNote(ctx, p.Scope) + req.Body
 	v := GitOpsPreviewView{
 		Base: s.base(ctx, p, "matrix", "Pull request preview"), Service: name, ServiceURL: path,
 		Repo: strings.TrimPrefix(req.Repo, "https://"), RepoURL: req.Repo, Head: req.Head, Title: req.Title, Body: req.Body,
 		TargetID: u.app.TargetID, WorkloadID: u.app.WorkloadID, To: u.to, Return: ret,
-		OpenURL: path + "/gitops/pr", CanOpen: p.Can(store.RoleMember) && !s.demoPulls(),
+		OpenURL: path + "/gitops/pr", CanOpen: p.Can(store.RoleMember) && !s.demoPulls(), Rollback: u.rollback,
 	}
 	v.OpenAlready, _ = s.openPull(ctx, p.Scope, u.app, u.to)
 	plan, err := s.pulls.Plan(ctx, req)

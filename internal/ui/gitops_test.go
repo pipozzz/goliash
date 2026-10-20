@@ -982,3 +982,46 @@ func TestMatrixCellPR(t *testing.T) {
 		t.Fatal("the opened pull request is not linked in the matrix")
 	}
 }
+
+// A change freeze shows on every page, holds the version policy's pull requests back, and marks those opened by hand.
+func TestChangeFreeze(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svc := e.serviceOf("evil")
+	rec, _ := e.st.GetServiceByName(ctx, sc, svc)
+	rec.VersionPolicy = json.RawMessage(`{"auto_pr":{"prod":"minor"}}`)
+	_ = e.st.UpdateService(ctx, rec)
+	if _, err := e.st.InsertReleases(ctx, sc, rec.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	admin := e.as(store.RoleAdmin)
+	now := time.Now().UTC()
+	post(t, admin, e.srv.URL+"/settings/freezes", url.Values{
+		"from": {now.Add(-time.Hour).Format("2006-01-02T15:04")}, "to": {now.Add(24 * time.Hour).Format("2006-01-02T15:04")}, "note": {"Christmas"},
+	})
+	if _, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/updates", nil); !strings.Contains(page, "Change freeze") || !strings.Contains(page, "Christmas") {
+		t.Fatal("no change freeze banner")
+	}
+	if n, _ := e.ui.AutoPRs(ctx); n != 0 || len(pulls.got) != 0 {
+		t.Fatal("the version policy opened a pull request during a change freeze")
+	}
+	post(t, e.as(store.RoleMember), e.srv.URL+"/services/"+url.PathEscape(svc)+"/gitops/pr", url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {"1.28.0"}})
+	if len(pulls.got) != 1 || !strings.Contains(pulls.got[0].Body, "Opened during a change freeze") {
+		t.Fatalf("pull request %+v", pulls.got)
+	}
+	list, _ := e.st.ListFreezes(ctx, sc, now)
+	post(t, admin, e.srv.URL+"/settings/freezes/"+list[0].ID+"/delete", nil)
+	if _, page := get(t, admin, e.srv.URL+"/updates", nil); strings.Contains(page, "freeze-banner") {
+		t.Fatal("the banner stays once the freeze is ended")
+	}
+}

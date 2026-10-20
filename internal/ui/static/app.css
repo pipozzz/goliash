@@ -1330,3 +1330,4 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .cell-pr { display: inline-block; align-self: flex-start; width: fit-content; margin-top: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .cell-pr.offer { padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); }
 .cell-pr.offer:hover { border-color: var(--accent); text-decoration: none; }
+.freeze-banner { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid #8fb3e8; background: color-mix(in srgb, #8fb3e8 18%, var(--surface)); color: var(--ink); }

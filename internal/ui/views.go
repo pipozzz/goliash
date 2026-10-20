@@ -38,6 +38,7 @@ type Base struct {
 	PreviewPRs bool   // everyone may preview pull requests: the demo's, which open none
 	Goli       bool   // Goli, the assistant, answers questions
 	GoliVia    string // who answers for Goli: the model's provider, which sees questions and what Goli reads
+	Freeze     string // the change freeze the workspace is in: "until 3 Jan 08:00 UTC: Christmas"; "" outside one
 }
 
 // WorkspaceOption is one entry of the workspace switcher.
@@ -1012,6 +1013,7 @@ type AuditView struct {
 // SettingsView is the users and tokens page.
 type SettingsView struct {
 	Base
+	Freezes       []FreezeView
 	Apps          []store.OAuthGrant // apps people let read this workspace
 	CanGrantOwner bool
 	Require2FA    bool

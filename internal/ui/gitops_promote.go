@@ -157,6 +157,7 @@ func (s *Server) groupBump(items []upgrade, by, title, head, intro, page string)
 // openGroup opens one pull request for several upgrades and records it for each: every service's page links it.
 // It returns the pull request's address, or why it could not be opened.
 func (s *Server) openGroup(ctx context.Context, sc store.Scope, by string, req gitops.Bump, items []upgrade, label string) (string, string) {
+	req.Body = s.freezeNote(ctx, sc) + req.Body
 	pr, err := s.pulls.OpenBump(ctx, req)
 	if err != nil {
 		return "", bumpError(err, req)
@@ -205,6 +206,7 @@ func (s *Server) previewAppPromotion(w http.ResponseWriter, r *http.Request, p a
 		by = "you"
 	}
 	req := s.promotionBump(g, by)
+	req.Body = s.freezeNote(ctx, p.Scope) + req.Body
 	v := GitOpsPreviewView{
 		Base: s.base(ctx, p, "promotions", "Pull request preview"), Service: "Delivery", ServiceURL: "/delivery",
 		Repo: strings.TrimPrefix(req.Repo, "https://"), RepoURL: req.Repo, Head: req.Head, Title: req.Title, Body: req.Body,
