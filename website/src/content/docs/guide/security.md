@@ -24,6 +24,22 @@ The tiles are filters: *Behind for 30+ days*, *Past end of life* and *Accepted r
 (*Show all* lifts it, and it stays when you switch between production and every environment), *Blind spots* jumps to
 its section. Where a GitOps application deploys an exposed service, **Open PR** proposes the fix next to it.
 
+## Newest release unknown
+
+A service whose newest release Goliash does not know cannot be measured: it shows as *unknown* in the tiles and
+among the blind spots. Each says why, and what would let Goliash tell, on the Security page, the service's page,
+its tile and the matrix (hover the note):
+
+| Why | What to do |
+|---|---|
+| *not a version*: it runs `latest`, a branch or a commit | deploy a version tag; a moving tag is resolved when the registry lists the same image under a version tag |
+| *check failed*: the registry refused or does not know the repository | registry credentials (server or agents), or the [upstream](/guide/versions/) it is published to |
+| *checked by agent*: a private registry no agent has reported yet | credentials for the agents (`GOLIASH_CREDENTIAL_…`), or for the server |
+| *no comparable tag*: none of the registry's tags reads like the running one (`1.4-custom`) | a **tag filter** in the version policy |
+| *none in pinned major*: the policy pins a major with no release | change or remove the pin |
+| *no registry image*: an image built where it runs | the repository it is published to, as the service's upstream |
+| *not checked yet* | it is checked within minutes; or **Check now** |
+
 ## Base images
 
 A service's own image is only as supported as the image it is built on: `node:18-alpine` reached its end of life in

@@ -734,3 +734,18 @@ func licensesCSVHref(v LicensesView) string {
 func vulnsCSVHref(v VulnsView) string {
 	return strings.Replace(vulnsHref(v, "", ""), "/security/vulns", "/security/vulns.csv", 1)
 }
+
+// fixLink is where a blind spot is fixed.
+type fixLink struct{ URL, Label string }
+
+// unknownFix links where the fix for a service whose newest release is unknown is made: the registry credentials,
+// or the service's version policy (its upstream repository and tag filter).
+func unknownFix(u versions.UnknownService) fixLink {
+	switch u.Where {
+	case "registries":
+		return fixLink{"/settings?registry=" + url.QueryEscape(versions.RegistryHost(u.Repo)) + "#registries", "Registry credentials"}
+	case "policy", "upstream":
+		return fixLink{"/services/" + url.PathEscape(u.Service) + "#policy", "Version policy"}
+	}
+	return fixLink{}
+}

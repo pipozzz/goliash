@@ -308,6 +308,17 @@ templ servicePanel(v TilesView, c TileCell) {
 					</li>
 				}
 			</ul>
+			if c.Unknown.Reason != "" {
+				<p class="tile-why">
+					<strong>{ "Newest release unknown: " }</strong>{ c.Unknown.Reason }
+					if c.Unknown.Fix != "" {
+						{ " " + c.Unknown.Fix }
+					}
+					if l := unknownFix(c.Unknown); l.URL != "" {
+						{ " " }<a class="u" href={ templ.URL(l.URL) }>{ l.Label }</a>
+					}
+				</p>
+			}
 			if c.Latest != "" {
 				<p class="tile-ver">
 					Latest upstream

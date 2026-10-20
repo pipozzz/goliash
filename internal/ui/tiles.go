@@ -124,6 +124,7 @@ type TileCell struct {
 	Envs                          []TileEnv
 	Latest, LatestURL             string
 	Badges                        []DriftBadge
+	Unknown                       versions.UnknownService // why the newest release is not known
 }
 
 // envState is a matrix cell's state: warm for end of life or targets disagreeing,
@@ -165,7 +166,7 @@ func envDetail(e TileEnv) string {
 func service(r MatrixRow, envs []EnvHeader, env string) (TileCell, string, string) {
 	c := TileCell{
 		Key: slug("svc-" + r.Service + "-" + r.App), Service: r.Service, URL: r.URL, Owner: r.Owner, App: r.App,
-		Latest: r.Latest, LatestURL: r.LatestURL, State: stNone,
+		Latest: r.Latest, LatestURL: r.LatestURL, State: stNone, Unknown: r.Unknown,
 	}
 	running, runEnv := "", ""
 	seen := map[string]bool{}

@@ -743,6 +743,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
+	if u, ok := versions.WhyUnknown(o, svc.ID); ok {
+		v.Unknown = versions.UnknownService{Service: svc.Name, Repo: ref.Repo, Unknown: u}
+	}
 	if issues, err := versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err == nil {
 		for _, is := range issues {
 			if is.ServiceID == svc.ID {
