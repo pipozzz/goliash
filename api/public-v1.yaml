@@ -590,7 +590,8 @@ paths:
       description: >-
         The pull requests Goliash opened in GitOps repositories to upgrade, promote or roll back a service, newest
         first: open, merged or closed as the forge last said (asked every 30 minutes), who opened them (`auto-pr` for
-        a version policy), and whether the version they pin runs on that workload now.
+        a version policy), when they were merged, whether the version they pin runs on that workload now and how long
+        it took, and for a merged one that does not run yet why it waits.
       responses:
         "200":
           description: The pull requests.
@@ -612,6 +613,11 @@ paths:
                     opened_by: { type: string, example: auto-pr }
                     opened_at: { type: string, format: date-time }
                     running: { type: boolean, description: "The version it pins runs on that workload now." }
+                    checks: { type: string, enum: [passing, failing, pending], description: "Its checks (CI), while open." }
+                    merged_at: { type: string, format: date-time, description: "When it was merged, as the forge says." }
+                    waiting: { type: string, description: "Merged, and the version does not run: why it waits, when Goliash can tell.", example: Argo CD syncs it by hand }
+                    to_running_seconds: { type: integer, description: "From opening it to the version running there." }
+                    merge_to_running_seconds: { type: integer, description: "From merging it to the version running there." }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 

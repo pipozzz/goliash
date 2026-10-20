@@ -99,35 +99,52 @@ func (h *PublicHandler) pullRequests(w http.ResponseWriter, r *http.Request, p a
 		h.fail(w, r, err)
 		return
 	}
-	pulls, err := h.store.ListGitOpsPulls(ctx, p.Scope)
+	pulls, err := versions.PullTimings(ctx, h.store, p.Scope, apps, time.Time{})
 	if err != nil {
 		h.fail(w, r, err)
 		return
 	}
-	running, targetName := map[string]string{}, map[string]string{}
+	targetName := map[string]string{}
 	for _, a := range apps {
-		running[a.TargetID+"|"+a.WorkloadID] = a.Tag
 		targetName[a.TargetID] = a.Target
 	}
 	type apiPull struct {
-		Service     string    `json:"service"`
-		Environment string    `json:"environment"`
-		Target      string    `json:"target"`
-		From        string    `json:"from"`
-		To          string    `json:"to"`
-		URL         string    `json:"url"`
-		State       string    `json:"state"`
-		OpenedBy    string    `json:"opened_by"`
-		OpenedAt    time.Time `json:"opened_at"`
-		Running     bool      `json:"running"`
+		Service               string     `json:"service"`
+		Environment           string     `json:"environment"`
+		Target                string     `json:"target"`
+		From                  string     `json:"from"`
+		To                    string     `json:"to"`
+		URL                   string     `json:"url"`
+		State                 string     `json:"state"`
+		Checks                string     `json:"checks,omitempty"`
+		OpenedBy              string     `json:"opened_by"`
+		OpenedAt              time.Time  `json:"opened_at"`
+		MergedAt              *time.Time `json:"merged_at,omitempty"`
+		Running               bool       `json:"running"`
+		Waiting               string     `json:"waiting,omitempty"`
+		ToRunningSeconds      int64      `json:"to_running_seconds,omitempty"`
+		MergeToRunningSeconds int64      `json:"merge_to_running_seconds,omitempty"`
 	}
+	now := time.Now()
 	out := []apiPull{}
 	for _, pr := range pulls {
-		out = append(out, apiPull{
+		x := apiPull{
 			Service: o.Services[pr.ServiceID].Name, Environment: pr.Environment, Target: targetName[pr.TargetID],
-			From: pr.From, To: pr.To, URL: pr.URL, State: pr.State, OpenedBy: pr.OpenedBy, OpenedAt: pr.OpenedAt.UTC(),
-			Running: running[pr.TargetID+"|"+pr.WorkloadID] == pr.To,
-		})
+			From: pr.From, To: pr.To, URL: pr.URL, State: pr.State, Checks: pr.Checks, OpenedBy: pr.OpenedBy,
+			OpenedAt: pr.OpenedAt.UTC(), Running: pr.Deployed,
+			ToRunningSeconds: int64(pr.ToRunning.Seconds()), MergeToRunningSeconds: int64(pr.MergeToRunning.Seconds()),
+		}
+		if !pr.MergedAt.IsZero() {
+			at := pr.MergedAt.UTC()
+			x.MergedAt = &at
+		}
+		if pr.Undeployed() {
+			x.Waiting = versions.WhyWaiting(pr.App, now)
+			if x.Waiting == "" {
+				x.Waiting = "merged; the version does not run yet"
+			}
+		}
+		out = append(out, x)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

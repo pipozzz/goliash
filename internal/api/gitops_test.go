@@ -27,7 +27,7 @@ func TestGitOpsAfterChangeAndPullRequests(t *testing.T) {
 	web, _ := e.st.GetServiceByName(ctx, e.sc, "web")
 	g := store.WorkloadGitOps{
 		WorkloadID: "w", Tool: "argocd", App: "web-prod", Repo: "https://github.com/acme/deploy.git",
-		Path: "apps/web/prod", TargetRevision: "main", Sync: "Synced", Health: "Degraded",
+		Path: "apps/web/prod", TargetRevision: "main", Sync: "Synced", Health: "Degraded", ManualSync: true,
 	}
 	if err := e.st.SetWorkloadGitOps(ctx, e.sc, prod.ID, []store.WorkloadGitOps{g}, true, time.Now().Add(-time.Hour)); err != nil {
 		t.Fatal(err)
@@ -52,5 +52,23 @@ func TestGitOpsAfterChangeAndPullRequests(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"service":"web","environment":"prod","target":"k8s-prod","from":"1.27.1","to":"1.27.2"`) ||
 		!strings.Contains(body, `"state":"open","opened_by":"auto-pr"`) || !strings.Contains(body, `"running":true`) {
 		t.Fatalf("%d %s", code, body)
+	}
+	// Merged, and 1.28.0 does not run: when it was merged, and why it waits.
+	if err := e.st.RecordGitOpsPull(ctx, store.GitOpsPull{
+		Scope: e.sc, ServiceID: web.ID, Environment: "prod", TargetID: prod.ID, WorkloadID: "w",
+		From: "1.27.2", To: "1.28.0", URL: "https://github.com/acme/deploy/pull/4", OpenedBy: "alice@example.com",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pulls, _ := e.st.ListGitOpsPulls(ctx, e.sc)
+	merged := time.Date(2026, 10, 20, 9, 15, 0, 0, time.UTC)
+	for _, p := range pulls {
+		if p.To == "1.28.0" {
+			_ = e.st.SetGitOpsPullState(ctx, e.sc, p.ID, "merged", merged)
+		}
+	}
+	_, body = e.call(nil, "GET", "/api/v1/pull-requests", e.token, "")
+	if !strings.Contains(body, `"merged_at":"2026-10-20T09:15:00Z","running":false,"waiting":"Argo CD syncs it by hand"`) {
+		t.Fatalf("merged, not deployed: %s", body)
 	}
 }
