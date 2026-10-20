@@ -112,11 +112,9 @@ func (s *Server) promotionBump(g appPromotion, by string) gitops.Bump {
 // the others' pins, with a line per service in its description.
 func (s *Server) groupBump(items []upgrade, by, title, head, intro, page string) gitops.Bump {
 	b := s.bumpRequest(items[0], by)
-	var names []string
 	var body strings.Builder
 	body.WriteString(intro + ":\n\n")
 	for i, u := range items {
-		names = append(names, u.service+" "+u.to)
 		fmt.Fprintf(&body, "- **%s** `%s` → `%s`: %s", u.service, u.app.Tag, u.to, u.why)
 		if u.notes != "" {
 			fmt.Fprintf(&body, " ([release notes](%s))", u.notes)
