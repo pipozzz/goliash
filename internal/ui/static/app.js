@@ -934,6 +934,24 @@
     if (btn) btn.focus();
   }
   // A question ready to ask, e.g. the Brief button of an upgrade.
+  // Tiles: a legend item picks out the cells in its state; again, or Escape, shows all. The choice is kept on the
+  // body, so the board's live refresh keeps it.
+  function tileOnly(state) {
+    if (state) document.body.dataset.tileOnly = state; else delete document.body.dataset.tileOnly;
+    document.querySelectorAll("[data-tile-only]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.tileOnly === document.body.dataset.tileOnly));
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("button[data-tile-only]");
+    if (b) tileOnly(document.body.dataset.tileOnly === b.dataset.tileOnly ? "" : b.dataset.tileOnly);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.body.dataset.tileOnly && !document.querySelector(".tile-panel:target")) tileOnly("");
+  });
+  document.body.addEventListener("htmx:afterSwap", function (e) {
+    tileOnly(e.detail && e.detail.boosted ? "" : document.body.dataset.tileOnly || ""); // a new page starts with all
+  });
   document.addEventListener("click", function (e) {
     const ask = e.target.closest && e.target.closest("[data-goli-ask]");
     if (ask) { e.preventDefault(); goliOpen(ask.getAttribute("data-goli-ask")); }

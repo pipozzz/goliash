@@ -227,7 +227,7 @@ templ board(items []BoardItem, cols int, compact bool) {
 				}
 				data-key={ it.Key }
 				data-state={ it.State }
-				title={ it.Name + ": " + tileLabel(it.State) }
+				title={ cellTitle(it) }
 			>
 				<span class="board-top">
 					<span class="board-name">{ shortName(it.Name) }<span class="sr-only">, { tileLabel(it.State) }</span></span>
@@ -280,13 +280,22 @@ templ envStrip(envs []TileEnv) {
 	}
 }
 
+// tileLegend counts the cells per state; each is a button that picks out the cells in its state (app.js).
 templ tileLegend(c TileCounts) {
 	<ul class="tile-legend">
-		<li><span class="tcell current"></span>up to date <strong>{ itoa(c.Current) }</strong></li>
-		<li><span class="tcell behind"></span>behind <strong>{ itoa(c.Behind) }</strong></li>
-		<li><span class="tcell attention"></span>needs attention <strong>{ itoa(c.Attention) }</strong></li>
-		<li><span class="tcell unknown"></span>unknown <strong>{ itoa(c.Unknown) }</strong></li>
+		@legendItem("current", "up to date", c.Current)
+		@legendItem("behind", "behind", c.Behind)
+		@legendItem("attention", "needs attention", c.Attention)
+		@legendItem("unknown", "unknown", c.Unknown)
 	</ul>
+}
+
+templ legendItem(state, label string, n int) {
+	<li>
+		<button type="button" class="tile-filter" data-tile-only={ state } aria-pressed="false" title={ "Pick out the cells " + label + "; again to show all" }>
+			<span class={ "tcell", state }></span>{ label } <strong>{ itoa(n) }</strong>
+		</button>
+	</li>
 }
 
 // servicePanel is one service's details, shown when its cell is the URL's target.
