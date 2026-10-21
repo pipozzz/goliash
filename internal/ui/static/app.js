@@ -136,11 +136,12 @@
       const ok = words.every(function (w) { return hay.indexOf(w) >= 0; });
       total++;
       if (ok) shown++;
-      if (dim) { el.classList.toggle("filter-out", !ok); el.inert = !ok; } else el.hidden = !ok; // dimmed: out of reach as if hidden
+      if (dim) el.classList.toggle("filter-out", !ok); else el.hidden = !ok;
     });
     document.querySelectorAll("[data-group]").forEach(function (g) {
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
+    if (dim) cellsReach();
     const count = input.getAttribute("data-filter-count") && document.getElementById(input.getAttribute("data-filter-count"));
     if (count) count.textContent = words.length && total ? shown + " of " + total : "";
     if (input.hasAttribute("data-filter-url")) {
@@ -148,6 +149,14 @@
       if (input.value) url.searchParams.set("q", input.value); else url.searchParams.delete("q");
       if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
     }
+  }
+  // A cell either filter steps back (the legend's state, the filter box's words) is out of reach too, as a hidden
+  // row is: Tab skips it and screen readers leave it out.
+  function cellsReach() {
+    const only = document.body.dataset.tileOnly;
+    document.querySelectorAll(".logo-board .board-cell").forEach(function (c) {
+      c.inert = c.classList.contains("filter-out") || Boolean(only && !c.classList.contains("s-" + only));
+    });
   }
   // Filters with words in them apply again to what a live refresh brought.
   function refilter() {
@@ -961,6 +970,7 @@
     document.querySelectorAll("[data-tile-only]").forEach(function (b) {
       b.setAttribute("aria-pressed", String(b.dataset.tileOnly === document.body.dataset.tileOnly));
     });
+    cellsReach();
   }
   document.addEventListener("click", function (e) {
     const b = e.target.closest && e.target.closest("button[data-tile-only]");
