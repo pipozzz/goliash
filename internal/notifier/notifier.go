@@ -355,14 +355,14 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: versions.EventNote(e), At: e.At,
 		}
 		item.Text = Describe(item)
-		if e.Type == "new_release" {
+		if e.Type == "new_release" || e.Type == "security_release" {
 			if rel, err := n.store.GetRelease(ctx, sc, e.ServiceID, e.ToVersion); err == nil {
 				item.URL = rel.ChangelogURL
 			}
 		}
 		dedup := e.ID
-		if e.Type == "new_release" {
-			dedup = "new_release|" + e.ServiceID + "|" + e.ToVersion // once per service and version
+		if e.Type == "new_release" || e.Type == "security_release" {
+			dedup = e.Type + "|" + e.ServiceID + "|" + e.ToVersion // once per service and version
 		}
 		if e.Type == "vulnerability" { // once per vulnerability, service and environment
 			cve, flags, _ := strings.Cut(e.Note, " ")
@@ -793,6 +793,12 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s%s (%s)", where, orDash(it.From), to, it.Note)
 	case EventWatch:
 		return fmt.Sprintf("%s: %s is out, %s runs (security watch “%s”)", where, it.To, orDash(it.From), it.Note)
+	case "security_release":
+		ids := ""
+		if it.Note != "" && it.Note != "security" {
+			ids = " (" + it.Note + ")"
+		}
+		return fmt.Sprintf("%s: %s fixes vulnerabilities%s; %s runs%s", where, it.To, ids, orDash(it.From), on)
 	case "vulnerability":
 		fix := ", no fix yet"
 		if it.To != "" {

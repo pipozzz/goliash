@@ -117,15 +117,16 @@ func (g *GitHub) store(repo string, c ghCache) {
 func (c *Checker) SetGitHub(g *GitHub) { c.github = g }
 
 // annotateReleases fills in publication dates and changelog links of a service's
-// releases from its GitHub releases or changelog template. Failures only cost the
+// releases from its GitHub releases or changelog template, and the security fixes each names (from its notes, or
+// the project's feed). It returns the releases newly known to fix vulnerabilities. Failures only cost the
 // annotation, never the check.
-func (c *Checker) annotateReleases(ctx context.Context, sc store.Scope, svc store.Service, p Policy) {
-	if p.GitHub == "" && p.GitLab == "" && p.Changelog == "" {
-		return
+func (c *Checker) annotateReleases(ctx context.Context, sc store.Scope, svc store.Service, p Policy) []store.Release {
+	if p.GitHub == "" && p.GitLab == "" && p.Changelog == "" && p.Security == "" {
+		return nil
 	}
 	releases, err := c.store.ListReleases(ctx, sc, svc.ID)
 	if err != nil {
-		return
+		return nil
 	}
 	byVersion := map[string]GitHubRelease{}
 	var forge []GitHubRelease
@@ -153,6 +154,7 @@ func (c *Checker) annotateReleases(ctx context.Context, sc store.Scope, svc stor
 			}
 		}
 	}
+	flagged := c.annotateSecurity(ctx, sc, svc, p, releases, byVersion)
 	for _, rel := range releases {
 		if !rel.PublishedAt.IsZero() && rel.ChangelogURL != "" {
 			continue
@@ -175,6 +177,50 @@ func (c *Checker) annotateReleases(ctx context.Context, sc store.Scope, svc stor
 			c.log.WarnContext(ctx, "release info", "service", svc.Name, "err", err)
 		}
 	}
+	return flagged
+}
+
+// annotateSecurity records which releases fix vulnerabilities: those whose notes name a CVE, GHSA or GO identifier
+// or say they are security releases, and for PHP those php.net tags so. It returns the releases newly flagged.
+func (c *Checker) annotateSecurity(ctx context.Context, sc store.Scope, svc store.Service, p Policy, releases []store.Release, notes map[string]GitHubRelease) []store.Release {
+	php := map[int]map[string]bool{}
+	var flagged []store.Release
+	for _, rel := range releases {
+		if rel.Security != "" {
+			continue
+		}
+		v, ok := ParseVersion(rel.Version)
+		if !ok {
+			continue
+		}
+		sec := ""
+		if r, ok := notes[versionKey(v)]; ok {
+			sec = SecurityIn(r.Body)
+		}
+		if sec == "" && p.Security == "php.net" && c.php != nil && len(v.Parts) > 0 {
+			major := v.Parts[0]
+			if _, ok := php[major]; !ok {
+				feed, err := c.php.securityReleases(ctx, major)
+				if err != nil {
+					c.log.WarnContext(ctx, "php.net releases", "err", err)
+				}
+				php[major] = feed
+			}
+			if php[major][versionNumber(v)] {
+				sec = "security"
+			}
+		}
+		if sec == "" {
+			continue
+		}
+		if err := c.store.SetReleaseSecurity(ctx, sc, svc.ID, rel.Version, sec); err != nil {
+			c.log.WarnContext(ctx, "release security", "service", svc.Name, "err", err)
+			continue
+		}
+		rel.Security = sec
+		flagged = append(flagged, rel)
+	}
+	return flagged
 }
 
 // versionKey identifies a version regardless of v prefix and variant ("v1.27.3", "1.27.3-alpine").

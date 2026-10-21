@@ -2089,7 +2089,7 @@ func ruleForm(rule store.Rule) RuleForm {
 		out.QuietFrom, out.QuietTo = *f.QuietFrom, *f.QuietTo
 	}
 	if len(out.Events) == 0 { // every type
-		out.Events = []string{"new_release", "drift_detected", "drift_resolved", "version_changed", "removed", "agent_stale", "vulnerability", "watch"}
+		out.Events = []string{"new_release", "drift_detected", "drift_resolved", "version_changed", "removed", "agent_stale", "vulnerability", "security_release", "watch"}
 	}
 	return out
 }

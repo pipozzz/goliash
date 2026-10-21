@@ -65,6 +65,23 @@ func TestGoliashSecurityRelease(t *testing.T) {
 	}
 }
 
+// A release that fixes vulnerabilities is announced as a security release, once.
+func TestSecurityReleaseAnnounced(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{"security_release"}, Filter{})
+	ev := store.Event{Type: "security_release", ServiceID: e.svc.ID, FromVersion: "8.3.34-fpm", ToVersion: "8.3.36-fpm", Note: "CVE-2026-1, CVE-2026-2", At: time.Now()}
+	for range 2 {
+		e.n.Handle(e.sc, []store.Event{ev})
+		_ = e.n.DeliverDue(ctx)
+	}
+	all := strings.Join(slack.all(), "\n")
+	if slack.count() != 1 || !strings.Contains(all, "8.3.36-fpm fixes vulnerabilities (CVE-2026-1, CVE-2026-2); 8.3.34-fpm runs") || !strings.Contains(all, "Security release") {
+		t.Fatalf("want one announcement, got %d:\n%s", slack.count(), all)
+	}
+}
+
 // A new release of software under a security watch is announced to rules that want watches, with why.
 func TestWatchRelease(t *testing.T) {
 	e := newEnv(t)

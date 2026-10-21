@@ -171,6 +171,8 @@ type Policy struct {
 	EOL             string `json:"eol,omitempty"`
 	GitHubTagPrefix string `json:"github_tag_prefix,omitempty"`
 	Changelog       string `json:"changelog,omitempty"`
+	// Security names a feed saying which releases fix vulnerabilities, besides release notes: "php.net".
+	Security string `json:"security,omitempty"`
 	// BaseImage names the image the service's own image is built on ("node:18-alpine"), for images that
 	// do not declare it; "none" turns base image tracking off.
 	BaseImage string `json:"base_image,omitempty"`
@@ -249,6 +251,9 @@ func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 	}
 	if p.EOL == "" {
 		p.EOL = entry.EOL
+	}
+	if p.Security == "" {
+		p.Security = entry.Security
 	}
 	return p, src, nil
 }

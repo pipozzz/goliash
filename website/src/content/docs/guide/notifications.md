@@ -241,6 +241,23 @@ starts running says so in its first alert.
 goliash notify create -channel security -events vulnerability -envs prod -mode instant
 ```
 
+### Security releases
+
+A vulnerability is often fixed before scanners know it: the project ships a release and says so, and its CVE
+reaches OSV and the distributions hours or days later. The `security_release` event announces such a release as
+soon as Goliash sees it, to every service running an older version:
+
+> php: 8.3.36-fpm fixes vulnerabilities; 8.3.34-fpm runs
+
+Goliash reads it from the release's notes on GitHub or GitLab (a CVE, GHSA or GO identifier, or *security
+release/fix*) and, for projects whose notes it cannot read, from the project's own feed: PHP's
+[releases](https://www.php.net/releases/) (`security: php.net` in the catalog or a version policy). On the Updates
+page the upgrade becomes a **security fix**, right after exploited vulnerabilities, with what it fixes.
+
+```sh
+goliash notify create -channel security -events security_release,vulnerability -mode instant
+```
+
 ### Security watches
 
 Projects often warn before they publish (*PHP: two critical vulnerabilities, fixed on Oct 21, 14:00 UTC*). On the
