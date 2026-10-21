@@ -33,6 +33,8 @@ type Overview struct {
 	Stale map[string]time.Time
 	// ReleaseURL maps service ID + "|" + version to its release notes link.
 	ReleaseURL map[string]string
+	// ReleaseSecurity maps service ID + "|" + version to the security fixes that release names.
+	ReleaseSecurity map[string]string
 	// SplitApps lists services whose versions are compared per application.
 	SplitApps map[string]bool
 	// Resolved maps image digests to the exact release behind a moving tag.
@@ -77,6 +79,7 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, AppDrifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
 		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{}, CheckedAt: map[string]time.Time{}, TagCount: map[string]int{},
+		ReleaseSecurity: map[string]string{},
 	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -194,6 +197,9 @@ func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Over
 			tags = append(tags, r.Version)
 			if r.ChangelogURL != "" {
 				o.ReleaseURL[id+"|"+r.Version] = r.ChangelogURL
+			}
+			if r.Security != "" && o.ReleaseSecurity != nil {
+				o.ReleaseSecurity[id+"|"+r.Version] = r.Security
 			}
 		}
 		if o.TagCount != nil {

@@ -189,6 +189,11 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 				for _, cve := range it.Exploited {
 					<a class="badge eol" href={ templ.URL("/security/vulns?q=" + cve) } title="Exploited in the wild (CISA KEV), in the running image's packages">{ "exploited " + cve }</a>
 				}
+				if it.SecurityFix == "security" {
+					<span class="badge eol" title="The project says a release up to this one fixes vulnerabilities">security fix</span>
+				} else if it.SecurityFix != "" {
+					<span class="badge eol" title={ "A release up to this one fixes " + it.SecurityFix }>{ "fixes " + it.SecurityFix }</span>
+				}
 				if it.Critical > 0 {
 					<a class="badge inconsistent" href={ templ.URL("/security/vulns?q=" + it.Service) } title="Critical vulnerabilities in the running image's packages">{ plural(it.Critical, "critical vulnerability", "critical vulnerabilities") }</a>
 				}

@@ -11,6 +11,8 @@
 #   github_tag_prefix:  text before the version in release tags, e.g. "release-" (nginx); also for gitlab
 #   changelog:          changelog URL for projects without GitHub releases; {version} is replaced
 #   eol:                endoflife.date product, for images the site does not map to one itself
+#   security:           a feed of which releases fix vulnerabilities, for projects whose release notes Goliash
+#                       cannot read: php.net
 #
 # Additions are welcome: one entry per image, sorted by image. `go test ./internal/versions/`
 # checks every entry.
@@ -61,6 +63,14 @@
   eol: nginx
   github: nginx/nginx
   github_tag_prefix: release-
+- image: docker.io/library/node
+  eol: nodejs
+  github: nodejs/node
+  github_tag_prefix: v
+- image: docker.io/library/php
+  eol: php
+  security: php.net
+  changelog: https://www.php.net/ChangeLog-8.php#{version}
 - image: docker.io/library/postgres
   changelog: https://www.postgresql.org/docs/release/{version}/
   policy: { track: minor }

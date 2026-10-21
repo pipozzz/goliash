@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -24,6 +25,8 @@ type Update struct {
 	TargetURL   string // its release notes
 	Jump        Jump
 	Behind      string // the previous environment it is behind, if any
+	// SecurityFix is what the releases up to Target say they fix: CVE or other identifiers, or "security".
+	SecurityFix string
 	EOL         string // the end-of-life date of the running release cycle, if it is near or past
 	EOLPassed   bool
 	On          []string  // the targets running Running, when the environment runs other versions too
@@ -42,6 +45,7 @@ type Update struct {
 // Urgency levels, most urgent first.
 const (
 	UrgencyExploited = iota
+	UrgencySecurity  // a release up to the target fixes vulnerabilities, says the project
 	UrgencyEOLPassed
 	UrgencyEOLSoon
 	UrgencyMajor
@@ -51,7 +55,7 @@ const (
 )
 
 // UrgencyLabels name the levels.
-var UrgencyLabels = []string{"exploited vulnerability", "end of life", "end of life soon", "major", "minor", "behind previous env", "patch"}
+var UrgencyLabels = []string{"exploited vulnerability", "security fix", "end of life", "end of life soon", "major", "minor", "behind previous env", "patch"}
 
 // Updates lists what to upgrade, most urgent first: open end-of-life, upstream and
 // environment drift, one item per service, application and environment.
@@ -111,6 +115,7 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		}
 		if u.Target != "" {
 			u.TargetURL = o.ReleaseURL[k.svc+"|"+u.Target]
+			u.SecurityFix = securityUpTo(o, k.svc, u.Running, u.Target)
 		}
 		u.Urgency = urgency(*u)
 		u.Acked = ackedUpdate(*u, acks, now)
@@ -193,6 +198,8 @@ func urgency(u Update) int {
 	switch {
 	case len(u.Exploited) > 0:
 		return UrgencyExploited
+	case u.SecurityFix != "":
+		return UrgencySecurity
 	case u.EOL != "" && u.EOLPassed:
 		return UrgencyEOLPassed
 	case u.EOL != "":
@@ -227,4 +234,37 @@ func ackedUpdate(u Update, acks []store.Ack, now time.Time) bool {
 		}
 	}
 	return false
+}
+
+// securityUpTo gathers the security fixes the service's releases after running, up to and including target, name.
+func securityUpTo(o Overview, svc, running, target string) string {
+	from, ok1 := ParseVersion(running)
+	to, ok2 := ParseVersion(target)
+	if !ok1 || !ok2 {
+		return ""
+	}
+	var ids []string
+	any := false
+	for key, sec := range o.ReleaseSecurity {
+		id, ver, _ := strings.Cut(key, "|")
+		if id != svc {
+			continue
+		}
+		v, ok := ParseVersion(ver)
+		if !ok || v.Compare(from) <= 0 || v.Compare(to) > 0 {
+			continue
+		}
+		any = true
+		if sec != "security" {
+			ids = append(ids, strings.Split(sec, ", ")...)
+		}
+	}
+	if !any {
+		return ""
+	}
+	if len(ids) == 0 {
+		return "security"
+	}
+	sort.Strings(ids)
+	return strings.Join(slices.Compact(ids), ", ")
 }

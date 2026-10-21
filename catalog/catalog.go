@@ -20,13 +20,16 @@ var data []byte
 
 // Entry describes one public image.
 type Entry struct {
-	Image           string         `yaml:"image"`
-	GitHub          string         `yaml:"github"`
-	GitLab          string         `yaml:"gitlab"` // host/group/project
-	EOL             string         `yaml:"eol"`    // endoflife.date product
-	GitHubTagPrefix string         `yaml:"github_tag_prefix"`
-	Changelog       string         `yaml:"changelog"`
-	Policy          map[string]any `yaml:"policy"`
+	Image           string `yaml:"image"`
+	GitHub          string `yaml:"github"`
+	GitLab          string `yaml:"gitlab"` // host/group/project
+	EOL             string `yaml:"eol"`    // endoflife.date product
+	GitHubTagPrefix string `yaml:"github_tag_prefix"`
+	Changelog       string `yaml:"changelog"`
+	// Security names where the project says which releases fix vulnerabilities, for projects whose release notes
+	// Goliash cannot read: "php.net" (the PHP releases feed).
+	Security string         `yaml:"security"`
+	Policy   map[string]any `yaml:"policy"`
 }
 
 // PolicyJSON returns the entry's default policy as stored on services.

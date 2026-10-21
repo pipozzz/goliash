@@ -51,6 +51,7 @@ type UpdateItem struct {
 	Service, ServiceURL, App, Owner, Env string
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
+	SecurityFix                          string // what the releases up to Target say they fix
 	EOLPassed                            bool
 	On                                   string // the targets running Running, when others run newer versions
 	Since                                time.Time
@@ -65,7 +66,7 @@ type UpdateItem struct {
 	PRs                                  []PromotePR        // Argo CD applications the upgrade can be opened in as a pull request
 }
 
-var levelClasses = []string{"eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
+var levelClasses = []string{"eol", "eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
 
 func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
@@ -109,7 +110,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns,
+			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix,
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
 			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
