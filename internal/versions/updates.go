@@ -244,7 +244,7 @@ func securityUpTo(o Overview, svc, running, target string) string {
 		return ""
 	}
 	var ids []string
-	any := false
+	found := false
 	for key, sec := range o.ReleaseSecurity {
 		id, ver, _ := strings.Cut(key, "|")
 		if id != svc {
@@ -254,12 +254,12 @@ func securityUpTo(o Overview, svc, running, target string) string {
 		if !ok || v.Compare(from) <= 0 || v.Compare(to) > 0 {
 			continue
 		}
-		any = true
+		found = true
 		if sec != "security" {
 			ids = append(ids, strings.Split(sec, ", ")...)
 		}
 	}
-	if !any {
+	if !found {
 		return ""
 	}
 	if len(ids) == 0 {
