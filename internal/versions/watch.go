@@ -52,7 +52,7 @@ func WatchMatches(ctx context.Context, st *store.Store, sc store.Scope, o Overvi
 			svc := row.Service
 			why := ""
 			if match(svc.Name) {
-				why = "named so"
+				why = "its name"
 			} else {
 				for _, k := range keys[svc.ID] {
 					if match(strings.SplitN(k, " ", 2)[1]) {

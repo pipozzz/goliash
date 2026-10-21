@@ -459,7 +459,7 @@ templ watchesPanel(v SecurityView) {
 		if v.CanWatch {
 			<form class="panel-body row watch-form" method="post" action="/security/watches">
 				<label>What<input name="term" required maxlength="100" placeholder="php, openssl, ghcr.io/acme/api…"/></label>
-				<label class="grow">Why<input name="note" maxlength="200" placeholder="Two critical fixes announced for Oct 21, 14:00 UTC"/></label>
+				<label class="grow">Why<input name="note" maxlength="200" placeholder="e.g. the advance notice: two critical fixes on Oct 21"/></label>
 				<label>
 					For
 					<select name="days">
