@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
-	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -42,20 +41,6 @@ type SearchHit struct {
 
 const searchShown = 8
 
-// matcher reports whether every word of q is in one of the texts.
-func matcher(q string) func(texts ...string) bool {
-	words := strings.Fields(strings.ToLower(q))
-	return func(texts ...string) bool {
-		hay := strings.ToLower(strings.Join(texts, " "))
-		for _, w := range words {
-			if !strings.Contains(hay, w) {
-				return false
-			}
-		}
-		return len(words) > 0
-	}
-}
-
 func (sec *SearchSection) add(h SearchHit) {
 	sec.Total++
 	if len(sec.Hits) < searchShown {
@@ -69,7 +54,7 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, p auth.Principal
 	if v.Query == "" {
 		return render(w, r, SearchPage(v))
 	}
-	match := matcher(v.Query)
+	match := versions.Matcher(v.Query)
 	q := url.QueryEscape(v.Query)
 
 	// Places, as the palette has them: a service is found by its images, versions, workloads and GitOps apps too.
@@ -104,100 +89,25 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, p auth.Principal
 		v.Sections = append(v.Sections, *places[k])
 	}
 
-	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	// The rest is what the API and assistants search too; its services are already here, with their states.
+	found, err := versions.Search(ctx, s.store, p.Scope, v.Query, searchShown, time.Now())
 	if err != nil {
 		return err
 	}
-	vulns := SearchSection{Title: "Vulnerabilities", More: "/security/vulns?q=" + q, MoreLabel: "All in Vulnerabilities"}
-	if rep, err := versions.LoadVulnReport(ctx, s.store, p.Scope, ""); err == nil {
-		for _, f := range rep.Findings {
-			var pkgs, svcs []string
-			for _, a := range f.Affected {
-				pkgs, svcs = append(pkgs, a.Package), append(svcs, a.Service)
-			}
-			texts := append(append(append([]string{f.Key, f.Summary}, f.IDs...), f.Aliases...), append(pkgs, svcs...)...)
-			if !match(texts...) {
-				continue
-			}
-			h := SearchHit{Label: f.Key, Sub: strings.Join(dedupe(svcs), ", ") + " · " + strings.Join(dedupe(pkgs), ", "), URL: "/security/vulns?q=" + url.QueryEscape(f.Key), Badge: strings.ToLower(f.Severity)}
-			if f.Exploited != nil {
-				h.Badge = "exploited"
-			}
-			vulns.add(h)
+	for _, f := range found {
+		if f.Kind == "services" {
+			continue
 		}
-	}
-	pkgs := SearchSection{Title: "Packages", More: "/security/licenses?q=" + q, MoreLabel: "All in Licenses"}
-	if rep, err := versions.LoadLicenseReport(ctx, s.store, p.Scope, ""); err == nil {
-		for _, pk := range rep.Packages {
-			if !match(pk.Name, pk.Purl, pk.License) {
-				continue
-			}
-			var where []string
-			for _, u := range pk.Where {
-				where = append(where, u.Service)
-			}
-			lic := pk.License
-			if lic == "" {
-				lic = "no license named"
-			}
-			pkgs.add(SearchHit{Label: pk.Name + " " + pk.Version, Sub: lic + " · " + strings.Join(dedupe(where), ", "), URL: "/security/licenses?q=" + url.QueryEscape(pk.Name)})
+		sec := SearchSection{Title: f.Title, Total: f.Total, More: f.More, MoreLabel: f.MoreLabel}
+		for _, h := range f.Hits {
+			sec.Hits = append(sec.Hits, SearchHit{Label: h.Label, Sub: h.Sub, URL: h.URL, Badge: h.Badge, External: h.External})
 		}
+		v.Sections = append(v.Sections, sec)
 	}
-	v.Sections = append(v.Sections, vulns, pkgs)
-
-	prs := SearchSection{Title: "Pull requests", More: "/delivery?q=" + q, MoreLabel: "On the Delivery page"}
-	if pulls, err := s.store.ListGitOpsPulls(ctx, p.Scope); err == nil {
-		for _, pr := range pulls {
-			svc := o.Services[pr.ServiceID].Name
-			if !match(svc, pr.Environment, pr.From, pr.To, pr.URL, pr.OpenedBy, pr.State) {
-				continue
-			}
-			prs.add(SearchHit{Label: svc + " " + pr.From + " → " + pr.To, Sub: pr.Environment + " · opened by " + pr.OpenedBy, URL: pr.URL, Badge: pr.State, External: true})
-		}
-	}
-	events := SearchSection{Title: "History (90 days)"}
-	if evs, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{Since: time.Now().AddDate(0, 0, -90), Limit: 3000}); err == nil {
-		for _, e := range evs {
-			svc, env := o.Services[e.ServiceID].Name, o.Envs[e.EnvironmentID].Name
-			note := versions.EventNote(e)
-			if !match(svc, env, e.FromVersion, e.ToVersion, e.Type, note, e.Actor) {
-				continue
-			}
-			label := svc + " " + strings.TrimSpace(e.FromVersion+" → "+e.ToVersion)
-			if e.FromVersion == "" {
-				label = svc + " " + e.ToVersion
-			}
-			events.add(SearchHit{Label: strings.TrimSpace(label), Sub: strings.ReplaceAll(e.Type, "_", " ") + " · " + env + " · " + e.At.UTC().Format("2 Jan 15:04") + " " + note, URL: "/services/" + url.PathEscape(svc)})
-		}
-	}
-	sent := SearchSection{Title: "Notifications (30 days)", More: "/notifications/deliveries?q=" + q, MoreLabel: "In the delivery log"}
-	if ds, err := s.store.RecentDeliveries(ctx, p.Scope, 2000); err == nil {
-		now := time.Now().UTC()
-		for _, d := range ds {
-			dv := deliveryView(d, now)
-			if !match(dv.Text, dv.Channel) {
-				continue
-			}
-			sent.add(SearchHit{Label: dv.Text, Sub: dv.Channel + " · " + d.CreatedAt.UTC().Format("2 Jan 15:04"), URL: "/notifications/deliveries?q=" + q})
-		}
-	}
-	v.Sections = append(v.Sections, prs, events, sent)
 	for _, sec := range v.Sections {
 		v.Total += sec.Total
 	}
 	return render(w, r, SearchPage(v))
-}
-
-func dedupe(in []string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, s := range in {
-		if s != "" && !seen[s] {
-			seen[s] = true
-			out = append(out, s)
-		}
-	}
-	return out
 }
 
 // searchBadge colours a hit's tag.

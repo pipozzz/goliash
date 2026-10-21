@@ -91,3 +91,12 @@ func TestPostureUnknownWhy(t *testing.T) {
 		t.Fatalf("%d %s", code, body)
 	}
 }
+
+// One search across what Goliash knows: a service found by the image it runs.
+func TestSearchAPI(t *testing.T) {
+	e := newPublicEnv(t)
+	code, body := e.call(nil, "GET", "/api/v1/search?q=nginx", e.token, "")
+	if code != 200 || !strings.Contains(body, `"kind":"services","title":"Services","total":1`) || !strings.Contains(body, `"label":"web","detail":"runs docker.io/library/nginx`) {
+		t.Fatalf("%d %s", code, body)
+	}
+}

@@ -110,6 +110,9 @@ type (
 		Environment string `json:"environment,omitempty"`
 		Service     string `json:"service,omitempty"`
 	}
+	searchIn struct {
+		Query string `json:"query" jsonschema:"words that must all appear: a service, image (ghcr.io/acme), version (1.27), workload, GitOps application, CVE, package (openssl), team…"`
+	}
 	vulnsIn struct {
 		Query         string `json:"query,omitempty" jsonschema:"a CVE or advisory ID (CVE-2021-44228), a package (openssl) or a service"`
 		Environment   string `json:"environment,omitempty" jsonschema:"only this environment, e.g. prod"`
@@ -338,6 +341,20 @@ func NewServer(c *Client) *mcp.Server {
 				return nil, Result{Data: data}, err
 			})
 	}
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name: "search", Annotations: readOnly,
+		Description: "Search everything Goliash knows for some words (all must match): services by name, owner, image, " +
+			"version, workload or GitOps application; known vulnerabilities of running images (CVE, advisory, package, " +
+			"service); packages and their licenses; the pull requests Goliash opened; the last 90 days of history and " +
+			"the last 30 of notifications. Each section has its total, the first matches and a link to the page with " +
+			"all of them. Use it first for \"where does openssl run?\", \"what runs ghcr.io/acme/…?\", \"anything about " +
+			"keycloak 24?\" or when unsure which tool knows.",
+	},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in searchIn) (*mcp.CallToolResult, Result, error) {
+			data, err := c.do(ctx, http.MethodGet, "/api/v1/search", url.Values{"q": {in.Query}, "limit": {"15"}}, nil)
+			return nil, Result{Data: data}, err
+		})
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "vulnerabilities", Annotations: readOnly,
