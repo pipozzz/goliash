@@ -10,6 +10,7 @@ templ UpdatesPage(v UpdatesView) {
 				<h1>Updates</h1>
 				@aboutText("What to upgrade, and to which version: exploited vulnerabilities and end of life first, then the biggest jumps, production first.")
 			</div>
+			@pageFilter("main table tbody tr", "Filter services, versions, environments")
 		</div>
 		@viewTabsBar(v.Views)
 		if v.Total > 0 {

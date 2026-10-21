@@ -113,6 +113,7 @@ type BoardItem struct {
 	Current                  bool   // the application drilled into, on the board behind
 	VT                       string // its view-transition name, so the cell grows into its card
 	VTFront                  string
+	Search                   string // what the page's filter matches: its name, and an application's services
 }
 
 // TileEnv is a cell's state in one environment.
@@ -728,6 +729,7 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 		var worst TileCell
 		worstRunning := ""
 		worst.State = stNone
+		search := []string{grp.Name, grp.Caption}
 		for _, row := range grp.Rows {
 			c, running, _ := service(row, envs, env)
 			for i, e := range c.Envs {
@@ -736,6 +738,7 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 			if c.State == stNone {
 				continue
 			}
+			search = append(search, row.Service, row.Owner, running)
 			it.Total++
 			if c.State == stCurrent {
 				it.OK++
@@ -750,6 +753,7 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 		if it.Total == 0 {
 			continue
 		}
+		it.Search = strings.ToLower(strings.Join(search, " "))
 		sort.Slice(it.Dots, func(a, b int) bool { return stateRank[it.Dots[a]] < stateRank[it.Dots[b]] })
 		for i, st := range envStates {
 			it.Envs = append(it.Envs, TileEnv{Env: envs[i].Name, State: st, Title: envs[i].Name + ": " + tileLabel(st)})

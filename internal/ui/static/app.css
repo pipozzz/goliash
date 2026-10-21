@@ -599,6 +599,10 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .search-hits li:last-child { border-bottom: 0; }
 .search-hit { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .search-section .count { color: var(--muted); font-weight: 500; font-size: 0.85em; }
+.logo-board .board-cell.filter-out { opacity: 0.18; filter: saturate(0.3); }
+.page-filter { max-width: 260px; }
+.page-filter-box { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-count { font-size: 12.5px; white-space: nowrap; }
 .tile-legend .tcell { width: 13px; height: 13px; border-radius: 4px; box-shadow: none; }
 .tile-legend .tcell.behind, .tile-legend .tcell.unknown { outline: 1px solid rgb(27 42 107 / 0.25); }
 .tile-legend strong { color: var(--ink); font-variant-numeric: tabular-nums; }
