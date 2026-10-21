@@ -345,6 +345,18 @@ paths:
                   accepted_risk: { type: integer, description: "Production exposures quieted by an acknowledgement." }
                   stale_targets: { type: array, items: { type: string } }
                   no_known_upstream: { type: array, items: { type: string }, description: "Services whose exposure cannot be measured." }
+                  unknown_upstream_why:
+                    type: array
+                    description: "Why each of those services' newest release is unknown, and what would let Goliash tell."
+                    items:
+                      type: object
+                      required: [service, short, reason]
+                      properties:
+                        service: { type: string }
+                        repository: { type: string }
+                        short: { type: string, example: not a version }
+                        reason: { type: string, example: "It runs the tag \"latest\", which is not a version: there is nothing to compare the releases with." }
+                        fix: { type: string }
                   outdated_base: { type: array, items: { type: string }, description: "Production services whose image is built on an older build of its base than the base's tag has now: rebuild with --pull." }
                   history:
                     type: array

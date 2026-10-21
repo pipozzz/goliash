@@ -35,7 +35,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 | `hygiene` | Moving tags, tags pushed again, untrusted registries, images built on an outdated base |
 | `licenses` | Licenses of the packages in running images, most demanding first (AGPL, BUSL, GPL, unknown…), with where each runs |
 | `vulnerabilities` | Is a CVE running? Known vulnerabilities of running images, exploited ones first, with the services and the version that fixes each |
-| `posture` | The security posture: exposure days (median, p90, 30+, 90+), end of life, accepted risk, blind spots and every exposure |
+| `posture` | The security posture: exposure days (median, p90, 30+, 90+), end of life, accepted risk, blind spots (with why each service's newest release is unknown) and every exposure |
 | `notifications` | What Goliash sent: alerts, digests and upgrade plans, each once, newest first (default: 7 days) |
 | `status` | Whether the workspace is in a change freeze (`change_freeze`), and Goliash's own health: agents reporting, releases checked, vulnerability data current, notifications going out; whether an answer can be trusted |
 | `acknowledge` | Quiet notifications until a version or a time (needs a member token; the only tool that writes) |

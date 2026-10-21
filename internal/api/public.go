@@ -814,6 +814,13 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		EOL          string    `json:"end_of_life,omitempty"`
 		Accepted     bool      `json:"accepted"`
 	}
+	type apiUnknown struct {
+		Service string `json:"service"`
+		Repo    string `json:"repository,omitempty"`
+		Short   string `json:"short"`
+		Reason  string `json:"reason"`
+		Fix     string `json:"fix,omitempty"`
+	}
 	out := struct {
 		Production string        `json:"production"`
 		Running    int           `json:"services_running"`
@@ -826,6 +833,7 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Accepted   int           `json:"accepted_risk"`
 		Stale      []string      `json:"stale_targets"`
 		NoUpstream []string      `json:"no_known_upstream"`
+		Unknowns   []apiUnknown  `json:"unknown_upstream_why"`
 		OldBase    []string      `json:"outdated_base"`
 		Exposures  []apiExposure `json:"exposures"`
 		History    []apiReading  `json:"history"`
@@ -834,7 +842,10 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Behind30: pos.Prod30, Behind90: pos.Prod90, EOLPassed: pos.EOLPassed, EOLSoon: pos.EOLSoon, Accepted: pos.Accepted,
 		Stale: append([]string{}, pos.Stale...), NoUpstream: append([]string{}, pos.NoUpstream...), Exposures: []apiExposure{},
 		OldBase: append([]string{}, pos.OutdatedBase...),
-		History: []apiReading{},
+		History: []apiReading{}, Unknowns: []apiUnknown{},
+	}
+	for _, u := range pos.Unknowns {
+		out.Unknowns = append(out.Unknowns, apiUnknown{Service: u.Service, Repo: u.Repo, Short: u.Short, Reason: u.Reason, Fix: u.Fix})
 	}
 	hist, err := h.store.PostureHistory(ctx, p.Scope, time.Now().AddDate(0, 0, -91).UTC().Format(time.DateOnly))
 	if err != nil {

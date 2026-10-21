@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -217,7 +218,7 @@ func PostureItem(pos versions.Posture, supply SupplyChain, prev *store.PostureSa
 	}
 	fmt.Fprintf(&b, ". End of life: %d passed, %d soon. Accepted risk: %d.", pos.EOLPassed, pos.EOLSoon, pos.Accepted)
 	if len(pos.Stale) > 0 || len(pos.NoUpstream) > 0 {
-		fmt.Fprintf(&b, " Blind spots: %d stale targets, %d services without a known upstream.", len(pos.Stale), len(pos.NoUpstream))
+		fmt.Fprintf(&b, " Blind spots: %d stale targets, %d services without a known upstream%s.", len(pos.Stale), len(pos.NoUpstream), unknownReasons(pos.Unknowns))
 	}
 	if n := len(pos.OutdatedBase); n > 0 {
 		names := pos.OutdatedBase
@@ -280,4 +281,26 @@ func pullsText(pulls []versions.PullTiming, now time.Time) string {
 		s += " Merged, not deployed: " + strings.Join(waiting, "; ") + "."
 	}
 	return s
+}
+
+// unknownReasons counts why the newest releases are unknown, most common first: " (3 not a version, 1 check failed)";
+// empty without any.
+func unknownReasons(us []versions.UnknownService) string {
+	count := map[string]int{}
+	var order []string
+	for _, u := range us {
+		if count[u.Short] == 0 {
+			order = append(order, u.Short)
+		}
+		count[u.Short]++
+	}
+	if len(order) == 0 {
+		return ""
+	}
+	sort.SliceStable(order, func(i, j int) bool { return count[order[i]] > count[order[j]] })
+	parts := make([]string, len(order))
+	for i, s := range order {
+		parts[i] = fmt.Sprintf("%d %s", count[s], s)
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }

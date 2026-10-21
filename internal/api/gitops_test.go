@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -70,5 +71,23 @@ func TestGitOpsAfterChangeAndPullRequests(t *testing.T) {
 	_, body = e.call(nil, "GET", "/api/v1/pull-requests", e.token, "")
 	if !strings.Contains(body, `"merged_at":"2026-10-20T09:15:00Z","running":false,"waiting":"Argo CD syncs it by hand"`) {
 		t.Fatalf("merged, not deployed: %s", body)
+	}
+}
+
+// The posture says why a production service's newest release is unknown.
+func TestPostureUnknownWhy(t *testing.T) {
+	e := newPublicEnv(t)
+	ctx := context.Background()
+	web, _ := e.st.GetServiceByName(ctx, e.sc, "web")
+	web.VersionPolicy = json.RawMessage(`{"tag_filter":"^never$"}`) // no release matches
+	if err := e.st.UpdateService(ctx, web); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.RecordUpstreamCheck(ctx, e.sc, web.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	code, body := e.call(nil, "GET", "/api/v1/posture", e.token, "")
+	if code != 200 || !strings.Contains(body, `"unknown_upstream_why":[{"service":"web","repository":"docker.io/library/nginx","short":"no comparable tag"`) {
+		t.Fatalf("%d %s", code, body)
 	}
 }

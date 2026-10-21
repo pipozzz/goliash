@@ -144,3 +144,16 @@ func TestPostureItemPulls(t *testing.T) {
 		t.Error("no pull requests, no sentence")
 	}
 }
+
+// The blind spots say why newest releases are unknown, the most common reason first.
+func TestPostureItemUnknownReasons(t *testing.T) {
+	pos := versions.Posture{Prod: store.Environment{Name: "prod"}, ProdRunning: 9, NoUpstream: []string{"a", "b", "c"},
+		Unknowns: []versions.UnknownService{
+			{Service: "a", Unknown: versions.Unknown{Short: "checked by agent"}},
+			{Service: "b", Unknown: versions.Unknown{Short: "not a version"}},
+			{Service: "c", Unknown: versions.Unknown{Short: "not a version"}},
+		}}
+	if it := PostureItem(pos, SupplyChain{}, nil, time.Now()); !strings.Contains(it.Text, "3 services without a known upstream (2 not a version, 1 checked by agent).") {
+		t.Fatal(it.Text)
+	}
+}
