@@ -19,6 +19,7 @@ goliash token create -name assistant -role member -expires 90d  # also acknowled
 
 | Tool | What it answers |
 | --- | --- |
+| `search` | Search everything at once: services by name, image, version, workload or GitOps application; vulnerabilities; packages; pull requests; history; notifications. The first tool for "where does openssl run?" |
 | `matrix` | What runs where, filtered by service or environment, now or at a past time |
 | `service` | One service: versions per environment, newest upstream release, open drift |
 | `drifts` | What needs attention: env, upstream, inconsistent, declared, eol |

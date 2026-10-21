@@ -1,0 +1,56 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ SearchPage(v SearchView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Search</h1>
+				@aboutText("One search across what Goliash knows: services by name, image, version, workload or GitOps application, applications and teams, vulnerabilities, packages, pull requests, the last 90 days of history and the last 30 of notifications.")
+			</div>
+		</div>
+		<form class="row search-form" method="get" action="/search" role="search">
+			<input type="search" name="q" value={ v.Query } class="search grow" placeholder="A service, image, version, CVE, package, team…" aria-label="Search everything" autofocus autocomplete="off"/>
+			<button type="submit">Search</button>
+		</form>
+		if v.Query != "" && v.Total == 0 {
+			<div class="empty">{ "Nothing matches “" + v.Query + "”." } Try fewer words, or part of a name.</div>
+		}
+		for _, sec := range v.Sections {
+			if sec.Total > 0 {
+				<section class="panel search-section">
+					<div class="panel-head">
+						<h2>{ sec.Title } <span class="count">{ itoa(sec.Total) }</span></h2>
+						if sec.More != "" && sec.Total > len(sec.Hits) {
+							<a href={ templ.URL(sec.More) }>{ sec.MoreLabel } →</a>
+						}
+					</div>
+					<ul class="search-hits">
+						for _, h := range sec.Hits {
+							<li>
+								if h.State != "" {
+									<span class={ "tcell", h.State } aria-hidden="true"></span>
+								}
+								<div class="search-hit">
+									if h.External {
+										<a class="u" href={ templ.SafeURL(h.URL) } target="_blank" rel="noopener"><strong>{ h.Label }</strong></a>
+									} else {
+										<a class="u" href={ templ.URL(h.URL) }><strong>{ h.Label }</strong></a>
+									}
+									if h.Sub != "" {
+										<div class="targets">{ h.Sub }</div>
+									}
+								</div>
+								if h.Badge != "" {
+									<span class={ "badge", searchBadge(h.Badge) }>{ h.Badge }</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+		}
+	}
+}

@@ -592,9 +592,28 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .tcell.void { background: rgb(255 255 255 / 0.05); }
 .tile-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; font-size: 12.5px; color: var(--muted); }
 .tile-legend li { display: inline-flex; align-items: center; gap: 7px; }
+.search-form { margin: 0 0 18px; max-width: 760px; }
+.search-form button { flex: none; }
+.search-hits { list-style: none; margin: 0; padding: 0; }
+.search-hits li { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.search-hits li:last-child { border-bottom: 0; }
+.search-hit { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.search-section .count { color: var(--muted); font-weight: 500; font-size: 0.85em; }
+.logo-board .board-cell.filter-out { opacity: 0.18; filter: saturate(0.3); }
+.page-filter { max-width: 260px; }
+.page-filter-box { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-count { font-size: 12.5px; white-space: nowrap; }
 .tile-legend .tcell { width: 13px; height: 13px; border-radius: 4px; box-shadow: none; }
 .tile-legend .tcell.behind, .tile-legend .tcell.unknown { outline: 1px solid rgb(27 42 107 / 0.25); }
 .tile-legend strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tile-filter { display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px; margin: -3px -8px; border: 0; border-radius: 8px; background: none; font: inherit; color: inherit; cursor: pointer; }
+.tile-filter:hover { background: var(--surface-2, rgb(0 0 0 / 0.04)); }
+.tile-filter[aria-pressed="true"] { background: var(--accent-soft, rgb(49 87 213 / 0.12)); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+/* A legend item picked: the cells in other states step back. */
+body[data-tile-only="current"] .logo-board .board-cell:not(.s-current),
+body[data-tile-only="behind"] .logo-board .board-cell:not(.s-behind),
+body[data-tile-only="attention"] .logo-board .board-cell:not(.s-attention),
+body[data-tile-only="unknown"] .logo-board .board-cell:not(.s-unknown) { opacity: 0.18; filter: saturate(0.3); }
 /* The panel opens on :target, no script needed; the backdrop and × link back to "#". */
 .tile-panel { display: none; position: fixed; inset: 0; z-index: 50; }
 .tile-panel:target { display: block; }
@@ -786,6 +805,10 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .palette-mark { width: 14px; height: 14px; border-radius: 4px; flex: none; }
 .palette-mark.kind-target { background: var(--faint); border-radius: 50%; }
 .palette-mark.kind-page { background: transparent; box-shadow: inset 0 0 0 2px var(--faint); }
+.palette-mark.kind-team { background: var(--faint); border-radius: 4px 50% 50% 4px; }
+.palette-mark.kind-search { background: transparent; box-shadow: inset 0 0 0 2px var(--accent); border-radius: 50%; }
+.palette-label mark { background: none; color: var(--accent); font-weight: 700; }
+.palette-hit { font-family: var(--mono); }
 .palette-mark.tcell.none { background: var(--line); }
 .palette-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .palette-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1346,3 +1369,18 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .tile-why strong { color: var(--ink); }
 .tile-services .tile-pr { margin-left: auto; flex: none; align-self: center; font-size: 13px; white-space: nowrap; }
 .tile-services .button.tile-pr { padding: 6px 10px; border-radius: 8px; }
+/* A cell's name takes two lines before it is cut, broken anywhere when it has no spaces (goliashagent-goliash-agent). */
+.logo-board:not(.compact) .board-name {
+  white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+/* A small cell: the name over the whole width, then its services' logo beside the environment strip, then the
+   version line. The logo gives way (down to what is left) when the name takes two lines; nothing overlaps. */
+.logo-board:not(.compact) .board-cell:not(.big) {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "name name" "logo strip" "foot foot"; column-gap: 8px; row-gap: 8px;
+}
+.logo-board:not(.compact) .board-cell:not(.big) .board-top { display: contents; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-name { grid-area: name; }
+.logo-board:not(.compact) .board-cell:not(.big) .env-strip { grid-area: strip; align-self: center; justify-self: start; }
+.logo-board:not(.compact) .board-cell:not(.big) .mini-logo { grid-area: logo; align-self: center; height: min(var(--mini), 100%); width: auto; aspect-ratio: 1; min-height: 0; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-foot { grid-area: foot; }

@@ -124,16 +124,36 @@
 
   // A filter box for cards (data-filter names their selector): words must all appear
   // in a card's data-search; groups without a visible card hide too.
+  // Without data-search an element matches on its text (a table row, say). data-filter-dim steps the others back
+  // instead of hiding them (the tiles keep their places), data-filter-count names where "3 of 24" goes, and
+  // data-filter-url keeps the words in ?q=, so a filtered page can be shared and survives its live refreshes.
   function filterCards(input) {
     const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const dim = input.hasAttribute("data-filter-dim");
+    let shown = 0, total = 0;
     document.querySelectorAll(input.getAttribute("data-filter")).forEach(function (el) {
-      const hay = el.getAttribute("data-search") || "";
-      el.hidden = !words.every(function (w) { return hay.indexOf(w) >= 0; });
+      const hay = (el.getAttribute("data-search") || el.textContent).toLowerCase();
+      const ok = words.every(function (w) { return hay.indexOf(w) >= 0; });
+      total++;
+      if (ok) shown++;
+      if (dim) { el.classList.toggle("filter-out", !ok); el.inert = !ok; } else el.hidden = !ok; // dimmed: out of reach as if hidden
     });
     document.querySelectorAll("[data-group]").forEach(function (g) {
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
+    const count = input.getAttribute("data-filter-count") && document.getElementById(input.getAttribute("data-filter-count"));
+    if (count) count.textContent = words.length && total ? shown + " of " + total : "";
+    if (input.hasAttribute("data-filter-url")) {
+      const url = new URL(window.location.href);
+      if (input.value) url.searchParams.set("q", input.value); else url.searchParams.delete("q");
+      if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+    }
   }
+  // Filters with words in them apply again to what a live refresh brought.
+  function refilter() {
+    document.querySelectorAll("input[data-filter]").forEach(function (i) { if (i.value) filterCards(i); });
+  }
+  document.body.addEventListener("htmx:afterSwap", refilter);
   // Opening a card's edit form puts the cursor in its first field, its text selected.
   document.addEventListener("toggle", function (e) {
     if (!e.target.matches || !e.target.matches("details.card-edit") || !e.target.open) return;
@@ -173,12 +193,12 @@
   document.addEventListener("click", function (e) { closeMenus(e.target.closest("details.menu")); });
 
   document.addEventListener("keydown", function (e) {
-    const q = document.getElementById("matrix-q");
+    const q = document.getElementById("matrix-q") || document.querySelector("input[data-filter]");
     const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
-    // "/" jumps to the matrix filter, as on GitHub; Escape in the filter clears it.
+    // "/" jumps to the page's filter, as on GitHub; Escape in the filter clears it.
     if (q && e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); q.focus(); q.select(); return; }
     if (e.key !== "Escape") return;
-    if (q && e.target === q && q.value) { q.value = ""; filterMatrix(); return; }
+    if (q && e.target === q && q.value) { q.value = ""; if (q.id === "matrix-q") filterMatrix(); else filterCards(q); return; }
     const open = document.querySelector("details.menu[open]");
     if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); return; }
     // A tile's details panel is open while its id is the URL's fragment.
@@ -396,6 +416,51 @@
   // nodes, never markup: names are user input.
   let paletteData = null;
   let palette = null;
+  // Where q's letters fall in text, for highlighting: a run of the whole q first, else the fuzzy letters.
+  function fuzzyAt(q, text) {
+    text = text.toLowerCase();
+    const run = text.indexOf(q);
+    if (run >= 0) return Array.from({ length: q.length }, function (_, k) { return run + k; });
+    const at = [];
+    let ti = 0;
+    for (const ch of q) { const i = text.indexOf(ch, ti); if (i < 0) return []; at.push(i); ti = i + 1; }
+    return at;
+  }
+  // The label as nodes, the letters that matched in <mark>.
+  function highlighted(label, q) {
+    const span = el("span", "palette-label");
+    const at = q ? fuzzyAt(q, label) : [];
+    if (!at.length) { span.textContent = label; return span; }
+    let last = 0;
+    at.forEach(function (i) {
+      if (i > last) span.appendChild(document.createTextNode(label.slice(last, i)));
+      span.appendChild(el("mark", "", label[i]));
+      last = i + 1;
+    });
+    if (last < label.length) span.appendChild(document.createTextNode(label.slice(last)));
+    return span;
+  }
+  // A word of the entry's keys holding q, when its name does not match: what found it.
+  function keyHit(q, e) {
+    if (!e.keys) return "";
+    for (const k of e.keys) if (k.indexOf(q) >= 0) return k;
+    return "";
+  }
+  // Ways to look further than the palette's places, from what was typed.
+  function paletteSearches(raw) {
+    const out = [];
+    const id = raw.toUpperCase();
+    if (/^(CVE-\d{4}-\d+|GHSA(-[0-9A-Z]{4}){3}|GO-\d{4}-\d+)$/.test(id)) {
+      out.push({ label: "Where does " + id + " run?", sub: "vulnerabilities in running images", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(id), top: true });
+    } else if (raw.length >= 3) {
+      out.push({ label: "Vulnerabilities matching “" + raw + "”", sub: "CVE, package or service", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(raw) });
+      out.push({ label: "Packages named “" + raw + "”", sub: "in running images, with their licenses", kind: "search", url: "/security/licenses?q=" + encodeURIComponent(raw) });
+    }
+    if (raw.length >= 2) {
+      out.push({ label: "Search everywhere for “" + raw + "”", sub: "services, vulnerabilities, packages, pull requests, history, notifications", kind: "search", url: "/search?q=" + encodeURIComponent(raw) });
+    }
+    return out;
+  }
   function fuzzy(q, text) {
     // Every letter of q in order; consecutive letters and word starts score higher.
     text = text.toLowerCase();
@@ -427,12 +492,23 @@
       const first = recent.map(function (u) { return items.find(function (e) { return e.url === u; }); }).filter(Boolean);
       items = first.concat(items.filter(function (e) { return first.indexOf(e) < 0; }));
     } else {
-      items = items.map(function (e) { return { e: e, s: Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2) + (recent.indexOf(e.url) >= 0 ? 1 : 0) }; })
+      items = items.map(function (e) {
+        let s = Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2);
+        let hit = "";
+        if (s < 0 && q.length >= 2) { // an image, version, workload or GitOps application it runs
+          hit = keyHit(q, e);
+          if (hit) s = 1 + q.length / hit.length;
+        }
+        return { e: hit ? Object.assign({}, e, { hit: hit }) : e, s: s < 0 ? s : s + (recent.indexOf(e.url) >= 0 ? 1 : 0) };
+      })
         .filter(function (x) { return x.s >= 0; })
         .sort(function (a, b) { return b.s - a.s; })
         .map(function (x) { return x.e; });
     }
     items = items.slice(0, 50);
+    if (q && paletteData) {
+      paletteSearches(palette.input.value.trim()).forEach(function (sr) { if (sr.top) items.unshift(sr); else items.push(sr); });
+    }
     // With Goli on, what was typed can be a question too: last, or first when nothing else matches.
     const raw = palette.input.value.trim();
     if (raw && paletteData && document.querySelector("[data-goli]")) {
@@ -450,8 +526,9 @@
       const mark = el("span", "palette-mark " + (e.state ? "tcell " + e.state : "kind-" + e.kind));
       li.appendChild(mark);
       const text = el("span", "palette-text");
-      text.appendChild(el("span", "palette-label", e.label));
-      if (e.sub) text.appendChild(el("span", "palette-sub", e.sub));
+      text.appendChild(e.kind === "search" || e.kind === "goli" ? el("span", "palette-label", e.label) : highlighted(e.label, q));
+      if (e.hit) text.appendChild(el("span", "palette-sub palette-hit", "via " + e.hit));
+      else if (e.sub) text.appendChild(el("span", "palette-sub", e.sub));
       li.appendChild(text);
       li.appendChild(el("span", "palette-kind", !q && recent.indexOf(e.url) >= 0 ? "recent" : e.kind));
       li.addEventListener("mousemove", function () { paletteSelect(i); });
@@ -880,6 +957,24 @@
     if (btn) btn.focus();
   }
   // A question ready to ask, e.g. the Brief button of an upgrade.
+  // Tiles: a legend item picks out the cells in its state; again, or Escape, shows all. The choice is kept on the
+  // body, so the board's live refresh keeps it.
+  function tileOnly(state) {
+    if (state) document.body.dataset.tileOnly = state; else delete document.body.dataset.tileOnly;
+    document.querySelectorAll("[data-tile-only]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.tileOnly === document.body.dataset.tileOnly));
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("button[data-tile-only]");
+    if (b) tileOnly(document.body.dataset.tileOnly === b.dataset.tileOnly ? "" : b.dataset.tileOnly);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.body.dataset.tileOnly && !document.querySelector(".tile-panel:target")) tileOnly("");
+  });
+  document.body.addEventListener("htmx:afterSwap", function (e) {
+    tileOnly(e.detail && e.detail.boosted ? "" : document.body.dataset.tileOnly || ""); // a new page starts with all
+  });
   document.addEventListener("click", function (e) {
     const ask = e.target.closest && e.target.closest("[data-goli-ask]");
     if (ask) { e.preventDefault(); goliOpen(ask.getAttribute("data-goli-ask")); }
@@ -1597,6 +1692,10 @@
     showLive();
     cardTables();
     navFit();
+    document.querySelectorAll("input[data-filter][data-filter-url]").forEach(function (i) {
+      const w = new URLSearchParams(window.location.search).get("q");
+      if (w) { i.value = w; filterCards(i); }
+    });
     const q = document.getElementById("matrix-q");
     const drift = document.getElementById("matrix-drift");
     if (q && drift) {

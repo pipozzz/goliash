@@ -1076,3 +1076,14 @@ func TestTilesOfferPullRequests(t *testing.T) {
 		t.Fatal("a viewer is offered a pull request")
 	}
 }
+
+// The tiles' legend items are buttons that pick out the cells in their state.
+func TestTilesLegendFilters(t *testing.T) {
+	e := newUIEnv(t)
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/tiles", nil)
+	for _, state := range []string{"current", "behind", "attention", "unknown"} {
+		if !strings.Contains(page, `data-tile-only="`+state+`" aria-pressed="false"`) {
+			t.Errorf("no legend button for %s", state)
+		}
+	}
+}

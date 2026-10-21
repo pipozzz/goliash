@@ -17,6 +17,7 @@ templ PromotionsPage(v PromotionsView) {
 				<p class="sub"><a href="/report">Monthly report →</a> <a href="/gitops">GitOps applications →</a></p>
 				@aboutText("What waits to be promoted, and how versions move through the environments, read from what ran when.")
 			</div>
+			@pageFilter("main table tbody tr, main .app-promote", "Filter services, versions, environments")
 		</div>
 		if len(v.Rollouts) > 0 {
 			<section class="panel">

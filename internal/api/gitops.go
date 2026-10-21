@@ -5,6 +5,8 @@ package api
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -147,4 +149,35 @@ func (h *PublicHandler) pullRequests(w http.ResponseWriter, r *http.Request, p a
 		out = append(out, x)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// search looks for q through services (by what they run too), vulnerabilities, packages, pull requests, history
+// and notifications, as the search page does.
+func (h *PublicHandler) search(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeProblem(w, http.StatusBadRequest, "Bad request", "q is required: the words to look for")
+		return
+	}
+	limit := 10
+	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 {
+		limit = min(n, 50)
+	}
+	sections, err := versions.Search(r.Context(), h.store, p.Scope, q, limit, time.Now())
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	total := 0
+	for i := range sections {
+		total += sections[i].Total
+		if sections[i].Hits == nil {
+			sections[i].Hits = []versions.SearchHit{}
+		}
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Query    string                   `json:"query"`
+		Total    int                      `json:"total"`
+		Sections []versions.SearchSection `json:"sections"`
+	}{q, total, sections})
 }
