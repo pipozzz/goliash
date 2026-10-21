@@ -62,3 +62,30 @@ func TestReleaseNotesBetweenVersions(t *testing.T) {
 		t.Errorf("without a source: %+v %v", n, err)
 	}
 }
+
+// Goliash's own security fixes are read from its release notes: fix(security) commits, Go vulnerabilities and
+// CVEs, oldest first, once each, without the commit hash and author.
+func TestGoliashSecurityFixes(t *testing.T) {
+	gh := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "pipozzz/goliash") {
+			t.Errorf("asked %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[
+			{"tag_name":"v1.112.0","body":"## Changelog\n* 0123456789abcdef0123456789abcdef01234567: feat(tiles): more (#540) (@pipozzz)\n* abcdef1: fix: bump x/net for CVE-2026-1111 (#541) (@dependabot)"},
+			{"tag_name":"v1.111.0","body":"## Changelog\n### Bug fixes\n* 1111111111111111111111111111111111111111: fix(security): build with Go 1.26.10 (GO-2026-6809) (#536) (@pipozzz)"},
+			{"tag_name":"v1.110.0","body":"* 2222222: fix(security): old (#500) (@pipozzz)"}
+		]`))
+	}))
+	defer gh.Close()
+	client := NewGitHub("")
+	client.BaseURL = gh.URL
+	c := &Checker{github: client}
+	got := c.GoliashSecurityFixes(context.Background(), "v1.110.0", "1.112.0")
+	want := []string{"fix(security): build with Go 1.26.10 (GO-2026-6809) (#536)", "fix: bump x/net for CVE-2026-1111 (#541)"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("fixes %q", got)
+	}
+	if got := c.GoliashSecurityFixes(context.Background(), "1.111.0", "1.111.0"); len(got) != 0 {
+		t.Fatalf("nothing newer, fixes %q", got)
+	}
+}

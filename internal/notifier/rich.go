@@ -65,6 +65,9 @@ func kindOf(it Item) kind {
 	case "agent_back":
 		return kind{"✅", "#30a46c", "Agent back"}
 	case EventGoliashRelease:
+		if it.Note == "security" {
+			return kind{"🔒", "#e5484d", "Goliash security release"}
+		}
 		return kind{"🆕", "#1b2a6b", "Goliash release"}
 	case EventPullRequest:
 		if it.Note == "failing" {

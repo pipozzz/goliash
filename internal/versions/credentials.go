@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -142,4 +143,36 @@ func (c *Checker) NewerGoliash(ctx context.Context, running string) (string, err
 		return u.LatestAny.Raw, nil
 	}
 	return "", nil
+}
+
+// goliashSecurityLine finds a change that fixes a vulnerability in release notes: a fix(security) commit, or one
+// naming a Go vulnerability or a CVE.
+var goliashSecurityLine = regexp.MustCompile(`(?i)fix\(security\)|\bGO-\d{4}-\d+\b|\bCVE-\d{4}-\d+\b`)
+
+// goliashNoteLine strips a release note line down to its subject: "* <commit>: fix(security): … (#536) (@who)".
+var goliashNoteLine = regexp.MustCompile(`^\s*[*-]\s*(?:[0-9a-f]{7,40}:\s*)?|\s*\(@[^)]*\)\s*$`)
+
+// GoliashSecurityFixes lists the security fixes in Goliash's releases after from, up to and including to, as their
+// release notes on GitHub name them; empty when none does, or the notes cannot be read.
+func (c *Checker) GoliashSecurityFixes(ctx context.Context, from, to string) []string {
+	svc := store.Service{VersionPolicy: []byte(`{"github":"pipozzz/goliash"}`)}
+	notes, err := c.ReleaseNotes(ctx, svc, GoliashRepo, strings.TrimPrefix(from, "v"), strings.TrimPrefix(to, "v"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for i := len(notes.Releases) - 1; i >= 0; i-- { // oldest first
+		for _, line := range strings.Split(notes.Releases[i].Notes, "\n") {
+			if !goliashSecurityLine.MatchString(line) {
+				continue
+			}
+			s := strings.TrimSpace(goliashNoteLine.ReplaceAllString(line, ""))
+			if s != "" && !seen[s] {
+				seen[s] = true
+				out = append(out, s)
+			}
+		}
+	}
+	return out
 }

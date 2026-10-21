@@ -514,6 +514,7 @@ func serve(ctx context.Context, args []string) error {
 	notify.SetPublicURL(*publicURL)
 	if os.Getenv("GOLIASH_UPDATE_CHECK") != "off" {
 		notify.SetUpdateCheck(buildinfo.Version, checker.NewerGoliash)
+		notify.SetSecurityCheck(checker.GoliashSecurityFixes)
 	}
 	hub := ui.NewHub()
 	notify.OnSent(func(sc store.Scope) { hub.Publish(sc.WorkspaceID) }) // the bell updates on open pages

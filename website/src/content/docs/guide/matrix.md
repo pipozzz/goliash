@@ -285,7 +285,7 @@ Every snapshot is compared with the previous one of the same target. The differe
 | `agent_stale` | An agent stops sending heartbeats. |
 | `gitops` | An Argo CD application or Flux Kustomization has been out of sync, degraded or missing for 10 minutes: out of sync with what Git pins, degraded with the version change and the Git diff just before it, and a **Rollback PR** button when one is on offer; see [Argo CD and Flux](/guide/argocd/). |
 | `pull_request` | Goliash opened a pull request to upgrade, promote or roll back a service, asked by someone or by the version policy's `auto_pr`; once more when one has waited for review for more than three days, when its checks (CI) fail, and when it was merged an hour ago and its version does not run yet (with why it waits); see [Argo CD and Flux](/guide/argocd/#upgrade-with-a-pull-request). |
-| `goliash_release` | A newer Goliash release is out (checked every 6 hours, once per release; off with `GOLIASH_UPDATE_CHECK=off`). |
+| `goliash_release` | A newer Goliash release is out (checked every 6 hours, once per release; off with `GOLIASH_UPDATE_CHECK=off`). When its release notes name security fixes (`fix(security)`, a Go vulnerability or a CVE), it says *with security fixes* and names them; so does the Status page. |
 
 The first snapshot of a target is a baseline and creates no events. When a snapshot is incomplete, for example
 because one namespace was forbidden, missing workloads are not treated as removed.
