@@ -208,6 +208,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /teams/unassign", s.page(m, s.unassignTeam))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
 	mux.Handle("GET /ui/palette.json", s.page(v, s.palette))
+	mux.Handle("GET /search", s.page(v, s.search))
 	mux.Handle("POST /ui/goli", s.page(v, s.goliAsk))
 	mux.Handle("GET /ui/notifications", s.page(v, s.bellList))
 	mux.Handle("GET /ui/notifications/unread", s.page(v, s.bellCount))

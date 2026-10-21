@@ -592,6 +592,13 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .tcell.void { background: rgb(255 255 255 / 0.05); }
 .tile-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; font-size: 12.5px; color: var(--muted); }
 .tile-legend li { display: inline-flex; align-items: center; gap: 7px; }
+.search-form { margin: 0 0 18px; max-width: 760px; }
+.search-form button { flex: none; }
+.search-hits { list-style: none; margin: 0; padding: 0; }
+.search-hits li { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.search-hits li:last-child { border-bottom: 0; }
+.search-hit { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.search-section .count { color: var(--muted); font-weight: 500; font-size: 0.85em; }
 .tile-legend .tcell { width: 13px; height: 13px; border-radius: 4px; box-shadow: none; }
 .tile-legend .tcell.behind, .tile-legend .tcell.unknown { outline: 1px solid rgb(27 42 107 / 0.25); }
 .tile-legend strong { color: var(--ink); font-variant-numeric: tabular-nums; }

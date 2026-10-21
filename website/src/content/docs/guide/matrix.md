@@ -66,6 +66,11 @@ or the **GitOps application** that deploys it (`payments-prod`), shown as *via �
 `CVE-…`, `GHSA-…` or `GO-…` offers *Where does it run?* first, and anything typed can be looked up among the
 **vulnerabilities** and **packages** of running images. The letters that matched are highlighted.
 
+**Search everywhere** (the last entry of ⌘K, or `/search?q=…`) looks through all of it at once: services by name,
+image, version, workload or GitOps application; applications and teams; targets and pages; vulnerabilities (CVE,
+advisory, package, service); packages and their licenses; the pull requests Goliash opened; the last 90 days of
+history and the last 30 of notifications. Each section shows the first matches and links to its page, filtered.
+
 **?** lists every keyboard shortcut. **g** followed by a letter goes straight to a page: **g m** the matrix, **g t**
 tiles, **g u** updates, **g i** the inbox, **g d** delivery, **g h** history, **g n** notifications.
 
