@@ -762,8 +762,8 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 ::view-transition-group(*) { animation-duration: 0.32s; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
 @media (prefers-color-scheme: dark) { .stack-front { background: #121827; border-color: #222b40; } }
 @media (max-width: 900px) {
-  .tile-stack { grid-template-columns: 1fr; }
-  .stack-back { margin: 0 0 -18px; padding: 0 0 26px; opacity: 0.8; overflow-x: auto; }
+  .tile-stack { grid-template-columns: minmax(0, 1fr); }
+  .stack-back { margin: 0 0 -18px; padding: 0 0 26px; overflow-x: auto; min-width: 0; max-width: 100%; }
   .stack-back .logo-board.compact { transform: none; grid-template-columns: repeat(var(--count, 12), 64px); width: max-content; }
   .stack-front { margin-left: 0; }
 }
@@ -1303,7 +1303,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bell-mark.kind-goliash_release { background: var(--accent); }
 .bell-mark.kind-gitops { background: #d9822b; }
 .gitops-pr { margin-top: 6px; }
-.gitops-pr { display: inline-block; }
+.gitops-pr { display: inline-block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .git-pins { margin-top: 4px; color: var(--warn); font-size: 0.9em; }
 .gitops-pr.rollback { color: var(--bad, #b42318); border-color: currentColor; margin-left: 6px; }
 
@@ -1342,6 +1342,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .pr-body code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .bulk-pick { display: inline-flex; align-items: center; margin-right: 6px; cursor: pointer; }
 .bulk-pick input { width: 18px; height: 18px; }
+.app-promote .targets { color: var(--muted); } /* --faint is 4.5:1 on white only, not on --accent-soft */
 .app-promote { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--accent-soft, transparent); }
 .cell-pr { display: inline-block; align-self: flex-start; width: fit-content; margin-top: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .cell-pr.offer { padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); }
@@ -1353,3 +1354,18 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .tile-why strong { color: var(--ink); }
 .tile-services .tile-pr { margin-left: auto; flex: none; align-self: center; font-size: 13px; white-space: nowrap; }
 .tile-services .button.tile-pr { padding: 6px 10px; border-radius: 8px; }
+/* A cell's name takes two lines before it is cut, broken anywhere when it has no spaces (goliashagent-goliash-agent). */
+.logo-board:not(.compact) .board-name {
+  white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+/* A small cell: the name over the whole width, then its services' logo beside the environment strip, then the
+   version line. The logo gives way (down to what is left) when the name takes two lines; nothing overlaps. */
+.logo-board:not(.compact) .board-cell:not(.big) {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "name name" "logo strip" "foot foot"; column-gap: 8px; row-gap: 8px;
+}
+.logo-board:not(.compact) .board-cell:not(.big) .board-top { display: contents; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-name { grid-area: name; }
+.logo-board:not(.compact) .board-cell:not(.big) .env-strip { grid-area: strip; align-self: center; justify-self: start; }
+.logo-board:not(.compact) .board-cell:not(.big) .mini-logo { grid-area: logo; align-self: center; height: min(var(--mini), 100%); width: auto; aspect-ratio: 1; min-height: 0; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-foot { grid-area: foot; }

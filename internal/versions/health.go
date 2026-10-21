@@ -247,6 +247,12 @@ func LoadHealth(ctx context.Context, st *store.Store, checker *Checker, sc store
 		case newer != "":
 			c.State, c.Summary = "warn", "Version "+version+"; "+newer+" is out."
 			c.Link, c.LinkText = "https://github.com/pipozzz/goliash/releases/tag/v"+newer, "Release notes"
+			look, cancel := context.WithTimeout(ctx, 5*time.Second)
+			if fixes := checker.GoliashSecurityFixes(look, version, newer); len(fixes) > 0 {
+				c.State, c.Summary = "bad", "Version "+version+"; "+newer+" is out with security fixes."
+				c.Details = append(c.Details, fixes[:min(len(fixes), 3)]...)
+			}
+			cancel()
 			c.Details = append(c.Details, "Upgrade the server first, then the agents (their pages show the command).")
 		default:
 			c.Summary = "Version " + version + ", the newest."

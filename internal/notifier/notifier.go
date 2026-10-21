@@ -151,7 +151,9 @@ type Notifier struct {
 	goli    bool
 	running string                                                    // this server's version
 	newer   func(ctx context.Context, running string) (string, error) // a newer Goliash, or ""
-	pins    func(ctx context.Context, a versions.GitOpsApp) string    // the version Git pins, out of sync, or ""
+	// securityFixes lists the security fixes of the releases after from, up to and including to.
+	securityFixes func(ctx context.Context, from, to string) []string
+	pins          func(ctx context.Context, a versions.GitOpsApp) string // the version Git pins, out of sync, or ""
 	// rollback is the version a rollback pull request would pin for a degraded application, or "".
 	rollback func(ctx context.Context, sc store.Scope, a versions.GitOpsApp) string
 	// planPRs gives, for a workspace, where the pull request for an upgrade is previewed ("" when none can open).
@@ -744,6 +746,9 @@ func Describe(it Item) string {
 	case "agent_stale":
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
 	case EventGoliashRelease:
+		if it.Note == "security" {
+			return fmt.Sprintf("Goliash %s is out with security fixes (this server runs %s): upgrade the server, then the agents", it.To, it.From)
+		}
 		return fmt.Sprintf("Goliash %s is out (this server runs %s): upgrade the server, then the agents", it.To, it.From)
 	case EventGitOps:
 		return fmt.Sprintf("%s: %s %s is %s%s", where, versions.GitOpsObject(it.Tool), it.From, it.Note, on)

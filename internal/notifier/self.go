@@ -5,6 +5,8 @@ package notifier
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -21,6 +23,15 @@ func (n *Notifier) SetUpdateCheck(running string, newer func(ctx context.Context
 	n.running, n.newer = running, newer
 }
 
+// SetSecurityCheck lets the announcement of a newer Goliash say which security fixes it brings: fixes lists them
+// for the releases after from, up to and including to.
+func (n *Notifier) SetSecurityCheck(fixes func(ctx context.Context, from, to string) []string) {
+	n.securityFixes = fixes
+}
+
+// securityShown bounds the security fixes an announcement names.
+const securityShown = 3
+
 // CheckGoliashRelease queues the announcement of a newer Goliash for every workspace whose rules want it.
 func (n *Notifier) CheckGoliashRelease(ctx context.Context) error {
 	if n.newer == nil {
@@ -31,6 +42,12 @@ func (n *Notifier) CheckGoliashRelease(ctx context.Context) error {
 	cancel()
 	if err != nil || latest == "" {
 		return err
+	}
+	var fixes []string
+	if n.securityFixes != nil {
+		look, cancel := context.WithTimeout(ctx, 30*time.Second)
+		fixes = n.securityFixes(look, n.running, latest)
+		cancel()
 	}
 	wss, err := n.store.ListWorkspaces(ctx)
 	if err != nil {
@@ -46,7 +63,17 @@ func (n *Notifier) CheckGoliashRelease(ctx context.Context) error {
 			Type: EventGoliashRelease, From: n.running, To: latest, At: n.now(),
 			URL: "https://github.com/pipozzz/goliash/releases/tag/v" + latest,
 		}
+		if len(fixes) > 0 {
+			it.Note = "security"
+		}
 		it.Text = Describe(it)
+		if len(fixes) > 0 {
+			shown := fixes[:min(len(fixes), securityShown)]
+			it.Text += ". Security fixes: " + strings.Join(shown, "; ")
+			if more := len(fixes) - len(shown); more > 0 {
+				it.Text += fmt.Sprintf("; %d more", more)
+			}
+		}
 		if err := n.enqueue(ctx, sc, rules, it, EventGoliashRelease+"|"+latest); err != nil {
 			return err
 		}

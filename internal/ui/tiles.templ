@@ -227,7 +227,7 @@ templ board(items []BoardItem, cols int, compact bool) {
 				}
 				data-key={ it.Key }
 				data-state={ it.State }
-				title={ it.Name + ": " + tileLabel(it.State) }
+				title={ cellTitle(it) }
 			>
 				<span class="board-top">
 					<span class="board-name">{ shortName(it.Name) }<span class="sr-only">, { tileLabel(it.State) }</span></span>
