@@ -754,8 +754,8 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 ::view-transition-group(*) { animation-duration: 0.32s; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
 @media (prefers-color-scheme: dark) { .stack-front { background: #121827; border-color: #222b40; } }
 @media (max-width: 900px) {
-  .tile-stack { grid-template-columns: 1fr; }
-  .stack-back { margin: 0 0 -18px; padding: 0 0 26px; opacity: 0.8; overflow-x: auto; }
+  .tile-stack { grid-template-columns: minmax(0, 1fr); }
+  .stack-back { margin: 0 0 -18px; padding: 0 0 26px; overflow-x: auto; min-width: 0; max-width: 100%; }
   .stack-back .logo-board.compact { transform: none; grid-template-columns: repeat(var(--count, 12), 64px); width: max-content; }
   .stack-front { margin-left: 0; }
 }
@@ -1295,7 +1295,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .bell-mark.kind-goliash_release { background: var(--accent); }
 .bell-mark.kind-gitops { background: #d9822b; }
 .gitops-pr { margin-top: 6px; }
-.gitops-pr { display: inline-block; }
+.gitops-pr { display: inline-block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .git-pins { margin-top: 4px; color: var(--warn); font-size: 0.9em; }
 .gitops-pr.rollback { color: var(--bad, #b42318); border-color: currentColor; margin-left: 6px; }
 
@@ -1334,6 +1334,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .pr-body code { font: 13px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 .bulk-pick { display: inline-flex; align-items: center; margin-right: 6px; cursor: pointer; }
 .bulk-pick input { width: 18px; height: 18px; }
+.app-promote .targets { color: var(--muted); } /* --faint is 4.5:1 on white only, not on --accent-soft */
 .app-promote { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--accent-soft, transparent); }
 .cell-pr { display: inline-block; align-self: flex-start; width: fit-content; margin-top: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .cell-pr.offer { padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); }
