@@ -1349,6 +1349,14 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .logo-board:not(.compact) .board-name {
   white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
 }
-/* In a small cell the environment strip goes under the name, which gets the cell's whole width. */
-.logo-board:not(.compact) .board-cell:not(.big) .board-top { flex-wrap: wrap; row-gap: 6px; }
-.logo-board:not(.compact) .board-cell:not(.big) .board-name { flex: 1 1 100%; }
+/* A small cell: the name over the whole width, then its services' logo beside the environment strip, then the
+   version line. The logo gives way (down to what is left) when the name takes two lines; nothing overlaps. */
+.logo-board:not(.compact) .board-cell:not(.big) {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "name name" "logo strip" "foot foot"; column-gap: 8px; row-gap: 8px;
+}
+.logo-board:not(.compact) .board-cell:not(.big) .board-top { display: contents; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-name { grid-area: name; }
+.logo-board:not(.compact) .board-cell:not(.big) .env-strip { grid-area: strip; align-self: center; justify-self: start; }
+.logo-board:not(.compact) .board-cell:not(.big) .mini-logo { grid-area: logo; align-self: center; height: min(var(--mini), 100%); width: auto; aspect-ratio: 1; min-height: 0; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-foot { grid-area: foot; }
