@@ -59,7 +59,13 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Tiles.** The matrix drawn like the logo: every application a cell, coloured by how current it is, warm where
   something needs attention; open a cell for its services, compare environments side by side, or put it on a wall
   screen. The browser tab's icon shows the workspace's state too. Show one team alone as its own board, and save
-  any view (a team, production, the TV board, a team's upgrade list) as a tab or as your home page.
+  any view (a team, production, the TV board, a team's upgrade list) as a tab or as your home page. Click the
+  legend to pick out what is behind or unknown; open a service to upgrade it with a pull request, or to read why its
+  newest release is unknown and what would fix that.
+- **Find anything.** ⌘K (Ctrl+K) jumps to a service by its name, the image or version it runs, its workload or the
+  GitOps application that deploys it; to a team, a page, or where a pasted CVE runs. Every page filters with `/`, and
+  *Search everywhere* looks through services, vulnerabilities, packages, pull requests, history and notifications at
+  once — also for scripts (`/api/v1/search`) and assistants (the MCP `search` tool).
 - **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
   production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
 - **Goli, the assistant inside.** <img align="right" alt="Goli, the Goliash plushie" src="docs/assets/goli.svg" width="90">
@@ -75,14 +81,17 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Argo CD and Flux, next to what runs.** Each service shows the Git repository, path and commit its Argo CD
   application or Flux Kustomization/HelmRelease deploys, whether it is in sync and healthy and since when, with alerts
   when it is not: *Git pins 1.7.0, 1.6.0 runs* for one out of sync, the version change and Git diff just before one
-  that degraded. One page lists every application on every cluster, those in trouble first.
+  that degraded. One page lists every application on every cluster, those in trouble first. Sync windows, suspended
+  Flux objects and applications Argo CD syncs only by hand are marked, because a merge is not a deploy: a merged
+  pull request whose version does not run is shown, with why it waits, and announced an hour later.
 - **Upgrades as pull requests.** Upgrades, promotions and rollbacks open as pull requests (GitHub, GitHub Enterprise,
   GitLab, Gitea and Forgejo) that change the tag where manifests, Kustomize, Helm values, Nomad jobs, Compose files,
   ECS task definitions or Terraform pin it — with Argo CD or Flux, or without, from `goliash.git.*` labels. Each
   is previewed first and says why, what it fixes and which licenses it brings. Open one from the service page, the tiles, the
   matrix, Updates, Security, the alert or the weekly plan; tick several to open them together, or one per repository;
   promote a whole application in one; let a version policy open them by itself. Renovate's and Dependabot's are
-  linked, not duplicated; reviewers, labels, CI checks and reminders included. You review, GitOps deploys.
+  linked, not duplicated; reviewers, labels, CI checks and reminders included. You review, GitOps deploys; the
+  Delivery page measures how long from opening, and from merging, to running.
 - **Change freezes.** Holidays, a big sale, Friday afternoons: automatic pull requests wait, the ones opened by hand
   say so, and every page shows it. Argo CD's sync windows are honoured the same way, per application.
 - **Did the deploy go out?** Rollouts stuck half way (two versions side by side for half an hour), services running
@@ -111,10 +120,11 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   releases.
 - **Security posture for whoever answers for the risk.** How long production has run behind an available release
   (median, 90th percentile, 30+ and 90+ days), what is past its end of life, accepted risk, supply-chain findings and
-  blind spots, with a CSV and a PDF for risk registers and audits (NIS2, DORA, SOC 2, ISO 27001).
+  blind spots (each service whose newest release is unknown says why: `latest`, a refused registry, no comparable
+  tag…), with a CSV and a PDF for risk registers and audits (NIS2, DORA, SOC 2, ISO 27001).
 - **On the dashboards you already have.** Ready-made Grafana and SigNoz dashboards (versions, drift, delivery speed
-  and change failure rate, rollouts, image sizes and budgets, vulnerabilities, licenses, image hygiene, Goliash's own
-  health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
+  and change failure rate, rollouts, GitOps applications and pull requests, image sizes and budgets, vulnerabilities,
+  licenses, image hygiene, Goliash's own health), deploy markers on your graphs, Prometheus alert rules, and a ServiceMonitor,
   PrometheusRule and dashboard from the Helm chart. Settings → Integrations fills in the scrape settings and creates
   the token in one click.
 - **Ask your own AI assistant too.** A built-in MCP server gives Claude, Cursor and others the same read-only tools
@@ -126,7 +136,8 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
   of exposure, licenses and vulnerabilities for audits.
 - **Read-only and easy to run.** Collectors only ever read; the agent sends data out over HTTPS, credentials stay
   in your network. One binary each, SQLite or PostgreSQL (several servers for high availability), Helm, Compose,
-  Swarm, Nomad, CloudFormation and Terraform manifests included.
+  Swarm, Nomad, CloudFormation and Terraform manifests included. A newer Goliash is announced, and called out when
+  it brings security fixes.
 
 Out of scope: deploying or upgrading services (that is CI's or Renovate's job), CVE scanning, library versions in code.
 
@@ -249,8 +260,9 @@ bin/goliash token create -name prometheus           # glsh_api_… for /api/v1, 
   and `goliash mcp` runs it on stdio for Claude Desktop or Cursor. Tools: matrix, service, drifts, updates, changes,
   promotions, delivery, inventory, hygiene, vulnerabilities and acknowledge.
 - **Prometheus** `GET /metrics` (same auth): what runs where (`goliash_deployed_version_info`), drift
-  (`goliash_outdated`, `goliash_drift_days`), delivery (`goliash_deploys`, `goliash_lead_time_seconds`), image
-  hygiene and the server's own health. Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and
+  (`goliash_outdated`, `goliash_drift_days`), delivery (`goliash_deploys`, `goliash_lead_time_seconds`), GitOps
+  (`goliash_gitops_trouble`, `goliash_pull_requests`, `goliash_merge_to_running_seconds`), image hygiene and the
+  server's own health. Dashboards for [Grafana](deploy/grafana/goliash-dashboard.json) and
   [SigNoz](deploy/signoz), [alert rules](deploy/prometheus/goliash-alerts.yaml), and the Helm chart's `metrics.*`
   options are described in [Grafana dashboard](https://goliash.dev/guide/grafana/),
   [SigNoz dashboard](https://goliash.dev/guide/signoz/) and [Metrics and alerts](https://goliash.dev/guide/observability/).

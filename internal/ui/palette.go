@@ -33,14 +33,24 @@ type PaletteEntry struct {
 }
 
 func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	ctx := r.Context()
-	g, err := s.overview(ctx, p.Scope, "app")
+	out, err := s.paletteEntries(r.Context(), p)
 	if err != nil {
 		return err
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "private, no-store")
+	return json.NewEncoder(w).Encode(out)
+}
+
+// paletteEntries are the places the palette (and the search page) can go, for this person.
+func (s *Server) paletteEntries(ctx context.Context, p auth.Principal) ([]PaletteEntry, error) {
+	g, err := s.overview(ctx, p.Scope, "app")
+	if err != nil {
+		return nil, err
+	}
 	keys, err := s.paletteKeys(ctx, p.Scope, g)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var out []PaletteEntry
 	teams := map[string]int{}
@@ -73,7 +83,7 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	targets, err := s.store.ListTargets(ctx, p.Scope)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, t := range targets {
 		out = append(out, PaletteEntry{Kind: "target", Label: t.Name, Sub: t.Platform, URL: "/targets/" + t.ID})
@@ -122,9 +132,7 @@ func (s *Server) palette(w http.ResponseWriter, r *http.Request, p auth.Principa
 		out = append(out, PaletteEntry{Kind: "page", Label: "Private registries", Sub: "registry credentials for the server", URL: "/settings#registries"})
 		out = append(out, PaletteEntry{Kind: "page", Label: "Change freezes", Sub: "hold automatic pull requests back", URL: "/settings#freezes"})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "private, no-store")
-	return json.NewEncoder(w).Encode(out)
+	return out, nil
 }
 
 var kindOrder = map[string]int{"view": 0, "application": 1, "service": 2, "team": 3, "target": 4, "page": 5}

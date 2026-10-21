@@ -595,6 +595,53 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
 
+  /api/v1/search:
+    get:
+      operationId: search
+      summary: Search everything
+      description: >-
+        Every word of q must appear. Services by name, owner, image, version, workload or GitOps application; known
+        vulnerabilities of running images (CVE, advisory, package, service); packages with their licenses; the pull
+        requests Goliash opened; the last 90 days of history and the last 30 of notifications. Each section counts
+        its matches and lists the first `limit`.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string }, example: openssl }
+        - { name: limit, in: query, schema: { type: integer, default: 10, maximum: 50 }, description: "Matches listed per section." }
+      responses:
+        "200":
+          description: The sections, every kind present even when empty.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [query, total, sections]
+                properties:
+                  query: { type: string }
+                  total: { type: integer }
+                  sections:
+                    type: array
+                    items:
+                      type: object
+                      required: [kind, title, total, hits]
+                      properties:
+                        kind: { type: string, enum: [services, vulnerabilities, packages, pull_requests, history, notifications] }
+                        title: { type: string }
+                        total: { type: integer }
+                        more: { type: string, description: "The page in Goliash listing all of them, filtered." }
+                        hits:
+                          type: array
+                          items:
+                            type: object
+                            required: [label, url]
+                            properties:
+                              label: { type: string, example: CVE-2024-6119 }
+                              detail: { type: string }
+                              url: { type: string, description: "A path in Goliash, or a pull request's address when external." }
+                              badge: { type: string, example: exploited }
+                              external: { type: boolean }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
   /api/v1/pull-requests:
     get:
       operationId: listPullRequests

@@ -465,6 +465,9 @@
       out.push({ label: "Vulnerabilities matching “" + raw + "”", sub: "CVE, package or service", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(raw) });
       out.push({ label: "Packages named “" + raw + "”", sub: "in running images, with their licenses", kind: "search", url: "/security/licenses?q=" + encodeURIComponent(raw) });
     }
+    if (raw.length >= 2) {
+      out.push({ label: "Search everywhere for “" + raw + "”", sub: "services, vulnerabilities, packages, pull requests, history, notifications", kind: "search", url: "/search?q=" + encodeURIComponent(raw) });
+    }
     return out;
   }
   function fuzzy(q, text) {

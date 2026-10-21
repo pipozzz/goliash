@@ -92,7 +92,16 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
     Upgrades, promotions and rollbacks open as pull requests on GitHub, GitLab, Gitea or Forgejo, changing the tag in
     manifests, Kustomize, Helm values, Nomad jobs, Compose files or Terraform. Previewed first, with why, the
     vulnerabilities they fix and the licenses they bring; a whole application in one; Renovate's linked, not duplicated;
-    held back during a change freeze.
+    held back during a change freeze or an Argo CD sync window.
+  </Card>
+  <Card title="A merge is not a deploy" icon="seti:git">
+    A merged pull request whose version does not run yet is shown and announced, with why it waits: a sync window, a
+    suspended Flux object, an Argo CD application synced by hand. The Delivery page measures merge to running.
+  </Card>
+  <Card title="Find anything" icon="magnifier">
+    ⌘K jumps to a service by the image, version, workload or GitOps application it runs, to a team, or to where a CVE
+    runs. Every page filters with `/`, and one search looks through services, vulnerabilities, packages, pull
+    requests and history, for you, your scripts and your AI assistant.
   </Card>
   <Card title="Drift that matters" icon="warning">
     An environment behind the one before it, a version behind upstream, a release cycle at its end of life, a
@@ -121,7 +130,7 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
   </Card>
   <Card title="Security posture" icon="warning">
     How long production has run behind an available release, what is past its end of life, accepted risk and blind
-    spots, read from the runtime. Known vulnerabilities with how long each has run and CISA's due dates. Export it as
+    spots (with why a newest release is unknown, and the fix), read from the runtime. Known vulnerabilities with how long each has run and CISA's due dates. Export it as
     CSV or PDF for the risk register and the audit.
   </Card>
   <Card title="Licenses and signers" icon="document">
