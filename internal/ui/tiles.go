@@ -580,10 +580,19 @@ func slug(s string) string {
 }
 
 func shortName(s string) string {
-	if len([]rune(s)) > 22 {
-		return strings.TrimSpace(string([]rune(s)[:21])) + "…"
+	if len([]rune(s)) > 44 { // two lines of a cell; CSS clamps narrower ones
+		return strings.TrimSpace(string([]rune(s)[:43])) + "…"
 	}
 	return s
+}
+
+// cellTitle is a cell's tooltip: its whole name, state and the version line a narrow cell cuts short.
+func cellTitle(it BoardItem) string {
+	t := it.Name + ": " + tileLabel(it.State)
+	if it.Headline != "" {
+		t += " · " + it.Headline
+	}
+	return t
 }
 
 func groupWord(by string) string {

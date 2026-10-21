@@ -416,6 +416,48 @@
   // nodes, never markup: names are user input.
   let paletteData = null;
   let palette = null;
+  // Where q's letters fall in text, for highlighting: a run of the whole q first, else the fuzzy letters.
+  function fuzzyAt(q, text) {
+    text = text.toLowerCase();
+    const run = text.indexOf(q);
+    if (run >= 0) return Array.from({ length: q.length }, function (_, k) { return run + k; });
+    const at = [];
+    let ti = 0;
+    for (const ch of q) { const i = text.indexOf(ch, ti); if (i < 0) return []; at.push(i); ti = i + 1; }
+    return at;
+  }
+  // The label as nodes, the letters that matched in <mark>.
+  function highlighted(label, q) {
+    const span = el("span", "palette-label");
+    const at = q ? fuzzyAt(q, label) : [];
+    if (!at.length) { span.textContent = label; return span; }
+    let last = 0;
+    at.forEach(function (i) {
+      if (i > last) span.appendChild(document.createTextNode(label.slice(last, i)));
+      span.appendChild(el("mark", "", label[i]));
+      last = i + 1;
+    });
+    if (last < label.length) span.appendChild(document.createTextNode(label.slice(last)));
+    return span;
+  }
+  // A word of the entry's keys holding q, when its name does not match: what found it.
+  function keyHit(q, e) {
+    if (!e.keys) return "";
+    for (const k of e.keys) if (k.indexOf(q) >= 0) return k;
+    return "";
+  }
+  // Ways to look further than the palette's places, from what was typed.
+  function paletteSearches(raw) {
+    const out = [];
+    const id = raw.toUpperCase();
+    if (/^(CVE-\d{4}-\d+|GHSA(-[0-9A-Z]{4}){3}|GO-\d{4}-\d+)$/.test(id)) {
+      out.push({ label: "Where does " + id + " run?", sub: "vulnerabilities in running images", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(id), top: true });
+    } else if (raw.length >= 3) {
+      out.push({ label: "Vulnerabilities matching “" + raw + "”", sub: "CVE, package or service", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(raw) });
+      out.push({ label: "Packages named “" + raw + "”", sub: "in running images, with their licenses", kind: "search", url: "/security/licenses?q=" + encodeURIComponent(raw) });
+    }
+    return out;
+  }
   function fuzzy(q, text) {
     // Every letter of q in order; consecutive letters and word starts score higher.
     text = text.toLowerCase();
@@ -447,12 +489,23 @@
       const first = recent.map(function (u) { return items.find(function (e) { return e.url === u; }); }).filter(Boolean);
       items = first.concat(items.filter(function (e) { return first.indexOf(e) < 0; }));
     } else {
-      items = items.map(function (e) { return { e: e, s: Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2) + (recent.indexOf(e.url) >= 0 ? 1 : 0) }; })
+      items = items.map(function (e) {
+        let s = Math.max(fuzzy(q, e.label), fuzzy(q, e.label + " " + (e.sub || "")) - 2);
+        let hit = "";
+        if (s < 0 && q.length >= 2) { // an image, version, workload or GitOps application it runs
+          hit = keyHit(q, e);
+          if (hit) s = 1 + q.length / hit.length;
+        }
+        return { e: hit ? Object.assign({}, e, { hit: hit }) : e, s: s < 0 ? s : s + (recent.indexOf(e.url) >= 0 ? 1 : 0) };
+      })
         .filter(function (x) { return x.s >= 0; })
         .sort(function (a, b) { return b.s - a.s; })
         .map(function (x) { return x.e; });
     }
     items = items.slice(0, 50);
+    if (q && paletteData) {
+      paletteSearches(palette.input.value.trim()).forEach(function (sr) { if (sr.top) items.unshift(sr); else items.push(sr); });
+    }
     // With Goli on, what was typed can be a question too: last, or first when nothing else matches.
     const raw = palette.input.value.trim();
     if (raw && paletteData && document.querySelector("[data-goli]")) {
@@ -470,8 +523,9 @@
       const mark = el("span", "palette-mark " + (e.state ? "tcell " + e.state : "kind-" + e.kind));
       li.appendChild(mark);
       const text = el("span", "palette-text");
-      text.appendChild(el("span", "palette-label", e.label));
-      if (e.sub) text.appendChild(el("span", "palette-sub", e.sub));
+      text.appendChild(e.kind === "search" || e.kind === "goli" ? el("span", "palette-label", e.label) : highlighted(e.label, q));
+      if (e.hit) text.appendChild(el("span", "palette-sub palette-hit", "via " + e.hit));
+      else if (e.sub) text.appendChild(el("span", "palette-sub", e.sub));
       li.appendChild(text);
       li.appendChild(el("span", "palette-kind", !q && recent.indexOf(e.url) >= 0 ? "recent" : e.kind));
       li.addEventListener("mousemove", function () { paletteSelect(i); });
@@ -900,6 +954,24 @@
     if (btn) btn.focus();
   }
   // A question ready to ask, e.g. the Brief button of an upgrade.
+  // Tiles: a legend item picks out the cells in its state; again, or Escape, shows all. The choice is kept on the
+  // body, so the board's live refresh keeps it.
+  function tileOnly(state) {
+    if (state) document.body.dataset.tileOnly = state; else delete document.body.dataset.tileOnly;
+    document.querySelectorAll("[data-tile-only]").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.tileOnly === document.body.dataset.tileOnly));
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("button[data-tile-only]");
+    if (b) tileOnly(document.body.dataset.tileOnly === b.dataset.tileOnly ? "" : b.dataset.tileOnly);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.body.dataset.tileOnly && !document.querySelector(".tile-panel:target")) tileOnly("");
+  });
+  document.body.addEventListener("htmx:afterSwap", function (e) {
+    tileOnly(e.detail && e.detail.boosted ? "" : document.body.dataset.tileOnly || ""); // a new page starts with all
+  });
   document.addEventListener("click", function (e) {
     const ask = e.target.closest && e.target.closest("[data-goli-ask]");
     if (ask) { e.preventDefault(); goliOpen(ask.getAttribute("data-goli-ask")); }

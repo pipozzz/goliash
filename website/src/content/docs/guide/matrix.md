@@ -61,6 +61,11 @@ few letters in order (`pgv` finds *cefiro-pgvector*), move with the arrow keys a
 applications carry their state's colour. With nothing typed, the last five places you picked come first, marked *recent* (kept in this
 browser only).
 
+It finds more than names: a service by the **image** it runs (`ghcr.io/acme`), a **version** (`1.27.2`), a **workload**
+or the **GitOps application** that deploys it (`payments-prod`), shown as *via …*; a **team** opens its board. Pasting a
+`CVE-…`, `GHSA-…` or `GO-…` offers *Where does it run?* first, and anything typed can be looked up among the
+**vulnerabilities** and **packages** of running images. The letters that matched are highlighted.
+
 **?** lists every keyboard shortcut. **g** followed by a letter goes straight to a page: **g m** the matrix, **g t**
 tiles, **g u** updates, **g i** the inbox, **g d** delivery, **g h** history, **g n** notifications.
 
