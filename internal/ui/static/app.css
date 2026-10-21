@@ -786,6 +786,10 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .palette-mark { width: 14px; height: 14px; border-radius: 4px; flex: none; }
 .palette-mark.kind-target { background: var(--faint); border-radius: 50%; }
 .palette-mark.kind-page { background: transparent; box-shadow: inset 0 0 0 2px var(--faint); }
+.palette-mark.kind-team { background: var(--faint); border-radius: 4px 50% 50% 4px; }
+.palette-mark.kind-search { background: transparent; box-shadow: inset 0 0 0 2px var(--accent); border-radius: 50%; }
+.palette-label mark { background: none; color: var(--accent); font-weight: 700; }
+.palette-hit { font-family: var(--mono); }
 .palette-mark.tcell.none { background: var(--line); }
 .palette-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .palette-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
