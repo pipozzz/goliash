@@ -10,6 +10,7 @@ templ EventsPage(v EventsView) {
 				<h1>History</h1>
 				@aboutText("Every deploy, version change, release and drift, newest first.")
 			</div>
+			@pageFilter("main ol.timeline > li", "Filter what is shown")
 			<form class="inline" method="get" action="/events">
 				<label>
 					Service

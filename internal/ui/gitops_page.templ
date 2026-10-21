@@ -10,6 +10,9 @@ templ GitOpsPage(v GitOpsPageView) {
 				<h1>GitOps applications</h1>
 				@aboutText("Every Argo CD application and Flux Kustomization that deploys a service, on every cluster: what Git declares and whether it runs, those degraded, missing or out of sync first. Upgrades and rollbacks open as pull requests from here.")
 			</div>
+			if v.Total > 0 {
+				@pageFilter("main table tbody tr", "Filter applications, services, versions")
+			}
 		</div>
 		if v.Total == 0 {
 			<section class="panel">

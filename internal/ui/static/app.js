@@ -150,6 +150,30 @@
       if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
     }
   }
+  // Tiles: the arrow keys move between the cells of a board; up and down go to the nearest cell in the row above or
+  // below, by where it is drawn (big cells span two rows). Cells out of reach (dimmed by a filter) are skipped.
+  document.addEventListener("keydown", function (e) {
+    const cell = e.target.closest && e.target.closest(".logo-board .board-cell");
+    if (!cell || e.altKey || e.ctrlKey || e.metaKey || ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(e.key) < 0) return;
+    const cells = Array.from(cell.closest(".logo-board").querySelectorAll(".board-cell")).filter(function (c) { return !c.inert; });
+    const here = cell.getBoundingClientRect();
+    let next = null;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      next = cells[cells.indexOf(cell) + (e.key === "ArrowRight" ? 1 : -1)];
+    } else {
+      const down = e.key === "ArrowDown", cx = here.left + here.width / 2;
+      let best = Infinity;
+      cells.forEach(function (c) {
+        if (c === cell) return;
+        const r = c.getBoundingClientRect();
+        const dy = down ? r.top - here.bottom : here.top - r.bottom;
+        if (dy < -2) return; // not below (above)
+        const score = dy * 4 + Math.abs(r.left + r.width / 2 - cx);
+        if (score < best) { best = score; next = c; }
+      });
+    }
+    if (next) { e.preventDefault(); next.focus(); }
+  });
   // A cell either filter steps back (the legend's state, the filter box's words) is out of reach too, as a hidden
   // row is: Tab skips it and screen readers leave it out.
   function cellsReach() {

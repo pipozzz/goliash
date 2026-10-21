@@ -3,6 +3,11 @@
 
 package ui
 
+import (
+	"net/url"
+	"strings"
+)
+
 templ SearchPage(v SearchView) {
 	@Layout(v.Base) {
 		<div class="head">
@@ -14,9 +19,29 @@ templ SearchPage(v SearchView) {
 		<form class="row search-form" method="get" action="/search" role="search">
 			<input type="search" name="q" value={ v.Query } class="search grow" placeholder="A service, image, version, CVE, package, team…" aria-label="Search everything" autofocus autocomplete="off"/>
 			<button type="submit">Search</button>
+			if v.Goli && v.Query != "" {
+				<button type="button" class="secondary ask-goli noprint" data-goli-ask={ "Search Goliash for “" + v.Query + "” and tell me what matters: where it runs, what is behind or vulnerable, and what to do first." } title="Goli searches the same and says what matters">Ask Goli</button>
+			}
 		</form>
-		if v.Query != "" && v.Total == 0 {
-			<div class="empty">{ "Nothing matches “" + v.Query + "”." } Try fewer words, or part of a name.</div>
+		if v.Query == "" {
+			<div class="empty search-tips">
+				<p>Every word must match. Try:</p>
+				<ul>
+					for _, ex := range v.Examples {
+						<li>{ ex[0] + ": " }<a class="u" href={ templ.URL("/search?q=" + url.QueryEscape(ex[1])) }>{ ex[1] }</a></li>
+					}
+					<li>a version (<code>1.27</code>), a package (<code>openssl</code>) or a vulnerability (<code>CVE-2024-6387</code>)</li>
+				</ul>
+			</div>
+		} else if v.Total == 0 {
+			<div class="empty">
+				{ "Nothing matches “" + v.Query + "”." } Try fewer words or part of a name: every word must match.
+				if len(strings.Fields(v.Query)) > 1 {
+					for _, w := range strings.Fields(v.Query) {
+						{ " " }<a class="u" href={ templ.URL("/search?q=" + url.QueryEscape(w)) }>{ w }</a>
+					}
+				}
+			</div>
 		}
 		for _, sec := range v.Sections {
 			if sec.Total > 0 {

@@ -12,6 +12,9 @@ templ InboxPage(v InboxView) {
 				<h1>Inbox</h1>
 				@aboutText("Workloads Goliash could not map to a service, grouped by image. Your choice becomes a rule, so the next ones map by themselves.")
 			</div>
+			if len(v.Groups) > 0 {
+				@pageFilter("main table tbody tr", "Filter images, workloads")
+			}
 		</div>
 		@autoMapPanel(v)
 		<section class="panel">

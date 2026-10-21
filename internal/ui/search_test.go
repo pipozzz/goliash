@@ -49,3 +49,16 @@ func TestSearch(t *testing.T) {
 		t.Error("no empty state")
 	}
 }
+
+// With nothing asked, the page suggests what to try from this workspace; several words that match nothing offer
+// each word alone.
+func TestSearchTips(t *testing.T) {
+	e := newUIEnv(t)
+	v := e.as(store.RoleViewer)
+	if _, page := get(t, v, e.srv.URL+"/search", nil); !strings.Contains(page, "a service: <a") || !strings.Contains(page, "an image: <a") {
+		t.Error("no examples to try")
+	}
+	if _, page := get(t, v, e.srv.URL+"/search?q=nginx+zzz", nil); !strings.Contains(page, `href="/search?q=nginx"`) {
+		t.Error("no word offered alone")
+	}
+}

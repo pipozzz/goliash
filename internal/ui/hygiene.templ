@@ -16,6 +16,9 @@ templ HygienePage(v HygieneView) {
 				<h1>Image hygiene</h1>
 				@aboutText("Images that make \"what runs\" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, images over their size budget, and images without a known digest.")
 			</div>
+			if v.Total > 0 {
+				@pageFilter("main table tbody tr", "Filter images, services, targets")
+			}
 		</div>
 		if v.Total > 0 {
 			<nav class="tiles" aria-label="Kinds of findings">

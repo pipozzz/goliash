@@ -69,7 +69,7 @@ or the **GitOps application** that deploys it (`payments-prod`), shown as *via �
 **Search everywhere** (the last entry of ⌘K, or `/search?q=…`) looks through all of it at once: services by name,
 image, version, workload or GitOps application; applications and teams; targets and pages; vulnerabilities (CVE,
 advisory, package, service); packages and their licenses; the pull requests Goliash opened; the last 90 days of
-history and the last 30 of notifications. Each section shows the first matches and links to its page, filtered.
+history and the last 30 of notifications. Each section shows the first matches and links to its page, filtered. With Goli on, **Ask Goli** hands the same words to Goli, which says what matters. Every list page (the matrix, tiles, Updates, Delivery, Security, History, GitOps, Hygiene, Inbox) has a filter box: `/` jumps to it.
 
 **?** lists every keyboard shortcut. **g** followed by a letter goes straight to a page: **g m** the matrix, **g t**
 tiles, **g u** updates, **g i** the inbox, **g d** delivery, **g h** history, **g n** notifications.
@@ -95,7 +95,7 @@ to compare with, and warm means it needs attention: end of life, or targets disa
   screen (`&env=prod&tv=1`); save it as a [view](#saved-views) to keep it a click away.
 
 ![An application's card laid over the global board: webshop's services as cells, the board behind dimmed with webshop marked](../../../assets/tiles-card.png) Open a service for its versions per environment, the newest release with its notes, its drift and a link to
-  its page; Escape closes it. Where a GitOps application deploys it, each environment behind offers **PR → version**
+  its page; Escape closes it. The arrow keys move between cells (up and down to the nearest cell above or below). Where a GitOps application deploys it, each environment behind offers **PR → version**
   (its [pull request](/guide/argocd/#upgrade-with-a-pull-request), previewed first), or links the one already open;
   when its newest release is unknown, it says [why](/guide/security/#newest-release-unknown).
 - **Env** colours the board for one environment. **Side by side** draws one board per environment with every

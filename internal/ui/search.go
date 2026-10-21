@@ -20,6 +20,7 @@ type SearchView struct {
 	Query    string
 	Sections []SearchSection
 	Total    int
+	Examples [][2]string // with nothing asked yet: what to try, from this workspace (kind, words)
 }
 
 // SearchSection is one kind of result: up to searchShown hits, how many there are, and where to see them all.
@@ -52,6 +53,25 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, p auth.Principal
 	ctx := r.Context()
 	v := SearchView{Base: s.base(ctx, p, "", "Search"), Query: strings.TrimSpace(r.URL.Query().Get("q"))}
 	if v.Query == "" {
+		if entries, err := s.paletteEntries(ctx, p); err == nil {
+			seen := map[string]bool{}
+			for _, e := range entries {
+				switch {
+				case e.Kind == "service" && !seen["a service"]:
+					seen["a service"] = true
+					v.Examples = append(v.Examples, [2]string{"a service", e.Label})
+					for _, k := range e.Keys {
+						if strings.Contains(k, "/") && !seen["an image"] {
+							seen["an image"] = true
+							v.Examples = append(v.Examples, [2]string{"an image", k})
+						}
+					}
+				case e.Kind == "team" && !seen["a team"]:
+					seen["a team"] = true
+					v.Examples = append(v.Examples, [2]string{"a team", e.Label})
+				}
+			}
+		}
 		return render(w, r, SearchPage(v))
 	}
 	match := versions.Matcher(v.Query)
