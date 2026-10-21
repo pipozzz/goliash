@@ -85,8 +85,9 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
   </Card>
   <Card title="Know what to upgrade first" icon="approve-check">
     The Updates page lists every upgrade with its target version, most urgent first: an image with a vulnerability
-    exploited in the wild, end of life, then major, minor and patch, production first. Put items off, copy the list as a checklist, or get it every Monday as an upgrade
-    plan in Slack or e-mail.
+    exploited in the wild, a release that fixes vulnerabilities, end of life, then major, minor and patch, production
+    first. Filter it, tick all shown and open the pull requests together; copy it as a checklist, or get it every
+    Monday as an upgrade plan in Slack or e-mail.
   </Card>
   <Card title="Upgrades as pull requests" icon="seti:git">
     Upgrades, promotions and rollbacks open as pull requests on GitHub, GitLab, Gitea or Forgejo, changing the tag in
@@ -97,6 +98,11 @@ staging on 1.5.0 while prod is still on 1.3.2, or two prod clusters disagreeing.
   <Card title="A merge is not a deploy" icon="seti:git">
     A merged pull request whose version does not run yet is shown and announced, with why it waits: a sync window, a
     suspended Flux object, an Argo CD application synced by hand. The Delivery page measures merge to running.
+  </Card>
+  <Card title="Fixed before scanners know" icon="warning">
+    Projects fix before their CVEs reach scanners. Goliash reads release notes and feeds (php.net) and announces a
+    security release to every service on an older version the hour it ships. After an advance notice, watch `php`:
+    see what runs it now, hear of its next release first.
   </Card>
   <Card title="Find anything" icon="magnifier">
     ⌘K jumps to a service by the image, version, workload or GitOps application it runs, to a team, or to where a CVE

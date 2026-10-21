@@ -73,6 +73,7 @@ page, with `goliash service set`, or through the catalog.
 | `github`, `github_tag_prefix` | GitHub repository (`owner/repo`) whose releases give dates and release notes. | from catalog or image label |
 | `gitlab` | GitLab project (`gitlab.com/group/project`) whose releases give dates and release notes; `github_tag_prefix` applies too. | from catalog or image label |
 | `changelog` | A release notes URL template with `{version}`. | none |
+| `security` | A feed saying which releases fix vulnerabilities, for projects whose release notes Goliash cannot read: `php.net`. Releases whose GitHub or GitLab notes name a CVE, GHSA or GO id (or say *security release*) are known without it. See [Security releases](/guide/notifications/#security-releases). | from catalog (`php`) |
 | `base_image` | The image the service's image is built `FROM`, when it does not declare it; `none` turns base tracking off. | as the image declares |
 | `max_size_mb` | The image size budget in MB: over it, Image hygiene lists it and `image_over_budget` alerts. | none |
 | `signer` | Who should sign its images: a keyless signature's identity (`https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main`), or a prefix ending in `*` (`https://github.com/acme/*`). Otherwise Image hygiene lists it as *unexpected signer*. | none |
@@ -156,8 +157,11 @@ When the drift ends, a `drift_resolved` event follows.
 
 **Updates** is a to-do list of upgrades: one line per service (and application) and environment with open end of
 life, upstream or environment drift. Each line shows what runs, the version to move to, with its release notes, and
-why. They are ordered by urgency (an exploited vulnerability in the running image, end of life passed, end of life
-soon, major, minor, behind the previous environment, patch), production first, then by how long they have been open.
+why. They are ordered by urgency (an exploited vulnerability in the running image, a [security
+fix](../notifications/#security-releases) the project announced for a release in between, end of life passed, end of
+life soon, major, minor, behind the previous environment, patch), production first, then by how long they have been
+open. A *security fix* line says what it fixes (*fixes CVE-2026-…* or *security fix*), and a service under a
+[security watch](../security/#security-watches) carries *watch: php*.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the
 wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running).
 When the version to move to already runs somewhere (staging, another cluster) and both images have an SBOM, the line

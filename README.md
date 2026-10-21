@@ -65,9 +65,12 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Find anything.** ⌘K (Ctrl+K) jumps to a service by its name, the image or version it runs, its workload or the
   GitOps application that deploys it; to a team, a page, or where a pasted CVE runs. Every page filters with `/`, and
   *Search everywhere* looks through services, vulnerabilities, packages, pull requests, history and notifications at
-  once — also for scripts (`/api/v1/search`) and assistants (the MCP `search` tool).
-- **Know what to upgrade first.** The Updates page lists every upgrade with its target version, end of life first,
-  production first; put items off, copy it as a checklist, or get it weekly as an upgrade plan per team.
+  once — also for scripts (`/api/v1/search`) and assistants (the MCP `search` tool), or hand the words to Goli.
+  The tiles move with the arrow keys.
+- **Know what to upgrade first.** The Updates page lists every upgrade with its target version: an exploited
+  vulnerability first, then a release the project says fixes vulnerabilities, end of life, production first; put items
+  off, copy it as a checklist, or get it weekly as an upgrade plan per team. Filter it (`nginx`), **Tick all shown** and
+  open the pull requests together: an upgrade campaign in three clicks.
 - **Goli, the assistant inside.** <img align="right" alt="Goli, the Goliash plushie" src="docs/assets/goli.svg" width="90">
   Ask in plain words: "what will this upgrade break?", "is Log4Shell running anywhere?", "what changed in prod in the
   last two hours?". Goli looks it up in live data as you, only reads, and links to the pages that show it. **Brief**
@@ -110,6 +113,11 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Is CVE-X running?** Packages from those SBOMs checked daily against OSV (Debian, Ubuntu, Alpine, Wolfi,
   Chainguard and language ecosystems), exploited-in-the-wild (CISA KEV) first, with the version that fixes each, how
   long each has run, *past due* once CISA's date for fixing it passes, and an alert when one starts running.
+- **Fixed before scanners know.** A project ships the fix before its CVE reaches OSV and the distributions: Goliash
+  reads release notes (a CVE, GHSA or GO id, *security release*) and project feeds (php.net) and announces a security
+  release to every service running an older version the hour it appears — PHP built from source included, which
+  scanners often miss. After an advance notice (*PHP: two critical fixes on Oct 21*), a **security watch** on `php`
+  lists what runs it at once and announces its next release.
 - **Licenses and signers.** The license of every package in running images, sorted by what it asks: AGPL and SSPL,
   source-available terms, GPL and unknown licenses first. And who signed each image, as its keyless (Sigstore)
   signature names the CI workflow or person, with an expected signer per service.
