@@ -4,7 +4,7 @@ go 1.26.0
 
 // Releases are built with this patch release: each one fixes security issues in the
 // standard library (govulncheck runs in CI).
-toolchain go1.26.9
+toolchain go1.26.10
 
 tool (
 	github.com/a-h/templ/cmd/templ
