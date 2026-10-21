@@ -124,16 +124,36 @@
 
   // A filter box for cards (data-filter names their selector): words must all appear
   // in a card's data-search; groups without a visible card hide too.
+  // Without data-search an element matches on its text (a table row, say). data-filter-dim steps the others back
+  // instead of hiding them (the tiles keep their places), data-filter-count names where "3 of 24" goes, and
+  // data-filter-url keeps the words in ?q=, so a filtered page can be shared and survives its live refreshes.
   function filterCards(input) {
     const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const dim = input.hasAttribute("data-filter-dim");
+    let shown = 0, total = 0;
     document.querySelectorAll(input.getAttribute("data-filter")).forEach(function (el) {
-      const hay = el.getAttribute("data-search") || "";
-      el.hidden = !words.every(function (w) { return hay.indexOf(w) >= 0; });
+      const hay = (el.getAttribute("data-search") || el.textContent).toLowerCase();
+      const ok = words.every(function (w) { return hay.indexOf(w) >= 0; });
+      total++;
+      if (ok) shown++;
+      if (dim) { el.classList.toggle("filter-out", !ok); el.inert = !ok; } else el.hidden = !ok; // dimmed: out of reach as if hidden
     });
     document.querySelectorAll("[data-group]").forEach(function (g) {
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
+    const count = input.getAttribute("data-filter-count") && document.getElementById(input.getAttribute("data-filter-count"));
+    if (count) count.textContent = words.length && total ? shown + " of " + total : "";
+    if (input.hasAttribute("data-filter-url")) {
+      const url = new URL(window.location.href);
+      if (input.value) url.searchParams.set("q", input.value); else url.searchParams.delete("q");
+      if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+    }
   }
+  // Filters with words in them apply again to what a live refresh brought.
+  function refilter() {
+    document.querySelectorAll("input[data-filter]").forEach(function (i) { if (i.value) filterCards(i); });
+  }
+  document.body.addEventListener("htmx:afterSwap", refilter);
   // Opening a card's edit form puts the cursor in its first field, its text selected.
   document.addEventListener("toggle", function (e) {
     if (!e.target.matches || !e.target.matches("details.card-edit") || !e.target.open) return;
@@ -173,12 +193,12 @@
   document.addEventListener("click", function (e) { closeMenus(e.target.closest("details.menu")); });
 
   document.addEventListener("keydown", function (e) {
-    const q = document.getElementById("matrix-q");
+    const q = document.getElementById("matrix-q") || document.querySelector("input[data-filter]");
     const typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
-    // "/" jumps to the matrix filter, as on GitHub; Escape in the filter clears it.
+    // "/" jumps to the page's filter, as on GitHub; Escape in the filter clears it.
     if (q && e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); q.focus(); q.select(); return; }
     if (e.key !== "Escape") return;
-    if (q && e.target === q && q.value) { q.value = ""; filterMatrix(); return; }
+    if (q && e.target === q && q.value) { q.value = ""; if (q.id === "matrix-q") filterMatrix(); else filterCards(q); return; }
     const open = document.querySelector("details.menu[open]");
     if (open) { open.removeAttribute("open"); open.querySelector("summary").focus(); return; }
     // A tile's details panel is open while its id is the URL's fragment.
@@ -1597,6 +1617,10 @@
     showLive();
     cardTables();
     navFit();
+    document.querySelectorAll("input[data-filter][data-filter-url]").forEach(function (i) {
+      const w = new URLSearchParams(window.location.search).get("q");
+      if (w) { i.value = w; filterCards(i); }
+    });
     const q = document.getElementById("matrix-q");
     const drift = document.getElementById("matrix-drift");
     if (q && drift) {

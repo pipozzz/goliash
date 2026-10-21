@@ -37,6 +37,10 @@ templ TilesPage(v TilesView) {
 					<div data-tl-live hidden?={ v.At != "" }>@aboutText("Every application as a cell, coloured like the logo: bright when up to date, dimmer when behind, warm when it needs attention. Open a cell for its services.")</div>
 				</div>
 				<div class="tiles-head-end">
+					if v.App == "" {
+						<input type="search" class="search page-filter" data-filter=".logo-board .board-cell" data-filter-dim data-filter-url data-filter-count="tiles-count" placeholder="Filter applications, services, versions" aria-label="Filter the cells" aria-keyshortcuts="/" autocomplete="off"/>
+						<span id="tiles-count" class="muted filter-count" aria-live="polite"></span>
+					}
 					if v.At == "" {
 						@viewTabsBar(v.Views)
 						<a href={ templ.URL(tilesWithAt(v, v.Yesterday)) } class="toolbar-link timetravel-open" data-tl-open hx-boost="false" title="Scrub through what ran when, deployment by deployment">Time travel</a>
@@ -227,6 +231,9 @@ templ board(items []BoardItem, cols int, compact bool) {
 				}
 				data-key={ it.Key }
 				data-state={ it.State }
+				if it.Search != "" {
+					data-search={ it.Search }
+				}
 				title={ it.Name + ": " + tileLabel(it.State) }
 			>
 				<span class="board-top">

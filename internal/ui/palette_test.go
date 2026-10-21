@@ -44,3 +44,17 @@ func TestPalette(t *testing.T) {
 		t.Error("palette misses the shortcuts list or TV mode")
 	}
 }
+
+// Updates, Delivery, Security and the tiles have a filter box; an application's cell is found by its services.
+func TestPageFilters(t *testing.T) {
+	e := newUIEnv(t)
+	m := e.as(store.RoleMember)
+	for _, path := range []string{"/updates", "/delivery", "/security", "/tiles"} {
+		if _, page := get(t, m, e.srv.URL+path, nil); !strings.Contains(page, `class="search page-filter"`) || !strings.Contains(page, "data-filter-url") {
+			t.Errorf("%s has no filter", path)
+		}
+	}
+	if _, page := get(t, m, e.srv.URL+"/tiles?group=app", nil); !strings.Contains(page, `data-search="`) {
+		t.Error("tiles cells carry nothing to filter on")
+	}
+}
