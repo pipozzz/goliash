@@ -265,6 +265,70 @@ func (n *Notifier) Handle(sc store.Scope, events []store.Event) {
 	if err := n.handle(ctx, sc, events); err != nil {
 		n.log.Error("queueing notifications failed", "err", err)
 	}
+	if err := n.watchReleases(ctx, sc, events); err != nil {
+		n.log.Error("queueing security watch notifications failed", "err", err)
+	}
+}
+
+// EventWatch announces a new release of software a security watch covers ("php" after PHP's advance notice).
+const EventWatch = "watch"
+
+// watchReleases queues, for each new release of a service an active security watch covers, the news for rules
+// that want watches: the release a watched advance notice is about, the minute Goliash sees it.
+func (n *Notifier) watchReleases(ctx context.Context, sc store.Scope, events []store.Event) error {
+	var releases []store.Event
+	for _, e := range events {
+		if e.Type == "new_release" || e.Type == "security_release" {
+			releases = append(releases, e)
+		}
+	}
+	if len(releases) == 0 {
+		return nil
+	}
+	watches, err := n.store.ListWatches(ctx, sc, n.now())
+	if err != nil || len(watches) == 0 {
+		return err
+	}
+	rules, err := n.store.ActiveRules(ctx, sc)
+	if err != nil || len(rules) == 0 {
+		return err
+	}
+	o, err := versions.LoadOverview(ctx, n.store, sc)
+	if err != nil {
+		return err
+	}
+	terms := make([]string, len(watches))
+	for i, w := range watches {
+		terms[i] = w.Term
+	}
+	matches, err := versions.WatchMatches(ctx, n.store, sc, o, terms)
+	if err != nil {
+		return err
+	}
+	for _, w := range watches {
+		covered := map[string]bool{}
+		for _, m := range matches[w.Term] {
+			covered[m.ServiceID] = true
+		}
+		for _, e := range releases {
+			if !covered[e.ServiceID] {
+				continue
+			}
+			svc := o.Services[e.ServiceID]
+			it := Item{Type: EventWatch, Service: svc.Name, Owner: svc.Owner, From: e.FromVersion, To: e.ToVersion, Note: w.Term, At: e.At}
+			it.Text = Describe(it)
+			if w.Note != "" {
+				it.Text += " — " + w.Note
+			}
+			if rel, err := n.store.GetRelease(ctx, sc, e.ServiceID, e.ToVersion); err == nil {
+				it.URL = rel.ChangelogURL
+			}
+			if err := n.enqueue(ctx, sc, rules, it, EventWatch+"|"+w.ID+"|"+e.ServiceID+"|"+e.ToVersion); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Event) error {
@@ -727,6 +791,8 @@ func Describe(it Item) string {
 			to = " → " + it.To
 		}
 		return fmt.Sprintf("%s: %s%s (%s)", where, orDash(it.From), to, it.Note)
+	case EventWatch:
+		return fmt.Sprintf("%s: %s is out, %s runs (security watch “%s”)", where, it.To, orDash(it.From), it.Note)
 	case "vulnerability":
 		fix := ", no fix yet"
 		if it.To != "" {

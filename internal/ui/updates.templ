@@ -186,6 +186,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 		</td>
 		<td data-label="Why">
 			<div class="badges">
+				for _, term := range it.Watched {
+					<a class="badge eol" href="/security#watches" title="A security watch covers it: its next release is announced at once">{ "watch: " + term }</a>
+				}
 				for _, cve := range it.Exploited {
 					<a class="badge eol" href={ templ.URL("/security/vulns?q=" + cve) } title="Exploited in the wild (CISA KEV), in the running image's packages">{ "exploited " + cve }</a>
 				}

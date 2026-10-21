@@ -53,6 +53,9 @@ templ SecurityPage(v SecurityView) {
 				<small>stale targets, targets without digests, services without a known upstream</small>
 			</a>
 		</div>
+		if len(v.Watches) > 0 || v.CanWatch {
+			@watchesPanel(v)
+		}
 		if len(v.Trend) > 0 {
 			<section class="panel">
 				<div class="panel-head">
@@ -404,4 +407,71 @@ func explainExposure(ex versions.Exposure) string {
 	return "Explain the exposure of " + ex.Service.Name + " in " + ex.Environment.Name + ": it runs " + ex.Running +
 		" while " + ex.Target + " is out, for " + days(ex.Days) + ". What do the releases in between fix (security first), " +
 		"what would the upgrade break, and what should we do first?"
+}
+
+// watchesPanel lists the security watches, each with the services it covers, and starts new ones.
+templ watchesPanel(v SecurityView) {
+	<section class="panel" id="watches">
+		<div class="panel-head">
+			<h2>Security watches</h2>
+			@panelInfo("After an advance notice (\"PHP: two critical fixes on Oct 21\"), watch the software: Goliash shows what runs it and announces its next release the minute it sees it (the watch notification).")
+		</div>
+		for _, w := range v.Watches {
+			<div class="panel-body watch">
+				<div class="watch-head">
+					<strong>{ "“" + w.Term + "”" }</strong>
+					if w.Note != "" {
+						<span>{ w.Note }</span>
+					}
+					<span class="muted">
+						if w.Until != "" {
+							{ "until " + w.Until }
+						} else {
+							until removed
+						}
+						if w.By != "" {
+							{ " · by " + w.By }
+						}
+					</span>
+					if v.CanWatch {
+						<form method="post" action={ templ.URL("/security/watches/" + w.ID + "/delete") } class="inline">
+							<button type="submit" class="link">Stop watching</button>
+						</form>
+					}
+				</div>
+				if len(w.Matches) == 0 {
+					<p class="muted">Nothing that runs matches it now.</p>
+				} else {
+					<ul class="watch-matches">
+						for _, m := range w.Matches {
+							<li>
+								<a class="u" href={ templ.URL("/services/" + url.PathEscape(m.Service)) }><strong>{ m.Service }</strong></a>
+								if m.Running != "" {
+									<span class="mono">{ " " + m.Running }</span>
+								}
+								<span class="muted">{ " · " + m.Why }</span>
+							</li>
+						}
+					</ul>
+				}
+			</div>
+		}
+		if v.CanWatch {
+			<form class="panel-body row watch-form" method="post" action="/security/watches">
+				<label>What<input name="term" required maxlength="100" placeholder="php, openssl, ghcr.io/acme/api…"/></label>
+				<label class="grow">Why<input name="note" maxlength="200" placeholder="Two critical fixes announced for Oct 21, 14:00 UTC"/></label>
+				<label>
+					For
+					<select name="days">
+						<option value="7">a week</option>
+						<option value="14">two weeks</option>
+						<option value="30">a month</option>
+						<option value="90">three months</option>
+						<option value="0">until removed</option>
+					</select>
+				</label>
+				<button type="submit">Watch</button>
+			</form>
+		}
+	</section>
 }

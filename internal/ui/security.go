@@ -36,6 +36,8 @@ type SecurityView struct {
 	PRs      map[string][]PromotePR // service ID|environment ID: pull requests offered for an exposure
 	Show     string                 // the exposures shown: "" all, "30", "eol" or "accepted" (a tile clicked)
 	Trend    []TrendLine            // production over the last 90 days; empty until there are two days
+	Watches  []WatchView            // security watches, with what each covers
+	CanWatch bool                   // a member may start and end watches
 	Since    string                 // the first day of the trend
 }
 
@@ -129,6 +131,10 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
+		return err
+	}
+	v.CanWatch = p.Can(store.RoleMember)
+	if v.Watches, err = s.watchViews(r.Context(), p.Scope); err != nil {
 		return err
 	}
 	if hist, err := s.store.PostureHistory(r.Context(), p.Scope, time.Now().AddDate(0, 0, -trendKept).UTC().Format(time.DateOnly)); err == nil {

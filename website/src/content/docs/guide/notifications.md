@@ -241,6 +241,20 @@ starts running says so in its first alert.
 goliash notify create -channel security -events vulnerability -envs prod -mode instant
 ```
 
+### Security watches
+
+Projects often warn before they publish (*PHP: two critical vulnerabilities, fixed on Oct 21, 14:00 UTC*). On the
+[Security page](/guide/security/#security-watches), **Security watches** takes what to watch (`php`, `openssl`, an
+image or a service), why and for how long, and lists at once what runs it and why (*runs docker.io/library/php*,
+*package php8.2-cli*). Updates marks those upgrades *watch: php*, and the `watch` event announces their next release
+the minute Goliash sees it:
+
+> shop: 8.3.36-fpm is out, 8.3.34-fpm runs (security watch “php”) — two critical fixes on Oct 21
+
+```sh
+goliash notify create -channel security -events watch -mode instant
+```
+
 The first time a workspace's SBOMs are looked up completely, what already runs is recorded without announcing, so
 an installation does not hear about every vulnerability it runs on day one; the Security page lists those. See
 [Security posture](../security/#is-it-running).

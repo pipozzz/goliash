@@ -218,6 +218,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /integrations/slack/goli", s.goliSlack)
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
+	mux.Handle("POST /security/watches", s.page(m, s.addWatch))
+	mux.Handle("POST /security/watches/{id}/delete", s.page(m, s.deleteWatch))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
 	mux.Handle("POST /inbox/map-all", s.page(m, s.inboxMapAll))
 	mux.Handle("POST /inbox/auto-map", s.page(m, s.setAutoMap))
@@ -2087,7 +2089,7 @@ func ruleForm(rule store.Rule) RuleForm {
 		out.QuietFrom, out.QuietTo = *f.QuietFrom, *f.QuietTo
 	}
 	if len(out.Events) == 0 { // every type
-		out.Events = []string{"new_release", "drift_detected", "drift_resolved", "version_changed", "removed", "agent_stale", "vulnerability"}
+		out.Events = []string{"new_release", "drift_detected", "drift_resolved", "version_changed", "removed", "agent_stale", "vulnerability", "watch"}
 	}
 	return out
 }

@@ -24,6 +24,15 @@ The tiles are filters: *Behind for 30+ days*, *Past end of life* and *Accepted r
 (*Show all* lifts it, and it stays when you switch between production and every environment), *Blind spots* jumps to
 its section. Where a GitOps application deploys an exposed service, **Open PR** proposes the fix next to it.
 
+## Security watches
+
+An advance notice names software, not your services. **Security watches** on the Security page turns it into a
+list: type what to watch (`php`, `openssl`, `ghcr.io/acme/api`), why and for how long (a week to three months, or
+until removed), and each watch shows the services that run it, with the version and why they match: their name,
+an image or workload they run, a GitOps application deploying them, or a package in their images' SBOMs. Updates
+marks their upgrades *watch: php*; the `watch` notification announces their next release at once. Members start and
+end watches; everyone sees them.
+
 ## Newest release unknown
 
 A service whose newest release Goliash does not know cannot be measured: it shows as *unknown* in the tiles and

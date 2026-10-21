@@ -1388,3 +1388,8 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .logo-board:not(.compact) .board-cell:not(.big) .env-strip { grid-area: strip; align-self: center; justify-self: start; }
 .logo-board:not(.compact) .board-cell:not(.big) .mini-logo { grid-area: logo; align-self: center; height: min(var(--mini), 100%); width: auto; aspect-ratio: 1; min-height: 0; }
 .logo-board:not(.compact) .board-cell:not(.big) .board-foot { grid-area: foot; }
+/* Security watches: a term, why, until when, and what runs it. */
+.watch + .watch { border-top: 1px solid var(--line); }
+.watch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.watch-matches { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.watch-form { align-items: end; }
