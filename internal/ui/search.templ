@@ -48,9 +48,14 @@ templ SearchPage(v SearchView) {
 				<section class="panel search-section">
 					<div class="panel-head">
 						<h2>{ sec.Title } <span class="count">{ itoa(sec.Total) }</span></h2>
-						if sec.More != "" && sec.Total > len(sec.Hits) {
-							<a href={ templ.URL(sec.More) }>{ sec.MoreLabel } →</a>
-						}
+						<span class="panel-links">
+							if sec.Act != "" {
+								<a href={ templ.URL(sec.Act) }>{ sec.ActLabel } →</a>
+							}
+							if sec.More != "" && sec.Total > len(sec.Hits) {
+								<a href={ templ.URL(sec.More) }>{ sec.MoreLabel } →</a>
+							}
+						</span>
 					</div>
 					<ul class="search-hits">
 						for _, h := range sec.Hits {

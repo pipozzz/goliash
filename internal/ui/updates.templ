@@ -58,12 +58,14 @@ templ UpdatesPage(v UpdatesView) {
 			if v.Bulk {
 				<form id="bulk-prs" method="post" action="/updates/prs" class="inline">
 					<input type="hidden" name="return" value={ updatesURL(v, "level", levelParam(v)) }/>
+					<button type="button" class="link" data-tick-shown="bulk-prs" title="Tick every upgrade shown (with the filter, only those it shows); again to untick them">Tick all shown</button>
 					<label class="muted" title="Upgrades ticked in the same repository, branch and environment go as one pull request"><input type="checkbox" name="group" value="repo"/> one per repository</label>
-					<button type="submit" title="Open a pull request for every upgrade ticked below">Open the ticked pull requests</button>
+					<button type="submit" title="Open a pull request for every upgrade ticked below (and shown)">Open the ticked pull requests<span data-bulk-count></span></button>
+					<span class="muted bulk-limit" data-bulk-limit hidden>{ "at most " + itoa(bulkMax) + " at a time" }</span>
 				</form>
 			}
 			if len(v.Items) > 0 {
-				<button type="button" class="secondary" data-copy="updates-md" title="A markdown checklist for a ticket or a planning board">Copy as checklist</button>
+				<button type="button" class="secondary" data-copy="updates-md" data-copy-rows="main table tbody tr[data-md]" title="A markdown checklist of the upgrades shown, for a ticket or a planning board">Copy as checklist</button>
 				<pre id="updates-md" hidden>{ v.Markdown }</pre>
 			}
 		</div>
@@ -149,7 +151,7 @@ templ UpdatesPage(v UpdatesView) {
 }
 
 templ updateRow(it UpdateItem, canAck bool, ret string) {
-	<tr data-level={ it.LevelClass }>
+	<tr data-level={ it.LevelClass } data-md={ updateMarkdown(it) }>
 		<td class="svc">
 			<a href={ templ.URL(it.ServiceURL) }>{ it.Service }</a>
 			if it.App != "" {

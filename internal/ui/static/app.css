@@ -601,6 +601,7 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .search-hits li { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
 .search-hits li:last-child { border-bottom: 0; }
 .search-hit { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.search-section .panel-links { display: inline-flex; gap: 16px; flex-wrap: wrap; }
 .search-section .count { color: var(--muted); font-weight: 500; font-size: 0.85em; }
 .logo-board .board-cell.filter-out { opacity: 0.18; filter: saturate(0.3); }
 .page-filter { max-width: 260px; }

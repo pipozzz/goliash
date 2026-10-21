@@ -30,6 +30,8 @@ type SearchSection struct {
 	Hits      []SearchHit
 	More      string // the page listing all of them, filtered; "" when there is none
 	MoreLabel string
+	// Act is a page to act on them from: the upgrades of the services found.
+	Act, ActLabel string
 }
 
 // SearchHit is one result.
@@ -83,7 +85,10 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	places := map[string]*SearchSection{
-		"service":     {Title: "Services", More: "/?view=table&q=" + q, MoreLabel: "Filter the matrix"},
+		"service": {
+			Title: "Services", More: "/?view=table&q=" + q, MoreLabel: "Filter the matrix",
+			Act: "/updates?q=" + q, ActLabel: "Their upgrades",
+		},
 		"application": {Title: "Applications and teams", More: "/tiles?q=" + q, MoreLabel: "Filter the tiles"},
 		"target":      {Title: "Targets"},
 		"page":        {Title: "Pages and views"},

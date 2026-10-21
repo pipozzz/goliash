@@ -783,8 +783,9 @@ func TestBulkPRs(t *testing.T) {
 	_ = e.ui.checker.EvaluateDrift(ctx, sc)
 	member := e.as(store.RoleMember)
 	want := svc + "|" + e.tgt.ID + "|w1|1.28.0"
-	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, `form="bulk-prs"`) || !strings.Contains(page, "Open the ticked pull requests") {
-		t.Fatal("no ticks on the Updates page")
+	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, `form="bulk-prs"`) || !strings.Contains(page, "Open the ticked pull requests") ||
+		!strings.Contains(page, `data-tick-shown="bulk-prs"`) || !strings.Contains(page, `data-md="- [ ] `) {
+		t.Fatal("no ticks on the Updates page, or no way to tick all shown and copy them")
 	}
 	if _, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/updates", nil); strings.Contains(page, "bulk-prs") {
 		t.Fatal("a viewer may tick pull requests")

@@ -173,6 +173,10 @@ Where a GitOps application deploys the service, a line offers **Open PR** to the
 and **Open the ticked pull requests** opens them together, each on its own or, with *one per repository*, one per
 repository, branch and environment (see [Upgrade with a pull request](/guide/argocd/#upgrade-with-a-pull-request)).
 
+**An upgrade campaign** (every nginx to its newest release, say): filter the list (`nginx`, or *Their upgrades* from
+[Search](/guide/matrix/)), **Tick all shown**, and open them together; the button counts what goes, and upgrades the
+filter hides are left out. **Copy as checklist** copies the upgrades shown, for a ticket.
+
 The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with. A notification rule
 with the upgrade plan sends it every week; see [Upgrade plan](/guide/notifications/#upgrade-plan).
 

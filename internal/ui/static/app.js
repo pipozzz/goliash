@@ -142,6 +142,7 @@
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
     if (dim) cellsReach();
+    bulkCount();
     const count = input.getAttribute("data-filter-count") && document.getElementById(input.getAttribute("data-filter-count"));
     if (count) count.textContent = words.length && total ? shown + " of " + total : "";
     if (input.hasAttribute("data-filter-url")) {
@@ -182,6 +183,39 @@
       c.inert = c.classList.contains("filter-out") || Boolean(only && !c.classList.contains("s-" + only));
     });
   }
+  // Bulk pull requests (Updates): "Tick all shown" ticks the upgrades the filter shows (again: unticks them), the
+  // button counts what goes, and ticked rows a filter hides stay out of the form.
+  function bulkShown(form) {
+    return Array.from(document.querySelectorAll('input[form="' + form + '"][name="pr"]')).filter(function (c) {
+      const row = c.closest("tr");
+      return !row || !row.hidden;
+    });
+  }
+  function bulkCount() {
+    const form = document.getElementById("bulk-prs");
+    if (!form) return;
+    const n = bulkShown("bulk-prs").filter(function (c) { return c.checked; }).length;
+    const count = form.querySelector("[data-bulk-count]");
+    if (count) count.textContent = n ? " (" + n + ")" : "";
+    const limit = form.querySelector("[data-bulk-limit]");
+    if (limit) limit.hidden = n <= 20;
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("[data-tick-shown]");
+    if (!b) return;
+    const shown = bulkShown(b.getAttribute("data-tick-shown"));
+    const all = shown.length > 0 && shown.every(function (c) { return c.checked; });
+    shown.forEach(function (c) { c.checked = !all; });
+    bulkCount();
+  });
+  document.addEventListener("change", function (e) { if (e.target.matches && e.target.matches('input[form="bulk-prs"]')) bulkCount(); });
+  document.addEventListener("submit", function (e) {
+    if (e.target.id !== "bulk-prs") return;
+    document.querySelectorAll('input[form="bulk-prs"][name="pr"]:checked').forEach(function (c) {
+      const row = c.closest("tr");
+      if (row && row.hidden) c.checked = false; // not shown: not opened
+    });
+  }, true);
   // Filters with words in them apply again to what a live refresh brought.
   function refilter() {
     document.querySelectorAll("input[data-filter]").forEach(function (i) { if (i.value) filterCards(i); });
@@ -272,7 +306,11 @@
     const btn = e.target.closest("[data-copy]");
     if (!btn) return;
     const el = document.getElementById(btn.getAttribute("data-copy"));
-    navigator.clipboard.writeText(el.textContent).then(
+    // data-copy-rows: the lines of the rows shown (a filter may hide some), else the element's text.
+    const rows = btn.getAttribute("data-copy-rows");
+    const text = rows ? Array.from(document.querySelectorAll(rows)).filter(function (r) { return !r.hidden; })
+      .map(function (r) { return r.getAttribute("data-md"); }).join("") : el.textContent;
+    navigator.clipboard.writeText(text).then(
       function () { btn.textContent = "Copied"; },
       function () { window.getSelection().selectAllChildren(el); }
     );
