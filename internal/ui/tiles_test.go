@@ -262,3 +262,23 @@ func TestLayoutBoardNotTall(t *testing.T) {
 		}
 	}
 }
+
+// Every board from 1 to 40 applications, with none to five big ones: never a hole, never much taller than wide.
+func TestLayoutBoardShapes(t *testing.T) {
+	for n := 1; n <= 40; n++ {
+		for big := 0; big <= min(5, n); big++ {
+			items := make([]BoardItem, n)
+			for i := range items {
+				items[i].Span = 1
+				if i < big {
+					items[i].Span = 2
+				}
+			}
+			out, cols := layoutBoard(items)
+			holes, rows := packBoard(out, cols)
+			if holes > 0 || rows > cols+2 {
+				t.Errorf("%d applications, %d big: %d columns × %d rows, %d holes", n, big, cols, rows, holes)
+			}
+		}
+	}
+}

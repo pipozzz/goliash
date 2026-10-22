@@ -22,6 +22,7 @@ type Release struct {
 	ChangelogURL string
 	DiscoveredAt time.Time
 	Security     string // the security fixes it names: "CVE-2026-1, GHSA-…", or "security" when only that is known
+	Breaking     string // what its notes say breaks, quoted: "Removed support for PostgreSQL 12 · …"
 }
 
 // InsertReleases records versions of a service and returns those not known before.
@@ -48,7 +49,7 @@ func (s *Store) InsertReleases(ctx context.Context, sc Scope, serviceID string, 
 
 // ListReleases returns the known versions of a service in discovery order.
 func (s *Store) ListReleases(ctx context.Context, sc Scope, serviceID string) ([]Release, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, published_at, changelog_url, discovered_at, security FROM releases
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, published_at, changelog_url, discovered_at, security, breaking FROM releases
 		WHERE org_id = ? AND workspace_id = ? AND service_id = ? ORDER BY discovered_at, version`,
 		sc.OrgID, sc.WorkspaceID, serviceID)
 	if err != nil {
@@ -59,7 +60,7 @@ func (s *Store) ListReleases(ctx context.Context, sc Scope, serviceID string) ([
 	for rows.Next() {
 		var r Release
 		var published sql.NullTime
-		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &published, &r.ChangelogURL, &r.DiscoveredAt, &r.Security); err != nil {
+		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &published, &r.ChangelogURL, &r.DiscoveredAt, &r.Security, &r.Breaking); err != nil {
 			return nil, err
 		}
 		r.PublishedAt, r.DiscoveredAt = timeOrZero(published), r.DiscoveredAt.UTC()
@@ -71,7 +72,7 @@ func (s *Store) ListReleases(ctx context.Context, sc Scope, serviceID string) ([
 // ReleasesByService returns the known versions of every service of the workspace, keyed by service ID, each in
 // discovery order: one query for what ListReleases does per service.
 func (s *Store) ReleasesByService(ctx context.Context, sc Scope) (map[string][]Release, error) {
-	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, published_at, changelog_url, discovered_at, security FROM releases
+	rows, err := s.query(ctx, s.db, `SELECT id, service_id, version, digest, published_at, changelog_url, discovered_at, security, breaking FROM releases
 		WHERE org_id = ? AND workspace_id = ? ORDER BY service_id, discovered_at, version`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -81,7 +82,7 @@ func (s *Store) ReleasesByService(ctx context.Context, sc Scope) (map[string][]R
 	for rows.Next() {
 		var r Release
 		var published sql.NullTime
-		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &published, &r.ChangelogURL, &r.DiscoveredAt, &r.Security); err != nil {
+		if err := rows.Scan(&r.ID, &r.ServiceID, &r.Version, &r.Digest, &published, &r.ChangelogURL, &r.DiscoveredAt, &r.Security, &r.Breaking); err != nil {
 			return nil, err
 		}
 		r.PublishedAt, r.DiscoveredAt = timeOrZero(published), r.DiscoveredAt.UTC()
@@ -340,6 +341,14 @@ func (s *Store) setTagResolution(ctx context.Context, sc Scope, repo, digest, ve
 		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET version = excluded.version, checked_at = excluded.checked_at,
 			candidates = excluded.candidates`,
 		sc.OrgID, sc.WorkspaceID, repo, digest, version, s.now(), candidates)
+	return err
+}
+
+// SetReleaseBreaking records what a release's notes say breaks.
+func (s *Store) SetReleaseBreaking(ctx context.Context, sc Scope, serviceID, version, breaking string) error {
+	defer s.releasesGen.Add(1)
+	_, err := s.exec(ctx, s.db, `UPDATE releases SET breaking = ? WHERE org_id = ? AND workspace_id = ? AND service_id = ? AND version = ?`,
+		breaking, sc.OrgID, sc.WorkspaceID, serviceID, version)
 	return err
 }
 

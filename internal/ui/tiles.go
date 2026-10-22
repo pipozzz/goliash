@@ -432,25 +432,40 @@ func tileGridSize(n int) int {
 	return max(side, 2)
 }
 
-// boardColumns keeps the board close to a square, like the logo: 3 columns for up to
-// nine units of area, 4 up to sixteen, and so on, never more than 6.
-// boardColumns picks 3 to 6 columns for a board of units cells: the fewest empty
-// places in the last row, then the squarest, then the wider board. Ten applications
-// are two full rows of five, not three rows of four with two holes.
+// boardColumns picks the columns of a board of units cells (colsUpTo): the lowest boardScore (empty places in
+// the last row, rows beyond the columns), then the squarest, then the wider board. Ten applications are two full
+// rows of five, not three rows of four with two holes.
 func boardColumns(units int) int {
-	best, bestEmpty, bestSkew := 3, -1, 0
-	for c := 3; c <= 6; c++ {
+	best, bestScore, bestSkew := 3, -1, 0
+	for c := minCols; c <= colsUpTo(units); c++ {
 		rows := max((units+c-1)/c, 1)
-		empty, skew := rows*c-units, c-rows
+		score, skew := boardScore(units, c, rows), c-rows
 		if skew < 0 {
 			skew = -skew
 		}
 		// On a tie the wider board wins: pages are wider than tall.
-		if bestEmpty < 0 || empty < bestEmpty || (empty == bestEmpty && skew <= bestSkew) {
-			best, bestEmpty, bestSkew = c, empty, skew
+		if bestScore < 0 || score < bestScore || (score == bestScore && skew <= bestSkew) {
+			best, bestScore, bestSkew = c, score, skew
 		}
 	}
 	return best
+}
+
+// A board has 3 to 6 columns, up to 8 for more than 36 cells: wider still than 6 by 6 rather than taller.
+const minCols = 3
+
+func colsUpTo(units int) int {
+	if units > 36 {
+		return 8
+	}
+	return 6
+}
+
+// boardScore is what a board of cols by rows costs for units cells: its empty cells, and two for each row it has
+// beyond its columns. A tall board shrinks to fit the screen's height until its cells cannot be read, so 3 columns
+// by 13 rows loses to 5 by 8 though it fills without an empty cell.
+func boardScore(units, cols, rows int) int {
+	return rows*cols - units + 2*max(rows-cols, 0)
 }
 
 // layoutBoard keeps big cells for large applications when the board can hold them
@@ -478,17 +493,17 @@ func layoutBoard(items []BoardItem) ([]BoardItem, int) {
 			bigFirst = append(bigFirst, it)
 		}
 	}
-	// The fewest empty cells wins, but a board taller than wide pays for each extra row: it has to shrink to fit the
-	// screen's height, and 3 columns by 9 rows leaves cells too small to read (27 units fill it without a hole).
+	// The fewest empty cells wins, but a board taller than wide pays for each extra row (boardScore): 3 columns by 9
+	// rows fills 27 units without a hole, and leaves cells too small to read.
 	var best []BoardItem
 	bestCols, bestRows, bestScore := 0, 0, 0
 	for _, order := range [][]BoardItem{items, bigFirst} {
-		for c := 3; c <= 6; c++ {
+		for c := minCols; c <= colsUpTo(units); c++ {
 			holes, rows := packBoard(order, c)
 			if holes > 0 {
 				continue
 			}
-			score := rows*c - units + 2*max(rows-c, 0)
+			score := boardScore(units, c, rows)
 			if best == nil || score < bestScore || (score == bestScore && rows < bestRows) {
 				best, bestCols, bestRows, bestScore = order, c, rows, score
 			}

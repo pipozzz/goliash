@@ -53,6 +53,7 @@ type UpdateItem struct {
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
 	SecurityFix                          string   // what the releases up to Target say they fix
+	Breaking                             []string // what the releases up to Target say breaks: "2.0.0: Removed …"
 	Watched                              []string // the security watches covering the service
 	EOLPassed                            bool
 	On                                   string // the targets running Running, when others run newer versions
@@ -88,10 +89,10 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "watches", "release_notes"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "release_notes"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
-		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " ")) {
+		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " ")) {
 			continue
 		}
 		since := ""
@@ -100,11 +101,23 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Watched, " "), it.TargetURL,
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), it.TargetURL,
 		})
 	}
 	cw.Flush()
 	return cw.Error()
+}
+
+// breakingShown bounds the notes' lines an upgrade shows; the CSV and the checklist have them all.
+const breakingShown = 3
+
+// breakingBadge names the releases whose notes say something breaks: "breaking in 2.0.0", "breaking in 3 releases".
+func breakingBadge(lines []string) string {
+	if len(lines) == 1 {
+		v, _, _ := strings.Cut(lines[0], ": ")
+		return "breaking in " + v
+	}
+	return "breaking in " + itoa(len(lines)) + " releases"
 }
 
 // updatesCSVHref downloads what the page shows; the filter box adds its words as it changes.
@@ -169,7 +182,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Watched: watched[u.Service.ID],
+			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
 			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
@@ -228,6 +241,9 @@ func updateMarkdown(it UpdateItem) string {
 	}
 	if it.Jump != "" {
 		why = append(why, it.Jump)
+	}
+	if len(it.Breaking) > 0 {
+		why = append(why, "breaking: "+strings.Join(it.Breaking, "; "))
 	}
 	if it.Behind != "" {
 		why = append(why, "behind "+it.Behind)

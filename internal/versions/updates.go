@@ -27,12 +27,14 @@ type Update struct {
 	Behind      string // the previous environment it is behind, if any
 	// SecurityFix is what the releases up to Target say they fix: CVE or other identifiers, or "security".
 	SecurityFix string
-	EOL         string // the end-of-life date of the running release cycle, if it is near or past
-	EOLPassed   bool
-	On          []string  // the targets running Running, when the environment runs other versions too
-	Since       time.Time // when the oldest of its drifts opened
-	Acked       bool      // an acknowledgement quiets it
-	Urgency     int       // 0 most urgent; see urgencyLabels
+	// Breaking is what the releases up to Target say breaks, quoted from their notes: "2.0.0: Removed …".
+	Breaking  []string
+	EOL       string // the end-of-life date of the running release cycle, if it is near or past
+	EOLPassed bool
+	On        []string  // the targets running Running, when the environment runs other versions too
+	Since     time.Time // when the oldest of its drifts opened
+	Acked     bool      // an acknowledgement quiets it
+	Urgency   int       // 0 most urgent; see urgencyLabels
 	// Exploited lists the vulnerabilities in the running image that CISA knows to be exploited in the wild;
 	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
 	Exploited []string
@@ -116,6 +118,7 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		if u.Target != "" {
 			u.TargetURL = o.ReleaseURL[k.svc+"|"+u.Target]
 			u.SecurityFix = securityUpTo(o, k.svc, u.Running, u.Target)
+			u.Breaking = breakingUpTo(o, k.svc, u.Running, u.Target)
 		}
 		u.Urgency = urgency(*u)
 		u.Acked = ackedUpdate(*u, acks, now)

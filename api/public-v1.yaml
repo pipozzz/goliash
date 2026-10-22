@@ -811,7 +811,12 @@ paths:
                     jump: { type: string, enum: [patch, minor, major] }
                     behind: { type: string, description: "The previous environment it is behind." }
                     eol: { type: string, format: date }
-                    urgency: { type: string, enum: ["exploited vulnerability", "end of life", "end of life soon", major, minor, "behind previous env", patch] }
+                    urgency: { type: string, enum: ["exploited vulnerability", "security fix", "end of life", "end of life soon", major, minor, "behind previous env", patch] }
+                    security_fix: { type: string, description: "What the releases up to target say they fix: CVE, GHSA or GO identifiers, or \"security\"." }
+                    breaking:
+                      type: array
+                      items: { type: string }
+                      description: "What the releases up to target say breaks, quoted from their notes, oldest first: \"2.0.0: Removed support for PostgreSQL 12\"."
                     exploited:
                       type: array
                       items: { type: string }

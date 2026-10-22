@@ -902,6 +902,8 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Exploited    []string      `json:"exploited,omitempty"`
 		Critical     int           `json:"critical_vulnerabilities,omitempty"`
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
+		SecurityFix  string        `json:"security_fix,omitempty"`
+		Breaking     []string      `json:"breaking,omitempty"`
 	}
 	out := []apiUpdate{}
 	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, time.Now()) {
@@ -909,7 +911,8 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
 			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
-			Exploited: u.Exploited, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns),
+			Exploited: u.Exploited, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
+			Breaking: u.Breaking,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

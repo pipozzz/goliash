@@ -214,7 +214,22 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 				if it.Behind != "" {
 					<span class="badge env">{ "behind " + it.Behind }</span>
 				}
+				if len(it.Breaking) > 0 {
+					<span class="badge warn" title="The release notes on the way say something breaks: read them before upgrading">{ breakingBadge(it.Breaking) }</span>
+				}
 			</div>
+			if len(it.Breaking) > 0 {
+				<ul class="breaking-notes">
+					for i, line := range it.Breaking {
+						if i < breakingShown {
+							<li>{ line }</li>
+						}
+					}
+					if len(it.Breaking) > breakingShown {
+						<li class="muted">{ "and " + itoa(len(it.Breaking)-breakingShown) + " more in the release notes" }</li>
+					}
+				</ul>
+			}
 		</td>
 		<td data-label="Open for">
 			@timeAgo(it.Since)
