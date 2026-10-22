@@ -107,3 +107,15 @@ func TestOverdueLine(t *testing.T) {
 		t.Errorf("nothing overdue: %q", got)
 	}
 }
+
+func TestBriefText(t *testing.T) {
+	now := time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)
+	b := Brief{NewKEV: []string{"CVE-2026-9"}, Exploited: 2, PastDue: []string{"CVE-2025-1"}, Watches: []BriefWatch{{"php", 3}}}
+	want := "Newly listed by CISA as exploited in the wild, and running: CVE-2026-9. Watching “php” (3 services). 2 vulnerabilities exploited in the wild run, 1 past CISA's due date (CVE-2025-1)."
+	if got := b.Text(now); got != want {
+		t.Errorf("Text = %q", got)
+	}
+	if (Brief{Watches: []BriefWatch{{"php", 3}}}).Any() {
+		t.Error("watches alone are news")
+	}
+}

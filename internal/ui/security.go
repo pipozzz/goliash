@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -40,6 +41,7 @@ type SecurityView struct {
 	CanWatch bool                   // a member may start and end watches
 	// Deadlines are the workspace's remediation deadlines; an admin sets them. Overdue and DueSoon count the
 	// upgrades past them and due within a week.
+	Brief           notifier.Brief // the Since yesterday panel: the security brief
 	Deadlines       store.Remediation
 	CanSetDeadlines bool
 	Overdue         int
@@ -141,6 +143,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	}
 	v.CanWatch = p.Can(store.RoleMember)
 	if v.Watches, err = s.watchViews(r.Context(), p.Scope); err != nil {
+		return err
+	}
+	if v.Brief, err = notifier.LoadBrief(r.Context(), s.store, p.Scope, v.At); err != nil {
 		return err
 	}
 	v.CanSetDeadlines = p.Can(store.RoleAdmin)

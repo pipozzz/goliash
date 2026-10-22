@@ -11,6 +11,10 @@ than from tickets or pipelines:
 - **How long has production been exposed?** For every service behind a newer release, the time since the *first*
   newer release came out. The median and the 90th percentile summarise it, with the count behind for more than 30
   and 90 days.
+- **What is new today?** *Since yesterday* opens the page with the [security brief](../notifications/#security-brief):
+  releases found since yesterday that fix vulnerabilities in what runs, vulnerabilities CISA newly lists as
+  exploited, upgrades past their [remediation deadline](#remediation-deadlines), upgrades fixing vulnerabilities
+  still waiting and fixes merged but not deployed, each a link to where to act.
 - **What is past its end of life?** Release cycles whose support has ended, or ends within 60 days
   ([endoflife.date](https://endoflife.date)).
 - **What risk has been accepted?** Upgrades quieted with an acknowledgement count as accepted risk, with who

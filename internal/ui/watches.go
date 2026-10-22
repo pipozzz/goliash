@@ -145,3 +145,18 @@ func deadlineLabel(days int) string {
 	}
 	return plural(days, "day", "days")
 }
+
+// overdueNames names the first upgrades past their deadline: "php in prod (12 days over), nginx in prod (2 days
+// over) and 3 more".
+func overdueNames(us []versions.Update, now time.Time) string {
+	const shown = 3
+	var names []string
+	for i, u := range us {
+		if i == shown {
+			names = append(names, "and "+itoa(len(us)-shown)+" more")
+			break
+		}
+		names = append(names, u.Service.Name+" in "+u.Environment.Name+" ("+plural(-u.DaysLeft(now), "day", "days")+" over)")
+	}
+	return strings.Join(names, ", ")
+}
