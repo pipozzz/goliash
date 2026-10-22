@@ -26,6 +26,7 @@ templ SecurityPage(v SecurityView) {
 				<button class="secondary" type="button" data-print>Print or save as PDF</button>
 			</div>
 		</div>
+		@sinceYesterday(v)
 		<div class="tiles">
 			<a class={ "tile", templ.KV("warn", v.ProdMedian > 30), templ.KV("on", v.Show == "") } href={ templ.URL(securityHref(v, "") + "#exposure") } title="Every exposure">
 				<strong>{ days(v.ProdMedian) }</strong>
@@ -55,6 +56,9 @@ templ SecurityPage(v SecurityView) {
 		</div>
 		if len(v.Watches) > 0 || v.CanWatch {
 			@watchesPanel(v)
+		}
+		if v.Deadlines.Any() || v.CanSetDeadlines {
+			@deadlinesPanel(v)
 		}
 		if len(v.Trend) > 0 {
 			<section class="panel">
@@ -477,6 +481,91 @@ templ watchesPanel(v SecurityView) {
 				</label>
 				<button type="submit">Watch</button>
 			</form>
+		}
+	</section>
+}
+
+// deadlinesPanel shows the remediation deadlines, what is past them, and lets an admin set them.
+templ deadlinesPanel(v SecurityView) {
+	<section class="panel" id="deadlines">
+		<div class="panel-head">
+			<h2>Remediation deadlines</h2>
+			@panelInfo("How many days the workspace gives itself to upgrade away from an exploited vulnerability (from CISA listing it while it runs), a release that fixes vulnerabilities (from Goliash finding it) and a release cycle past its end of life (from that date). Updates, the security brief and the posture report mark what is due and what is past.")
+		</div>
+		<div class="panel-body">
+			if v.Deadlines.Any() {
+				<p>
+					{ "Exploited vulnerability: " + deadlineLabel(v.Deadlines.Exploited) + " · security fix: " + deadlineLabel(v.Deadlines.Security) + " · end of life: " + deadlineLabel(v.Deadlines.EOL) + ". " }
+					if v.Overdue > 0 {
+						<a class="badge eol" href="/updates?due=over">{ plural(v.Overdue, "upgrade", "upgrades") + " past deadline" }</a>
+					} else {
+						<span class="badge ok">nothing past deadline</span>
+					}
+					if v.DueSoon > 0 {
+						{ " " }<span class="badge warn">{ itoa(v.DueSoon) + " due within a week" }</span>
+					}
+				</p>
+			} else {
+				<p class="muted">No deadlines set: Updates ranks by urgency alone.</p>
+			}
+		</div>
+		if v.CanSetDeadlines {
+			<form class="panel-body row watch-form" method="post" action="/security/deadlines">
+				@deadlineSelect("exploited", "Exploited vulnerability", v.Deadlines.Exploited)
+				@deadlineSelect("security", "Security fix", v.Deadlines.Security)
+				@deadlineSelect("eol", "End of life", v.Deadlines.EOL)
+				<button type="submit">Save deadlines</button>
+			</form>
+		}
+	</section>
+}
+
+templ deadlineSelect(name, label string, current int) {
+	<label>
+		{ label }
+		<select name={ name }>
+			for _, d := range deadlineDays {
+				<option value={ itoa(d) } selected?={ d == current }>{ deadlineLabel(d) }</option>
+			}
+		</select>
+	</label>
+}
+
+// sinceYesterday is the security brief on the page: what to look at today, each a link to where to act.
+templ sinceYesterday(v SecurityView) {
+	<section class="panel since-yesterday" id="since-yesterday" aria-labelledby="since-yesterday-h">
+		<div class="panel-head">
+			<h2 id="since-yesterday-h">Since yesterday</h2>
+			@panelInfo("What to look at today, as the security brief notification sends it each morning: new releases that fix vulnerabilities in what runs, vulnerabilities CISA newly lists as exploited, upgrades past their deadline and fixes merged but not deployed.")
+		</div>
+		if !v.Brief.Any() {
+			<p class="panel-body muted">Nothing new to look at: no security release since yesterday, nothing exploited running, no security upgrade waiting.</p>
+		} else {
+			<ul class="panel-body brief-list">
+				for _, f := range v.Brief.Fixes {
+					<li><span class="badge eol">security release</span> <a class="u" href={ templ.URL("/services/" + url.PathEscape(f.Service)) }><strong>{ f.Service }</strong></a> { f.Version + " fixes vulnerabilities; " + f.Running + " runs" }</li>
+				}
+				for _, cve := range v.Brief.NewKEV {
+					<li><span class="badge eol">newly exploited</span> <a class="u" href={ templ.URL("/security/vulns?q=" + url.QueryEscape(cve)) }>{ cve }</a> runs, and CISA listed it as exploited in the wild</li>
+				}
+				if v.Brief.Exploited > 0 {
+					<li>
+						<a class="u" href="/security/vulns?kev=1">{ plural(v.Brief.Exploited, "vulnerability", "vulnerabilities") + " exploited in the wild" }</a> run
+						if len(v.Brief.PastDue) > 0 {
+							{ ", " + itoa(len(v.Brief.PastDue)) + " past CISA's due date: " + strings.Join(v.Brief.PastDue, ", ") }
+						}
+					</li>
+				}
+				if len(v.Brief.Overdue) > 0 {
+					<li><a class="badge eol" href="/updates?due=over">{ plural(len(v.Brief.Overdue), "upgrade", "upgrades") + " past deadline" }</a> { overdueNames(v.Brief.Overdue, v.At) }</li>
+				}
+				if v.Brief.Waiting > 0 {
+					<li><a class="u" href="/updates">{ plural(v.Brief.Waiting, "upgrade", "upgrades") + " fixing vulnerabilities" }</a> wait in Updates</li>
+				}
+				if len(v.Brief.Undeployed) > 0 {
+					<li><a class="u" href="/delivery">{ plural(len(v.Brief.Undeployed), "pull request", "pull requests") + " merged" }</a> and not deployed</li>
+				}
+			</ul>
 		}
 	</section>
 }

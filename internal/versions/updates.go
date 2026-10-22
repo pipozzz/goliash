@@ -39,6 +39,14 @@ type Update struct {
 	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
 	Exploited []string
 	Critical  int
+	// ExploitedSince is when the first of Exploited became known to run exploited: the later of the image running
+	// there and CISA listing it.
+	ExploitedSince time.Time
+	// SecuritySince is when Goliash found the first release up to Target that fixes vulnerabilities.
+	SecuritySince time.Time
+	// Due is the remediation deadline the workspace set for its most pressing reason (DueFor); zero without one.
+	Due    time.Time
+	DueFor string
 	// Vulns is what upgrading does to known vulnerabilities, when the target version already runs somewhere and
 	// both images have an SBOM: those it fixes and those it brings.
 	Vulns VulnDelta
@@ -118,6 +126,7 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		if u.Target != "" {
 			u.TargetURL = o.ReleaseURL[k.svc+"|"+u.Target]
 			u.SecurityFix = securityUpTo(o, k.svc, u.Running, u.Target)
+			u.SecuritySince = securitySince(o, k.svc, u.Running, u.Target)
 			u.Breaking = breakingUpTo(o, k.svc, u.Running, u.Target)
 		}
 		u.Urgency = urgency(*u)
@@ -152,7 +161,7 @@ func sortUpdates(out []Update) {
 // vulnerability exploited in the wild first: upgrading is how most of them go away.
 func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	type key struct{ svc, env string }
-	exploited, critical := map[key][]string{}, map[key]int{}
+	exploited, critical, since := map[key][]string{}, map[key]int{}, map[key]time.Time{}
 	for _, f := range r.Findings {
 		seen := map[key]bool{}
 		for _, a := range f.Affected {
@@ -164,6 +173,13 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 			switch {
 			case f.Exploited != nil:
 				exploited[k] = append(exploited[k], f.Key)
+				known := a.Since
+				if added, err := time.Parse(time.DateOnly, f.Exploited.DateAdded); err == nil && added.After(known) {
+					known = added
+				}
+				if s, ok := since[k]; !known.IsZero() && (!ok || known.Before(s)) {
+					since[k] = known
+				}
 			case strings.EqualFold(f.Severity, "CRITICAL"):
 				critical[k]++
 			}
@@ -171,7 +187,7 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	}
 	for i := range us {
 		k := key{us[i].Service.ID, us[i].Environment.ID}
-		us[i].Exploited, us[i].Critical = exploited[k], critical[k]
+		us[i].Exploited, us[i].Critical, us[i].ExploitedSince = exploited[k], critical[k], since[k]
 		sort.Strings(us[i].Exploited)
 		us[i].Urgency = urgency(us[i])
 	}
@@ -193,6 +209,9 @@ func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 				}
 			}
 		}
+	}
+	if r, err := st.Remediation(ctx, sc); err == nil && r.Any() {
+		us = WithDeadlines(us, r)
 	}
 	return us
 }

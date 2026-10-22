@@ -829,6 +829,9 @@ paths:
                       type: array
                       items: { type: string }
                       description: "What the releases up to target say breaks, quoted from their notes, oldest first: \"2.0.0: Removed support for PostgreSQL 12\"."
+                    due: { type: string, format: date, description: "The remediation deadline the workspace set for its most pressing reason (Security page), when it set one." }
+                    due_for: { type: string, enum: ["exploited vulnerability", "security fix", "end of life"] }
+                    days_left: { type: integer, description: "Days until due: negative once past." }
                     exploited:
                       type: array
                       items: { type: string }

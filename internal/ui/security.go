@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -38,7 +39,14 @@ type SecurityView struct {
 	Trend    []TrendLine            // production over the last 90 days; empty until there are two days
 	Watches  []WatchView            // security watches, with what each covers
 	CanWatch bool                   // a member may start and end watches
-	Since    string                 // the first day of the trend
+	// Deadlines are the workspace's remediation deadlines; an admin sets them. Overdue and DueSoon count the
+	// upgrades past them and due within a week.
+	Brief           notifier.Brief // the Since yesterday panel: the security brief
+	Deadlines       store.Remediation
+	CanSetDeadlines bool
+	Overdue         int
+	DueSoon         int
+	Since           string // the first day of the trend
 }
 
 // TrendLine is one number of the posture over time.
@@ -136,6 +144,19 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	v.CanWatch = p.Can(store.RoleMember)
 	if v.Watches, err = s.watchViews(r.Context(), p.Scope); err != nil {
 		return err
+	}
+	if v.Brief, err = notifier.LoadBrief(r.Context(), s.store, p.Scope, v.At); err != nil {
+		return err
+	}
+	v.CanSetDeadlines = p.Can(store.RoleAdmin)
+	if v.Deadlines, err = s.store.Remediation(r.Context(), p.Scope); err != nil {
+		return err
+	}
+	if v.Deadlines.Any() {
+		v.Overdue, v.DueSoon, err = s.dueCounts(r.Context(), p.Scope)
+		if err != nil {
+			return err
+		}
 	}
 	if hist, err := s.store.PostureHistory(r.Context(), p.Scope, time.Now().AddDate(0, 0, -trendKept).UTC().Format(time.DateOnly)); err == nil {
 		v.Trend, v.Since = postureTrend(hist)

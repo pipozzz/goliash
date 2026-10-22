@@ -11,6 +11,10 @@ than from tickets or pipelines:
 - **How long has production been exposed?** For every service behind a newer release, the time since the *first*
   newer release came out. The median and the 90th percentile summarise it, with the count behind for more than 30
   and 90 days.
+- **What is new today?** *Since yesterday* opens the page with the [security brief](../notifications/#security-brief):
+  releases found since yesterday that fix vulnerabilities in what runs, vulnerabilities CISA newly lists as
+  exploited, upgrades past their [remediation deadline](#remediation-deadlines), upgrades fixing vulnerabilities
+  still waiting and fixes merged but not deployed, each a link to where to act.
 - **What is past its end of life?** Release cycles whose support has ended, or ends within 60 days
   ([endoflife.date](https://endoflife.date)).
 - **What risk has been accepted?** Upgrades quieted with an acknowledgement count as accepted risk, with who
@@ -32,6 +36,25 @@ until removed), and each watch shows the services that run it, with the version 
 an image or workload they run, a GitOps application deploying them, or a package in their images' SBOMs. Updates
 marks their upgrades *watch: php*; the `watch` notification announces their next release at once. Members start and
 end watches; everyone sees them.
+
+## Remediation deadlines
+
+How long may an exploited vulnerability run? **Remediation deadlines** on the Security page set it per workspace,
+in days, for three reasons to upgrade:
+
+| Reason | The clock starts |
+|---|---|
+| Exploited vulnerability | when CISA listed it while the image ran there (or when the image started running, if later) |
+| Security fix | when Goliash found the first release on the way that fixes vulnerabilities |
+| End of life | on the end-of-life date of the running release cycle |
+
+An upgrade with several reasons takes the earliest deadline. [Updates](../versions/#updates) marks each upgrade *due in
+3 days* (amber within a week) or *overdue 5 days* (red), and a *past deadline* tile lists only those; the CSV has
+`due` and `days_left`, `GET /api/v1/updates` has `due`, `due_for` and `days_left`. The panel counts what is past and
+what is due within a week, and the [security brief](../notifications/#security-brief) and the
+[posture report](../notifications/#security-posture-report) name the upgrades past their deadline. Admins set the
+deadlines (none, 3 days to half a year each); with none set, Updates ranks by urgency alone. An acknowledged upgrade
+(accepted risk) is not counted as past its deadline.
 
 ## Newest release unknown
 
