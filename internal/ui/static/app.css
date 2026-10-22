@@ -1395,3 +1395,5 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .watch-form { align-items: end; }
 /* Updates: what the release notes on the way say breaks, quoted. */
 .breaking-notes { margin: 6px 0 0; padding-left: 16px; font-size: 12.5px; line-height: 1.4; color: var(--muted); max-width: 46ch; overflow-wrap: anywhere; }
+/* Service: an image's chain of base images. */
+.base-chain { font: 12px/1.4 var(--mono); margin-top: 4px; overflow-wrap: anywhere; }

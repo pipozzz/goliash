@@ -46,7 +46,7 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 	if err != nil {
 		return err
 	}
-	bases := baseLookups{}
+	bases := newBaseLookups()
 	done := map[string]bool{}
 	n := 0
 	for _, in := range active {
@@ -178,7 +178,7 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 			serviceOf[in.Digest] = in.ServiceID
 		}
 	}
-	auth, bases := c.registryAuth(ctx, sc), baseLookups{}
+	auth, bases := c.registryAuth(ctx, sc), newBaseLookups()
 	for _, in := range found {
 		ev := store.ImageEvidence{Repo: repo, Digest: in.Digest, Found: in.Found}
 		if in.Error != nil {

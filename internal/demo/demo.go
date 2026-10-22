@@ -434,8 +434,15 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 		}
 		ev.Size = demoSize(ev.Repo, in.Tag)
 		ev.Layers = demoLayers(ev.Repo, in.Tag, ev.Size)
-		// Two of the team's images: one built on its base as it is now, one on a build from weeks ago.
+		// Three of the team's images: one built on its base as it is now, one on a build from weeks ago, and one on
+		// the team's own base image as it is now, which itself was not rebuilt on the newer alpine.
 		switch ev.Repo {
+		case "ghcr.io/acme/payments-api":
+			ev.BaseImage, ev.BaseStatus, ev.BaseSince = "ghcr.io/acme/base-java:21", "outdated", time.Now().AddDate(0, 0, -16)
+			ev.BaseChain = []store.BaseLink{
+				{Image: ev.Repo, Base: "ghcr.io/acme/base-java:21", Status: "current", Since: time.Now().AddDate(0, 0, -40)},
+				{Image: "ghcr.io/acme/base-java:21", Base: "docker.io/library/eclipse-temurin:21-jre-alpine", Status: "outdated", Since: time.Now().AddDate(0, 0, -16), How: "provenance"},
+			}
 		case "ghcr.io/acme/checkout":
 			ev.BaseImage, ev.BaseStatus, ev.BaseSince = "docker.io/library/node:18-alpine", "outdated", time.Now().AddDate(0, 0, -23)
 		case "ghcr.io/acme/orders-api":

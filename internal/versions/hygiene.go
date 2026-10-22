@@ -177,13 +177,21 @@ func OutdatedBases(active []store.Instance, evidence map[string]store.ImageEvide
 		key := ref.Repo() + ":" + ref.Tag
 		f := byImage[key]
 		if f == nil {
-			base := strings.TrimPrefix(strings.TrimPrefix(ev.BaseImage, "docker.io/library/"), "docker.io/")
+			stale, rebuild := OutdatedBase(ev)
+			base := ShortImage(stale)
 			detail := "built on an older " + base + " than the one its tag has now"
+			if rebuild != "" {
+				detail = "built on " + ShortImage(ev.BaseImage) + ", " + chainVia(ev, rebuild) + "built on an older " + base + " than the one its tag has now"
+			}
 			if !ev.BaseSince.IsZero() {
 				detail += " (built " + ev.BaseSince.Format("Jan 2") + ", " + strconv.Itoa(int(now.Sub(ev.BaseSince).Hours()/24)) + " days ago)"
 			}
+			fix := ": rebuild with --pull to get its fixes"
+			if rebuild != "" {
+				fix = ": rebuild " + ShortImage(rebuild) + " with --pull, then this image"
+			}
 			f = &Finding{
-				Kind: "outdated-base", Severity: "warning", Detail: detail + ": rebuild with --pull to get its fixes",
+				Kind: "outdated-base", Severity: "warning", Detail: detail + fix,
 				Image: strings.TrimPrefix(strings.TrimPrefix(key, "docker.io/library/"), "docker.io/"),
 			}
 			byImage[key] = f

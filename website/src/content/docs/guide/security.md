@@ -82,6 +82,29 @@ made (*built on an older node:22-alpine than the one its tag has now (built Oct 
 purpose and left alone. Agents send the layers of private images (agent 1.61); the base itself must be readable by
 the server, as public bases are.
 
+### Chains of base images
+
+Teams often build on their own base: the application is `FROM registry.example.com/base-java:21`, and that is
+`FROM eclipse-temurin:21-jre-alpine`. The application can be built on `base-java:21` as it is now while
+`base-java:21` itself was never rebuilt on the newer temurin, so temurin's fixes reach neither. Goliash follows the
+chain down, up to four images deep:
+
+- each image's base comes from its `org.opencontainers.image.base.name` label, or else from its BuildKit
+  provenance attestation (`--provenance`, on by default with `docker buildx build --push`), which names every image
+  the build used: Goliash takes the one whose layers, as they were at build time, the image starts with (a builder
+  stage's image is not it);
+- each link is compared like the first: current or outdated against its tag now;
+- the chain stops at an official Docker image (`docker.io/library/…`, rebuilt by their maintainers on their bases),
+  at an image whose base Goliash cannot tell or read, and four images down.
+
+An outdated link anywhere makes the image's base outdated, and says which image to rebuild first: *built on
+base-java:21, which is built on an older eclipse-temurin:21-jre-alpine than the one its tag has now: rebuild
+base-java:21 with `--pull`, then this image*. The service page draws the chain under each image
+(*on base-java:21 (current) → eclipse-temurin:21-jre-alpine (outdated)*), the Security page lists a base past its
+end of life anywhere down the chain (*eclipse-temurin:17 under base-java:17*), and `GET /api/v1/services/{name}/images`
+has `base_chain` and `rebuild_first`. Private bases are read with the workspace's
+[registry credentials](/reference/collectors/#credentials-on-the-server); without them the chain stops there.
+
 ## Supply-chain evidence
 
 For every image running in production, Goliash asks its registry what it holds beside the image:

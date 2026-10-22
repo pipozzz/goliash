@@ -623,8 +623,13 @@ templ serviceSecurity(v ServiceView) {
 							<td><strong>{ im.Env }</strong></td>
 							<td data-label="Image">
 								<code title={ im.Digest }>{ im.Image }</code>
-								if im.OldBase != "" {
+								if im.OldBase != "" && im.Rebuild != "" {
+									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=outdated-base" title={ im.Rebuild + " is built on an older " + im.OldBase + " than its tag has now: rebuild " + im.Rebuild + " with --pull, then this image" }>{ "older base under " + im.Rebuild }</a>
+								} else if im.OldBase != "" {
 									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=outdated-base" title={ "Built on an older " + im.OldBase + " than its tag has now: rebuild with --pull to get its fixes" }>older base</a>
+								}
+								if im.Chain != "" {
+									<div class="muted base-chain" title="The chain of base images, each built on the next: current or outdated against its tag now">{ "on " + im.Chain }</div>
 								}
 							</td>
 							<td class="num" data-label="Size">

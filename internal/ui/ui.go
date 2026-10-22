@@ -3214,7 +3214,11 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			rows[len(rows)-1].Signer, rows[len(rows)-1].SignerFull = shortSigner(ev.Signers[0].Identity), ev.Signers[0].Identity
 		}
 		if ev.BaseStatus == "outdated" {
-			rows[len(rows)-1].OldBase = strings.TrimPrefix(strings.TrimPrefix(ev.BaseImage, "docker.io/library/"), "docker.io/")
+			stale, rebuild := versions.OutdatedBase(ev)
+			rows[len(rows)-1].OldBase, rows[len(rows)-1].Rebuild = versions.ShortImage(stale), versions.ShortImage(rebuild)
+		}
+		if len(ev.BaseChain) > 0 {
+			rows[len(rows)-1].Chain = versions.ChainText(ev.BaseChain)
 		}
 		if ev.SBOM {
 			out.WithSBOM++

@@ -234,12 +234,16 @@ func outdatedBases(periods []store.ImagePeriod, evidence map[string]store.ImageE
 		}
 		seen[p.EnvironmentID+"|"+p.Digest] = true
 		svc := svcByID[p.ServiceID]
-		base := strings.TrimPrefix(strings.TrimPrefix(ev.BaseImage, "docker.io/library/"), "docker.io/")
+		stale, rebuild := versions.OutdatedBase(ev)
 		it := Item{
 			Type: EventOutdatedBase, Service: svc.Name, Owner: svc.Owner, Environment: envName[p.EnvironmentID], At: now,
-			From: base, To: p.Tag, Note: fmt.Sprintf("%d days", int(now.Sub(ev.BaseSince).Hours()/24)),
+			From: versions.ShortImage(stale), To: p.Tag, Note: fmt.Sprintf("%d days", int(now.Sub(ev.BaseSince).Hours()/24)),
 		}
 		it.Text = Describe(it)
+		if rebuild != "" {
+			it.Text = fmt.Sprintf("%s: %s is built on %s, and %s on an older %s than its tag has had for %s: rebuild %s with --pull, then this image",
+				svc.Name+" @ "+it.Environment, orDash(it.To), versions.ShortImage(ev.BaseImage), versions.ShortImage(rebuild), it.From, it.Note, versions.ShortImage(rebuild))
+		}
 		out = append(out, growth{item: it, env: p.EnvironmentID, digest: p.Digest})
 	}
 	return out

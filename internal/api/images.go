@@ -17,17 +17,28 @@ import (
 const imageHistoryDays = 90
 
 type apiImage struct {
-	Environment    string       `json:"environment"`
-	Image          string       `json:"image"`
-	Version        string       `json:"version,omitempty"`
-	Digest         string       `json:"digest"`
-	SizeBytes      int64        `json:"size_bytes,omitempty"`
-	OverBudget     bool         `json:"over_budget,omitempty"`
-	Layers         int          `json:"layers,omitempty"`
-	BaseImage      string       `json:"base_image,omitempty"`
-	BaseStatus     string       `json:"base_status,omitempty"`
-	BaseBehindDays int          `json:"base_behind_days,omitempty"`
-	Evidence       *apiEvidence `json:"evidence,omitempty"`
+	Environment    string `json:"environment"`
+	Image          string `json:"image"`
+	Version        string `json:"version,omitempty"`
+	Digest         string `json:"digest"`
+	SizeBytes      int64  `json:"size_bytes,omitempty"`
+	OverBudget     bool   `json:"over_budget,omitempty"`
+	Layers         int    `json:"layers,omitempty"`
+	BaseImage      string `json:"base_image,omitempty"`
+	BaseStatus     string `json:"base_status,omitempty"`
+	BaseBehindDays int    `json:"base_behind_days,omitempty"`
+	// BaseChain goes down from base_image: what each image is built on, current or outdated against its tag now.
+	BaseChain []apiBaseLink `json:"base_chain,omitempty"`
+	// RebuildFirst is the image of the chain built on an older base, when it is not this one: rebuild it first.
+	RebuildFirst string       `json:"rebuild_first,omitempty"`
+	Evidence     *apiEvidence `json:"evidence,omitempty"`
+}
+
+type apiBaseLink struct {
+	Image  string `json:"image"`
+	Base   string `json:"base"`
+	Status string `json:"status"`
+	How    string `json:"how,omitempty"`
 }
 
 type apiEvidence struct {
@@ -131,6 +142,12 @@ func (h *PublicHandler) serviceImages(w http.ResponseWriter, r *http.Request, p 
 				img.BaseImage, img.BaseStatus = x.BaseImage, x.BaseStatus
 				if x.BaseStatus == "outdated" && !x.BaseSince.IsZero() {
 					img.BaseBehindDays = int(now.Sub(x.BaseSince).Hours() / 24)
+				}
+				for _, l := range x.BaseChain {
+					img.BaseChain = append(img.BaseChain, apiBaseLink{Image: l.Image, Base: l.Base, Status: l.Status, How: l.How})
+				}
+				if x.BaseStatus == "outdated" {
+					_, img.RebuildFirst = versions.OutdatedBase(x)
 				}
 				if !x.CheckedAt.IsZero() && x.Error == "" {
 					img.Evidence = &apiEvidence{Signed: x.Signed, SBOM: x.SBOM, Provenance: x.Provenance, Signers: x.Signers}

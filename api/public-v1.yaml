@@ -139,6 +139,18 @@ paths:
                         base_image: { type: string, example: "docker.io/library/node:22-alpine" }
                         base_status: { type: string, enum: [current, outdated] }
                         base_behind_days: { type: integer, description: "Days the base tag has had a newer build than the image is built on." }
+                        base_chain:
+                          type: array
+                          description: "Down from base_image: what each image is built on (from its base label or BuildKit provenance), current or outdated against its tag now. An outdated link makes base_status outdated."
+                          items:
+                            type: object
+                            required: [image, base, status]
+                            properties:
+                              image: { type: string }
+                              base: { type: string }
+                              status: { type: string, enum: [current, outdated] }
+                              how: { type: string, enum: [label, provenance] }
+                        rebuild_first: { type: string, description: "The image of the chain built on an older base, when not this one: rebuild it first, then this image." }
                         evidence:
                           type: object
                           required: [signed, sbom, provenance]

@@ -1558,6 +1558,8 @@ type ImageSecurity struct {
 	Delta                             int64 // against the first (production) image's size, when both are known
 	DeltaFrom                         string
 	OldBase                           string // the base it is built on an older build of, when it is
+	Rebuild                           string // the image down its chain of bases to rebuild first, when not itself
+	Chain                             string // its chain of bases: "acme/base:1 (current) → alpine:3.20 (outdated)"
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
 }
 

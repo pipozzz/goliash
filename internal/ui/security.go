@@ -258,6 +258,7 @@ func exposureClass(ex versions.Exposure) string {
 // BaseRow is a service built on a base image whose support has ended or ends soon.
 type BaseRow struct {
 	Service string
+	Via     string // the image of its chain of bases built on this one, when it is not the service's own base
 	versions.BaseStatus
 }
 
@@ -283,6 +284,37 @@ func (s *Server) baseRows(r *http.Request, p auth.Principal) ([]BaseRow, error) 
 		}
 		if st.Passed || st.Soon {
 			out = append(out, BaseRow{Service: row.Service.Name, BaseStatus: st})
+		}
+	}
+	// Further down the chains of bases: a private base built on a release cycle past its end of life.
+	active, err := s.store.ListActiveInstances(ctx, p.Scope)
+	if err != nil {
+		return nil, err
+	}
+	evidence, err := s.store.ListImageEvidence(ctx, p.Scope)
+	if err != nil {
+		return nil, err
+	}
+	listed := map[string]bool{}
+	for _, in := range active {
+		ev, ok := evidence[versions.ParseImage(in.Image).Repo()+"@"+in.Digest]
+		if !ok || in.ServiceID == "" || len(ev.BaseChain) < 2 {
+			continue
+		}
+		name := o.Services[in.ServiceID].Name
+		for _, l := range ev.BaseChain[1:] {
+			if listed[name+"|"+l.Base] {
+				continue
+			}
+			listed[name+"|"+l.Base] = true
+			st, ok := seen[l.Base]
+			if !ok {
+				st = s.checker.BaseStatus(ctx, l.Base, now)
+				seen[l.Base] = st
+			}
+			if st.Passed || st.Soon {
+				out = append(out, BaseRow{Service: name, Via: versions.ShortImage(l.Image), BaseStatus: st})
+			}
 		}
 	}
 	return out, nil
