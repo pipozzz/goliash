@@ -29,7 +29,7 @@ var securityWords = regexp.MustCompile(`(?i)\bsecurity (fix|fixes|release|issue|
 func SecurityIn(notes string) string {
 	ids := securityIDs.FindAllString(notes, -1)
 	if len(ids) == 0 {
-		if securityWords.MatchString(notes) {
+		if securityWords.MatchString(notes) || securityLines.MatchString(notes) {
 			return "security"
 		}
 		return ""
@@ -144,4 +144,108 @@ func securityRelease(svc store.Service, running string, flagged []store.Release,
 		Type: "security_release", ServiceID: svc.ID, FromVersion: running, ToVersion: best.Version,
 		Note: best.Security, Source: "poll", At: now,
 	}, true
+}
+
+// securityLines finds changelog lines that mark a change as a security fix ("*) Security: …" in nginx's).
+var securityLines = regexp.MustCompile(`(?m)^\s*(\*\)\s*)?Security:`)
+
+// goReleasesURL is Go's release history: "go1.25.13 (released …) includes security fixes to …".
+var goReleasesURL = "https://go.dev/doc/devel/release"
+
+// goReleaseLine finds one release and what it includes in the history, its markup stripped.
+var goReleaseLine = regexp.MustCompile(`go(\d+\.\d+(?:\.\d+)?) \(released [0-9-]+\) includes (.*?)\.`)
+
+// textFeeds reads what projects publish as pages: Go's release history, and per-version release notes pages
+// (PostgreSQL's), kept a day (a page that failed, an hour).
+type textFeeds struct {
+	mu    sync.Mutex
+	http  *http.Client
+	pages map[string]textPage
+}
+
+type textPage struct {
+	at   time.Time
+	text string
+	ok   bool
+}
+
+func newTextFeeds() *textFeeds {
+	return &textFeeds{http: &http.Client{Timeout: 20 * time.Second}, pages: map[string]textPage{}}
+}
+
+// text is a page's text, its markup stripped and its spaces folded.
+func (f *textFeeds) text(ctx context.Context, url string) (string, bool) {
+	f.mu.Lock()
+	p, ok := f.pages[url]
+	f.mu.Unlock()
+	if ok && (time.Since(p.at) < time.Hour || p.ok && time.Since(p.at) < 24*time.Hour) {
+		return p.text, p.ok
+	}
+	p = textPage{at: time.Now()}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err == nil {
+		var resp *http.Response
+		if resp, err = f.http.Do(req); err == nil {
+			if resp.StatusCode == http.StatusOK {
+				b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+				p.text, p.ok = pageText(string(b)), true
+			}
+			_ = resp.Body.Close()
+		}
+	}
+	f.mu.Lock()
+	f.pages[url] = p
+	f.mu.Unlock()
+	return p.text, p.ok
+}
+
+var (
+	htmlTags   = regexp.MustCompile(`(?s)<script.*?</script>|<style.*?</style>|<[^>]+>`)
+	htmlSpaces = regexp.MustCompile(`\s+`)
+)
+
+// pageText is an HTML page's text.
+func pageText(page string) string {
+	t := htmlTags.ReplaceAllString(page, " ")
+	t = strings.NewReplacer("&nbsp;", " ", "&amp;", "&", "&lt;", "<", "&gt;", ">", "&#39;", "'", "&quot;", `"`).Replace(t)
+	return htmlSpaces.ReplaceAllString(t, " ")
+}
+
+// goSecurity are the Go releases whose history entry includes security fixes: version (1.25.13) → true.
+func (f *textFeeds) goSecurity(ctx context.Context) map[string]bool {
+	text, ok := f.text(ctx, goReleasesURL)
+	if !ok {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, m := range goReleaseLine.FindAllStringSubmatch(text, -1) {
+		if strings.Contains(m[2], "security fix") {
+			out[m[1]] = true
+		}
+	}
+	return out
+}
+
+// changelogPage is a release's own notes page from a changelog template, or "" when the template has a #fragment:
+// it points into a page about many releases (PHP's ChangeLog, Python's cumulative changelog), whose text names
+// other releases' fixes too.
+func changelogPage(template string, v Version) string {
+	if !strings.Contains(template, "{version}") || strings.Contains(template, "#") {
+		return ""
+	}
+	return strings.ReplaceAll(template, "{version}", versionNumber(v))
+}
+
+// cycleOf is the release cycle a version belongs to: the cycle whose name its version starts with ("3.12" for
+// 3.12.7), the longest such.
+func cycleOf(cycles []EOLCycle, v Version) (EOLCycle, bool) {
+	num := versionNumber(v)
+	var best EOLCycle
+	found := false
+	for _, cy := range cycles {
+		if (num == cy.Name || strings.HasPrefix(num, cy.Name+".")) && len(cy.Name) > len(best.Name) {
+			best, found = cy, true
+		}
+	}
+	return best, found
 }

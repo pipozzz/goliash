@@ -69,7 +69,8 @@ type Checker struct {
 	eol    *EOL
 	osv    *OSV
 	kev    *KEV
-	php    *phpFeed // which PHP releases fix vulnerabilities
+	php    *phpFeed   // which PHP releases fix vulnerabilities
+	text   *textFeeds // Go's release history, release notes pages
 
 	driftMu    sync.Mutex // one drift evaluation at a time
 	upstreamMu sync.Mutex // one upstream check at a time, so a release is announced once
@@ -86,7 +87,7 @@ type cachedTags struct {
 func NewChecker(st *store.Store, tags TagLister, log *slog.Logger, ttl time.Duration) *Checker {
 	return &Checker{
 		store: st, tags: tags, log: log, ttl: ttl, cache: map[string]cachedTags{},
-		now: func() time.Time { return time.Now().UTC() }, php: newPHPFeed(),
+		now: func() time.Time { return time.Now().UTC() }, php: newPHPFeed(), text: newTextFeeds(),
 	}
 }
 
@@ -389,7 +390,7 @@ func (c *Checker) recordTags(ctx context.Context, sc store.Scope, svc store.Serv
 	if err != nil {
 		return nil, err
 	}
-	flagged := c.annotateReleases(ctx, sc, svc, policy)
+	flagged := c.annotateReleases(ctx, sc, svc, policy, repo)
 	if err := st.RecordUpstreamCheck(ctx, sc, svc.ID, ""); err != nil {
 		return nil, err
 	}

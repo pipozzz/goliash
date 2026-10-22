@@ -249,9 +249,19 @@ soon as Goliash sees it, to every service running an older version:
 
 > php: 8.3.36-fpm fixes vulnerabilities; 8.3.34-fpm runs
 
-Goliash reads it from the release's notes on GitHub or GitLab (a CVE, GHSA or GO identifier, or *security
-release/fix*) and, for projects whose notes it cannot read, from the project's own feed: PHP's
-[releases](https://www.php.net/releases/) (`security: php.net` in the catalog or a version policy). On the Updates
+Goliash reads it from the release's notes on GitHub or GitLab (a CVE, GHSA or GO identifier, *security
+release/fix*, or nginx's *Security:* lines), from the release's own notes page (PostgreSQL's names the CVEs it fixes)
+and, for projects that say it elsewhere, from the project's own word:
+
+| Software | Where Goliash reads it |
+|---|---|
+| PHP | [php.net's releases](https://www.php.net/releases/), which tag security releases (`security: php.net`) |
+| Go | [Go's release history](https://go.dev/doc/devel/release): *includes security fixes to …* (`security: go.dev`) |
+| Python, Ruby | a release cycle in *security fixes only* support on [endoflife.date](https://endoflife.date): every release of it (`security: eol-phase`) |
+| Node.js, Redis, nginx, … | their GitHub release notes |
+| PostgreSQL | each release's notes page |
+
+The `security` setting comes from the catalog for these images, or from a service's version policy. On the Updates
 page the upgrade becomes a **security fix**, right after exploited vulnerabilities, with what it fixes.
 
 ```sh

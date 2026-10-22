@@ -73,7 +73,7 @@ page, with `goliash service set`, or through the catalog.
 | `github`, `github_tag_prefix` | GitHub repository (`owner/repo`) whose releases give dates and release notes. | from catalog or image label |
 | `gitlab` | GitLab project (`gitlab.com/group/project`) whose releases give dates and release notes; `github_tag_prefix` applies too. | from catalog or image label |
 | `changelog` | A release notes URL template with `{version}`. | none |
-| `security` | A feed saying which releases fix vulnerabilities, for projects whose release notes Goliash cannot read: `php.net`. Releases whose GitHub or GitLab notes name a CVE, GHSA or GO id (or say *security release*) are known without it. See [Security releases](/guide/notifications/#security-releases). | from catalog (`php`) |
+| `security` | Where the project says which releases fix vulnerabilities, when its release notes do not: `php.net`, `go.dev`, or `eol-phase` (every release of a cycle in security-fixes-only support). Releases whose GitHub or GitLab notes name a CVE, GHSA or GO id (or say *security release*) are known without it. See [Security releases](/guide/notifications/#security-releases). | from catalog (`php`) |
 | `base_image` | The image the service's image is built `FROM`, when it does not declare it; `none` turns base tracking off. | as the image declares |
 | `max_size_mb` | The image size budget in MB: over it, Image hygiene lists it and `image_over_budget` alerts. | none |
 | `signer` | Who should sign its images: a keyless signature's identity (`https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main`), or a prefix ending in `*` (`https://github.com/acme/*`). Otherwise Image hygiene lists it as *unexpected signer*. | none |

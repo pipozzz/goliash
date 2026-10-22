@@ -12,7 +12,9 @@
 #   changelog:          changelog URL for projects without GitHub releases; {version} is replaced
 #   eol:                endoflife.date product, for images the site does not map to one itself
 #   security:           a feed of which releases fix vulnerabilities, for projects whose release notes Goliash
-#                       cannot read: php.net
+#                       cannot read: php.net (its releases feed), go.dev (Go's release history), eol-phase (a
+#                       release cycle in security-fixes-only support on endoflife.date: Python, Ruby). Releases
+#                       whose notes, or own changelog page, name a CVE are known without it.
 #
 # Additions are welcome: one entry per image, sorted by image. `go test ./internal/versions/`
 # checks every entry.
@@ -42,6 +44,10 @@
   github: hashicorp/vault
 - image: docker.io/library/caddy
   github: caddyserver/caddy
+- image: docker.io/library/golang
+  eol: go
+  security: go.dev
+  changelog: https://go.dev/doc/devel/release#go{version}
 - image: docker.io/library/haproxy
   eol: haproxy
   changelog: https://www.haproxy.org/download/{version}/src/CHANGELOG
@@ -74,11 +80,19 @@
 - image: docker.io/library/postgres
   changelog: https://www.postgresql.org/docs/release/{version}/
   policy: { track: minor }
+- image: docker.io/library/python
+  changelog: https://docs.python.org/release/{version}/whatsnew/changelog.html#changelog
+  eol: python
+  security: eol-phase
 - image: docker.io/library/rabbitmq
   eol: rabbitmq
   github: rabbitmq/rabbitmq-server
 - image: docker.io/library/redis
   github: redis/redis
+- image: docker.io/library/ruby
+  changelog: https://www.ruby-lang.org/en/downloads/releases/#ruby-{version}
+  eol: ruby
+  security: eol-phase
 - image: docker.io/library/traefik
   github: traefik/traefik
 - image: docker.io/opensearchproject/opensearch

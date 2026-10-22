@@ -141,3 +141,54 @@ func TestSecurityReleaseEndToEnd(t *testing.T) {
 		}
 	}
 }
+
+func TestMoreSecuritySources(t *testing.T) {
+	// nginx marks a security change in its notes.
+	if got := SecurityIn("Changes with nginx 1.27.4\n\n    *) Security: insufficient check in virtual servers handling.\n    *) Bugfix: …"); got != "security" {
+		t.Errorf("nginx Security line: %q", got)
+	}
+	// A release's own notes page counts; one page for many releases (a #fragment) does not.
+	v, _ := ParseVersion("16.5")
+	if got := changelogPage("https://www.postgresql.org/docs/release/{version}/", v); got != "https://www.postgresql.org/docs/release/16.5/" {
+		t.Errorf("postgres page %q", got)
+	}
+	if got := changelogPage("https://www.php.net/ChangeLog-8.php#{version}", v); got != "" {
+		t.Errorf("a fragment template read: %q", got)
+	}
+	// Go's release history says which releases include security fixes.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/go":
+			_, _ = w.Write([]byte(`<p>go1.25.13 (released 2026-08-13) includes security fixes to the go command, and the <code>crypto/tls</code> package, as well as bug fixes.</p>
+<p>go1.25.14 (released 2026-08-19) includes fixes to the net/http package.</p>`))
+		case "/pg/16.5/":
+			_, _ = w.Write([]byte(`<html><body><h2>Security</h2><p>Fix (CVE-2024-10978) &amp; more</p></body></html>`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	old := goReleasesURL
+	goReleasesURL = srv.URL + "/go"
+	defer func() { goReleasesURL = old }()
+	f := newTextFeeds()
+	got := f.goSecurity(context.Background())
+	if !got["1.25.13"] || got["1.25.14"] {
+		t.Errorf("go security %v", got)
+	}
+	if text, ok := f.text(context.Background(), srv.URL+"/pg/16.5/"); !ok || SecurityIn(text) != "CVE-2024-10978" {
+		t.Errorf("page text %q %v", text, ok)
+	}
+	if _, ok := f.text(context.Background(), srv.URL+"/missing"); ok {
+		t.Error("a missing page read")
+	}
+	// A cycle in security-fixes-only support makes each of its releases a security release.
+	cycles := []EOLCycle{{Name: "3.12", IsEOAS: true}, {Name: "3.13"}, {Name: "3.1"}}
+	for ver, want := range map[string]string{"3.12.7": "3.12", "3.13.1": "3.13", "3.1.4": "3.1", "2.7.18": ""} {
+		pv, _ := ParseVersion(ver)
+		cy, ok := cycleOf(cycles, pv)
+		if (want == "") == ok || cy.Name != want {
+			t.Errorf("cycle of %s: %+v %v", ver, cy, ok)
+		}
+	}
+}
