@@ -1388,6 +1388,20 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .logo-board:not(.compact) .board-cell:not(.big) .env-strip { grid-area: strip; align-self: center; justify-self: start; }
 .logo-board:not(.compact) .board-cell:not(.big) .mini-logo { grid-area: logo; align-self: center; height: min(var(--mini), 100%); width: auto; aspect-ratio: 1; min-height: 0; }
 .logo-board:not(.compact) .board-cell:not(.big) .board-foot { grid-area: foot; }
+/* The name keeps at least its first line: it has overflow hidden, so a grid row would otherwise give way to the
+   version line until it is gone (and its letters peek out above the cell). The status line stays on one line. */
+.logo-board:not(.compact) .board-cell:not(.big) .board-name { min-height: 1.15em; }
+.logo-board:not(.compact) .board-cell:not(.big) .board-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A small cell (a board fitted to a short screen) has room for its name, its environments and its status only. */
+.logo-board:not(.compact) .board-cell:not(.big) { container-type: inline-size; }
+@media (min-width: 721px) {
+  .logo-board:not(.compact) .board-cell:not(.big) { padding: clamp(8px, 11%, 22px); }
+}
+@container (max-width: 115px) {
+  .board-cell .mini-logo, .board-cell .board-headline { display: none; }
+  .board-cell .board-name { font-size: 13px; hyphens: auto; overflow-wrap: break-word; }
+  .board-cell .env-strip { grid-column: 1 / -1; }
+}
 /* Security watches: a term, why, until when, and what runs it. */
 .watch + .watch { border-top: 1px solid var(--line); }
 .watch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
