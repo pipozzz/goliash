@@ -246,3 +246,19 @@ func TestLayoutBoardKeepsBigCells(t *testing.T) {
 		t.Fatalf("demo: holes on %d columns", cols)
 	}
 }
+
+// Three big cells and fourteen small fill 3 columns by 9 rows without a hole, but that board shrinks to fit the
+// screen's height until the cells cannot be read: a wider one wins.
+func TestLayoutBoardNotTall(t *testing.T) {
+	for _, small := range []int{12, 13, 14, 15, 16} {
+		items := []BoardItem{{Span: 2}, {Span: 2}, {Span: 2}}
+		for range small {
+			items = append(items, BoardItem{Span: 1})
+		}
+		out, cols := layoutBoard(items)
+		_, rows := packBoard(out, cols)
+		if rows > cols+1 {
+			t.Errorf("%d small: %d columns × %d rows", small, cols, rows)
+		}
+	}
+}

@@ -478,17 +478,19 @@ func layoutBoard(items []BoardItem) ([]BoardItem, int) {
 			bigFirst = append(bigFirst, it)
 		}
 	}
+	// The fewest empty cells wins, but a board taller than wide pays for each extra row: it has to shrink to fit the
+	// screen's height, and 3 columns by 9 rows leaves cells too small to read (27 units fill it without a hole).
 	var best []BoardItem
-	bestCols, bestRows, bestEmpty := 0, 0, 0
+	bestCols, bestRows, bestScore := 0, 0, 0
 	for _, order := range [][]BoardItem{items, bigFirst} {
 		for c := 3; c <= 6; c++ {
 			holes, rows := packBoard(order, c)
 			if holes > 0 {
 				continue
 			}
-			empty := rows*c - units
-			if best == nil || empty < bestEmpty || (empty == bestEmpty && rows < bestRows) {
-				best, bestCols, bestRows, bestEmpty = order, c, rows, empty
+			score := rows*c - units + 2*max(rows-c, 0)
+			if best == nil || score < bestScore || (score == bestScore && rows < bestRows) {
+				best, bestCols, bestRows, bestScore = order, c, rows, score
 			}
 		}
 	}
