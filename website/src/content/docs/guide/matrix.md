@@ -297,6 +297,7 @@ Every snapshot is compared with the previous one of the same target. The differe
 | `pull_request` | Goliash opened a pull request to upgrade, promote or roll back a service, asked by someone or by the version policy's `auto_pr`; once more when one has waited for review for more than three days, when its checks (CI) fail, and when it was merged an hour ago and its version does not run yet (with why it waits); see [Argo CD and Flux](/guide/argocd/#upgrade-with-a-pull-request). |
 | `security_release` | A new upstream release fixes vulnerabilities, as its notes or the project's feed (php.net) say, and a service runs an older version; once per release. See [Security releases](/guide/notifications/#security-releases). |
 | `watch` | A new release of software a [security watch](/guide/notifications/#security-watches) covers (php, openssl…); once per watch, service and release. |
+| `security_brief` | Daily or on Mondays: new security releases of what runs, watches, exploited vulnerabilities, security upgrades waiting, fixes not deployed; nothing when there is nothing. See [Security brief](/guide/notifications/#security-brief). |
 | `goliash_release` | A newer Goliash release is out (checked every 6 hours, once per release; off with `GOLIASH_UPDATE_CHECK=off`). When its release notes name security fixes (`fix(security)`, a Go vulnerability or a CVE), it says *with security fixes* and names them; so does the Status page. |
 
 The first snapshot of a target is a baseline and creates no events. When a snapshot is incomplete, for example

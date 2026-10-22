@@ -165,6 +165,11 @@ templ NotificationsPage(v NotificationsView) {
 															<button class="link" type="submit" title="Send the security posture report now, to check the channel">Send report now</button>
 														</form>
 													}
+													if r.Brief {
+														<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/brief") }>
+															<button class="link" type="submit" title="Send the security brief now, to check the channel">Send brief now</button>
+														</form>
+													}
 													<form method="post" action={ templ.URL("/notifications/rules/" + r.ID + "/pause") }>
 														<input type="hidden" name="paused" value={ boolStr(!r.Paused) }/>
 														<button class="link" type="submit">
@@ -537,7 +542,7 @@ templ SettingsPage(v SettingsView) {
 // ruleEvents are the event kinds a rule can pick, with their labels.
 var ruleEvents = [][2]string{
 	{"new_release", "new releases"}, {"drift_detected", "drift"}, {"drift_resolved", "drift resolved"},
-	{"version_changed", "deploys"}, {"rollback", "rollbacks"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"rollout", "stuck rollouts and services down"}, {"vulnerability", "exploited or critical vulnerabilities"}, {"security_release", "releases that fix vulnerabilities"}, {"watch", "new releases of software under a security watch"}, {"updates_plan", "upgrade plan"}, {"posture_report", "security posture report"}, {"image_grew", "image growth"}, {"image_over_budget", "image over its size budget"}, {"outdated_base", "outdated base"}, {"evidence_lost", "signature or SBOM lost"}, {"unexpected_signer", "not signed by the expected signer"}, {"license", "AGPL or source-available packages"}, {"goliash_release", "new Goliash releases"}, {"gitops", "Argo CD or Flux out of sync or degraded"}, {"pull_request", "pull requests Goliash opened"},
+	{"version_changed", "deploys"}, {"rollback", "rollbacks"}, {"removed", "removals"}, {"agent_stale", "stale agents"}, {"rollout", "stuck rollouts and services down"}, {"vulnerability", "exploited or critical vulnerabilities"}, {"security_release", "releases that fix vulnerabilities"}, {"watch", "new releases of software under a security watch"}, {"updates_plan", "upgrade plan"}, {"posture_report", "security posture report"}, {"security_brief", "security brief (what to look at today)"}, {"image_grew", "image growth"}, {"image_over_budget", "image over its size budget"}, {"outdated_base", "outdated base"}, {"evidence_lost", "signature or SBOM lost"}, {"unexpected_signer", "not signed by the expected signer"}, {"license", "AGPL or source-available packages"}, {"goliash_release", "new Goliash releases"}, {"gitops", "Argo CD or Flux out of sync or degraded"}, {"pull_request", "pull requests Goliash opened"},
 }
 
 // ruleFields are the fields of the add and edit rule forms.

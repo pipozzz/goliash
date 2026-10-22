@@ -219,6 +219,26 @@ It covers production, so the rule's filters do not apply, and a rule for every e
 name. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
 [metrics](/guide/observability/).
 
+## Security brief
+
+The posture report is for the week; the **security brief** is for the morning. A rule with the event type
+`security_brief` (*security brief* in the form) sends, daily or on Mondays at the same time as the plan, what a
+security team should look at today, in a few lines: releases found since yesterday that fix vulnerabilities in what
+runs, the [security watches](#security-watches) and how many services each covers, vulnerabilities exploited in the
+wild that run (those past CISA's due date named), upgrades fixing vulnerabilities still waiting in Updates, and
+pull requests merged but not deployed. It links to the Security page.
+
+```sh
+goliash notify create -channel security -events security_brief -mode daily
+```
+
+> 🛡️ Security brief<br>
+> 1 security release since yesterday: shop 8.3.36-fpm (8.3.34-fpm runs). Watching “php” (3 services). 2 vulnerabilities
+> exploited in the wild run, 1 past CISA's due date (CVE-2026-1234). 4 upgrades fixing vulnerabilities wait in Updates.
+
+When there is nothing to look at, nothing is sent. Like the report, it is asked for by name and covers the whole
+workspace; **Send brief now** on the rule sends it at once (saying so when there is nothing new).
+
 ## Ask Goli about an alert
 
 With [Goli](/guide/goli/) on, a single alert (a vulnerability, a drift, an upgrade, a silent agent) carries an

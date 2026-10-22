@@ -539,7 +539,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents", "rollout": "stuck rollouts", "goliash_release": "new Goliash releases", "gitops": "Argo CD", "pull_request": "pull requests",
-	"vulnerability": "vulnerabilities", "security_release": "security releases", "watch": "security watches", "updates_plan": "upgrade plan", "posture_report": "security posture report", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "license": "AGPL or source-available packages",
+	"vulnerability": "vulnerabilities", "security_release": "security releases", "watch": "security watches", "updates_plan": "upgrade plan", "posture_report": "security posture report", "security_brief": "security brief", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "license": "AGPL or source-available packages",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
@@ -913,6 +913,7 @@ type RuleView struct {
 	Paused  bool
 	Plan    bool // it sends the upgrade plan
 	Report  bool // it sends the security posture report
+	Brief   bool // it sends the security brief
 	Channel string
 	Events  string
 	Mode    string
@@ -1292,6 +1293,9 @@ func eventTitle(kind string) string {
 	}
 	if kind == "posture_report" {
 		return "The Security page in one message for production: exposure days, end of life, accepted risk, the longest exposures; at the digest time, daily or on Mondays"
+	}
+	if kind == "security_brief" {
+		return "What to look at today: new security releases of what runs, watches, exploited vulnerabilities, security upgrades waiting, fixes not deployed; daily or on Mondays, nothing when there is nothing"
 	}
 	return ""
 }

@@ -57,6 +57,8 @@ func kindOf(it Item) kind {
 		return kind{"⬆️", urgencyColour(it.Note), "Update · " + it.Note}
 	case EventWatch:
 		return kind{"👁️", "#e5484d", "Security watch"}
+	case EventSecurityBrief:
+		return kind{"🛡️", "#1b2a6b", "Security brief"}
 	case "security_release":
 		return kind{"🔒", "#e5484d", "Security release"}
 	case "vulnerability":
@@ -143,7 +145,7 @@ func itemLink(base string, it Item) string {
 	if base == "" {
 		return ""
 	}
-	if it.Type == "posture" {
+	if it.Type == "posture" || it.Type == EventSecurityBrief {
 		return base + "/security"
 	}
 	if it.Service == "" {
@@ -199,6 +201,8 @@ func goliQuestion(it Item) string {
 		return "Why did the " + it.Service + " image in " + it.Environment + " grow from " + it.From + " to " + it.To + " (" + it.Note + ")? Brief me on what changed between the versions (base image, dependencies, build) and how the image could get smaller."
 	case it.Type == "posture":
 		return "Walk me through our security posture: what to fix first to cut production exposure, what is past its end of life, and which accepted risks to review."
+	case it.Type == EventSecurityBrief:
+		return "From today's security brief, what should we do first and why? " + it.Text
 	case it.Type == "agent_stale":
 		return "Which data may be stale because of this, and what should I check? " + it.Text
 	}

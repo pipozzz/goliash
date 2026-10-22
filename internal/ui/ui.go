@@ -261,6 +261,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /notifications/rules/{id}/pause", s.page(m, s.pauseRule))
 	mux.Handle("POST /notifications/rules/{id}/plan", s.page(m, s.sendPlanNow))
 	mux.Handle("POST /notifications/rules/{id}/posture", s.page(m, s.sendPostureNow))
+	mux.Handle("POST /notifications/rules/{id}/brief", s.page(m, s.sendBriefNow))
 	mux.Handle("POST /notifications/deliveries/{id}/retry", s.page(m, s.retryDelivery))
 	mux.Handle("POST /notifications/rules/{id}/delete", s.page(m, s.deleteRule))
 	mux.Handle("GET /notifications/rules/{id}", s.page(m, s.editRule))
@@ -1776,6 +1777,7 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 			ID: rule.ID, Paused: rule.Paused, Channel: chName[rule.ChannelID], Events: events, Mode: mode,
 			Plan:   slices.Contains(rule.EventTypes, notifier.EventUpdatesPlan),
 			Report: slices.Contains(rule.EventTypes, notifier.EventPostureReport),
+			Brief:  slices.Contains(rule.EventTypes, notifier.EventSecurityBrief),
 			Filter: orDash(strings.Join(parts, "; ")),
 		})
 	}
@@ -1931,6 +1933,21 @@ func (s *Server) testChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		return back(w, r, "/notifications", "notice", "Test sent to "+c.Name+".")
 	}
 	return back(w, r, "/notifications", "error", "Unknown channel.")
+}
+
+// sendBriefNow sends a rule's security brief at once, to check the channel without waiting.
+func (s *Server) sendBriefNow(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	err := s.notify.SendBriefNow(r.Context(), p.Scope, r.PathValue("id"))
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return back(w, r, "/notifications", "error", "That rule is gone.")
+	case errors.Is(err, notifier.ErrNotABriefRule):
+		return back(w, r, "/notifications", "error", "That rule does not send the security brief.")
+	case err != nil:
+		return back(w, r, "/notifications", "error", "Sending the brief failed: "+err.Error())
+	}
+	s.audit(r.Context(), p, "rule.brief_now", "rule", r.PathValue("id"))
+	return back(w, r, "/notifications", "notice", "Security brief sent.")
 }
 
 // sendPostureNow sends a rule's security posture report at once, to check the channel without waiting.
