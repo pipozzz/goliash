@@ -150,6 +150,12 @@
       if (input.value) url.searchParams.set("q", input.value); else url.searchParams.delete("q");
       if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
     }
+    // Links marked data-filter-q (a CSV download, say) carry the words too, to give what the page shows.
+    document.querySelectorAll("a[data-filter-q]").forEach(function (a) {
+      const href = new URL(a.href);
+      if (input.value) href.searchParams.set("q", input.value); else href.searchParams.delete("q");
+      a.href = href.pathname + href.search;
+    });
   }
   // Tiles: the arrow keys move between the cells of a board; up and down go to the nearest cell in the row above or
   // below, by where it is drawn (big cells span two rows). Cells out of reach (dimmed by a filter) are skipped.

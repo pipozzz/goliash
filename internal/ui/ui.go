@@ -195,6 +195,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /security/licenses.csv", s.page(v, s.licensesCSV))
 	mux.Handle("GET /security/vulns.csv", s.page(v, s.vulnsCSV))
 	mux.Handle("GET /updates", s.page(v, s.updates))
+	mux.Handle("GET /updates.csv", s.page(v, s.updatesCSV))
 	mux.Handle("GET /tiles", s.page(v, s.tiles))
 	mux.Handle("POST /views", s.page(v, s.saveView))
 	mux.Handle("POST /views/{id}/delete", s.page(v, s.deleteView))

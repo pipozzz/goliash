@@ -67,6 +67,7 @@ templ UpdatesPage(v UpdatesView) {
 			if len(v.Items) > 0 {
 				<button type="button" class="secondary" data-copy="updates-md" data-copy-rows="main table tbody tr[data-md]" title="A markdown checklist of the upgrades shown, for a ticket or a planning board">Copy as checklist</button>
 				<pre id="updates-md" hidden>{ v.Markdown }</pre>
+				<a class="button secondary" href={ templ.URL(updatesCSVHref(v)) } data-filter-q download title="The upgrades shown as a spreadsheet (with the filter, only those it shows)">Download CSV</a>
 			}
 		</div>
 		<section class="panel">

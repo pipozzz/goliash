@@ -5,6 +5,7 @@ package ui
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -70,14 +71,57 @@ type UpdateItem struct {
 var levelClasses = []string{"eol", "eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
 
 func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	ctx := r.Context()
-	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	v, err := s.updatesView(r, p)
 	if err != nil {
 		return err
 	}
-	acks, err := s.store.ListAcks(ctx, p.Scope)
+	return render(w, r, UpdatesPage(v))
+}
+
+// updatesCSV downloads the upgrades the page shows: its team, environment and level, and the filter's words (?q=).
+func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	v, err := s.updatesView(r, p)
 	if err != nil {
 		return err
+	}
+	q := r.URL.Query().Get("q")
+	match := versions.Matcher(q)
+	csvHeaders(w, "upgrades")
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "watches", "release_notes"})
+	for _, it := range v.Items {
+		exploited := strings.Join(it.Exploited, " ")
+		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " ")) {
+			continue
+		}
+		since := ""
+		if !it.Since.IsZero() {
+			since = it.Since.UTC().Format(time.DateOnly)
+		}
+		_ = cw.Write([]string{
+			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Watched, " "), it.TargetURL,
+		})
+	}
+	cw.Flush()
+	return cw.Error()
+}
+
+// updatesCSVHref downloads what the page shows; the filter box adds its words as it changes.
+func updatesCSVHref(v UpdatesView) string {
+	return strings.Replace(updatesURL(v, "", ""), "/updates", "/updates.csv", 1)
+}
+
+// updatesView is the Updates page for the request's team, environment and level.
+func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, error) {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	if err != nil {
+		return UpdatesView{}, err
+	}
+	acks, err := s.store.ListAcks(ctx, p.Scope)
+	if err != nil {
+		return UpdatesView{}, err
 	}
 	watched := map[string][]string{} // service ID -> the security watches covering it
 	if ws, err := s.store.ListWatches(ctx, p.Scope, time.Now()); err == nil && len(ws) > 0 {
@@ -110,7 +154,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 	var md strings.Builder
 	apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o)
 	if err != nil {
-		return err
+		return UpdatesView{}, err
 	}
 	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, time.Now()) {
 		if u.Service.Owner != "" {
@@ -154,10 +198,10 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	v.Teams, v.Envs = sortedSet(teams), sortedSet(envs)
 	if v.Watched, err = s.watched(ctx, p.Scope, o); err != nil {
-		return err
+		return UpdatesView{}, err
 	}
 	v.Markdown = md.String()
-	return render(w, r, UpdatesPage(v))
+	return v, nil
 }
 
 // updateMarkdown is one checklist line: "- [ ] postgres (auth) @ prod: 15.6 → 15.8 (end of life 2026-09-01)".

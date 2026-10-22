@@ -180,6 +180,8 @@ repository, branch and environment (see [Upgrade with a pull request](/guide/arg
 **An upgrade campaign** (every nginx to its newest release, say): filter the list (`nginx`, or *Their upgrades* from
 [Search](/guide/matrix/)), **Tick all shown**, and open them together; the button counts what goes, and upgrades the
 filter hides are left out. **Copy as checklist** copies the upgrades shown, for a ticket.
+**Download CSV** gives the same upgrades as a spreadsheet (service, environment, running, target, urgency, end of
+life, exploited CVEs, security fixes, watches, release notes), the filter's words included.
 
 The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with. A notification rule
 with the upgrade plan sends it every week; see [Upgrade plan](/guide/notifications/#upgrade-plan).
