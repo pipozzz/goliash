@@ -15,10 +15,16 @@ templ UpdatesPage(v UpdatesView) {
 		@viewTabsBar(v.Views)
 		if v.Total > 0 {
 			<nav class="tiles" aria-label="Urgency">
-				<a href={ templ.URL(updatesURL(v, "level", "")) } class={ "tile", templ.KV("current", v.Level < 0) }>
+				<a href={ templ.URL(updatesURL(allDue(v), "level", "")) } class={ "tile", templ.KV("current", v.Level < 0 && !v.OnlyOverdue) }>
 					<strong>{ itoa(v.Total) }</strong>
 					<span>All updates</span>
 				</a>
+				if v.Overdue > 0 {
+					<a href={ templ.URL(updatesURL(v, "due", overdueToggle(v))) } class={ "tile", "u-eol", templ.KV("current", v.OnlyOverdue) } title="Past the remediation deadlines set on the Security page">
+						<strong>{ itoa(v.Overdue) }</strong>
+						<span>past deadline</span>
+					</a>
+				}
 				for _, l := range v.Levels {
 					if l.Count > 0 {
 						<a href={ templ.URL(updatesURL(v, "level", itoa(l.Level))) } class={ "tile", "u-" + l.Class, templ.KV("current", v.Level == l.Level) }>
@@ -33,6 +39,9 @@ templ UpdatesPage(v UpdatesView) {
 			<form method="get" action="/updates" class="inline">
 				if v.Level >= 0 {
 					<input type="hidden" name="level" value={ itoa(v.Level) }/>
+				}
+				if v.OnlyOverdue {
+					<input type="hidden" name="due" value="over"/>
 				}
 				<label>
 					Team
@@ -187,6 +196,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 		</td>
 		<td data-label="Why">
 			<div class="badges">
+				if !it.Due.IsZero() {
+					<a class={ "badge", dueClass(it) } href="/security#deadlines" title={ "Remediation deadline (" + it.DueFor + "): " + it.Due.Format("2 Jan 2006") }>{ dueText(it) }</a>
+				}
 				for _, term := range it.Watched {
 					<a class="badge eol" href="/security#watches" title="A security watch covers it: its next release is announced at once">{ "watch: " + term }</a>
 				}

@@ -220,6 +220,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /inbox", s.page(v, s.inbox))
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /security/watches", s.page(m, s.addWatch))
+	mux.Handle("POST /security/deadlines", s.page(a, s.setDeadlines))
 	mux.Handle("POST /security/watches/{id}/delete", s.page(m, s.deleteWatch))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
 	mux.Handle("POST /inbox/map-all", s.page(m, s.inboxMapAll))

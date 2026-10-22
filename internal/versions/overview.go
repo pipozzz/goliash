@@ -35,6 +35,8 @@ type Overview struct {
 	ReleaseURL map[string]string
 	// ReleaseSecurity maps service ID + "|" + version to the security fixes that release names.
 	ReleaseSecurity map[string]string
+	// ReleaseSecurityAt maps service ID + "|" + version to when Goliash found that release fixing vulnerabilities.
+	ReleaseSecurityAt map[string]time.Time
 	// ReleaseBreaking maps service ID + "|" + version to what that release's notes say breaks.
 	ReleaseBreaking map[string]string
 	// SplitApps lists services whose versions are compared per application.
@@ -81,8 +83,9 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, AppDrifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
 		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{}, CheckedAt: map[string]time.Time{}, TagCount: map[string]int{},
-		ReleaseSecurity: map[string]string{},
-		ReleaseBreaking: map[string]string{},
+		ReleaseSecurity:   map[string]string{},
+		ReleaseBreaking:   map[string]string{},
+		ReleaseSecurityAt: map[string]time.Time{},
 	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
@@ -203,6 +206,9 @@ func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Over
 			}
 			if r.Security != "" && o.ReleaseSecurity != nil {
 				o.ReleaseSecurity[id+"|"+r.Version] = r.Security
+				if o.ReleaseSecurityAt != nil {
+					o.ReleaseSecurityAt[id+"|"+r.Version] = r.DiscoveredAt
+				}
 			}
 			if r.Breaking != "" && o.ReleaseBreaking != nil {
 				o.ReleaseBreaking[id+"|"+r.Version] = r.Breaking

@@ -33,6 +33,25 @@ an image or workload they run, a GitOps application deploying them, or a package
 marks their upgrades *watch: php*; the `watch` notification announces their next release at once. Members start and
 end watches; everyone sees them.
 
+## Remediation deadlines
+
+How long may an exploited vulnerability run? **Remediation deadlines** on the Security page set it per workspace,
+in days, for three reasons to upgrade:
+
+| Reason | The clock starts |
+|---|---|
+| Exploited vulnerability | when CISA listed it while the image ran there (or when the image started running, if later) |
+| Security fix | when Goliash found the first release on the way that fixes vulnerabilities |
+| End of life | on the end-of-life date of the running release cycle |
+
+An upgrade with several reasons takes the earliest deadline. [Updates](../versions/#updates) marks each upgrade *due in
+3 days* (amber within a week) or *overdue 5 days* (red), and a *past deadline* tile lists only those; the CSV has
+`due` and `days_left`, `GET /api/v1/updates` has `due`, `due_for` and `days_left`. The panel counts what is past and
+what is due within a week, and the [security brief](../notifications/#security-brief) and the
+[posture report](../notifications/#security-posture-report) name the upgrades past their deadline. Admins set the
+deadlines (none, 3 days to half a year each); with none set, Updates ranks by urgency alone. An acknowledged upgrade
+(accepted risk) is not counted as past its deadline.
+
 ## Newest release unknown
 
 A service whose newest release Goliash does not know cannot be measured: it shows as *unknown* in the tiles and

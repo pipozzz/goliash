@@ -56,6 +56,9 @@ templ SecurityPage(v SecurityView) {
 		if len(v.Watches) > 0 || v.CanWatch {
 			@watchesPanel(v)
 		}
+		if v.Deadlines.Any() || v.CanSetDeadlines {
+			@deadlinesPanel(v)
+		}
 		if len(v.Trend) > 0 {
 			<section class="panel">
 				<div class="panel-head">
@@ -474,4 +477,50 @@ templ watchesPanel(v SecurityView) {
 			</form>
 		}
 	</section>
+}
+
+// deadlinesPanel shows the remediation deadlines, what is past them, and lets an admin set them.
+templ deadlinesPanel(v SecurityView) {
+	<section class="panel" id="deadlines">
+		<div class="panel-head">
+			<h2>Remediation deadlines</h2>
+			@panelInfo("How many days the workspace gives itself to upgrade away from an exploited vulnerability (from CISA listing it while it runs), a release that fixes vulnerabilities (from Goliash finding it) and a release cycle past its end of life (from that date). Updates, the security brief and the posture report mark what is due and what is past.")
+		</div>
+		<div class="panel-body">
+			if v.Deadlines.Any() {
+				<p>
+					{ "Exploited vulnerability: " + deadlineLabel(v.Deadlines.Exploited) + " · security fix: " + deadlineLabel(v.Deadlines.Security) + " · end of life: " + deadlineLabel(v.Deadlines.EOL) + ". " }
+					if v.Overdue > 0 {
+						<a class="badge eol" href="/updates?due=over">{ plural(v.Overdue, "upgrade", "upgrades") + " past deadline" }</a>
+					} else {
+						<span class="badge ok">nothing past deadline</span>
+					}
+					if v.DueSoon > 0 {
+						{ " " }<span class="badge warn">{ itoa(v.DueSoon) + " due within a week" }</span>
+					}
+				</p>
+			} else {
+				<p class="muted">No deadlines set: Updates ranks by urgency alone.</p>
+			}
+		</div>
+		if v.CanSetDeadlines {
+			<form class="panel-body row watch-form" method="post" action="/security/deadlines">
+				@deadlineSelect("exploited", "Exploited vulnerability", v.Deadlines.Exploited)
+				@deadlineSelect("security", "Security fix", v.Deadlines.Security)
+				@deadlineSelect("eol", "End of life", v.Deadlines.EOL)
+				<button type="submit">Save deadlines</button>
+			</form>
+		}
+	</section>
+}
+
+templ deadlineSelect(name, label string, current int) {
+	<label>
+		{ label }
+		<select name={ name }>
+			for _, d := range deadlineDays {
+				<option value={ itoa(d) } selected?={ d == current }>{ deadlineLabel(d) }</option>
+			}
+		</select>
+	</label>
 }

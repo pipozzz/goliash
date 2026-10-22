@@ -118,7 +118,13 @@ func (n *Notifier) postureItem(ctx context.Context, sc store.Scope, now time.Tim
 			return Item{}, err
 		}
 	}
-	return PostureItem(pos, supply, n.weekAgo(ctx, sc, now), now), nil
+	it := PostureItem(pos, supply, n.weekAgo(ctx, sc, now), now)
+	if acks, err := n.store.ListAcks(ctx, sc); err == nil {
+		if s := overdueLine(versions.LoadUpdates(ctx, n.store, sc, o, acks, now), now); s != "" {
+			it.Text += " " + s
+		}
+	}
+	return it, nil
 }
 
 // SupplyChain is what the SBOMs of production's images say, for the posture report: known vulnerabilities and

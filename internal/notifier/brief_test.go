@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // The brief names new security releases of what runs and the watches, once a day, and nothing when there is nothing.
@@ -87,5 +88,22 @@ func TestSecurityBrief(t *testing.T) {
 				t.Errorf("not a brief rule: %v", err)
 			}
 		}
+	}
+}
+
+func TestOverdueLine(t *testing.T) {
+	now := time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)
+	us := []versions.Update{
+		{Service: store.Service{Name: "php"}, Environment: store.Environment{Name: "prod"}, Due: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC), DueFor: "exploited vulnerability"},
+		{Service: store.Service{Name: "nginx"}, Environment: store.Environment{Name: "prod"}, Due: time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC), DueFor: "security fix"},
+		{Service: store.Service{Name: "redis"}, Environment: store.Environment{Name: "prod"}, Due: time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC), DueFor: "end of life"},
+		{Service: store.Service{Name: "acked"}, Environment: store.Environment{Name: "prod"}, Due: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Acked: true},
+	}
+	want := "2 upgrades past their remediation deadline: php in prod (exploited vulnerability, 12 days over); nginx in prod (security fix, 2 days over)."
+	if got := overdueLine(us, now); got != want {
+		t.Errorf("overdueLine = %q", got)
+	}
+	if got := overdueLine(us[2:], now); got != "" {
+		t.Errorf("nothing overdue: %q", got)
 	}
 }

@@ -119,13 +119,17 @@ func (n *Notifier) briefItem(ctx context.Context, sc store.Scope, now time.Time)
 	// Security upgrades waiting, and merged fixes not deployed.
 	acks, _ := n.store.ListAcks(ctx, sc)
 	waiting := 0
-	for _, u := range versions.Updates(o, acks, now) {
+	us := versions.LoadUpdates(ctx, n.store, sc, o, acks, now)
+	for _, u := range us {
 		if !u.Acked && (u.Urgency == versions.UrgencyExploited || u.Urgency == versions.UrgencySecurity) {
 			waiting++
 		}
 	}
 	if waiting > 0 {
 		parts = append(parts, fmt.Sprintf("%s fixing vulnerabilities wait in Updates.", plural(waiting, "upgrade", "upgrades")))
+	}
+	if s := overdueLine(us, now); s != "" {
+		parts = append(parts, s)
 	}
 	if apps, err := versions.GitOpsApps(ctx, n.store, sc, o); err == nil && len(apps) > 0 {
 		if pulls, err := versions.PullTimings(ctx, n.store, sc, apps, now.AddDate(0, 0, -30)); err == nil {
@@ -178,4 +182,24 @@ func (n *Notifier) SendBriefNow(ctx context.Context, sc store.Scope, ruleID stri
 		return err
 	}
 	return n.sendNow(ctx, sc, rt, Message{Workspace: rt.workspace, Items: []Item{it}, Link: n.link, Goli: n.goli})
+}
+
+// overdueLine names the open upgrades past the workspace's remediation deadline, longest past first: "2 upgrades
+// past their remediation deadline: php in prod (exploited vulnerability, 12 days over); …". "" when none is.
+func overdueLine(us []versions.Update, now time.Time) string {
+	var over []versions.Update
+	for _, u := range us {
+		if !u.Acked && u.Overdue(now) {
+			over = append(over, u)
+		}
+	}
+	if len(over) == 0 {
+		return ""
+	}
+	sort.SliceStable(over, func(i, j int) bool { return over[i].Due.Before(over[j].Due) })
+	names := make([]string, len(over))
+	for i, u := range over {
+		names[i] = fmt.Sprintf("%s in %s (%s, %s over)", u.Service.Name, u.Environment.Name, u.DueFor, plural(-u.DaysLeft(now), "day", "days"))
+	}
+	return fmt.Sprintf("%s past their remediation deadline: %s.", plural(len(over), "upgrade", "upgrades"), named(names))
 }

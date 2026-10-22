@@ -6,6 +6,8 @@ package ui
 import (
 	"context"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,4 +86,62 @@ func (s *Server) deleteWatch(w http.ResponseWriter, r *http.Request, p auth.Prin
 	}
 	s.audit(r.Context(), p, "workspace.unwatch", "id", r.PathValue("id"))
 	return back(w, r, "/security#watches", "notice", "Watch removed.")
+}
+
+// deadlineDays are the remediation deadlines an admin may pick, in days; 0 sets none.
+var deadlineDays = []int{0, 3, 7, 14, 30, 60, 90, 180}
+
+// setDeadlines sets the workspace's remediation deadlines.
+func (s *Server) setDeadlines(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	const page = "/security#deadlines"
+	days := func(name string) (int, bool) {
+		n, err := strconv.Atoi(r.FormValue(name))
+		return n, err == nil && slices.Contains(deadlineDays, n)
+	}
+	exploited, ok1 := days("exploited")
+	security, ok2 := days("security")
+	eol, ok3 := days("eol")
+	if !ok1 || !ok2 || !ok3 {
+		return back(w, r, page, "error", "Pick the days from the lists.")
+	}
+	rem := store.Remediation{Exploited: exploited, Security: security, EOL: eol}
+	if err := s.store.SetRemediation(r.Context(), p.Scope, rem); err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "workspace.deadlines", "exploited", strconv.Itoa(exploited), "security", strconv.Itoa(security), "eol", strconv.Itoa(eol))
+	if !rem.Any() {
+		return back(w, r, page, "notice", "No remediation deadlines.")
+	}
+	return back(w, r, page, "notice", "Remediation deadlines saved: Updates marks what is due and what is past.")
+}
+
+// dueCounts counts the open upgrades past their remediation deadline and those due within a week.
+func (s *Server) dueCounts(ctx context.Context, sc store.Scope) (overdue, soon int, err error) {
+	o, err := versions.LoadOverview(ctx, s.store, sc)
+	if err != nil {
+		return 0, 0, err
+	}
+	acks, err := s.store.ListAcks(ctx, sc)
+	if err != nil {
+		return 0, 0, err
+	}
+	now := time.Now()
+	for _, u := range versions.LoadUpdates(ctx, s.store, sc, o, acks, now) {
+		switch {
+		case u.Acked || u.Due.IsZero():
+		case u.Overdue(now):
+			overdue++
+		case u.DaysLeft(now) <= 7:
+			soon++
+		}
+	}
+	return overdue, soon, nil
+}
+
+// deadlineLabel names a deadline choice: "7 days", "none".
+func deadlineLabel(days int) string {
+	if days == 0 {
+		return "none"
+	}
+	return plural(days, "day", "days")
 }

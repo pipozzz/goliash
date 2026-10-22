@@ -904,15 +904,25 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 		SecurityFix  string        `json:"security_fix,omitempty"`
 		Breaking     []string      `json:"breaking,omitempty"`
+		Due          string        `json:"due,omitempty"`
+		DueFor       string        `json:"due_for,omitempty"`
+		DaysLeft     *int          `json:"days_left,omitempty"`
 	}
 	out := []apiUpdate{}
-	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, time.Now()) {
+	now := time.Now()
+	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, now) {
+		var due string
+		var left *int
+		if !u.Due.IsZero() {
+			d := u.DaysLeft(now)
+			due, left = u.Due.Format(time.DateOnly), &d
+		}
 		out = append(out, apiUpdate{
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
 			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
 			Exploited: u.Exploited, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
-			Breaking: u.Breaking,
+			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

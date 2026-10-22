@@ -166,6 +166,8 @@ When the release notes on the way (GitHub or GitLab releases, or the project's o
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible
 changes; read the notes themselves before upgrading, as a project may say it otherwise or not at all.
+With [remediation deadlines](../security/#remediation-deadlines) set, a line says *due in 3 days* or *overdue 5 days*,
+and a *past deadline* tile shows only those.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the
 wild (they put it first) and counts the other critical ones, each a link to [Is it running?](../security/#is-it-running).
 When the version to move to already runs somewhere (staging, another cluster) and both images have an SBOM, the line
@@ -185,7 +187,7 @@ repository, branch and environment (see [Upgrade with a pull request](/guide/arg
 [Search](/guide/matrix/)), **Tick all shown**, and open them together; the button counts what goes, and upgrades the
 filter hides are left out. **Copy as checklist** copies the upgrades shown, for a ticket.
 **Download CSV** gives the same upgrades as a spreadsheet (service, environment, running, target, urgency, end of
-life, exploited CVEs, security fixes, breaking changes, watches, release notes), the filter's words included.
+life, exploited CVEs, security fixes, breaking changes, watches, deadline, release notes), the filter's words included.
 
 The same list is `GET /api/v1/updates` and the MCP tool `updates`, for an assistant to plan with. A notification rule
 with the upgrade plan sends it every week; see [Upgrade plan](/guide/notifications/#upgrade-plan).

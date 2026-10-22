@@ -32,6 +32,8 @@ type UpdatesView struct {
 	Markdown     string // the list as a markdown checklist, to copy into a ticket
 	Total        int    // before filters
 	Watched      []WatchedItem
+	Overdue      int  // upgrades past the workspace's remediation deadline, before the urgency filter
+	OnlyOverdue  bool // ?due=over: only those
 }
 
 // WatchedItem is a service watched for its releases that runs nowhere Goliash knows.
@@ -52,9 +54,12 @@ type UpdateItem struct {
 	Service, ServiceURL, App, Owner, Env string
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
-	SecurityFix                          string   // what the releases up to Target say they fix
-	Breaking                             []string // what the releases up to Target say breaks: "2.0.0: Removed …"
-	Watched                              []string // the security watches covering the service
+	SecurityFix                          string    // what the releases up to Target say they fix
+	Breaking                             []string  // what the releases up to Target say breaks: "2.0.0: Removed …"
+	Due                                  time.Time // the remediation deadline, zero without one
+	DueFor                               string    // for which reason: "exploited vulnerability"
+	DaysLeft                             int       // until Due: negative once past
+	Watched                              []string  // the security watches covering the service
 	EOLPassed                            bool
 	On                                   string // the targets running Running, when others run newer versions
 	Since                                time.Time
@@ -89,23 +94,51 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "release_notes"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
 		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " ")) {
 			continue
 		}
-		since := ""
+		since, due, left := "", "", ""
 		if !it.Since.IsZero() {
 			since = it.Since.UTC().Format(time.DateOnly)
 		}
+		if !it.Due.IsZero() {
+			due, left = it.Due.Format(time.DateOnly), strconv.Itoa(it.DaysLeft)
+		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), it.TargetURL,
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL,
 		})
 	}
 	cw.Flush()
 	return cw.Error()
+}
+
+// dueText says where an upgrade stands against its remediation deadline: "overdue 5 days", "due today",
+// "due in 3 days", "due 30 Oct".
+func dueText(it UpdateItem) string {
+	switch d := it.DaysLeft; {
+	case d < 0:
+		return "overdue " + plural(-d, "day", "days")
+	case d == 0:
+		return "due today"
+	case d <= 7:
+		return "due in " + plural(d, "day", "days")
+	}
+	return "due " + it.Due.Format("2 Jan")
+}
+
+// dueClass colours the deadline: past it red, within a week amber, else plain.
+func dueClass(it UpdateItem) string {
+	switch {
+	case it.DaysLeft < 0:
+		return "eol"
+	case it.DaysLeft <= 7:
+		return "warn"
+	}
+	return "neutral"
 }
 
 // breakingShown bounds the notes' lines an upgrade shows; the CSV and the checklist have them all.
@@ -151,7 +184,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 	}
 	q := r.URL.Query()
-	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1}
+	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1, OnlyOverdue: q.Get("due") == "over"}
 	v.Views = s.viewTabs(ctx, r, p, "/updates")
 	if l := q.Get("level"); l != "" {
 		for i := range versions.UrgencyLabels {
@@ -169,7 +202,8 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 	if err != nil {
 		return UpdatesView{}, err
 	}
-	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, time.Now()) {
+	now := time.Now()
+	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
 		}
@@ -183,6 +217,10 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
+			Due: u.Due, DueFor: u.DueFor,
+		}
+		if !u.Due.IsZero() {
+			it.DaysLeft = u.DaysLeft(now)
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
 			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
@@ -200,7 +238,11 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 		v.Total++
 		v.Levels[u.Urgency].Count++
-		if v.Level >= 0 && u.Urgency != v.Level {
+		overdue := u.Overdue(now)
+		if overdue {
+			v.Overdue++
+		}
+		if v.Level >= 0 && u.Urgency != v.Level || v.OnlyOverdue && !overdue {
 			continue
 		}
 		v.Items = append(v.Items, it)
@@ -244,6 +286,9 @@ func updateMarkdown(it UpdateItem) string {
 	}
 	if len(it.Breaking) > 0 {
 		why = append(why, "breaking: "+strings.Join(it.Breaking, "; "))
+	}
+	if !it.Due.IsZero() {
+		why = append(why, dueText(it))
 	}
 	if it.Behind != "" {
 		why = append(why, "behind "+it.Behind)
@@ -292,6 +337,9 @@ func updatesURL(v UpdatesView, key, value string) string {
 	}
 	if v.Level >= 0 {
 		q.Set("level", itoa(v.Level))
+	}
+	if v.OnlyOverdue {
+		q.Set("due", "over")
 	}
 	if value == "" {
 		q.Del(key)
@@ -343,4 +391,18 @@ func (s *Server) watched(ctx context.Context, sc store.Scope, o versions.Overvie
 		out = append(out, it)
 	}
 	return out, nil
+}
+
+// overdueToggle is the due filter a click on the tile sets: on, or off again.
+func overdueToggle(v UpdatesView) string {
+	if v.OnlyOverdue {
+		return ""
+	}
+	return "over"
+}
+
+// allDue is the view without the due filter, for the All tile.
+func allDue(v UpdatesView) UpdatesView {
+	v.OnlyOverdue = false
+	return v
 }

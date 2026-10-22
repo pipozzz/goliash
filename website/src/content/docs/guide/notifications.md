@@ -225,8 +225,8 @@ The posture report is for the week; the **security brief** is for the morning. A
 `security_brief` (*security brief* in the form) sends, daily or on Mondays at the same time as the plan, what a
 security team should look at today, in a few lines: releases found since yesterday that fix vulnerabilities in what
 runs, the [security watches](#security-watches) and how many services each covers, vulnerabilities exploited in the
-wild that run (those past CISA's due date named), upgrades fixing vulnerabilities still waiting in Updates, and
-pull requests merged but not deployed. It links to the Security page.
+wild that run (those past CISA's due date named), upgrades fixing vulnerabilities still waiting in Updates, those
+past their [remediation deadline](/guide/security/#remediation-deadlines), and pull requests merged but not deployed. It links to the Security page.
 
 ```sh
 goliash notify create -channel security -events security_brief -mode daily
