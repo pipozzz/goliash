@@ -21,7 +21,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.112.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.4
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/getkin/kin-openapi v0.149.0
+	github.com/getkin/kin-openapi v0.151.0
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jackc/pgx/v5 v5.11.0
