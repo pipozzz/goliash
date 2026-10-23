@@ -61,6 +61,11 @@ func kindOf(it Item) kind {
 		return kind{"🛡️", "#1b2a6b", "Security brief"}
 	case "security_release":
 		return kind{"🔒", "#e5484d", "Security release"}
+	case EventDeadline:
+		if strings.HasPrefix(it.Note, "passed") {
+			return kind{"⏰", "#e5484d", "Remediation deadline passed"}
+		}
+		return kind{"⏳", "#d9822b", "Remediation deadline near"}
 	case "vulnerability":
 		if strings.Contains(it.Note, "exploited") {
 			return kind{"🚨", "#e5484d", "Exploited vulnerability"}

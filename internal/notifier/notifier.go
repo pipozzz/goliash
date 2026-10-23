@@ -587,6 +587,9 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			if err := n.RecordPostures(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("recording the security posture failed", "err", err)
 			}
+			if err := n.CheckDeadlines(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("checking remediation deadlines failed", "err", err)
+			}
 		}
 		if err := n.DeliverDue(ctx); err != nil && ctx.Err() == nil {
 			n.log.Error("delivering notifications failed", "err", err)
@@ -803,6 +806,8 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s%s (%s)", where, orDash(it.From), to, it.Note)
 	case EventWatch:
 		return fmt.Sprintf("%s: %s is out, %s runs (security watch “%s”)", where, it.To, orDash(it.From), it.Note)
+	case EventDeadline:
+		return describeDeadline(where, it)
 	case "security_release":
 		ids := ""
 		if it.Note != "" && it.Note != "security" {

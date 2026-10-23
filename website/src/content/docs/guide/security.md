@@ -48,7 +48,15 @@ in days, for three reasons to upgrade:
 | Security fix | when Goliash found the first release on the way that fixes vulnerabilities |
 | End of life | on the end-of-life date of the running release cycle |
 
-An upgrade with several reasons takes the earliest deadline. [Updates](../versions/#updates) marks each upgrade *due in
+An upgrade with several reasons takes the earliest deadline. The `deadline` notification announces each upgrade
+three days before its deadline and again the day it passes, once each (*postgres @ prod: the remediation deadline
+for the end of life passed on 23 Oct; 13.4 runs, 13.16 fixes it*); a rule filtered by owner sends a team its own:
+
+```sh
+goliash notify create -channel team-data -events deadline -owners team-data -mode instant
+```
+
+An upgrade past its deadline for more than a week is no longer announced; the brief and the report name it. [Updates](../versions/#updates) marks each upgrade *due in
 3 days* (amber within a week) or *overdue 5 days* (red), and a *past deadline* tile lists only those; the CSV has
 `due` and `days_left`, `GET /api/v1/updates` has `due`, `due_for` and `days_left`. The panel counts what is past and
 what is due within a week, and the [security brief](../notifications/#security-brief) and the
