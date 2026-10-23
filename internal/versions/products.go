@@ -47,7 +47,7 @@ func productsOf(svc store.Service, in store.Instance, resolved map[string]string
 			}
 		}
 	}
-	return append(out, ParseComponents(ev.Components)...)
+	return append(out, parseComponents(ev.Components)...)
 }
 
 // componentCPEs are the NVD products of software a dev.goliash.components label names by its usual name.
@@ -64,9 +64,9 @@ var componentCPEs = map[string][]string{
 	"envoy": {"envoyproxy:envoy"}, "keycloak": {"redhat:keycloak"}, "grafana": {"grafana:grafana"},
 }
 
-// ParseComponents reads a dev.goliash.components label: name=version pairs separated by commas or spaces, a name
+// parseComponents reads a dev.goliash.components label: name=version pairs separated by commas or spaces, a name
 // being a usual one (nginx, php, openssl…) or an NVD product (vendor:product). Unknown names are left out.
-func ParseComponents(label string) []productUse {
+func parseComponents(label string) []productUse {
 	var out []productUse
 	for _, field := range strings.FieldsFunc(label, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
 		name, version, ok := strings.Cut(field, "=")

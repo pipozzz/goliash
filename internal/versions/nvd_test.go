@@ -102,7 +102,7 @@ func TestProductVersion(t *testing.T) {
 
 func TestParseComponents(t *testing.T) {
 	var got []string
-	for _, u := range ParseComponents("nginx=1.27.2, php=v8.3.12; openssl=3.3 unknown=1.0 f5:nginx_open_source=1.26.0 broken redis=7") {
+	for _, u := range parseComponents("nginx=1.27.2, php=v8.3.12; openssl=3.3 unknown=1.0 f5:nginx_open_source=1.26.0 broken redis=7") {
 		got = append(got, u.CPE+"@"+u.Version+" ("+u.Name+")")
 	}
 	want := "f5:nginx@1.27.2 (nginx) f5:nginx_open_source@1.27.2 (nginx) php:php@8.3.12 (php) openssl:openssl@3.3 (openssl) f5:nginx_open_source@1.26.0 (nginx)"
