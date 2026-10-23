@@ -227,6 +227,47 @@ advisories are still being looked up it says so, and does not answer "not runnin
 Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
 lookups at a mirror, or turns them off (`off`).
 
+## Images without an SBOM
+
+Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:
+
+1. **the image's SBOM**: the SPDX or CycloneDX attestation `docker buildx build --sbom=true` attaches (official
+   images have one), a cosign attestation, or an SBOM pushed as an OCI referrer. It lists the operating system's
+   packages and the application's own dependencies (npm, Composer, Maven, Go modules…);
+2. **the image's package database**, when it has no SBOM: Goliash reads the layers, newest first, for
+   `/var/lib/dpkg/status` (Debian and Ubuntu; distroless images' `/var/lib/dpkg/status.d`) or
+   `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard), and `/etc/os-release`. An image built `FROM ubuntu:22.04`
+   with `apt-get install nginx php8.1-fpm` is checked against Ubuntu's own advisories, which know Ubuntu's patched
+   builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. This covers the system packages only,
+   not the application's dependencies. Images up to 1 GB of layers (gzip or plain), two per check, are read once
+   per digest; private images are read with the workspace's
+   [registry credentials](/reference/collectors/#credentials-on-the-server).
+
+What neither covers, Goliash does not know: software built from source or copied into the image, RPM-based images
+(Red Hat, Rocky, Amazon Linux), scratch images. The Security page lists production's images without an SBOM, why
+(*no package database*, *not read yet*), and how to add one to the build, ready to copy:
+
+```yaml
+# GitHub Actions: the build-push step
+- uses: docker/build-push-action@v6
+  with:
+    push: true
+    sbom: true              # an SPDX SBOM of every package in the image, attached to it
+    provenance: mode=max    # what it was built from, including its base images
+```
+
+```sh
+# GitLab CI or anywhere else with BuildKit
+docker buildx build --push --sbom=true --provenance=mode=max -t registry.example.com/team/app:1.2.3 .
+
+# an image already pushed, without rebuilding it
+syft registry.example.com/team/app:1.2.3 -o spdx-json > sbom.spdx.json
+cosign attest --yes --type spdxjson --predicate sbom.spdx.json registry.example.com/team/app:1.2.3
+```
+
+At its next deploy (or check), Goliash reads the SBOM from the registry, and it replaces the package list read from
+the image.
+
 ## Licenses
 
 The same SBOMs say which license each package is under. **Security → Licenses** sorts the packages of running

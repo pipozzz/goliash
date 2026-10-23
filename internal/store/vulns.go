@@ -20,6 +20,9 @@ type ImageSBOM struct {
 	LicensesRead bool
 	Error        string
 	FetchedAt    time.Time
+	// Source is where the packages came from: "sbom", the image's SBOM attestation, or "packages", its operating
+	// system package database read by Goliash for an image without one.
+	Source string
 }
 
 // SetImageSBOM records what an image's SBOM lists, or why it could not be read.
@@ -32,17 +35,20 @@ func (s *Store) SetImageSBOM(ctx context.Context, sc Scope, b ImageSBOM) error {
 			return err
 		}
 	}
-	_, err := s.exec(ctx, s.db, `INSERT INTO image_sboms (org_id, workspace_id, repo, digest, purls, licenses, error, fetched_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	if b.Source == "" {
+		b.Source = "sbom"
+	}
+	_, err := s.exec(ctx, s.db, `INSERT INTO image_sboms (org_id, workspace_id, repo, digest, purls, licenses, error, fetched_at, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET purls = excluded.purls, licenses = excluded.licenses,
-			error = excluded.error, fetched_at = excluded.fetched_at`,
-		sc.OrgID, sc.WorkspaceID, b.Repo, b.Digest, purls, string(licenses), b.Error, s.now())
+			error = excluded.error, fetched_at = excluded.fetched_at, source = excluded.source`,
+		sc.OrgID, sc.WorkspaceID, b.Repo, b.Digest, purls, string(licenses), b.Error, s.now(), b.Source)
 	return err
 }
 
 // ListImageSBOMs returns the workspace's SBOMs keyed by repo + "@" + digest.
 func (s *Store) ListImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageSBOM, error) {
-	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, licenses, error, fetched_at FROM image_sboms
+	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, licenses, error, fetched_at, source FROM image_sboms
 		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -53,7 +59,7 @@ func (s *Store) ListImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageS
 		var b ImageSBOM
 		var purls string
 		var licenses sql.NullString
-		if err := rows.Scan(&b.Repo, &b.Digest, &purls, &licenses, &b.Error, &b.FetchedAt); err != nil {
+		if err := rows.Scan(&b.Repo, &b.Digest, &purls, &licenses, &b.Error, &b.FetchedAt, &b.Source); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(purls), &b.Purls)

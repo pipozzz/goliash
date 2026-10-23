@@ -145,6 +145,12 @@ func osvPrimary(purl string) (osvQuery, bool) {
 		}
 		q.Package.Ecosystem = "Alpine:v" + parts[0] + "." + parts[1]
 		q.Package.Name, q.Version = name, version
+		for _, k := range []string{"origin", "upstream"} { // Alpine's advisories are filed under the source package
+			if src := qs.Get(k); src != "" {
+				q.Package.Name = strings.SplitN(src, "@", 2)[0]
+				break
+			}
+		}
 	default:
 		q.Package.Purl = strings.SplitN(purl, "?", 2)[0]
 	}

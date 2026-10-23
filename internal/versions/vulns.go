@@ -19,6 +19,12 @@ type SBOMReader interface {
 	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
+// PackageReader reads the operating system packages installed in an image, for an image without an SBOM.
+// registry.Client implements it.
+type PackageReader interface {
+	ImagePackages(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
+}
+
 // NeedsLicenses reports whether an SBOM was read before licenses were kept, and so is read once more for them.
 func NeedsLicenses(b store.ImageSBOM) bool {
 	return b.Error == "" && len(b.Purls) > 0 && !b.LicensesRead
@@ -26,6 +32,7 @@ func NeedsLicenses(b store.ImageSBOM) bool {
 
 const (
 	sbomsPerRun    = 5              // SBOMs read per workspace and run
+	packagesPerRun = 2              // images without an SBOM read for their packages per workspace and run (layers are big)
 	sbomRetry      = 24 * time.Hour // after a failed or empty read; a read SBOM never changes, its digest does not
 	osvTTL         = 24 * time.Hour // how long OSV's answer for a package is trusted
 	osvPerRun      = 5000           // packages asked per workspace and run
@@ -57,7 +64,8 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	}
 	now := c.now()
 	auth := c.registryAuth(ctx, sc)
-	read := 0
+	read, unpacked := 0, 0
+	packages, _ := c.tags.(PackageReader)
 	keys := map[string]bool{}
 	for _, in := range active {
 		if in.Digest == "" {
@@ -70,7 +78,27 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 		keys[key] = true
 		b, have := sboms[key]
-		if !auth.Reads(repo) || !evidence[key].SBOM || (have && ((b.Error == "" && len(b.Purls) > 0 && !NeedsLicenses(b)) || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
+		ev, checked := evidence[key]
+		if auth.Reads(repo) && checked && !ev.CheckedAt.IsZero() && ev.Error == "" && !ev.SBOM && packages != nil && unpacked < packagesPerRun &&
+			(!have || (b.Source == "packages" && b.Error != "" && now.Sub(b.FetchedAt) >= sbomRetry)) {
+			// No SBOM: read the image's own package database, so its system packages are not a blind spot.
+			unpacked++
+			creds, _ := auth.For(repo)
+			list, err := packages.ImagePackages(ctx, repo, in.Digest, creds)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: list.Purls, Source: "packages"}
+			if err != nil {
+				rec.Error = err.Error()
+			}
+			if err := c.store.SetImageSBOM(ctx, sc, rec); err != nil {
+				return err
+			}
+			sboms[key] = rec
+			continue
+		}
+		if !auth.Reads(repo) || !ev.SBOM || (have && b.Source != "packages" && ((b.Error == "" && len(b.Purls) > 0 && !NeedsLicenses(b)) || now.Sub(b.FetchedAt) < sbomRetry)) || read >= sbomsPerRun {
 			continue
 		}
 		read++
@@ -209,15 +237,26 @@ func (f VulnFinding) DaysRunning(now time.Time) int {
 
 // VulnReport is what the SBOMs and OSV say about the running images.
 type VulnReport struct {
-	Findings  []VulnFinding
-	Images    int // running images with a digest
-	WithSBOM  int // of them, with an SBOM read
+	Findings []VulnFinding
+	Images   int // running images with a digest
+	WithSBOM int // of them, with an SBOM read (or their package database, FromPackages)
+	// FromPackages counts the images without an SBOM whose system packages Goliash read from the image itself.
+	FromPackages int
+	// Blind are the running images whose packages are not known at all: their vulnerabilities are not either.
+	Blind     []BlindImage
 	Packages  int // distinct packages in those SBOMs
 	Unasked   int // packages OSV has not answered for yet
 	Pending   int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
 	Exploited int // findings CISA lists as exploited in the wild
 	Fixable   int // findings with a fixed version for an affected package
 	PastDue   int // exploited findings still running after CISA's due date
+}
+
+// BlindImage is a running image whose packages Goliash does not know, and why.
+type BlindImage struct {
+	Image, Service, Environment string
+	Source                      string // the service's source repository, for how to add an SBOM to its build
+	Why                         string
 }
 
 // LoadVulnReport builds the report for the running images, envID limiting it to one environment ("" for all).
@@ -239,9 +278,9 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
-	svcName, envName := map[string]string{}, map[string]string{}
+	svcName, envName, svcSource := map[string]string{}, map[string]string{}, map[string]string{}
 	for _, s := range services {
-		svcName[s.ID] = s.Name
+		svcName[s.ID], svcSource[s.ID] = s.Name, s.SourceURL
 	}
 	for _, e := range envs {
 		envName[e.ID] = e.Name
@@ -260,8 +299,19 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		if !images[key] {
 			images[key] = true
 			r.Images++
-			if len(sboms[key].Purls) > 0 {
+			b := sboms[key]
+			switch {
+			case len(b.Purls) > 0:
 				r.WithSBOM++
+				if b.Source == "packages" {
+					r.FromPackages++
+				}
+			default:
+				name := svcName[in.ServiceID]
+				if name == "" {
+					name = in.WorkloadName
+				}
+				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: blindWhy(b)})
 			}
 		}
 		name := svcName[in.ServiceID]
@@ -559,4 +609,35 @@ func FindingMatches(f VulnFinding, q string) bool {
 		}
 	}
 	return false
+}
+
+// blindWhy says why an image's packages are unknown.
+func blindWhy(b store.ImageSBOM) string {
+	switch {
+	case b.Source == "packages" && strings.Contains(b.Error, "no dpkg or apk package database"):
+		return "no SBOM, and no dpkg or apk package database (scratch, distroless, RPM-based or built from source)"
+	case b.Error != "":
+		return "no SBOM; " + readFailure(b.Error)
+	case b.FetchedAt.IsZero():
+		return "no SBOM; its packages are not read yet (private registries: give the server read access)"
+	}
+	return "no SBOM"
+}
+
+// readFailure says in a few words why reading an image from its registry failed.
+func readFailure(err string) string {
+	switch {
+	case strings.Contains(err, "MANIFEST_UNKNOWN") || strings.Contains(err, "BLOB_UNKNOWN") || strings.Contains(err, " 404"):
+		return "the registry no longer has this image (deleted, or the tag was pushed again)"
+	case strings.Contains(err, "denied") || strings.Contains(err, " 401") || strings.Contains(err, " 403"):
+		return "the registry refused the server: give it read access under Settings → Registries"
+	case strings.Contains(err, "larger than"):
+		return "the image is too large to read for its packages"
+	case strings.Contains(err, "zstd"):
+		return "its layers are zstd-compressed, which Goliash does not read"
+	}
+	if len(err) > 120 {
+		err = err[:120] + "…"
+	}
+	return "reading it failed: " + err
 }

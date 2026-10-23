@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -56,5 +57,24 @@ func TestSecurityAlertsHint(t *testing.T) {
 	}
 	if _, page := get(t, v, e.srv.URL+"/security", nil); strings.Contains(page, "only reach the bell in Goliash") {
 		t.Error("the hint stays with a rule for every event on Slack")
+	}
+}
+
+// Production images whose packages are unknown are listed with how to add an SBOM to their build.
+func TestSBOMHelper(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	v := e.as(store.RoleViewer)
+	svc, _ := e.st.GetServiceByName(ctx, e.ws.Scope(), e.serviceOf("evil"))
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.ws.Scope(), SnapshotID: store.NewID(), TargetID: e.tgt.ID, At: time.Now(), Upsert: []store.Instance{{
+		TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: svc.ID, WorkloadID: "w9", WorkloadName: "shop", ContainerName: "php",
+		Image: "ghcr.io/acme/shop:3", Tag: "3", Digest: "sha256:shop", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	_, page := get(t, v, e.srv.URL+"/security", nil)
+	if !strings.Contains(page, `id="sbom"`) || !strings.Contains(page, "without an SBOM") || !strings.Contains(page, "sbom: true") ||
+		!strings.Contains(page, "--sbom=true --provenance=mode=max") || !strings.Contains(page, "cosign attest") {
+		t.Error("no Add an SBOM helper for images without one")
 	}
 }

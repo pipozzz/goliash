@@ -142,6 +142,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
 		return err
 	}
+	sort.Slice(v.Vulns.Blind, func(i, j int) bool {
+		return v.Vulns.Blind[i].Service+v.Vulns.Blind[i].Image < v.Vulns.Blind[j].Service+v.Vulns.Blind[j].Image
+	})
 	v.CanWatch = p.Can(store.RoleMember)
 	if v.Watches, err = s.watchViews(r.Context(), p.Scope); err != nil {
 		return err
@@ -812,3 +815,45 @@ func unknownFix(u versions.UnknownService) fixLink {
 	}
 	return fixLink{}
 }
+
+// blindShown bounds the images without an SBOM the Security page lists.
+const blindShown = 20
+
+// sbomHow is which of the Add an SBOM snippets fits a service's source repository.
+func sbomHow(source string) string {
+	switch {
+	case strings.Contains(source, "github.com"):
+		return "github"
+	case strings.Contains(source, "gitlab"):
+		return "gitlab"
+	}
+	return "buildx"
+}
+
+func sbomHowLabel(how string) string {
+	return map[string]string{"github": "GitHub Actions", "gitlab": "GitLab CI", "buildx": "docker buildx"}[how]
+}
+
+// The Add an SBOM snippets: BuildKit's SBOM (syft) and provenance attestations, attached to the image in the registry.
+const (
+	sbomGitHub = `# .github/workflows/release.yml: the build-push step
+- uses: docker/build-push-action@v6
+  with:
+    push: true
+    tags: ${{ steps.meta.outputs.tags }}
+    sbom: true              # an SPDX SBOM of every package in the image, attached to it
+    provenance: mode=max    # what it was built from, including its base images`
+	sbomGitLab = `# .gitlab-ci.yml
+build:
+  image: docker:27
+  services: [docker:27-dind]
+  script:
+    - docker buildx create --use
+    - docker buildx build --push --sbom=true --provenance=mode=max -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" .`
+	sbomBuildx = `docker buildx build --push \
+  --sbom=true --provenance=mode=max \
+  -t registry.example.com/team/app:1.2.3 .`
+	sbomExisting = `# syft lists the packages, cosign attaches them to the image as an SBOM attestation
+syft registry.example.com/team/app:1.2.3 -o spdx-json > sbom.spdx.json
+cosign attest --yes --type spdxjson --predicate sbom.spdx.json registry.example.com/team/app:1.2.3`
+)
