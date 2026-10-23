@@ -43,6 +43,9 @@ func TestOSVQuery(t *testing.T) {
 		"pkg:golang/golang.org/x/net@v0.17.0?type=module":                          "purl pkg:golang/golang.org/x/net@v0.17.0",
 		"pkg:apk/wolfi/openssl-4.0-libssl@4.0.3-r6?arch=x86_64&origin=openssl-4.0": "Wolfi openssl-4.0 4.0.3-r6",
 		"pkg:apk/chainguard/curl@8.10.1-r0":                                        "Chainguard curl 8.10.1-r0",
+		// As Goliash reads them from an image's package database: Ubuntu by its source package, Alpine by its origin.
+		"pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.15?arch=amd64&os_version=22.04&upstream=openssl": "Ubuntu:22.04 openssl 3.0.2-0ubuntu1.15",
+		"pkg:apk/alpine/php82-fpm@8.2.20-r0?arch=x86_64&origin=php82&os_version=3.19.1":         "Alpine:v3.19 php82 8.2.20-r0",
 	} {
 		q, ok := osvQueryFor(purl)
 		got := q.Package.Ecosystem + " " + q.Package.Name + " " + q.Version

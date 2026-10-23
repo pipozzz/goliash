@@ -233,6 +233,9 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			</section>
 		}
+		if len(v.Vulns.Blind) > 0 {
+			@sbomHelper(v.Vulns.Blind)
+		}
 		<section class="panel">
 			<div class="panel-head"><h2>Is it running?</h2>@panelInfo("known vulnerabilities in " + v.Prod.Name + ", from the images' SBOMs and OSV")</div>
 			<div class="panel-body stack">
@@ -251,6 +254,9 @@ templ SecurityPage(v SecurityView) {
 						{ " in " + plural(v.Vulns.Packages, "package", "packages") + " of " }
 						{ itoa(v.Vulns.WithSBOM) } of { itoa(v.Vulns.Images) } images with an SBOM;
 						{ itoa(v.Vulns.Fixable) } with a fixed version out.
+						if v.Vulns.FromPackages > 0 {
+							<span class="muted">{ plural(v.Vulns.FromPackages, "image has", "images have") + " no SBOM: Goliash read its system packages (dpkg, apk) from the image, not its application's dependencies." }</span>
+						}
 					</p>
 					if v.Vulns.Exploited > 0 {
 						<p class="notice error">
@@ -576,5 +582,58 @@ templ sinceYesterday(v SecurityView) {
 				}
 			</ul>
 		}
+	</section>
+}
+
+// sbomHelper lists the production images whose packages Goliash does not know, and how to give each build an SBOM.
+templ sbomHelper(blind []versions.BlindImage) {
+	<section class="panel" id="sbom">
+		<div class="panel-head">
+			<h2>{ plural(len(blind), "image without an SBOM", "images without an SBOM") }</h2>
+			@panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg or apk package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.")
+		</div>
+		<div class="scroll" tabindex="0">
+			<table class="cards">
+				<thead><tr><th>Image</th><th>Service</th><th>Why</th><th>Add an SBOM</th></tr></thead>
+				<tbody>
+					for i, b := range blind {
+						if i < blindShown {
+							<tr>
+								<td data-label="Image"><code>{ b.Image }</code></td>
+								<td data-label="Service"><a href={ templ.URL(serviceURL(b.Service)) }>{ b.Service }</a></td>
+								<td data-label="Why" class="muted">{ b.Why }</td>
+								<td data-label="Add an SBOM"><a href={ templ.URL("#sbom-" + sbomHow(b.Source)) }>{ sbomHowLabel(sbomHow(b.Source)) }</a></td>
+							</tr>
+						}
+					}
+				</tbody>
+			</table>
+		</div>
+		if len(blind) > blindShown {
+			<p class="panel-body muted">{ "and " + itoa(len(blind)-blindShown) + " more" }</p>
+		}
+		<div class="panel-body stack">
+			<details class="install" id="sbom-github">
+				<summary>GitHub Actions</summary>
+				<pre class="mono" id="sbom-github-snippet">{ sbomGitHub }</pre>
+				<button type="button" class="secondary" data-copy="sbom-github-snippet">Copy</button>
+			</details>
+			<details class="install" id="sbom-gitlab">
+				<summary>GitLab CI</summary>
+				<pre class="mono" id="sbom-gitlab-snippet">{ sbomGitLab }</pre>
+				<button type="button" class="secondary" data-copy="sbom-gitlab-snippet">Copy</button>
+			</details>
+			<details class="install" id="sbom-buildx">
+				<summary>docker buildx, anywhere</summary>
+				<pre class="mono" id="sbom-buildx-snippet">{ sbomBuildx }</pre>
+				<button type="button" class="secondary" data-copy="sbom-buildx-snippet">Copy</button>
+			</details>
+			<details class="install" id="sbom-existing">
+				<summary>An image already pushed, without rebuilding</summary>
+				<pre class="mono" id="sbom-existing-snippet">{ sbomExisting }</pre>
+				<button type="button" class="secondary" data-copy="sbom-existing-snippet">Copy</button>
+			</details>
+			<p class="muted">Software built from source or copied into the image is in no package database, so only an SBOM of the build knows it. See <a href="https://goliash.dev/guide/security/#images-without-an-sbom" target="_blank" rel="noopener">the guide</a>.</p>
+		</div>
 	</section>
 }
