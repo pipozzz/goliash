@@ -625,14 +625,17 @@ func addProductFindings(ctx context.Context, st *store.Store, sc store.Scope, ac
 	for _, s := range services {
 		svcs[s.ID] = s
 	}
+	evidence, err := st.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return err
+	}
 	resolved := resolvedVersions(ctx, st, sc)
 	for _, in := range active {
 		if envID != "" && in.EnvironmentID != envID {
 			continue
 		}
-		products, version := productOf(svcs[in.ServiceID], in, resolved)
-		for _, product := range products {
-			for _, v := range known[product+"@"+version].Vulns {
+		for _, use := range productsOf(svcs[in.ServiceID], in, resolved, evidence[ParseImage(in.Image).Repo()+"@"+in.Digest]) {
+			for _, v := range known[use.CPE+"@"+use.Version].Vulns {
 				f := findings[v.CVE]
 				if f == nil {
 					f = &VulnFinding{Key: v.CVE}
@@ -651,7 +654,7 @@ func addProductFindings(ctx context.Context, st *store.Store, sc store.Scope, ac
 					f.Severity = v.Severity
 				}
 				a := Affected{
-					Service: svcs[in.ServiceID].Name, Env: envName[in.EnvironmentID], Image: in.Image, Package: productName(product) + " " + version,
+					Service: svcs[in.ServiceID].Name, Env: envName[in.EnvironmentID], Image: in.Image, Package: use.Name + " " + use.Version,
 					Fix: v.Fix, ServiceID: in.ServiceID, EnvironmentID: in.EnvironmentID, Since: in.FirstSeenAt,
 				}
 				if i := indexAffected(f.Affected, a); i >= 0 {

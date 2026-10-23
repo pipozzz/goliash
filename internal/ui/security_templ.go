@@ -3237,7 +3237,7 @@ func sbomHelper(blind []versions.BlindImage) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 314, "</pre><button type=\"button\" class=\"secondary\" data-copy=\"sbom-existing-snippet\">Copy</button></details><p class=\"muted\">Software built from source or copied into the image is in no package database, so only an SBOM of the build knows it. See <a href=\"https://goliash.dev/guide/security/#images-without-an-sbom\" target=\"_blank\" rel=\"noopener\">the guide</a>.</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 314, "</pre><button type=\"button\" class=\"secondary\" data-copy=\"sbom-existing-snippet\">Copy</button></details><p class=\"muted\">Software built from source or copied into the image is in no package database: declare it in the Dockerfile, <code>LABEL dev.goliash.components=\"nginx=1.27.2, php=8.3.12\"</code>, and Goliash looks up its CVEs by version. See <a href=\"https://goliash.dev/guide/security/#images-without-an-sbom\" target=\"_blank\" rel=\"noopener\">the guide</a>.</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

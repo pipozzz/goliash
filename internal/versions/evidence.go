@@ -65,7 +65,7 @@ func (c *Checker) CheckEvidence(ctx context.Context, sc store.Scope) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found, Size: ev.Size}
+		rec := store.ImageEvidence{Repo: repo, Digest: in.Digest, Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Found: ev.Found, Size: ev.Size, Components: ev.Components}
 		for _, s := range ev.Signers {
 			rec.Signers = append(rec.Signers, store.ImageSigner(s))
 		}

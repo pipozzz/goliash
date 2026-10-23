@@ -254,8 +254,20 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    per digest; private images are read with the workspace's
    [registry credentials](/reference/collectors/#credentials-on-the-server).
 
-What neither covers, Goliash does not know: software built from source or copied into the image, RPM-based images
-(Red Hat, Rocky, Amazon Linux), scratch images. The Security page lists production's images without an SBOM, why
+What neither covers, Goliash does not know by itself: software built from source or copied into the image, RPM-based
+images (Red Hat, Rocky, Amazon Linux), scratch images. **Declare** what you built into the image with a label, and
+Goliash looks up its CVEs in NVD by version, like [the products of known images](#is-it-running):
+
+```dockerfile
+LABEL dev.goliash.components="nginx=1.27.2, php=8.3.12, openssl=3.3.2"
+```
+
+Usual names are known (nginx, php, openssl, node, python, ruby, go, postgresql, redis, haproxy, curl, httpd, tomcat,
+openjdk, imagemagick, ffmpeg, git, sqlite, zlib, libxml2, mariadb, mysql, memcached, caddy, traefik, envoy,
+keycloak, grafana); anything else by its NVD product, `vendor:product=version`
+(`apache:http_server=2.4.62`). A build argument keeps it in step with the build: `ARG NGINX_VERSION` …
+`LABEL dev.goliash.components="nginx=${NGINX_VERSION}"`. The label is read with the image's evidence, for images
+the server reads. The Security page lists production's images without an SBOM, why
 (*no package database*, *not read yet*), and how to add one to the build, ready to copy:
 
 ```yaml

@@ -53,7 +53,8 @@ func TestImageEvidence(t *testing.T) {
 			"/v2/acme/built/manifests/sha256:arm": `{"mediaType":"` + mediaManifest + `","config":{"size":1},"layers":[{"size":1}]}`,
 			"/v2/acme/built/blobs/sha256:cfg": `{"history":[{"created_by":"/bin/sh -c #(nop) ADD file:abc in / "},
 				{"created_by":"/bin/sh -c #(nop) CMD [\"sh\"]","empty_layer":true},
-				{"created_by":"RUN /bin/sh -c apk add --no-cache curl # buildkit"}]}`,
+				{"created_by":"RUN /bin/sh -c apk add --no-cache curl # buildkit"}],
+				"config":{"Labels":{"dev.goliash.components":"nginx=1.27.2, php=8.3.12"}}}`,
 			// cosign: a signature tag.
 			"/v2/acme/built/manifests/sha256-" + built[7:] + ".sig": `{"mediaType":"` + mediaManifest + `","layers":[{"digest":"sha256:s",
 				"annotations":{"dev.sigstore.cosign/certificate":` + string(sigCert) + `}}]}`,
@@ -85,6 +86,9 @@ func TestImageEvidence(t *testing.T) {
 	}
 	if d := ev.LayerDetails; len(d) != 2 || d[0].Command != "ADD file:abc in /" || d[1].Command != "RUN apk add --no-cache curl" || d[1].Size != 2000000 {
 		t.Errorf("layer details: %+v", ev.LayerDetails)
+	}
+	if ev.Components != "nginx=1.27.2, php=8.3.12" {
+		t.Errorf("components label: %q", ev.Components)
 	}
 	ev, err = client().ImageEvidence(ctx, host+"/acme/bundled", bundle, Credentials{})
 	if err != nil || !ev.Signed || !ev.SBOM || !ev.Provenance {

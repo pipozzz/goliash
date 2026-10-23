@@ -99,3 +99,60 @@ func TestProductVersion(t *testing.T) {
 		t.Errorf("resolved: %q", got)
 	}
 }
+
+func TestParseComponents(t *testing.T) {
+	var got []string
+	for _, u := range ParseComponents("nginx=1.27.2, php=v8.3.12; openssl=3.3 unknown=1.0 f5:nginx_open_source=1.26.0 broken redis=7") {
+		got = append(got, u.CPE+"@"+u.Version+" ("+u.Name+")")
+	}
+	want := "f5:nginx@1.27.2 (nginx) f5:nginx_open_source@1.27.2 (nginx) php:php@8.3.12 (php) openssl:openssl@3.3 (openssl) f5:nginx_open_source@1.26.0 (nginx)"
+	if strings.Join(got, " ") != want {
+		t.Errorf("components:\n%s\nwant\n%s", strings.Join(got, " "), want)
+	}
+}
+
+// An image built from ubuntu with nginx compiled from source declares it in its label: NVD's CVEs for that nginx
+// show for the service.
+func TestDeclaredComponents(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Query().Get("virtualMatchString") != "cpe:2.3:a:f5:nginx_open_source:1.25.3" {
+			_, _ = w.Write([]byte(`{"totalResults":0,"vulnerabilities":[]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"totalResults":1,"vulnerabilities":[{"cve":{"id":"CVE-2024-7347","descriptions":[{"lang":"en","value":"ngx_http_mp4_module over-read."}],
+		  "metrics":{"cvssMetricV31":[{"type":"Secondary","cvssData":{"baseScore":5.7,"baseSeverity":"MEDIUM"}}]},
+		  "configurations":[{"nodes":[{"cpeMatch":[{"vulnerable":true,"criteria":"cpe:2.3:a:f5:nginx_open_source:*:*:*:*:*:*:*:*","versionStartIncluding":"1.5.13","versionEndExcluding":"1.27.1"}]}]}]}}]}`))
+	}))
+	defer srv.Close()
+	l := newLab(t)
+	ctx := context.Background()
+	l.checker = NewChecker(l.st, l.tags, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Hour)
+	l.checker.SetNVD(&NVD{BaseURL: srv.URL, APIKey: "k", HTTP: srv.Client()})
+	web, _ := l.st.EnsureService(ctx, l.sc, "web")
+	tgt := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: web.ID, WorkloadID: "web", WorkloadName: "web", ContainerName: "web",
+		Image: "ghcr.io/acme/web:4.1", Tag: "4.1", Digest: "sha256:web", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.st.SetImageEvidence(ctx, l.sc, store.ImageEvidence{Repo: "ghcr.io/acme/web", Digest: "sha256:web", Components: "nginx=1.25.3"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.checker.CheckProductVulns(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 { // nginx is two NVD products
+		t.Fatalf("NVD asked %d times", calls.Load())
+	}
+	r, err := LoadVulnReport(ctx, l.st, l.sc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Findings) != 1 || r.Findings[0].Key != "CVE-2024-7347" || len(r.Findings[0].Affected) != 1 ||
+		r.Findings[0].Affected[0].Package != "nginx 1.25.3" || r.Findings[0].Affected[0].Fix != "1.27.1" || r.Findings[0].Affected[0].Service != "web" {
+		t.Fatalf("findings %+v", r.Findings)
+	}
+}

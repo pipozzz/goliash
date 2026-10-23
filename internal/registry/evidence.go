@@ -29,6 +29,9 @@ type Evidence struct {
 	// LayerDetails are the same layers with their sizes and the build step that made each, from the image's
 	// config history, when it could be read.
 	LayerDetails []Layer
+	// Components is the image's dev.goliash.components label: software built into it that no package database
+	// lists, "nginx=1.27.2, php=8.3.12".
+	Components string
 }
 
 // Layer is one layer of an image: its digest, compressed size, and the Dockerfile step that made it.
@@ -68,6 +71,10 @@ type evidenceManifest struct {
 	Layers       []descriptor      `json:"layers"`
 	Config       descriptor        `json:"config"`
 }
+
+// LabelComponents declares software built into an image that no package database lists, as name=version pairs:
+// "nginx=1.27.2, php=8.3.12", or with an NVD product, "f5:nginx_open_source=1.27.2".
+const LabelComponents = "dev.goliash.components"
 
 // ImageEvidence looks for the signatures and attestations of digest in repository: attestation manifests
 // BuildKit adds to an image index, cosign's sha256-<hex>.sig and .att tags, and OCI referrers.
@@ -116,7 +123,7 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 	}
 	readImage := func(m evidenceManifest) {
 		ev.Size, ev.Layers = imageSize(m), layerDigests(m)
-		ev.LayerDetails = c.layerDetails(ctx, base, repo, creds, m)
+		ev.LayerDetails, ev.Components = c.layerDetails(ctx, base, repo, creds, m)
 	}
 	if len(img.Manifests) == 0 {
 		readImage(img)
@@ -236,26 +243,29 @@ func layerDigests(m evidenceManifest) []string {
 
 // layerDetails pairs an image's layers with the build steps that made them, from its config's history (whose
 // entries without a layer, like ENV or CMD, are skipped). Without a readable history the commands stay empty.
-func (c *Client) layerDetails(ctx context.Context, base, repo string, creds Credentials, m evidenceManifest) []Layer {
+func (c *Client) layerDetails(ctx context.Context, base, repo string, creds Credentials, m evidenceManifest) ([]Layer, string) {
 	out := make([]Layer, len(m.Layers))
 	for i, l := range m.Layers {
 		out[i] = Layer{Digest: l.Digest, Size: l.Size}
 	}
 	if m.Config.Digest == "" {
-		return out
+		return out, ""
 	}
 	body, _, err := c.get(ctx, base+"/blobs/"+m.Config.Digest, repo, creds, "*/*")
 	if err != nil {
-		return out
+		return out, ""
 	}
 	var cfg struct {
 		History []struct {
 			CreatedBy  string `json:"created_by"`
 			EmptyLayer bool   `json:"empty_layer"`
 		} `json:"history"`
+		Config struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"config"`
 	}
 	if json.Unmarshal(body, &cfg) != nil {
-		return out
+		return out, ""
 	}
 	i := 0
 	for _, h := range cfg.History {
@@ -268,7 +278,7 @@ func (c *Client) layerDetails(ctx context.Context, base, repo string, creds Cred
 		out[i].Command = buildStep(h.CreatedBy)
 		i++
 	}
-	return out
+	return out, cfg.Config.Labels[LabelComponents]
 }
 
 // buildStep makes a history entry read like the Dockerfile line it came from, and short.

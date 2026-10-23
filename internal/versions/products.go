@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -30,21 +31,59 @@ func productVersion(in store.Instance, resolved map[string]string) string {
 	return ""
 }
 
-// productOf is the CPE products and version an instance runs, when its service's policy (or the catalog) names
-// them.
-func productOf(svc store.Service, in store.Instance, resolved map[string]string) ([]string, string) {
-	if svc.ID == "" {
-		return nil, ""
+// productUse is a product version an instance runs: a CPE product, its version, and how people name it.
+type productUse struct{ CPE, Version, Name string }
+
+// productsOf is what an instance runs that NVD knows by product: the image's own product, when its service's
+// policy (or the catalog) names its CPE, and the components its dev.goliash.components label declares.
+func productsOf(svc store.Service, in store.Instance, resolved map[string]string, ev store.ImageEvidence) []productUse {
+	var out []productUse
+	if svc.ID != "" {
+		if p, _, err := PolicyFor(svc, ParseImage(in.Image).Repo()); err == nil && len(p.CPE) > 0 {
+			if version := productVersion(in, resolved); version != "" {
+				for _, c := range p.CPE {
+					out = append(out, productUse{CPE: c, Version: version, Name: productName(c)})
+				}
+			}
+		}
 	}
-	p, _, err := PolicyFor(svc, ParseImage(in.Image).Repo())
-	if err != nil || len(p.CPE) == 0 {
-		return nil, ""
+	return append(out, ParseComponents(ev.Components)...)
+}
+
+// componentCPEs are the NVD products of software a dev.goliash.components label names by its usual name.
+var componentCPEs = map[string][]string{
+	"nginx": {"f5:nginx", "f5:nginx_open_source"}, "php": {"php:php"}, "openssl": {"openssl:openssl"},
+	"node": {"nodejs:node.js"}, "nodejs": {"nodejs:node.js"}, "python": {"python:python"}, "ruby": {"ruby-lang:ruby"},
+	"go": {"golang:go"}, "golang": {"golang:go"}, "postgresql": {"postgresql:postgresql"}, "postgres": {"postgresql:postgresql"},
+	"redis": {"redis:redis"}, "haproxy": {"haproxy:haproxy"}, "curl": {"haxx:curl"}, "libcurl": {"haxx:libcurl"},
+	"httpd": {"apache:http_server"}, "apache": {"apache:http_server"}, "tomcat": {"apache:tomcat"},
+	"openjdk": {"oracle:openjdk"}, "java": {"oracle:openjdk"}, "imagemagick": {"imagemagick:imagemagick"},
+	"ffmpeg": {"ffmpeg:ffmpeg"}, "git": {"git-scm:git"}, "sqlite": {"sqlite:sqlite"}, "zlib": {"zlib:zlib"},
+	"libxml2": {"xmlsoft:libxml2"}, "mariadb": {"mariadb:mariadb"}, "mysql": {"oracle:mysql_server", "oracle:mysql"},
+	"memcached": {"memcached:memcached"}, "caddy": {"caddyserver:caddy"}, "traefik": {"traefik:traefik"},
+	"envoy": {"envoyproxy:envoy"}, "keycloak": {"redhat:keycloak"}, "grafana": {"grafana:grafana"},
+}
+
+// ParseComponents reads a dev.goliash.components label: name=version pairs separated by commas or spaces, a name
+// being a usual one (nginx, php, openssl…) or an NVD product (vendor:product). Unknown names are left out.
+func ParseComponents(label string) []productUse {
+	var out []productUse
+	for _, field := range strings.FieldsFunc(label, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+		name, version, ok := strings.Cut(field, "=")
+		name, version = strings.ToLower(strings.TrimSpace(name)), strings.TrimPrefix(strings.TrimSpace(version), "v")
+		v, okV := ParseVersion(version)
+		if !ok || name == "" || !okV || len(v.Parts) < minVersion {
+			continue
+		}
+		cpes := componentCPEs[name]
+		if strings.Count(name, ":") == 1 {
+			cpes = []string{name}
+		}
+		for _, c := range cpes {
+			out = append(out, productUse{CPE: c, Version: versionNumber(v), Name: productName(c)})
+		}
 	}
-	version := productVersion(in, resolved)
-	if version == "" {
-		return nil, ""
-	}
-	return p.CPE, version
+	return out
 }
 
 // resolvedVersions maps repo@digest to the version a moving tag was resolved to.
@@ -80,11 +119,15 @@ func (c *Checker) CheckProductVulns(ctx context.Context, sc store.Scope) error {
 	if err != nil {
 		return err
 	}
+	evidence, err := c.store.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return err
+	}
 	resolved := resolvedVersions(ctx, c.store, sc)
 	now, asked := c.now(), 0
 	for _, in := range active {
-		products, version := productOf(services[in.ServiceID], in, resolved)
-		for _, product := range products {
+		for _, use := range productsOf(services[in.ServiceID], in, resolved, evidence[ParseImage(in.Image).Repo()+"@"+in.Digest]) {
+			product, version := use.CPE, use.Version
 			key := product + "@" + version
 			if k, ok := known[key]; (ok && now.Sub(k.CheckedAt) < nvdTTL) || asked >= nvdPerRun {
 				continue
