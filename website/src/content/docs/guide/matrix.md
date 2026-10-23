@@ -84,10 +84,13 @@ to compare with, and warm means it needs attention: end of life, or targets disa
 
 - **Each cell** shows its services as a small logo, one cell per service in its colour, its most urgent upgrade, how many services are up to date, and a strip with
   one square per environment in its state there. Applications with four services or more take a double cell once a
-  board has six or more.
+  board has six or more. A board stays close to a square: five cells are three and two, not one row, and a long list
+  takes more columns rather than growing tall. A small cell (a board fitted to a short screen) keeps its name, its
+  environments and its state, and leaves out the small logo and the upgrade.
 - **Open a cell** and its board is laid over the global one like a card, one cell per service; the global board stays
-  behind, dimmed, with the application marked, and its cells open the other applications directly. × or Escape lays
-  the card down again. Arrow keys move between cells, Enter opens one.
+  behind, dimmed, with the application marked, and its cells open the other applications directly. Under its cells
+  the card has the application's matrix: its services (by part) with the running versions in every environment.
+  × or Escape lays the card down again. Arrow keys move between cells, Enter opens one.
 - **Grouped by target**, each cell is a cluster or cloud account (`/tiles?group=target`): open one to see what runs
   on it, `/tiles?group=target&app=k8s-prod&only=1&tv=1` puts one cluster on a wall screen.
 - **Only this team** (or application) on the card shows it alone, as the whole board: its services as large cells,

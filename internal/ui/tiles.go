@@ -63,6 +63,7 @@ type TilesView struct {
 	Items          []BoardItem
 	Parent         []BoardItem // drilled in: the global board, drawn behind as the way back and across
 	AppItem        BoardItem   // drilled in: the application's own cell
+	AppGrid        MatrixGrid  // drilled in: the matrix of its services, under the cells
 	ParentCols     int
 	Boards         []EnvBoard // Env == "side": one board per environment, same cells in the same places
 	Panels         []TileCell // the services' details (drilled in)
@@ -275,7 +276,21 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		} else {
 			v.Part, v.Parts = "", true
 			v.Items, v.Counts = partItems(v, parts, g.Envs, env)
+		}
+		// Under the cells, the matrix of what they hold: the running versions in every environment, by part.
+		v.AppGrid = MatrixGrid{Envs: g.Envs, Rows: rows, GroupBy: "part"}
+		if v.Parts {
+			names := make([]string, 0, len(parts))
+			for name := range parts {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				v.AppGrid.Groups = append(v.AppGrid.Groups, MatrixGroup{Name: partName(v.App, name), Rows: parts[name]})
+			}
 			rows = nil
+		} else {
+			v.AppGrid.Groups = []MatrixGroup{{Rows: rows}}
 		}
 		for _, row := range rows {
 			c, running, runEnv := service(row, g.Envs, env)
@@ -461,11 +476,12 @@ func colsUpTo(units int) int {
 	return 6
 }
 
-// boardScore is what a board of cols by rows costs for units cells: its empty cells, and two for each row it has
-// beyond its columns. A tall board shrinks to fit the screen's height until its cells cannot be read, so 3 columns
-// by 13 rows loses to 5 by 8 though it fills without an empty cell.
+// boardScore is what a board of cols by rows costs for units cells: its empty cells, two for each row it has
+// beyond its columns, and one for each column beyond two more than its rows. A tall board shrinks to fit the
+// screen's height until its cells cannot be read, so 3 columns by 13 rows loses to 5 by 8 though it fills without
+// an empty cell; a strip reads as a list, so five applications are 3 and 2 rather than one row of five.
 func boardScore(units, cols, rows int) int {
-	return rows*cols - units + 2*max(rows-cols, 0)
+	return rows*cols - units + 2*max(rows-cols, 0) + max(cols-rows-2, 0)
 }
 
 // layoutBoard keeps big cells for large applications when the board can hold them

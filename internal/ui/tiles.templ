@@ -167,6 +167,11 @@ templ stack(v TilesView) {
 			if v.Env != "side" {
 				@tileLegend(v.Counts)
 			}
+			if len(v.AppGrid.Rows) > 0 {
+				<div class="stack-matrix">
+					@MatrixGridView(v.AppGrid)
+				</div>
+			}
 		</section>
 	</div>
 }

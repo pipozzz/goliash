@@ -75,6 +75,10 @@ func TestTilesPage(t *testing.T) {
 	if !strings.Contains(body, "Only this application") || !strings.Contains(body, "only=1") {
 		t.Error("the card offers no way to show it alone")
 	}
+	// Under the cells, the matrix of its services: running versions in every environment.
+	if i := strings.Index(body, `class="stack-matrix"`); i < 0 || !strings.Contains(body[i:], `<table class="matrix">`) || !strings.Contains(body[i:], `<th class="env">`) {
+		t.Error("the opened application has no matrix under its cells")
+	}
 	// Alone: the application's services as the whole board, nothing behind, and the choice kept in the links.
 	_, body = get(t, viewer, e.srv.URL+"/tiles?app=other&only=1&tv=1", nil)
 	if !strings.Contains(body, `class="tile-alone`) || strings.Contains(body, `class="tile-stack"`) || strings.Contains(body, "stack-back") {
@@ -175,7 +179,7 @@ func TestTVCycle(t *testing.T) {
 }
 
 func TestBoardColumns(t *testing.T) {
-	for units, want := range map[int]int{4: 4, 6: 3, 7: 4, 9: 3, 10: 5, 12: 4, 16: 4, 18: 6, 20: 5} {
+	for units, want := range map[int]int{4: 4, 5: 3, 6: 3, 7: 4, 8: 4, 9: 3, 10: 5, 12: 4, 16: 4, 18: 6, 20: 5} {
 		if got := boardColumns(units); got != want {
 			t.Errorf("%d units: %d columns, want %d", units, got, want)
 		}
