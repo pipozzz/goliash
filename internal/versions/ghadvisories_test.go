@@ -71,7 +71,7 @@ func TestAdvisoryVulns(t *testing.T) {
 		list = append(list, a)
 	}
 	add("GHSA-1", "CVE-2026-1", "critical", "All", "7.2.11, 7.4.6", now.AddDate(0, 0, -10))
-	add("GHSA-2", "", "high", ">= 7.0.0", "TBD", now.AddDate(0, 0, -5)) // not fixed yet, recent: it counts
+	add("GHSA-2", "", "high", ">= 7.0.0", "TBD", now.AddDate(0, 0, -5))     // not fixed yet, recent: it counts
 	add("GHSA-3", "CVE-2020-9", "high", ">=7.0", "", now.AddDate(-2, 0, 0)) // never filled in, open-ended, old: left out
 	add("GHSA-4", "CVE-2026-4", "low", "< 7.4.0", "7.4.0", now)
 	var got []string

@@ -26,9 +26,9 @@ type GitHubAdvisory struct {
 	GHSA      string    `json:"ghsa_id"`
 	CVE       string    `json:"cve_id"`
 	Published time.Time `json:"published_at"`
-	Summary  string `json:"summary"`
-	Severity string `json:"severity"`
-	CVSS     struct {
+	Summary   string    `json:"summary"`
+	Severity  string    `json:"severity"`
+	CVSS      struct {
 		V3 struct {
 			Score float64 `json:"score"`
 		} `json:"cvss_v3"`
