@@ -507,6 +507,11 @@ func serve(ctx context.Context, args []string) error {
 		if kevURL := os.Getenv("GOLIASH_KEV_URL"); kevURL != "off" {
 			checker.SetKEV(versions.NewKEV(kevURL))
 		}
+		// NVD's CVEs for the version of products built into their images (PostgreSQL, nginx, Keycloak…), named by
+		// the catalog's CPE: only the product and version leave the server.
+		if os.Getenv("GOLIASH_NVD") != "off" {
+			checker.SetNVD(versions.NewNVD(os.Getenv("GOLIASH_NVD_API_KEY")))
+		}
 	}
 	versions.SetAllowedRegistries(splitList(os.Getenv("GOLIASH_ALLOWED_REGISTRIES")))
 	svc.SetUpstreams(checker)

@@ -50,8 +50,15 @@ func TestCatalogEntries(t *testing.T) {
 		if e.Changelog != "" && !strings.HasPrefix(e.Changelog, "https://") {
 			t.Errorf("%s: changelog must be https", image)
 		}
+		for _, c := range e.CPE {
+			if !cpeProduct.MatchString(c) {
+				t.Errorf("%s: cpe %q is not vendor:product", image, c)
+			}
+		}
 	}
 }
+
+var cpeProduct = regexp.MustCompile(`^[a-z0-9._-]+:[a-z0-9._-]+$`)
 
 func TestPolicyFor(t *testing.T) {
 	plain := store.Service{VersionPolicy: json.RawMessage(`{}`)}

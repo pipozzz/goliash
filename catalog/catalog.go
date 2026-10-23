@@ -28,8 +28,11 @@ type Entry struct {
 	Changelog       string `yaml:"changelog"`
 	// Security names where the project says which releases fix vulnerabilities, for projects whose release notes
 	// Goliash cannot read: "php.net" (the PHP releases feed).
-	Security string         `yaml:"security"`
-	Policy   map[string]any `yaml:"policy"`
+	Security string `yaml:"security"`
+	// CPE names the product in NVD ("postgresql:postgresql", the vendor and product of its CPE), whose CVEs are
+	// looked up by the running version; several when NVD has used more than one over the years.
+	CPE    []string       `yaml:"cpe"`
+	Policy map[string]any `yaml:"policy"`
 }
 
 // PolicyJSON returns the entry's default policy as stored on services.

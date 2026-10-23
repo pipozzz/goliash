@@ -227,6 +227,17 @@ advisories are still being looked up it says so, and does not answer "not runnin
 Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
 lookups at a mirror, or turns them off (`off`).
 
+**Products built into their image.** PostgreSQL, nginx, Redis, Keycloak and most official images build the product
+from source, so it is in no package database and often only loosely in an SBOM. For images the catalog knows (or a
+service whose version policy names a `cpe`), Goliash asks [NVD](https://nvd.nist.gov) which CVEs affect the running
+version, once a day per product version: `postgres:16.2-alpine` is PostgreSQL 16.2, and a moving tag
+(`postgres:16`) counts by the version its digest resolved to. Each CVE comes with its severity (NVD's own CVSS
+score first) and the first fixed version of its range (*postgresql 16.2, fixed in 16.3*), next to the SBOM's
+findings: the same CVE from both is one finding, CISA's exploited list applies to it, and a critical or exploited
+one sends the `vulnerability` alert. Without an [API key](/reference/configuration/) NVD answers 5 requests in 30
+seconds, so Goliash asks for 8 product versions per check; `GOLIASH_NVD=off` stops it.
+
+
 ## Licenses
 
 The same SBOMs say which license each package is under. **Security → Licenses** sorts the packages of running

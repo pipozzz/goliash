@@ -15,114 +15,147 @@
 #                       cannot read: php.net (its releases feed), go.dev (Go's release history), eol-phase (a
 #                       release cycle in security-fixes-only support on endoflife.date: Python, Ruby). Releases
 #                       whose notes, or own changelog page, name a CVE are known without it.
+#   cpe:                the product in NVD, as CPE vendor:product (several when NVD used more than one): its CVEs
+#                       are looked up by the running version, for products built into their image from source.
 #
 # Additions are welcome: one entry per image, sorted by image. `go test ./internal/versions/`
 # checks every entry.
 
 - image: docker.elastic.co/elasticsearch/elasticsearch
+  cpe: [elastic:elasticsearch]
   eol: elasticsearch
   github: elastic/elasticsearch
   policy: { track: minor }
 - image: docker.io/bitnami/redis
+  cpe: [redis:redis]
   github: redis/redis
 - image: docker.io/envoyproxy/envoy
+  cpe: [envoyproxy:envoy]
   github: envoyproxy/envoy
 - image: docker.io/gitlab/gitlab-runner
   gitlab: gitlab.com/gitlab-org/gitlab-runner
   policy: { track: minor }
 - image: docker.io/grafana/grafana
+  cpe: [grafana:grafana]
   eol: grafana
   github: grafana/grafana
   policy: { track: minor }
 - image: docker.io/grafana/loki
+  cpe: [grafana:loki]
   github: grafana/loki
 - image: docker.io/hashicorp/consul
+  cpe: [hashicorp:consul]
   eol: consul
   github: hashicorp/consul
 - image: docker.io/hashicorp/vault
+  cpe: [hashicorp:vault]
   eol: hashicorp-vault
   github: hashicorp/vault
 - image: docker.io/library/caddy
+  cpe: [caddyserver:caddy]
   github: caddyserver/caddy
 - image: docker.io/library/golang
+  cpe: [golang:go]
   eol: go
   security: go.dev
   changelog: https://go.dev/doc/devel/release#go{version}
 - image: docker.io/library/haproxy
+  cpe: [haproxy:haproxy]
   eol: haproxy
   changelog: https://www.haproxy.org/download/{version}/src/CHANGELOG
 - image: docker.io/library/mariadb
+  cpe: [mariadb:mariadb]
   changelog: https://mariadb.com/kb/en/mariadb-{version}-release-notes/
   policy: { track: minor }
 - image: docker.io/library/memcached
+  cpe: [memcached:memcached]
   changelog: https://github.com/memcached/memcached/wiki/ReleaseNotes{version}
 - image: docker.io/library/mongo
+  cpe: [mongodb:mongodb]
   eol: mongodb
   changelog: https://www.mongodb.com/docs/manual/release-notes/
   policy: { track: minor }
 - image: docker.io/library/mysql
+  cpe: [oracle:mysql_server, oracle:mysql]
   changelog: https://dev.mysql.com/doc/relnotes/mysql/{version}/en/
   policy: { track: minor }
 - image: docker.io/library/nats
   github: nats-io/nats-server
 - image: docker.io/library/nginx
+  cpe: [f5:nginx, f5:nginx_open_source]
   eol: nginx
   github: nginx/nginx
   github_tag_prefix: release-
 - image: docker.io/library/node
+  cpe: [nodejs:node.js]
   eol: nodejs
   github: nodejs/node
   github_tag_prefix: v
 - image: docker.io/library/php
+  cpe: [php:php]
   eol: php
   security: php.net
   changelog: https://www.php.net/ChangeLog-8.php#{version}
 - image: docker.io/library/postgres
+  cpe: [postgresql:postgresql]
   changelog: https://www.postgresql.org/docs/release/{version}/
   policy: { track: minor }
 - image: docker.io/library/python
+  cpe: [python:python]
   changelog: https://docs.python.org/release/{version}/whatsnew/changelog.html#changelog
   eol: python
   security: eol-phase
 - image: docker.io/library/rabbitmq
+  cpe: [broadcom:rabbitmq_server, vmware:rabbitmq]
   eol: rabbitmq
   github: rabbitmq/rabbitmq-server
 - image: docker.io/library/redis
+  cpe: [redis:redis]
   github: redis/redis
 - image: docker.io/library/ruby
+  cpe: [ruby-lang:ruby]
   changelog: https://www.ruby-lang.org/en/downloads/releases/#ruby-{version}
   eol: ruby
   security: eol-phase
 - image: docker.io/library/traefik
+  cpe: [traefik:traefik]
   github: traefik/traefik
 - image: docker.io/opensearchproject/opensearch
   github: opensearch-project/OpenSearch
   policy: { track: minor }
 - image: docker.io/prom/alertmanager
+  cpe: [prometheus:alertmanager]
   github: prometheus/alertmanager
 - image: docker.io/prom/node-exporter
   github: prometheus/node_exporter
 - image: docker.io/prom/prometheus
+  cpe: [prometheus:prometheus]
   github: prometheus/prometheus
 - image: quay.io/argoproj/argocd
+  cpe: [argoproj:argo_cd, linuxfoundation:argo-cd]
   eol: argo-cd
   github: argoproj/argo-cd
 - image: quay.io/jetstack/cert-manager-controller
   eol: cert-manager
   github: cert-manager/cert-manager
 - image: quay.io/keycloak/keycloak
+  cpe: [redhat:keycloak]
   eol: keycloak
   github: keycloak/keycloak
   policy: { track: minor }
 - image: quay.io/prometheus/alertmanager
+  cpe: [prometheus:alertmanager]
   github: prometheus/alertmanager
 - image: quay.io/prometheus/node-exporter
   github: prometheus/node_exporter
 - image: quay.io/prometheus/prometheus
+  cpe: [prometheus:prometheus]
   eol: prometheus
   github: prometheus/prometheus
 - image: registry.k8s.io/coredns/coredns
+  cpe: [coredns.io:coredns]
   github: coredns/coredns
 - image: registry.k8s.io/ingress-nginx/controller
+  cpe: [kubernetes:ingress-nginx]
   github: kubernetes/ingress-nginx
   github_tag_prefix: controller-

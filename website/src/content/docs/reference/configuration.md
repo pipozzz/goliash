@@ -19,6 +19,8 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
 | `GOLIASH_OSV_URL` | | `https://api.osv.dev/v1` | Where the packages of running images' SBOMs are looked up for known vulnerabilities: an OSV API mirror, or `off`. Only package names and versions are sent |
 | `GOLIASH_KEV_URL` | | CISA's feed | Where the catalog of known exploited vulnerabilities is read from (a mirror of CISA's JSON), or `off` |
+| `GOLIASH_NVD` | | on | `off` stops asking [NVD](https://nvd.nist.gov) for the CVEs of running product versions (PostgreSQL 16.2, nginx 1.25.3…). Only the product and version are sent |
+| `GOLIASH_NVD_API_KEY` | | | An [NVD API key](https://nvd.nist.gov/developers/request-an-api-key): 50 requests in 30 seconds instead of 5, so new versions are looked up sooner |
 | `GOLIASH_AI_API_KEY` | | | The model provider's API key that turns on [Goli](/guide/goli/), the assistant; also `GOLIASH_AI_PROVIDER` (`anthropic` or `openai`), `GOLIASH_AI_API_KEY_FILE`, `GOLIASH_AI_MODEL` (`claude-opus-5-5`), `GOLIASH_AI_EFFORT`, `GOLIASH_AI_BASE_URL`, `GOLIASH_AI_PER_HOUR`, `GOLIASH_AI_PER_DAY`, `GOLIASH_AI_PLAN_SUMMARY` and `GOLIASH_AI_DIGEST_SUMMARY` |
 | `GOLIASH_GOLI_SEASON` | | | What Goli, the mascot, wears: by default it follows the calendar (a pumpkin around Halloween, a Santa hat in December, a scarf in January and February, sunglasses in July and August); `off` never, or `halloween`, `christmas`, `winter`, `summer` always |
 | `GOLIASH_SLACK_SIGNING_SECRET` | | | With `GOLIASH_SLACK_GOLI_TOKEN`, turns on Goli's `/goli` command for a Slack app; see [Goli in Slack](/guide/goli/#goli-in-slack). `GOLIASH_SLACK_IN_CHANNEL=true` answers in the channel |

@@ -343,6 +343,9 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		}
 	}
 	r.Pending = len(pending)
+	if err := addProductFindings(ctx, st, sc, active, services, envName, envID, findings); err != nil {
+		return r, err
+	}
 	for _, f := range findings {
 		sort.Strings(f.IDs)
 		sort.Strings(f.Aliases)
@@ -559,4 +562,64 @@ func FindingMatches(f VulnFinding, q string) bool {
 		}
 	}
 	return false
+}
+
+// addProductFindings adds the CVEs NVD says affect the product versions running (PostgreSQL 16.2, nginx 1.25.3),
+// to the findings by CVE: the same CVE from an SBOM and from NVD is one finding.
+func addProductFindings(ctx context.Context, st *store.Store, sc store.Scope, active []store.Instance, services []store.Service, envName map[string]string, envID string, findings map[string]*VulnFinding) error {
+	known, err := st.ListProductVulns(ctx)
+	if err != nil || len(known) == 0 {
+		return err
+	}
+	svcs := make(map[string]store.Service, len(services))
+	for _, s := range services {
+		svcs[s.ID] = s
+	}
+	resolved := resolvedVersions(ctx, st, sc)
+	for _, in := range active {
+		if envID != "" && in.EnvironmentID != envID {
+			continue
+		}
+		products, version := productOf(svcs[in.ServiceID], in, resolved)
+		for _, product := range products {
+			for _, v := range known[product+"@"+version].Vulns {
+				f := findings[v.CVE]
+				if f == nil {
+					f = &VulnFinding{Key: v.CVE}
+					findings[v.CVE] = f
+				}
+				if !contains(f.IDs, v.CVE) {
+					f.IDs = append(f.IDs, v.CVE)
+				}
+				if !contains(f.Aliases, v.CVE) {
+					f.Aliases = append(f.Aliases, v.CVE)
+				}
+				if f.Summary == "" {
+					f.Summary = v.Summary
+				}
+				if severityRank(v.Severity) > severityRank(f.Severity) {
+					f.Severity = v.Severity
+				}
+				a := Affected{
+					Service: svcs[in.ServiceID].Name, Env: envName[in.EnvironmentID], Image: in.Image, Package: productName(product) + " " + version,
+					Fix: v.Fix, ServiceID: in.ServiceID, EnvironmentID: in.EnvironmentID, Since: in.FirstSeenAt,
+				}
+				if i := indexAffected(f.Affected, a); i >= 0 {
+					if f.Affected[i].Fix == "" {
+						f.Affected[i].Fix = v.Fix
+					}
+				} else {
+					f.Affected = append(f.Affected, a)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// productName is a CPE product as people say it: postgresql, nginx (for f5:nginx_open_source too), node.js.
+func productName(cpe string) string {
+	_, product, _ := strings.Cut(cpe, ":")
+	product = strings.TrimSuffix(strings.TrimSuffix(product, "_open_source"), "_server")
+	return strings.ReplaceAll(product, "_", " ")
 }

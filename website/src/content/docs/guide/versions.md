@@ -73,6 +73,7 @@ page, with `goliash service set`, or through the catalog.
 | `github`, `github_tag_prefix` | GitHub repository (`owner/repo`) whose releases give dates and release notes. | from catalog or image label |
 | `gitlab` | GitLab project (`gitlab.com/group/project`) whose releases give dates and release notes; `github_tag_prefix` applies too. | from catalog or image label |
 | `changelog` | A release notes URL template with `{version}`. | none |
+| `cpe` | The product in [NVD](https://nvd.nist.gov), as CPE `vendor:product` (a list): its CVEs are looked up by the running version, for software built into the image that no SBOM or package database lists. See [Is it running?](/guide/security/#is-it-running) | from catalog (`postgresql:postgresql` for `postgres`) |
 | `security` | Where the project says which releases fix vulnerabilities, when its release notes do not: `php.net`, `go.dev`, or `eol-phase` (every release of a cycle in security-fixes-only support). Releases whose GitHub or GitLab notes name a CVE, GHSA or GO id (or say *security release*) are known without it. See [Security releases](/guide/notifications/#security-releases). | from catalog (`php`) |
 | `base_image` | The image the service's image is built `FROM`, when it does not declare it; `none` turns base tracking off. | as the image declares |
 | `max_size_mb` | The image size budget in MB: over it, Image hygiene lists it and `image_over_budget` alerts. | none |
