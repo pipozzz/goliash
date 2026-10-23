@@ -45,3 +45,14 @@ func (s *Store) SetRemediation(ctx context.Context, sc Scope, r Remediation) err
 	_, err := s.exec(ctx, s.db, `UPDATE workspaces SET remediation = ? WHERE org_id = ? AND id = ?`, raw, sc.OrgID, sc.WorkspaceID)
 	return err
 }
+
+// ClaimDefaultAlerts marks the workspace as given its default security alerts and reports whether this call did:
+// true once per workspace, so a rule deleted afterwards is not created again.
+func (s *Store) ClaimDefaultAlerts(ctx context.Context, sc Scope) (bool, error) {
+	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET default_alerts = 1 WHERE org_id = ? AND id = ? AND default_alerts = 0`, sc.OrgID, sc.WorkspaceID)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}

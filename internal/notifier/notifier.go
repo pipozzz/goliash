@@ -28,6 +28,7 @@ type Item struct {
 	Owner       string    `json:"owner,omitempty"`
 	Apps        []string  `json:"apps,omitempty"` // the applications the service runs in, for rules filtering by application
 	Environment string    `json:"environment,omitempty"`
+	Production  bool      `json:"production,omitempty"` // Environment is the last one
 	Target      string    `json:"target,omitempty"`
 	Workload    string    `json:"workload,omitempty"` // a rollout's workload, when its name is not the service's
 	Tool        string    `json:"tool,omitempty"`     // a gitops alert's tool: argocd, flux
@@ -88,8 +89,9 @@ type Filter struct {
 	Services     []string      `json:"services,omitempty"`
 	Owners       []string      `json:"owners,omitempty"`
 	Environments []string      `json:"environments,omitempty"`
-	Apps         []string      `json:"apps,omitempty"`     // applications, as the matrix shows them
-	MinJump      versions.Jump `json:"min_jump,omitempty"` // for new_release: smallest version jump to report
+	Production   bool          `json:"production,omitempty"` // only the last environment, whatever it is called
+	Apps         []string      `json:"apps,omitempty"`       // applications, as the matrix shows them
+	MinJump      versions.Jump `json:"min_jump,omitempty"`   // for new_release: smallest version jump to report
 	DigestHour   *int          `json:"digest_hour,omitempty"`
 	Timezone     string        `json:"timezone,omitempty"`   // IANA name for the digest hour and quiet hours; UTC when empty
 	QuietFrom    *int          `json:"quiet_from,omitempty"` // instant rules hold notifications from this hour…
@@ -218,6 +220,7 @@ func New(st *store.Store, log *slog.Logger, senders map[string]Sender) *Notifier
 type names struct {
 	services map[string]store.Service
 	envs     map[string]string
+	prod     string // the last environment's ID
 	targets  map[string]string
 	apps     map[string][]string // service ID -> its applications
 }
@@ -237,6 +240,7 @@ func (n *Notifier) loadNames(ctx context.Context, sc store.Scope) (names, error)
 	}
 	for _, e := range envs {
 		nm.envs[e.ID] = e.Name
+		nm.prod = e.ID // ordered by position: the last is production
 	}
 	targets, err := n.store.ListTargets(ctx, sc)
 	if err != nil {
@@ -354,7 +358,7 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			continue
 		}
 		item := Item{
-			Type: e.Type, Service: svc.Name, App: e.App, Apps: itemApps(e.App, nm.apps[e.ServiceID]), Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID],
+			Type: e.Type, Service: svc.Name, App: e.App, Apps: itemApps(e.App, nm.apps[e.ServiceID]), Owner: svc.Owner, Environment: nm.envs[e.EnvironmentID], Production: e.EnvironmentID != "" && e.EnvironmentID == nm.prod,
 			Target: nm.targets[e.TargetID], From: e.FromVersion, To: e.ToVersion, Note: versions.EventNote(e), At: e.At,
 		}
 		item.Text = Describe(item)
@@ -482,6 +486,9 @@ func matches(r store.Rule, f Filter, it Item) bool {
 		return false
 	}
 	if len(f.Environments) > 0 && it.Environment != "" && !contains(f.Environments, it.Environment) {
+		return false
+	}
+	if f.Production && it.Environment != "" && !it.Production {
 		return false
 	}
 	if f.MinJump != versions.JumpNone && it.Type == "new_release" {

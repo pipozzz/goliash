@@ -38,3 +38,23 @@ func TestSinceYesterday(t *testing.T) {
 		t.Error("still says nothing is new")
 	}
 }
+
+// While no rule sends vulnerabilities outside Goliash, the Security page says so.
+func TestSecurityAlertsHint(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	v := e.as(store.RoleViewer)
+	if _, page := get(t, v, e.srv.URL+"/security", nil); !strings.Contains(page, "only reach the bell in Goliash") {
+		t.Fatal("no hint without an outside rule")
+	}
+	ch, err := e.st.CreateChannel(ctx, store.Channel{Scope: e.ws.Scope(), Type: "slack", Name: "sec", Config: []byte(`{"url":"https://hooks.slack.com/services/x"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.CreateRule(ctx, store.Rule{Scope: e.ws.Scope(), ChannelID: ch.ID, Mode: "instant"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, page := get(t, v, e.srv.URL+"/security", nil); strings.Contains(page, "only reach the bell in Goliash") {
+		t.Error("the hint stays with a rule for every event on Slack")
+	}
+}

@@ -26,6 +26,15 @@ templ SecurityPage(v SecurityView) {
 				<button class="secondary" type="button" data-print>Print or save as PDF</button>
 			</div>
 		</div>
+		if !v.AlertsOutside {
+			<div class="unread-hint" role="status">
+				<p>
+					<strong>Exploited and critical vulnerabilities only reach the bell in Goliash.</strong>
+					<span class="muted">Nobody hears of one until they open Goliash: send them to Slack, Teams or e-mail too.</span>
+					<a class="link" href="/notifications">Add a rule</a>
+				</p>
+			</div>
+		}
 		@sinceYesterday(v)
 		<div class="tiles">
 			<a class={ "tile", templ.KV("warn", v.ProdMedian > 30), templ.KV("on", v.Show == "") } href={ templ.URL(securityHref(v, "") + "#exposure") } title="Every exposure">

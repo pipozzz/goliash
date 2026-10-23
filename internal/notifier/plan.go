@@ -53,6 +53,9 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 	now := n.now()
 	for _, ws := range wss {
 		sc := ws.Scope()
+		if err := n.ensureDefaultAlerts(ctx, sc); err != nil {
+			n.log.WarnContext(ctx, "default security alerts", "workspace", ws.Slug, "err", err)
+		}
 		rules, err := n.store.ActiveRules(ctx, sc)
 		if err != nil {
 			return err

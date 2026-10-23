@@ -1749,6 +1749,9 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if len(f.Environments) > 0 {
 			parts = append(parts, "in "+strings.Join(f.Environments, ", "))
 		}
+		if f.Production {
+			parts = append(parts, "production only")
+		}
 		if f.MinJump != "" {
 			parts = append(parts, "releases from "+string(f.MinJump))
 		}
@@ -2015,7 +2018,7 @@ func (s *Server) ruleFromForm(r *http.Request, p auth.Principal) (rule store.Rul
 	f := notifier.Filter{
 		Services: split(r.FormValue("services")), Owners: split(r.FormValue("owners")),
 		Environments: split(r.FormValue("envs")), MinJump: versions.Jump(r.FormValue("min_jump")), DigestHour: &hour,
-		Apps: split(r.FormValue("apps")),
+		Apps: split(r.FormValue("apps")), Production: r.FormValue("production") == "1",
 	}
 	if tz := strings.TrimSpace(r.FormValue("timezone")); tz != "" && tz != "UTC" {
 		if _, err := time.LoadLocation(tz); err != nil {
@@ -2097,7 +2100,7 @@ func ruleForm(rule store.Rule) RuleForm {
 	_ = json.Unmarshal(rule.Filter, &f)
 	out := RuleForm{
 		Mode: rule.Mode, MinJump: string(f.MinJump), Events: rule.EventTypes, DigestHour: 8,
-		Services: strings.Join(f.Services, ", "), Owners: strings.Join(f.Owners, ", "), Envs: strings.Join(f.Environments, ", "),
+		Services: strings.Join(f.Services, ", "), Owners: strings.Join(f.Owners, ", "), Envs: strings.Join(f.Environments, ", "), Production: f.Production,
 		Apps: strings.Join(f.Apps, ", "),
 	}
 	if f.DigestHour != nil {

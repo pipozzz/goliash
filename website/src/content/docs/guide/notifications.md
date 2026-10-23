@@ -113,7 +113,8 @@ each item opens the matrix filtered to its service, and a button opens Goliash (
 ## Rules
 
 A rule sends some event types to a channel, optionally only for some services, owners (teams), applications or
-environments, or only for releases of at least a given size. Applications are matched by the names the matrix shows
+environments (**Production only** is the last environment, whatever it is called; `-production` on the command line),
+or only for releases of at least a given size. Applications are matched by the names the matrix shows
 (after renames and merges, see [Applications and teams](/guide/apps/)): a rule for `webshop` gets every service
 running in it, and a drift only when it is in that application.
 
@@ -249,6 +250,12 @@ ready, e.g. *Explain this vulnerability alert for us, what fixes it and how urge
 Opening the link alone asks nothing, so link previews and stray clicks cost nothing.
 
 ## Vulnerabilities
+
+**Without setting anything up**, every workspace hears of serious problems in what runs: the first time Goliash
+starts with it, it adds a rule that sends `vulnerability` and `security_release` events in production to
+[the bell](#the-bell) (its own bell channel, *Goliash bell*). Change it or delete it like any rule; a deleted one is
+not added again. While no rule sends vulnerabilities outside Goliash (Slack, Teams, e-mail…), the
+[Security page](/guide/security/) says so: a critical vulnerability would wait for someone to open Goliash.
 
 The `vulnerability` event announces a vulnerability exploited in the wild (CISA KEV) or rated critical as soon as it
 runs somewhere, once per service and environment, with the package and the version that fixes it:

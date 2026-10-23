@@ -42,6 +42,7 @@ type SecurityView struct {
 	// Deadlines are the workspace's remediation deadlines; an admin sets them. Overdue and DueSoon count the
 	// upgrades past them and due within a week.
 	Brief           notifier.Brief // the Since yesterday panel: the security brief
+	AlertsOutside   bool           // a rule sends vulnerabilities to Slack, e-mail or another channel outside Goliash
 	Deadlines       store.Remediation
 	CanSetDeadlines bool
 	Overdue         int
@@ -146,6 +147,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	if v.Brief, err = notifier.LoadBrief(r.Context(), s.store, p.Scope, v.At); err != nil {
+		return err
+	}
+	if v.AlertsOutside, err = notifier.SecurityAlertsOutside(r.Context(), s.store, p.Scope); err != nil {
 		return err
 	}
 	v.CanSetDeadlines = p.Can(store.RoleAdmin)

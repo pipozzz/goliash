@@ -621,6 +621,7 @@ templ ruleFields(channels []ChannelView, f RuleForm) {
 		<label>Owners<input name="owners" value={ f.Owners } placeholder="all"/></label>
 		<label>Applications<input name="apps" value={ f.Apps } placeholder="all"/></label>
 		<label>Environments<input name="envs" value={ f.Envs } placeholder="all"/></label>
+		<label class="check" title="Only the last environment, whatever it is called"><input type="checkbox" name="production" value="1" checked?={ f.Production }/> Production only</label>
 	</div>
 }
 

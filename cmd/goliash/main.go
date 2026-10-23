@@ -2155,6 +2155,7 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	owners := fs.String("owners", "", "only services of these owners")
 	apps := fs.String("apps", "", "only services in these applications")
 	envs := fs.String("envs", "", "only these environments")
+	production := fs.Bool("production", false, "only the last environment (production), whatever it is called")
 	minJump := fs.String("min-jump", "", "new releases: smallest jump to report (patch, minor, major)")
 	digestHour := fs.Int("digest-hour", 8, "hour digests go out, in -timezone")
 	timezone := fs.String("timezone", "", "IANA time zone for -digest-hour and -quiet, e.g. Europe/Bratislava (default UTC)")
@@ -2175,7 +2176,7 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("channel %q: %w", *channel, err)
 	}
 	f := notifier.Filter{
-		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs),
+		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs), Production: *production,
 		Apps: splitList(*apps), MinJump: versions.Jump(*minJump), DigestHour: digestHour, Timezone: *timezone,
 	}
 	if *timezone != "" {

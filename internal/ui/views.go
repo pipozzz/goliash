@@ -929,6 +929,7 @@ type RuleForm struct {
 	Services   string
 	Owners     string
 	Envs       string
+	Production bool // only the last environment
 	Apps       string
 	DigestHour int
 	Timezone   string // empty: UTC
