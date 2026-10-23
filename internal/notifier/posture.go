@@ -37,7 +37,7 @@ func (n *Notifier) reportPosture(ctx context.Context, sc store.Scope, rules []st
 	for _, r := range rules {
 		var f Filter
 		_ = json.Unmarshal(r.Filter, &f)
-		payload, err := json.Marshal(reportFor(it, teams, f, now))
+		payload, err := json.Marshal(reportFor(it, teams, f))
 		if err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func (n *Notifier) SendPostureNow(ctx context.Context, sc store.Scope, ruleID st
 	}
 	var f Filter
 	_ = json.Unmarshal(rt.rule.Filter, &f)
-	return n.sendNow(ctx, sc, rt, Message{Workspace: rt.workspace, Items: []Item{reportFor(it, teams, f, now)}, Link: n.link, Goli: n.goli})
+	return n.sendNow(ctx, sc, rt, Message{Workspace: rt.workspace, Items: []Item{reportFor(it, teams, f)}, Link: n.link, Goli: n.goli})
 }
 
 // postureItem is the workspace's report, and its production by team for the reports of a team's rules.
@@ -172,7 +172,7 @@ func slowestTeams(teams []versions.TeamPatching) string {
 }
 
 // reportFor is the report a rule sends: the workspace's, or for a rule filtered by owners, those teams' own.
-func reportFor(it Item, teams []versions.TeamPatching, f Filter, now time.Time) Item {
+func reportFor(it Item, teams []versions.TeamPatching, f Filter) Item {
 	if len(f.Owners) == 0 {
 		return it
 	}

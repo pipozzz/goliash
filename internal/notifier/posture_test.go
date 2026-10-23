@@ -172,14 +172,14 @@ func TestTeamReports(t *testing.T) {
 		t.Errorf("slowest:\n%s\nwant\n%s", got, want)
 	}
 	all := Item{Type: "posture", Text: "prod runs 26 services…", Environment: "prod"}
-	if got := reportFor(all, teams, Filter{}, time.Now()); got.Text != all.Text {
+	if got := reportFor(all, teams, Filter{}); got.Text != all.Text {
 		t.Errorf("a rule for everyone got %q", got.Text)
 	}
-	got := reportFor(all, teams, Filter{Owners: []string{"team-data"}}, time.Now())
+	got := reportFor(all, teams, Filter{Owners: []string{"team-data"}})
 	if want := "team-data in prod: 3 of 12 services behind a newer release, median 41 days; 1 past the remediation deadline; 4 upgrades in 90 days, 12 days to patch (median)."; got.Text != want {
 		t.Errorf("team report:\n%s\nwant\n%s", got.Text, want)
 	}
-	if got := reportFor(all, teams, Filter{Owners: []string{"team-web"}}, time.Now()); !strings.Contains(got.Text, "0 of 7 services behind") || !strings.Contains(got.Text, "no upgrade in 90 days") {
+	if got := reportFor(all, teams, Filter{Owners: []string{"team-web"}}); !strings.Contains(got.Text, "0 of 7 services behind") || !strings.Contains(got.Text, "no upgrade in 90 days") {
 		t.Errorf("a team with nothing behind: %s", got.Text)
 	}
 }
