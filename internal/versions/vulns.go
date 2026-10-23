@@ -634,7 +634,17 @@ func addProductFindings(ctx context.Context, st *store.Store, sc store.Scope, ac
 		if envID != "" && in.EnvironmentID != envID {
 			continue
 		}
-		for _, use := range productsOf(svcs[in.ServiceID], in, resolved, evidence[ParseImage(in.Image).Repo()+"@"+in.Digest]) {
+		uses := productsOf(svcs[in.ServiceID], in, resolved, evidence[ParseImage(in.Image).Repo()+"@"+in.Digest])
+		advised := false // the product's own GitHub advisories were read: NVD's answer for it is not used
+		for _, use := range uses {
+			if _, ok := known[use.CPE+"@"+use.Version]; ok && use.fromGitHub() {
+				advised = true
+			}
+		}
+		for _, use := range uses {
+			if use.Own && advised && !use.fromGitHub() {
+				continue
+			}
 			for _, v := range known[use.CPE+"@"+use.Version].Vulns {
 				f := findings[v.CVE]
 				if f == nil {

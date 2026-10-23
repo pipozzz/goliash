@@ -32,17 +32,33 @@ func productVersion(in store.Instance, resolved map[string]string) string {
 }
 
 // productUse is a product version an instance runs: a CPE product, its version, and how people name it.
-type productUse struct{ CPE, Version, Name string }
+type productUse struct {
+	CPE, Version, Name string
+	Own                bool // the image's own product, not a declared component
+}
+
+// githubSource marks a product looked up in its GitHub repository's advisories: "github:redis/redis".
+const githubSource = "github:"
+
+// fromGitHub reports whether a product use reads its repository's GitHub advisories.
+func (u productUse) fromGitHub() bool { return strings.HasPrefix(u.CPE, githubSource) }
 
 // productsOf is what an instance runs that NVD knows by product: the image's own product, when its service's
 // policy (or the catalog) names its CPE, and the components its dev.goliash.components label declares.
 func productsOf(svc store.Service, in store.Instance, resolved map[string]string, ev store.ImageEvidence) []productUse {
 	var out []productUse
 	if svc.ID != "" {
-		if p, _, err := PolicyFor(svc, ParseImage(in.Image).Repo()); err == nil && len(p.CPE) > 0 {
+		if p, _, err := PolicyFor(svc, ParseImage(in.Image).Repo()); err == nil && (len(p.CPE) > 0 || p.GitHub != "") {
 			if version := productVersion(in, resolved); version != "" {
+				name := p.GitHub[strings.LastIndex(p.GitHub, "/")+1:]
+				if len(p.CPE) > 0 {
+					name = productName(p.CPE[0])
+				}
+				if p.GitHub != "" { // its own advisories first: they are what NVD is not asked about when there are any
+					out = append(out, productUse{CPE: githubSource + p.GitHub, Version: version, Name: name, Own: true})
+				}
 				for _, c := range p.CPE {
-					out = append(out, productUse{CPE: c, Version: version, Name: productName(c)})
+					out = append(out, productUse{CPE: c, Version: version, Name: productName(c), Own: true})
 				}
 			}
 		}
@@ -104,7 +120,7 @@ func resolvedVersions(ctx context.Context, st *store.Store, sc store.Scope) map[
 // CheckProductVulns asks NVD which CVEs affect the product versions running, for services whose image is a known
 // product (the catalog's CPE, or the version policy's).
 func (c *Checker) CheckProductVulns(ctx context.Context, sc store.Scope) error {
-	if c.nvd == nil {
+	if c.nvd == nil && c.github == nil {
 		return nil
 	}
 	active, err := c.store.ListActiveInstances(ctx, sc)
@@ -125,26 +141,59 @@ func (c *Checker) CheckProductVulns(ctx context.Context, sc store.Scope) error {
 	}
 	resolved := resolvedVersions(ctx, c.store, sc)
 	now, asked := c.now(), 0
+	fresh := func(key string) bool { k, ok := known[key]; return ok && now.Sub(k.CheckedAt) < nvdTTL }
 	for _, in := range active {
-		for _, use := range productsOf(services[in.ServiceID], in, resolved, evidence[ParseImage(in.Image).Repo()+"@"+in.Digest]) {
-			product, version := use.CPE, use.Version
-			key := product + "@" + version
-			if k, ok := known[key]; (ok && now.Sub(k.CheckedAt) < nvdTTL) || asked >= nvdPerRun {
+		uses := productsOf(services[in.ServiceID], in, resolved, evidence[ParseImage(in.Image).Repo()+"@"+in.Digest])
+		// The product's own GitHub advisories, when its repository has any: then NVD is not asked about it.
+		advised := false
+		for _, use := range uses {
+			if !use.fromGitHub() || c.github == nil {
 				continue
 			}
-			asked++
-			vulns, err := c.nvd.Query(ctx, product, version)
+			key := use.CPE + "@" + use.Version
+			if fresh(key) {
+				advised = true
+				continue
+			}
+			list, err := c.github.Advisories(ctx, strings.TrimPrefix(use.CPE, githubSource))
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				c.log.WarnContext(ctx, "NVD lookup failed", "product", product, "version", version, "err", err)
+				c.log.WarnContext(ctx, "GitHub advisories lookup failed", "repo", use.CPE, "err", err)
 				continue
 			}
-			if err := c.store.SetProductVulns(ctx, product, version, vulns); err != nil {
+			if len(list) == 0 {
+				continue
+			}
+			advised = true
+			vulns := AdvisoryVulns(list, use.Version, now)
+			if err := c.store.SetProductVulns(ctx, use.CPE, use.Version, vulns); err != nil {
 				return err
 			}
-			known[key] = store.ProductVulns{Product: product, Version: version, Vulns: vulns, CheckedAt: now}
+			known[key] = store.ProductVulns{Product: use.CPE, Version: use.Version, Vulns: vulns, CheckedAt: now}
+		}
+		for _, use := range uses {
+			if use.fromGitHub() || (use.Own && advised) || c.nvd == nil {
+				continue
+			}
+			key := use.CPE + "@" + use.Version
+			if fresh(key) || asked >= nvdPerRun {
+				continue
+			}
+			asked++
+			vulns, err := c.nvd.Query(ctx, use.CPE, use.Version)
+			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				c.log.WarnContext(ctx, "NVD lookup failed", "product", use.CPE, "version", use.Version, "err", err)
+				continue
+			}
+			if err := c.store.SetProductVulns(ctx, use.CPE, use.Version, vulns); err != nil {
+				return err
+			}
+			known[key] = store.ProductVulns{Product: use.CPE, Version: use.Version, Vulns: vulns, CheckedAt: now}
 		}
 	}
 	return nil
