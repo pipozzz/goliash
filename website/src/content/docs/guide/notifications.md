@@ -216,8 +216,20 @@ goliash notify create -channel ciso -events posture_report -mode weekly
 > prod runs 24 services, 6 behind a newer release: median 41 days, 90th percentile 212; 4 behind 30+ days, 2 behind
 > 90+. End of life: 1 passed, 1 soon. Accepted risk: 2. Longest: keycloak 24.0.5 → 26.0.0 (212 days); …
 
-It covers production, so the rule's filters do not apply, and a rule for every event does not get it: ask for it by
-name. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
+It covers production, and a rule for every event does not get it: ask for it by name. It ends with the **slowest
+teams** (by the services' owner): those with upgrades past their [remediation
+deadline](/guide/security/#remediation-deadlines) or more than 30 days behind (*Slowest teams: team-data (2 past
+deadline, 41 days behind); team-pay (35 days behind).*). A rule **filtered by owner** sends that team its own week
+instead, so each team hears how it patches:
+
+> team-data in prod: 3 of 12 services behind a newer release, median 41 days; 1 past the remediation deadline; 4
+> upgrades in 90 days, 12 days to patch (median).
+
+```sh
+goliash notify create -channel team-data -events posture_report,deadline -owners team-data -mode weekly
+```
+
+Its other filters do not apply. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
 [metrics](/guide/observability/).
 
 ## Security brief

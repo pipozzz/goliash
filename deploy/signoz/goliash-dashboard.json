@@ -655,6 +655,51 @@
       "h": 7,
       "moved": false,
       "static": false
+    },
+    {
+      "i": "01d02bf7-1461-5ae4-a669-f6900299c593",
+      "x": 0,
+      "y": 117,
+      "w": 12,
+      "h": 1,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w-team-1",
+      "x": 0,
+      "y": 118,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w-team-2",
+      "x": 6,
+      "y": 118,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w-team-3",
+      "x": 0,
+      "y": 125,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w-team-4",
+      "x": 6,
+      "y": 125,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
     }
   ],
   "variables": {
@@ -8060,6 +8105,492 @@
           "signal": "traces"
         }
       ]
+    },
+    {
+      "id": "01d02bf7-1461-5ae4-a669-f6900299c593",
+      "panelTypes": "row",
+      "title": "Patching by team",
+      "description": ""
+    },
+    {
+      "id": "w-team-1",
+      "panelTypes": "graph",
+      "title": "Time to patch by team",
+      "description": "Median days a team's upgrades deployed in the last 90 days had run behind a newer release.",
+      "query": {
+        "queryType": "builder",
+        "id": "0b338df8-9a7a-5011-bd3f-55d63ae5e185",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_team_patch_median_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "owner--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "owner",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{owner}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
+      "legendPosition": "bottom"
+    },
+    {
+      "id": "w-team-2",
+      "panelTypes": "graph",
+      "title": "Days behind by team",
+      "description": "Median days a team's production services have run behind a newer release.",
+      "query": {
+        "queryType": "builder",
+        "id": "ed674361-ba05-56ae-8b48-5ca4a3969fcb",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_team_behind_median_days",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "owner--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "owner",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{owner}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
+      "legendPosition": "bottom"
+    },
+    {
+      "id": "w-team-3",
+      "panelTypes": "graph",
+      "title": "Services behind by team",
+      "description": "A team's production services behind a newer release.",
+      "query": {
+        "queryType": "builder",
+        "id": "592e9485-446f-5315-a915-a4b4ebf57a7f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_team_behind",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "owner--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "owner",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{owner}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
+      "legendPosition": "bottom"
+    },
+    {
+      "id": "w-team-4",
+      "panelTypes": "graph",
+      "title": "Past deadline by team",
+      "description": "A team's production upgrades past their remediation deadline.",
+      "query": {
+        "queryType": "builder",
+        "id": "8cdafec3-f223-5e6d-bd7f-c3389fe04ad1",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_team_past_deadline",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "sum",
+                  "reduceTo": "avg"
+                }
+              ],
+              "filter": {
+                "expression": "service IN $service AND environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "owner--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "owner",
+                  "type": "tag"
+                }
+              ],
+              "legend": "{{owner}}",
+              "reduceTo": "avg"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ],
+      "fillMode": "gradient",
+      "lineInterpolation": "spline",
+      "lineStyle": "solid",
+      "showPoints": false,
+      "spanGaps": true,
+      "legendPosition": "bottom"
     }
   ],
   "panelMap": {
@@ -8646,6 +9177,47 @@
           "x": 0,
           "y": 91,
           "w": 12,
+          "h": 7,
+          "moved": false,
+          "static": false
+        }
+      ]
+    },
+    "01d02bf7-1461-5ae4-a669-f6900299c593": {
+      "collapsed": false,
+      "widgets": [
+        {
+          "i": "w-team-1",
+          "x": 0,
+          "y": 118,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w-team-2",
+          "x": 6,
+          "y": 118,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w-team-3",
+          "x": 0,
+          "y": 125,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w-team-4",
+          "x": 6,
+          "y": 125,
+          "w": 6,
           "h": 7,
           "moved": false,
           "static": false

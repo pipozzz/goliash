@@ -41,8 +41,10 @@ type SecurityView struct {
 	CanWatch bool                   // a member may start and end watches
 	// Deadlines are the workspace's remediation deadlines; an admin sets them. Overdue and DueSoon count the
 	// upgrades past them and due within a week.
-	Brief           notifier.Brief // the Since yesterday panel: the security brief
-	AlertsOutside   bool           // a rule sends vulnerabilities to Slack, e-mail or another channel outside Goliash
+	Brief           notifier.Brief          // the Since yesterday panel: the security brief
+	AlertsOutside   bool                    // a rule sends vulnerabilities to Slack, e-mail or another channel outside Goliash
+	Teams           []versions.TeamPatching // production by team, slowest first
+	PatchMonths     []versions.PatchMonth   // production's time to patch, month by month
 	Deadlines       store.Remediation
 	CanSetDeadlines bool
 	Overdue         int
@@ -153,6 +155,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return err
 	}
 	if v.AlertsOutside, err = notifier.SecurityAlertsOutside(r.Context(), s.store, p.Scope); err != nil {
+		return err
+	}
+	if err := s.patching(r, p, &v); err != nil {
 		return err
 	}
 	v.CanSetDeadlines = p.Can(store.RoleAdmin)
@@ -857,3 +862,66 @@ build:
 syft registry.example.com/team/app:1.2.3 -o spdx-json > sbom.spdx.json
 cosign attest --yes --type spdxjson --predicate sbom.spdx.json registry.example.com/team/app:1.2.3`
 )
+
+// patching fills the Security page's patching by team and time to patch.
+func (s *Server) patching(r *http.Request, p auth.Principal, v *SecurityView) error {
+	ctx := r.Context()
+	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	if err != nil {
+		return err
+	}
+	acks, err := s.store.ListAcks(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	teams, samples, err := versions.LoadTeamPatching(ctx, s.store, p.Scope, o, v.Posture, versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now), now)
+	if err != nil {
+		return err
+	}
+	named := false
+	for _, t := range teams {
+		named = named || t.Owner != ""
+	}
+	if named {
+		v.Teams = teams
+	}
+	if len(samples) > 0 {
+		v.PatchMonths = versions.PatchByMonth(samples, now)
+	}
+	return nil
+}
+
+// monthBar is the height of a month's bar, out of the largest: 0 to 100.
+func monthBar(days, most int) int {
+	if days <= 0 || most <= 0 {
+		return 0
+	}
+	return max(4, days*100/most)
+}
+
+// mostDays is the largest of the months' 90th percentiles, the chart's top.
+func mostDays(ms []versions.PatchMonth) int {
+	most := 0
+	for _, m := range ms {
+		most = max(most, m.P90, m.Median)
+	}
+	return most
+}
+
+// teamMost is the largest monthly median of a team, its bars' top.
+func teamMost(t versions.TeamPatching) int {
+	most := 0
+	for _, d := range t.Monthly {
+		most = max(most, d)
+	}
+	return most
+}
+
+// teamName is a team as the page shows it.
+func teamName(owner string) string {
+	if owner == "" {
+		return "no owner"
+	}
+	return owner
+}

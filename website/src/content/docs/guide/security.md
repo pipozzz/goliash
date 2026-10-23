@@ -338,6 +338,22 @@ goliash licenses -environment prod -fail-on network-copyleft,source-available
 package in the [CycloneDX inventory](../sbom/). Goliash reads licenses as the SBOMs declare them: it is a map, not
 legal advice.
 
+## Time to patch, and patching by team
+
+Every upgrade deployed to production closes an exposure: from when the first release after the old version came out
+(its publication date, else when Goliash found it) to the deploy. Those days are the **time to patch**.
+**Time to patch in prod** draws it month by month for the last six months, the median and the 90th percentile, with
+how many upgrades each month had; rollbacks and staging do not count, and a version deployed to several targets
+counts once.
+
+**Patching by team** sums production up per team (a service's owner): services in production, how many run behind
+a newer release and for how long (median), how many upgrades are past their deadline, how many were deployed in the
+last 90 days and their median time to patch, with bars for the last six months. The slowest come first: most past
+their deadline, then longest behind; each team links to its Updates. The same numbers are
+[metrics](/guide/observability/) by owner for a team's dashboard (*Patching by team* in the Grafana and SigNoz
+dashboards), the weekly report names the slowest teams, and a team's own rule sends it
+[its week](/guide/notifications/#security-posture-report).
+
 ## Trend
 
 Goliash records production's posture every hour (the day's last reading stays) and keeps a little over a year of

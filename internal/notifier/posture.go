@@ -30,17 +30,17 @@ const postureWorst = 3
 var ErrNotAReportRule = errors.New("this rule does not send the security posture report")
 
 func (n *Notifier) reportPosture(ctx context.Context, sc store.Scope, rules []store.Rule, now time.Time) error {
-	it, err := n.postureItem(ctx, sc, now)
-	if err != nil {
-		return err
-	}
-	payload, err := json.Marshal(it)
+	it, teams, err := n.postureItem(ctx, sc, now)
 	if err != nil {
 		return err
 	}
 	for _, r := range rules {
 		var f Filter
 		_ = json.Unmarshal(r.Filter, &f)
+		payload, err := json.Marshal(reportFor(it, teams, f, now))
+		if err != nil {
+			return err
+		}
 		period := lastPlanTime(r.Mode, f, now).Format("2006-01-02")
 		if _, err := n.store.Enqueue(ctx, store.QueueItem{
 			Scope: sc, RuleID: r.ID, Payload: payload, DueAt: now, DedupKey: "posture|" + period,
@@ -88,43 +88,124 @@ func (n *Notifier) SendPostureNow(ctx context.Context, sc store.Scope, ruleID st
 	if !contains(rt.rule.EventTypes, EventPostureReport) {
 		return ErrNotAReportRule
 	}
-	it, err := n.postureItem(ctx, sc, n.now())
+	now := n.now()
+	it, teams, err := n.postureItem(ctx, sc, now)
 	if err != nil {
 		return err
 	}
-	return n.sendNow(ctx, sc, rt, Message{Workspace: rt.workspace, Items: []Item{it}, Link: n.link, Goli: n.goli})
+	var f Filter
+	_ = json.Unmarshal(rt.rule.Filter, &f)
+	return n.sendNow(ctx, sc, rt, Message{Workspace: rt.workspace, Items: []Item{reportFor(it, teams, f, now)}, Link: n.link, Goli: n.goli})
 }
 
-func (n *Notifier) postureItem(ctx context.Context, sc store.Scope, now time.Time) (Item, error) {
+// postureItem is the workspace's report, and its production by team for the reports of a team's rules.
+func (n *Notifier) postureItem(ctx context.Context, sc store.Scope, now time.Time) (Item, []versions.TeamPatching, error) {
 	o, err := versions.LoadOverview(ctx, n.store, sc)
 	if err != nil {
-		return Item{}, err
+		return Item{}, nil, err
 	}
 	pos, err := versions.LoadPosture(ctx, n.store, sc, o, now)
 	if err != nil {
-		return Item{}, err
+		return Item{}, nil, err
 	}
 	var supply SupplyChain
 	if pos.Prod.ID != "" {
 		if supply.Vulns, err = versions.LoadVulnReport(ctx, n.store, sc, pos.Prod.ID); err != nil {
-			return Item{}, err
+			return Item{}, nil, err
 		}
 		if supply.Licenses, err = versions.LoadLicenseReport(ctx, n.store, sc, pos.Prod.ID); err != nil {
-			return Item{}, err
+			return Item{}, nil, err
 		}
 	}
 	if apps, err := versions.GitOpsApps(ctx, n.store, sc, o); err == nil && len(apps) > 0 {
 		if supply.Pulls, err = versions.PullTimings(ctx, n.store, sc, apps, now.Add(-7*24*time.Hour)); err != nil {
-			return Item{}, err
+			return Item{}, nil, err
 		}
 	}
 	it := PostureItem(pos, supply, n.weekAgo(ctx, sc, now), now)
-	if acks, err := n.store.ListAcks(ctx, sc); err == nil {
-		if s := overdueLine(versions.LoadUpdates(ctx, n.store, sc, o, acks, now), now); s != "" {
-			it.Text += " " + s
+	acks, err := n.store.ListAcks(ctx, sc)
+	if err != nil {
+		return Item{}, nil, err
+	}
+	updates := versions.LoadUpdates(ctx, n.store, sc, o, acks, now)
+	if s := overdueLine(updates, now); s != "" {
+		it.Text += " " + s
+	}
+	teams, _, err := versions.LoadTeamPatching(ctx, n.store, sc, o, pos, updates, now)
+	if err != nil {
+		return Item{}, nil, err
+	}
+	if s := slowestTeams(teams); s != "" {
+		it.Text += " " + s
+	}
+	it.Environment = pos.Prod.Name
+	return it, teams, nil
+}
+
+// slowestShown bounds the teams the report names as slowest.
+const slowestShown = 3
+
+// slowestTeams names the teams past their deadlines or long behind, slowest first: "Slowest teams: team-data (2
+// past deadline, 41 days behind); team-pay (35 days behind)." "" when none is.
+func slowestTeams(teams []versions.TeamPatching) string {
+	var names []string
+	for _, t := range teams {
+		if t.Owner == "" || (t.Overdue == 0 && t.MedianBehind < 30) {
+			continue
+		}
+		var why []string
+		if t.Overdue > 0 {
+			why = append(why, fmt.Sprintf("%d past deadline", t.Overdue))
+		}
+		if t.Behind > 0 {
+			why = append(why, fmt.Sprintf("%s behind", plural(t.MedianBehind, "day", "days")))
+		}
+		names = append(names, t.Owner+" ("+strings.Join(why, ", ")+")")
+		if len(names) == slowestShown {
+			break
 		}
 	}
-	return it, nil
+	if len(names) == 0 {
+		return ""
+	}
+	return "Slowest teams: " + strings.Join(names, "; ") + "."
+}
+
+// reportFor is the report a rule sends: the workspace's, or for a rule filtered by owners, those teams' own.
+func reportFor(it Item, teams []versions.TeamPatching, f Filter, now time.Time) Item {
+	if len(f.Owners) == 0 {
+		return it
+	}
+	var lines []string
+	for _, t := range teams {
+		if contains(f.Owners, t.Owner) {
+			lines = append(lines, teamLine(t, it.Environment))
+		}
+	}
+	if len(lines) == 0 {
+		lines = append(lines, strings.Join(f.Owners, ", ")+": nothing of theirs runs in "+orDash(it.Environment)+".")
+	}
+	out := it
+	out.Text, out.Owner = strings.Join(lines, " "), strings.Join(f.Owners, ", ")
+	return out
+}
+
+// teamLine is a team's week in one sentence: "team-data in prod: 3 of 12 services behind a newer release, median
+// 41 days; 1 past its remediation deadline; 4 upgrades in 90 days, 12 days to patch (median)."
+func teamLine(t versions.TeamPatching, prod string) string {
+	s := fmt.Sprintf("%s in %s: %d of %s behind a newer release", t.Owner, orDash(prod), t.Behind, plural(t.Services, "service", "services"))
+	if t.Behind > 0 {
+		s += fmt.Sprintf(", median %s", plural(t.MedianBehind, "day", "days"))
+	}
+	if t.Overdue > 0 {
+		s += fmt.Sprintf("; %d past the remediation deadline", t.Overdue)
+	}
+	if t.Patched > 0 {
+		s += fmt.Sprintf("; %s in 90 days, %s to patch (median)", plural(t.Patched, "upgrade", "upgrades"), plural(t.MedianPatch, "day", "days"))
+	} else {
+		s += "; no upgrade in 90 days"
+	}
+	return s + "."
 }
 
 // SupplyChain is what the SBOMs of production's images say, for the posture report: known vulnerabilities and

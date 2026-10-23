@@ -54,6 +54,8 @@ base with a newer build for over a month, an image that lost its signature, SBOM
 | Drift open for a week | `max(goliash_drift_days) > 7` |
 | Production past end of life | `goliash_end_of_life{state="passed"} > 0` |
 | Production patched slower than a month | `max(goliash_exposure_median_days) > 30` |
+| A team patches slower than two weeks | `goliash_team_patch_median_days > 14` |
+| A team has upgrades past their deadline | `goliash_team_past_deadline > 0` |
 | Agent stopped reporting | `goliash_agents{status="stale"} > 0` |
 | Goliash falls behind | `goliash_snapshots_pending > 20` for 10 minutes |
 | Notifications failing | `goliash_notifications_failing > 0` |
@@ -104,6 +106,9 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_image_evidence` | service, environment, kind (signature, sbom, provenance) | 1 when every image running there has it, 0 when one lacks it |
 | `goliash_exposure_days` | service, environment (and app) | days a service has run behind an available release |
 | `goliash_exposure_median_days`, `goliash_exposure_p90_days` | environment (production) | median and 90th percentile of those days in production |
+| `goliash_team_behind`, `goliash_team_behind_median_days` | owner, environment (production) | a team's production services behind a newer release, and the median days they have been |
+| `goliash_team_past_deadline` | owner, environment | a team's upgrades past their [remediation deadline](/guide/security/#remediation-deadlines) |
+| `goliash_team_patch_median_days` | owner, environment | median days a team's upgrades deployed in the last 90 days had run behind (its time to patch) |
 | `goliash_exposures` | environment, over_days (30, 90) | production services behind an available release that long |
 | `goliash_end_of_life` | environment, state (passed, soon) | production services on a release cycle past or near its end of life |
 | `goliash_accepted_risk` | environment | production exposures quieted by an acknowledgement |

@@ -1111,6 +1111,12 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 	h.serverMetrics(r.Context(), &b, p.Scope)
 	if pos, err := versions.LoadPosture(r.Context(), h.store, p.Scope, o, time.Now()); err == nil {
 		postureMetrics(&b, pos)
+		if acks, err := h.store.ListAcks(r.Context(), p.Scope); err == nil {
+			now := time.Now()
+			if teams, _, err := versions.LoadTeamPatching(r.Context(), h.store, p.Scope, o, pos, versions.LoadUpdates(r.Context(), h.store, p.Scope, o, acks, now), now); err == nil {
+				teamMetrics(&b, pos.Prod.Name, teams)
+			}
+		}
 	}
 	b.WriteString("# HELP goliash_drift_days How long a drift has been open, in days.\n")
 	b.WriteString("# TYPE goliash_drift_days gauge\n")
@@ -1593,5 +1599,28 @@ func (h *PublicHandler) gitOpsMetrics(ctx context.Context, b *strings.Builder, s
 	if d, n := versions.MedianDuration(mergeToRunning); n > 0 {
 		b.WriteString("# HELP goliash_merge_to_running_seconds Median time from merging a pull request to its version running, last 30 days.\n# TYPE goliash_merge_to_running_seconds gauge\n")
 		fmt.Fprintf(b, "goliash_merge_to_running_seconds %.0f\n", d.Seconds())
+	}
+}
+
+// teamMetrics is production by team (the services' owner): how far behind, past the deadline, and how fast it
+// patches, for a dashboard per team.
+func teamMetrics(b *strings.Builder, prod string, teams []versions.TeamPatching) {
+	b.WriteString("# HELP goliash_team_behind Production services of a team behind a newer release.\n# TYPE goliash_team_behind gauge\n")
+	for _, t := range teams {
+		fmt.Fprintf(b, "goliash_team_behind{owner=%q,environment=%q} %d\n", t.Owner, prod, t.Behind)
+	}
+	b.WriteString("# HELP goliash_team_behind_median_days Median days a team's production services have run behind a newer release.\n# TYPE goliash_team_behind_median_days gauge\n")
+	for _, t := range teams {
+		fmt.Fprintf(b, "goliash_team_behind_median_days{owner=%q,environment=%q} %d\n", t.Owner, prod, t.MedianBehind)
+	}
+	b.WriteString("# HELP goliash_team_past_deadline A team's production upgrades past their remediation deadline.\n# TYPE goliash_team_past_deadline gauge\n")
+	for _, t := range teams {
+		fmt.Fprintf(b, "goliash_team_past_deadline{owner=%q,environment=%q} %d\n", t.Owner, prod, t.Overdue)
+	}
+	b.WriteString("# HELP goliash_team_patch_median_days Median days a team's upgrades deployed in the last 90 days had run behind.\n# TYPE goliash_team_patch_median_days gauge\n")
+	for _, t := range teams {
+		if t.Patched > 0 {
+			fmt.Fprintf(b, "goliash_team_patch_median_days{owner=%q,environment=%q} %d\n", t.Owner, prod, t.MedianPatch)
+		}
 	}
 }

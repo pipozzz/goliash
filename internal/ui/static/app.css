@@ -1417,3 +1417,15 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 /* Tiles: an opened application's matrix, under its cells. */
 .stack-matrix { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .stack-matrix table.matrix { width: 100%; }
+/* Security: time to patch per month, and per team. */
+.patch-chart { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.patch-month { display: grid; gap: 4px; justify-items: center; text-align: center; }
+.patch-bars { position: relative; width: 100%; max-width: 56px; height: 120px; }
+.patch-bars span { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px 6px 2px 2px; }
+.patch-p90 { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.patch-median { background: var(--accent); }
+.patch-month small { color: var(--muted); }
+.team-patch { display: inline-flex; align-items: center; gap: 10px; }
+.team-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 22px; }
+.team-bar { width: 6px; min-height: 2px; background: var(--accent); border-radius: 2px; }
+.team-bar.none { background: var(--line); height: 2px !important; }

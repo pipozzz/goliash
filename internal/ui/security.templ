@@ -69,6 +69,12 @@ templ SecurityPage(v SecurityView) {
 		if v.Deadlines.Any() || v.CanSetDeadlines {
 			@deadlinesPanel(v)
 		}
+		if len(v.PatchMonths) > 0 {
+			@patchChart(v)
+		}
+		if len(v.Teams) > 0 {
+			@teamsPanel(v)
+		}
 		if len(v.Trend) > 0 {
 			<section class="panel">
 				<div class="panel-head">
@@ -634,6 +640,88 @@ templ sbomHelper(blind []versions.BlindImage) {
 				<button type="button" class="secondary" data-copy="sbom-existing-snippet">Copy</button>
 			</details>
 			<p class="muted">Software built from source or copied into the image is in no package database: declare it in the Dockerfile, <code>LABEL dev.goliash.components="nginx=1.27.2, php=8.3.12"</code>, and Goliash looks up its CVEs by version. See <a href="https://goliash.dev/guide/security/#images-without-an-sbom" target="_blank" rel="noopener">the guide</a>.</p>
+		</div>
+	</section>
+}
+
+// patchChart draws production's time to patch month by month: how many days after the first newer release the
+// upgrades were deployed, the median and the 90th percentile.
+templ patchChart(v SecurityView) {
+	{{ most := mostDays(v.PatchMonths) }}
+	<section class="panel" id="time-to-patch">
+		<div class="panel-head">
+			<h2>{ "Time to patch in " + v.Prod.Name }</h2>
+			@panelInfo("For each upgrade deployed to production: the days from the first release after the version it replaced to the deploy. Bars are the month's median, the lighter part its 90th percentile.")
+		</div>
+		<div class="panel-body patch-chart" role="img" aria-label={ "Time to patch in " + v.Prod.Name + ", median days per month" }>
+			for _, m := range v.PatchMonths {
+				<div class="patch-month" title={ m.Month.Format("January 2006") + ": " + plural(m.Upgrades, "upgrade", "upgrades") + ", median " + days(m.Median) + ", 90th percentile " + days(m.P90) }>
+					<div class="patch-bars">
+						<span class="patch-p90" style={ "height:" + itoa(monthBar(m.P90, most)) + "%" }></span>
+						<span class="patch-median" style={ "height:" + itoa(monthBar(m.Median, most)) + "%" }></span>
+					</div>
+					<strong>
+						if m.Upgrades > 0 {
+							{ days(m.Median) }
+						} else {
+							—
+						}
+					</strong>
+					<small>{ m.Month.Format("Jan") + " · " + itoa(m.Upgrades) }</small>
+				</div>
+			}
+		</div>
+	</section>
+}
+
+// teamsPanel sums production up per team, slowest first.
+templ teamsPanel(v SecurityView) {
+	<section class="panel" id="teams">
+		<div class="panel-head">
+			<h2>Patching by team</h2>
+			@panelInfo("Each service's owner is its team. Behind: production services with a newer release, and the median days they have been behind. Time to patch: the median days the team's upgrades deployed in the last 90 days had been behind. The bars are the last six months' medians.")
+		</div>
+		<div class="scroll" tabindex="0">
+			<table class="cards">
+				<thead><tr><th>Team</th><th class="num">In prod</th><th class="num">Behind</th><th class="num">Past deadline</th><th class="num">Patched (90 days)</th><th>Time to patch</th></tr></thead>
+				<tbody>
+					for _, t := range v.Teams {
+						<tr>
+							<td data-label="Team"><a href={ templ.URL("/updates?team=" + url.QueryEscape(t.Owner)) }><strong>{ teamName(t.Owner) }</strong></a></td>
+							<td class="num" data-label="In prod">{ itoa(t.Services) }</td>
+							<td class="num" data-label="Behind">
+								{ itoa(t.Behind) }
+								if t.Behind > 0 {
+									<small class="muted">{ " · " + days(t.MedianBehind) }</small>
+								}
+							</td>
+							<td class="num" data-label="Past deadline">
+								if t.Overdue > 0 {
+									<a class="badge eol" href={ templ.URL("/updates?due=over&team=" + url.QueryEscape(t.Owner)) }>{ itoa(t.Overdue) }</a>
+								} else {
+									0
+								}
+							</td>
+							<td class="num" data-label="Patched">{ itoa(t.Patched) }</td>
+							<td data-label="Time to patch">
+								<span class="team-patch">
+									<span class="team-bars" aria-hidden="true">
+										{{ top := teamMost(t) }}
+										for _, d := range t.Monthly {
+											<span class={ "team-bar", templ.KV("none", d < 0) } style={ "height:" + itoa(monthBar(d, top)) + "%" }></span>
+										}
+									</span>
+									if t.Patched > 0 {
+										{ days(t.MedianPatch) }
+									} else {
+										<span class="muted">no upgrade</span>
+									}
+								</span>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
 		</div>
 	</section>
 }
