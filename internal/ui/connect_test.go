@@ -323,7 +323,7 @@ func TestUpgradeCommand(t *testing.T) {
 		"docker":     {"GOLIASH_AGENT_VERSION=1.15.0", "/v1.15.0/deploy/docker/", "docker inspect goliash-agent-agent-1", "-p goliash-agent"},
 		"swarm":      {"goliash-agent:1.15.0 goliash-agent_agent"},
 		"nomad":      {"-var version=1.15.0", "-var server_url=https://g"},
-		"ecs":        {"ParameterKey=Version,ParameterValue=1.15.0", "ParameterKey=EnrollCode,UsePreviousValue=true", "--use-previous-template"},
+		"ecs":        {"ParameterKey=Version,ParameterValue=1.15.0", "ParameterKey=EnrollCode,UsePreviousValue=true", "--template-body file://goliash-agent.cfn.yaml", "/v1.15.0/deploy/ecs/goliash-agent.cfn.yaml"},
 		"lambda":     {"ParameterKey=Version,ParameterValue=1.15.0"},
 	}
 	for p, parts := range want {

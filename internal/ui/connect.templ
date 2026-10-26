@@ -153,7 +153,7 @@ func codeMany(p PlatformInfo) string {
 	switch p.Key {
 	case "kubernetes":
 		return "clusters"
-	case "nomad", "lambda":
+	case "nomad", "lambda", "rds":
 		return "regions"
 	case "ecs":
 		return "ECS clusters"
@@ -270,6 +270,11 @@ templ connectManualForm(v ConnectFormView) {
 								<span class="hint">A function with aliases shows once per alias, in the environment named like the alias. Map the others here; - leaves an alias out.</span>
 							</label>
 							<p class="hint">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases and lambda:ListFunctionUrlConfigs.</p>
+						case "rds":
+							<div class="row">
+								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
+							</div>
+							<p class="hint">Whoever collects it needs only rds:DescribeDBInstances, rds:DescribeDBClusters and rds:DescribeDBEngineVersions.</p>
 						case "compose":
 							<label>
 								Compose files

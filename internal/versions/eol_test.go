@@ -141,3 +141,61 @@ func TestLambdaRuntimeCycles(t *testing.T) {
 		t.Fatalf("python 3.8: %+v %v", c, ok)
 	}
 }
+
+// Databases report their engine as rds.amazonaws.com/<engine>; each has its endoflife.date product, whose cycles
+// end with the end of standard support.
+func TestRDSProducts(t *testing.T) {
+	e := NewEOL()
+	for repo, want := range map[string]string{
+		"rds.amazonaws.com/postgres": "amazon-rds-postgresql", "rds.amazonaws.com/aurora-mysql": "amazon-aurora-mysql",
+		"rds.amazonaws.com/oracle-ee": "",
+	} {
+		if want == "" {
+			if RDSEngine(repo) != "" {
+				t.Errorf("%s is no engine Goliash knows", repo)
+			}
+			continue
+		}
+		if got, err := e.Product(context.Background(), repo); err != nil || got != want {
+			t.Errorf("%s: %q %v", repo, got, err)
+		}
+	}
+}
+
+// An RDS PostgreSQL 13 past its end of standard support drifts like any end of life.
+func TestRDSEndOfStandardSupport(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/products/amazon-rds-postgresql" {
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"13","isEol":true,"eolFrom":"2026-02-28"},{"name":"16","isEol":false,"eolFrom":"2029-02-28"}]}}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	l := newLab(t)
+	ctx := context.Background()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	l.checker.SetEOL(e)
+	db, _ := l.st.EnsureService(ctx, l.sc, "billing-db")
+	prod := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: prod.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: prod.ID, EnvironmentID: prod.EnvironmentID, ServiceID: db.ID, WorkloadID: "arn:db", WorkloadKind: "rds_instance",
+		WorkloadName: "billing-db", ContainerName: "postgres", Image: "rds.amazonaws.com/postgres:13.15", Tag: "13.15", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.checker.EvaluateDrift(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	open, _ := l.st.OpenDrifts(ctx, l.sc)
+	for _, d := range open {
+		if d.Kind == "eol" && d.ServiceID == db.ID {
+			if det := detailOf(t, d); det.Other != "13" || det.EOL != "2026-02-28" {
+				t.Fatalf("detail %+v", det)
+			}
+			return
+		}
+	}
+	t.Fatalf("no end-of-life drift: %+v", open)
+}

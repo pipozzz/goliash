@@ -116,6 +116,7 @@ func (r *Runner) collect(ctx context.Context) {
 		r.setStatus(agentproto.Failing, err.Error(), "")
 		return
 	}
+	res.DropIgnored()
 	id, err := r.emit(r.target, res)
 	if err != nil {
 		r.log.Error("snapshot not stored", "err", err)

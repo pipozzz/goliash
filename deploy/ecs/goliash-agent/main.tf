@@ -60,6 +60,14 @@ data "aws_iam_policy_document" "read_ecs" {
       resources = ["*"]
     }
   }
+  dynamic "statement" {
+    for_each = var.watch_rds ? [1] : []
+    content {
+      sid       = "ReadRDS"
+      actions   = ["rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions"]
+      resources = ["*"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "read_ecs" {
@@ -113,6 +121,7 @@ resource "aws_ecs_task_definition" "agent" {
       { name = "GOLIASH_SERVER_URL", value = var.server_url },
       { name = "GOLIASH_DATA_DIR", value = "/tmp/goliash" },
       { name = "GOLIASH_LAMBDA", value = var.watch_lambda ? "on" : "off" },
+      { name = "GOLIASH_RDS", value = var.watch_rds ? "on" : "off" },
       ],
       length(var.regions) > 0 ? [{ name = "GOLIASH_AWS_REGIONS", value = join(",", var.regions) }] : [],
       length(var.clusters) > 0 ? [{ name = "GOLIASH_ECS_CLUSTERS", value = join(",", var.clusters) }] : [],

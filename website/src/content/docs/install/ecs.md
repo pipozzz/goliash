@@ -74,6 +74,42 @@ Container functions show their image like any service. A .zip function shows its
 (`python 3.12`), with *new release* when AWS offers a newer runtime and *end of life* before AWS deprecates it. See
 [Collectors](/reference/collectors/#target-settings).
 
+## RDS and Aurora databases
+
+With `WatchRDS=true` (CloudFormation, the default) or `watch_rds = true` (Terraform) the task role may also call
+`rds:DescribeDBInstances`, `rds:DescribeDBClusters` and `rds:DescribeDBEngineVersions`, and the agent adds the
+region's databases as an `rds` target named `rds-<region>` (`GOLIASH_RDS=off` stops it). With a token, create the
+target with `{"rds":{"region":"eu-west-1"}}`.
+
+Each database is a service named like the instance, or the Aurora cluster with its instances, so it gets what any
+service gets in the matrix, Updates, notifications and reports:
+
+- **Its engine and version**, shown as `rds.amazonaws.com/postgres:16.4`. PostgreSQL, MySQL, MariaDB, Aurora
+  PostgreSQL and Aurora MySQL are read. Aurora MySQL shows its own version (3.05.2 rather than
+  8.0.mysql_aurora.3.05.2), which its support follows.
+- **The versions RDS offers** in the region, as its upstream releases. A newer minor or major version shows as
+  *upstream* drift and on Updates.
+- **End of standard support** (from endoflife.date), as *end of life*. After that date AWS moves the database to
+  RDS Extended Support and charges for it per vCPU and hour, unless the upgrade happens first.
+- **Public accessibility.** A database with `PubliclyAccessible` is *exposed*, with its endpoint, and its upgrades
+  come first.
+
+Tag a database (or cluster) `goliash.ignore=true` to leave it out, and `goliash.env=prod` to place it in an
+environment other than the target's. Pending maintenance (OS patches RDS schedules) is not read yet.
+
+## Leaving things out
+
+- `goliash.ignore=true` as a tag on an ECS service, Lambda function or RDS database keeps the agent from reporting
+  it.
+- `Clusters` (`GOLIASH_ECS_CLUSTERS`) and `GOLIASH_ECS_EXCLUDE` choose the clusters.
+- `WatchLambda=false` and `WatchRDS=false` (`GOLIASH_LAMBDA=off`, `GOLIASH_RDS=off`) leave out Lambda or RDS.
+- In Goliash, an ignore rule (Inbox → **Ignore this image**) drops what the agent still reports.
+
+## Upgrading the stack
+
+**Agents → Update** gives the command. It fetches the template of the new version, so the task role gains what the
+new version reads (RDS, Lambda function URLs), and keeps your parameters.
+
 ## What the ECS collector reports
 
 For every cluster in the region: services, their running tasks and the containers of those tasks' task

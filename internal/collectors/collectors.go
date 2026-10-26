@@ -5,6 +5,7 @@ package collectors
 
 import (
 	"context"
+	"strings"
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/pkg/agentproto"
@@ -44,3 +45,20 @@ type KeychainSource interface {
 // Factory builds a collector for a target from its configuration. Credentials are
 // resolved locally from target.CredentialsRef; they never come from the server.
 type Factory func(ctx context.Context, target agentproto.Target) (Collector, error)
+
+// IgnoreLabel on a workload (a Kubernetes label, an ECS or Lambda tag, a Docker label, Nomad meta) keeps the agent
+// from reporting it: goliash.ignore=true.
+const IgnoreLabel = "goliash.ignore"
+
+// DropIgnored leaves out the workloads labelled goliash.ignore=true.
+func (r *Result) DropIgnored() {
+	kept := r.Workloads[:0]
+	for _, w := range r.Workloads {
+		switch strings.ToLower(w.Labels[IgnoreLabel]) {
+		case "true", "yes", "1":
+			continue
+		}
+		kept = append(kept, w)
+	}
+	r.Workloads = kept
+}

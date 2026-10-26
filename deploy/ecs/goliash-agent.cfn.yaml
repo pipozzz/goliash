@@ -3,8 +3,8 @@
 #
 # goliash-agent as an ECS Fargate service, with a read-only task role. With an
 # enrollment code (Connect → Amazon ECS in Goliash) the agent registers itself and adds
-# every ECS cluster of the region, each as a target, and with WatchLambda the
-# region's Lambda functions.
+# every ECS cluster of the region, each as a target, with WatchLambda the
+# region's Lambda functions, and with WatchRDS its RDS and Aurora databases.
 #
 # To try it in the default VPC, in one line:
 #
@@ -53,6 +53,11 @@ Parameters:
     Default: "true"
     AllowedValues: ["true", "false"]
     Description: Also watch the region's Lambda functions (lets the role list and read them).
+  WatchRDS:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Also watch the region's RDS and Aurora databases (lets the role describe them and the engine versions).
   Regions:
     Type: CommaDelimitedList
     Default: ""
@@ -70,6 +75,7 @@ Conditions:
   NewCluster: !Equals [!Ref Cluster, ""]
   DefaultSecurityGroup: !Equals [!Join ["", !Ref SecurityGroups], ""]
   Lambda: !Equals [!Ref WatchLambda, "true"]
+  RDS: !Equals [!Ref WatchRDS, "true"]
 
 Resources:
   AgentCluster:
@@ -120,6 +126,13 @@ Resources:
                   Action: ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs"]
                   Resource: "*"
                 - !Ref AWS::NoValue
+              - !If
+                - RDS
+                - Sid: ReadRDS
+                  Effect: Allow
+                  Action: ["rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions"]
+                  Resource: "*"
+                - !Ref AWS::NoValue
 
   ExecutionRole:
     Type: AWS::IAM::Role
@@ -162,6 +175,7 @@ Resources:
             - { Name: GOLIASH_SERVER_URL, Value: !Ref ServerURL }
             - { Name: GOLIASH_DATA_DIR, Value: /tmp/goliash }
             - { Name: GOLIASH_LAMBDA, Value: !If [Lambda, "on", "off"] }
+            - { Name: GOLIASH_RDS, Value: !If [RDS, "on", "off"] }
             - { Name: GOLIASH_AWS_REGIONS, Value: !Join [",", !Ref Regions] }
             - { Name: GOLIASH_ECS_CLUSTERS, Value: !Join [",", !Ref Clusters] }
             # The cluster made for the agent alone is not worth watching.

@@ -61,10 +61,14 @@ helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent 
 
 The agent registers itself and adds the cluster as a target. To keep the code out of Helm's values, put it in a
 secret and pass `--set token.existingSecret=<secret>` instead. With an agent token (`goliash agent create`), add a
-`kubernetes` target for it, for example with `{"kubernetes":{"exclude_namespaces":["kube-system"]}}`.
+`kubernetes` target for it, for example with `{"kubernetes":{"exclude_namespaces":["kube-system"]}}`. An agent
+that registered itself reads the same from its environment:
+`--set env.GOLIASH_EXCLUDE_NAMESPACES=kube-system\,sandbox` (or `GOLIASH_INCLUDE_NAMESPACES` for only some). A
+workload labelled `goliash.ignore=true` is never reported.
 
 The agent's ClusterRole allows only `get`, `list` and `watch` on Deployments, ReplicaSets, StatefulSets,
-DaemonSets, CronJobs, Jobs and Pods. It watches for changes and sends a snapshot shortly after a rollout, and a full
+DaemonSets, CronJobs, Jobs and Pods, and `list` on Services, Ingresses and HTTPRoutes (which workloads can be reached
+from outside). It watches for changes and sends a snapshot shortly after a rollout, and a full
 snapshot on the poll interval.
 
 ### Private registries

@@ -66,6 +66,12 @@ variable "watch_lambda" {
   default     = false
 }
 
+variable "watch_rds" {
+  description = "Also watch the region's RDS and Aurora databases: lets the task role call rds:DescribeDBInstances, rds:DescribeDBClusters and rds:DescribeDBEngineVersions."
+  type        = bool
+  default     = false
+}
+
 variable "regions" {
   description = "More regions to watch besides the agent's own; with an enrollment code the agent adds their ECS clusters (and Lambda functions with watch_lambda)."
   type        = list(string)

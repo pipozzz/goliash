@@ -58,6 +58,9 @@ func (e *EOL) Product(ctx context.Context, repo string) (string, error) {
 	if family := LambdaRuntime(repo); family != "" {
 		return lambdaProduct + "/" + family, nil
 	}
+	if engine := RDSEngine(repo); engine != "" {
+		return rdsProducts[engine], nil
+	}
 	e.mu.Lock()
 	fresh := e.products != nil && time.Since(e.loaded) < 24*time.Hour
 	e.mu.Unlock()
@@ -119,6 +122,22 @@ func purlImage(purl string) string {
 		return repo + "/" + name
 	}
 	return ""
+}
+
+// rdsProducts are the endoflife.date products of the RDS engines databases report as rds.amazonaws.com/<engine>:
+// their release cycles end with the end of standard support, after which AWS charges for RDS Extended Support.
+var rdsProducts = map[string]string{
+	"postgres": "amazon-rds-postgresql", "mysql": "amazon-rds-mysql", "mariadb": "amazon-rds-mariadb",
+	"aurora-postgresql": "amazon-aurora-postgresql", "aurora-mysql": "amazon-aurora-mysql",
+}
+
+// RDSEngine is the RDS engine a database reports as its image repository (rds.amazonaws.com/postgres), or "".
+func RDSEngine(repo string) string {
+	engine, ok := strings.CutPrefix(repo, "rds.amazonaws.com/")
+	if !ok || rdsProducts[engine] == "" {
+		return ""
+	}
+	return engine
 }
 
 // The endoflife.date product of AWS Lambda runtimes. Its release cycles are runtime

@@ -87,6 +87,7 @@ const (
 	Lambda     Platform = "lambda"
 	Manual     Platform = "manual"
 	Nomad      Platform = "nomad"
+	Rds        Platform = "rds"
 	Swarm      Platform = "swarm"
 )
 
@@ -108,6 +109,8 @@ func (e Platform) Valid() bool {
 	case Manual:
 		return true
 	case Nomad:
+		return true
+	case Rds:
 		return true
 	case Swarm:
 		return true
@@ -147,6 +150,8 @@ const (
 	LambdaFunction  WorkloadKind = "lambda_function"
 	ManualEntry     WorkloadKind = "manual_entry"
 	NomadJob        WorkloadKind = "nomad_job"
+	RdsCluster      WorkloadKind = "rds_cluster"
+	RdsInstance     WorkloadKind = "rds_instance"
 	Statefulset     WorkloadKind = "statefulset"
 	SwarmService    WorkloadKind = "swarm_service"
 )
@@ -175,6 +180,10 @@ func (e WorkloadKind) Valid() bool {
 	case ManualEntry:
 		return true
 	case NomadJob:
+		return true
+	case RdsCluster:
+		return true
+	case RdsInstance:
 		return true
 	case Statefulset:
 		return true
@@ -278,9 +287,15 @@ type DeclaredTarget struct {
 	Nomad  *NomadSettings  `json:"nomad,omitempty"`
 
 	// Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
-	Platform            Platform       `json:"platform"`
-	PollIntervalSeconds *int           `json:"poll_interval_seconds,omitempty"`
-	Swarm               *SwarmSettings `json:"swarm,omitempty"`
+	Platform            Platform `json:"platform"`
+	PollIntervalSeconds *int     `json:"poll_interval_seconds,omitempty"`
+
+	// Rds Amazon RDS and Aurora databases of a region, read with rds:DescribeDBInstances and rds:DescribeDBClusters.
+	// Each database (an instance, or an Aurora cluster with its instances) reports its engine as an image,
+	// rds.amazonaws.com/<engine>:<version> (postgres:16.4, aurora-mysql:3.05.2), so newer engine versions and the
+	// end of standard support show up; the agent reads the versions RDS offers with rds:DescribeDBEngineVersions.
+	Rds   *RDSSettings   `json:"rds,omitempty"`
+	Swarm *SwarmSettings `json:"swarm,omitempty"`
 }
 
 // DigestLookup defines model for DigestLookup.
@@ -551,6 +566,15 @@ type Problem struct {
 	Type     *string `json:"type,omitempty"`
 }
 
+// RDSSettings Amazon RDS and Aurora databases of a region, read with rds:DescribeDBInstances and rds:DescribeDBClusters.
+// Each database (an instance, or an Aurora cluster with its instances) reports its engine as an image,
+// rds.amazonaws.com/<engine>:<version> (postgres:16.4, aurora-mysql:3.05.2), so newer engine versions and the
+// end of standard support show up; the agent reads the versions RDS offers with rds:DescribeDBEngineVersions.
+type RDSSettings struct {
+	// Region Example: eu-west-1
+	Region string `json:"region"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	// Hostname Example: goliash-agent-7d9f8-x2k4p
@@ -710,8 +734,14 @@ type Target struct {
 	Platform Platform `json:"platform"`
 
 	// PollIntervalSeconds Full snapshot interval. Kubernetes also sends a snapshot after changes.
-	PollIntervalSeconds int            `json:"poll_interval_seconds"`
-	Swarm               *SwarmSettings `json:"swarm,omitempty"`
+	PollIntervalSeconds int `json:"poll_interval_seconds"`
+
+	// Rds Amazon RDS and Aurora databases of a region, read with rds:DescribeDBInstances and rds:DescribeDBClusters.
+	// Each database (an instance, or an Aurora cluster with its instances) reports its engine as an image,
+	// rds.amazonaws.com/<engine>:<version> (postgres:16.4, aurora-mysql:3.05.2), so newer engine versions and the
+	// end of standard support show up; the agent reads the versions RDS offers with rds:DescribeDBEngineVersions.
+	Rds   *RDSSettings   `json:"rds,omitempty"`
+	Swarm *SwarmSettings `json:"swarm,omitempty"`
 }
 
 // ULID Example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D

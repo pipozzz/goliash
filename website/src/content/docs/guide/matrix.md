@@ -243,7 +243,8 @@ on the matrix (members) takes a name, the image repository its releases are read
 
 Each running workload goes through these steps, and the first match wins:
 
-1. **Ignore rules.** Images or containers you chose to ignore.
+1. **Ignore rules.** Images or containers you chose to ignore. A workload labelled (or tagged)
+   `goliash.ignore=true` does not even reach Goliash: its agent leaves it out.
 2. **Labels.** `goliash.service`, else `app.kubernetes.io/name`. The service is created when it does not exist yet.
 3. **Rules.** Lowest priority number first. The inbox creates workload-name rules at priority 50 and image rules at
    100, so a rule for one workload wins over a rule for its image. `goliash rule create` defaults to 100.

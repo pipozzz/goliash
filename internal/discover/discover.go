@@ -24,6 +24,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/pipozzz/goliash/internal/collectors/docker"
@@ -63,6 +64,7 @@ type AWS interface {
 	Account(ctx context.Context, region string) (string, error)
 	ECSClusters(ctx context.Context, region string) ([]string, error) // ARNs
 	CanListFunctions(ctx context.Context, region string) error
+	CanListDatabases(ctx context.Context, region string) error
 }
 
 // Paths the agent looks at.
@@ -113,7 +115,10 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		if ca, err := o.ReadFile(kubernetesCA); err == nil {
 			name := nameOr("kubernetes")
 			found("kubernetes:"+shortHash(ca), name, agentproto.DeclaredTarget{
-				Platform: agentproto.Kubernetes, Name: name, Kubernetes: &agentproto.KubernetesSettings{},
+				Platform: agentproto.Kubernetes, Name: name, Kubernetes: &agentproto.KubernetesSettings{
+					IncludeNamespaces: list(o.Env("GOLIASH_INCLUDE_NAMESPACES")),
+					ExcludeNamespaces: list(o.Env("GOLIASH_EXCLUDE_NAMESPACES")),
+				},
 			})
 		} else {
 			r.Notes = append(r.Notes, "kubernetes: no service account CA: "+err.Error())
@@ -320,7 +325,8 @@ func arnParts(arn string) (region, cluster string) {
 // ECS cluster (or those in GOLIASH_ECS_CLUSTERS, without those in GOLIASH_ECS_EXCLUDE)
 // as a target of its own, so each can
 // sit in its own environment, and the region's Lambda functions (GOLIASH_LAMBDA=off
-// leaves them out). Platforms the credentials may not read are left out with a note.
+// leaves them out) and RDS databases (GOLIASH_RDS=off). Platforms the credentials may not read are left out with
+// a note.
 func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, string, agentproto.DeclaredTarget),
 	nameOr func(string) string, home, ownCluster string,
 ) {
@@ -377,6 +383,15 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 				Platform: agentproto.Ecs, Name: named(cluster, region),
 				Ecs: &agentproto.ECSSettings{Region: region, Clusters: []string{cluster}},
 			})
+		}
+		if o.Env("GOLIASH_RDS") != "off" {
+			if err := o.AWS.CanListDatabases(ctx, region); err == nil {
+				found(identity, agentName, agentproto.DeclaredTarget{
+					Platform: agentproto.Rds, Name: "rds-" + region, Rds: &agentproto.RDSSettings{Region: region},
+				})
+			} else {
+				r.Notes = append(r.Notes, "rds "+region+": "+err.Error())
+			}
 		}
 		if o.Env("GOLIASH_LAMBDA") == "off" {
 			continue
@@ -444,6 +459,18 @@ func (sdkAWS) CanListFunctions(ctx context.Context, region string) error {
 	return err
 }
 
+func (sdkAWS) CanListDatabases(ctx context.Context, region string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cfg, err := awsConfig(ctx, region)
+	if err != nil {
+		return err
+	}
+	least := int32(20) // the smallest page RDS allows
+	_, err = rds.NewFromConfig(cfg).DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{MaxRecords: &least})
+	return err
+}
+
 // aliasEnvironments reads GOLIASH_LAMBDA_ALIASES: "live=prod,canary=-" maps Lambda
 // aliases to environments named otherwise, "-" leaves an alias out.
 func aliasEnvironments(v string) map[string]string {
@@ -457,6 +484,17 @@ func aliasEnvironments(v string) map[string]string {
 			out = map[string]string{}
 		}
 		out[strings.TrimSpace(alias)] = strings.TrimSpace(env)
+	}
+	return out
+}
+
+// list reads a comma-separated list, leaving out empty items.
+func list(s string) []string {
+	var out []string
+	for _, item := range strings.Split(s, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
 	}
 	return out
 }

@@ -62,6 +62,8 @@ var tagsBefore = map[string][]string{
 	"docker.io/fluent/fluent-bit":                   {"3.0.7", "3.1.4"},
 	"public.ecr.aws/lambda/python":                  {"3.9", "3.11", "3.12", "3.13"},
 	"public.ecr.aws/lambda/nodejs":                  {"18", "20", "22"},
+	"rds.amazonaws.com/postgres":                    {"13.15", "13.16", "14.12", "15.7", "16.3", "16.4"},
+	"rds.amazonaws.com/aurora-mysql":                {"3.05.2", "3.06.1", "3.07.1"},
 }
 
 var tagsAfter = map[string][]string{
@@ -94,6 +96,8 @@ var images = map[string]string{
 	"vault":         "hashicorp/vault",
 	"fluent-bit":    "fluent/fluent-bit",
 	"nginx":         "nginx",
+	"billing-db":    "rds.amazonaws.com/postgres",
+	"orders-aurora": "rds.amazonaws.com/aurora-mysql",
 }
 
 var targets = []demoTarget{
@@ -134,6 +138,11 @@ var targets = []demoTarget{
 	{name: "demo-lambda", env: "prod", platform: "lambda", steps: []step{
 		{0, map[string]string{"webhook-relay": "0.7.4", "image-resizer": "3.9", "invoice-pdf": "18"}},
 		{10, map[string]string{"webhook-relay": "0.8.0", "image-resizer": "3.9", "invoice-pdf": "20"}},
+	}},
+	// Managed databases: an RDS PostgreSQL past its end of standard support, open to the internet, and an Aurora
+	// cluster a minor version behind.
+	{name: "demo-rds", env: "prod", platform: "rds", steps: []step{
+		{0, map[string]string{"billing-db": "13.15", "orders-aurora": "3.05.2"}},
 	}},
 	// Internal tools on Nomad and a plain Docker host.
 	{name: "demo-nomad", env: "prod", platform: "nomad", steps: []step{
@@ -248,6 +257,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		"orders-api": "team-orders", "notifications": "team-orders", "rabbitmq": "platform", "search": "team-search",
 		"webhook-relay": "team-integrations", "image-resizer": "team-media", "invoice-pdf": "team-orders",
 		"gitea": "devex", "vault": "security", "fluent-bit": "observability", "nginx": "devex",
+		"billing-db": "team-payments", "orders-aurora": "team-orders",
 	} {
 		s, err := st.GetServiceByName(ctx, sc, name)
 		if err != nil {
@@ -280,6 +290,17 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	checker := versions.NewChecker(st, reg, log, 0)
 	if err := checker.CheckUpstreams(ctx, sc); err != nil {
 		return err
+	}
+	// The engine versions RDS offers, as an agent in the account would report them.
+	for name, repo := range images {
+		if versions.RDSEngine(repo) == "" {
+			continue
+		}
+		if s, err := st.GetServiceByName(ctx, sc, name); err == nil {
+			if _, err := st.InsertReleases(ctx, sc, s.ID, tagsBefore[repo]); err != nil {
+				return err
+			}
+		}
 	}
 	for repo, tags := range tagsAfter {
 		reg.tags[repo] = append(reg.tags[repo], tags...)
@@ -597,6 +618,10 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 	switch {
 	case t.platform == "lambda":
 		kind, ns = agentproto.LambdaFunction, "us-east-1"
+	case t.platform == "rds" && service == "orders-aurora":
+		kind, ns = agentproto.RdsCluster, "us-east-1"
+	case t.platform == "rds":
+		kind, ns = agentproto.RdsInstance, "us-east-1"
 	case t.platform == "nomad":
 		kind = agentproto.NomadJob
 	case t.platform == "docker":
@@ -647,6 +672,8 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		w.Exposed = []string{"LoadBalancer service " + ns + "/traefik"}
 	case "gitea":
 		w.Exposed = []string{"port 3000/tcp published"}
+	case "billing-db":
+		w.Exposed = []string{"public endpoint billing-db.c9x2k1.us-east-1.rds.amazonaws.com"}
 	}
 	switch t.platform { // no GitOps tool here: the jobs and the Compose file name their place in Git
 	case "nomad":
@@ -742,7 +769,7 @@ func seedPatchHistory(ctx context.Context, st *store.Store, sc store.Scope, prod
 	from, until := now.AddDate(0, -6, 0), now.Add(-22*24*time.Hour) // the snapshots cover the last three weeks
 	for _, svc := range services {
 		pace, ok := teamPace[svc.Owner]
-		if !ok {
+		if !ok || versions.RDSEngine(images[svc.Name]) != "" { // the databases stayed where they are
 			continue
 		}
 		rels, err := st.ListReleases(ctx, sc, svc.ID)

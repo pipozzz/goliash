@@ -55,6 +55,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
 	"github.com/pipozzz/goliash/internal/collectors/lambda"
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
+	"github.com/pipozzz/goliash/internal/collectors/rds"
 	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/demo"
 	"github.com/pipozzz/goliash/internal/gitops"
@@ -691,6 +692,7 @@ func serve(ctx context.Context, args []string) error {
 				agentproto.Kubernetes: kubernetes.New,
 				agentproto.Ecs:        ecs.New,
 				agentproto.Lambda:     lambda.New,
+				agentproto.Rds:        rds.New,
 				agentproto.Nomad:      nomad.New,
 				agentproto.Swarm:      swarm.New,
 				agentproto.Docker:     docker.New,

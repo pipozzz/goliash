@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/collectors/rds"
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/registry/ecr"
 	"github.com/pipozzz/goliash/pkg/agentproto"
@@ -80,8 +81,10 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 				r.Tags = append(r.Tags, agentproto.RegistryTag{Name: t})
 			}
 		}
-		r.Resolved = a.resolveDigests(ctx, c, creds)
-		r.Inspected = a.inspectDigests(ctx, c, creds)
+		if !strings.HasPrefix(c.Repository, rds.Host+"/") { // engine versions have no manifests to read
+			r.Resolved = a.resolveDigests(ctx, c, creds)
+			r.Inspected = a.inspectDigests(ctx, c, creds)
+		}
 		out = append(out, r)
 	}
 	return out
@@ -129,6 +132,15 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 		if secret, err = collectors.Credential(*c.CredentialsRef); err != nil && !errors.Is(err, collectors.ErrNoCredential) {
 			return nil, none, err
 		}
+	}
+	if strings.HasPrefix(c.Repository, rds.Host+"/") {
+		// An RDS engine: the versions RDS offers in the agent's region.
+		api, err := rds.Client(ctx, "", strings.TrimSpace(secret))
+		if err != nil {
+			return nil, none, err
+		}
+		tags, err := rds.EngineVersions(ctx, api, c.Repository)
+		return tags, none, err
 	}
 	if _, _, _, ok := ecr.Parse(c.Repository); ok {
 		tags, err := a.opts.ECR.ListTags(ctx, c.Repository, strings.TrimSpace(secret))
