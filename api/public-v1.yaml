@@ -947,6 +947,8 @@ paths:
       summary: Acknowledge a release or a drift
       description: |
         Silences notifications for a service (optionally in one environment) until a version ships or a time passes.
+        When the workspace asks for approval of accepted risks, one made with a member's token needs a `reason`,
+        lasts at most 90 days, and quiets nothing until an admin approves it on the Security page (`pending`).
       requestBody:
         required: true
         content:
@@ -960,9 +962,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [id]
+                required: [id, pending]
                 properties:
                   id: { type: string }
+                  pending: { type: boolean, description: "Waits for an admin's approval." }
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
@@ -1327,6 +1330,9 @@ components:
           type: string
           format: date-time
           description: Quiet until this time.
+        reason:
+          type: string
+          description: Why the risk is accepted; required when it needs approval.
 
     Problem:
       type: object

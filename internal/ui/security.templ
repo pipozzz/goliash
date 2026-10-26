@@ -411,6 +411,7 @@ templ SecurityPage(v SecurityView) {
 		if v.Deadlines.Any() || v.CanSetDeadlines {
 			@deadlinesPanel(v)
 		}
+		@risksPanel(v)
 		<p class="muted print-only">{ "Generated " + v.At.UTC().Format("2006-01-02 15:04 UTC") + " for " + v.Workspace + " by Goliash." }</p>
 	}
 }
@@ -537,10 +538,71 @@ templ deadlinesPanel(v SecurityView) {
 				@deadlineSelect("exploited", "Exploited vulnerability", v.Deadlines.Exploited)
 				@deadlineSelect("security", "Security fix", v.Deadlines.Security)
 				@deadlineSelect("eol", "End of life", v.Deadlines.EOL)
-				<button type="submit">Save deadlines</button>
+				<label class="check" title="A member's acknowledgement then needs a reason, ends within 90 days, and quiets nothing until an admin approves it">
+					<input type="checkbox" name="approval" checked?={ v.Deadlines.Approval }/>
+					Accepted risks need an admin's approval
+				</label>
+				<button type="submit">Save</button>
 			</form>
 		}
 	</section>
+}
+
+// risksPanel lists the accepted risks: those waiting for an admin's approval, then those in force.
+templ risksPanel(v SecurityView) {
+	if len(v.Risks) > 0 || v.Deadlines.Approval {
+		<section class="panel" id="risks">
+			<div class="panel-head">
+				<h2>Accepted risks</h2>
+				@panelInfo("Acknowledgements in force: updates or drift someone decided to leave for now, why, who approved it and until when. Put off from Updates or a service page.")
+			</div>
+			if len(v.Risks) == 0 {
+				<p class="panel-body muted">No risk is accepted. Members' acknowledgements wait here for an admin's approval.</p>
+			} else {
+				<div class="scroll" tabindex="0">
+					<table>
+						<thead>
+							<tr><th>Service</th><th>Environment</th><th>Quiets</th><th>Why</th><th>By</th><th>Until</th><th><span class="sr-only">Approval</span></th></tr>
+						</thead>
+						<tbody>
+							for _, k := range v.Risks {
+								<tr>
+									<td><a class="u" href={ templ.URL("/services/" + url.PathEscape(k.Service)) }><strong>{ k.Service }</strong></a></td>
+									<td>
+										if k.Env != "" {
+											{ k.Env }
+										} else {
+											every environment
+										}
+									</td>
+									<td>{ k.Kind }</td>
+									<td>{ orDash(k.Reason) }</td>
+									<td>
+										{ k.By }
+										if !k.Pending && k.ApprovedBy != "" && k.ApprovedBy != k.By {
+											<div class="targets">{ "approved by " + k.ApprovedBy }</div>
+										}
+									</td>
+									<td>{ k.Until }</td>
+									<td>
+										if k.Pending {
+											<span class="badge warn">waiting for approval</span>
+											if v.CanSetDeadlines {
+												<form class="inline-actions" method="post">
+													<button type="submit" formaction={ templ.URL("/security/risks/" + k.ID + "/approve") }>Approve</button>
+													<button type="submit" class="secondary" formaction={ templ.URL("/security/risks/" + k.ID + "/reject") }>Turn down</button>
+												</form>
+											}
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+	}
 }
 
 templ deadlineSelect(name, label string, current int) {

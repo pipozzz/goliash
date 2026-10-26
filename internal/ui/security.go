@@ -47,6 +47,7 @@ type SecurityView struct {
 	PatchMonths     []versions.PatchMonth   // production's time to patch, month by month
 	Deadlines       store.Remediation
 	CanSetDeadlines bool
+	Risks           []RiskView // accepted risks: those waiting for approval first, then those in force
 	Overdue         int
 	DueSoon         int
 	Since           string // the first day of the trend
@@ -131,7 +132,7 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil {
 		return err
 	}
-	v := SecurityView{Base: s.base(r.Context(), p, "security", "Security posture"), Posture: pos, All: r.URL.Query().Get("env") == "all", Hygiene: hyg, At: time.Now()}
+	v := SecurityView{Base: withFlash(s.base(r.Context(), p, "security", "Security posture"), r), Posture: pos, All: r.URL.Query().Get("env") == "all", Hygiene: hyg, At: time.Now()}
 	if v.Bases, err = s.baseRows(r, p); err != nil {
 		return err
 	}
@@ -162,6 +163,9 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	}
 	v.CanSetDeadlines = p.Can(store.RoleAdmin)
 	if v.Deadlines, err = s.store.Remediation(r.Context(), p.Scope); err != nil {
+		return err
+	}
+	if v.Risks, err = s.acceptedRisks(r.Context(), p.Scope, time.Now()); err != nil {
 		return err
 	}
 	if v.Deadlines.Any() {
@@ -979,6 +983,13 @@ func securityLinks(v SecurityView) []sectionLink {
 			d.Note, d.Warn = itoa(v.Overdue)+" past", true
 		}
 		out = append(out, d)
+	}
+	if len(v.Risks) > 0 || v.Deadlines.Approval {
+		k := sectionLink{ID: "risks", Label: "Accepted risks"}
+		if n := v.PendingRisks(); n > 0 {
+			k.Note, k.Warn = itoa(n)+" to approve", true
+		}
+		out = append(out, k)
 	}
 	return out
 }

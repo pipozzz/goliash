@@ -104,13 +104,13 @@ func (s *Server) setDeadlines(w http.ResponseWriter, r *http.Request, p auth.Pri
 	if !ok1 || !ok2 || !ok3 {
 		return back(w, r, page, "error", "Pick the days from the lists.")
 	}
-	rem := store.Remediation{Exploited: exploited, Security: security, EOL: eol}
+	rem := store.Remediation{Exploited: exploited, Security: security, EOL: eol, Approval: r.FormValue("approval") == "on"}
 	if err := s.store.SetRemediation(r.Context(), p.Scope, rem); err != nil {
 		return err
 	}
-	s.audit(r.Context(), p, "workspace.deadlines", "exploited", strconv.Itoa(exploited), "security", strconv.Itoa(security), "eol", strconv.Itoa(eol))
+	s.audit(r.Context(), p, "workspace.deadlines", "exploited", strconv.Itoa(exploited), "security", strconv.Itoa(security), "eol", strconv.Itoa(eol), "approval", strconv.FormatBool(rem.Approval))
 	if !rem.Any() {
-		return back(w, r, page, "notice", "No remediation deadlines.")
+		return back(w, r, page, "notice", "Saved, with no remediation deadlines.")
 	}
 	return back(w, r, page, "notice", "Remediation deadlines saved: Updates marks what is due and what is past.")
 }

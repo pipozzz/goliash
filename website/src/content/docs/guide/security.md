@@ -64,6 +64,25 @@ what is due within a week, and the [security brief](../notifications/#security-b
 deadlines (none, 3 days to half a year each); with none set, Updates ranks by urgency alone. An acknowledged upgrade
 (accepted risk) is not counted as past its deadline.
 
+### Accepted risks
+
+Putting off an update (Updates → *Put off*, or *Quiet notifications* on a service page) accepts its risk for a
+while. Say **why** in the reason field: the reason goes into the audit log, the Security page's *Accepted risks*
+panel and the [monthly report](#for-audits).
+
+For audits that ask who decided, an admin ticks **Accepted risks need an admin's approval** under the deadlines.
+Then a member's put-off:
+
+- needs a reason;
+- ends within 90 days at the latest (one until a version ends then too, if the version is not out by then);
+- quiets nothing, and is not counted as accepted, until an admin approves it in the *Accepted risks* panel, or turns
+  it down.
+
+An admin's own put-off is approved at once. The `deadline` notification asks for the approval (*postgres @ prod:
+dev@example.com accepts the risk until 31 Oct and waits for an admin's approval: "behind the VPN only"*) and, three
+days before an accepted risk with a reason ends, says so, once each. Through the API, `POST /api/v1/acks` takes
+`reason` and answers `pending`.
+
 ## Newest release unknown
 
 A service whose newest release Goliash does not know cannot be measured: it shows as *unknown* in the tiles and

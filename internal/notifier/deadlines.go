@@ -14,7 +14,8 @@ import (
 )
 
 // EventDeadline announces an upgrade nearing or past the remediation deadline the workspace set (Security page):
-// three days before it, once, and the day it passes, once. A rule filtered by owner sends a team its own.
+// three days before it, once, and the day it passes, once. A rule filtered by owner sends a team its own. It also
+// asks admins to approve an accepted risk that waits for them, and says three days ahead when one ends.
 const EventDeadline = "deadline"
 
 const (
@@ -23,7 +24,7 @@ const (
 )
 
 // CheckDeadlines announces the upgrades that near or passed their remediation deadline, in every workspace with
-// deadlines set.
+// deadlines set, and the accepted risks waiting for approval or about to end.
 func (n *Notifier) CheckDeadlines(ctx context.Context) error {
 	wss, err := n.store.ListWorkspaces(ctx)
 	if err != nil {
@@ -32,7 +33,8 @@ func (n *Notifier) CheckDeadlines(ctx context.Context) error {
 	now := n.now()
 	for _, ws := range wss {
 		sc := ws.Scope()
-		if r, err := n.store.Remediation(ctx, sc); err != nil || !r.Any() {
+		rem, err := n.store.Remediation(ctx, sc)
+		if err != nil {
 			continue
 		}
 		rules, err := n.store.ActiveRules(ctx, sc)
@@ -42,7 +44,12 @@ func (n *Notifier) CheckDeadlines(ctx context.Context) error {
 		if !anyRuleFor(rules, EventDeadline) {
 			continue
 		}
-		if err := n.deadlineAlerts(ctx, sc, rules, now); err != nil {
+		if rem.Any() {
+			if err := n.deadlineAlerts(ctx, sc, rules, now); err != nil {
+				return err
+			}
+		}
+		if err := n.riskAlerts(ctx, sc, rules, now); err != nil {
 			return err
 		}
 	}
@@ -104,14 +111,76 @@ func (n *Notifier) deadlineAlerts(ctx context.Context, sc store.Scope, rules []s
 	return nil
 }
 
+// riskAlerts asks for approval of the accepted risks waiting for it, once each, and says when one with a reason
+// ends within deadlineWarnDays, once.
+func (n *Notifier) riskAlerts(ctx context.Context, sc store.Scope, rules []store.Rule, now time.Time) error {
+	pending, err := n.store.ListPendingAcks(ctx, sc)
+	if err != nil {
+		return err
+	}
+	approved, err := n.store.ListAcks(ctx, sc)
+	if err != nil {
+		return err
+	}
+	var svcs map[string]store.Service
+	var envs []store.Environment
+	for _, a := range append(pending, approved...) {
+		state := "approve"
+		if !a.Pending {
+			left := a.UntilAt.Sub(now)
+			if a.Reason == "" || a.UntilAt.IsZero() || left <= 0 || left > deadlineWarnDays*24*time.Hour {
+				continue
+			}
+			state = "ends"
+		} else if !a.UntilAt.IsZero() && !a.UntilAt.After(now) {
+			continue
+		}
+		if svcs == nil {
+			list, err := n.store.ListServices(ctx, sc)
+			if err != nil {
+				return err
+			}
+			svcs = map[string]store.Service{}
+			for _, s := range list {
+				svcs[s.ID] = s
+			}
+			if envs, err = n.store.ListEnvironments(ctx, sc); err != nil {
+				return err
+			}
+		}
+		svc := svcs[a.ServiceID]
+		it := Item{
+			Type: EventDeadline, Service: svc.Name, Owner: svc.Owner, At: now, URL: "/security#risks",
+			Note: state + "|" + a.Reason + "|" + a.UntilAt.Format(time.DateOnly) + "|" + a.CreatedBy,
+		}
+		for i, e := range envs {
+			if e.ID == a.EnvironmentID {
+				it.Environment, it.Production = e.Name, i == len(envs)-1
+			}
+		}
+		it.Text = Describe(it)
+		if err := n.enqueue(ctx, sc, rules, it, "risk|"+state+"|"+a.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // describeDeadline is a deadline item in words: "payments-api @ prod: the deadline for an exploited vulnerability
 // passed on 22 Oct; 15.6 runs, 15.8 fixes it".
 func describeDeadline(where string, it Item) string {
 	state, rest, _ := strings.Cut(it.Note, "|")
-	why, date, _ := strings.Cut(rest, "|")
+	why, rest, _ := strings.Cut(rest, "|")
+	date, by, _ := strings.Cut(rest, "|")
 	when := date
 	if d, err := time.Parse(time.DateOnly, date); err == nil {
 		when = d.Format("2 Jan")
+	}
+	switch state {
+	case "approve":
+		return fmt.Sprintf("%s: %s accepts the risk until %s and waits for an admin's approval: “%s”", where, orDash(by), when, why)
+	case "ends":
+		return fmt.Sprintf("%s: the accepted risk ends on %s (“%s”); upgrade, or accept it again", where, when, why)
 	}
 	upgrade := ""
 	if it.To != "" {

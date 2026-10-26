@@ -141,25 +141,58 @@ type Ack struct {
 	UntilAt       time.Time
 	CreatedBy     string
 	CreatedAt     time.Time
+	// Reason is why the risk is accepted. A Pending acknowledgement waits for an admin's approval and quiets
+	// nothing; ApprovedBy approved it (whoever made it, when no approval was needed), at ApprovedAt.
+	Reason     string
+	Pending    bool
+	ApprovedBy string
+	ApprovedAt time.Time
 }
 
-// CreateAck records an acknowledgement.
+// CreateAck records an acknowledgement: approved by whoever made it, unless Pending.
 func (s *Store) CreateAck(ctx context.Context, a Ack) (Ack, error) {
 	a.ID, a.CreatedAt = NewID(), s.now()
-	var until sql.NullTime
+	var until, approved sql.NullTime
 	if !a.UntilAt.IsZero() {
 		until = sql.NullTime{Time: a.UntilAt.UTC(), Valid: true}
 	}
+	if a.Pending {
+		a.ApprovedBy = ""
+	} else {
+		if a.ApprovedBy == "" {
+			a.ApprovedBy = a.CreatedBy
+		}
+		a.ApprovedAt = a.CreatedAt
+		approved = sql.NullTime{Time: a.ApprovedAt, Valid: true}
+	}
 	_, err := s.exec(ctx, s.db, `INSERT INTO acks (id, org_id, workspace_id, service_id, environment_id, kind, until_version,
-		until_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, a.ID, a.Scope.OrgID, a.Scope.WorkspaceID,
-		a.ServiceID, nullString(a.EnvironmentID), a.Kind, a.UntilVersion, until, a.CreatedBy, a.CreatedAt)
+		until_at, created_by, created_at, reason, approved_by, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.Scope.OrgID, a.Scope.WorkspaceID, a.ServiceID, nullString(a.EnvironmentID), a.Kind, a.UntilVersion, until,
+		a.CreatedBy, a.CreatedAt, a.Reason, a.ApprovedBy, approved)
 	return a, err
 }
 
-// ListAcks returns the acknowledgements of a workspace, newest first.
+// ApproveAck approves an acknowledgement waiting for approval. ErrNotFound when there is none such.
+func (s *Store) ApproveAck(ctx context.Context, sc Scope, id, by string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE acks SET approved_by = ?, approved_at = ? WHERE org_id = ? AND workspace_id = ?
+		AND id = ? AND approved_at IS NULL`, by, s.now(), sc.OrgID, sc.WorkspaceID, id)
+	return expectOne(res, err)
+}
+
+// ListAcks returns the approved acknowledgements of a workspace, newest first: those in force, or expired.
 func (s *Store) ListAcks(ctx context.Context, sc Scope) ([]Ack, error) {
+	return s.listAcks(ctx, sc, "approved_at IS NOT NULL")
+}
+
+// ListPendingAcks returns the acknowledgements waiting for an admin's approval, newest first.
+func (s *Store) ListPendingAcks(ctx context.Context, sc Scope) ([]Ack, error) {
+	return s.listAcks(ctx, sc, "approved_at IS NULL")
+}
+
+func (s *Store) listAcks(ctx context.Context, sc Scope, where string) ([]Ack, error) {
 	rows, err := s.query(ctx, s.db, `SELECT id, service_id, environment_id, kind, until_version, until_at, created_by,
-		created_at FROM acks WHERE org_id = ? AND workspace_id = ? ORDER BY created_at DESC, id DESC`, sc.OrgID, sc.WorkspaceID)
+		created_at, reason, approved_by, approved_at FROM acks WHERE org_id = ? AND workspace_id = ? AND `+where+`
+		ORDER BY created_at DESC, id DESC`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -168,11 +201,13 @@ func (s *Store) ListAcks(ctx context.Context, sc Scope) ([]Ack, error) {
 	for rows.Next() {
 		a := Ack{Scope: sc}
 		var env sql.NullString
-		var until sql.NullTime
-		if err := rows.Scan(&a.ID, &a.ServiceID, &env, &a.Kind, &a.UntilVersion, &until, &a.CreatedBy, &a.CreatedAt); err != nil {
+		var until, approved sql.NullTime
+		if err := rows.Scan(&a.ID, &a.ServiceID, &env, &a.Kind, &a.UntilVersion, &until, &a.CreatedBy, &a.CreatedAt,
+			&a.Reason, &a.ApprovedBy, &approved); err != nil {
 			return nil, err
 		}
-		a.EnvironmentID, a.UntilAt, a.CreatedAt = env.String, timeOrZero(until), a.CreatedAt.UTC()
+		a.EnvironmentID, a.UntilAt, a.CreatedAt, a.ApprovedAt = env.String, timeOrZero(until), a.CreatedAt.UTC(), timeOrZero(approved)
+		a.Pending = !approved.Valid
 		out = append(out, a)
 	}
 	return out, rows.Err()

@@ -572,6 +572,8 @@ details.acked table { opacity: 0.75; }
 table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: right; vertical-align: middle; }
 .put-off > summary { font-size: 12.5px; padding: 4px 9px; border: 1px solid var(--line); }
 .put-off .menu-list { min-width: 240px; }
+.put-off .menu-field { display: block; padding: 2px 2px 6px; }
+.inline-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
 .put-off .menu-list form:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
 .put-off .menu-item strong { display: block; font-weight: 600; }
 .put-off .menu-item small { display: block; color: var(--muted); font-size: 12px; }

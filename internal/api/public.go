@@ -971,6 +971,7 @@ func (h *PublicHandler) createAck(w http.ResponseWriter, r *http.Request, p auth
 		Kind         string     `json:"kind"`
 		UntilVersion string     `json:"until_version"`
 		Until        *time.Time `json:"until"`
+		Reason       string     `json:"reason"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&in); err != nil {
 		writeProblem(w, http.StatusBadRequest, "Invalid JSON", err.Error())
@@ -989,9 +990,18 @@ func (h *PublicHandler) createAck(w http.ResponseWriter, r *http.Request, p auth
 		writeProblem(w, http.StatusNotFound, "Unknown service", in.Service)
 		return
 	}
-	a := store.Ack{Scope: p.Scope, ServiceID: svc.ID, Kind: in.Kind, UntilVersion: in.UntilVersion, CreatedBy: p.Name()}
+	a := store.Ack{Scope: p.Scope, ServiceID: svc.ID, Kind: in.Kind, UntilVersion: in.UntilVersion, CreatedBy: p.Name(), Reason: in.Reason}
 	if in.Until != nil {
 		a.UntilAt = *in.Until
+	}
+	rem, err := h.store.Remediation(r.Context(), p.Scope)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	if err := rem.Accept(&a, p.Role, time.Now()); err != nil {
+		writeProblem(w, http.StatusBadRequest, "Missing reason", err.Error())
+		return
 	}
 	if in.Environment != "" {
 		env, err := h.store.GetEnvironmentByName(r.Context(), p.Scope, in.Environment)
@@ -1007,9 +1017,9 @@ func (h *PublicHandler) createAck(w http.ResponseWriter, r *http.Request, p auth
 	}
 	_ = h.store.Audit(r.Context(), store.AuditEntry{
 		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID, Actor: p.Name(), Action: "ack.create",
-		Details: map[string]string{"service": svc.Name, "kind": a.Kind, "until_version": a.UntilVersion},
+		Details: map[string]string{"service": svc.Name, "kind": a.Kind, "until_version": a.UntilVersion, "reason": a.Reason, "pending": strconv.FormatBool(a.Pending)},
 	})
-	writeJSON(w, http.StatusCreated, map[string]string{"id": a.ID})
+	writeJSON(w, http.StatusCreated, map[string]any{"id": a.ID, "pending": a.Pending})
 }
 
 // metrics writes Prometheus text exposition: what runs where, whether it is

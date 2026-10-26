@@ -224,6 +224,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /security/watches", s.page(m, s.addWatch))
 	mux.Handle("POST /security/deadlines", s.page(a, s.setDeadlines))
+	mux.Handle("POST /security/risks/{id}/approve", s.page(a, s.approveRisk))
+	mux.Handle("POST /security/risks/{id}/reject", s.page(a, s.rejectRisk))
 	mux.Handle("POST /security/watches/{id}/delete", s.page(m, s.deleteWatch))
 	mux.Handle("POST /inbox/ignore", s.page(m, s.inboxIgnore))
 	mux.Handle("POST /inbox/map-all", s.page(m, s.inboxMapAll))
@@ -1023,7 +1025,10 @@ func (s *Server) ack(w http.ResponseWriter, r *http.Request, p auth.Principal) e
 	if ret := r.FormValue("return"); ret == "/updates" || strings.HasPrefix(ret, "/updates?") {
 		path = ret
 	}
-	a := store.Ack{Scope: p.Scope, ServiceID: svc.ID, Kind: r.FormValue("kind"), UntilVersion: strings.TrimSpace(r.FormValue("until_version")), CreatedBy: p.Name()}
+	a := store.Ack{
+		Scope: p.Scope, ServiceID: svc.ID, Kind: r.FormValue("kind"), UntilVersion: strings.TrimSpace(r.FormValue("until_version")),
+		CreatedBy: p.Name(), Reason: r.FormValue("reason"),
+	}
 	if name := r.FormValue("environment"); name != "" {
 		env, err := s.store.GetEnvironmentByName(ctx, p.Scope, name)
 		if err != nil {
@@ -1040,10 +1045,21 @@ func (s *Server) ack(w http.ResponseWriter, r *http.Request, p auth.Principal) e
 	if a.UntilVersion == "" && a.UntilAt.IsZero() {
 		return back(w, r, path, "error", "Give a version or a duration.")
 	}
+	rem, err := s.store.Remediation(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	if err := rem.Accept(&a, p.Role, time.Now()); err != nil {
+		return back(w, r, path, "error", "Say why the risk is accepted: an admin approves it.")
+	}
 	if _, err := s.store.CreateAck(ctx, a); err != nil {
 		return err
 	}
-	s.audit(ctx, p, "ack.create", "service", svc.Name, "kind", a.Kind, "until_version", a.UntilVersion, "until", short(a.UntilAt))
+	s.audit(ctx, p, "ack.create", "service", svc.Name, "kind", a.Kind, "until_version", a.UntilVersion, "until", short(a.UntilAt),
+		"reason", a.Reason, "pending", strconv.FormatBool(a.Pending))
+	if a.Pending {
+		return back(w, r, path, "notice", "Sent for approval: it quiets notifications once an admin approves it on the Security page.")
+	}
 	return back(w, r, path, "notice", "Acknowledged. Matching notifications stay quiet.")
 }
 

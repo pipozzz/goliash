@@ -62,6 +62,12 @@ func kindOf(it Item) kind {
 	case "security_release":
 		return kind{"🔒", "#e5484d", "Security release"}
 	case EventDeadline:
+		switch {
+		case strings.HasPrefix(it.Note, "approve|"):
+			return kind{"✍️", "#d9822b", "Accepted risk to approve"}
+		case strings.HasPrefix(it.Note, "ends|"):
+			return kind{"⏳", "#d9822b", "Accepted risk ends"}
+		}
 		if strings.HasPrefix(it.Note, "passed") {
 			return kind{"⏰", "#e5484d", "Remediation deadline passed"}
 		}

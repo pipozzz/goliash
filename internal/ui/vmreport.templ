@@ -174,7 +174,7 @@ templ VMReportPage(v VMReportView) {
 			} else {
 				<div class="scroll" tabindex="0">
 					<table>
-						<thead><tr><th>Service</th><th>Environment</th><th>Accepted</th><th>By</th><th>On</th><th>Until</th></tr></thead>
+						<thead><tr><th>Service</th><th>Environment</th><th>Accepted</th><th>Why</th><th>By</th><th>On</th><th>Until</th></tr></thead>
 						<tbody>
 							for _, a := range v.Accepted {
 								<tr>
@@ -187,7 +187,13 @@ templ VMReportPage(v VMReportView) {
 										}
 									</td>
 									<td>{ ackKindText(a.Kind) }</td>
-									<td>{ orDash(a.CreatedBy) }</td>
+									<td>{ orDash(a.Reason) }</td>
+									<td>
+										{ orDash(a.CreatedBy) }
+										if a.ApprovedBy != "" && a.ApprovedBy != a.CreatedBy {
+											<div class="targets">{ "approved by " + a.ApprovedBy }</div>
+										}
+									</td>
 									<td>{ a.CreatedAt.Format("2 Jan 2006") }</td>
 									<td>{ ackUntilText(a.Ack) }</td>
 								</tr>

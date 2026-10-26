@@ -6,6 +6,9 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
+	"time"
 )
 
 // Remediation is how many days a workspace gives itself to upgrade away from each reason, counted from when the
@@ -14,6 +17,32 @@ type Remediation struct {
 	Exploited int `json:"exploited,omitempty"` // a vulnerability exploited in the wild runs (from CISA listing it)
 	Security  int `json:"security,omitempty"`  // a newer release fixes vulnerabilities (from its discovery)
 	EOL       int `json:"eol,omitempty"`       // the running release cycle reached its end of life (from that date)
+	// Approval makes a member's accepted risk wait for an admin's approval, with a reason and an end.
+	Approval bool `json:"approval,omitempty"`
+}
+
+// AcceptDays is the longest a risk accepted while waiting for approval may last: one made without an end, or
+// until a version, ends then.
+const AcceptDays = 90
+
+// ErrNeedsReason is returned for an acknowledgement that needs approval but gives no reason.
+var ErrNeedsReason = errors.New("say why the risk is accepted: an admin approves it")
+
+// Accept applies the approval rule to an acknowledgement someone with role makes: with Approval set, one a
+// member makes needs a reason, ends within AcceptDays, and waits for an admin.
+func (r Remediation) Accept(a *Ack, role string, now time.Time) error {
+	a.Reason = strings.TrimSpace(a.Reason)
+	if !r.Approval || RoleRank(role) >= RoleRank(RoleAdmin) {
+		return nil
+	}
+	if a.Reason == "" {
+		return ErrNeedsReason
+	}
+	if limit := now.AddDate(0, 0, AcceptDays); a.UntilAt.IsZero() || a.UntilAt.After(limit) {
+		a.UntilAt = limit
+	}
+	a.Pending = true
+	return nil
 }
 
 // Any reports whether any deadline is set.
@@ -35,7 +64,7 @@ func (s *Store) Remediation(ctx context.Context, sc Scope) (Remediation, error) 
 // SetRemediation replaces the workspace's remediation deadlines.
 func (s *Store) SetRemediation(ctx context.Context, sc Scope, r Remediation) error {
 	raw := ""
-	if r.Any() {
+	if r.Any() || r.Approval {
 		b, err := json.Marshal(r)
 		if err != nil {
 			return err

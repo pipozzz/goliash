@@ -287,6 +287,10 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 						<input type="hidden" name="kind" value="drift"/>
 						<input type="hidden" name="environment" value={ it.Env }/>
 						<input type="hidden" name="return" value={ ret }/>
+						<label class="menu-field">
+							<span class="sr-only">Why</span>
+							<input name="reason" maxlength="500" placeholder="Why (optional)" aria-label={ "Why put off " + it.Service }/>
+						</label>
 						if it.Skip != "" {
 							@putOff("until_version", it.Skip, "Skip "+it.Target, "until a release after it is out")
 						}
