@@ -21,6 +21,7 @@ templ SecurityPage(v SecurityView) {
 			</div>
 			<div class="actions noprint">
 				@pageFilter("main table tbody tr", "Filter services, versions, packages")
+				<a class="button secondary" href="/security/report" title="Last month's vulnerability management, as evidence for NIS2, ISO 27001 or SOC 2">Monthly report</a>
 				<a class="button secondary" href="/security.csv" hx-boost="false">Export CSV</a>
 				<a class="button secondary" href="/api/v1/inventory?format=cyclonedx" hx-boost="false" title="CycloneDX 1.6 BOM of what runs, with the packages of each image's SBOM">Export SBOM</a>
 				<button class="secondary" type="button" data-print>Print or save as PDF</button>

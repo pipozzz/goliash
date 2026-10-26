@@ -376,6 +376,14 @@ The page shows the last environment (production) by default; *Every environment*
 
 ## For audits
 
+- **Monthly report** (`/security/report`, also in the command palette) is one month of vulnerability management,
+  made to hand to an auditor for NIS2 (Article 21), ISO 27001 (A.8.8), SOC 2 (CC7.1) or DORA: the remediation
+  deadlines in force, production's posture at the month's end, every upgrade deployed with its time to patch and
+  whether its security fix met the deadline (the *security fixes in time* share), each team's month, what runs
+  exploited or past its deadline as the report is made, the accepted risks with who accepted them and until when,
+  and how each number is counted. Arrows move between months; **Export CSV** gives the month's upgrades and **Print
+  or save as PDF** the whole report. The month-end posture needs Goliash to have run then: it is read from the daily
+  trend samples.
 - **Export CSV** gives every exposure with its service, application, environment, targets, running version, the
   version to move to, the exposure date and days, whether the date is known, end of life, accepted risk and the
   release notes link: a ready start for a risk register.

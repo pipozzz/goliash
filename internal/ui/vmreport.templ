@@ -1,0 +1,212 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import "strings"
+
+templ VMReportPage(v VMReportView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Vulnerability management: { v.Month }</h1>
+				<p class="sub">{ v.Workspace }, environment { orDash(v.Prod.Name) }. How vulnerabilities were found, fixed and accepted during the month, as evidence for NIS2, ISO 27001 (A.8.8) or SOC 2. Generated { v.Generated }.</p>
+			</div>
+			<div class="noprint report-nav">
+				<a href={ templ.URL("/security/report?month=" + v.Prev) }>← { v.PrevLabel }</a>
+				if v.Next != "" {
+					<a href={ templ.URL("/security/report?month=" + v.Next) }>{ v.NextLabel } →</a>
+				}
+				<a class="button secondary" href={ templ.URL("/security/report.csv?month=" + v.From.Format("2006-01")) } hx-boost="false">Export CSV</a>
+				<button class="secondary" type="button" data-print>Print or save as PDF</button>
+			</div>
+		</div>
+		<section class="panel" id="policy">
+			<div class="panel-head"><h2>Remediation policy</h2>@panelInfo("The deadlines this workspace set for deploying a fix, counted from when the fixing release came out. Admins change them on the Security page.")</div>
+			<div class="report-stats">
+				<div><strong>{ policyDays(v.Policy.Exploited) }</strong><span>exploited in the wild</span></div>
+				<div><strong>{ policyDays(v.Policy.Security) }</strong><span>other security fixes</span></div>
+				<div><strong>{ policyDays(v.Policy.EOL) }</strong><span>after end of life</span></div>
+			</div>
+		</section>
+		<section class="panel" id="month">
+			<div class="panel-head"><h2>The month</h2>@panelInfo("Upgrades deployed to production during the month, and how long each version ran behind its fix")</div>
+			<div class="report-stats">
+				<div><strong>{ itoa(len(v.Upgrades)) }</strong><span>upgrades deployed</span></div>
+				<div><strong>{ itoa(v.Security) }</strong><span>fixing vulnerabilities</span></div>
+				<div title="Security fixes deployed within the deadline for security fixes"><strong>{ slaText(v.VMReport) }</strong><span>security fixes in time</span></div>
+				if len(v.Upgrades) > 0 {
+					<div><strong>{ plural(v.Median, "day", "days") }</strong><span>median time to patch</span></div>
+					<div><strong>{ plural(v.P90, "day", "days") }</strong><span>90th percentile</span></div>
+				}
+			</div>
+			if v.MonthEnd != nil {
+				<h3 class="report-sub">Production at the month's end ({ v.MonthEnd.Day })</h3>
+				<div class="report-stats">
+					<div><strong>{ itoa(v.MonthEnd.Running) }</strong><span>services running</span></div>
+					<div><strong>{ itoa(v.MonthEnd.Exposed) }</strong><span>behind a release</span></div>
+					<div><strong>{ itoa(v.MonthEnd.Behind30) }</strong><span>behind over 30 days</span></div>
+					<div><strong>{ itoa(v.MonthEnd.Behind90) }</strong><span>behind over 90 days</span></div>
+					<div><strong>{ itoa(v.MonthEnd.EOLPassed) }</strong><span>past end of life</span></div>
+					<div><strong>{ itoa(v.MonthEnd.Accepted) }</strong><span>accepted risks</span></div>
+				</div>
+			}
+		</section>
+		<section class="panel" id="upgrades">
+			<div class="panel-head"><h2>Upgrades</h2>@panelInfo("Each upgrade deployed to production: the version it replaced, when the first newer release came out, and the deploy")</div>
+			if len(v.Upgrades) == 0 {
+				<div class="empty">No upgrades reached production this month.</div>
+			} else {
+				<div class="scroll" tabindex="0">
+					<table>
+						<thead><tr><th>Service</th><th>Team</th><th>Upgrade</th><th>Release out</th><th>Deployed</th><th class="num">Days</th><th>Fixes</th></tr></thead>
+						<tbody>
+							for _, u := range v.Upgrades {
+								<tr>
+									<td><strong>{ u.Service }</strong></td>
+									<td>{ orDash(u.Owner) }</td>
+									<td class="mono">{ u.From } → { u.To }</td>
+									<td>{ u.BehindSince.Format("2 Jan") }</td>
+									<td>{ u.At.Format("2 Jan") }</td>
+									<td class="num">{ itoa(u.Days) }</td>
+									<td>
+										if u.SecurityFix != "" {
+											<span class="mono">{ u.SecurityFix }</span>
+											if t := inTimeText(u); t != "" {
+												<span class={ "badge", templ.KV("upstream", t == "in time"), templ.KV("eol", t == "late") }>{ t }</span>
+											}
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		if len(v.Teams) > 0 {
+			<section class="panel" id="teams">
+				<div class="panel-head"><h2>Teams</h2>@panelInfo("By the services' owner")</div>
+				<div class="scroll" tabindex="0">
+					<table>
+						<thead><tr><th>Team</th><th class="num">Upgrades</th><th class="num">Median days</th><th class="num">Security fixes</th><th class="num">In time</th></tr></thead>
+						<tbody>
+							for _, t := range v.Teams {
+								<tr>
+									<td><strong>{ orDash(t.Owner) }</strong></td>
+									<td class="num">{ itoa(t.Upgrades) }</td>
+									<td class="num">{ itoa(t.Median) }</td>
+									<td class="num">{ itoa(t.Security) }</td>
+									<td class="num">
+										if t.Security > 0 && v.Policy.Security > 0 {
+											{ itoa(t.InTime) }
+										} else {
+											—
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
+		<section class="panel" id="open">
+			<div class="panel-head"><h2>Open as the report is made</h2>@panelInfo("Not part of the month: what still needs fixing on " + v.Generated)</div>
+			<h3 class="report-sub">Exploited in the wild</h3>
+			if len(v.Exploited) == 0 {
+				<div class="empty">No vulnerability CISA knows to be exploited runs in { orDash(v.Prod.Name) }.</div>
+			} else {
+				<div class="scroll" tabindex="0">
+					<table>
+						<thead><tr><th>Vulnerability</th><th>Services</th><th>CISA due</th><th>Fix</th></tr></thead>
+						<tbody>
+							for _, f := range v.Exploited {
+								<tr>
+									<td class="mono"><strong>{ f.Key }</strong></td>
+									<td>{ vmServices(f) }</td>
+									<td>
+										if d := f.DueDate(); !d.IsZero() {
+											<span class={ templ.KV("error-text", f.PastDue(v.Now)) }>{ d.Format("2 Jan 2006") }</span>
+										} else {
+											—
+										}
+									</td>
+									<td>
+										if f.Fixable {
+											available
+										} else {
+											none yet
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<h3 class="report-sub">Past their deadline</h3>
+			if len(v.Overdue) == 0 {
+				<div class="empty">No upgrade is past the workspace's deadline.</div>
+			} else {
+				<div class="scroll" tabindex="0">
+					<table>
+						<thead><tr><th>Service</th><th>Running</th><th>Fix</th><th>Due</th><th>Fixes</th></tr></thead>
+						<tbody>
+							for _, u := range v.Overdue {
+								<tr>
+									<td><strong>{ u.Service.Name }</strong></td>
+									<td class="mono">{ u.Running }</td>
+									<td class="mono">{ orDash(u.Target) }</td>
+									<td class="error-text">{ u.Due.Format("2 Jan 2006") }</td>
+									<td class="mono">{ strings.Join(append(append([]string{}, u.Exploited...), u.SecurityFix), " ") }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		<section class="panel" id="accepted">
+			<div class="panel-head"><h2>Accepted risks</h2>@panelInfo("Acknowledgements in force: updates someone decided not to deploy yet, by whom and until when")</div>
+			if len(v.Accepted) == 0 {
+				<div class="empty">No risk is accepted.</div>
+			} else {
+				<div class="scroll" tabindex="0">
+					<table>
+						<thead><tr><th>Service</th><th>Environment</th><th>Accepted</th><th>By</th><th>On</th><th>Until</th></tr></thead>
+						<tbody>
+							for _, a := range v.Accepted {
+								<tr>
+									<td><strong>{ orDash(a.Service) }</strong></td>
+									<td>
+										if a.Environment != "" {
+											{ a.Environment }
+										} else {
+											every environment
+										}
+									</td>
+									<td>{ ackKindText(a.Kind) }</td>
+									<td>{ orDash(a.CreatedBy) }</td>
+									<td>{ a.CreatedAt.Format("2 Jan 2006") }</td>
+									<td>{ ackUntilText(a.Ack) }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</section>
+		<section class="panel" id="method">
+			<div class="panel-head"><h2>Method</h2></div>
+			<ul class="report-method">
+				<li><strong>What runs</strong> comes from Goliash agents in each cluster or account, which report the image of every workload.</li>
+				<li><strong>Vulnerabilities</strong> are matched with OSV against each image's packages, read from its SBOM attestation or its package database; product CVEs come from GitHub security advisories and NVD. Images without either are listed as blind spots on the Security page.</li>
+				<li><strong>Exploited in the wild</strong> means listed in CISA's Known Exploited Vulnerabilities catalog; its due date is CISA's (BOD 22-01).</li>
+				<li><strong>Time to patch</strong> runs from the publication of the first release newer than the version that ran, to the deploy of an upgrade in production. Rollbacks and versions with no known release are left out.</li>
+				<li><strong>A security fix</strong> is an upgrade whose releases on the way say they fix vulnerabilities (CVE ids or a security note); <strong>in time</strong> means deployed within the deadline for security fixes.</li>
+				<li><strong>Accepted risks</strong> are acknowledgements recorded in Goliash, with who made them and when they end.</li>
+			</ul>
+		</section>
+	}
+}

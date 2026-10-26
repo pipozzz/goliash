@@ -191,6 +191,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /security", s.page(v, s.security))
 	mux.Handle("GET /security.csv", s.page(v, s.securityCSV))
 	mux.Handle("GET /security/vulns", s.page(v, s.vulns))
+	mux.Handle("GET /security/report", s.page(v, s.vmReport))
+	mux.Handle("GET /security/report.csv", s.page(v, s.vmReportCSV))
 	mux.Handle("GET /security/licenses", s.page(v, s.licenses))
 	mux.Handle("GET /security/licenses.csv", s.page(v, s.licensesCSV))
 	mux.Handle("GET /security/vulns.csv", s.page(v, s.vulnsCSV))
@@ -920,15 +922,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if a.ServiceID != svc.ID {
 			continue
 		}
-		av := AckView{ID: a.ID, Kind: a.Kind, Env: o.Envs[a.EnvironmentID].Name, By: a.CreatedBy, Created: a.CreatedAt}
-		switch {
-		case a.UntilVersion != "" && !a.UntilAt.IsZero():
-			av.Until = a.UntilVersion + " or " + a.UntilAt.Format("2006-01-02")
-		case a.UntilVersion != "":
-			av.Until = "version " + a.UntilVersion
-		default:
-			av.Until = a.UntilAt.Format("2006-01-02 15:04 UTC")
-		}
+		av := AckView{ID: a.ID, Kind: a.Kind, Env: o.Envs[a.EnvironmentID].Name, By: a.CreatedBy, Created: a.CreatedAt, Until: ackUntilText(a)}
 		av.Active = a.UntilAt.IsZero() || time.Now().Before(a.UntilAt)
 		v.Acks = append(v.Acks, av)
 	}

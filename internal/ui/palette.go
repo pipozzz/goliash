@@ -110,6 +110,7 @@ func (s *Server) paletteEntries(ctx context.Context, p auth.Principal) ([]Palett
 		{"GitOps applications", "Argo CD and Flux, in sync or not", "/gitops"},
 		{"Status", "is Goliash itself healthy", "/status"},
 		{"Monthly report", "", "/report"},
+		{"Vulnerability management report", "", "/security/report"},
 		{"Agents and targets", "settings", "/agents"},
 		{"Connect", "add a cluster or host", "/connect"},
 		{"Notifications", "channels and rules", "/notifications"},

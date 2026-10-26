@@ -216,6 +216,8 @@ details[open] > summary { margin-bottom: 12px; }
 .report-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; padding: 18px; }
 .report-stats div { display: flex; flex-direction: column; gap: 2px; }
 .report-stats strong { font-size: 26px; }
+.report-sub { margin: 14px 18px 4px; font-size: 14px; }
+.report-method { margin: 0; padding: 14px 18px 18px 36px; display: grid; gap: 8px; line-height: 1.5; }
 .report-stats span { color: var(--muted); font-size: 12.5px; }
 @media print {
   header.top, .skip-link, .noprint, .flash { display: none !important; }

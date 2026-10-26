@@ -16,6 +16,7 @@ import (
 
 // PatchSample is one upgrade deployed to production and how long the service ran behind before it.
 type PatchSample struct {
+	ServiceID                string
 	Service, Owner, From, To string
 	At, BehindSince          time.Time
 	Days                     int
@@ -65,7 +66,7 @@ func PatchTimes(ctx context.Context, st *store.Store, sc store.Scope, o Overview
 		seen[e.ServiceID+"|"+e.ToVersion] = true
 		svc := o.Services[e.ServiceID]
 		out = append(out, PatchSample{
-			Service: svc.Name, Owner: svc.Owner, From: e.FromVersion, To: e.ToVersion, At: e.At, BehindSince: behind,
+			ServiceID: e.ServiceID, Service: svc.Name, Owner: svc.Owner, From: e.FromVersion, To: e.ToVersion, At: e.At, BehindSince: behind,
 			Days: int(e.At.Sub(behind).Hours() / 24),
 		})
 	}
