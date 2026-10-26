@@ -1084,6 +1084,9 @@
     }
     const b = document.querySelector("[data-bell]");
     if (b) b.setAttribute("aria-label", n ? "Notifications, " + n + " unread" : "Notifications");
+    // Goli's swamped outfit follows the live count ("Always something!").
+    const at = parseInt(document.documentElement.getAttribute("data-swamped-at") || "", 10);
+    if (!isNaN(at)) document.documentElement.classList.toggle("goli-swamped", n >= at);
     try {
       if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n).catch(function () { /* not installed */ });
       else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(function () { /* not installed */ });

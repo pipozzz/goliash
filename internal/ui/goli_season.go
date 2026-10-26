@@ -40,3 +40,20 @@ func seasonClass(season string) string {
 	}
 	return "goli-" + season
 }
+
+// goliSwampedAt is how many unread notifications put Goli in its swamped outfit ("Always something!"); app.js reads
+// it from the page to follow the bell's live count. GOLIASH_GOLI_SEASON=swamped always wears it, for screenshots.
+const goliSwampedAt = 10
+
+// goliSwampedFor reports whether Goli wears its swamped outfit with that many unread notifications.
+func goliSwampedFor(unread int) bool {
+	return goliSeasonSetting == "swamped" || unread >= goliSwampedAt
+}
+
+// swampedThreshold is the unread count app.js swaps Goli's outfit at; 0 when the setting wears it always.
+func swampedThreshold() int {
+	if goliSeasonSetting == "swamped" {
+		return 0
+	}
+	return goliSwampedAt
+}

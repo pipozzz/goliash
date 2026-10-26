@@ -1135,6 +1135,19 @@ a.live:hover { text-decoration: underline; }
 }
 .goli-fab:has(.goli-season) { width: 74px; height: 97px; }
 .goli-halloween .goli-bell { display: none; } /* the witch's hat stands where the bell hangs */
+/* Swamped: many unread notifications. Goli sighs, the bell keeps ringing; the season's outfit waits. */
+.goli-swamped-outfit, .goli-say { display: none; }
+html.goli-swamped .goli-swamped-outfit { display: inline; }
+html.goli-swamped .goli-season, html.goli-swamped .goli-snow { display: none; }
+html.goli-swamped.goli-swamped .goli-bell { display: inline; animation: goli-ring 1.6s ease-in-out infinite; }
+html.goli-swamped .goli-ding { opacity: 1; }
+html.goli-swamped .goli-fab .goli-say {
+  display: block; position: absolute; right: 70%; bottom: 82%; width: max-content; max-width: 160px; padding: 6px 10px;
+  background: var(--surface); color: var(--ink); border: 2px solid #2b2d42; border-radius: 14px 14px 2px 14px;
+  font: 800 13px/1.2 var(--sans); box-shadow: 0 4px 10px rgb(10 14 30 / 0.15); pointer-events: none;
+}
+.goli-steam { animation: goli-steam 2.4s ease-in-out infinite; }
+@keyframes goli-steam { 0%, 100% { opacity: 0.8; transform: translateY(0); } 50% { opacity: 0.4; transform: translateY(-4px); } }
 .goli-fab .goli-art { width: 100%; height: 100%; transform-origin: 50% 100%; animation: goli-sway 5s ease-in-out infinite; }
 .goli-fab:hover { transform: translateY(-4px); }
 .goli-glow { animation: goli-flicker 2.4s ease-in-out infinite; }
@@ -1162,7 +1175,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .goli-corner { font-size: inherit; }
 .goli-thinking { display: flex; align-items: center; gap: 8px; }
 @media (prefers-reduced-motion: reduce) {
-  .goli-fab .goli-art, .goli-fab:hover .goli-arm, .goli-eyes, .goli-glow, .goli-bat, html.goli-busy .goli-bell, html.goli-done .goli-bell { animation: none; }
+  .goli-fab .goli-art, .goli-fab:hover .goli-arm, .goli-eyes, .goli-glow, .goli-bat, html.goli-busy .goli-bell, html.goli-done .goli-bell, html.goli-swamped .goli-bell, .goli-steam { animation: none; }
   .goli-fab, .goli-pupils, .goli-brow { transition: none; }
   .goli-pupils { transform: none; }
 }

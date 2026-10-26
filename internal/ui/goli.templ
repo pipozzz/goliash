@@ -68,7 +68,52 @@ templ goliMascot(class string) {
 			case "summer":
 				@goliSummer()
 		}
+		@goliSwamped()
 	</svg>
+}
+
+// goliSwamped is Goli when the notifications pile up (goliSwampedAt unread or more): tired eyes behind the glasses, a
+// sigh, a drop of sweat, the fourth coffee, the stack of containers turned into alerts and toppling, and more coming
+// in. It is always drawn and shown by CSS (html.goli-swamped), so the bell's live count can change it.
+templ goliSwamped() {
+	<g class="goli-swamped-outfit">
+		<path d="M241 290 A34 34 0 0 1 309 290 Z M331 290 A34 34 0 0 1 399 290 Z" fill="#6c7ae0"></path>
+		<path d="M243 290 h64 M333 290 h64" stroke="#2b2d42" stroke-width="4" stroke-linecap="round"></path>
+		<path d="M252 336 q22 8 44 0 M344 336 q22 8 44 0" stroke="#4a55b8" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.7"></path>
+		<ellipse cx="320" cy="356" rx="26" ry="15" fill="#6c7ae0"></ellipse>
+		<path d="M300 360 q8 -7 14 0 t14 0 q6 -6 12 -10" stroke="#2b2d42" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+		<path d="M424 240 q-12 18 0 26 q12 -8 0 -26 z" fill="#8ec5ff" stroke="#4a8fd9" stroke-width="2"></path>
+		<circle cx="372" cy="428" r="13" fill="#e5484d" stroke="#fff" stroke-width="3"></circle>
+		<path d="M372 420 v9 M372 434 v1" stroke="#fff" stroke-width="4" stroke-linecap="round"></path>
+		<g stroke="#2b2d42" stroke-width="3" stroke-linejoin="round">
+			<path d="M130 352 h52 v50 a12 12 0 0 1 -12 12 h-28 a12 12 0 0 1 -12 -12 z" fill="#fff"></path>
+			<path d="M182 364 q18 0 18 15 q0 15 -18 15" fill="none"></path>
+		</g>
+		<rect x="140" y="370" width="32" height="18" rx="4" fill="#ef8a5b"></rect>
+		<text x="156" y="384" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="800" font-size="12" fill="#fff">#4</text>
+		<path class="goli-steam" d="M144 340 q-7 -10 0 -20 q7 -10 0 -20 M160 340 q-7 -10 0 -20 q7 -10 0 -20 M176 340 q-7 -10 0 -18" stroke="#9aa3d9" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8"></path>
+		<g stroke="#2b2d42" stroke-width="3" stroke-linejoin="round">
+			<rect x="452" y="452" width="80" height="40" rx="6" fill="#e5484d"></rect>
+			<rect x="458" y="412" width="74" height="38" rx="6" fill="#f2b84b" transform="rotate(5 495 431)"></rect>
+			<rect x="464" y="374" width="66" height="36" rx="6" fill="#3dbb7c" transform="rotate(11 497 392)"></rect>
+			<rect x="480" y="332" width="54" height="32" rx="6" fill="#6c7ae0" transform="rotate(24 507 348)"></rect>
+		</g>
+		<g font-family="system-ui, sans-serif" font-weight="900" fill="#fff" text-anchor="middle">
+			<text x="512" y="478" font-size="15">CVE</text>
+			<text x="512" y="437" font-size="15" transform="rotate(5 495 431)">EOL</text>
+			<text x="510" y="398" font-size="14" transform="rotate(11 497 392)">PR</text>
+			<text x="512" y="354" font-size="13" transform="rotate(24 507 348)">+1</text>
+		</g>
+		<ellipse cx="462" cy="440" rx="30" ry="58" transform="rotate(-30 462 440)" fill="#5f6cd6"></ellipse>
+		<g font-family="system-ui, sans-serif" font-weight="900" text-anchor="middle">
+			<circle cx="452" cy="170" r="18" fill="#e5484d" stroke="#fff" stroke-width="3"></circle>
+			<text x="452" y="176" font-size="16" fill="#fff">3</text>
+			<circle cx="506" cy="226" r="20" fill="#e5484d" stroke="#fff" stroke-width="3"></circle>
+			<text x="506" y="232" font-size="15" fill="#fff">12</text>
+			<circle cx="494" cy="112" r="18" fill="#e5484d" stroke="#fff" stroke-width="3"></circle>
+			<text x="494" y="117" font-size="13" fill="#fff">9+</text>
+		</g>
+	</g>
 }
 
 // goliHalloween: a witch's hat (in the bell's place, see app.css), a big carved pumpkin in the free arm (its face flickers), and bats.
@@ -152,9 +197,11 @@ templ goliSnow() {
 	</g>
 }
 
-// goliCorner is Goli waiting in the page's corner: a click opens the panel. It never speaks first.
+// goliCorner is Goli waiting in the page's corner: a click opens the panel. It never speaks first, but when the
+// notifications pile up it sighs (shown by CSS with the swamped outfit).
 templ goliCorner() {
 	<button type="button" class="goli-fab" data-goli title="Ask Goli" aria-label="Ask Goli, the assistant">
+		<span class="goli-say" aria-hidden="true">Always something!</span>
 		@goliMascot("")
 	</button>
 }

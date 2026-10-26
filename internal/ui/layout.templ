@@ -119,7 +119,7 @@ templ pageLoader() {
 
 templ Layout(b Base) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" class={ templ.KV("goli-swamped", b.Goli && goliSwampedFor(b.Unread)) } data-swamped-at={ itoa(swampedThreshold()) }>
 		if b.Email != "" {
 			@headIcon(b.Title, "/ui/favicon.svg")
 		} else {
