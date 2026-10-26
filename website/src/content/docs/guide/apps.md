@@ -109,7 +109,14 @@ A service's team is its **owner**. Goliash takes it from, in this order:
 
 Each team's card on **Settings → Teams** is a small scorecard: how many of its services are up to date, and how many
 run a vulnerability exploited in the wild, a release past its end of life, a rollout that does not finish, or a
-version behind; each links to its [Updates](/guide/versions/#updates), filtered to the team.
+version behind; each links to its [Updates](/guide/versions/#updates), filtered to the team. It also says how the
+team patches: its median [time to patch](/guide/security/#time-to-patch-and-patching-by-team) over the last 90 days
+and how many upgrades are past their [remediation deadline](/guide/security/#remediation-deadlines).
+
+**Notify the team** on a card, picking one of the workspace's channels, keeps the team told without writing rules:
+its deadlines and critical vulnerabilities in production as they happen, and its own week every Monday at 08:00
+UTC (two rules filtered by the team, changed or deleted under Notifications like any). Once a rule tells the team, the
+card says so instead.
 
 A service whose workloads name different teams, or whose applications have different teams, is left for people.
 The service page says where its owner came from; changing it there takes over from labels for good.

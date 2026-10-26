@@ -156,6 +156,18 @@ templ TeamsPage(v TeamsView) {
 								}
 							</div>
 						}
+						<p class="app-meta team-patch-line">
+							<span class="muted">Patching</span>
+							if t.Patched > 0 {
+								<a href="/security#teams" title="Median days its upgrades deployed in the last 90 days had run behind a newer release">{ plural(t.MedianPatch, "day", "days") + " to patch" }</a>
+								<span class="muted">{ " · " + plural(t.Patched, "upgrade", "upgrades") + " in 90 days" }</span>
+							} else {
+								<span class="muted">no upgrade in 90 days</span>
+							}
+							if t.Overdue > 0 {
+								{ " " }<a class="badge eol" href={ templ.URL("/updates?due=over&team=" + url.QueryEscape(t.Name)) }>{ itoa(t.Overdue) + " past deadline" }</a>
+							}
+						</p>
 						<ul class="app-services">
 							for _, svc := range t.Services {
 								<li>
@@ -170,6 +182,27 @@ templ TeamsPage(v TeamsView) {
 								</li>
 							}
 						</ul>
+						if v.CanMember && !t.Notified {
+							<details class="card-edit">
+								<summary class="button secondary">Notify the team</summary>
+								if len(v.Channels) == 0 {
+									<p class="hint">Add a channel for the team under <a href="/notifications">Notifications</a> first: Slack, Teams, e-mail…</p>
+								} else {
+									<form method="post" action="/teams/notify" class="app-actions">
+										<input type="hidden" name="team" value={ t.Name }/>
+										<select name="channel" aria-label={ "Channel for " + t.Name }>
+											for _, ch := range v.Channels {
+												<option value={ ch.ID }>{ ch.Name + " (" + ch.Type + ")" }</option>
+											}
+										</select>
+										<button type="submit">Notify</button>
+									</form>
+									<p class="hint">Its remediation deadlines and critical vulnerabilities in production as they happen, and its own week every Monday at 08:00 UTC.</p>
+								}
+							</details>
+						} else if t.Notified {
+							<p class="app-meta"><span class="muted">Notified</span> <a href="/notifications">its rules</a></p>
+						}
 						if v.CanMember {
 							<details class="card-edit">
 								<summary class="button secondary">Rename</summary>

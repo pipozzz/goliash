@@ -4,13 +4,20 @@
 package ui
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/notifier"
+	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // Applications and teams. Applications are found from workload labels (or namespaces);
@@ -50,6 +57,11 @@ type TeamView struct {
 	// The team's scorecard: services running something exploited in the wild, past end of life, with a rollout
 	// stuck or down, and behind (upstream or the previous environment), each service once.
 	Exploited, EOL, Rollouts, Behind int
+	// How the team patches production: upgrades past their remediation deadline, upgrades deployed in the last 90
+	// days and their median days behind before (see the Security page's Patching by team).
+	Overdue, Patched, MedianPatch int
+	// Notified: a rule already sends the team its deadlines or weekly report.
+	Notified bool
 }
 
 // AppsView is the Applications page.
@@ -66,6 +78,7 @@ type TeamsView struct {
 	Teams    []TeamView
 	Unowned  []AppService
 	AppNames []string
+	Channels []store.Channel // where Notify the team can send
 }
 
 // appName is what an application may be called.
@@ -271,6 +284,9 @@ func (s *Server) teams(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		v.Teams = append(v.Teams, *t)
 	}
 	sort.Slice(v.Teams, func(i, j int) bool { return v.Teams[i].Name < v.Teams[j].Name })
+	if err := s.teamPatching(ctx, p, &v); err != nil {
+		return err
+	}
 	for a := range appSet {
 		v.AppNames = append(v.AppNames, a)
 	}
@@ -412,4 +428,90 @@ func (s *Server) setServiceTeam(w http.ResponseWriter, r *http.Request, p auth.P
 		return back(w, r, path, "notice", name+" has no team now.")
 	}
 	return back(w, r, path, "notice", name+" belongs to "+team+" now.")
+}
+
+// teamPatching adds how each team patches, whether a rule already tells it, and the channels to tell it on.
+func (s *Server) teamPatching(ctx context.Context, p auth.Principal, v *TeamsView) error {
+	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	pos, err := versions.LoadPosture(ctx, s.store, p.Scope, o, now)
+	if err != nil {
+		return err
+	}
+	acks, err := s.store.ListAcks(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	teams, _, err := versions.LoadTeamPatching(ctx, s.store, p.Scope, o, pos, versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now), now)
+	if err != nil {
+		return err
+	}
+	byOwner := map[string]versions.TeamPatching{}
+	for _, t := range teams {
+		byOwner[t.Owner] = t
+	}
+	rules, err := s.store.ListRules(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	told := map[string]bool{}
+	for _, r := range rules {
+		var f notifier.Filter
+		_ = json.Unmarshal(r.Filter, &f)
+		if slices.Contains(r.EventTypes, notifier.EventDeadline) || slices.Contains(r.EventTypes, notifier.EventPostureReport) {
+			for _, o := range f.Owners {
+				told[o] = true
+			}
+		}
+	}
+	for i := range v.Teams {
+		t := &v.Teams[i]
+		tp := byOwner[t.Name]
+		t.Overdue, t.Patched, t.MedianPatch, t.Notified = tp.Overdue, tp.Patched, tp.MedianPatch, told[t.Name]
+	}
+	if p.Can(store.RoleMember) {
+		if v.Channels, err = s.store.ListChannels(ctx, p.Scope); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// notifyTeam creates the rules that keep a team told: its deadlines and critical vulnerabilities in production as
+// they happen, and its own posture every Monday.
+func (s *Server) notifyTeam(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	team, channelID := strings.TrimSpace(r.FormValue("team")), r.FormValue("channel")
+	if team == "" {
+		return back(w, r, "/teams", "error", "Name the team.")
+	}
+	channels, err := s.store.ListChannels(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	var ch store.Channel
+	for _, c := range channels {
+		if c.ID == channelID {
+			ch = c
+		}
+	}
+	if ch.ID == "" {
+		return back(w, r, "/teams", "error", "Pick a channel, or add one under Notifications first.")
+	}
+	hour := 8
+	instant, _ := json.Marshal(notifier.Filter{Owners: []string{team}, Production: true})
+	weekly, _ := json.Marshal(notifier.Filter{Owners: []string{team}, DigestHour: &hour})
+	for _, rule := range []store.Rule{
+		{Scope: p.Scope, ChannelID: ch.ID, EventTypes: []string{notifier.EventDeadline, "vulnerability"}, Filter: instant, Mode: "instant"},
+		{Scope: p.Scope, ChannelID: ch.ID, EventTypes: []string{notifier.EventPostureReport}, Filter: weekly, Mode: "weekly"},
+	} {
+		if _, err := s.store.CreateRule(ctx, rule); err != nil {
+			return err
+		}
+	}
+	s.audit(ctx, p, "team.notify", "team", team, "channel", ch.Name)
+	return back(w, r, "/teams", "notice", team+" hears on "+ch.Name+" of its deadlines and critical vulnerabilities in production, and gets its week every Monday. Change it under Notifications.")
 }

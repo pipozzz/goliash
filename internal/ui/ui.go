@@ -205,6 +205,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /apps/team", s.page(m, s.appTeam))
 	mux.Handle("GET /teams", s.page(v, s.teams))
 	mux.Handle("POST /teams/rename", s.page(m, s.renameTeam))
+	mux.Handle("POST /teams/notify", s.page(m, s.notifyTeam))
 	mux.Handle("POST /teams/assign", s.page(m, s.assignTeam))
 	mux.Handle("POST /teams/unassign", s.page(m, s.unassignTeam))
 	mux.Handle("GET /ui/favicon.svg", s.page(v, s.favicon))
