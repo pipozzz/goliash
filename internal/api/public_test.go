@@ -263,7 +263,7 @@ func TestImageMetrics(t *testing.T) {
 	now := time.Now()
 	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
 		Repo: "docker.io/library/nginx", Digest: "sha256:1.27.2", CheckedAt: now, Signed: true, SBOM: true, Size: 190_000_000,
-		BaseImage: "docker.io/library/debian:12", BaseStatus: "outdated", BaseSince: now.AddDate(0, 0, -20),
+		BaseImage: "docker.io/library/debian:12", BaseStatus: "outdated", BaseSince: now.Add(-20 * 24 * time.Hour), // 20 days of 24 hours, also across a daylight saving change
 		Layers: []store.ImageLayer{{Digest: "sha256:a", Size: 100_000_000}, {Digest: "sha256:b", Size: 90_000_000}},
 	})
 	_ = e.st.SetImageEvidence(ctx, e.sc, store.ImageEvidence{
