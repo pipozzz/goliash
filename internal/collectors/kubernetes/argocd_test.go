@@ -98,6 +98,6 @@ func TestNoArgoCD(t *testing.T) {
 func fakeDynamic(objs ...runtime.Object) *dynamicfake.FakeDynamicClient {
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{
 		argoApplications: "ApplicationList", argoProjects: "AppProjectList", fluxKustomizations: "KustomizationList", fluxHelmReleases: "HelmReleaseList",
-		fluxGitRepositories: "GitRepositoryList", fluxHelmRepos: "HelmRepositoryList",
+		fluxGitRepositories: "GitRepositoryList", fluxHelmRepos: "HelmRepositoryList", httpRoutes: "HTTPRouteList",
 	}, objs...)
 }

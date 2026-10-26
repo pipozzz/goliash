@@ -9,7 +9,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | --- | --- | --- | --- |
 | Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context`) |
 | Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` names an AWS profile |
-| AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases` | default AWS chain; `credentials_ref` names an AWS profile |
+| AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
 | Nomad | jobs, job versions, allocations | ACL token with `list-jobs` and `read-job` | `credentials_ref` resolves to the token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
@@ -38,6 +38,22 @@ repository, path or chart, target revision, the commit last synced, and its sync
 it syncs by itself or only by hand (its automated sync policy). With Flux, the
 workloads a Kustomization or HelmRelease labelled carry the same from it and its GitRepository or HelmRepository.
 Without Argo CD or Flux, or without the permission, nothing changes.
+
+### Exposure
+
+Agents also report how each workload can be reached from outside its cluster or host, so that Updates and
+Vulnerabilities put those first (see [Exposed to the outside](../../guide/security/#exposed-to-the-outside)):
+
+| Platform | Exposed when |
+| --- | --- |
+| Kubernetes | a LoadBalancer service (not marked internal by its cloud's annotation), a NodePort service, an Ingress or a Gateway API HTTPRoute sends to its pods. Needs `list` on `services`, `ingresses.networking.k8s.io` and `httproutes.gateway.networking.k8s.io` (the Helm charts grant it); without it, nothing is exposed. |
+| Amazon ECS | the service registers with a load balancer (which may be internal), or its tasks get a public IP. |
+| AWS Lambda | a function URL anyone may call (auth type `NONE`); needs `lambda:ListFunctionUrlConfigs`. |
+| Docker, Compose | a port published on every interface of the host (not on `127.0.0.1`). |
+
+A `goliash.exposed` label, tag or meta on the workload overrides it: `internet` marks it exposed whatever the agent
+saw, `internal` not exposed (an internal load balancer, a VPN-only ingress). On a Kubernetes Service, the label or
+annotation `goliash.exposed: internal` leaves that service out.
 
 Nomad: each job is a workload. A periodic or parameterized job is one workload (a cron job) that counts its
 running runs, rather than a new workload for every `backup/periodic-…` or `export/dispatch-…` run.

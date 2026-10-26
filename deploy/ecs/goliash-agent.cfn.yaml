@@ -117,7 +117,7 @@ Resources:
                 - Lambda
                 - Sid: ReadLambda
                   Effect: Allow
-                  Action: ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases"]
+                  Action: ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs"]
                   Resource: "*"
                 - !Ref AWS::NoValue
 

@@ -459,6 +459,7 @@ type VulnsView struct {
 	LooksCVE bool // the query is a vulnerability ID
 	Enabled  bool // vulnerability lookups are on
 	OnlyKEV  bool // only vulnerabilities exploited in the wild
+	Exposed  bool // only those in images reachable from outside
 }
 
 func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -470,7 +471,7 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	v := VulnsView{
 		Base: s.base(ctx, p, "security", "Vulnerabilities"), Query: strings.TrimSpace(r.URL.Query().Get("q")),
 		All: r.URL.Query().Get("env") == "all", Enabled: s.checker != nil && s.checker.OSVEnabled(),
-		OnlyKEV: r.URL.Query().Get("kev") == "1",
+		OnlyKEV: r.URL.Query().Get("kev") == "1", Exposed: r.URL.Query().Get("exposed") == "1",
 	}
 	envID := ""
 	for _, e := range envs {
@@ -487,7 +488,7 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	q := strings.ToUpper(v.Query)
 	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
 	for _, f := range v.Findings {
-		if (q != "" && !versions.FindingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) {
+		if (q != "" && !versions.FindingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) || (v.Exposed && !f.IsExposed()) {
 			continue
 		}
 		if len(v.Shown) >= 300 {
@@ -548,6 +549,9 @@ func vulnsHref(v VulnsView, key, value string) string {
 	}
 	if v.OnlyKEV {
 		q.Set("kev", "1")
+	}
+	if v.Exposed {
+		q.Set("exposed", "1")
 	}
 	if value == "" {
 		q.Del(key)
@@ -765,10 +769,10 @@ func (s *Server) vulnsCSV(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil {
 		return err
 	}
-	query, onlyKEV := strings.ToUpper(strings.TrimSpace(q.Get("q"))), q.Get("kev") == "1"
+	query, onlyKEV, exposed := strings.ToUpper(strings.TrimSpace(q.Get("q"))), q.Get("kev") == "1", q.Get("exposed") == "1"
 	var findings []versions.VulnFinding
 	for _, f := range rep.Findings {
-		if (query != "" && !versions.FindingMatches(f, query)) || (onlyKEV && f.Exploited == nil) {
+		if (query != "" && !versions.FindingMatches(f, query)) || (onlyKEV && f.Exploited == nil) || (exposed && !f.IsExposed()) {
 			continue
 		}
 		findings = append(findings, f)
@@ -1000,4 +1004,17 @@ func dayWord(n int) string {
 		return "day"
 	}
 	return "days"
+}
+
+// exposedWays are the ways in to the images a vulnerability is in, each once.
+func exposedWays(f versions.VulnFinding) []string {
+	var out []string
+	for _, a := range f.Affected {
+		for _, w := range a.Exposed {
+			if !slices.Contains(out, w) {
+				out = append(out, w)
+			}
+		}
+	}
+	return out
 }

@@ -24,6 +24,11 @@ templ VulnsPage(v VulnsView) {
 				} else {
 					<a href={ templ.URL(vulnsHref(v, "kev", "1")) }>Only exploited in the wild</a>
 				}
+				if v.Exposed {
+					<a href={ templ.URL(vulnsHref(v, "exposed", "")) }>Exposed or not</a>
+				} else {
+					<a href={ templ.URL(vulnsHref(v, "exposed", "1")) } title="Only in images reachable from outside their cluster or host">Only exposed</a>
+				}
 				if v.All {
 					<a href={ templ.URL(vulnsHref(v, "env", "")) }>{ "Only " + v.EnvName }</a>
 				} else {
@@ -37,6 +42,9 @@ templ VulnsPage(v VulnsView) {
 			}
 			if v.OnlyKEV {
 				<input type="hidden" name="kev" value="1"/>
+			}
+			if v.Exposed {
+				<input type="hidden" name="exposed" value="1"/>
 			}
 			<label class="grow"><span class="sr-only">Vulnerability, package or service</span><input name="q" value={ v.Query } placeholder="CVE-2024-3094, openssl, payments-api"/></label>
 			<button type="submit">Check</button>
@@ -87,6 +95,9 @@ templ VulnsPage(v VulnsView) {
 										}
 									</td>
 									<td>
+										if ways := exposedWays(f); len(ways) > 0 {
+											<span class="badge eol" title={ exposedTitle(ways) }>exposed</span>
+										}
 										if f.Exploited != nil {
 											<span class="badge eol" title={ "CISA: " + f.Exploited.Name + ", added " + f.Exploited.DateAdded }>exploited</span>
 											if f.Exploited.Ransomware {

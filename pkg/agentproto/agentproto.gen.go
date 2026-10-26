@@ -724,6 +724,15 @@ type Workload struct {
 	Containers      []Container `json:"containers"`
 	DesiredReplicas *int        `json:"desired_replicas,omitempty"`
 
+	// Exposed How the workload can be reached from outside its cluster or host, as the collector reads it: an Ingress
+	// or HTTPRoute host, a LoadBalancer or NodePort service, an ECS load balancer or public IP, a Lambda
+	// function URL without authentication, a Docker port published on every interface. Empty or absent: not
+	// seen exposed. A `goliash.exposed` label (`internet` or `internal`) overrides it. Older servers ignore it.
+	//
+	//
+	// Example: ["ingress shop.example.com","LoadBalancer service payments/api"]
+	Exposed []string `json:"exposed,omitempty"`
+
 	// Gitops The GitOps application that deploys the workload, when the collector can read it: an Argo CD Application
 	// listing the workload among its resources, or the Flux Kustomization or HelmRelease that labelled it. Older
 	// servers ignore it.

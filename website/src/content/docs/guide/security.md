@@ -272,6 +272,23 @@ one sends the `vulnerability` alert. Without an [API key](/reference/configurati
 seconds, so Goliash asks for 8 product versions per check; `GOLIASH_NVD=off` stops it.
 
 
+## Exposed to the outside
+
+An exploited vulnerability in an internal batch job and the same one behind the shop's ingress are not equally
+urgent. Agents report how each workload can be reached from outside its cluster or host: an Ingress or HTTPRoute
+host, a LoadBalancer or NodePort service, an ECS load balancer or public IP, a Lambda function URL without
+authentication, a Docker port published on every interface (details and permissions in
+[Collectors](../../reference/collectors/#exposure)).
+
+- **Updates** marks such an upgrade **exposed** (hover for the ways in) and puts it first within its urgency: an
+  exploited vulnerability behind an ingress before one in an internal service, then production first as before.
+- **Vulnerabilities** puts findings in exposed images right after those exploited in the wild, marks them, and
+  **Only exposed** narrows the list (`?exposed=1`; the CSV and `GET /api/v1/vulnerabilities?exposed=true` too).
+- The CSV exports and the API (`exposed` on updates and on each affected image) say how.
+
+What the agent reads is a hint, not a scan: a load balancer may be internal, a firewall may close a port. Label a
+workload `goliash.exposed=internal` (or `internet`) where you know better.
+
 ## Images without an SBOM
 
 Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:

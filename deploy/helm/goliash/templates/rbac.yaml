@@ -21,6 +21,16 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
+  # Services, Ingresses and Gateway API HTTPRoutes: which workloads can be reached from outside the cluster.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["list"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["list"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["list"]
   # Argo CD Applications: which Git repository, path and commit deploy each workload, and whether it is in sync;
   # AppProjects: the sync windows that keep an application from syncing.
   - apiGroups: ["argoproj.io"]

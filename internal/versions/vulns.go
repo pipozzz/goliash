@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -193,6 +194,7 @@ type Affected struct {
 	Fix                          string // the version of the package that fixes it, when known
 	ServiceID, EnvironmentID     string
 	Since                        time.Time // since when the image has run there (its earliest target)
+	Exposed                      []string  // how it can be reached from outside its cluster or host, if it can
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -207,6 +209,16 @@ type VulnFinding struct {
 	Exploited *store.Exploited
 	Fixable   bool      // a fixed version exists for at least one affected package
 	Since     time.Time // since when it has run: the earliest of its affected images
+}
+
+// IsExposed reports whether an image with the vulnerability can be reached from outside its cluster or host.
+func (f VulnFinding) IsExposed() bool {
+	for _, a := range f.Affected {
+		if len(a.Exposed) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // DueDate is the date CISA set for fixing an exploited vulnerability (BOD 22-01); zero when none is set.
@@ -288,6 +300,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	type use struct {
 		service, env, image, serviceID, envID string
 		since                                 time.Time
+		exposed                               []string
 	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
@@ -319,7 +332,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, in.FirstSeenAt})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, in.FirstSeenAt, in.Exposed})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -378,11 +391,12 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
 			for _, u := range byPurl[p] {
-				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since}
+				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
 				if i := indexAffected(f.Affected, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
 					}
+					f.Affected[i].Exposed = union(f.Affected[i].Exposed, u.exposed)
 					if !u.since.IsZero() && (f.Affected[i].Since.IsZero() || u.since.Before(f.Affected[i].Since)) {
 						f.Affected[i].Since = u.since
 					}
@@ -426,6 +440,9 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		a, b := r.Findings[i], r.Findings[j]
 		if (a.Exploited != nil) != (b.Exploited != nil) {
 			return a.Exploited != nil
+		}
+		if a.IsExposed() != b.IsExposed() { // reachable from outside first
+			return a.IsExposed()
 		}
 		if severityRank(a.Severity) != severityRank(b.Severity) {
 			return severityRank(a.Severity) > severityRank(b.Severity)
@@ -665,12 +682,13 @@ func addProductFindings(ctx context.Context, st *store.Store, sc store.Scope, ac
 				}
 				a := Affected{
 					Service: svcs[in.ServiceID].Name, Env: envName[in.EnvironmentID], Image: in.Image, Package: use.Name + " " + use.Version,
-					Fix: v.Fix, ServiceID: in.ServiceID, EnvironmentID: in.EnvironmentID, Since: in.FirstSeenAt,
+					Fix: v.Fix, ServiceID: in.ServiceID, EnvironmentID: in.EnvironmentID, Since: in.FirstSeenAt, Exposed: in.Exposed,
 				}
 				if i := indexAffected(f.Affected, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = v.Fix
 					}
+					f.Affected[i].Exposed = union(f.Affected[i].Exposed, in.Exposed)
 				} else {
 					f.Affected = append(f.Affected, a)
 				}
@@ -716,4 +734,19 @@ func readFailure(err string) string {
 		err = err[:120] + "…"
 	}
 	return "reading it failed: " + err
+}
+
+// union is a with what b adds, each once, sorted.
+func union(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	out := append([]string{}, a...)
+	for _, s := range b {
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	slices.Sort(out)
+	return out
 }

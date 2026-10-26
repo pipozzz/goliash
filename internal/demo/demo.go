@@ -633,6 +633,21 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		},
 		Containers: []agentproto.Container{{Name: service, Image: images[service] + ":" + tag, Running: replicas}},
 	}
+	// What the internet reaches: the shop and sign-in through traefik's ingresses, traefik itself through a load
+	// balancer, and gitea's port on the dev host.
+	if host := map[string]string{"checkout": "shop", "payments-api": "pay", "keycloak": "login", "grafana": "grafana"}[service]; host != "" {
+		domain := "acme.example"
+		if t.env != "prod" {
+			domain = t.env + ".acme.example"
+		}
+		w.Exposed = []string{"ingress " + host + "." + domain}
+	}
+	switch service {
+	case "traefik":
+		w.Exposed = []string{"LoadBalancer service " + ns + "/traefik"}
+	case "gitea":
+		w.Exposed = []string{"port 3000/tcp published"}
+	}
 	switch t.platform { // no GitOps tool here: the jobs and the Compose file name their place in Git
 	case "nomad":
 		w.Labels["goliash.git.repo"], w.Labels["goliash.git.path"] = "https://github.com/acme/infra", "nomad/"+service+".nomad.hcl"

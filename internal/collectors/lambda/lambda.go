@@ -23,11 +23,13 @@ import (
 )
 
 // API is the subset of the Lambda client the collector uses, matching an IAM policy
-// of lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases.
+// of lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases, and lambda:ListFunctionUrlConfigs to see
+// which functions anyone may call.
 type API interface {
 	ListFunctions(ctx context.Context, in *lambda.ListFunctionsInput, opts ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
 	GetFunction(ctx context.Context, in *lambda.GetFunctionInput, opts ...func(*lambda.Options)) (*lambda.GetFunctionOutput, error)
 	ListAliases(ctx context.Context, in *lambda.ListAliasesInput, opts ...func(*lambda.Options)) (*lambda.ListAliasesOutput, error)
+	ListFunctionUrlConfigs(ctx context.Context, in *lambda.ListFunctionUrlConfigsInput, opts ...func(*lambda.Options)) (*lambda.ListFunctionUrlConfigsOutput, error)
 }
 
 // New is the collectors.Factory for lambda targets. It uses the default AWS credential
@@ -173,10 +175,11 @@ func (c *Collector) function(ctx context.Context, f types.FunctionConfiguration)
 	if err != nil {
 		return nil, err
 	}
+	urls := c.publicURLs(ctx, f.FunctionName)
 	workload := func(id string, labels map[string]string, out *lambda.GetFunctionOutput) (agentproto.Workload, error) {
 		w := agentproto.Workload{
 			ID: id, Kind: agentproto.LambdaFunction, Namespace: &region,
-			Name: aws.ToString(f.FunctionName), Containers: []agentproto.Container{},
+			Name: aws.ToString(f.FunctionName), Containers: []agentproto.Container{}, Exposed: urls[id],
 		}
 		if len(labels) > 0 {
 			w.Labels = labels
@@ -276,4 +279,26 @@ func RuntimeImage(runtime string) string {
 		return ""
 	}
 	return base + m[1] + ":" + m[2] + m[3]
+}
+
+// publicURLs are a function's URLs anyone may call (auth type NONE), by the ARN they belong to: the function's,
+// or one of its aliases'. Without lambda:ListFunctionUrlConfigs there are none, and the function still counts.
+func (c *Collector) publicURLs(ctx context.Context, name *string) map[string][]string {
+	out := map[string][]string{}
+	var marker *string
+	for {
+		page, err := c.api.ListFunctionUrlConfigs(ctx, &lambda.ListFunctionUrlConfigsInput{FunctionName: name, Marker: marker})
+		if err != nil {
+			return out
+		}
+		for _, u := range page.FunctionUrlConfigs {
+			if u.AuthType == types.FunctionUrlAuthTypeNone {
+				arn := aws.ToString(u.FunctionArn)
+				out[arn] = append(out[arn], "function URL "+aws.ToString(u.FunctionUrl))
+			}
+		}
+		if marker = page.NextMarker; marker == nil {
+			return out
+		}
+	}
 }

@@ -291,6 +291,11 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 
 	res := collectors.Result{Workloads: b.result(), Complete: true}
+	if exposed := c.exposure(ctx, pods, owner); len(exposed) > 0 {
+		for i := range res.Workloads {
+			res.Workloads[i].Exposed = exposed[res.Workloads[i].ID]
+		}
+	}
 	if f := c.flux(ctx); len(f.kustomizations)+len(f.helmReleases) > 0 {
 		for i := range res.Workloads {
 			w := &res.Workloads[i]

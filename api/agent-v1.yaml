@@ -706,6 +706,16 @@ components:
           minimum: 0
         gitops:
           $ref: '#/components/schemas/GitOps'
+        exposed:
+          type: array
+          description: |
+            How the workload can be reached from outside its cluster or host, as the collector reads it: an Ingress
+            or HTTPRoute host, a LoadBalancer or NodePort service, an ECS load balancer or public IP, a Lambda
+            function URL without authentication, a Docker port published on every interface. Empty or absent: not
+            seen exposed. A `goliash.exposed` label (`internet` or `internal`) overrides it. Older servers ignore it.
+          items:
+            type: string
+          example: ["ingress shop.example.com", "LoadBalancer service payments/api"]
         containers:
           type: array
           description: |

@@ -39,6 +39,9 @@ type Update struct {
 	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
 	Exploited []string
 	Critical  int
+	// Exposed is how the running version can be reached from outside its cluster or host, if it can: within an
+	// urgency level, exposed updates come first.
+	Exposed []string
 	// ExploitedSince is when the first of Exploited became known to run exploited: the later of the image running
 	// there and CISA listing it.
 	ExploitedSince time.Time
@@ -144,6 +147,9 @@ func sortUpdates(out []Update) {
 		if a.Urgency != b.Urgency {
 			return a.Urgency < b.Urgency
 		}
+		if (len(a.Exposed) > 0) != (len(b.Exposed) > 0) {
+			return len(a.Exposed) > 0
+		}
 		if a.Environment.Position != b.Environment.Position {
 			return a.Environment.Position > b.Environment.Position // production first
 		}
@@ -195,10 +201,31 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	return us
 }
 
+// WithExposure adds how each update's running version can be reached from outside, from what its workloads in
+// that environment run, and puts exposed ones first within their urgency.
+func WithExposure(us []Update, active []store.Instance) []Update {
+	type key struct{ svc, env string }
+	ways := map[key][]string{}
+	for _, in := range active {
+		if in.IsMain && len(in.Exposed) > 0 {
+			k := key{in.ServiceID, in.EnvironmentID}
+			ways[k] = union(ways[k], in.Exposed)
+		}
+	}
+	for i := range us {
+		us[i].Exposed = ways[key{us[i].Service.ID, us[i].Environment.ID}]
+	}
+	sortUpdates(us)
+	return us
+}
+
 // LoadUpdates lists what to upgrade with the vulnerabilities of the running images; without a vulnerability
 // report (OSV off, or it failed) the list is the same, ranked by drift alone.
 func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time) []Update {
 	us := Updates(o, acks, now)
+	if active, err := st.ListActiveInstances(ctx, sc); err == nil {
+		us = WithExposure(us, active)
+	}
 	if r, err := LoadVulnReport(ctx, st, sc, ""); err == nil {
 		us = WithVulnerabilities(us, r)
 		if idx, err := loadVulnIndex(ctx, st, sc, r); err == nil {

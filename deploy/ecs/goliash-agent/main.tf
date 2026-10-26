@@ -4,7 +4,8 @@
 # goliash-agent as an ECS Fargate service. Its task role may only call ecs:List*,
 # ecs:Describe* and ecr:ListImages, so it reads every cluster in the region and the tags
 # of private ECR repositories, and changes nothing. With watch_lambda it may also call
-# lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases, and watches the
+# lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases and
+# lambda:ListFunctionUrlConfigs, and watches the
 # region's functions.
 
 terraform {
@@ -55,7 +56,7 @@ data "aws_iam_policy_document" "read_ecs" {
     for_each = var.watch_lambda ? [1] : []
     content {
       sid       = "ReadLambda"
-      actions   = ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases"]
+      actions   = ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs"]
       resources = ["*"]
     }
   }

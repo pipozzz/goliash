@@ -837,6 +837,10 @@ paths:
                       items: { type: string }
                       description: Vulnerabilities in the running image that CISA lists as exploited in the wild, from its SBOM.
                     critical_vulnerabilities: { type: integer, description: "Other critical vulnerabilities in the running image." }
+                    exposed:
+                      type: array
+                      items: { type: string }
+                      description: How the running version can be reached from outside its cluster or host; exposed updates come first within an urgency.
                     vulnerabilities:
                       allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
                       description: >-
@@ -889,9 +893,10 @@ paths:
         - { name: q, in: query, schema: { type: string }, description: 'A CVE or advisory ID, package or service; part of it matches' }
         - { name: environment, in: query, schema: { type: string }, description: Only this environment }
         - { name: exploited, in: query, schema: { type: boolean }, description: Only vulnerabilities exploited in the wild (CISA KEV) }
+        - { name: exposed, in: query, schema: { type: boolean }, description: Only those in images reachable from outside their cluster or host }
       responses:
         "200":
-          description: Findings, exploited first, then by severity.
+          description: Findings, exploited first, then those in exposed images, then by severity.
           content:
             text/csv:
               schema: { type: string }
@@ -937,6 +942,11 @@ paths:
                               package: { type: string, example: log4j-core 2.14.1 }
                               fix: { type: string, example: 2.15.0 }
                               since: { type: string, format: date-time, description: "Since when the image has run in the environment." }
+                              exposed:
+                                type: array
+                                items: { type: string }
+                                description: How the image can be reached from outside its cluster or host, as the agent read it.
+                                example: ["ingress shop.example.com"]
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }

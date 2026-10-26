@@ -68,6 +68,7 @@ type UpdateItem struct {
 	LevelLabel                           string
 	Skip                                 string // the version after Target: "skip this version" holds until a newer one
 	Exploited                            []string
+	Exposed                              []string // how the running version can be reached from outside
 	Critical                             int
 	Vulns                                versions.VulnDelta // what the upgrade does to known vulnerabilities, when known
 	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
@@ -94,7 +95,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
 		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " ")) {
@@ -109,7 +110,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL,
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "),
 		})
 	}
 	cw.Flush()
@@ -216,7 +217,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Exploited: u.Exploited, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
+			Exploited: u.Exploited, Exposed: u.Exposed, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor,
 		}
 		if !u.Due.IsZero() {
@@ -406,3 +407,6 @@ func allDue(v UpdatesView) UpdatesView {
 	v.OnlyOverdue = false
 	return v
 }
+
+// exposedTitle says how something can be reached from outside.
+func exposedTitle(ways []string) string { return "Reachable from outside: " + strings.Join(ways, "; ") }

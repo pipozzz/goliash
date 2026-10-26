@@ -900,6 +900,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Since        time.Time     `json:"since"`
 		Acknowledged bool          `json:"acknowledged"`
 		Exploited    []string      `json:"exploited,omitempty"`
+		Exposed      []string      `json:"exposed,omitempty"`
 		Critical     int           `json:"critical_vulnerabilities,omitempty"`
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 		SecurityFix  string        `json:"security_fix,omitempty"`
@@ -921,7 +922,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
 			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
-			Exploited: u.Exploited, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
+			Exploited: u.Exploited, Exposed: u.Exposed, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
 			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left,
 		})
 	}
@@ -1353,6 +1354,7 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		Package     string     `json:"package"`
 		Fix         string     `json:"fix,omitempty"`
 		Since       *time.Time `json:"since,omitempty"`
+		Exposed     []string   `json:"exposed,omitempty"`
 	}
 	type apiFinding struct {
 		ID         string        `json:"id"`
@@ -1366,7 +1368,7 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		Affected   []apiAffected `json:"affected"`
 	}
 	query := strings.ToUpper(strings.TrimSpace(q.Get("q")))
-	onlyExploited := q.Get("exploited") == "true"
+	onlyExploited, onlyExposed := q.Get("exploited") == "true", q.Get("exposed") == "true"
 	out := struct {
 		Images   int          `json:"images"`
 		WithSBOM int          `json:"images_with_sbom"`
@@ -1377,7 +1379,7 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 	if q.Get("format") == "csv" {
 		var shown []versions.VulnFinding
 		for _, f := range rep.Findings {
-			if (!onlyExploited || f.Exploited != nil) && (query == "" || versions.FindingMatches(f, query)) {
+			if (!onlyExploited || f.Exploited != nil) && (!onlyExposed || f.IsExposed()) && (query == "" || versions.FindingMatches(f, query)) {
 				shown = append(shown, f)
 			}
 		}
@@ -1386,7 +1388,7 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	for _, f := range rep.Findings {
-		if onlyExploited && f.Exploited == nil {
+		if (onlyExploited && f.Exploited == nil) || (onlyExposed && !f.IsExposed()) {
 			continue
 		}
 		if query != "" && !versions.FindingMatches(f, query) {
@@ -1407,7 +1409,7 @@ func (h *PublicHandler) vulnerabilities(w http.ResponseWriter, r *http.Request, 
 			af.Since = &t
 		}
 		for _, a := range f.Affected {
-			aa := apiAffected{Service: a.Service, Environment: a.Env, Image: a.Image, Package: a.Package, Fix: a.Fix}
+			aa := apiAffected{Service: a.Service, Environment: a.Env, Image: a.Image, Package: a.Package, Fix: a.Fix, Exposed: a.Exposed}
 			if !a.Since.IsZero() {
 				t := a.Since
 				aa.Since = &t

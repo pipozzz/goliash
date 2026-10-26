@@ -1073,7 +1073,7 @@ func connectManualForm(v ConnectFormView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "\" placeholder=\"live=prod, canary=-\"> <span class=\"hint\">A function with aliases shows once per alias, in the environment named like the alias. Map the others here; - leaves an alias out.</span></label><p class=\"hint\">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "\" placeholder=\"live=prod, canary=-\"> <span class=\"hint\">A function with aliases shows once per alias, in the environment named like the alias. Map the others here; - leaves an alias out.</span></label><p class=\"hint\">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases and lambda:ListFunctionUrlConfigs.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -86,6 +86,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			}
 			inst.App, inst.AppSource = app, appSource
 			inst.Team = workloadTeam(w.Labels)
+			inst.Exposed = exposed(w)
 			if d.EnvName != "" {
 				if id, ok := in.EnvByName[d.EnvName]; ok {
 					inst.EnvironmentID = id
@@ -273,3 +274,15 @@ func event(typ string, i store.Instance, from, to, note string, at time.Time) st
 var serviceNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$`)
 
 func validServiceName(name string) bool { return serviceNamePattern.MatchString(name) }
+
+// exposed is how a workload can be reached from outside, as its agent read it; a goliash.exposed label says so
+// instead: internet (whatever the agent saw) or internal (nothing).
+func exposed(w agentproto.Workload) []string {
+	switch strings.ToLower(w.Labels["goliash.exposed"]) {
+	case "internal", "false", "no":
+		return nil
+	case "internet", "true", "yes":
+		return []string{"label goliash.exposed"}
+	}
+	return w.Exposed
+}

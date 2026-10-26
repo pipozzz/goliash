@@ -20,12 +20,14 @@ var (
 
 const containers = `[
  {"Id":"c1","Names":["/shop-web-1"],"Image":"nginx:1.27.2","ImageID":"img-nginx",
+  "Ports":[{"IP":"0.0.0.0","PrivatePort":80,"PublicPort":8080,"Type":"tcp"},{"IP":"::","PrivatePort":80,"PublicPort":8080,"Type":"tcp"}],
   "Labels":{"com.docker.compose.project":"shop","com.docker.compose.service":"web","goliash.service":"web"}},
  {"Id":"c2","Names":["/shop-web-2"],"Image":"nginx:1.27.2","ImageID":"img-nginx",
   "Labels":{"com.docker.compose.project":"shop","com.docker.compose.service":"web","goliash.service":"web"}},
  {"Id":"c3","Names":["/shop-worker-1"],"Image":"sha256:abc","ImageID":"img-worker",
   "Labels":{"com.docker.compose.project":"shop","com.docker.compose.service":"worker"}},
- {"Id":"c4","Names":["/portainer"],"Image":"portainer/portainer-ce:2.21.0@SHA2","ImageID":"img-portainer","Labels":{}},
+ {"Id":"c4","Names":["/portainer"],"Image":"portainer/portainer-ce:2.21.0@SHA2","ImageID":"img-portainer","Labels":{},
+  "Ports":[{"IP":"127.0.0.1","PrivatePort":9000,"PublicPort":9000,"Type":"tcp"},{"PrivatePort":8000,"Type":"tcp"}]},
  {"Id":"c5","Names":["/shop-web-run-1"],"Image":"nginx:1.27.2","ImageID":"img-nginx",
   "Labels":{"com.docker.compose.project":"shop","com.docker.compose.service":"web","com.docker.compose.oneoff":"True"}},
  {"Id":"c6","Names":["/api.1.xyz"],"Image":"ghcr.io/acme/api:1.0.0","ImageID":"img-api",
@@ -100,6 +102,10 @@ func TestCollect(t *testing.T) {
 	p := got["portainer"]
 	if p.Kind != agentproto.DockerContainer || p.Namespace != nil || p.Containers[0].Image != "portainer/portainer-ce:2.21.0" || *p.Containers[0].Digest != d2 {
 		t.Fatalf("standalone container %+v", p)
+	}
+	// Published on every interface counts, once; on 127.0.0.1 or not published does not.
+	if e := got["shop/web"].Exposed; len(e) != 1 || e[0] != "port 8080/tcp published" || len(p.Exposed) != 0 {
+		t.Errorf("exposed: web %v, portainer %v", e, p.Exposed)
 	}
 }
 

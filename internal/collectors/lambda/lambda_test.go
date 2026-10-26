@@ -41,6 +41,7 @@ type fakeAPI struct {
 	aliases     map[string][]types.AliasConfiguration
 	versions    map[string]map[string]*lambda.GetFunctionOutput // function -> version
 	denyAliases bool
+	urls        map[string][]types.FunctionUrlConfig
 	mu          sync.Mutex // the collector reads functions in parallel
 	gets        []string
 }
@@ -76,6 +77,13 @@ func (f *fakeAPI) ListAliases(_ context.Context, in *lambda.ListAliasesInput, _ 
 		return nil, errors.New("operation error Lambda: ListAliases, AccessDeniedException: not authorized")
 	}
 	return &lambda.ListAliasesOutput{Aliases: f.aliases[aws.ToString(in.FunctionName)]}, nil
+}
+
+func (f *fakeAPI) ListFunctionUrlConfigs(_ context.Context, in *lambda.ListFunctionUrlConfigsInput, _ ...func(*lambda.Options)) (*lambda.ListFunctionUrlConfigsOutput, error) { //nolint:revive // the AWS SDK names it so
+	if f.urls == nil {
+		return nil, errors.New("AccessDeniedException")
+	}
+	return &lambda.ListFunctionUrlConfigsOutput{FunctionUrlConfigs: f.urls[aws.ToString(in.FunctionName)]}, nil
 }
 
 func fn(name string, pkg types.PackageType, runtime types.Runtime) types.FunctionConfiguration {
@@ -143,6 +151,11 @@ func TestAliases(t *testing.T) {
 			"api":    {"7": image("1.4.0"), "6": image("1.3.2")},
 			"resize": {"3": {Configuration: &types.FunctionConfiguration{PackageType: types.PackageTypeZip, Runtime: types.RuntimePython311}}},
 		},
+		// Anyone may call the live alias's URL; staging's needs IAM.
+		urls: map[string][]types.FunctionUrlConfig{"api": {
+			{FunctionArn: alias("api", "live", "6").AliasArn, AuthType: types.FunctionUrlAuthTypeNone, FunctionUrl: aws.String("https://abc.lambda-url.eu-west-1.on.aws/")},
+			{FunctionArn: alias("api", "staging", "7").AliasArn, AuthType: types.FunctionUrlAuthTypeAwsIam, FunctionUrl: aws.String("https://def.lambda-url.eu-west-1.on.aws/")},
+		}},
 	}
 	c := NewWithAPI(api, "eu-west-1", nil)
 	c.aliasEnvs = map[string]string{"live": "prod", "canary": "-"}
@@ -155,6 +168,10 @@ func TestAliases(t *testing.T) {
 		got[w.Name+"@"+w.Labels[aliasLabel]] = w.Labels["goliash.env"] + " " + w.Containers[0].Image
 		if w.Name == "api" && w.Labels["goliash.app"] != "shop" {
 			t.Errorf("tags lost: %+v", w.Labels)
+		}
+		public := w.Name == "api" && w.Labels[aliasLabel] == "live"
+		if public != (len(w.Exposed) == 1) || public && w.Exposed[0] != "function URL https://abc.lambda-url.eu-west-1.on.aws/" {
+			t.Errorf("%s@%s exposed %v", w.Name, w.Labels[aliasLabel], w.Exposed)
 		}
 	}
 	want := map[string]string{

@@ -177,3 +177,19 @@ func TestNewNeedsRegion(t *testing.T) {
 		t.Fatal("missing region accepted")
 	}
 }
+
+func TestExposed(t *testing.T) {
+	svc := types.Service{
+		LoadBalancers: []types.LoadBalancer{{TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:eu-west-1:1:targetgroup/payments-api/73e2d6bc24d8a067")}},
+		NetworkConfiguration: &types.NetworkConfiguration{AwsvpcConfiguration: &types.AwsVpcConfiguration{
+			AssignPublicIp: types.AssignPublicIpEnabled,
+		}},
+	}
+	got := exposed(svc)
+	if len(got) != 2 || got[0] != "load balancer target group payments-api" || got[1] != "public IP" {
+		t.Errorf("exposed %v", got)
+	}
+	if got := exposed(types.Service{}); len(got) != 0 {
+		t.Errorf("private service exposed %v", got)
+	}
+}

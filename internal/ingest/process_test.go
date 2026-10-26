@@ -304,3 +304,30 @@ func TestAutoMap(t *testing.T) {
 		t.Fatalf("rules %d", len(rules))
 	}
 }
+
+// How a workload can be reached from outside is stored with its instances and follows each snapshot; a
+// goliash.exposed label overrides what the agent read.
+func TestExposed(t *testing.T) {
+	w := newWorld(t)
+	pay := payments(map[string]int{"1.4.2": 1}, false)
+	pay.Exposed = []string{"ingress pay.example.com"}
+	wk := worker(map[string]string{"goliash.exposed": "internet"})
+	w.send(true, pay, wk)
+	act := w.active()
+	if e := act["payments-api/app:1.4.2"].Exposed; len(e) != 1 || e[0] != "ingress pay.example.com" {
+		t.Fatalf("payments exposed %v", e)
+	}
+	if e := act["worker-v2/main:2.0.0"].Exposed; len(e) != 1 || e[0] != "label goliash.exposed" {
+		t.Fatalf("worker exposed %v", e)
+	}
+	pay.Exposed = []string{"ingress pay.example.com", "LoadBalancer service payments/pay"}
+	pay.Labels["goliash.exposed"] = "internal"
+	w.send(true, pay, worker(nil))
+	act = w.active()
+	if e := act["payments-api/app:1.4.2"].Exposed; len(e) != 0 {
+		t.Errorf("labelled internal, still exposed %v", e)
+	}
+	if e := act["worker-v2/main:2.0.0"].Exposed; len(e) != 0 {
+		t.Errorf("no longer exposed, still %v", e)
+	}
+}

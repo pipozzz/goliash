@@ -67,11 +67,12 @@ func WriteVulnsCSV(w io.Writer, findings []VulnFinding, now time.Time) error {
 			rows = append(rows, []string{
 				f.Key, strings.Join(f.Aliases, " "), strings.ToLower(f.Severity), exploited, ransomware, due,
 				strconv.FormatBool(f.PastDue(now)), a.Service, a.Env, a.Image, a.Package, a.Fix, since, f.Summary,
+				strings.Join(a.Exposed, "; "),
 			})
 		}
 	}
 	return writeCSV(w, []string{
 		"id", "aliases", "severity", "exploited", "ransomware", "cisa_due_date", "past_due",
-		"service", "environment", "image", "package", "fix", "running_since", "summary",
+		"service", "environment", "image", "package", "fix", "running_since", "summary", "exposed",
 	}, rows)
 }

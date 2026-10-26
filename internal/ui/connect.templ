@@ -269,7 +269,7 @@ templ connectManualForm(v ConnectFormView) {
 								<input name="aliases" value={ formVal(v.Form, "aliases", "") } placeholder="live=prod, canary=-"/>
 								<span class="hint">A function with aliases shows once per alias, in the environment named like the alias. Map the others here; - leaves an alias out.</span>
 							</label>
-							<p class="hint">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases.</p>
+							<p class="hint">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases and lambda:ListFunctionUrlConfigs.</p>
 						case "compose":
 							<label>
 								Compose files

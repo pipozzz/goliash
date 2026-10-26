@@ -150,6 +150,7 @@ func (c *Collector) service(ctx context.Context, cluster string, svc types.Servi
 			w.Labels[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
 		}
 	}
+	w.Exposed = exposed(svc)
 
 	var taskArns []string
 	var next *string
@@ -261,4 +262,31 @@ func chunks(items []string, size int) func(func([]string) bool) {
 			items = items[n:]
 		}
 	}
+}
+
+// exposed says how an ECS service can be reached from outside its VPC: a load balancer it registers with (which
+// may be internal: tag it goliash.exposed=internal), or a public IP on its tasks.
+func exposed(svc types.Service) []string {
+	var out []string
+	for _, lb := range svc.LoadBalancers {
+		switch {
+		case lb.TargetGroupArn != nil:
+			out = append(out, "load balancer target group "+targetGroup(aws.ToString(lb.TargetGroupArn)))
+		case lb.LoadBalancerName != nil:
+			out = append(out, "load balancer "+aws.ToString(lb.LoadBalancerName))
+		}
+	}
+	if nc := svc.NetworkConfiguration; nc != nil && nc.AwsvpcConfiguration != nil && nc.AwsvpcConfiguration.AssignPublicIp == types.AssignPublicIpEnabled {
+		out = append(out, "public IP")
+	}
+	return out
+}
+
+// targetGroup is a target group's name, from its ARN (…:targetgroup/payments-api/73e2d6bc24d8a067).
+func targetGroup(arn string) string {
+	if _, rest, ok := strings.Cut(arn, ":targetgroup/"); ok {
+		name, _, _ := strings.Cut(rest, "/")
+		return name
+	}
+	return arn
 }

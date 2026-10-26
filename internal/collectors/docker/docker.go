@@ -6,6 +6,7 @@ package docker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"slices"
 	"sort"
@@ -47,6 +48,14 @@ type containerJSON struct {
 	Image   string
 	ImageID string
 	Labels  map[string]string
+	Ports   []portJSON
+}
+
+type portJSON struct {
+	IP          string
+	PrivatePort int
+	PublicPort  int
+	Type        string
 }
 
 // Collect groups running containers into Compose services (by project and service)
@@ -83,6 +92,11 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 			digest = matchDigest(image, digests[ct.ImageID])
 		}
 		counts[w.ID][group{w.Name, image, digest}]++
+		for _, way := range published(ct.Ports) {
+			if !slices.Contains(byID[w.ID].Exposed, way) {
+				byID[w.ID].Exposed = append(byID[w.ID].Exposed, way)
+			}
+		}
 	}
 
 	res := collectors.Result{Complete: true, Workloads: make([]agentproto.Workload, 0, len(byID))}
@@ -166,4 +180,20 @@ func repository(ref string) string {
 	}
 	ref = strings.TrimPrefix(ref, "docker.io/")
 	return strings.TrimPrefix(ref, "library/")
+}
+
+// published are the ports a container publishes on every interface of the host (not on 127.0.0.1 or another
+// single address): reachable from the host's networks.
+func published(ports []portJSON) []string {
+	var out []string
+	for _, p := range ports {
+		if p.PublicPort == 0 || (p.IP != "" && p.IP != "0.0.0.0" && p.IP != "::") {
+			continue
+		}
+		way := fmt.Sprintf("port %d/%s published", p.PublicPort, p.Type)
+		if !slices.Contains(out, way) { // Docker lists IPv4 and IPv6 bindings apart
+			out = append(out, way)
+		}
+	}
+	return out
 }
