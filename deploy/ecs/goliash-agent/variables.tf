@@ -72,6 +72,12 @@ variable "watch_rds" {
   default     = false
 }
 
+variable "watch_elasticache" {
+  description = "Also watch the region's ElastiCache caches: lets the task role call elasticache:Describe* and elasticache:ListTagsForResource."
+  type        = bool
+  default     = false
+}
+
 variable "regions" {
   description = "More regions to watch besides the agent's own; with an enrollment code the agent adds their ECS clusters (and Lambda functions with watch_lambda)."
   type        = list(string)

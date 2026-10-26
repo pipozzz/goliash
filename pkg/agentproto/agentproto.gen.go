@@ -79,16 +79,17 @@ func (e ImageInspectionPurlsFrom) Valid() bool {
 
 // Defines values for Platform.
 const (
-	Compose    Platform = "compose"
-	Docker     Platform = "docker"
-	Ecs        Platform = "ecs"
-	Host       Platform = "host"
-	Kubernetes Platform = "kubernetes"
-	Lambda     Platform = "lambda"
-	Manual     Platform = "manual"
-	Nomad      Platform = "nomad"
-	Rds        Platform = "rds"
-	Swarm      Platform = "swarm"
+	Compose     Platform = "compose"
+	Docker      Platform = "docker"
+	Ecs         Platform = "ecs"
+	Elasticache Platform = "elasticache"
+	Host        Platform = "host"
+	Kubernetes  Platform = "kubernetes"
+	Lambda      Platform = "lambda"
+	Manual      Platform = "manual"
+	Nomad       Platform = "nomad"
+	Rds         Platform = "rds"
+	Swarm       Platform = "swarm"
 )
 
 // Valid indicates whether the value is a known member of the Platform enum.
@@ -99,6 +100,8 @@ func (e Platform) Valid() bool {
 	case Docker:
 		return true
 	case Ecs:
+		return true
+	case Elasticache:
 		return true
 	case Host:
 		return true
@@ -139,21 +142,23 @@ func (e SnapshotAckStatus) Valid() bool {
 
 // Defines values for WorkloadKind.
 const (
-	ComposeService  WorkloadKind = "compose_service"
-	Cronjob         WorkloadKind = "cronjob"
-	Daemonset       WorkloadKind = "daemonset"
-	Deployment      WorkloadKind = "deployment"
-	DockerContainer WorkloadKind = "docker_container"
-	EcsService      WorkloadKind = "ecs_service"
-	HostOs          WorkloadKind = "host_os"
-	HostPackage     WorkloadKind = "host_package"
-	LambdaFunction  WorkloadKind = "lambda_function"
-	ManualEntry     WorkloadKind = "manual_entry"
-	NomadJob        WorkloadKind = "nomad_job"
-	RdsCluster      WorkloadKind = "rds_cluster"
-	RdsInstance     WorkloadKind = "rds_instance"
-	Statefulset     WorkloadKind = "statefulset"
-	SwarmService    WorkloadKind = "swarm_service"
+	ComposeService        WorkloadKind = "compose_service"
+	Cronjob               WorkloadKind = "cronjob"
+	Daemonset             WorkloadKind = "daemonset"
+	Deployment            WorkloadKind = "deployment"
+	DockerContainer       WorkloadKind = "docker_container"
+	EcsService            WorkloadKind = "ecs_service"
+	ElasticacheCluster    WorkloadKind = "elasticache_cluster"
+	ElasticacheServerless WorkloadKind = "elasticache_serverless"
+	HostOs                WorkloadKind = "host_os"
+	HostPackage           WorkloadKind = "host_package"
+	LambdaFunction        WorkloadKind = "lambda_function"
+	ManualEntry           WorkloadKind = "manual_entry"
+	NomadJob              WorkloadKind = "nomad_job"
+	RdsCluster            WorkloadKind = "rds_cluster"
+	RdsInstance           WorkloadKind = "rds_instance"
+	Statefulset           WorkloadKind = "statefulset"
+	SwarmService          WorkloadKind = "swarm_service"
 )
 
 // Valid indicates whether the value is a known member of the WorkloadKind enum.
@@ -170,6 +175,10 @@ func (e WorkloadKind) Valid() bool {
 	case DockerContainer:
 		return true
 	case EcsService:
+		return true
+	case ElasticacheCluster:
+		return true
+	case ElasticacheServerless:
 		return true
 	case HostOs:
 		return true
@@ -273,6 +282,13 @@ type DeclaredTarget struct {
 	Docker *DockerSettings `json:"docker,omitempty"`
 	Ecs    *ECSSettings    `json:"ecs,omitempty"`
 
+	// Elasticache Amazon ElastiCache caches of a region (Redis OSS, Valkey, Memcached), read with elasticache:Describe* and
+	// elasticache:ListTagsForResource. Each cache (a replication group, a standalone cluster or a serverless cache)
+	// reports its engine as an image, elasticache.amazonaws.com/<engine>:<version>, so newer engine versions and
+	// end of life show up; the agent reads the versions ElastiCache offers with
+	// elasticache:DescribeCacheEngineVersions.
+	Elasticache *ElastiCacheSettings `json:"elasticache,omitempty"`
+
 	// Host A Linux server or virtual machine: its operating system (/etc/os-release) and the installed packages
 	// that matter (dpkg or apk databases), read from the files only. In a container, mount the host's
 	// root read-only and set root.
@@ -331,6 +347,16 @@ type ECSSettings struct {
 	// Clusters Cluster names or ARNs. Empty means all clusters in the region.
 	Clusters []string `json:"clusters,omitempty"`
 
+	// Region Example: eu-west-1
+	Region string `json:"region"`
+}
+
+// ElastiCacheSettings Amazon ElastiCache caches of a region (Redis OSS, Valkey, Memcached), read with elasticache:Describe* and
+// elasticache:ListTagsForResource. Each cache (a replication group, a standalone cluster or a serverless cache)
+// reports its engine as an image, elasticache.amazonaws.com/<engine>:<version>, so newer engine versions and
+// end of life show up; the agent reads the versions ElastiCache offers with
+// elasticache:DescribeCacheEngineVersions.
+type ElastiCacheSettings struct {
 	// Region Example: eu-west-1
 	Region string `json:"region"`
 }
@@ -711,6 +737,13 @@ type Target struct {
 	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
 	Docker *DockerSettings `json:"docker,omitempty"`
 	Ecs    *ECSSettings    `json:"ecs,omitempty"`
+
+	// Elasticache Amazon ElastiCache caches of a region (Redis OSS, Valkey, Memcached), read with elasticache:Describe* and
+	// elasticache:ListTagsForResource. Each cache (a replication group, a standalone cluster or a serverless cache)
+	// reports its engine as an image, elasticache.amazonaws.com/<engine>:<version>, so newer engine versions and
+	// end of life show up; the agent reads the versions ElastiCache offers with
+	// elasticache:DescribeCacheEngineVersions.
+	Elasticache *ElastiCacheSettings `json:"elasticache,omitempty"`
 
 	// Host A Linux server or virtual machine: its operating system (/etc/os-release) and the installed packages
 	// that matter (dpkg or apk databases), read from the files only. In a container, mount the host's

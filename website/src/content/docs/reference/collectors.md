@@ -11,6 +11,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` names an AWS profile |
 | AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon RDS | PostgreSQL, MySQL, MariaDB and Aurora databases of a region: engine version, the versions RDS offers, public accessibility; tags | IAM `rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions` | default AWS chain; `credentials_ref` names an AWS profile |
+| Amazon ElastiCache | Redis OSS, Valkey and Memcached caches of a region (replication groups, clusters, serverless): engine version, the versions ElastiCache offers; tags | IAM `elasticache:Describe*`, `elasticache:ListTagsForResource` | default AWS chain; `credentials_ref` names an AWS profile |
 | Nomad | jobs, job versions, allocations | ACL token with `list-jobs` and `read-job` | `credentials_ref` resolves to the token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
@@ -30,6 +31,7 @@ Each target has the settings object of its platform:
 {"docker": {"docker_host": "tcp://socket-proxy:2375", "projects": ["shop"]}}
 {"lambda": {"region": "eu-west-1", "name_prefixes": ["shop-"], "alias_environments": {"live": "prod", "canary": "-"}}}
 {"rds": {"region": "eu-west-1"}}
+{"elasticache": {"region": "eu-west-1"}}
 {"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 

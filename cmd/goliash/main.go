@@ -52,6 +52,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/compose"
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/internal/collectors/ecs"
+	"github.com/pipozzz/goliash/internal/collectors/elasticache"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
 	"github.com/pipozzz/goliash/internal/collectors/lambda"
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
@@ -689,14 +690,15 @@ func serve(ctx context.Context, args []string) error {
 		}
 		if *collect {
 			go ingest.NewServerCollectors(svc, db, map[agentproto.Platform]collectors.Factory{
-				agentproto.Kubernetes: kubernetes.New,
-				agentproto.Ecs:        ecs.New,
-				agentproto.Lambda:     lambda.New,
-				agentproto.Rds:        rds.New,
-				agentproto.Nomad:      nomad.New,
-				agentproto.Swarm:      swarm.New,
-				agentproto.Docker:     docker.New,
-				agentproto.Compose:    compose.NewRemote, // URLs only: no reading the server's files
+				agentproto.Kubernetes:  kubernetes.New,
+				agentproto.Ecs:         ecs.New,
+				agentproto.Lambda:      lambda.New,
+				agentproto.Rds:         rds.New,
+				agentproto.Elasticache: elasticache.New,
+				agentproto.Nomad:       nomad.New,
+				agentproto.Swarm:       swarm.New,
+				agentproto.Docker:      docker.New,
+				agentproto.Compose:     compose.NewRemote, // URLs only: no reading the server's files
 			}, log).Run(lctx, time.Minute)
 		}
 	})

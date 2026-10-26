@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/collectors/elasticache"
 	"github.com/pipozzz/goliash/internal/collectors/rds"
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/registry/ecr"
@@ -81,7 +82,8 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 				r.Tags = append(r.Tags, agentproto.RegistryTag{Name: t})
 			}
 		}
-		if !strings.HasPrefix(c.Repository, rds.Host+"/") { // engine versions have no manifests to read
+		if !strings.HasPrefix(c.Repository, rds.Host+"/") && !strings.HasPrefix(c.Repository, elasticache.Host+"/") {
+			// engine versions have no manifests to read
 			r.Resolved = a.resolveDigests(ctx, c, creds)
 			r.Inspected = a.inspectDigests(ctx, c, creds)
 		}
@@ -140,6 +142,15 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 			return nil, none, err
 		}
 		tags, err := rds.EngineVersions(ctx, api, c.Repository)
+		return tags, none, err
+	}
+	if strings.HasPrefix(c.Repository, elasticache.Host+"/") {
+		// An ElastiCache engine: the versions ElastiCache offers in the agent's region.
+		api, err := elasticache.Client(ctx, "", strings.TrimSpace(secret))
+		if err != nil {
+			return nil, none, err
+		}
+		tags, err := elasticache.EngineVersions(ctx, api, c.Repository)
 		return tags, none, err
 	}
 	if _, _, _, ok := ecr.Parse(c.Repository); ok {

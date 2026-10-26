@@ -256,7 +256,7 @@ components:
       description: >-
         manual is a target whose versions people enter on the server, for software Goliash does not collect
         (a virtual machine, a managed service); it is never assigned to an agent.
-      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, rds, manual, host]
+      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, rds, elasticache, manual, host]
 
     RegisterRequest:
       type: object
@@ -352,6 +352,8 @@ components:
           $ref: '#/components/schemas/LambdaSettings'
         rds:
           $ref: '#/components/schemas/RDSSettings'
+        elasticache:
+          $ref: '#/components/schemas/ElastiCacheSettings'
         host:
           $ref: '#/components/schemas/HostSettings'
 
@@ -452,6 +454,8 @@ components:
           $ref: '#/components/schemas/LambdaSettings'
         rds:
           $ref: '#/components/schemas/RDSSettings'
+        elasticache:
+          $ref: '#/components/schemas/ElastiCacheSettings'
         host:
           $ref: '#/components/schemas/HostSettings'
 
@@ -564,6 +568,20 @@ components:
         Each database (an instance, or an Aurora cluster with its instances) reports its engine as an image,
         rds.amazonaws.com/<engine>:<version> (postgres:16.4, aurora-mysql:3.05.2), so newer engine versions and the
         end of standard support show up; the agent reads the versions RDS offers with rds:DescribeDBEngineVersions.
+      properties:
+        region:
+          type: string
+          example: eu-west-1
+
+    ElastiCacheSettings:
+      type: object
+      required: [region]
+      description: |
+        Amazon ElastiCache caches of a region (Redis OSS, Valkey, Memcached), read with elasticache:Describe* and
+        elasticache:ListTagsForResource. Each cache (a replication group, a standalone cluster or a serverless cache)
+        reports its engine as an image, elasticache.amazonaws.com/<engine>:<version>, so newer engine versions and
+        end of life show up; the agent reads the versions ElastiCache offers with
+        elasticache:DescribeCacheEngineVersions.
       properties:
         region:
           type: string
@@ -694,7 +712,7 @@ components:
 
     WorkloadKind:
       type: string
-      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, rds_instance, rds_cluster, manual_entry, host_os, host_package]
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, rds_instance, rds_cluster, elasticache_cluster, elasticache_serverless, manual_entry, host_os, host_package]
 
     Workload:
       type: object

@@ -97,18 +97,36 @@ service gets in the matrix, Updates, notifications and reports:
 Tag a database (or cluster) `goliash.ignore=true` to leave it out, and `goliash.env=prod` to place it in an
 environment other than the target's. Pending maintenance (OS patches RDS schedules) is not read yet.
 
+## ElastiCache caches
+
+With `WatchElastiCache=true` (CloudFormation, the default) or `watch_elasticache = true` (Terraform) the task role
+may also call `elasticache:Describe*` and `elasticache:ListTagsForResource`, and the agent adds the region's caches
+as an `elasticache` target named `elasticache-<region>` (`GOLIASH_ELASTICACHE=off` stops it). With a token:
+`{"elasticache":{"region":"eu-west-1"}}`.
+
+Each replication group, standalone cluster (Memcached) and serverless cache is a service, its engine shown as
+`elasticache.amazonaws.com/redis:7.1.0` (or `valkey`, `memcached`):
+
+- **The versions ElastiCache offers** are its upstream releases, so newer engine versions show on Updates.
+- **End of life** comes from endoflife.date: ElastiCache's own dates for Redis OSS (after which AWS charges for
+  Extended Support), upstream Valkey and Memcached for those.
+- **During an engine upgrade** the group shows both versions, like a rollout.
+- **Tags:** `goliash.ignore=true` and `goliash.env` on the cache work as on databases. Without
+  `elasticache:ListTagsForResource` caches still count, without their tags.
+
 ## Leaving things out
 
-- `goliash.ignore=true` as a tag on an ECS service, Lambda function or RDS database keeps the agent from reporting
-  it.
+- `goliash.ignore=true` as a tag on an ECS service, Lambda function, RDS database or ElastiCache cache keeps the
+  agent from reporting it.
 - `Clusters` (`GOLIASH_ECS_CLUSTERS`) and `GOLIASH_ECS_EXCLUDE` choose the clusters.
-- `WatchLambda=false` and `WatchRDS=false` (`GOLIASH_LAMBDA=off`, `GOLIASH_RDS=off`) leave out Lambda or RDS.
+- `WatchLambda=false`, `WatchRDS=false` and `WatchElastiCache=false` (`GOLIASH_LAMBDA`, `GOLIASH_RDS`,
+  `GOLIASH_ELASTICACHE` set to `off`) leave out Lambda, RDS or ElastiCache.
 - In Goliash, an ignore rule (Inbox → **Ignore this image**) drops what the agent still reports.
 
 ## Upgrading the stack
 
 **Agents → Update** gives the command. It fetches the template of the new version, so the task role gains what the
-new version reads (RDS, Lambda function URLs), and keeps your parameters.
+new version reads (RDS, ElastiCache, Lambda function URLs), and keeps your parameters.
 
 ## What the ECS collector reports
 

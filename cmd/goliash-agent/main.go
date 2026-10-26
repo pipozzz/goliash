@@ -22,6 +22,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/compose"
 	"github.com/pipozzz/goliash/internal/collectors/docker"
 	"github.com/pipozzz/goliash/internal/collectors/ecs"
+	"github.com/pipozzz/goliash/internal/collectors/elasticache"
 	"github.com/pipozzz/goliash/internal/collectors/host"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
 	"github.com/pipozzz/goliash/internal/collectors/lambda"
@@ -87,15 +88,16 @@ func main() {
 			Token:     token,
 			DataDir:   *dataDir,
 			Collectors: map[agentproto.Platform]collectors.Factory{
-				agentproto.Kubernetes: kubernetes.New,
-				agentproto.Ecs:        ecs.New,
-				agentproto.Lambda:     lambda.New,
-				agentproto.Rds:        rds.New,
-				agentproto.Nomad:      nomad.New,
-				agentproto.Swarm:      swarm.New,
-				agentproto.Docker:     docker.New,
-				agentproto.Compose:    compose.New,
-				agentproto.Host:       host.New,
+				agentproto.Kubernetes:  kubernetes.New,
+				agentproto.Ecs:         ecs.New,
+				agentproto.Lambda:      lambda.New,
+				agentproto.Rds:         rds.New,
+				agentproto.Elasticache: elasticache.New,
+				agentproto.Nomad:       nomad.New,
+				agentproto.Swarm:       swarm.New,
+				agentproto.Docker:      docker.New,
+				agentproto.Compose:     compose.New,
+				agentproto.Host:        host.New,
 			},
 			Logger: log,
 		})

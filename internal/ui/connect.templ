@@ -153,7 +153,7 @@ func codeMany(p PlatformInfo) string {
 	switch p.Key {
 	case "kubernetes":
 		return "clusters"
-	case "nomad", "lambda", "rds":
+	case "nomad", "lambda", "rds", "elasticache":
 		return "regions"
 	case "ecs":
 		return "ECS clusters"
@@ -275,6 +275,11 @@ templ connectManualForm(v ConnectFormView) {
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
 							</div>
 							<p class="hint">Whoever collects it needs only rds:DescribeDBInstances, rds:DescribeDBClusters and rds:DescribeDBEngineVersions.</p>
+						case "elasticache":
+							<div class="row">
+								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
+							</div>
+							<p class="hint">Whoever collects it needs only elasticache:Describe* and elasticache:ListTagsForResource.</p>
 						case "compose":
 							<label>
 								Compose files

@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -65,6 +66,7 @@ type AWS interface {
 	ECSClusters(ctx context.Context, region string) ([]string, error) // ARNs
 	CanListFunctions(ctx context.Context, region string) error
 	CanListDatabases(ctx context.Context, region string) error
+	CanListCaches(ctx context.Context, region string) error
 }
 
 // Paths the agent looks at.
@@ -325,7 +327,7 @@ func arnParts(arn string) (region, cluster string) {
 // ECS cluster (or those in GOLIASH_ECS_CLUSTERS, without those in GOLIASH_ECS_EXCLUDE)
 // as a target of its own, so each can
 // sit in its own environment, and the region's Lambda functions (GOLIASH_LAMBDA=off
-// leaves them out) and RDS databases (GOLIASH_RDS=off). Platforms the credentials may not read are left out with
+// leaves them out), RDS databases (GOLIASH_RDS=off) and ElastiCache caches (GOLIASH_ELASTICACHE=off). Platforms the credentials may not read are left out with
 // a note.
 func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, string, agentproto.DeclaredTarget),
 	nameOr func(string) string, home, ownCluster string,
@@ -391,6 +393,15 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 				})
 			} else {
 				r.Notes = append(r.Notes, "rds "+region+": "+err.Error())
+			}
+		}
+		if o.Env("GOLIASH_ELASTICACHE") != "off" {
+			if err := o.AWS.CanListCaches(ctx, region); err == nil {
+				found(identity, agentName, agentproto.DeclaredTarget{
+					Platform: agentproto.Elasticache, Name: "elasticache-" + region, Elasticache: &agentproto.ElastiCacheSettings{Region: region},
+				})
+			} else {
+				r.Notes = append(r.Notes, "elasticache "+region+": "+err.Error())
 			}
 		}
 		if o.Env("GOLIASH_LAMBDA") == "off" {
@@ -468,6 +479,18 @@ func (sdkAWS) CanListDatabases(ctx context.Context, region string) error {
 	}
 	least := int32(20) // the smallest page RDS allows
 	_, err = rds.NewFromConfig(cfg).DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{MaxRecords: &least})
+	return err
+}
+
+func (sdkAWS) CanListCaches(ctx context.Context, region string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cfg, err := awsConfig(ctx, region)
+	if err != nil {
+		return err
+	}
+	least := int32(20) // the smallest page ElastiCache allows
+	_, err = elasticache.NewFromConfig(cfg).DescribeCacheClusters(ctx, &elasticache.DescribeCacheClustersInput{MaxRecords: &least})
 	return err
 }
 

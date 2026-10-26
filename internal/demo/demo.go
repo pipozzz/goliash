@@ -64,6 +64,7 @@ var tagsBefore = map[string][]string{
 	"public.ecr.aws/lambda/nodejs":                  {"18", "20", "22"},
 	"rds.amazonaws.com/postgres":                    {"13.15", "13.16", "14.12", "15.7", "16.3", "16.4"},
 	"rds.amazonaws.com/aurora-mysql":                {"3.05.2", "3.06.1", "3.07.1"},
+	"elasticache.amazonaws.com/redis":               {"5.0.6", "6.2.6", "7.0.7", "7.1.0"},
 }
 
 var tagsAfter = map[string][]string{
@@ -98,6 +99,7 @@ var images = map[string]string{
 	"nginx":         "nginx",
 	"billing-db":    "rds.amazonaws.com/postgres",
 	"orders-aurora": "rds.amazonaws.com/aurora-mysql",
+	"sessions":      "elasticache.amazonaws.com/redis",
 }
 
 var targets = []demoTarget{
@@ -143,6 +145,10 @@ var targets = []demoTarget{
 	// cluster a minor version behind.
 	{name: "demo-rds", env: "prod", platform: "rds", steps: []step{
 		{0, map[string]string{"billing-db": "13.15", "orders-aurora": "3.05.2"}},
+	}},
+	// A Redis replication group the shop keeps its sessions in, on an engine past its end of life.
+	{name: "demo-elasticache", env: "prod", platform: "elasticache", steps: []step{
+		{0, map[string]string{"sessions": "5.0.6"}},
 	}},
 	// Internal tools on Nomad and a plain Docker host.
 	{name: "demo-nomad", env: "prod", platform: "nomad", steps: []step{
@@ -257,7 +263,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		"orders-api": "team-orders", "notifications": "team-orders", "rabbitmq": "platform", "search": "team-search",
 		"webhook-relay": "team-integrations", "image-resizer": "team-media", "invoice-pdf": "team-orders",
 		"gitea": "devex", "vault": "security", "fluent-bit": "observability", "nginx": "devex",
-		"billing-db": "team-payments", "orders-aurora": "team-orders",
+		"billing-db": "team-payments", "orders-aurora": "team-orders", "sessions": "team-shop",
 	} {
 		s, err := st.GetServiceByName(ctx, sc, name)
 		if err != nil {
@@ -293,7 +299,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	}
 	// The engine versions RDS offers, as an agent in the account would report them.
 	for name, repo := range images {
-		if versions.RDSEngine(repo) == "" {
+		if !versions.Managed(repo) {
 			continue
 		}
 		if s, err := st.GetServiceByName(ctx, sc, name); err == nil {
@@ -622,6 +628,8 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		kind, ns = agentproto.RdsCluster, "us-east-1"
 	case t.platform == "rds":
 		kind, ns = agentproto.RdsInstance, "us-east-1"
+	case t.platform == "elasticache":
+		kind, ns = agentproto.ElasticacheCluster, "us-east-1"
 	case t.platform == "nomad":
 		kind = agentproto.NomadJob
 	case t.platform == "docker":
@@ -769,7 +777,7 @@ func seedPatchHistory(ctx context.Context, st *store.Store, sc store.Scope, prod
 	from, until := now.AddDate(0, -6, 0), now.Add(-22*24*time.Hour) // the snapshots cover the last three weeks
 	for _, svc := range services {
 		pace, ok := teamPace[svc.Owner]
-		if !ok || versions.RDSEngine(images[svc.Name]) != "" { // the databases stayed where they are
+		if !ok || versions.Managed(images[svc.Name]) { // the databases stayed where they are
 			continue
 		}
 		rels, err := st.ListReleases(ctx, sc, svc.ID)

@@ -58,8 +58,8 @@ func (e *EOL) Product(ctx context.Context, repo string) (string, error) {
 	if family := LambdaRuntime(repo); family != "" {
 		return lambdaProduct + "/" + family, nil
 	}
-	if engine := RDSEngine(repo); engine != "" {
-		return rdsProducts[engine], nil
+	if p := managedProducts[repo]; p != "" {
+		return p, nil
 	}
 	e.mu.Lock()
 	fresh := e.products != nil && time.Since(e.loaded) < 24*time.Hour
@@ -124,21 +124,20 @@ func purlImage(purl string) string {
 	return ""
 }
 
-// rdsProducts are the endoflife.date products of the RDS engines databases report as rds.amazonaws.com/<engine>:
-// their release cycles end with the end of standard support, after which AWS charges for RDS Extended Support.
-var rdsProducts = map[string]string{
-	"postgres": "amazon-rds-postgresql", "mysql": "amazon-rds-mysql", "mariadb": "amazon-rds-mariadb",
-	"aurora-postgresql": "amazon-aurora-postgresql", "aurora-mysql": "amazon-aurora-mysql",
+// managedProducts are the endoflife.date products of the engines managed services report as images: RDS
+// databases as rds.amazonaws.com/<engine>, ElastiCache caches as elasticache.amazonaws.com/<engine>. The RDS and
+// Redis cycles end with the end of standard support, after which AWS charges for Extended Support.
+var managedProducts = map[string]string{
+	"rds.amazonaws.com/postgres": "amazon-rds-postgresql", "rds.amazonaws.com/mysql": "amazon-rds-mysql",
+	"rds.amazonaws.com/mariadb": "amazon-rds-mariadb", "rds.amazonaws.com/aurora-postgresql": "amazon-aurora-postgresql",
+	"rds.amazonaws.com/aurora-mysql":  "amazon-aurora-mysql",
+	"elasticache.amazonaws.com/redis": "amazon-elasticache-redis", "elasticache.amazonaws.com/valkey": "valkey",
+	"elasticache.amazonaws.com/memcached": "memcached",
 }
 
-// RDSEngine is the RDS engine a database reports as its image repository (rds.amazonaws.com/postgres), or "".
-func RDSEngine(repo string) string {
-	engine, ok := strings.CutPrefix(repo, "rds.amazonaws.com/")
-	if !ok || rdsProducts[engine] == "" {
-		return ""
-	}
-	return engine
-}
+// Managed reports whether repo is the engine of a managed service (rds.amazonaws.com/postgres), which AWS runs and
+// patches: no image, no digest, no registry.
+func Managed(repo string) bool { return managedProducts[repo] != "" }
 
 // The endoflife.date product of AWS Lambda runtimes. Its release cycles are runtime
 // identifiers (python3.12, nodejs20.x); Lambda functions report runtimes as AWS base

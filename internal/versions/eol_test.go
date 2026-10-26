@@ -148,10 +148,10 @@ func TestRDSProducts(t *testing.T) {
 	e := NewEOL()
 	for repo, want := range map[string]string{
 		"rds.amazonaws.com/postgres": "amazon-rds-postgresql", "rds.amazonaws.com/aurora-mysql": "amazon-aurora-mysql",
-		"rds.amazonaws.com/oracle-ee": "",
+		"rds.amazonaws.com/oracle-ee": "", "elasticache.amazonaws.com/redis": "amazon-elasticache-redis",
 	} {
 		if want == "" {
-			if RDSEngine(repo) != "" {
+			if Managed(repo) {
 				t.Errorf("%s is no engine Goliash knows", repo)
 			}
 			continue

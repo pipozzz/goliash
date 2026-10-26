@@ -45,8 +45,8 @@ func Hygiene(active []store.Instance, envName, targetName map[string]string, all
 	var order []string
 	for _, i := range active {
 		ref := ParseImage(i.Image)
-		if RDSEngine(ref.Repo()) != "" {
-			continue // a managed database: AWS runs and patches it, no image to pin
+		if Managed(ref.Repo()) {
+			continue // a managed database or cache: AWS runs and patches it, no image to pin
 		}
 		key := ref.Repo() + ":" + ref.Tag
 		if byImage[key] == nil {

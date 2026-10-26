@@ -55,6 +55,10 @@ var connectPlatforms = []PlatformInfo{
 		AgentFirst: true, ServerHint: "The server can read RDS itself when it runs with AWS credentials that may describe databases.",
 	},
 	{
+		Key: "elasticache", Title: "Amazon ElastiCache", Summary: "Redis OSS, Valkey and Memcached caches of a region: engine versions, the versions ElastiCache offers, end of life.",
+		AgentFirst: true, ServerHint: "The server can read ElastiCache itself when it runs with AWS credentials that may describe caches.",
+	},
+	{
 		Key: "compose", Title: "Compose files", Summary: "What Compose files in Git declare, without a Docker engine.",
 		ServerHint: "The server fetches the files from their URLs; no agent needed.",
 	},
@@ -214,6 +218,12 @@ func connectSettings(platform string, f url.Values) (json.RawMessage, string) {
 			return nil, "Enter the AWS region, e.g. eu-west-1."
 		}
 		t.Rds = &agentproto.RDSSettings{Region: region}
+	case "elasticache":
+		region := val("region")
+		if region == "" {
+			return nil, "Enter the AWS region, e.g. eu-west-1."
+		}
+		t.Elasticache = &agentproto.ElastiCacheSettings{Region: region}
 	case "lambda":
 		region := val("region")
 		if region == "" {
@@ -629,7 +639,7 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			"nomad var put -force nomad/jobs/goliash-agent token=" + token + "\n" +
 			"# with Nomad ACLs, add nomad_token=<secret ID> above (a token that may list-jobs and read-job)\n" +
 			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
-	case "ecs", "lambda", "rds":
+	case "ecs", "lambda", "rds", "elasticache":
 		lambda := "false"
 		title := "Run the agent on ECS Fargate with CloudFormation (default VPC)"
 		switch platform {
@@ -637,6 +647,8 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			lambda, title = "true", "Run the agent on ECS Fargate with CloudFormation; it watches the region's functions"
 		case "rds":
 			title = "Run the agent on ECS Fargate with CloudFormation; it watches the region's databases"
+		case "elasticache":
+			title = "Run the agent on ECS Fargate with CloudFormation; it watches the region's caches"
 		}
 		return title, "curl -fsSLo goliash-agent.cfn.yaml " + raw + "ecs/goliash-agent.cfn.yaml && \\\n" +
 			"aws cloudformation deploy --stack-name goliash-agent --template-file goliash-agent.cfn.yaml --capabilities CAPABILITY_IAM \\\n" +
@@ -711,7 +723,7 @@ func agentLogs(platform string) string {
 		return "docker service logs goliash-agent_agent"
 	case "nomad":
 		return "nomad alloc logs -job goliash-agent"
-	case "ecs", "lambda", "rds":
+	case "ecs", "lambda", "rds", "elasticache":
 		return "aws logs tail /ecs/goliash-agent --follow"
 	}
 	return "docker logs goliash-agent"
@@ -742,7 +754,7 @@ func upgradeCommand(platform, serverURL, version string) (title, cmd string) {
 	case "nomad":
 		return "Run the job again with the new version", "curl -fsSLO " + raw + "nomad/goliash-agent.nomad.hcl\n" +
 			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
-	case "ecs", "lambda", "rds":
+	case "ecs", "lambda", "rds", "elasticache":
 		// The new template, so the role gains what the new version reads; parameters added since keep their
 		// defaults.
 		keep := ""
