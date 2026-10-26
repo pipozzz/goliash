@@ -1138,7 +1138,7 @@ a.live:hover { text-decoration: underline; }
 /* Swamped: many unread notifications. Goli sighs, the bell keeps ringing; the season's outfit waits. */
 .goli-swamped-outfit, .goli-say { display: none; }
 html.goli-swamped .goli-swamped-outfit { display: inline; }
-html.goli-swamped .goli-season, html.goli-swamped .goli-snow { display: none; }
+html.goli-swamped .goli-season, html.goli-swamped .goli-snow, html.goli-swamped .goli-arm, html.goli-swamped .goli-stack { display: none; }
 html.goli-swamped.goli-swamped .goli-bell { display: inline; animation: goli-ring 1.6s ease-in-out infinite; }
 html.goli-swamped .goli-ding { opacity: 1; }
 html.goli-swamped .goli-fab .goli-say {
