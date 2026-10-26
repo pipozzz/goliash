@@ -696,3 +696,27 @@ func TestInspectDigests(t *testing.T) {
 		t.Fatalf("ECR with a token not inspected: %+v", got)
 	}
 }
+
+// pkgRegistry is a private registry whose image has no SBOM but a package database, and declares a component.
+type pkgRegistry struct{ fakeRegistry }
+
+func (r *pkgRegistry) ImageEvidence(context.Context, string, string, registry.Credentials) (registry.Evidence, error) {
+	return registry.Evidence{Components: "nginx=1.27.2"}, nil
+}
+
+func (r *pkgRegistry) ImageSBOM(context.Context, string, string, registry.Credentials) (registry.SBOM, error) {
+	return registry.SBOM{}, errors.New("no sbom")
+}
+
+func (r *pkgRegistry) ImagePackages(context.Context, string, string, registry.Credentials) (registry.SBOM, error) {
+	return registry.SBOM{Purls: []string{"pkg:deb/ubuntu/nginx@1.18.0-6ubuntu14.4?arch=amd64&os_version=22.04"}}, nil
+}
+
+// Without an SBOM, the agent reads the image's package database and passes its components label on.
+func TestInspectPackagesWithoutSBOM(t *testing.T) {
+	a := &Agent{registry: &pkgRegistry{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	got := a.inspectDigests(context.Background(), agentproto.RegistryCheck{Repository: "harbor.example.com/shop/web", Inspect: []string{"sha256:" + strings.Repeat("b", 64)}}, registry.Credentials{})
+	if len(got) != 1 || len(got[0].Purls) != 1 || got[0].PurlsFrom == nil || *got[0].PurlsFrom != agentproto.Packages || got[0].Components == nil || *got[0].Components != "nginx=1.27.2" {
+		t.Fatalf("inspection %+v", got)
+	}
+}

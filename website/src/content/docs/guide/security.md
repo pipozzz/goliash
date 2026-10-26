@@ -267,7 +267,8 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. This covers the system packages only,
    not the application's dependencies. Images up to 1 GB of layers (gzip or plain), two per check, are read once
    per digest; private images are read with the workspace's
-   [registry credentials](/reference/collectors/#credentials-on-the-server).
+   [registry credentials](/reference/collectors/#credentials-on-the-server), or by the agents (1.141 and later)
+   for registries only they reach.
 
 What neither covers, Goliash does not know by itself: software built from source or copied into the image, RPM-based
 images (Red Hat, Rocky, Amazon Linux), scratch images. **Declare** what you built into the image with a label, and
@@ -281,8 +282,8 @@ Usual names are known (nginx, php, openssl, node, python, ruby, go, postgresql, 
 openjdk, imagemagick, ffmpeg, git, sqlite, zlib, libxml2, mariadb, mysql, memcached, caddy, traefik, envoy,
 keycloak, grafana); anything else by its NVD product, `vendor:product=version`
 (`apache:http_server=2.4.62`). A build argument keeps it in step with the build: `ARG NGINX_VERSION` …
-`LABEL dev.goliash.components="nginx=${NGINX_VERSION}"`. The label is read with the image's evidence, for images
-the server reads. The Security page lists production's images without an SBOM, why
+`LABEL dev.goliash.components="nginx=${NGINX_VERSION}"`. The label is read with the image's evidence, by the
+server or, for registries only they reach, by the agents (1.141 and later). The Security page lists production's images without an SBOM, why
 (*no package database*, *not read yet*), and how to add one to the build, ready to copy:
 
 ```yaml

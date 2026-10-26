@@ -59,6 +59,24 @@ func (e GitOpsTool) Valid() bool {
 	}
 }
 
+// Defines values for ImageInspectionPurlsFrom.
+const (
+	Packages ImageInspectionPurlsFrom = "packages"
+	Sbom     ImageInspectionPurlsFrom = "sbom"
+)
+
+// Valid indicates whether the value is a known member of the ImageInspectionPurlsFrom enum.
+func (e ImageInspectionPurlsFrom) Valid() bool {
+	switch e {
+	case Packages:
+		return true
+	case Sbom:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Platform.
 const (
 	Compose    Platform = "compose"
@@ -432,8 +450,10 @@ type HostSettings struct {
 
 // ImageInspection defines model for ImageInspection.
 type ImageInspection struct {
-	Digest string  `json:"digest"`
-	Error  *string `json:"error,omitempty"`
+	// Components The image's dev.goliash.components label, as written ("nginx=1.27.2, php=8.3.12"), for software built into it that no package database lists.
+	Components *string `json:"components,omitempty"`
+	Digest     string  `json:"digest"`
+	Error      *string `json:"error,omitempty"`
 
 	// Found What was found, for people ("cosign signature", "buildkit sbom" …).
 	Found []string `json:"found,omitempty"`
@@ -452,10 +472,13 @@ type ImageInspection struct {
 	Licenses   map[string]string `json:"licenses,omitempty"`
 	Provenance *bool             `json:"provenance,omitempty"`
 
-	// Purls The package URLs the SBOM attestation lists, when there is one.
-	Purls  []string `json:"purls,omitempty"`
-	Sbom   *bool    `json:"sbom,omitempty"`
-	Signed *bool    `json:"signed,omitempty"`
+	// Purls The package URLs the SBOM attestation lists, when there is one; else the operating system packages the image's own dpkg or apk database lists (purls_from says which).
+	Purls []string `json:"purls,omitempty"`
+
+	// PurlsFrom Where purls come from; absent means the SBOM (agents before 1.141).
+	PurlsFrom *ImageInspectionPurlsFrom `json:"purls_from,omitempty"`
+	Sbom      *bool                     `json:"sbom,omitempty"`
+	Signed    *bool                     `json:"signed,omitempty"`
 
 	// Signers Who signed the image, as the certificates of its keyless (Sigstore) signatures name them.
 	Signers []struct {
@@ -469,6 +492,9 @@ type ImageInspection struct {
 	// Size What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
 	Size *int64 `json:"size,omitempty"`
 }
+
+// ImageInspectionPurlsFrom Where purls come from; absent means the SBOM (agents before 1.141).
+type ImageInspectionPurlsFrom string
 
 // KubernetesSettings defines model for KubernetesSettings.
 type KubernetesSettings struct {

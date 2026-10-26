@@ -889,9 +889,17 @@ components:
         purls:
           type: array
           maxItems: 20000
-          description: The package URLs the SBOM attestation lists, when there is one.
+          description: The package URLs the SBOM attestation lists, when there is one; else the operating system packages the image's own dpkg or apk database lists (purls_from says which).
           items:
             type: string
+        purls_from:
+          type: string
+          enum: [sbom, packages]
+          description: Where purls come from; absent means the SBOM (agents before 1.141).
+        components:
+          type: string
+          maxLength: 2000
+          description: The image's dev.goliash.components label, as written ("nginx=1.27.2, php=8.3.12"), for software built into it that no package database lists.
         licenses:
           type: object
           maxProperties: 20000

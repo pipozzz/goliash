@@ -17,6 +17,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // pkgTags is a registry whose image has no SBOM but an Ubuntu package database, with nginx and php from apt.
@@ -113,5 +114,27 @@ func TestReadFailure(t *testing.T) {
 		if got := readFailure(err); !strings.Contains(got, want) {
 			t.Errorf("%s: %q", err, got)
 		}
+	}
+}
+
+// An agent's inspection of a private image without an SBOM: its package list is kept as read from the image, and
+// its components label with its evidence.
+func TestRecordInspectionPackages(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	from, comp := agentproto.Packages, "nginx=1.27.2"
+	digest := "sha256:" + strings.Repeat("c", 64)
+	if err := l.checker.RecordInspections(ctx, l.sc, "harbor.example.com/shop/web", []agentproto.ImageInspection{{
+		Digest: digest, Purls: []string{"pkg:deb/ubuntu/nginx@1.18.0-6ubuntu14.4?arch=amd64&os_version=22.04"}, PurlsFrom: &from, Components: &comp,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	sboms, _ := l.st.ListImageSBOMs(ctx, l.sc)
+	if b := sboms["harbor.example.com/shop/web@"+digest]; len(b.Purls) != 1 || b.Source != "packages" {
+		t.Errorf("packages %+v", b)
+	}
+	evs, _ := l.st.ListImageEvidence(ctx, l.sc)
+	if ev := evs["harbor.example.com/shop/web@"+digest]; ev.Components != comp || ev.SBOM {
+		t.Errorf("evidence %+v", ev)
 	}
 }

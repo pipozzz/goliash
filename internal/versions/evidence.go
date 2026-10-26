@@ -197,6 +197,9 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		if in.Size != nil {
 			ev.Size = *in.Size
 		}
+		if in.Components != nil {
+			ev.Components = *in.Components
+		}
 		for _, l := range in.LayerDetails {
 			layer := store.ImageLayer{Digest: l.Digest, Size: l.Size}
 			if l.Command != nil {
@@ -210,8 +213,13 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		if err := c.store.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}
-		if ev.SBOM && len(in.Purls) > 0 {
-			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses}); err != nil {
+		fromPackages := in.PurlsFrom != nil && *in.PurlsFrom == agentproto.Packages
+		if (ev.SBOM || fromPackages) && len(in.Purls) > 0 {
+			src := "sbom"
+			if fromPackages && !ev.SBOM {
+				src = "packages"
+			}
+			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses, Source: src}); err != nil {
 				return err
 			}
 		}

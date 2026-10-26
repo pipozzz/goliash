@@ -231,6 +231,12 @@ type Inspector interface {
 	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
+// PackageReader reads the operating system packages of an image without an SBOM, from its own dpkg or apk
+// database. registry.Client implements it.
+type PackageReader interface {
+	ImagePackages(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
+}
+
 // maxPurls bounds the packages reported for one image.
 const maxPurls = 20000
 
@@ -280,6 +286,20 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 				Digest  string  `json:"digest"`
 				Size    int64   `json:"size"`
 			}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
+		}
+		if ev.Components != "" {
+			comp := ev.Components[:min(len(ev.Components), 2000)]
+			in.Components = &comp
+		}
+		if pr, ok := a.registry.(PackageReader); ok && !ev.SBOM {
+			// No SBOM: the image's own package database, so its system packages are not a blind spot.
+			if list, err := pr.ImagePackages(ctx, c.Repository, digest, creds); err == nil {
+				in.Purls = list.Purls[:min(len(list.Purls), maxPurls)]
+				from := agentproto.Packages
+				in.PurlsFrom = &from
+			} else if ctx.Err() == nil {
+				a.log.Debug("packages not readable", "repository", c.Repository, "digest", digest, "err", err)
+			}
 		}
 		if ev.SBOM {
 			sbom, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
