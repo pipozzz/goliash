@@ -305,6 +305,9 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 			}
 		}
 	}
+	if err := seedPatchHistory(ctx, st, sc, envIDs["prod"]); err != nil {
+		return err
+	}
 	if err := seedEvidence(ctx, st, sc); err != nil {
 		return err
 	}
@@ -703,4 +706,61 @@ func sortedKeys(m map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// teamPace is how many days after a release each demo team deploys it to production, on average: some teams patch
+// within a week, some take two months, so the Security page's time to patch and patching by team have a story.
+var teamPace = map[string]int{
+	"devex": 6, "team-orders": 10, "team-search": 14, "observability": 18, "team-integrations": 21, "platform": 26,
+	"team-shop": 32, "security": 38, "team-payments": 55, "team-media": 70,
+}
+
+// seedPatchHistory gives production six months of upgrades before the demo's three weeks of snapshots: for each
+// service, every release of the period after the first deployed when its team's pace says, so the time-to-patch
+// chart and the teams' bars fill. History lists them too.
+func seedPatchHistory(ctx context.Context, st *store.Store, sc store.Scope, prodID string) error {
+	services, err := st.ListServices(ctx, sc)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	from, until := now.AddDate(0, -6, 0), now.Add(-22*24*time.Hour) // the snapshots cover the last three weeks
+	for _, svc := range services {
+		pace, ok := teamPace[svc.Owner]
+		if !ok {
+			continue
+		}
+		rels, err := st.ListReleases(ctx, sc, svc.ID)
+		if err != nil {
+			return err
+		}
+		type rel struct {
+			v  versions.Version
+			at time.Time
+		}
+		var list []rel
+		for _, r := range rels {
+			if v, ok := versions.ParseVersion(r.Version); ok && !r.PublishedAt.IsZero() && v.Pre == "" {
+				list = append(list, rel{v, r.PublishedAt})
+			}
+		}
+		sort.Slice(list, func(i, j int) bool { return list[i].v.Compare(list[j].v) < 0 })
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(svc.Name))
+		seed := h.Sum32()
+		for i := 1; i < len(list); i++ {
+			jitter := int(seed>>uint(i%24)) % (pace/2 + 1)
+			at := list[i].at.Add(time.Duration(pace-pace/4+jitter) * 24 * time.Hour)
+			if list[i].at.Before(from) || at.After(until) {
+				continue
+			}
+			if err := st.InsertEvent(ctx, sc, store.Event{
+				ID: store.NewID(), Type: "version_changed", ServiceID: svc.ID, EnvironmentID: prodID,
+				FromVersion: list[i-1].v.Raw, ToVersion: list[i].v.Raw, Source: "poll", At: at,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
