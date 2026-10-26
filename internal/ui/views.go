@@ -914,6 +914,7 @@ type RuleView struct {
 	Plan    bool // it sends the upgrade plan
 	Report  bool // it sends the security posture report
 	Brief   bool // it sends the security brief
+	Default bool // the default alerts rule, as Goliash added it
 	Channel string
 	Events  string
 	Mode    string

@@ -145,6 +145,9 @@ templ NotificationsPage(v NotificationsView) {
 									<tr class={ templ.KV("paused", r.Paused) }>
 										<td>
 											{ r.Events }
+											if r.Default {
+												<span class="badge neutral" title="Goliash added it so that serious problems in production reach the bell without setting anything up. Change it or delete it like any rule: it is not added again.">default</span>
+											}
 											if r.Paused {
 												<span class="badge neutral">paused</span>
 											}

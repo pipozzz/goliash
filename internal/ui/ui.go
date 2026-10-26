@@ -1703,9 +1703,9 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 	if err != nil {
 		return err
 	}
-	chName := map[string]string{}
+	chName, chType := map[string]string{}, map[string]string{}
 	for _, c := range chans {
-		chName[c.ID] = c.Name
+		chName[c.ID], chType[c.ID] = c.Name, c.Type
 		var cfg struct {
 			URL    string   `json:"url"`
 			To     []string `json:"to"`
@@ -1781,10 +1781,11 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		}
 		v.Rules = append(v.Rules, RuleView{
 			ID: rule.ID, Paused: rule.Paused, Channel: chName[rule.ChannelID], Events: events, Mode: mode,
-			Plan:   slices.Contains(rule.EventTypes, notifier.EventUpdatesPlan),
-			Report: slices.Contains(rule.EventTypes, notifier.EventPostureReport),
-			Brief:  slices.Contains(rule.EventTypes, notifier.EventSecurityBrief),
-			Filter: orDash(strings.Join(parts, "; ")),
+			Default: notifier.IsDefaultRule(rule, chType[rule.ChannelID]),
+			Plan:    slices.Contains(rule.EventTypes, notifier.EventUpdatesPlan),
+			Report:  slices.Contains(rule.EventTypes, notifier.EventPostureReport),
+			Brief:   slices.Contains(rule.EventTypes, notifier.EventSecurityBrief),
+			Filter:  orDash(strings.Join(parts, "; ")),
 		})
 	}
 	deliveries, err := s.store.RecentDeliveries(ctx, p.Scope, 25)

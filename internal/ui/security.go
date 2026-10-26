@@ -925,3 +925,68 @@ func teamName(owner string) string {
 	}
 	return owner
 }
+
+// sectionLink is one of the Security page's sections in its On this page links: what it is, and what stands out.
+type sectionLink struct {
+	ID, Label, Note string
+	Warn            bool
+}
+
+// securityLinks are the Security page's sections, in its order, those it shows.
+func securityLinks(v SecurityView) []sectionLink {
+	out := []sectionLink{{ID: "since-yesterday", Label: "Since yesterday"}}
+	if v.Brief.Any() {
+		out[0].Warn = true
+	}
+	out = append(out, sectionLink{ID: "exposure", Label: "Exposure", Note: itoa(v.ProdExposed()) + " behind", Warn: v.ProdExposed() > 0})
+	if len(v.PatchMonths) > 0 {
+		out = append(out, sectionLink{ID: "time-to-patch", Label: "Time to patch"})
+	}
+	if len(v.Teams) > 0 {
+		out = append(out, sectionLink{ID: "teams", Label: "Teams"})
+	}
+	if len(v.Trend) > 0 {
+		out = append(out, sectionLink{ID: "trend", Label: "Trend"})
+	}
+	if len(v.Bases) > 0 {
+		out = append(out, sectionLink{ID: "bases", Label: "Unsupported bases", Note: itoa(len(v.Bases)), Warn: true})
+	}
+	if len(v.Vulns.Blind) > 0 {
+		out = append(out, sectionLink{ID: "sbom", Label: "Without an SBOM", Note: itoa(len(v.Vulns.Blind))})
+	}
+	vul := sectionLink{ID: "vulnerabilities", Label: "Vulnerabilities"}
+	if v.Vulns.Exploited > 0 {
+		vul.Note, vul.Warn = itoa(v.Vulns.Exploited)+" exploited", true
+	}
+	out = append(out, vul)
+	if v.Licenses.WithSBOM > 0 {
+		out = append(out, sectionLink{ID: "licenses", Label: "Licenses"})
+	}
+	if v.Evidence.Images > 0 {
+		out = append(out, sectionLink{ID: "evidence", Label: "Evidence"})
+	}
+	out = append(out, sectionLink{ID: "blind-spots", Label: "Blind spots"})
+	if len(v.Watches) > 0 || v.CanWatch {
+		w := sectionLink{ID: "watches", Label: "Watches"}
+		if len(v.Watches) > 0 {
+			w.Note = itoa(len(v.Watches))
+		}
+		out = append(out, w)
+	}
+	if v.Deadlines.Any() || v.CanSetDeadlines {
+		d := sectionLink{ID: "deadlines", Label: "Deadlines"}
+		if v.Overdue > 0 {
+			d.Note, d.Warn = itoa(v.Overdue)+" past", true
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// dayWord is "day" or "days" for n.
+func dayWord(n int) string {
+	if n == 1 {
+		return "day"
+	}
+	return "days"
+}

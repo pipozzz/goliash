@@ -70,3 +70,19 @@ func SecurityAlertsOutside(ctx context.Context, st *store.Store, sc store.Scope)
 	}
 	return false, nil
 }
+
+// IsDefaultRule reports whether a rule is the default alerts rule as Goliash added it: the default events in
+// production, to an in-app channel. One changed since is the user's own.
+func IsDefaultRule(r store.Rule, channelType string) bool {
+	if channelType != "inapp" || len(r.EventTypes) != len(DefaultAlertEvents) {
+		return false
+	}
+	for i, e := range DefaultAlertEvents {
+		if r.EventTypes[i] != e {
+			return false
+		}
+	}
+	var f Filter
+	_ = json.Unmarshal(r.Filter, &f)
+	return f.Production && len(f.Services)+len(f.Owners)+len(f.Apps)+len(f.Environments) == 0
+}

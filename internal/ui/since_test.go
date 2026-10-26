@@ -78,3 +78,29 @@ func TestSBOMHelper(t *testing.T) {
 		t.Error("no Add an SBOM helper for images without one")
 	}
 }
+
+// The Security page opens with links to its sections; the default alerts rule is marked as such.
+func TestSecurityNavAndDefaultRule(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	m := e.as(store.RoleAdmin) // admins see the deadlines settings
+	_, page := get(t, m, e.srv.URL+"/security", nil)
+	for _, want := range []string{`<nav class="page-nav noprint" aria-label="On this page">`, `href="#exposure"`, `href="#vulnerabilities"`, `href="#deadlines"`, `id="vulnerabilities"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("Security page misses %q", want)
+		}
+	}
+	if i, j := strings.Index(page, `id="exposure"`), strings.Index(page, `id="deadlines"`); i < 0 || j < i {
+		t.Error("the deadlines settings come before the exposure")
+	}
+	bell, err := e.st.CreateChannel(ctx, store.Channel{Scope: e.ws.Scope(), Type: "inapp", Name: "Goliash bell", Config: []byte(`{}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.CreateRule(ctx, store.Rule{Scope: e.ws.Scope(), ChannelID: bell.ID, EventTypes: []string{"vulnerability", "security_release"}, Filter: []byte(`{"production":true}`), Mode: "instant"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, page = get(t, m, e.srv.URL+"/notifications", nil); !strings.Contains(page, ">default</span>") {
+		t.Error("the default alerts rule is not marked")
+	}
+}

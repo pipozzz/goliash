@@ -35,6 +35,7 @@ templ SecurityPage(v SecurityView) {
 				</p>
 			</div>
 		}
+		@securityNav(v)
 		@sinceYesterday(v)
 		<div class="tiles">
 			<a class={ "tile", templ.KV("warn", v.ProdMedian > 30), templ.KV("on", v.Show == "") } href={ templ.URL(securityHref(v, "") + "#exposure") } title="Every exposure">
@@ -63,12 +64,6 @@ templ SecurityPage(v SecurityView) {
 				<small>stale targets, targets without digests, services without a known upstream</small>
 			</a>
 		</div>
-		if len(v.Watches) > 0 || v.CanWatch {
-			@watchesPanel(v)
-		}
-		if v.Deadlines.Any() || v.CanSetDeadlines {
-			@deadlinesPanel(v)
-		}
 		if len(v.PatchMonths) > 0 {
 			@patchChart(v)
 		}
@@ -76,7 +71,7 @@ templ SecurityPage(v SecurityView) {
 			@teamsPanel(v)
 		}
 		if len(v.Trend) > 0 {
-			<section class="panel">
+			<section class="panel" id="trend">
 				<div class="panel-head">
 					<h2>{ "Trend in " + v.Prod.Name }</h2>
 					<span class="muted">{ "since " + v.Since + ", recorded daily" }</span>
@@ -210,7 +205,7 @@ templ SecurityPage(v SecurityView) {
 			}
 		</section>
 		if len(v.Bases) > 0 {
-			<section class="panel">
+			<section class="panel" id="bases">
 				<div class="panel-head"><h2>Built on an unsupported base</h2>@panelInfo("rebuild on a newer base image")</div>
 				<div class="scroll" tabindex="0">
 					<table>
@@ -242,7 +237,7 @@ templ SecurityPage(v SecurityView) {
 		if len(v.Vulns.Blind) > 0 {
 			@sbomHelper(v.Vulns.Blind)
 		}
-		<section class="panel">
+		<section class="panel" id="vulnerabilities">
 			<div class="panel-head"><h2>Is it running?</h2>@panelInfo("known vulnerabilities in " + v.Prod.Name + ", from the images' SBOMs and OSV")</div>
 			<div class="panel-body stack">
 				<form class="row vuln-search" method="get" action="/security/vulns">
@@ -276,7 +271,7 @@ templ SecurityPage(v SecurityView) {
 			</div>
 		</section>
 		if v.Licenses.WithSBOM > 0 {
-			<section class="panel">
+			<section class="panel" id="licenses">
 				<div class="panel-head"><h2>Licenses</h2>@panelInfo("packages in " + v.Prod.Name + ", as the images' SBOMs declare them")</div>
 				<div class="panel-body stack">
 					if n := licenseNeedsLook(v.Licenses); n > 0 {
@@ -291,7 +286,7 @@ templ SecurityPage(v SecurityView) {
 			</section>
 		}
 		if v.Evidence.Images > 0 {
-			<section class="panel">
+			<section class="panel" id="evidence">
 				<div class="panel-head"><h2>Supply-chain evidence</h2>@panelInfo("images running in " + v.Prod.Name + ": what their registry holds beside them")</div>
 				<div class="tiles evidence">
 					<div class="tile">
@@ -359,7 +354,7 @@ templ SecurityPage(v SecurityView) {
 			</section>
 		}
 		<div class="grid-2">
-			<section class="panel">
+			<section class="panel" id="supply-chain">
 				<div class="panel-head"><h2>Supply chain</h2>@panelInfo("what runs, as images")</div>
 				<div class="scroll" tabindex="0">
 					<table>
@@ -409,6 +404,12 @@ templ SecurityPage(v SecurityView) {
 				</div>
 			</section>
 		</div>
+		if len(v.Watches) > 0 || v.CanWatch {
+			@watchesPanel(v)
+		}
+		if v.Deadlines.Any() || v.CanSetDeadlines {
+			@deadlinesPanel(v)
+		}
 		<p class="muted print-only">{ "Generated " + v.At.UTC().Format("2006-01-02 15:04 UTC") + " for " + v.Workspace + " by Goliash." }</p>
 	}
 }
@@ -662,7 +663,7 @@ templ patchChart(v SecurityView) {
 					</div>
 					<strong>
 						if m.Upgrades > 0 {
-							{ days(m.Median) }
+							{ itoa(m.Median) }<span class="unit">{ " " + dayWord(m.Median) }</span>
 						} else {
 							—
 						}
@@ -724,4 +725,18 @@ templ teamsPanel(v SecurityView) {
 			</table>
 		</div>
 	</section>
+}
+
+// securityNav jumps to the page's sections, each with what stands out in it.
+templ securityNav(v SecurityView) {
+	<nav class="page-nav noprint" aria-label="On this page">
+		for _, l := range securityLinks(v) {
+			<a href={ templ.URL("#" + l.ID) } class={ templ.KV("warn", l.Warn) }>
+				{ l.Label }
+				if l.Note != "" {
+					<small>{ l.Note }</small>
+				}
+			</a>
+		}
+	</nav>
 }

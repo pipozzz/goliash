@@ -1429,3 +1429,21 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .team-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 22px; }
 .team-bar { width: 6px; min-height: 2px; background: var(--accent); border-radius: 2px; }
 .team-bar.none { background: var(--line); height: 2px !important; }
+/* Security: On this page, and the time-to-patch chart and teams on phones. */
+.page-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.page-nav a { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 13px; text-decoration: none; }
+.page-nav a:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+.page-nav a small { color: var(--muted); font-size: 12px; }
+.page-nav a.warn small { color: var(--bad); font-weight: 600; }
+main section[id] { scroll-margin-top: 72px; }
+@media (max-width: 720px) {
+  .patch-chart { gap: 6px; }
+  .patch-month strong { font-size: 13px; white-space: nowrap; }
+  .patch-month .unit { display: none; }
+  .patch-month strong:has(.unit)::after { content: " d"; }
+  .patch-month small { white-space: nowrap; font-size: 11px; }
+  #teams table.cards tr { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  #teams table.cards td:first-child { grid-column: 1 / -1; }
+  #teams table.cards td { grid-template-columns: minmax(0, 1fr); }
+  #teams table.cards td > * { grid-column: 1; }
+}
