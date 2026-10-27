@@ -88,8 +88,8 @@ jobs:
         run: |
           case "${{ matrix.shard }}" in
             ui) pkgs=$(go list ./internal/ui/...) ;;
-            store) pkgs=$(go list ./internal/store/... ./internal/versions/...) ;;
-            rest) pkgs=$(go list ./... | grep -Ev '/internal/(ui|store|versions)(/|$)') ;;
+            store) pkgs=$(go list ./internal/store/... ./internal/versions/... ./cmd/goliash) ;;
+            rest) pkgs=$(go list ./... | grep -Ev '/internal/(ui|store|versions)(/|$)|/cmd/goliash$') ;;
           esac
           go test -race $pkgs
 
