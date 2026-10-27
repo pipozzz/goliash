@@ -203,6 +203,9 @@ func SessionID(r *http.Request) string {
 // SetOIDC enables OIDC sign-in.
 func (a *Auth) SetOIDC(o *OIDC) { a.oidc = o }
 
+// GroupRoles reports whether the identity provider's groups decide people's roles.
+func (a *Auth) GroupRoles() bool { return a.oidc != nil && len(a.oidc.groups) > 0 }
+
 // OIDCEnabled reports whether OIDC sign-in is configured.
 func (a *Auth) OIDCEnabled() bool { return a.oidc != nil }
 

@@ -25,12 +25,18 @@ type OIDCConfig struct {
 	ClientSecret string
 	Name         string   // button label, e.g. "Google"
 	Domains      []string // e-mail domains whose people are created as viewers on first sign-in
+	// Groups maps the provider's groups to roles; with it, the groups decide who signs in and with which role.
+	Groups      GroupRoles
+	GroupsClaim string   // the ID token claim with the groups; default "groups"
+	Scopes      []string // more scopes to ask for, e.g. "groups" for providers that send groups only then
 }
 
 // OIDC is a configured provider.
 type OIDC struct {
 	name     string
 	domains  []string
+	groups   GroupRoles
+	claim    string
 	oauth    oauth2.Config
 	verifier *oidc.IDTokenVerifier
 }
@@ -45,13 +51,19 @@ func NewOIDC(ctx context.Context, cfg OIDCConfig, redirectBase string) (*OIDC, e
 	if name == "" {
 		name = "single sign-on"
 	}
+	claim := cfg.GroupsClaim
+	if claim == "" {
+		claim = "groups"
+	}
 	return &OIDC{
 		name:    name,
 		domains: cfg.Domains,
+		groups:  cfg.Groups,
+		claim:   claim,
 		oauth: oauth2.Config{
 			ClientID: cfg.ClientID, ClientSecret: cfg.ClientSecret, Endpoint: p.Endpoint(),
 			RedirectURL: strings.TrimSuffix(redirectBase, "/") + "/auth/oidc/callback",
-			Scopes:      []string{oidc.ScopeOpenID, "email", "profile"},
+			Scopes:      append([]string{oidc.ScopeOpenID, "email", "profile"}, cfg.Scopes...),
 		},
 		verifier: p.Verifier(&oidc.Config{ClientID: cfg.ClientID}),
 	}, nil
@@ -138,29 +150,84 @@ func (a *Auth) oidcUser(r *http.Request) (store.User, error) {
 	if claims.Email == "" || (claims.EmailVerified != nil && !*claims.EmailVerified) {
 		return store.User{}, errors.New("provider did not confirm an e-mail address")
 	}
+	var raw map[string]any
+	if err := idToken.Claims(&raw); err != nil {
+		return store.User{}, err
+	}
+	return a.oidcAccount(r.Context(), claims.Email, claims.Name, groupsOf(raw[a.oidc.claim]))
+}
 
-	ws, err := a.store.ListWorkspaces(r.Context())
+// groupsOf reads a groups claim: a list of names (or IDs, as Entra ID sends), or one name.
+func groupsOf(v any) []string {
+	switch g := v.(type) {
+	case string:
+		return []string{g}
+	case []any:
+		var out []string
+		for _, x := range g {
+			if s, ok := x.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+// oidcAccount finds or creates the account of a person the provider confirmed. With group roles, their groups
+// decide whether they may sign in, and their roles, every time; without, an invitation or an allowed e-mail domain
+// does, and roles are set in Goliash.
+func (a *Auth) oidcAccount(ctx context.Context, email, name string, groups []string) (store.User, error) {
+	ws, err := a.store.ListWorkspaces(ctx)
 	if err != nil || len(ws) == 0 {
 		return store.User{}, errors.New("no organization")
 	}
 	orgID := ws[0].OrgID
-	u, err := a.store.GetUserByEmail(r.Context(), orgID, claims.Email)
+	if len(a.oidc.groups) > 0 {
+		grants, ok := a.oidc.groups.For(groups)
+		u, err := a.store.GetUserByEmail(ctx, orgID, email)
+		switch {
+		case err == nil && u.Role == store.RoleOwner:
+			return u, nil // owners stay owners, whatever their groups
+		case err == nil && !ok:
+			return store.User{}, fmt.Errorf("%w: %s", ErrNoGroup, email)
+		case errors.Is(err, store.ErrNotFound) && !ok:
+			return store.User{}, fmt.Errorf("%w: %s", ErrNoGroup, email)
+		case errors.Is(err, store.ErrNotFound):
+			if u, err = a.store.CreateUser(ctx, orgID, email, name, grants.OrgRole); err != nil {
+				return u, err
+			}
+		case err != nil:
+			return store.User{}, err
+		}
+		if err := ApplyGrants(ctx, a.store, u, grants); err != nil {
+			return u, err
+		}
+		u.Role = grants.OrgRole
+		return u, nil
+	}
+	return a.invitedAccount(ctx, orgID, ws[0].ID, email, name)
+}
+
+// invitedAccount is the account of an invited person, or a new viewer from an allowed e-mail domain.
+func (a *Auth) invitedAccount(ctx context.Context, orgID, firstWorkspace, email, name string) (store.User, error) {
+	u, err := a.store.GetUserByEmail(ctx, orgID, email)
 	if err == nil {
 		return u, nil
 	}
 	if !errors.Is(err, store.ErrNotFound) {
 		return store.User{}, err
 	}
-	_, domain, _ := strings.Cut(strings.ToLower(claims.Email), "@")
+	_, domain, _ := strings.Cut(strings.ToLower(email), "@")
 	for _, d := range a.oidc.domains {
 		if strings.EqualFold(strings.TrimSpace(d), domain) {
 			// Viewers of the organization's first workspace; admins can widen that.
-			u, err := a.store.CreateUser(r.Context(), orgID, claims.Email, claims.Name, store.RoleViewer)
+			u, err := a.store.CreateUser(ctx, orgID, email, name, store.RoleViewer)
 			if err != nil {
 				return u, err
 			}
-			return u, a.store.SetMembership(r.Context(), u.ID, ws[0].ID, store.RoleViewer)
+			return u, a.store.SetMembership(ctx, u.ID, firstWorkspace, store.RoleViewer)
 		}
 	}
-	return store.User{}, fmt.Errorf("%w: %s", ErrNotInvited, claims.Email)
+	return store.User{}, fmt.Errorf("%w: %s", ErrNotInvited, email)
 }

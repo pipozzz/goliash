@@ -242,6 +242,9 @@ templ SettingsPage(v SettingsView) {
 		}
 		<section class="panel" id="people">
 			<div class="panel-head"><h2>People in { v.Workspace }</h2></div>
+			if v.GroupRoles {
+				<p class="panel-body hint">Roles come from the groups at your identity provider (GOLIASH_GROUP_ROLES) and are set again at each sign-in: change them there. Owners are kept.</p>
+			}
 			<div class="scroll" tabindex="0">
 				<table>
 					<thead><tr><th>E-mail</th><th>Access</th><th>Password</th><th>2FA</th><th>Last sign-in</th><th><span class="sr-only">Actions</span></th></tr></thead>

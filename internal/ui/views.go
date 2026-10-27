@@ -1016,6 +1016,7 @@ type AuditView struct {
 // SettingsView is the users and tokens page.
 type SettingsView struct {
 	Base
+	GroupRoles    bool // roles come from the identity provider's groups
 	Freezes       []FreezeView
 	Apps          []store.OAuthGrant // apps people let read this workspace
 	CanGrantOwner bool

@@ -117,8 +117,28 @@ address, or 30 from one client, pause sign-in for 15 minutes.
 | `GOLIASH_OIDC_CLIENT_ID`, `GOLIASH_OIDC_CLIENT_SECRET` | Client credentials |
 | `GOLIASH_OIDC_NAME` | Button label, e.g. `Google` |
 | `GOLIASH_OIDC_DOMAINS` | Comma-separated e-mail domains whose people get a viewer account on first sign-in |
+| `GOLIASH_GROUP_ROLES` | Roles from the provider's groups, e.g. `goliash-admins=admin, sre=member, sre-pay=member@payments, everyone=viewer` (see below) |
+| `GOLIASH_OIDC_GROUPS_CLAIM` | The ID token claim with the groups; default `groups` |
+| `GOLIASH_OIDC_SCOPES` | More scopes to ask for, e.g. `groups` for providers that send groups only then |
 
 Redirect URI: `<GOLIASH_PUBLIC_URL>/auth/oidc/callback`.
+
+#### Roles from groups
+
+With `GOLIASH_GROUP_ROLES` the identity provider decides who may sign in and with which role, at every sign-in:
+
+- `group=admin` makes its people organization admins (every workspace).
+- `group=member` or `group=viewer` gives that role in every workspace. `group=member@payments` gives it in one
+  workspace, by slug or name.
+- Someone in several groups gets the highest role each grants, per workspace.
+- Someone in none of the groups is refused, also with an existing account. Someone new in one gets an account
+  without an invitation (`GOLIASH_OIDC_DOMAINS` is then not needed).
+- Leaving a group takes its role away at the next sign-in. Owners keep being owners.
+
+Roles changed on the settings page are set again at the next sign-in, so change them at the provider. Groups match
+by name, or as a path (Keycloak's `/sre`); Entra ID sends group object IDs unless the app registration emits names,
+so either use the IDs in the mapping or configure *groups claim → sAMAccountName / cloud-only group names*. Okta and
+Authentik send groups when asked for the `groups` scope (`GOLIASH_OIDC_SCOPES=groups`).
 
 ## CLI
 

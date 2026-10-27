@@ -208,6 +208,7 @@ type fakeProvider struct {
 	key    *rsa.PrivateKey
 	email  string
 	verify bool
+	groups []string
 	nonces map[string]string // code -> nonce
 	mu     sync.Mutex
 }
@@ -245,12 +246,15 @@ func newFakeProvider(t *testing.T) *fakeProvider {
 		}
 		p.mu.Lock()
 		nonce := p.nonces[r.Form.Get("code")]
-		email, verified := p.email, p.verify
+		email, verified, groups := p.email, p.verify, p.groups
 		p.mu.Unlock()
 		signer, _ := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: p.key, KeyID: "k1"}}, nil)
 		claims := map[string]any{
 			"iss": p.srv.URL, "sub": "user-1", "aud": "goliash", "exp": time.Now().Add(time.Hour).Unix(),
 			"iat": time.Now().Unix(), "nonce": nonce, "email": email, "email_verified": verified, "name": "Test User",
+		}
+		if groups != nil {
+			claims["groups"] = groups
 		}
 		raw, _ := jwt.Signed(signer).Claims(claims).Serialize()
 		w.Header().Set("Content-Type", "application/json")

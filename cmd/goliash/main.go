@@ -1414,15 +1414,20 @@ func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL s
 	db.SetSessionIdle(envDuration("GOLIASH_SESSION_IDLE", 14*24*time.Hour))
 	a.SetTrustProxy(os.Getenv("GOLIASH_TRUST_PROXY") == "true")
 	if issuer := os.Getenv("GOLIASH_OIDC_ISSUER"); issuer != "" {
+		groups, err := auth.ParseGroupRoles(os.Getenv("GOLIASH_GROUP_ROLES"))
+		if err != nil {
+			return nil, err
+		}
 		o, err := auth.NewOIDC(ctx, auth.OIDCConfig{
 			Issuer: issuer, ClientID: os.Getenv("GOLIASH_OIDC_CLIENT_ID"), ClientSecret: os.Getenv("GOLIASH_OIDC_CLIENT_SECRET"),
 			Name: os.Getenv("GOLIASH_OIDC_NAME"), Domains: splitList(os.Getenv("GOLIASH_OIDC_DOMAINS")),
+			Groups: groups, GroupsClaim: os.Getenv("GOLIASH_OIDC_GROUPS_CLAIM"), Scopes: splitList(os.Getenv("GOLIASH_OIDC_SCOPES")),
 		}, publicURL)
 		if err != nil {
 			return nil, err
 		}
 		a.SetOIDC(o)
-		log.Info("oidc sign-in enabled", "issuer", issuer)
+		log.Info("oidc sign-in enabled", "issuer", issuer, "group_roles", len(groups))
 	}
 	return a, nil
 }
