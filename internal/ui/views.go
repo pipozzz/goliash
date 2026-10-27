@@ -663,6 +663,7 @@ type ServiceEnv struct {
 	Drifts      []DriftBadge // drifts of the whole environment, or about a version no longer running
 	Exposed     []string     // how it can be reached from outside there
 	Maintenance []string     // the patches its platform has waiting there
+	Tickets     []TicketView // tickets open for its upgrade there
 }
 
 // AckView is an acknowledgement shown on a service page.

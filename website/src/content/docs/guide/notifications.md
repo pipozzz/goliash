@@ -75,6 +75,39 @@ show the first lines. Browsers that unsubscribed or expired are forgotten at the
   keeps with the other secrets (encrypted at rest with `GOLIASH_SECRET_KEY`). The server sends only to the push
   services of browsers (Google, Mozilla, Apple, Microsoft).
 
+## Tickets in Jira
+
+A **Jira** channel files tickets instead of sending messages, so what Goliash finds lands in a team's backlog
+and leaves it by itself:
+
+- **One ticket per upgrade** of a service in an environment (and application): *[Goliash] payments-api @ prod:
+  upgrade 1.4.2 → 1.6.0*. It says what runs and what to move to, and why: exploited vulnerabilities, security
+  fixes, critical CVEs, end of life, the remediation deadline, whether it is reachable from outside and patches
+  waiting at the platform. It also links the release notes and the service in Goliash.
+- **Fields.** The priority comes from the urgency (an exploited vulnerability is *Highest*, one step higher when
+  it is reachable from outside). The due date is the remediation deadline. Labels are `goliash` and, where it
+  fits, `security` and `end-of-life`. A project whose screen lacks priority or due date gets the issue without
+  them.
+- **Later alerts** about the same upgrade become comments on its ticket, not new tickets.
+- **Closing.** Goliash closes the ticket once the upgrade is no longer to do: deployed (*Done: payments-api runs
+  1.6.0 in prod*), or put off as an accepted risk. It takes the issue through a transition to a done status,
+  preferring one named Done, Closed or Resolved.
+- **Where it shows.** Updates and the service page show each open ticket's key with a link.
+
+Which upgrades get a ticket is up to the channel's rules: a rule for *remediation deadlines* and *vulnerabilities*
+in production, filtered by owner, is a good start. Alerts about something with no upgrade to do file nothing.
+**Create ticket** on an Updates row files one by hand (members); with several trackers, pick one there.
+
+Settings:
+
+- **Address and token.** The Jira address, and an API token with the e-mail of its account (Jira Cloud) or a
+  personal access token (Data Center, no e-mail). The token is encrypted at rest.
+- **Project.** The project key tickets go to, and **Projects by team** (`team-payments=PAY, team-data=DATA`) to
+  file each service's tickets in its owner's project.
+- **Issue type and labels.** The issue type (default *Task*) and more labels.
+
+**Send test** signs in and checks every project, filing nothing.
+
 ## The bell
 
 The bell at the top of every page lists what Goliash sent you in the last 30 days, newest first, like the

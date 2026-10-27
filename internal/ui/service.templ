@@ -511,13 +511,16 @@ templ releaseNotesSource(v ServiceView) {
 
 // envNotes says that a service is reachable from outside in an environment, or has patches waiting there.
 templ envNotes(e ServiceEnv) {
-	if len(e.Exposed) > 0 || len(e.Maintenance) > 0 {
+	if len(e.Exposed) > 0 || len(e.Maintenance) > 0 || len(e.Tickets) > 0 {
 		<div class="badges">
 			if len(e.Exposed) > 0 {
 				<span class="badge eol" title={ exposedTitle(e.Exposed) }>exposed</span>
 			}
 			if len(e.Maintenance) > 0 {
 				<span class="badge warn" title={ maintenanceTitle(e.Maintenance) }>patch pending</span>
+			}
+			for _, t := range e.Tickets {
+				<a class="badge neutral" href={ templ.SafeURL(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>
 			}
 		</div>
 	}

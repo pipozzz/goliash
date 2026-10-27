@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,7 +16,9 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/tickets"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -74,7 +77,16 @@ type UpdateItem struct {
 	Vulns                                versions.VulnDelta // what the upgrade does to known vulnerabilities, when known
 	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
 	PRs                                  []PromotePR        // Argo CD applications the upgrade can be opened in as a pull request
+	ServiceID, EnvID                     string
+	Ticket                               *TicketView  // the open ticket filed for it, if any
+	TicketChannels                       []ChannelOpt // trackers a ticket can be filed in by hand
 }
+
+// TicketView is a ticket filed in an issue tracker.
+type TicketView struct{ Key, URL string }
+
+// ChannelOpt is a channel to pick.
+type ChannelOpt struct{ ID, Name string }
 
 var levelClasses = []string{"eol", "eol", "eol", "eol", "inconsistent", "upstream", "env", "neutral"}
 
@@ -200,6 +212,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		v.Levels = append(v.Levels, UpdateLevel{Level: i, Label: label, Class: levelClasses[i]})
 	}
 	var md strings.Builder
+	open, trackers := s.ticketsOf(ctx, p)
 	apps, err := versions.GitOpsApps(ctx, s.store, p.Scope, o)
 	if err != nil {
 		return UpdatesView{}, err
@@ -219,7 +232,8 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
-			Due: u.Due, DueFor: u.DueFor,
+			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
+			TicketChannels: trackers,
 		}
 		if !u.Due.IsZero() {
 			it.DaysLeft = u.DaysLeft(now)
@@ -414,3 +428,42 @@ func exposedTitle(ways []string) string { return "Reachable from outside: " + st
 
 // maintenanceTitle says which patches the platform has waiting.
 func maintenanceTitle(m []string) string { return "Waiting at the platform: " + strings.Join(m, "; ") }
+
+func ticketKey(serviceID, envID, app string) string { return serviceID + "|" + envID + "|" + app }
+
+// ticketsOf is the workspace's open tickets by upgrade, and the trackers a member may file one in by hand.
+func (s *Server) ticketsOf(ctx context.Context, p auth.Principal) (map[string]*TicketView, []ChannelOpt) {
+	open := map[string]*TicketView{}
+	if ts, err := s.store.ListOpenTickets(ctx, p.Scope); err == nil {
+		for _, t := range ts {
+			open[ticketKey(t.ServiceID, t.EnvironmentID, t.App)] = &TicketView{Key: t.ExternalKey, URL: t.URL}
+		}
+	}
+	var trackers []ChannelOpt
+	if p.Can(store.RoleMember) {
+		if chans, err := s.store.ListChannels(ctx, p.Scope); err == nil {
+			for _, c := range chans {
+				if tickets.Is(c.Type) {
+					trackers = append(trackers, ChannelOpt{ID: c.ID, Name: c.Name})
+				}
+			}
+		}
+	}
+	return open, trackers
+}
+
+func (s *Server) fileTicket(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ret := "/updates"
+	if q := r.FormValue("return"); q == "/updates" || strings.HasPrefix(q, "/updates?") {
+		ret = q
+	}
+	t, err := s.notify.FileTicket(r.Context(), p.Scope, r.FormValue("channel"), r.FormValue("service"), r.FormValue("env"), r.FormValue("app"))
+	switch {
+	case errors.Is(err, notifier.ErrNoUpgrade):
+		return back(w, r, ret, "error", "There is nothing to upgrade there any more.")
+	case err != nil:
+		return back(w, r, ret, "error", "The tracker refused the ticket: "+err.Error())
+	}
+	s.audit(r.Context(), p, "ticket.file", "ticket", t.ExternalKey, "url", t.URL)
+	return back(w, r, ret, "notice", "Ticket "+t.ExternalKey+" filed: "+t.URL)
+}

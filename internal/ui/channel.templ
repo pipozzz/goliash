@@ -42,6 +42,9 @@ templ ChannelPage(v ChannelEditView) {
 					if v.Type == "telegram" {
 						<label>Chat ID<input name="chat_id" value={ v.ChatID } required/></label>
 					}
+					if v.Type == "jira" {
+						@jiraFields(v.URLHint, v.JiraEmail, v.JiraProject, v.JiraTeams, v.JiraIssueType, v.JiraLabels, v.HasToken)
+					}
 					if v.Type == "email" {
 						<label>Recipients<input name="to" value={ v.To } required/><span class="hint">Comma-separated.</span></label>
 						<fieldset class="smtp">
@@ -91,5 +94,23 @@ templ smtpFields(addr, from, user string, hasPass bool, mode string) {
 				<option value="none" selected?={ mode == "none" }>None (a local relay)</option>
 			</select>
 		</label>
+	</div>
+}
+
+// jiraFields are a Jira channel's settings; the token is never shown.
+templ jiraFields(url, email, project, teams, issueType, labels string, hasToken bool) {
+	<p class="hint">Rules that send here file a ticket per upgrade of a service in an environment, comment on it when more comes up, and close it once the upgrade runs. <strong>Create ticket</strong> on Updates files one by hand.</p>
+	<div class="row">
+		<label>Jira address<input name="url" type="url" placeholder={ orDefault(url, "https://acme.atlassian.net") }/></label>
+		<label>Project key<input name="project" value={ project } placeholder="OPS"/></label>
+	</div>
+	<div class="row">
+		<label>E-mail<input name="email" value={ email } placeholder="jira-bot@acme.com" autocomplete="off"/><span class="hint">Jira Cloud: the account of the API token. Empty for a Data Center personal access token.</span></label>
+		<label>Token<input name="token" autocomplete="off" placeholder={ setHint(hasToken) }/><span class="hint">Encrypted at rest, never shown again.</span></label>
+	</div>
+	<div class="row">
+		<label>Projects by team<input name="teams" value={ teams } placeholder="team-payments=PAY, team-data=DATA"/><span class="hint">By the services' owner; others go to the project above.</span></label>
+		<label>Issue type<input name="issue_type" value={ issueType } placeholder="Task"/></label>
+		<label>Labels<input name="labels" value={ labels } placeholder="security, platform"/></label>
 	</div>
 }

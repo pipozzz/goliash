@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/tickets"
 	"github.com/pipozzz/goliash/internal/versions"
 )
 
@@ -556,7 +557,7 @@ func dueAt(mode string, f Filter, now time.Time) time.Time {
 func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	var planned, recorded, selfChecked time.Time
+	var planned, recorded, selfChecked, ticketsChecked time.Time
 	for {
 		if time.Since(planned) >= 5*time.Minute {
 			planned = time.Now()
@@ -589,6 +590,12 @@ func (n *Notifier) Run(ctx context.Context, interval time.Duration) {
 			}
 			if err := n.CheckDeadlines(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("checking remediation deadlines failed", "err", err)
+			}
+		}
+		if time.Since(ticketsChecked) >= ticketCheckEvery {
+			ticketsChecked = time.Now()
+			if err := n.CloseTickets(ctx); err != nil && ctx.Err() == nil {
+				n.log.Error("closing tickets failed", "err", err)
 			}
 		}
 		if err := n.DeliverDue(ctx); err != nil && ctx.Err() == nil {
@@ -681,7 +688,11 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 
 	sender, ok := n.senders[rt.channel.Type]
 	var err error
-	if !ok {
+	if tickets.Is(rt.channel.Type) {
+		ticketCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		err = n.fileTickets(ticketCtx, rt, msg)
+		cancel()
+	} else if !ok {
 		err = fmt.Errorf("no sender for channel type %q", rt.channel.Type)
 	} else {
 		sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -717,6 +728,9 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 
 // SendTest sends a test message through a channel right away.
 func (n *Notifier) SendTest(ctx context.Context, ch store.Channel, workspace string) error {
+	if tr := tickets.For(ch.Type, ticketHTTP); tr != nil {
+		return tr.Check(ctx, ch.Config) // files nothing: a test ticket would be noise in the tracker
+	}
 	sender, ok := n.senders[ch.Type]
 	if !ok {
 		return fmt.Errorf("no sender for channel type %q", ch.Type)

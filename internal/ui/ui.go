@@ -224,6 +224,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /inbox/map", s.page(m, s.inboxMap))
 	mux.Handle("POST /security/watches", s.page(m, s.addWatch))
 	mux.Handle("POST /security/deadlines", s.page(a, s.setDeadlines))
+	mux.Handle("POST /updates/ticket", s.page(m, s.fileTicket))
 	mux.Handle("POST /security/risks/{id}/approve", s.page(a, s.approveRisk))
 	mux.Handle("POST /security/risks/{id}/reject", s.page(a, s.rejectRisk))
 	mux.Handle("POST /security/watches/{id}/delete", s.page(m, s.deleteWatch))
@@ -840,8 +841,16 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			}
 		}
 	}
+	tix := map[string][]TicketView{}
+	if ts, err := s.store.ListOpenTickets(ctx, p.Scope); err == nil {
+		for _, t := range ts {
+			if t.ServiceID == svc.ID {
+				tix[t.EnvironmentID] = append(tix[t.EnvironmentID], TicketView{Key: t.ExternalKey, URL: t.URL})
+			}
+		}
+	}
 	for ei, e := range o.Matrix.Environments {
-		se := ServiceEnv{Name: e.Name, Exposed: exposed[e.ID], Maintenance: maint[e.ID]}
+		se := ServiceEnv{Name: e.Name, Exposed: exposed[e.ID], Maintenance: maint[e.ID], Tickets: tix[e.ID]}
 		var running []versions.RunningVersion
 		if row != nil {
 			running = row.Cells[ei].Versions
@@ -1894,6 +1903,20 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter the bot token and the chat ID."
 		}
 		cfg["bot_token"], cfg["chat_id"] = token, chat
+	case "jira":
+		u, ok := httpURL(field("url", "url"))
+		token, project := field("token", "token"), strings.ToUpper(field("project", "project"))
+		if !ok || token == "" || project == "" {
+			return nil, "Enter Jira's address, an API token (or a personal access token) and a project key."
+		}
+		cfg["url"], cfg["token"], cfg["project"] = strings.TrimSuffix(u, "/"), token, project
+		for _, k := range []string{"email", "teams", "issue_type", "labels"} {
+			if v := strings.TrimSpace(r.FormValue(k)); v != "" {
+				cfg[k] = v
+			} else if v, ok := old[k].(string); ok && !r.Form.Has(k) {
+				cfg[k] = v // a form without the field keeps it
+			}
+		}
 	case "push", "inapp":
 		// Nothing to set: browsers subscribe from the Notifications page; the bell is Goliash itself.
 	case "email":

@@ -23,7 +23,7 @@ type Channel struct {
 }
 
 // ChannelTypes are the notification channel types the server can send to.
-var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email", "grafana", "push", "teams", "gchat", "inapp"}
+var ChannelTypes = []string{"slack", "discord", "telegram", "ntfy", "webhook", "email", "grafana", "push", "teams", "gchat", "inapp", "jira"}
 
 // CreateChannel adds a channel.
 func (s *Store) CreateChannel(ctx context.Context, c Channel) (Channel, error) {
@@ -68,6 +68,20 @@ func (s *Store) GetChannelByName(ctx context.Context, sc Scope, name string) (Ch
 	}
 	for _, c := range chans {
 		if c.Name == name {
+			return c, nil
+		}
+	}
+	return Channel{}, ErrNotFound
+}
+
+// GetChannel returns a channel of the workspace by ID.
+func (s *Store) GetChannel(ctx context.Context, sc Scope, id string) (Channel, error) {
+	chans, err := s.ListChannels(ctx, sc)
+	if err != nil {
+		return Channel{}, err
+	}
+	for _, c := range chans {
+		if c.ID == id {
 			return c, nil
 		}
 	}

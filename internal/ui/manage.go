@@ -264,6 +264,8 @@ type ChannelEditView struct {
 	SMTPUser  string
 	SMTPPass  bool
 	SMTPTLS   string
+	// A Jira channel's settings, the token left out.
+	JiraEmail, JiraProject, JiraTeams, JiraIssueType, JiraLabels string
 }
 
 func setHint(set bool) string {
@@ -299,6 +301,7 @@ func (s *Server) editChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		HasSecret: str("secret") != "", HasToken: str("token") != "" || str("bot_token") != "", ChatID: str("chat_id"),
 		SMTP: s.smtp, SMTPAddr: str("smtp_addr"), SMTPFrom: str("smtp_from"), SMTPUser: str("smtp_username"),
 		SMTPPass: str("smtp_password") != "", SMTPTLS: str("smtp_tls"),
+		JiraEmail: str("email"), JiraProject: str("project"), JiraTeams: str("teams"), JiraIssueType: str("issue_type"), JiraLabels: str("labels"),
 	}
 	if u, err := url.Parse(str("url")); err == nil && u.Host != "" {
 		v.URLHint = u.Scheme + "://" + u.Host + "/…"
@@ -373,4 +376,12 @@ func (s *Server) renameWorkspace(w http.ResponseWriter, r *http.Request, p auth.
 	}
 	s.audit(r.Context(), p, "workspace.rename", "workspace", name)
 	return back(w, r, "/workspaces", "notice", "Workspace renamed to "+name+".")
+}
+
+// orDefault is s, or def when s is empty.
+func orDefault(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
 }
