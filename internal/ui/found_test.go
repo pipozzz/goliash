@@ -68,7 +68,7 @@ func TestFoundAndAddAWS(t *testing.T) {
 	}
 
 	_, aws := get(t, admin, e.srv.URL+"/agents/"+a.ID+"/aws?region=eu-west-1&service=rds&service=ecs", nil)
-	for _, want := range []string{`rds:DescribeDBInstances`, `ecs:List*`, `AWS_REGION: &#34;eu-west-1&#34;`, "GOLIASH_LAMBDA: &#34;off&#34;", "docker compose -f goliash-agent.yml up -d", "aws iam create-user --user-name goliash-agent"} {
+	for _, want := range []string{`rds:DescribeDBInstances`, `ecs:List*`, `AWS_REGION: &#34;eu-west-1&#34;`, "GOLIASH_LAMBDA: &#34;off&#34;", "cd ~/goliash-agent &amp;&amp; docker compose up -d", "aws iam create-user --user-name goliash-agent"} {
 		if !strings.Contains(aws, want) {
 			t.Errorf("AWS page lacks %q", want)
 		}
@@ -113,7 +113,7 @@ func TestAddSourcePagesAndConnect(t *testing.T) {
 	_, _ = e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: envs[0].ID, AgentID: a.ID, Platform: "docker", Name: "gw-docker", Settings: json.RawMessage(`{"docker":{}}`)})
 	admin := e.as(store.RoleAdmin)
 	for what, want := range map[string][]string{
-		"host":    {"GOLIASH_HOST_ROOT: &#39;/host&#39;", "- /:/host:ro", "docker compose -f goliash-agent.yml up -d"},
+		"host":    {"GOLIASH_HOST_ROOT: &#39;/host&#39;", "- /:/host:ro", "cd ~/goliash-agent &amp;&amp; docker compose up -d"},
 		"compose": {"GOLIASH_COMPOSE_DIRS: &#39;/srv/app&#39;", "/srv/app/compose.yaml", "- /srv/app:/srv/app:ro"},
 		"nomad":   {"NOMAD_ADDR: &#39;https://nomad.internal:4646&#39;", "GOLIASH_CREDENTIAL_NOMAD"},
 		"aws":     {"rds:DescribeDBInstances"},
@@ -127,12 +127,20 @@ func TestAddSourcePagesAndConnect(t *testing.T) {
 		}
 	}
 	_, page := get(t, admin, e.srv.URL+"/connect", nil)
-	for _, w := range []string{"Where will the agent run?", "Docker or Docker Compose host", "AWS (agent on ECS Fargate)", "More ways"} {
+	for _, w := range []string{"Where will the agent run?", "Docker or Docker Compose host", "AWS, without a server", "More ways"} {
 		if !strings.Contains(page, w) {
 			t.Errorf("connect lacks %q", w)
 		}
 	}
 	if i, j := strings.Index(page, "More ways"), strings.Index(page, "Amazon RDS and Aurora"); j >= 0 && j < i {
 		t.Error("RDS is offered as a place for an agent to run")
+	}
+
+	// One click on a tile: the command, nothing to fill in.
+	_, body, _ := post(t, admin, e.srv.URL+"/connect/docker", url.Values{"mode": {"code"}, "quick": {"1"}})
+	for _, w := range []string{"mkdir -p ~/goliash-agent", "curl -fsSLo compose.yml", "glsh_enroll_", "docker compose up -d"} {
+		if !strings.Contains(body, w) {
+			t.Errorf("one click lacks %q", w)
+		}
 	}
 }

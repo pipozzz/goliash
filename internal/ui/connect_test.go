@@ -320,7 +320,7 @@ func TestAgentLogsHint(t *testing.T) {
 func TestUpgradeCommand(t *testing.T) {
 	want := map[string][]string{
 		"kubernetes": {"helm upgrade goliash-agent", "--version 1.15.0", "--reuse-values"},
-		"docker":     {"GOLIASH_AGENT_VERSION=1.15.0", "/v1.15.0/deploy/docker/", "docker inspect goliash-agent-agent-1", "-p goliash-agent"},
+		"docker":     {"GOLIASH_AGENT_VERSION=1.15.0", "/v1.15.0/deploy/docker/", "docker inspect goliash-agent-agent-1", "cd ~/goliash-agent", "GOLIASH_AGENT_VERSION=1.15.0 >> .env"},
 		"swarm":      {"goliash-agent:1.15.0 goliash-agent_agent"},
 		"nomad":      {"-var version=1.15.0", "-var server_url=https://g"},
 		"ecs":        {"ParameterKey=Version,ParameterValue=1.15.0", "ParameterKey=EnrollCode,UsePreviousValue=true", "--template-body file://goliash-agent.cfn.yaml", "/v1.15.0/deploy/ecs/goliash-agent.cfn.yaml"},

@@ -196,7 +196,7 @@ func awsSetup(v AddAWSView, on []string) (iam, config, restart string) {
 	switch v.Runs {
 	case "docker":
 		var b strings.Builder
-		b.WriteString("# goliash-agent.yml, under services → agent → environment:\n")
+		b.WriteString("# ~/goliash-agent/compose.yml, under services → agent → environment:\n")
 		for _, e := range env {
 			k, val, _ := strings.Cut(e, "=")
 			b.WriteString("      " + k + ": \"" + val + "\"\n")
@@ -205,7 +205,7 @@ func awsSetup(v AddAWSView, on []string) (iam, config, restart string) {
 			b.WriteString("# and under services → agent → volumes:\n      - ~/.aws:/home/nonroot/.aws:ro\n")
 		}
 		config = b.String()
-		restart = "docker compose -f goliash-agent.yml up -d"
+		restart = "cd ~/goliash-agent && docker compose up -d"
 	case "kubernetes":
 		var b strings.Builder
 		b.WriteString("# values for the goliash-agent chart (with an IAM role for its service account, leave the keys out):\nenv:\n")

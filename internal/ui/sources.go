@@ -167,7 +167,7 @@ func (s *Server) addSource(w http.ResponseWriter, r *http.Request, p auth.Princi
 	switch v.Runs {
 	case "docker":
 		var b strings.Builder
-		b.WriteString("# goliash-agent.yml, under services → agent → environment:\n")
+		b.WriteString("# ~/goliash-agent/compose.yml, under services → agent → environment:\n")
 		for _, k := range keys {
 			b.WriteString("      " + k + ": '" + env[k] + "'\n")
 		}
@@ -177,7 +177,7 @@ func (s *Server) addSource(w http.ResponseWriter, r *http.Request, p auth.Princi
 				b.WriteString("      - " + vol + "\n")
 			}
 		}
-		v.Config, v.Restart = b.String(), "docker compose -f goliash-agent.yml up -d"
+		v.Config, v.Restart = b.String(), "cd ~/goliash-agent && docker compose up -d"
 	case "kubernetes":
 		var b strings.Builder
 		b.WriteString("# values for the goliash-agent chart:\nenv:\n")

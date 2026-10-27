@@ -32,6 +32,7 @@ type PlatformInfo struct {
 	Summary    string
 	ServerHint string // when collecting from the server makes sense; empty when it rarely does
 	AgentFirst bool   // a new agent is the usual way
+	Finds      string // what an agent started there finds by itself, for the Connect tiles
 }
 
 var connectPlatforms = []PlatformInfo{
@@ -90,10 +91,22 @@ func platformInfo(key string) (PlatformInfo, bool) {
 type ConnectView struct {
 	Base
 	Primary, More []PlatformInfo
+	DefaultEnv    string // where a one-click agent lands
 }
 
-// primaryPlatforms are where an agent runs: everything else is added to an agent from its page.
+// primaryPlatforms are where an agent runs: everything else it finds by itself, or is added from its page.
 var primaryPlatforms = []string{"kubernetes", "docker", "nomad", "ecs"}
+
+// primaryFinds is what an agent started on each primary platform finds by itself.
+var primaryFinds = map[string]string{
+	"kubernetes": "Workloads of the cluster; on EKS also the AWS services its role may read.",
+	"docker":     "Containers, Compose projects and the host's OS and packages; on EC2 also the AWS services the instance's role may read.",
+	"nomad":      "Jobs of the region, through the Nomad agent of its node.",
+	"ecs":        "No server of your own: it runs on ECS Fargate and reads ECS, Lambda, RDS, ElastiCache, EKS, OpenSearch and MSK of a region.",
+}
+
+// defaultEnvName is the environment a one-click agent lands in when the workspace has none.
+const defaultEnvName = "production"
 
 // ConnectFormView is the form for one platform.
 type ConnectFormView struct {
@@ -139,8 +152,20 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request, p auth.Principa
 	v := ConnectView{Base: withFlash(s.base(r.Context(), p, "agents", "Connect"), r)}
 	for _, key := range primaryPlatforms {
 		if pl, ok := platformInfo(key); ok {
+			pl.Finds = primaryFinds[key]
+			if key == "ecs" {
+				pl.Title = "AWS, without a server"
+			}
 			v.Primary = append(v.Primary, pl)
 		}
+	}
+	envs, err := s.store.ListEnvironments(r.Context(), p.Scope)
+	if err != nil {
+		return err
+	}
+	v.DefaultEnv = defaultEnvName
+	if e, ok := quickEnv(envs); ok {
+		v.DefaultEnv = e.Name
 	}
 	for _, pl := range connectPlatforms {
 		if !slices.Contains(primaryPlatforms, pl.Key) {
@@ -488,6 +513,11 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 	if !ok {
 		validity = codeExpiry["7d"]
 	}
+	if f.Get("quick") == "1" {
+		if err := s.quickDefaults(r, p, f); err != nil {
+			return err
+		}
+	}
 	env, problem, err := s.connectEnv(r, p, f)
 	if err != nil {
 		return err
@@ -525,6 +555,37 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	return render(w, r, ConnectCodePage(v))
+}
+
+// quickEnv is where a one-click agent lands: production, or else the first environment.
+func quickEnv(envs []store.Environment) (store.Environment, bool) {
+	for _, e := range envs {
+		if n := strings.ToLower(e.Name); n == "prod" || n == "production" {
+			return e, true
+		}
+	}
+	if len(envs) > 0 {
+		return envs[0], true
+	}
+	return store.Environment{}, false
+}
+
+// quickDefaults fills in what a one-click tile leaves out: the environment (quickEnv, or a new production one),
+// and automatic mapping while the workspace has no services.
+func (s *Server) quickDefaults(r *http.Request, p auth.Principal, f url.Values) error {
+	envs, err := s.store.ListEnvironments(r.Context(), p.Scope)
+	if err != nil {
+		return err
+	}
+	if e, ok := quickEnv(envs); ok {
+		f.Set("env", e.ID)
+	} else {
+		f.Set("new_env", defaultEnvName)
+	}
+	if svcs, err := s.store.ListServices(r.Context(), p.Scope); err == nil && len(svcs) == 0 {
+		f.Set("auto_map", "on")
+	}
+	return nil
 }
 
 func (s *Server) codeStatus(r *http.Request, p auth.Principal, codeID, platform string) (CodeStatus, error) {
@@ -646,6 +707,9 @@ func agentRelease(version string) (imageTag, gitRef string) {
 	return v, "v" + v
 }
 
+// dockerAgentDir is where a Docker agent's compose.yml and .env live.
+const dockerAgentDir = "mkdir -p ~/goliash-agent && cd ~/goliash-agent"
+
 // installCommand is how to start an agent for a platform, with the server URL and the
 // token filled in and the release pinned to the server's, so it can be pasted as it is.
 func installCommand(platform, serverURL, token string, files []string, version string) (title, cmd string) {
@@ -666,9 +730,10 @@ func installCommand(platform, serverURL, token string, files []string, version s
 		return "Install the agent in the cluster with Helm", "helm upgrade --install goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent" + chartVersion + " \\\n" +
 			"  -n goliash --create-namespace --set serverURL=" + serverURL + " --set token.value=" + token
 	case "docker":
-		return "Start the agent on the Docker host", "curl -fsSL " + raw + "docker/goliash-agent.yml | \\\n" +
-			"  GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n" +
-			"  docker compose -p goliash-agent -f - up -d"
+		return "Start the agent on the Docker host; its files stay in ~/goliash-agent", dockerAgentDir + "\n" +
+			"curl -fsSLo compose.yml " + raw + "docker/goliash-agent.yml\n" +
+			"(umask 077; printf '%s\\n' GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " GOLIASH_AGENT_VERSION=" + tag + " > .env)\n" +
+			"docker compose up -d"
 	case "host":
 		return "Start the agent on the server, its root mounted read-only", "docker run -d --name goliash-agent --restart unless-stopped" + addHost + " \\\n" +
 			"  -v goliash-agent:/data -v /:/host:ro -e GOLIASH_HOST_ROOT=/host \\\n" +
@@ -769,7 +834,7 @@ func agentLogs(platform string) string {
 	case "kubernetes":
 		return "kubectl -n goliash logs deploy/goliash-agent"
 	case "docker":
-		return "docker compose -p goliash-agent logs agent"
+		return "cd ~/goliash-agent && docker compose logs agent"
 	case "swarm":
 		return "docker service logs goliash-agent_agent"
 	case "nomad":
@@ -796,10 +861,13 @@ func upgradeCommand(platform, serverURL, version string) (title, cmd string) {
 		return "Update with Helm, keeping its values", "helm upgrade goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent" + chart +
 			" -n goliash --reuse-values"
 	case "docker":
-		return "Update on the Docker host, keeping its code", "curl -fsSL " + raw + "docker/goliash-agent.yml | \\\n" +
-			"  GOLIASH_AGENT_VERSION=" + tag + " GOLIASH_SERVER_URL=" + serverURL + " \\\n" +
-			"  GOLIASH_AGENT_TOKEN=$(docker inspect goliash-agent-agent-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^GOLIASH_AGENT_TOKEN=//p') \\\n" +
-			"  docker compose -p goliash-agent -f - up -d"
+		// An agent started before the files lived in ~/goliash-agent gets them: its code comes from the container.
+		return "Update on the Docker host, keeping its code", dockerAgentDir + "\n" +
+			"curl -fsSLo compose.yml " + raw + "docker/goliash-agent.yml\n" +
+			"[ -f .env ] || (umask 077; printf '%s\\n' GOLIASH_SERVER_URL=" + serverURL + " \\\n" +
+			"  \"GOLIASH_AGENT_TOKEN=$(docker inspect goliash-agent-agent-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n 's/^GOLIASH_AGENT_TOKEN=//p')\" > .env)\n" +
+			"sed -i.bak '/^GOLIASH_AGENT_VERSION=/d' .env && echo GOLIASH_AGENT_VERSION=" + tag + " >> .env\n" +
+			"docker compose up -d"
 	case "swarm":
 		return "Update the service on a manager node", "docker service update --image ghcr.io/pipozzz/goliash-agent:" + tag + " goliash-agent_agent"
 	case "nomad":

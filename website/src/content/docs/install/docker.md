@@ -45,16 +45,23 @@ docker compose exec goliash goliash target create -env prod -platform docker -na
 
 ## Agent on another host
 
-`deploy/docker/goliash-agent.yml` runs an agent with its own socket proxy on any Docker host:
+`deploy/docker/goliash-agent.yml` runs an agent with its own socket proxy on any Docker host. **Connect** →
+**Docker** gives these commands with the server and a code filled in; the files stay in `~/goliash-agent`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/docker/goliash-agent.yml | \
-  GOLIASH_SERVER_URL=https://goliash.example.com GOLIASH_AGENT_TOKEN=glsh_enroll_… \
-  docker compose -p goliash-agent -f - up -d
+mkdir -p ~/goliash-agent && cd ~/goliash-agent
+curl -fsSLo compose.yml https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/docker/goliash-agent.yml
+(umask 077; printf '%s\n' GOLIASH_SERVER_URL=https://goliash.example.com GOLIASH_AGENT_TOKEN=glsh_enroll_… > .env)
+docker compose up -d
 ```
 
-`GOLIASH_AGENT_TOKEN` takes the code from **Connect** (or `goliash enroll create -env prod`). Its log:
-`docker compose -p goliash-agent logs agent`; to remove it: `docker compose -p goliash-agent down`.
+`GOLIASH_AGENT_TOKEN` takes the code from **Connect** (or `goliash enroll create -env prod`). Change settings in
+`~/goliash-agent/compose.yml` and run `docker compose up -d` there again. Its log: `docker compose logs agent`; to
+remove it: `docker compose down`.
+
+The agent finds by itself the containers and Compose projects, the host's OS and packages (the host's root is
+mounted read-only at `/host`; remove that line to leave them out), and on EC2 the AWS services the instance's role
+may read. It looks again every 15 minutes.
 
 With an [enrollment code](/install/#enrollment-codes) the agent adds the host as a `docker` target itself. With an
 agent token instead, create the target with `{"docker":{"docker_host":"tcp://socket-proxy:2375"}}`.

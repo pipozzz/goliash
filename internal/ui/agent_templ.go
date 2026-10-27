@@ -1282,9 +1282,9 @@ func installAgent(serverURL, token string, rotated bool) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var60 string
-		templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs("curl -fsSLO https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/docker/goliash-agent.yml\nGOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " \\\n  docker compose -f goliash-agent.yml up -d")
+		templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs("mkdir -p ~/goliash-agent && cd ~/goliash-agent\ncurl -fsSLo compose.yml https://raw.githubusercontent.com/pipozzz/goliash/main/deploy/docker/goliash-agent.yml\n(umask 077; printf '%s\\n' GOLIASH_SERVER_URL=" + serverURL + " GOLIASH_AGENT_TOKEN=" + token + " > .env)\ndocker compose up -d")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `agent.templ`, Line: 289, Col: 264}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `agent.templ`, Line: 289, Col: 333}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 		if templ_7745c5c3_Err != nil {

@@ -14,18 +14,31 @@ templ ConnectPage(v ConnectView) {
 			<div>
 				<p class="sub"><a href="/agents">Agents and targets</a> /</p>
 				<h1>Connect</h1>
-				<p class="sub">Where will the agent run? You get one command; the agent it starts registers itself and watches what runs there.</p>
+				<p class="sub">Where will the agent run? Click it and copy one command. The agent finds what it can read there by itself and keeps looking.</p>
 			</div>
 		</div>
 		<div class="platforms">
 			for _, pl := range v.Primary {
-				<a class="platform" href={ templ.URL("/connect/" + pl.Key) }>
-					<strong>{ pl.Title }</strong>
-					<span>{ pl.Summary }</span>
-				</a>
+				<form method="post" action={ templ.URL("/connect/" + pl.Key) }>
+					<input type="hidden" name="mode" value="code"/>
+					<input type="hidden" name="quick" value="1"/>
+					<button type="submit" class="platform">
+						<strong>{ pl.Title }</strong>
+						<span>{ pl.Finds }</span>
+					</button>
+				</form>
 			}
 		</div>
-		<p class="hint">Have an agent already? Add more to it on its page under <strong>What it watches</strong>: the host's OS and packages, Compose files, AWS services, Nomad. No new agent needed.</p>
+		<p class="hint">
+			New agents land in { v.DefaultEnv }; move what they find later. Another environment, a code for many hosts, or a name:
+			for i, pl := range v.Primary {
+				if i > 0 {
+					{ ", " }
+				}
+				<a href={ templ.URL("/connect/" + pl.Key) }>{ pl.Title }</a>
+			}
+			{ "." }
+		</p>
 		<details class="connect-more">
 			<summary>More ways</summary>
 			<div class="platforms">

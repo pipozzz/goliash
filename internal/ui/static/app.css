@@ -400,6 +400,7 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
 .platform { display: flex; flex-direction: column; gap: 6px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); }
 .platform:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); text-decoration: none; }
 .platform strong { font-size: 16px; }
+button.platform { width: 100%; height: 100%; text-align: left; font: inherit; cursor: pointer; }
 .platform span { color: var(--muted); font-size: 13px; }
 .connect-form { max-width: 860px; }
 .connect-manual { max-width: 860px; margin-top: 18px; }
