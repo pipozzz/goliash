@@ -78,6 +78,12 @@ variable "watch_elasticache" {
   default     = false
 }
 
+variable "watch_eks" {
+  description = "Also watch the Kubernetes versions of the region's EKS clusters and managed node groups: lets the task role call eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups, eks:DescribeNodegroup and eks:DescribeClusterVersions."
+  type        = bool
+  default     = false
+}
+
 variable "regions" {
   description = "More regions to watch besides the agent's own; with an enrollment code the agent adds their ECS clusters (and Lambda functions with watch_lambda)."
   type        = list(string)

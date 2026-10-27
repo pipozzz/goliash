@@ -153,7 +153,7 @@ func codeMany(p PlatformInfo) string {
 	switch p.Key {
 	case "kubernetes":
 		return "clusters"
-	case "nomad", "lambda", "rds", "elasticache":
+	case "nomad", "lambda", "rds", "elasticache", "eks":
 		return "regions"
 	case "ecs":
 		return "ECS clusters"
@@ -280,6 +280,11 @@ templ connectManualForm(v ConnectFormView) {
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
 							</div>
 							<p class="hint">Whoever collects it needs only elasticache:Describe* and elasticache:ListTagsForResource.</p>
+						case "eks":
+							<div class="row">
+								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
+							</div>
+							<p class="hint">Whoever collects it needs only eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups, eks:DescribeNodegroup and eks:DescribeClusterVersions. The workloads inside each cluster come from an agent in it.</p>
 						case "compose":
 							<label>
 								Compose files

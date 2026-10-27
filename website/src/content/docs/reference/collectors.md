@@ -12,6 +12,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon RDS | PostgreSQL, MySQL, MariaDB and Aurora databases of a region: engine version, the versions RDS offers, public accessibility; tags | IAM `rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon ElastiCache | Redis OSS, Valkey and Memcached caches of a region (replication groups, clusters, serverless): engine version, the versions ElastiCache offers; tags | IAM `elasticache:Describe*`, `elasticache:ListTagsForResource` | default AWS chain; `credentials_ref` names an AWS profile |
+| Amazon EKS | clusters of a region: the Kubernetes version of the control plane and managed node groups, the versions EKS offers, a public API endpoint; tags | IAM `eks:ListClusters`, `eks:DescribeCluster`, `eks:ListNodegroups`, `eks:DescribeNodegroup`, `eks:DescribeClusterVersions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Nomad | jobs, job versions, allocations | ACL token with `list-jobs` and `read-job` | `credentials_ref` resolves to the token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
@@ -32,6 +33,7 @@ Each target has the settings object of its platform:
 {"lambda": {"region": "eu-west-1", "name_prefixes": ["shop-"], "alias_environments": {"live": "prod", "canary": "-"}}}
 {"rds": {"region": "eu-west-1"}}
 {"elasticache": {"region": "eu-west-1"}}
+{"eks": {"region": "eu-west-1"}}
 {"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 
@@ -55,6 +57,7 @@ Vulnerabilities put those first (see [Exposed to the outside](../../guide/securi
 | AWS Lambda | a function URL anyone may call (auth type `NONE`); needs `lambda:ListFunctionUrlConfigs`. |
 | Docker, Compose | a port published on every interface of the host (not on `127.0.0.1`). |
 | Amazon RDS | the database (or one of an Aurora cluster's instances) is publicly accessible. |
+| Amazon EKS | the cluster's API endpoint is public and open to `0.0.0.0/0`. |
 
 A `goliash.exposed` label, tag or meta on the workload overrides it: `internet` marks it exposed whatever the agent
 saw, `internal` not exposed (an internal load balancer, a VPN-only ingress). On a Kubernetes Service, the label or

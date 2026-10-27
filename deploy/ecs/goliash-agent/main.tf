@@ -76,6 +76,14 @@ data "aws_iam_policy_document" "read_ecs" {
       resources = ["*"]
     }
   }
+  dynamic "statement" {
+    for_each = var.watch_eks ? [1] : []
+    content {
+      sid       = "ReadEKS"
+      actions   = ["eks:ListClusters", "eks:DescribeCluster", "eks:ListNodegroups", "eks:DescribeNodegroup", "eks:DescribeClusterVersions"]
+      resources = ["*"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "read_ecs" {
@@ -131,6 +139,7 @@ resource "aws_ecs_task_definition" "agent" {
       { name = "GOLIASH_LAMBDA", value = var.watch_lambda ? "on" : "off" },
       { name = "GOLIASH_RDS", value = var.watch_rds ? "on" : "off" },
       { name = "GOLIASH_ELASTICACHE", value = var.watch_elasticache ? "on" : "off" },
+      { name = "GOLIASH_EKS", value = var.watch_eks ? "on" : "off" },
       ],
       length(var.regions) > 0 ? [{ name = "GOLIASH_AWS_REGIONS", value = join(",", var.regions) }] : [],
       length(var.clusters) > 0 ? [{ name = "GOLIASH_ECS_CLUSTERS", value = join(",", var.clusters) }] : [],

@@ -5,7 +5,7 @@
 # enrollment code (Connect → Amazon ECS in Goliash) the agent registers itself and adds
 # every ECS cluster of the region, each as a target, with WatchLambda the
 # region's Lambda functions, with WatchRDS its RDS and Aurora databases, and with
-# WatchElastiCache its ElastiCache caches.
+# WatchElastiCache its ElastiCache caches, and with WatchEKS the versions of its EKS clusters.
 #
 # To try it in the default VPC, in one line:
 #
@@ -64,6 +64,11 @@ Parameters:
     Default: "true"
     AllowedValues: ["true", "false"]
     Description: Also watch the region's ElastiCache caches (lets the role describe them, their tags and the engine versions).
+  WatchEKS:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Also watch the Kubernetes versions of the region's EKS clusters and node groups (lets the role describe them).
   Regions:
     Type: CommaDelimitedList
     Default: ""
@@ -83,6 +88,7 @@ Conditions:
   Lambda: !Equals [!Ref WatchLambda, "true"]
   RDS: !Equals [!Ref WatchRDS, "true"]
   ElastiCache: !Equals [!Ref WatchElastiCache, "true"]
+  EKS: !Equals [!Ref WatchEKS, "true"]
 
 Resources:
   AgentCluster:
@@ -147,6 +153,13 @@ Resources:
                   Action: ["elasticache:Describe*", "elasticache:ListTagsForResource"]
                   Resource: "*"
                 - !Ref AWS::NoValue
+              - !If
+                - EKS
+                - Sid: ReadEKS
+                  Effect: Allow
+                  Action: ["eks:ListClusters", "eks:DescribeCluster", "eks:ListNodegroups", "eks:DescribeNodegroup", "eks:DescribeClusterVersions"]
+                  Resource: "*"
+                - !Ref AWS::NoValue
 
   ExecutionRole:
     Type: AWS::IAM::Role
@@ -191,6 +204,7 @@ Resources:
             - { Name: GOLIASH_LAMBDA, Value: !If [Lambda, "on", "off"] }
             - { Name: GOLIASH_RDS, Value: !If [RDS, "on", "off"] }
             - { Name: GOLIASH_ELASTICACHE, Value: !If [ElastiCache, "on", "off"] }
+            - { Name: GOLIASH_EKS, Value: !If [EKS, "on", "off"] }
             - { Name: GOLIASH_AWS_REGIONS, Value: !Join [",", !Ref Regions] }
             - { Name: GOLIASH_ECS_CLUSTERS, Value: !Join [",", !Ref Clusters] }
             # The cluster made for the agent alone is not worth watching.

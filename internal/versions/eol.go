@@ -125,14 +125,16 @@ func purlImage(purl string) string {
 }
 
 // managedProducts are the endoflife.date products of the engines managed services report as images: RDS
-// databases as rds.amazonaws.com/<engine>, ElastiCache caches as elasticache.amazonaws.com/<engine>. The RDS and
-// Redis cycles end with the end of standard support, after which AWS charges for Extended Support.
+// databases as rds.amazonaws.com/<engine>, ElastiCache caches as elasticache.amazonaws.com/<engine>, EKS clusters
+// as eks.amazonaws.com/kubernetes. The RDS, Redis and EKS cycles end with the end of standard support, after which
+// AWS charges for Extended Support.
 var managedProducts = map[string]string{
 	"rds.amazonaws.com/postgres": "amazon-rds-postgresql", "rds.amazonaws.com/mysql": "amazon-rds-mysql",
 	"rds.amazonaws.com/mariadb": "amazon-rds-mariadb", "rds.amazonaws.com/aurora-postgresql": "amazon-aurora-postgresql",
 	"rds.amazonaws.com/aurora-mysql":  "amazon-aurora-mysql",
 	"elasticache.amazonaws.com/redis": "amazon-elasticache-redis", "elasticache.amazonaws.com/valkey": "valkey",
 	"elasticache.amazonaws.com/memcached": "memcached",
+	"eks.amazonaws.com/kubernetes":        "amazon-eks",
 }
 
 // Managed reports whether repo is the engine of a managed service (rds.amazonaws.com/postgres), which AWS runs and

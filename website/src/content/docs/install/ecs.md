@@ -114,19 +114,42 @@ Each replication group, standalone cluster (Memcached) and serverless cache is a
 - **Tags:** `goliash.ignore=true` and `goliash.env` on the cache work as on databases. Without
   `elasticache:ListTagsForResource` caches still count, without their tags.
 
+## EKS clusters
+
+With `WatchEKS=true` (CloudFormation, the default) or `watch_eks = true` (Terraform) the task role may also call
+`eks:ListClusters`, `eks:DescribeCluster`, `eks:ListNodegroups`, `eks:DescribeNodegroup` and
+`eks:DescribeClusterVersions`, and the agent adds the region's clusters as an `eks` target named `eks-<region>`
+(`GOLIASH_EKS=off` stops it). With a token: `{"eks":{"region":"eu-west-1"}}`.
+
+This watches the clusters themselves; the workloads inside a cluster come from an agent in it (see
+[Kubernetes](/install/kubernetes/)). Each cluster is a service named like it:
+
+- **Its control plane and each managed node group** report their Kubernetes version as
+  `eks.amazonaws.com/kubernetes:1.33`. A node group left a version behind shows as a second version of the
+  cluster, with its node AMI release in the workload's labels.
+- **The versions EKS offers** are its upstream releases, so the next Kubernetes version shows on Updates.
+- **End of standard support** comes from endoflife.date (`amazon-eks`), as *end of life*. After it, AWS keeps the
+  cluster in extended support and charges for it per cluster and hour, unless the cluster's upgrade policy says
+  otherwise.
+- **A public API endpoint** open to `0.0.0.0/0` makes the cluster *exposed*.
+- **Tags:** `goliash.ignore=true` and `goliash.env` on the cluster work as on databases; node groups take the
+  cluster's tags, then their own.
+
+Self-managed nodes and Fargate profiles are not read.
+
 ## Leaving things out
 
-- `goliash.ignore=true` as a tag on an ECS service, Lambda function, RDS database or ElastiCache cache keeps the
-  agent from reporting it.
+- `goliash.ignore=true` as a tag on an ECS service, Lambda function, RDS database, ElastiCache cache or EKS cluster
+  keeps the agent from reporting it.
 - `Clusters` (`GOLIASH_ECS_CLUSTERS`) and `GOLIASH_ECS_EXCLUDE` choose the clusters.
-- `WatchLambda=false`, `WatchRDS=false` and `WatchElastiCache=false` (`GOLIASH_LAMBDA`, `GOLIASH_RDS`,
-  `GOLIASH_ELASTICACHE` set to `off`) leave out Lambda, RDS or ElastiCache.
+- `WatchLambda=false`, `WatchRDS=false`, `WatchElastiCache=false` and `WatchEKS=false` (`GOLIASH_LAMBDA`,
+  `GOLIASH_RDS`, `GOLIASH_ELASTICACHE`, `GOLIASH_EKS` set to `off`) leave out Lambda, RDS, ElastiCache or EKS.
 - In Goliash, an ignore rule (Inbox → **Ignore this image**) drops what the agent still reports.
 
 ## Upgrading the stack
 
 **Agents → Update** gives the command. It fetches the template of the new version, so the task role gains what the
-new version reads (RDS, ElastiCache, Lambda function URLs), and keeps your parameters.
+new version reads (RDS, ElastiCache, EKS, Lambda function URLs), and keeps your parameters.
 
 ## What the ECS collector reports
 

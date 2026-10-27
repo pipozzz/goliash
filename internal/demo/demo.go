@@ -65,6 +65,7 @@ var tagsBefore = map[string][]string{
 	"rds.amazonaws.com/postgres":                    {"13.15", "13.16", "14.12", "15.7", "16.3", "16.4"},
 	"rds.amazonaws.com/aurora-mysql":                {"3.05.2", "3.06.1", "3.07.1"},
 	"elasticache.amazonaws.com/redis":               {"5.0.6", "6.2.6", "7.0.7", "7.1.0"},
+	"eks.amazonaws.com/kubernetes":                  {"1.31", "1.32", "1.33", "1.34"},
 }
 
 var tagsAfter = map[string][]string{
@@ -100,6 +101,7 @@ var images = map[string]string{
 	"billing-db":    "rds.amazonaws.com/postgres",
 	"orders-aurora": "rds.amazonaws.com/aurora-mysql",
 	"sessions":      "elasticache.amazonaws.com/redis",
+	"shop-eks":      "eks.amazonaws.com/kubernetes",
 }
 
 var targets = []demoTarget{
@@ -149,6 +151,11 @@ var targets = []demoTarget{
 	// A Redis replication group the shop keeps its sessions in, on an engine past its end of life.
 	{name: "demo-elasticache", env: "prod", platform: "elasticache", steps: []step{
 		{0, map[string]string{"sessions": "5.0.6"}},
+	}},
+	// The EKS cluster the shop runs on: its control plane on 1.32, past standard support, and a node group a
+	// version further behind.
+	{name: "demo-eks", env: "prod", platform: "eks", steps: []step{
+		{0, map[string]string{"shop-eks": "1.32"}},
 	}},
 	// Internal tools on Nomad and a plain Docker host.
 	{name: "demo-nomad", env: "prod", platform: "nomad", steps: []step{
@@ -233,6 +240,14 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 				}
 				snap.Workloads = append(snap.Workloads, w)
 			}
+			if t.name == "demo-eks" {
+				ns, nodes := "us-east-1", 4
+				snap.Workloads = append(snap.Workloads, agentproto.Workload{
+					ID: "demo-eks/shop-eks/general", Kind: agentproto.EksNodegroup, Namespace: &ns, Name: "shop-eks/general",
+					DesiredReplicas: &nodes, Labels: map[string]string{"goliash.service": "shop-eks"},
+					Containers: []agentproto.Container{{Name: "nodes", Image: images["shop-eks"] + ":1.31", Running: nodes}},
+				})
+			}
 			if t.name == "demo-prod-eu" {
 				ns := "reports"
 				snap.Workloads = append(snap.Workloads, agentproto.Workload{
@@ -263,7 +278,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		"orders-api": "team-orders", "notifications": "team-orders", "rabbitmq": "platform", "search": "team-search",
 		"webhook-relay": "team-integrations", "image-resizer": "team-media", "invoice-pdf": "team-orders",
 		"gitea": "devex", "vault": "security", "fluent-bit": "observability", "nginx": "devex",
-		"billing-db": "team-payments", "orders-aurora": "team-orders", "sessions": "team-shop",
+		"billing-db": "team-payments", "orders-aurora": "team-orders", "sessions": "team-shop", "shop-eks": "platform",
 	} {
 		s, err := st.GetServiceByName(ctx, sc, name)
 		if err != nil {
@@ -630,6 +645,8 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		kind, ns = agentproto.RdsInstance, "us-east-1"
 	case t.platform == "elasticache":
 		kind, ns = agentproto.ElasticacheCluster, "us-east-1"
+	case t.platform == "eks":
+		kind, ns = agentproto.EksCluster, "us-east-1"
 	case t.platform == "nomad":
 		kind = agentproto.NomadJob
 	case t.platform == "docker":

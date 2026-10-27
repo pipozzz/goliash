@@ -82,6 +82,7 @@ const (
 	Compose     Platform = "compose"
 	Docker      Platform = "docker"
 	Ecs         Platform = "ecs"
+	Eks         Platform = "eks"
 	Elasticache Platform = "elasticache"
 	Host        Platform = "host"
 	Kubernetes  Platform = "kubernetes"
@@ -100,6 +101,8 @@ func (e Platform) Valid() bool {
 	case Docker:
 		return true
 	case Ecs:
+		return true
+	case Eks:
 		return true
 	case Elasticache:
 		return true
@@ -148,6 +151,8 @@ const (
 	Deployment            WorkloadKind = "deployment"
 	DockerContainer       WorkloadKind = "docker_container"
 	EcsService            WorkloadKind = "ecs_service"
+	EksCluster            WorkloadKind = "eks_cluster"
+	EksNodegroup          WorkloadKind = "eks_nodegroup"
 	ElasticacheCluster    WorkloadKind = "elasticache_cluster"
 	ElasticacheServerless WorkloadKind = "elasticache_serverless"
 	HostOs                WorkloadKind = "host_os"
@@ -175,6 +180,10 @@ func (e WorkloadKind) Valid() bool {
 	case DockerContainer:
 		return true
 	case EcsService:
+		return true
+	case EksCluster:
+		return true
+	case EksNodegroup:
 		return true
 	case ElasticacheCluster:
 		return true
@@ -282,6 +291,14 @@ type DeclaredTarget struct {
 	Docker *DockerSettings `json:"docker,omitempty"`
 	Ecs    *ECSSettings    `json:"ecs,omitempty"`
 
+	// Eks Amazon EKS clusters of a region, read with eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups and
+	// eks:DescribeNodegroup. A cluster's control plane and each managed node group report their Kubernetes
+	// version as an image, eks.amazonaws.com/kubernetes:<version>, all labelled as the cluster's service, so
+	// newer versions, node groups left behind and the end of standard support show up; the agent reads the
+	// versions EKS offers with eks:DescribeClusterVersions. The workloads inside a cluster are read by an agent
+	// in it (the kubernetes platform).
+	Eks *EKSSettings `json:"eks,omitempty"`
+
 	// Elasticache Amazon ElastiCache caches of a region (Redis OSS, Valkey, Memcached), read with elasticache:Describe* and
 	// elasticache:ListTagsForResource. Each cache (a replication group, a standalone cluster or a serverless cache)
 	// reports its engine as an image, elasticache.amazonaws.com/<engine>:<version>, so newer engine versions and
@@ -347,6 +364,17 @@ type ECSSettings struct {
 	// Clusters Cluster names or ARNs. Empty means all clusters in the region.
 	Clusters []string `json:"clusters,omitempty"`
 
+	// Region Example: eu-west-1
+	Region string `json:"region"`
+}
+
+// EKSSettings Amazon EKS clusters of a region, read with eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups and
+// eks:DescribeNodegroup. A cluster's control plane and each managed node group report their Kubernetes
+// version as an image, eks.amazonaws.com/kubernetes:<version>, all labelled as the cluster's service, so
+// newer versions, node groups left behind and the end of standard support show up; the agent reads the
+// versions EKS offers with eks:DescribeClusterVersions. The workloads inside a cluster are read by an agent
+// in it (the kubernetes platform).
+type EKSSettings struct {
 	// Region Example: eu-west-1
 	Region string `json:"region"`
 }
@@ -737,6 +765,14 @@ type Target struct {
 	// reported one by one. Containers that belong to Swarm services are left to the swarm platform.
 	Docker *DockerSettings `json:"docker,omitempty"`
 	Ecs    *ECSSettings    `json:"ecs,omitempty"`
+
+	// Eks Amazon EKS clusters of a region, read with eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups and
+	// eks:DescribeNodegroup. A cluster's control plane and each managed node group report their Kubernetes
+	// version as an image, eks.amazonaws.com/kubernetes:<version>, all labelled as the cluster's service, so
+	// newer versions, node groups left behind and the end of standard support show up; the agent reads the
+	// versions EKS offers with eks:DescribeClusterVersions. The workloads inside a cluster are read by an agent
+	// in it (the kubernetes platform).
+	Eks *EKSSettings `json:"eks,omitempty"`
 
 	// Elasticache Amazon ElastiCache caches of a region (Redis OSS, Valkey, Memcached), read with elasticache:Describe* and
 	// elasticache:ListTagsForResource. Each cache (a replication group, a standalone cluster or a serverless cache)
