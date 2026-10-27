@@ -901,6 +901,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Acknowledged bool          `json:"acknowledged"`
 		Exploited    []string      `json:"exploited,omitempty"`
 		Exposed      []string      `json:"exposed,omitempty"`
+		Maintenance  []string      `json:"maintenance,omitempty"`
 		Critical     int           `json:"critical_vulnerabilities,omitempty"`
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 		SecurityFix  string        `json:"security_fix,omitempty"`
@@ -922,7 +923,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
 			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
-			Exploited: u.Exploited, Exposed: u.Exposed, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
+			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
 			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left,
 		})
 	}

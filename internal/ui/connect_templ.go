@@ -1091,7 +1091,7 @@ func connectManualForm(v ConnectFormView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "\" placeholder=\"eu-west-1\"></label></div><p class=\"hint\">Whoever collects it needs only rds:DescribeDBInstances, rds:DescribeDBClusters and rds:DescribeDBEngineVersions.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "\" placeholder=\"eu-west-1\"></label></div><p class=\"hint\">Whoever collects it needs only rds:DescribeDBInstances, rds:DescribeDBClusters, rds:DescribeDBEngineVersions and rds:DescribePendingMaintenanceActions.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

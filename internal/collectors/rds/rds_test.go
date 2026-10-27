@@ -8,6 +8,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -21,6 +22,11 @@ type fakeAPI struct {
 	clusters   []types.DBCluster
 	noClusters bool
 	versions   map[string][]string
+	pending    []types.ResourcePendingMaintenanceActions
+}
+
+func (f *fakeAPI) DescribePendingMaintenanceActions(context.Context, *rds.DescribePendingMaintenanceActionsInput, ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error) {
+	return &rds.DescribePendingMaintenanceActionsOutput{PendingMaintenanceActions: f.pending}, nil
 }
 
 func (f *fakeAPI) DescribeDBInstances(_ context.Context, in *rds.DescribeDBInstancesInput, _ ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
@@ -74,6 +80,13 @@ func TestCollect(t *testing.T) {
 			DBClusterMembers: []types.DBClusterMember{{}, {}},
 			TagList:          []types.Tag{{Key: aws.String("goliash.env"), Value: aws.String("prod")}},
 		}},
+		pending: []types.ResourcePendingMaintenanceActions{{
+			ResourceIdentifier: aws.String("arn:aws:rds:eu-west-1:1:db:orders-db"),
+			PendingMaintenanceActionDetails: []types.PendingMaintenanceAction{{
+				Action: aws.String("system-update"), Description: aws.String("New Operating System update is available"),
+				AutoAppliedAfterDate: aws.Time(time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)),
+			}},
+		}},
 	}
 	res, err := NewWithAPI(api, "eu-west-1").Collect(context.Background())
 	if err != nil || !res.Complete || len(res.Workloads) != 2 {
@@ -86,7 +99,8 @@ func TestCollect(t *testing.T) {
 		t.Errorf("cluster %+v", shop)
 	}
 	if orders.Kind != agentproto.RdsInstance || orders.Containers[0].Image != "rds.amazonaws.com/postgres:13.15" ||
-		*orders.Namespace != "eu-west-1" || len(orders.Exposed) != 1 {
+		*orders.Namespace != "eu-west-1" || len(orders.Exposed) != 1 ||
+		!slices.Equal(orders.Maintenance, []string{"system-update: New Operating System update is available (applied after 2026-11-10)"}) {
 		t.Errorf("instance %+v", orders)
 	}
 

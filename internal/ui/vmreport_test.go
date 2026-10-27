@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -51,5 +52,34 @@ func TestVMReportPage(t *testing.T) {
 	}
 	if _, sec := get(t, viewer, e.srv.URL+"/security", nil); !strings.Contains(sec, `href="/security/report"`) {
 		t.Error("the Security page does not link the report")
+	}
+}
+
+// A managed service's waiting patches and its ways in show on its service page.
+func TestServicePageMaintenanceAndExposure(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	name := e.serviceOf("evil")
+	svc, _ := e.st.GetServiceByName(ctx, sc, name)
+	active, _ := e.st.ListActiveInstances(ctx, sc)
+	var up []store.Instance
+	for _, in := range active {
+		if in.ServiceID == svc.ID {
+			in.Exposed, in.Maintenance = []string{"public endpoint db.example.com"}, []string{"system-update: OS patch (applied after 2026-11-10)"}
+			up = append(up, in)
+		}
+	}
+	if len(up) == 0 {
+		t.Fatal("no instance of the service")
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: up[0].TargetID, SnapshotID: store.NewID(), At: time.Now(), Upsert: up}); err != nil {
+		t.Fatal(err)
+	}
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/"+url.PathEscape(name), nil)
+	for _, want := range []string{">patch pending<", "system-update: OS patch (applied after 2026-11-10)", ">exposed<", "public endpoint db.example.com"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("service page lacks %q", want)
+		}
 	}
 }

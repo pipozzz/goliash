@@ -23,6 +23,11 @@ type fakeAPI struct {
 	tags       map[string][]types.Tag
 	versions   map[string][]string
 	tagCalls   int
+	updates    []types.UpdateAction
+}
+
+func (f *fakeAPI) DescribeUpdateActions(context.Context, *elasticache.DescribeUpdateActionsInput, ...func(*elasticache.Options)) (*elasticache.DescribeUpdateActionsOutput, error) {
+	return &elasticache.DescribeUpdateActionsOutput{UpdateActions: f.updates}, nil
 }
 
 func (f *fakeAPI) DescribeCacheClusters(context.Context, *elasticache.DescribeCacheClustersInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error) {
@@ -79,6 +84,10 @@ func TestCollect(t *testing.T) {
 			Engine: aws.String("valkey"), FullEngineVersion: aws.String("8.0"), MajorEngineVersion: aws.String("8"), Status: aws.String("available"),
 		}},
 		tags: map[string][]types.Tag{sessions: {{Key: aws.String("goliash.env"), Value: aws.String("prod")}}},
+		updates: []types.UpdateAction{{
+			ReplicationGroupId: aws.String("sessions"), ServiceUpdateName: aws.String("elasticache-20251001-001"),
+			ServiceUpdateType: types.ServiceUpdateTypeSecurityUpdate, ServiceUpdateSeverity: types.ServiceUpdateSeverityImportant,
+		}},
 	}
 	res, err := NewWithAPI(api, "eu-west-1").Collect(context.Background())
 	if err != nil || !res.Complete || len(res.Workloads) != 3 {
@@ -90,7 +99,8 @@ func TestCollect(t *testing.T) {
 	}
 	s := got["sessions"]
 	if s.Kind != agentproto.ElasticacheCluster || len(s.Containers) != 2 || s.Containers[0].Image != "elasticache.amazonaws.com/redis:6.2.6" ||
-		s.Containers[0].Running != 2 || s.Containers[1].Running != 1 || s.Labels["goliash.env"] != "prod" {
+		s.Containers[0].Running != 2 || s.Containers[1].Running != 1 || s.Labels["goliash.env"] != "prod" ||
+		!slices.Equal(s.Maintenance, []string{"elasticache-20251001-001 (security-update, important)"}) {
 		t.Errorf("sessions %+v", s)
 	}
 	if p := got["pages"]; p.Containers[0].Image != "elasticache.amazonaws.com/memcached:1.6.22" || p.Containers[0].Running != 3 {

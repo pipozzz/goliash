@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/pkg/agentproto"
@@ -34,6 +36,7 @@ type API interface {
 	DescribeServerlessCaches(ctx context.Context, in *elasticache.DescribeServerlessCachesInput, opts ...func(*elasticache.Options)) (*elasticache.DescribeServerlessCachesOutput, error)
 	DescribeCacheEngineVersions(ctx context.Context, in *elasticache.DescribeCacheEngineVersionsInput, opts ...func(*elasticache.Options)) (*elasticache.DescribeCacheEngineVersionsOutput, error)
 	ListTagsForResource(ctx context.Context, in *elasticache.ListTagsForResourceInput, opts ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
+	DescribeUpdateActions(ctx context.Context, in *elasticache.DescribeUpdateActionsInput, opts ...func(*elasticache.Options)) (*elasticache.DescribeUpdateActionsOutput, error)
 }
 
 // New is the collectors.Factory for elasticache targets. It uses the default AWS credential chain; credentials_ref,
@@ -160,8 +163,47 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 			break
 		}
 	}
+	if pending, err := c.updates(ctx); err == nil {
+		for i := range res.Workloads {
+			res.Workloads[i].Maintenance = pending[res.Workloads[i].Name]
+		}
+	}
 	sort.Slice(res.Workloads, func(i, j int) bool { return res.Workloads[i].ID < res.Workloads[j].ID })
 	return res, nil
+}
+
+// updates is the service updates ElastiCache has waiting, not yet applied, by replication group or cluster:
+// "elasticache-20250101-001 (security, important, apply by 2026-11-10)".
+func (c *Collector) updates(ctx context.Context) (map[string][]string, error) {
+	out := map[string][]string{}
+	var marker *string
+	for {
+		page, err := c.api.DescribeUpdateActions(ctx, &elasticache.DescribeUpdateActionsInput{
+			Marker:              marker,
+			ServiceUpdateStatus: []types.ServiceUpdateStatus{types.ServiceUpdateStatusAvailable},
+			UpdateActionStatus: []types.UpdateActionStatus{
+				types.UpdateActionStatusNotApplied, types.UpdateActionStatusScheduled, types.UpdateActionStatusWaitingToStart,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range page.UpdateActions {
+			what := []string{string(a.ServiceUpdateType), string(a.ServiceUpdateSeverity)}
+			if by := a.ServiceUpdateRecommendedApplyByDate; by != nil {
+				what = append(what, "apply by "+by.UTC().Format("2006-01-02"))
+			}
+			m := aws.ToString(a.ServiceUpdateName) + " (" + strings.Join(slices.DeleteFunc(what, func(s string) bool { return s == "" }), ", ") + ")"
+			id := aws.ToString(a.ReplicationGroupId)
+			if id == "" {
+				id = aws.ToString(a.CacheClusterId)
+			}
+			out[id] = append(out[id], m)
+		}
+		if marker = page.Marker; marker == nil {
+			return out, nil
+		}
+	}
 }
 
 // workload is one cache, with a container per engine version its nodes run (two while an upgrade rolls).

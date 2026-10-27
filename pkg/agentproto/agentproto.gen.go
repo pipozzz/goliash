@@ -896,6 +896,13 @@ type Workload struct {
 	// Labels Kubernetes labels, ECS tags, Nomad meta or Swarm/Docker labels. `goliash.service` and `goliash.env` take precedence in mapping.
 	Labels map[string]string `json:"labels,omitempty"`
 
+	// Maintenance Patches the platform has waiting for a managed service, one per item: RDS pending maintenance actions,
+	// ElastiCache service updates, OpenSearch service software updates. Older servers ignore it.
+	//
+	//
+	// Example: ["system-update: New Operating System update is available (auto-applied after 2026-11-10)"]
+	Maintenance []string `json:"maintenance,omitempty"`
+
 	// Name Example: payments-api
 	Name string `json:"name"`
 

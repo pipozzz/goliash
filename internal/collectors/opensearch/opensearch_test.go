@@ -87,7 +87,7 @@ func TestCollect(t *testing.T) {
 	}
 	l := got["logs"]
 	if l.Kind != agentproto.OpensearchDomain || l.Containers[0].Image != "opensearch.amazonaws.com/opensearch:2.11" || l.Containers[0].Running != 3 ||
-		l.Labels["goliash.env"] != "prod" || l.Labels[UpdateLabel] != "OpenSearch_2_11_R20250101-P1" || len(l.Exposed) != 1 {
+		l.Labels["goliash.env"] != "prod" || !slices.Equal(l.Maintenance, []string{"service software update OpenSearch_2_11_R20250101-P1"}) || len(l.Exposed) != 1 {
 		t.Errorf("logs %+v", l)
 	}
 	if g := got["legacy"]; g.Containers[0].Image != "opensearch.amazonaws.com/elasticsearch:7.10" || len(g.Exposed) != 0 {

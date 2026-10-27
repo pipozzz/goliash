@@ -274,7 +274,7 @@ templ connectManualForm(v ConnectFormView) {
 							<div class="row">
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
 							</div>
-							<p class="hint">Whoever collects it needs only rds:DescribeDBInstances, rds:DescribeDBClusters and rds:DescribeDBEngineVersions.</p>
+							<p class="hint">Whoever collects it needs only rds:DescribeDBInstances, rds:DescribeDBClusters, rds:DescribeDBEngineVersions and rds:DescribePendingMaintenanceActions.</p>
 						case "elasticache":
 							<div class="row">
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>

@@ -715,6 +715,10 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		w.Exposed = []string{"port 3000/tcp published"}
 	case "billing-db":
 		w.Exposed = []string{"public endpoint billing-db.c9x2k1.us-east-1.rds.amazonaws.com"}
+		w.Maintenance = []string{"system-update: New Operating System update is available (applied after " +
+			time.Now().AddDate(0, 0, 12).UTC().Format("2006-01-02") + ")"}
+	case "sessions":
+		w.Maintenance = []string{"elasticache-20251001-001 (security-update, important)"}
 	}
 	switch t.platform { // no GitOps tool here: the jobs and the Compose file name their place in Git
 	case "nomad":

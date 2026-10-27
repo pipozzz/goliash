@@ -803,6 +803,14 @@ components:
           items:
             type: string
           example: ["ingress shop.example.com", "LoadBalancer service payments/api"]
+        maintenance:
+          type: array
+          description: |
+            Patches the platform has waiting for a managed service, one per item: RDS pending maintenance actions,
+            ElastiCache service updates, OpenSearch service software updates. Older servers ignore it.
+          items:
+            type: string
+          example: ["system-update: New Operating System update is available (auto-applied after 2026-11-10)"]
         containers:
           type: array
           description: |

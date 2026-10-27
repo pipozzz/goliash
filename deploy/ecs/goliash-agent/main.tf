@@ -64,7 +64,7 @@ data "aws_iam_policy_document" "read_ecs" {
     for_each = var.watch_rds ? [1] : []
     content {
       sid       = "ReadRDS"
-      actions   = ["rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions"]
+      actions   = ["rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions", "rds:DescribePendingMaintenanceActions"]
       resources = ["*"]
     }
   }

@@ -156,7 +156,7 @@ Resources:
                 - RDS
                 - Sid: ReadRDS
                   Effect: Allow
-                  Action: ["rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions"]
+                  Action: ["rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions", "rds:DescribePendingMaintenanceActions"]
                   Resource: "*"
                 - !Ref AWS::NoValue
               - !If

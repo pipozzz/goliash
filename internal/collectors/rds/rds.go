@@ -1,8 +1,9 @@
 // Copyright 2026 The Goliash Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package rds collects the Amazon RDS and Aurora databases of a region, using rds:DescribeDBInstances and
-// rds:DescribeDBClusters only, and lists the engine versions RDS offers (rds:DescribeDBEngineVersions).
+// Package rds collects the Amazon RDS and Aurora databases of a region, using rds:DescribeDBInstances,
+// rds:DescribeDBClusters and rds:DescribePendingMaintenanceActions only, and lists the engine versions RDS offers
+// (rds:DescribeDBEngineVersions).
 package rds
 
 import (
@@ -34,6 +35,7 @@ type API interface {
 	DescribeDBInstances(ctx context.Context, in *rds.DescribeDBInstancesInput, opts ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error)
 	DescribeDBClusters(ctx context.Context, in *rds.DescribeDBClustersInput, opts ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error)
 	DescribeDBEngineVersions(ctx context.Context, in *rds.DescribeDBEngineVersionsInput, opts ...func(*rds.Options)) (*rds.DescribeDBEngineVersionsOutput, error)
+	DescribePendingMaintenanceActions(ctx context.Context, in *rds.DescribePendingMaintenanceActionsInput, opts ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error)
 }
 
 // New is the collectors.Factory for rds targets. It uses the default AWS credential chain; credentials_ref, when
@@ -123,8 +125,45 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 			break
 		}
 	}
+	if pending, err := c.pending(ctx); err == nil {
+		for i := range res.Workloads {
+			res.Workloads[i].Maintenance = pending[res.Workloads[i].ID]
+		}
+	} // without rds:DescribePendingMaintenanceActions the databases still count, without what waits for them
 	sort.Slice(res.Workloads, func(i, j int) bool { return res.Workloads[i].ID < res.Workloads[j].ID })
 	return res, nil
+}
+
+// pending is the maintenance RDS has waiting, by the ARN of the instance or cluster it is for: "system-update:
+// New Operating System update is available (applied after 2026-11-10)".
+func (c *Collector) pending(ctx context.Context) (map[string][]string, error) {
+	out := map[string][]string{}
+	var marker *string
+	for {
+		page, err := c.api.DescribePendingMaintenanceActions(ctx, &rds.DescribePendingMaintenanceActionsInput{Marker: marker})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range page.PendingMaintenanceActions {
+			for _, a := range r.PendingMaintenanceActionDetails {
+				m := aws.ToString(a.Action)
+				if d := aws.ToString(a.Description); d != "" {
+					m += ": " + d
+				}
+				switch {
+				case a.ForcedApplyDate != nil:
+					m += " (forced from " + a.ForcedApplyDate.UTC().Format("2006-01-02") + ")"
+				case a.AutoAppliedAfterDate != nil:
+					m += " (applied after " + a.AutoAppliedAfterDate.UTC().Format("2006-01-02") + ")"
+				}
+				id := aws.ToString(r.ResourceIdentifier)
+				out[id] = append(out[id], m)
+			}
+		}
+		if marker = page.Marker; marker == nil {
+			return out, nil
+		}
+	}
 }
 
 func (c *Collector) instance(in types.DBInstance) (agentproto.Workload, bool) {

@@ -29,10 +29,6 @@ import (
 // versions the service offers.
 const Host = "opensearch.amazonaws.com"
 
-// UpdateLabel holds the service software update a domain has waiting (OpenSearch_2_13_R20250101-P1), when AWS
-// offers one: patches, often security fixes, applied by the next update.
-const UpdateLabel = "goliash.aws/service-software-update"
-
 // API is the part of the OpenSearch Service client the collector uses.
 type API interface {
 	ListDomainNames(ctx context.Context, in *opensearch.ListDomainNamesInput, opts ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error)
@@ -131,10 +127,15 @@ func (c *Collector) domain(ctx context.Context, s types.DomainStatus) (agentprot
 	if s.VPCOptions == nil && aws.ToString(s.Endpoint) != "" {
 		w.Exposed = []string{"public endpoint " + aws.ToString(s.Endpoint)}
 	}
-	labels := map[string]string{}
 	if u := s.ServiceSoftwareOptions; u != nil && aws.ToBool(u.UpdateAvailable) && aws.ToString(u.NewVersion) != "" {
-		labels[UpdateLabel] = aws.ToString(u.NewVersion)
+		// Patches, often security fixes, that the next service software update applies.
+		m := "service software update " + aws.ToString(u.NewVersion)
+		if at := u.AutomatedUpdateDate; at != nil && !at.IsZero() {
+			m += " (applied automatically from " + at.UTC().Format("2006-01-02") + ")"
+		}
+		w.Maintenance = []string{m}
 	}
+	labels := map[string]string{}
 	if !c.noTags.Load() && arn != "" {
 		if t, err := c.api.ListTags(ctx, &opensearch.ListTagsInput{ARN: &arn}); err != nil {
 			c.noTags.Store(true) // without the permission, domains still count; goliash.ignore and goliash.env do not

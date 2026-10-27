@@ -658,9 +658,11 @@ type PolicyForm struct {
 
 // ServiceEnv is one environment on a service page.
 type ServiceEnv struct {
-	Name     string
-	Versions []VersionView
-	Drifts   []DriftBadge // drifts of the whole environment, or about a version no longer running
+	Name        string
+	Versions    []VersionView
+	Drifts      []DriftBadge // drifts of the whole environment, or about a version no longer running
+	Exposed     []string     // how it can be reached from outside there
+	Maintenance []string     // the patches its platform has waiting there
 }
 
 // AckView is an acknowledgement shown on a service page.

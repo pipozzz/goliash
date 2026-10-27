@@ -42,6 +42,8 @@ type Update struct {
 	// Exposed is how the running version can be reached from outside its cluster or host, if it can: within an
 	// urgency level, exposed updates come first.
 	Exposed []string
+	// Maintenance is the patches the platform has waiting for it (a managed service's pending maintenance).
+	Maintenance []string
 	// ExploitedSince is when the first of Exploited became known to run exploited: the later of the image running
 	// there and CISA listing it.
 	ExploitedSince time.Time
@@ -201,19 +203,26 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	return us
 }
 
-// WithExposure adds how each update's running version can be reached from outside, from what its workloads in
-// that environment run, and puts exposed ones first within their urgency.
+// WithExposure adds how each update's running version can be reached from outside, and the patches its platform
+// has waiting, from what its workloads in that environment run, and puts exposed ones first within their urgency.
 func WithExposure(us []Update, active []store.Instance) []Update {
 	type key struct{ svc, env string }
-	ways := map[key][]string{}
+	ways, maint := map[key][]string{}, map[key][]string{}
 	for _, in := range active {
-		if in.IsMain && len(in.Exposed) > 0 {
-			k := key{in.ServiceID, in.EnvironmentID}
+		if !in.IsMain {
+			continue
+		}
+		k := key{in.ServiceID, in.EnvironmentID}
+		if len(in.Exposed) > 0 {
 			ways[k] = union(ways[k], in.Exposed)
+		}
+		if len(in.Maintenance) > 0 {
+			maint[k] = union(maint[k], in.Maintenance)
 		}
 	}
 	for i := range us {
-		us[i].Exposed = ways[key{us[i].Service.ID, us[i].Environment.ID}]
+		k := key{us[i].Service.ID, us[i].Environment.ID}
+		us[i].Exposed, us[i].Maintenance = ways[k], maint[k]
 	}
 	sortUpdates(us)
 	return us

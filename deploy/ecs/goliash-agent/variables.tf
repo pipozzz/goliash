@@ -67,7 +67,7 @@ variable "watch_lambda" {
 }
 
 variable "watch_rds" {
-  description = "Also watch the region's RDS and Aurora databases: lets the task role call rds:DescribeDBInstances, rds:DescribeDBClusters and rds:DescribeDBEngineVersions."
+  description = "Also watch the region's RDS and Aurora databases: lets the task role call rds:DescribeDBInstances, rds:DescribeDBClusters, rds:DescribeDBEngineVersions and rds:DescribePendingMaintenanceActions."
   type        = bool
   default     = false
 }

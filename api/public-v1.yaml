@@ -841,6 +841,10 @@ paths:
                       type: array
                       items: { type: string }
                       description: How the running version can be reached from outside its cluster or host; exposed updates come first within an urgency.
+                    maintenance:
+                      type: array
+                      items: { type: string }
+                      description: Patches the platform has waiting for a managed service (RDS pending maintenance, ElastiCache service updates, OpenSearch service software).
                     vulnerabilities:
                       allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
                       description: >-

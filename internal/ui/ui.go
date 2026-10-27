@@ -822,8 +822,26 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			row = &o.Matrix.Rows[i]
 		}
 	}
+	exposed, maint := map[string][]string{}, map[string][]string{}
+	if active, err := s.store.ListActiveInstances(ctx, p.Scope); err == nil {
+		for _, in := range active {
+			if in.ServiceID != svc.ID || !in.IsMain {
+				continue
+			}
+			for _, w := range in.Exposed {
+				if !slices.Contains(exposed[in.EnvironmentID], w) {
+					exposed[in.EnvironmentID] = append(exposed[in.EnvironmentID], w)
+				}
+			}
+			for _, m := range in.Maintenance {
+				if !slices.Contains(maint[in.EnvironmentID], m) {
+					maint[in.EnvironmentID] = append(maint[in.EnvironmentID], m)
+				}
+			}
+		}
+	}
 	for ei, e := range o.Matrix.Environments {
-		se := ServiceEnv{Name: e.Name}
+		se := ServiceEnv{Name: e.Name, Exposed: exposed[e.ID], Maintenance: maint[e.ID]}
 		var running []versions.RunningVersion
 		if row != nil {
 			running = row.Cells[ei].Versions

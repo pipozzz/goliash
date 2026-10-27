@@ -77,7 +77,8 @@ Container functions show their image like any service. A .zip function shows its
 ## RDS and Aurora databases
 
 With `WatchRDS=true` (CloudFormation, the default) or `watch_rds = true` (Terraform) the task role may also call
-`rds:DescribeDBInstances`, `rds:DescribeDBClusters` and `rds:DescribeDBEngineVersions`, and the agent adds the
+`rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions` and
+`rds:DescribePendingMaintenanceActions`, and the agent adds the
 region's databases as an `rds` target named `rds-<region>` (`GOLIASH_RDS=off` stops it). With a token, create the
 target with `{"rds":{"region":"eu-west-1"}}`.
 
@@ -95,7 +96,12 @@ service gets in the matrix, Updates, notifications and reports:
   come first.
 
 Tag a database (or cluster) `goliash.ignore=true` to leave it out, and `goliash.env=prod` to place it in an
-environment other than the target's. Pending maintenance (OS patches RDS schedules) is not read yet.
+environment other than the target's.
+
+**Patches waiting.** The maintenance RDS has pending for a database (OS patches, minor upgrades, certificate
+rotation), ElastiCache's service updates (security updates first) and OpenSearch's service software updates show
+as **patch pending** on the service page and on Updates, with what waits and when AWS applies it. The CSV and
+`GET /api/v1/updates` have them as `maintenance`.
 
 ## ElastiCache caches
 
@@ -150,8 +156,7 @@ Each domain is a service, its engine shown as `opensearch.amazonaws.com/opensear
 - **End of standard support** comes from endoflife.date (`amazon-opensearch`, `amazon-elasticsearch`), after which
   AWS charges for Extended Support.
 - **A domain outside a VPC** (public endpoint) is *exposed*.
-- **A service software update AWS has waiting** (patches, often security fixes) is recorded in the workload's label
-  `goliash.aws/service-software-update`.
+- **A service software update AWS has waiting** (patches, often security fixes) shows as *patch pending*.
 
 ## MSK clusters
 
