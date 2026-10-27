@@ -6,6 +6,9 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 func TestAgentTokenShape(t *testing.T) {
@@ -41,5 +44,28 @@ func TestCredential(t *testing.T) {
 	t.Setenv("GOLIASH_ENROLL_CODE", "glsh_agent_x")
 	if _, _, err := credential(); err == nil {
 		t.Fatal("a token in GOLIASH_ENROLL_CODE was accepted")
+	}
+}
+
+func TestPlatformsAdded(t *testing.T) {
+	rds := agentproto.DeclaredTarget{Platform: agentproto.Rds, Name: "rds-eu-central-1"}
+	docker := agentproto.DeclaredTarget{Platform: agentproto.Docker, Name: "gw"}
+	var p platforms
+	p.remember([]agentproto.DeclaredTarget{docker})
+	if got := p.added([]agentproto.DeclaredTarget{docker, rds}); len(got) != 1 || got[0] != "rds rds-eu-central-1" {
+		t.Fatalf("added: %v", got)
+	}
+	if got := p.added(nil); len(got) != 0 { // gone is no reason
+		t.Fatalf("gone: %v", got)
+	}
+	for v, want := range map[string]time.Duration{"": 15 * time.Minute, "off": 0, "5m": 5 * time.Minute} {
+		t.Setenv("GOLIASH_REDISCOVER", v)
+		if d, err := rediscoverEvery(); err != nil || d != want {
+			t.Fatalf("%q: %v %v", v, d, err)
+		}
+	}
+	t.Setenv("GOLIASH_REDISCOVER", "5s")
+	if _, err := rediscoverEvery(); err == nil {
+		t.Fatal("5s accepted")
 	}
 }

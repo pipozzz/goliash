@@ -9,9 +9,24 @@ templ AddAWSPage(v AddAWSView) {
 			<div>
 				<p class="sub"><a href="/agents">Agents</a> / <a href={ templ.URL("/agents/" + v.Agent.ID) }>{ v.Agent.Name }</a> /</p>
 				<h1>Add AWS to { v.Agent.Name }</h1>
-				<p class="sub">Three steps: allow read-only access, give the agent the credentials and the region, restart it. It then finds what the credentials may read.</p>
+				if v.Config == "" {
+					<p class="sub">One step: give the role read-only access. The agent finds its region and role by itself and, within 15 minutes, adds what the role may read.</p>
+				} else {
+					<p class="sub">Three steps: allow read-only access, give the agent the credentials and the region, restart it. It then finds what the credentials may read.</p>
+				}
 			</div>
 		</div>
+		if v.EC2.ID != "" {
+			<p class="notice" role="status">
+				if v.EC2.Role != "" {
+					The agent runs on EC2 instance <code>{ v.EC2.ID }</code> in <code>{ v.EC2.Region }</code> with the role <code>{ v.EC2.Role }</code>.
+				} else {
+					The agent runs on EC2 instance <code>{ v.EC2.ID }</code> in <code>{ v.EC2.Region }</code>, which has no IAM role yet.
+				}
+			</p>
+		} else if v.HopLimit {
+			<p class="notice" role="status">The agent runs on EC2, but its container gets no instance metadata token: raise the instance's hop limit to 2 (the last command below).</p>
+		}
 		<section class="panel">
 			<div class="panel-head"><h2>What to watch</h2></div>
 			<form class="panel-body stack" method="get">
@@ -37,32 +52,61 @@ templ AddAWSPage(v AddAWSView) {
 		<section class="panel">
 			<div class="panel-head"><h2>1. Allow read-only access</h2>@panelInfo("Only Describe and List calls: the agent changes nothing in the account")</div>
 			<div class="panel-body stack">
-				<p>The IAM policy:</p>
-				<pre tabindex="0" class="mono install-cmd" id="aws-policy">{ v.Policy }</pre>
-				<div class="actions"><button type="button" class="secondary" data-copy="aws-policy">Copy</button></div>
-				<pre tabindex="0" class="mono install-cmd" id="aws-iam">{ v.CreateIAM }</pre>
-				<div class="actions"><button type="button" class="secondary" data-copy="aws-iam">Copy</button></div>
-			</div>
-		</section>
-		<section class="panel">
-			<div class="panel-head"><h2>2. Give the agent the credentials and the region</h2></div>
-			<div class="panel-body stack">
-				<pre tabindex="0" class="mono install-cmd" id="aws-config">{ v.Config }</pre>
-				<div class="actions"><button type="button" class="secondary" data-copy="aws-config">Copy</button></div>
-			</div>
-		</section>
-		<section class="panel">
-			<div class="panel-head"><h2>3. Restart it</h2></div>
-			<div class="panel-body stack">
-				<pre tabindex="0" class="mono install-cmd" id="aws-restart">{ v.Restart }</pre>
-				<div class="actions"><button type="button" class="secondary" data-copy="aws-restart">Copy</button></div>
-				if v.Enrolled {
-					<p>It registers again and adds what it finds as targets by itself, in its enrollment code's environment. Move them on the <a href="/agents">Agents</a> page.</p>
+				if v.Credentials == "role" {
+					if v.EC2.Role != "" {
+						<p>Run this once, with AWS access that may change IAM (AWS CloudShell will do): it gives the role <code>{ v.EC2.Role }</code> the read-only policy.</p>
+					} else {
+						<p>Run this once, with AWS access that may change IAM (AWS CloudShell will do):</p>
+					}
+					<pre tabindex="0" class="mono install-cmd" id="aws-iam">{ v.CreateIAM }</pre>
+					<div class="actions"><button type="button" class="secondary" data-copy="aws-iam">Copy</button></div>
+					<details>
+						<summary>Show the policy</summary>
+						<pre tabindex="0" class="mono install-cmd" id="aws-policy">{ v.Policy }</pre>
+						<div class="actions"><button type="button" class="secondary" data-copy="aws-policy">Copy</button></div>
+					</details>
 				} else {
-					<p>What it finds then shows on <a href={ templ.URL("/agents/" + v.Agent.ID) }>its page</a> under <strong>Found here, not watched</strong>: tick it, pick an environment, add.</p>
+					<p>The IAM policy:</p>
+					<pre tabindex="0" class="mono install-cmd" id="aws-policy">{ v.Policy }</pre>
+					<div class="actions"><button type="button" class="secondary" data-copy="aws-policy">Copy</button></div>
+					<pre tabindex="0" class="mono install-cmd" id="aws-iam">{ v.CreateIAM }</pre>
+					<div class="actions"><button type="button" class="secondary" data-copy="aws-iam">Copy</button></div>
 				}
-				<p class="hint">What it could not read, and why, shows there under <strong>Not collected</strong>. Tag a resource <code>goliash.ignore=true</code> to leave it out, or <code>goliash.env=prod</code> to place it.</p>
 			</div>
 		</section>
+		if v.Config == "" {
+			<section class="panel">
+				<div class="panel-head"><h2>2. Nothing else</h2></div>
+				<div class="panel-body stack">
+					<p>Nothing to set on the agent: on EC2 it asks the instance for its region and role (agent 1.153.0 or newer). It looks again every 15 minutes; to see it now, restart it:</p>
+					@awsRestart(v)
+				</div>
+			</section>
+		} else {
+			<section class="panel">
+				<div class="panel-head"><h2>2. Give the agent the credentials and the region</h2></div>
+				<div class="panel-body stack">
+					<pre tabindex="0" class="mono install-cmd" id="aws-config">{ v.Config }</pre>
+					<div class="actions"><button type="button" class="secondary" data-copy="aws-config">Copy</button></div>
+				</div>
+			</section>
+			<section class="panel">
+				<div class="panel-head"><h2>3. Restart it</h2></div>
+				<div class="panel-body stack">
+					@awsRestart(v)
+				</div>
+			</section>
+		}
 	}
+}
+
+templ awsRestart(v AddAWSView) {
+	<pre tabindex="0" class="mono install-cmd" id="aws-restart">{ v.Restart }</pre>
+	<div class="actions"><button type="button" class="secondary" data-copy="aws-restart">Copy</button></div>
+	if v.Enrolled {
+		<p>It registers again and adds what it finds as targets by itself, in its enrollment code's environment. Move them on the <a href="/agents">Agents</a> page.</p>
+	} else {
+		<p>What it finds then shows on <a href={ templ.URL("/agents/" + v.Agent.ID) }>its page</a> under <strong>Found here, not watched</strong>: tick it, pick an environment, add.</p>
+	}
+	<p class="hint">What it could not read, and why, shows there under <strong>Not collected</strong>. Tag a resource <code>goliash.ignore=true</code> to leave it out, or <code>goliash.env=prod</code> to place it.</p>
 }

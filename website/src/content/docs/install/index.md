@@ -57,10 +57,18 @@ goliash enroll create -env prod -many        # one code for a fleet, e.g. every 
 | The agent runs | It adds | Named after | Needs |
 | --- | --- | --- | --- |
 | In Kubernetes | the cluster | `name` in the Helm values, else `kubernetes` | nothing |
-| On ECS, or with AWS credentials and `AWS_REGION` | every ECS cluster of its region, each a target of its own | its cluster, else `aws-<region>` | `ecs:ListClusters` (else only its own cluster) |
+| On ECS, on EC2 with an instance role, or with AWS credentials and `AWS_REGION` | every ECS cluster of its region, each a target of its own | its cluster, else `aws-<region>` | `ecs:ListClusters` (else only its own cluster) |
 | In Nomad | the region, through the Nomad agent of its node | `nomad-<region>` | `NOMAD_ADDR` (set by the job file) |
 | With a Docker socket | the host, or the swarm on a manager | the host name | `INFO=1` on the socket proxy |
 | The same | the region's Lambda functions, as `lambda-<region>` | | `lambda:ListFunctions`, `lambda:GetFunction` |
+
+On EC2 the agent asks the instance metadata for its region and role, so an agent in Docker on an EC2 instance
+needs no AWS settings: give the instance's role the read-only policy (**Add AWS** on the agent's page has the one
+command) and the agent adds what the role may read. Its container reaches the role only with an instance metadata
+hop limit of 2; the agent says so when it is 1. `GOLIASH_AWS=off` stops it from asking.
+
+The agent looks again every 15 minutes (`GOLIASH_REDISCOVER`, `off` to look only at start) and, when it finds
+something new, such as a service the role may now read, enrolls or registers again with it.
 
 In AWS, `GOLIASH_AWS_REGIONS` adds the clusters and functions of more regions (their targets end in the region)
 and `GOLIASH_ECS_CLUSTERS` keeps only the named clusters. Each cluster lands in the code's environment; move the

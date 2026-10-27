@@ -22,6 +22,7 @@ func opts(env map[string]string) Options {
 		Exists:   func(string) bool { return false },
 		Hostname: func() (string, error) { return "box", nil },
 		AWS:      &fakeAWS{},
+		IMDS:     "http://127.0.0.1:1", // nothing listens: not EC2
 	}
 }
 
@@ -239,6 +240,67 @@ func TestAWS(t *testing.T) {
 	if got := names(r.Targets); got != "ecs prod, ecs staging" || slices.Contains(f.asked, "lambda eu-west-1") || slices.Contains(f.asked, "rds eu-west-1") || slices.Contains(f.asked, "elasticache eu-west-1") || slices.Contains(f.asked, "eks eu-west-1") ||
 		slices.Contains(f.asked, "opensearch eu-west-1") || slices.Contains(f.asked, "msk eu-west-1") {
 		t.Fatalf("filtered: %s %v", got, f.asked)
+	}
+}
+
+func TestEC2(t *testing.T) {
+	role, issuing := "dev-vpn-gw", true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/latest/api/token" {
+			if r.Method != http.MethodPut || !issuing {
+				http.Error(w, "", http.StatusForbidden)
+				return
+			}
+			_, _ = w.Write([]byte("tok"))
+			return
+		}
+		if r.Header.Get("X-aws-ec2-metadata-token") != "tok" {
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
+		switch strings.TrimPrefix(r.URL.Path, "/latest/meta-data/") {
+		case "instance-id":
+			_, _ = w.Write([]byte("i-0abc"))
+		case "placement/region":
+			_, _ = w.Write([]byte("eu-central-1"))
+		case "iam/security-credentials/":
+			if role == "" {
+				http.NotFound(w, r)
+				return
+			}
+			_, _ = w.Write([]byte(role))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	f := &fakeAWS{rds: map[string]bool{"eu-central-1": true}}
+	o := opts(nil)
+	o.AWS, o.IMDS = f, srv.URL
+	r, err := Run(context.Background(), o)
+	if err != nil || r.Identity != "aws:123456789012/eu-central-1" || !strings.Contains(names(r.Targets), "rds rds-eu-central-1") ||
+		!slices.Contains(r.Notes, "aws ec2: instance i-0abc in eu-central-1, role dev-vpn-gw") {
+		t.Fatalf("ec2: %+v %v", r, err)
+	}
+
+	// No role: nothing to ask AWS with.
+	role = ""
+	r, _ = Run(context.Background(), o)
+	if len(r.Targets) != 0 || len(r.Notes) != 1 || !strings.Contains(r.Notes[0], "i-0abc in eu-central-1 has no IAM role") {
+		t.Fatalf("no role: %+v", r)
+	}
+
+	// The token stops at the hop limit: say how to fix it.
+	role, issuing = "dev-vpn-gw", false
+	r, _ = Run(context.Background(), o)
+	if len(r.Notes) != 1 || !strings.Contains(r.Notes[0], "hop-limit 2") {
+		t.Fatalf("hop limit: %+v", r)
+	}
+
+	// Off, or AWS_REGION set: no metadata asked.
+	o.Env = func(k string) string { return map[string]string{"GOLIASH_AWS": "off"}[k] }
+	if r, _ = Run(context.Background(), o); len(r.Notes) != 0 {
+		t.Fatalf("off: %+v", r)
 	}
 }
 

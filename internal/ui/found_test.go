@@ -73,4 +73,29 @@ func TestFoundAndAddAWS(t *testing.T) {
 	if strings.Contains(aws, "kafka:ListClustersV2") {
 		t.Error("the policy has a service not ticked")
 	}
+
+	// On EC2 the agent names its instance and role: one command, nothing to set on the agent.
+	notes = append(notes, "aws ec2: instance i-0abc123 in eu-west-1, role dev-vpn-gw")
+	if err := e.st.SetAgentDiscovery(ctx, sc, a.ID, found, notes); err != nil {
+		t.Fatal(err)
+	}
+	if _, page := get(t, admin, e.srv.URL+"/agents/"+a.ID, nil); !strings.Contains(page, "It runs on EC2 with the role dev-vpn-gw") {
+		t.Error("the agent page does not name the role")
+	}
+	_, aws = get(t, admin, e.srv.URL+"/agents/"+a.ID+"/aws", nil)
+	for _, want := range []string{"One step", "i-0abc123", "aws iam put-role-policy --role-name dev-vpn-gw --policy-name goliash-read --policy-document &#39;{", "2. Nothing else", "docker restart"} {
+		if !strings.Contains(aws, want) {
+			t.Errorf("EC2 AWS page lacks %q", want)
+		}
+	}
+	if strings.Contains(aws, "AWS_REGION") || strings.Contains(aws, "hop-limit") {
+		t.Error("the EC2 AWS page asks for settings the agent finds itself")
+	}
+
+	// An instance without a role: make one and attach it.
+	notes[len(notes)-1] = "aws ec2: instance i-0abc123 in eu-west-1 has no IAM role; give it one with the read-only policy from Add AWS"
+	_ = e.st.SetAgentDiscovery(ctx, sc, a.ID, found, notes)
+	if _, aws = get(t, admin, e.srv.URL+"/agents/"+a.ID+"/aws", nil); !strings.Contains(aws, "associate-iam-instance-profile --instance-id i-0abc123") {
+		t.Error("no role: the page does not make one")
+	}
 }

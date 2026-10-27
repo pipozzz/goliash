@@ -181,6 +181,8 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_ENROLL_CODE` | | | The enrollment code, if you prefer to keep it apart from tokens |
 | `GOLIASH_AGENT_NAME` | | found where it runs | Name of an enrolling agent and of the target it finds |
 | `GOLIASH_AGENT_ID` | | found where it runs | What tells this installation apart when it enrolls with a code for many agents |
+| `GOLIASH_AWS` | | on | `off` stops the agent from asking EC2 instance metadata for its region and role |
+| `GOLIASH_REDISCOVER` | | `15m` | How often the agent looks again for what it could collect, and enrolls or registers again when it finds more; `off` looks only at start |
 | `GOLIASH_AWS_REGIONS` | | | More AWS regions an enrolling agent adds ECS clusters and Lambda functions of, comma-separated |
 | `GOLIASH_ECS_CLUSTERS` | | every cluster | Only these ECS clusters, by name, comma-separated |
 | `GOLIASH_ECS_EXCLUDE` | | | ECS clusters, by name, an enrolling agent leaves out (the CloudFormation template sets its own cluster) |

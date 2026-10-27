@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -74,11 +76,17 @@ func main() {
 		log.Error("invalid configuration", "err", err)
 		os.Exit(2)
 	}
+	every, err := rediscoverEvery()
+	if err != nil {
+		log.Error("invalid configuration", "err", err)
+		os.Exit(2)
+	}
 	log.Info("goliash-agent starting", "version", buildinfo.Version, "server", *server)
+	seen := &platforms{}
 	reenrolled := 0
 	for {
 		if code != "" {
-			if token, err = enroll(ctx, *server, code, log); err != nil {
+			if token, err = enroll(ctx, *server, code, seen, log); err != nil {
 				if ctx.Err() != nil {
 					break
 				}
@@ -106,13 +114,22 @@ func main() {
 				agentproto.Host:        host.New,
 			},
 			Logger:   log,
-			Discover: discoverFor(code, log),
+			Discover: discoverFor(code, seen, log),
 		})
 		if err != nil {
 			log.Error("invalid configuration", "err", err)
 			os.Exit(2)
 		}
-		err = a.Run(ctx)
+		runCtx, cancel := context.WithCancel(ctx)
+		var again atomic.Bool
+		if every > 0 {
+			go seen.watch(runCtx, every, func() { again.Store(true); cancel() }, log)
+		}
+		err = a.Run(runCtx)
+		cancel()
+		if again.Load() && ctx.Err() == nil {
+			continue // a platform it may now read: enroll or register again with it
+		}
 		if code != "" && agent.Unauthorized(err) {
 			// Another start of this installation enrolled, or the token was revoked:
 			// enrolling again tells which.
@@ -159,8 +176,9 @@ func credential() (code, token string, err error) {
 }
 
 // enroll finds what this agent can collect and exchanges the code for a token.
-func enroll(ctx context.Context, server, code string, log *slog.Logger) (string, error) {
+func enroll(ctx context.Context, server, code string, seen *platforms, log *slog.Logger) (string, error) {
 	found, err := discover.Run(ctx, discover.Options{})
+	seen.remember(found.Targets)
 	for _, n := range found.Notes {
 		log.Warn("platform not usable", "detail", n)
 	}
@@ -251,12 +269,13 @@ func shortNotes(notes []string) []string {
 
 // discoverFor is how an agent with a token finds what it could collect at each start, for Goliash to offer it:
 // an agent with an enrollment code reports it when it enrolls, and its targets are added by themselves.
-func discoverFor(code string, log *slog.Logger) func(context.Context) ([]agentproto.DeclaredTarget, []string) {
+func discoverFor(code string, seen *platforms, log *slog.Logger) func(context.Context) ([]agentproto.DeclaredTarget, []string) {
 	if code != "" {
 		return nil
 	}
 	return func(ctx context.Context) ([]agentproto.DeclaredTarget, []string) {
 		found, err := discover.Run(ctx, discover.Options{})
+		seen.remember(found.Targets)
 		if err != nil {
 			log.Warn("looking for platforms failed", "err", err)
 		}
@@ -264,5 +283,76 @@ func discoverFor(code string, log *slog.Logger) func(context.Context) ([]agentpr
 			log.Warn("platform not usable", "detail", n)
 		}
 		return found.Targets, shortNotes(found.Notes)
+	}
+}
+
+// rediscoverEvery is how often the agent looks again for what it could collect: GOLIASH_REDISCOVER, 15 minutes
+// by default, off to look only at start.
+func rediscoverEvery() (time.Duration, error) {
+	v := os.Getenv("GOLIASH_REDISCOVER")
+	switch v {
+	case "":
+		return 15 * time.Minute, nil
+	case "off", "0":
+		return 0, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < time.Minute {
+		return 0, fmt.Errorf("GOLIASH_REDISCOVER %q: a duration of at least 1m, or off", v)
+	}
+	return d, nil
+}
+
+// platforms is what the agent found when it last enrolled or registered, so it notices what it may read since
+// (a policy given to its role, a Nomad token) and enrolls or registers again with it.
+type platforms struct {
+	mu   sync.Mutex
+	seen map[string]bool
+}
+
+func targetKey(t agentproto.DeclaredTarget) string { return string(t.Platform) + " " + t.Name }
+
+func (p *platforms) remember(targets []agentproto.DeclaredTarget) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.seen = map[string]bool{}
+	for _, t := range targets {
+		p.seen[targetKey(t)] = true
+	}
+}
+
+// added returns the targets not found last time. One that is gone is no reason to register again: a
+// failing call drops it for a while.
+func (p *platforms) added(targets []agentproto.DeclaredTarget) []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var out []string
+	for _, t := range targets {
+		if !p.seen[targetKey(t)] {
+			out = append(out, targetKey(t))
+		}
+	}
+	return out
+}
+
+// watch looks again every so often and calls again when something new turns up.
+func (p *platforms) watch(ctx context.Context, every time.Duration, again func(), log *slog.Logger) {
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+		found, err := discover.Run(ctx, discover.Options{})
+		if err != nil || ctx.Err() != nil {
+			continue
+		}
+		if n := p.added(found.Targets); len(n) > 0 {
+			log.Info("found more to collect; registering again", "targets", strings.Join(n, ", "))
+			again()
+			return
+		}
 	}
 }

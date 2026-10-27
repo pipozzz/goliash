@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -50,6 +51,32 @@ type AddAWSView struct {
 	Config      string // the lines to add to the agent's configuration
 	Restart     string
 	Enrolled    bool
+	// EC2 is the instance the agent reported running on, with its role; empty when it reported none.
+	EC2 EC2Instance
+	// HopLimit: the agent runs on EC2 but its container gets no metadata token.
+	HopLimit bool
+}
+
+// EC2Instance is the EC2 instance an agent found itself on.
+type EC2Instance struct{ ID, Region, Role string }
+
+var (
+	ec2Role   = regexp.MustCompile(`^aws ec2: instance (i-[0-9a-f]+) in ([a-z0-9-]+), role (\S+)$`)
+	ec2NoRole = regexp.MustCompile(`^aws ec2: instance (i-[0-9a-f]+) in ([a-z0-9-]+) has no IAM role`)
+)
+
+// ec2From reads what an agent's notes say about the EC2 instance it runs on.
+func ec2From(notes []string) (in EC2Instance, hopLimit bool) {
+	for _, n := range notes {
+		if m := ec2Role.FindStringSubmatch(n); m != nil {
+			in = EC2Instance{ID: m[1], Region: m[2], Role: m[3]}
+		} else if m := ec2NoRole.FindStringSubmatch(n); m != nil {
+			in = EC2Instance{ID: m[1], Region: m[2]}
+		} else if strings.HasPrefix(n, "aws ec2: ") && strings.Contains(n, "hop-limit") {
+			hopLimit = true
+		}
+	}
+	return in, hopLimit
 }
 
 // AWSServiceOption is one service to tick.
@@ -73,8 +100,15 @@ func (s *Server) addAWS(w http.ResponseWriter, r *http.Request, p auth.Principal
 		Base: s.base(ctx, p, "agents", "Add AWS to "+a.Name), Agent: agentView(a), Region: strings.TrimSpace(q.Get("region")),
 		Credentials: q.Get("credentials"), Enrolled: a.CodeID != "",
 	}
+	v.EC2, v.HopLimit = ec2From(a.Notes)
 	if v.Region == "" || !awsRegion.MatchString(v.Region) {
 		v.Region = "eu-central-1"
+		if v.EC2.Region != "" {
+			v.Region = v.EC2.Region
+		}
+	}
+	if v.Credentials == "" && (v.EC2.ID != "" || v.HopLimit) {
+		v.Credentials = "role"
 	}
 	if v.Credentials != "role" && v.Credentials != "profile" {
 		v.Credentials = "keys"
@@ -138,13 +172,16 @@ func awsSetup(v AddAWSView, on []string) (iam, config, restart string) {
 	if !slices.Contains(on, "ecs") {
 		env = append(env, "GOLIASH_ECS_CLUSTERS=-") // no cluster is named -
 	}
-	policy := "aws iam put-%s-policy --%s-name %s --policy-name goliash-read --policy-document file://goliash-policy.json"
 	switch v.Credentials {
 	case "role":
-		iam = "# Save the policy above as goliash-policy.json, then give it to the instance's (or pod's) role:\n" +
-			strings.ReplaceAll(strings.ReplaceAll(policy, "%s-policy", "role-policy"), "--%s-name %s", "--role-name <the role>") + "\n" +
-			"# On EC2, containers reach the instance's role only with a hop limit of 2:\n" +
-			"aws ec2 modify-instance-metadata-options --instance-id <i-…> --http-put-response-hop-limit 2 --http-endpoint enabled"
+		iam = roleIAM(v)
+		if v.Runs != "kubernetes" {
+			// On EC2 the agent finds the region and the role itself, and only adds what the role may read.
+			if v.Runs == "docker" {
+				return iam, "", "docker restart $(docker ps -qf label=com.docker.compose.service=agent -f name=goliash)"
+			}
+			return iam, "", "# restart the agent"
+		}
 	case "profile":
 		iam = "# Save the policy above as goliash-policy.json; give it to the user or role of the profile, e.g.:\n" +
 			"aws iam put-user-policy --user-name <user> --policy-name goliash-read --policy-document file://goliash-policy.json"
@@ -184,4 +221,37 @@ func awsSetup(v AddAWSView, on []string) (iam, config, restart string) {
 		restart = "# restart the agent"
 	}
 	return iam, config, restart
+}
+
+// roleIAM writes the commands that give the instance's role the policy: the role the agent reported, or a new one
+// when the instance has none.
+func roleIAM(v AddAWSView) string {
+	// The policy inline: one command to copy, no file to save.
+	var compact bytes.Buffer
+	_ = json.Compact(&compact, []byte(v.Policy))
+	put := "aws iam put-role-policy --role-name %s --policy-name goliash-read --policy-document '" + compact.String() + "'"
+	instance := v.EC2.ID
+	if instance == "" {
+		instance = "<i-…>"
+	}
+	var b strings.Builder
+	switch {
+	case v.EC2.Role != "":
+		b.WriteString(strings.Replace(put, "%s", v.EC2.Role, 1) + "\n")
+	case v.EC2.ID != "":
+		b.WriteString("# The instance has no role yet: make one and attach it.\n" +
+			"aws iam create-role --role-name goliash-agent --assume-role-policy-document " +
+			`'{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'` + "\n" +
+			strings.Replace(put, "%s", "goliash-agent", 1) + "\n" +
+			"aws iam create-instance-profile --instance-profile-name goliash-agent\n" +
+			"aws iam add-role-to-instance-profile --instance-profile-name goliash-agent --role-name goliash-agent\n" +
+			"aws ec2 associate-iam-instance-profile --instance-id " + instance + " --iam-instance-profile Name=goliash-agent\n")
+	default:
+		b.WriteString(strings.Replace(put, "%s", "<the instance's or pod's role>", 1) + "\n")
+	}
+	if v.HopLimit || v.EC2.ID == "" {
+		b.WriteString("# Containers reach the instance's role only with a hop limit of 2:\n" +
+			"aws ec2 modify-instance-metadata-options --instance-id " + instance + " --http-put-response-hop-limit 2 --http-endpoint enabled\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
@@ -60,6 +61,8 @@ type Options struct {
 	// AWS reads what the agent's AWS credentials reach (default: the AWS SDK with the
 	// default credential chain).
 	AWS AWS
+	// IMDS is the EC2 instance metadata service (default: http://169.254.169.254).
+	IMDS string
 }
 
 // AWS is what discovery asks of AWS: who the credentials are (which needs no
@@ -102,6 +105,9 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	}
 	if o.AWS == nil {
 		o.AWS = sdkAWS{}
+	}
+	if o.IMDS == "" {
+		o.IMDS = "http://169.254.169.254"
 	}
 	var r Result
 	found := func(identity, name string, t agentproto.DeclaredTarget) {
@@ -210,7 +216,8 @@ func Run(ctx context.Context, o Options) (Result, error) {
 
 	// AWS, last: an agent on a Docker host or in a cluster keeps that identity when it also gets AWS
 	// credentials. On ECS the task metadata names the agent's cluster and region; elsewhere
-	// AWS_REGION does. The agent then adds what its credentials may read.
+	// AWS_REGION does, and on EC2 the instance metadata (GOLIASH_AWS=off leaves that out). The agent
+	// then adds what its credentials may read.
 	awsRegion := o.Env("AWS_REGION")
 	if awsRegion == "" {
 		awsRegion = o.Env("AWS_DEFAULT_REGION")
@@ -224,8 +231,25 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			r.Notes = append(r.Notes, "ecs: "+err.Error())
 		}
 	}
+	var instance *ec2Instance
+	if awsRegion == "" && o.Env("GOLIASH_AWS") != "off" {
+		in, err := o.ec2(ctx)
+		switch {
+		case err != nil:
+			r.Notes = append(r.Notes, "aws ec2: "+err.Error())
+		case in.Region != "" && in.Role == "":
+			r.Notes = append(r.Notes, "aws ec2: instance "+in.ID+" in "+in.Region+" has no IAM role; give it one with the read-only policy from Add AWS")
+		case in.Region != "":
+			instance, awsRegion = &in, in.Region
+		}
+	}
 	if awsRegion != "" {
+		before := len(r.Notes)
 		o.discoverAWS(ctx, &r, found, nameOr, awsRegion, ownCluster)
+		// What the role may not read yet: name the role, so Goliash can say where the policy goes.
+		if instance != nil && len(r.Notes) > before {
+			r.Notes = append(r.Notes, "aws ec2: instance "+instance.ID+" in "+instance.Region+", role "+instance.Role)
+		}
 	}
 
 	if raw := o.Env("GOLIASH_TARGETS"); raw != "" {
@@ -317,6 +341,62 @@ func ecsCluster(ctx context.Context, hc *http.Client, uri string) (string, error
 		return "", fmt.Errorf("task metadata names no cluster ARN (%q)", task.Cluster)
 	}
 	return task.Cluster, nil
+}
+
+// ec2Instance is the EC2 instance the agent runs on.
+type ec2Instance struct{ ID, Region, Role string }
+
+// ec2 asks the instance metadata service which instance, region and IAM role the agent runs on. Off EC2 it
+// returns an empty instance; on EC2 where the token request goes unanswered (a container behind a hop limit
+// of 1) it says so.
+func (o Options) ec2(ctx context.Context) (ec2Instance, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	get := func(token, p string) (int, string) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.IMDS+"/latest/meta-data/"+p, nil)
+		if err != nil {
+			return 0, ""
+		}
+		if token != "" {
+			req.Header.Set("X-aws-ec2-metadata-token", token)
+		}
+		resp, err := o.HTTP.Do(req)
+		if err != nil {
+			return 0, ""
+		}
+		defer func() { _ = resp.Body.Close() }()
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return resp.StatusCode, strings.TrimSpace(string(b))
+	}
+	var token string
+	if req, err := http.NewRequestWithContext(ctx, http.MethodPut, o.IMDS+"/latest/api/token", nil); err == nil {
+		req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "60")
+		tctx, tcancel := context.WithTimeout(ctx, time.Second)
+		if resp, err := o.HTTP.Do(req.WithContext(tctx)); err == nil {
+			b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				token = string(b)
+			}
+		}
+		tcancel()
+	}
+	code, id := get(token, "instance-id")
+	switch {
+	case code == http.StatusUnauthorized:
+		return ec2Instance{}, errors.New("on EC2, but the instance metadata token does not reach the container: " +
+			"raise the hop limit to 2 (aws ec2 modify-instance-metadata-options --instance-id <id> --http-put-response-hop-limit 2)")
+	case code != http.StatusOK || !strings.HasPrefix(id, "i-"):
+		return ec2Instance{}, nil // not EC2
+	}
+	in := ec2Instance{ID: id}
+	if code, region := get(token, "placement/region"); code == http.StatusOK {
+		in.Region = region
+	}
+	if code, roles := get(token, "iam/security-credentials/"); code == http.StatusOK {
+		in.Role, _, _ = strings.Cut(roles, "\n")
+	}
+	return in, nil
 }
 
 // arnParts returns the region and the cluster name of an ECS cluster ARN

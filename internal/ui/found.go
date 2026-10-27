@@ -147,6 +147,11 @@ func noteHint(note string) string {
 	platform, _, _ := strings.Cut(note, " ")
 	platform = strings.TrimSuffix(platform, ":")
 	low := strings.ToLower(note)
+	if in, hopLimit := ec2From([]string{note}); in.Role != "" {
+		return "It runs on EC2 with the role " + in.Role + ": give that role the read-only policy (Add AWS to this agent has the one command)."
+	} else if in.ID != "" || hopLimit {
+		return "Add AWS to this agent has the commands."
+	}
 	switch {
 	case strings.Contains(low, "no ec2 imds role") || strings.Contains(low, "failed to refresh cached credentials") ||
 		strings.Contains(low, "no valid providers") || strings.Contains(low, "get identity") || strings.Contains(low, "invalidclienttokenid"):
