@@ -75,9 +75,10 @@ show the first lines. Browsers that unsubscribed or expired are forgotten at the
   keeps with the other secrets (encrypted at rest with `GOLIASH_SECRET_KEY`). The server sends only to the push
   services of browsers (Google, Mozilla, Apple, Microsoft).
 
-## Tickets in Jira
+## Tickets in Jira, Shortcut, GitHub, GitLab and Linear
 
-A **Jira** channel files tickets instead of sending messages, so what Goliash finds lands in a team's backlog
+A **Jira**, **Shortcut**, **GitHub Issues**, **GitLab Issues** or **Linear** channel files tickets instead of
+sending messages, so what Goliash finds lands in a team's backlog
 and leaves it by itself:
 
 - **One ticket per upgrade** of a service in an environment (and application): *[Goliash] payments-api @ prod:
@@ -85,28 +86,34 @@ and leaves it by itself:
   fixes, critical CVEs, end of life, the remediation deadline, whether it is reachable from outside and patches
   waiting at the platform. It also links the release notes and the service in Goliash.
 - **Fields.** The priority comes from the urgency (an exploited vulnerability is *Highest*, one step higher when
-  it is reachable from outside). The due date is the remediation deadline. Labels are `goliash` and, where it
-  fits, `security` and `end-of-life`. A project whose screen lacks priority or due date gets the issue without
-  them.
+  it is reachable from outside): Jira's priority field and Linear's priority. Shortcut, GitHub and GitLab get it
+  as a label (`priority-highest`, `priority: highest`, `priority::highest`). The due date is the remediation
+  deadline, as Jira's due date, Shortcut's deadline and GitLab's and Linear's due date; on GitHub it is in the
+  body. Labels are `goliash` and, where it fits, `security` and `end-of-life` (Linear: none). A Jira project
+  whose screen lacks priority or due date gets the issue without them.
 - **Later alerts** about the same upgrade become comments on its ticket, not new tickets.
 - **Closing.** Goliash closes the ticket once the upgrade is no longer to do: deployed (*Done: payments-api runs
-  1.6.0 in prod*), or put off as an accepted risk. It takes the issue through a transition to a done status,
-  preferring one named Done, Closed or Resolved.
+  1.6.0 in prod*), or put off as an accepted risk. In Jira it takes a transition to a done status, preferring
+  one named Done, Closed or Resolved. In Shortcut it moves the story to its workflow's done state, in Linear to
+  the team's completed state. GitHub and GitLab issues are closed.
 - **Where it shows.** Updates and the service page show each open ticket's key with a link.
 
 Which upgrades get a ticket is up to the channel's rules: a rule for *remediation deadlines* and *vulnerabilities*
 in production, filtered by owner, is a good start. Alerts about something with no upgrade to do file nothing.
 **Create ticket** on an Updates row files one by hand (members); with several trackers, pick one there.
 
-Settings:
+Settings. Every tracker takes a default destination and one per team (the services' owner,
+`team-payments=PAY, team-data=DATA`). Tokens are encrypted at rest and never shown again.
 
-- **Address and token.** The Jira address, and an API token with the e-mail of its account (Jira Cloud) or a
-  personal access token (Data Center, no e-mail). The token is encrypted at rest.
-- **Project.** The project key tickets go to, and **Projects by team** (`team-payments=PAY, team-data=DATA`) to
-  file each service's tickets in its owner's project.
-- **Issue type and labels.** The issue type (default *Task*) and more labels.
+| Tracker | Sign-in | Where tickets go |
+| --- | --- | --- |
+| Jira | Cloud: e-mail and API token; Data Center: personal access token (no e-mail) | project key; issue type (default *Task*) |
+| Shortcut | API token | team by mention name (optional); story type (default *chore*) |
+| GitHub Issues | token that may write issues; API address for GitHub Enterprise Server | repository `owner/name` |
+| GitLab Issues | token with the `api` scope; address for self-managed GitLab | project `group/name` |
+| Linear | personal API key | team by key or name |
 
-**Send test** signs in and checks every project, filing nothing.
+**Send test** signs in and checks every project, team or repository, filing nothing.
 
 ## The bell
 

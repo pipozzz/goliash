@@ -266,6 +266,7 @@ type ChannelEditView struct {
 	SMTPTLS   string
 	// A Jira channel's settings, the token left out.
 	JiraEmail, JiraProject, JiraTeams, JiraIssueType, JiraLabels string
+	Cfg                                                          map[string]string // the other settings, secrets left out
 }
 
 func setHint(set bool) string {
@@ -302,6 +303,10 @@ func (s *Server) editChannel(w http.ResponseWriter, r *http.Request, p auth.Prin
 		SMTP: s.smtp, SMTPAddr: str("smtp_addr"), SMTPFrom: str("smtp_from"), SMTPUser: str("smtp_username"),
 		SMTPPass: str("smtp_password") != "", SMTPTLS: str("smtp_tls"),
 		JiraEmail: str("email"), JiraProject: str("project"), JiraTeams: str("teams"), JiraIssueType: str("issue_type"), JiraLabels: str("labels"),
+		Cfg: map[string]string{},
+	}
+	for _, k := range []string{"team", "teams", "story_type", "labels", "repo", "url", "project"} {
+		v.Cfg[k] = str(k)
 	}
 	if u, err := url.Parse(str("url")); err == nil && u.Host != "" {
 		v.URLHint = u.Scheme + "://" + u.Host + "/…"

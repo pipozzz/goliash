@@ -1910,13 +1910,49 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter Jira's address, an API token (or a personal access token) and a project key."
 		}
 		cfg["url"], cfg["token"], cfg["project"] = strings.TrimSuffix(u, "/"), token, project
-		for _, k := range []string{"email", "teams", "issue_type", "labels"} {
-			if v := strings.TrimSpace(r.FormValue(k)); v != "" {
-				cfg[k] = v
-			} else if v, ok := old[k].(string); ok && !r.Form.Has(k) {
-				cfg[k] = v // a form without the field keeps it
-			}
+		keepFields(r, old, cfg, "email", "teams", "issue_type", "labels")
+	case "shortcut":
+		token := field("token", "token")
+		if token == "" {
+			return nil, "Enter a Shortcut API token."
 		}
+		cfg["token"] = token
+		keepFields(r, old, cfg, "team", "teams", "story_type", "labels")
+	case "github_issues":
+		token, repo := field("token", "token"), field("repo", "repo")
+		if token == "" || strings.Count(repo, "/") != 1 {
+			return nil, "Enter a token and the repository as owner/name."
+		}
+		cfg["token"], cfg["repo"] = token, repo
+		if raw := field("url", "url"); raw != "" {
+			u, ok := httpURL(raw)
+			if !ok {
+				return nil, "Enter GitHub Enterprise's API address, starting with https://, or leave it empty for github.com."
+			}
+			cfg["url"] = strings.TrimSuffix(u, "/")
+		}
+		keepFields(r, old, cfg, "teams", "labels")
+	case "gitlab_issues":
+		token, proj := field("token", "token"), field("project", "project")
+		if token == "" || !strings.Contains(proj, "/") {
+			return nil, "Enter a token and the project as group/name."
+		}
+		cfg["token"], cfg["project"] = token, proj
+		if raw := field("url", "url"); raw != "" {
+			u, ok := httpURL(raw)
+			if !ok {
+				return nil, "Enter your GitLab's address, starting with https://, or leave it empty for gitlab.com."
+			}
+			cfg["url"] = strings.TrimSuffix(u, "/")
+		}
+		keepFields(r, old, cfg, "teams", "labels")
+	case "linear":
+		token, team := field("token", "token"), field("team", "team")
+		if token == "" || team == "" {
+			return nil, "Enter a Linear API key and a team."
+		}
+		cfg["token"], cfg["team"] = token, team
+		keepFields(r, old, cfg, "teams")
 	case "push", "inapp":
 		// Nothing to set: browsers subscribe from the Notifications page; the bell is Goliash itself.
 	case "email":
@@ -3353,4 +3389,16 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	}
 	out.Findings = all
 	return out, nil
+}
+
+// keepFields copies optional settings from a form: a value sets it, an empty field clears it, and a form without the
+// field keeps what was stored.
+func keepFields(r *http.Request, old, cfg map[string]any, keys ...string) {
+	for _, k := range keys {
+		if v := strings.TrimSpace(r.FormValue(k)); v != "" {
+			cfg[k] = v
+		} else if v, ok := old[k].(string); ok && !r.Form.Has(k) {
+			cfg[k] = v
+		}
+	}
 }

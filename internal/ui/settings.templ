@@ -85,6 +85,10 @@ templ NotificationsPage(v NotificationsView) {
 											<option value="push">Web push (browsers)</option>
 											<option value="inapp">In Goliash (the bell)</option>
 											<option value="jira">Jira (tickets)</option>
+											<option value="shortcut">Shortcut (stories)</option>
+											<option value="github_issues">GitHub Issues</option>
+											<option value="gitlab_issues">GitLab Issues</option>
+											<option value="linear">Linear</option>
 										</select>
 									</label>
 								</div>
@@ -101,6 +105,18 @@ templ NotificationsPage(v NotificationsView) {
 								<p class="hint" data-for="push">Nothing to set up here: after adding the channel, press <strong>Notify this browser</strong> next to it in each browser that should get its notifications (on phones, add Goliash to the home screen first).</p>
 								<div data-for="jira">
 									@jiraFields("", "", "", "", "", "", false)
+								</div>
+								<div data-for="shortcut">
+									@shortcutFields(map[string]string{}, false)
+								</div>
+								<div data-for="github_issues">
+									@githubIssueFields(map[string]string{}, false)
+								</div>
+								<div data-for="gitlab_issues">
+									@gitlabIssueFields(map[string]string{}, false)
+								</div>
+								<div data-for="linear">
+									@linearFields(map[string]string{}, false)
 								</div>
 								<p class="hint" data-for="inapp">Nothing to set up: messages show under the bell at the top of every page, for everyone in the workspace, and on the app icon when Goliash is installed.</p>
 								<details class="smtp" data-for="email" open?={ !v.SMTP }>

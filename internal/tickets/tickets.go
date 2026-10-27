@@ -42,7 +42,7 @@ type Tracker interface {
 }
 
 // Kinds are the channel types that file tickets.
-var Kinds = []string{"jira"}
+var Kinds = []string{"jira", "shortcut", "github_issues", "gitlab_issues", "linear"}
 
 // Is reports whether a channel type files tickets.
 func Is(kind string) bool { return slices.Contains(Kinds, kind) }
@@ -52,6 +52,14 @@ func For(kind string, hc *http.Client) Tracker {
 	switch kind {
 	case "jira":
 		return Jira{HTTP: hc}
+	case "shortcut":
+		return Shortcut{HTTP: hc}
+	case "github_issues":
+		return GitHub{HTTP: hc}
+	case "gitlab_issues":
+		return GitLab{HTTP: hc}
+	case "linear":
+		return Linear{HTTP: hc}
 	}
 	return nil
 }
