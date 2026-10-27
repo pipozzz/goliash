@@ -47,10 +47,15 @@ jobs:
         with:
           version: v2.14
 
+  # The race detector makes the tests slow; three shards of about equal length run side by side.
   test:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ui, store, rest]
     services:
       postgres:
         image: postgres:17-alpine
@@ -72,12 +77,21 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: go mod tidy -diff
+      - if: matrix.shard == 'rest'
+        run: go mod tidy -diff
       - name: Generated code is up to date
+        if: matrix.shard == 'rest'
         run: |
           go generate ./...
           git diff --exit-code
-      - run: go test -race -coverprofile=coverage.out ./...
+      - name: go test -race (${{ matrix.shard }})
+        run: |
+          case "${{ matrix.shard }}" in
+            ui) pkgs=$(go list ./internal/ui/...) ;;
+            store) pkgs=$(go list ./internal/store/... ./internal/versions/...) ;;
+            rest) pkgs=$(go list ./... | grep -Ev '/internal/(ui|store|versions)(/|$)') ;;
+          esac
+          go test -race $pkgs
 
   # A database filled by an older release must migrate and keep its data: from the
   # first release and from the latest one, on SQLite and PostgreSQL.
@@ -202,3 +216,36 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: make build
+
+  # The release compiles twelve binaries; from scratch that takes over ten minutes. On main, when the modules
+  # change, compile them once into a cache the release workflow starts from (tags read main's caches).
+  release-cache:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: look
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: release-build-${{ hashFiles('go.sum', 'go.mod') }}
+          lookup-only: true
+      - if: steps.look.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - if: steps.look.outputs.cache-hit != 'true'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: build --snapshot --clean
+      - if: steps.look.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: release-build-${{ hashFiles('go.sum', 'go.mod') }}
