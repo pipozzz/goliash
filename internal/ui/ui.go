@@ -2194,7 +2194,8 @@ func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsVi
 			continue
 		}
 		v.Users = append(v.Users, UserView{
-			ID: u.ID, Email: u.Email, Role: roles[u.ID], Access: accessLabel(u, roles[u.ID]), OrgWide: store.OrgWide(u.Role),
+			Disabled: u.Disabled,
+			ID:       u.ID, Email: u.Email, Role: roles[u.ID], Access: accessLabel(u, roles[u.ID]), OrgWide: store.OrgWide(u.Role),
 			OrgRole:   orgRoleOf(u),
 			LastLogin: u.LastLoginAt, IsSelf: u.ID == p.User.ID, HasPassword: u.HasPassword, TOTP: u.TOTPEnabled,
 		})

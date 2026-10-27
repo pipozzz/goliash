@@ -69,6 +69,7 @@ import (
 	"github.com/pipozzz/goliash/internal/mcpserver"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/registry"
+	"github.com/pipozzz/goliash/internal/scim"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/internal/ui"
@@ -627,6 +628,18 @@ func serve(ctx context.Context, args []string) error {
 		ArgoCDURL: os.Getenv("GOLIASH_ARGOCD_URL"), PullRequests: gitOpsPulls(*demoPulls), GoliSeason: os.Getenv("GOLIASH_GOLI_SEASON"),
 	})
 	uiServer.Register(mux)
+	// SCIM provisioning from the identity provider, with a bearer token of its own.
+	if tok := os.Getenv("GOLIASH_SCIM_TOKEN"); tok != "" {
+		if len(tok) < 32 {
+			return errors.New("GOLIASH_SCIM_TOKEN: use at least 32 random characters, e.g. openssl rand -hex 32")
+		}
+		roles, err := auth.ParseGroupRoles(os.Getenv("GOLIASH_GROUP_ROLES"))
+		if err != nil {
+			return err
+		}
+		mux.Handle("/scim/v2/", scim.New(db, tok, roles, *publicURL, log))
+		log.Info("scim provisioning enabled", "url", strings.TrimSuffix(*publicURL, "/")+"/scim/v2", "group_roles", len(roles))
+	}
 	notify.SetGitPins(uiServer.GitPinsNow)
 	notify.SetRollback(uiServer.RollbackOffer)
 	notify.SetPlanPRs(uiServer.PlanPRs)

@@ -140,6 +140,32 @@ by name, or as a path (Keycloak's `/sre`); Entra ID sends group object IDs unles
 so either use the IDs in the mapping or configure *groups claim → sAMAccountName / cloud-only group names*. Okta and
 Authentik send groups when asked for the `groups` scope (`GOLIASH_OIDC_SCOPES=groups`).
 
+### SCIM provisioning
+
+| Variable | Meaning |
+| --- | --- |
+| `GOLIASH_SCIM_TOKEN` | Turns SCIM 2.0 on at `<GOLIASH_PUBLIC_URL>/scim/v2`, with this bearer token (at least 32 characters: `openssl rand -hex 32`) |
+
+With SCIM the identity provider (Entra ID, Okta, Authentik, Keycloak with a SCIM plugin, JumpCloud) keeps the people
+of Goliash in step with its own:
+
+- **New people** are created when the app is assigned to them. They can then sign in with OIDC (or a magic link).
+- **Deactivation** (`active: false`, when someone leaves or is unassigned) ends their sessions and the apps they
+  let in at once, and refuses every way to sign in. Reactivating restores them. Settings → People marks them
+  *deactivated*. Deleting removes them.
+- **Pushed groups** decide roles as `GOLIASH_GROUP_ROLES` maps them, the same mapping OIDC sign-in uses: someone
+  in no mapped group has an account but no workspace. Without `GOLIASH_GROUP_ROLES`, new people are viewers of the
+  first workspace and roles are set in Goliash.
+- **Owners** are never changed by groups, and the last active owner cannot be deactivated or deleted.
+
+Users are found by `userName` (the e-mail address), and the provider's ID is kept as `externalId`. PATCH works in
+the forms Entra ID and Okta send (`"active": "False"` included). Every change is in the audit log as
+`scim.user.*` or `scim.group.*`.
+
+Setting it up in Entra ID: *Enterprise applications → the Goliash app → Provisioning → Automatic*, tenant URL
+`https://goliash.example.com/scim/v2`, secret token `GOLIASH_SCIM_TOKEN`. In Okta: *Provisioning → SCIM 2.0*, base URL
+the same, authentication *HTTP Header* with the token, and turn on *Push Groups*.
+
 ## CLI
 
 Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and `-workspace`

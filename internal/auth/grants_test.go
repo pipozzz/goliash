@@ -93,8 +93,40 @@ func TestOIDCGroupRoles(t *testing.T) {
 	if got := signIn("stranger@acme.io"); got != "refused" {
 		t.Errorf("stranger: %s", got)
 	}
+	// Groups SCIM pushed count when the token carries none.
+	scimUser, _ := h.st.CreateUser(ctx, h.ws.OrgID, "scim@acme.io", "", store.RoleViewer)
+	_, _ = h.st.CreateSCIMGroup(ctx, store.SCIMGroup{OrgID: h.ws.OrgID, DisplayName: "everyone", Members: []string{scimUser.ID}})
+	if got := signIn("scim@acme.io"); got == "refused" {
+		t.Error("SCIM groups did not count")
+	}
 	signIn("owner@acme.io", "everyone")
 	if org, _ := roles("owner@acme.io"); org != store.RoleOwner {
 		t.Errorf("owner became %s", org)
+	}
+}
+
+// A person the identity provider deactivated signs in no way, and their session ends.
+func TestDisabledSignIn(t *testing.T) {
+	h := newHarness(t, false)
+	ctx := context.Background()
+	u, _ := h.st.CreateUser(ctx, h.ws.OrgID, "gone@acme.io", "", store.RoleViewer)
+	_ = h.st.SetMembership(ctx, u.ID, h.ws.ID, store.RoleViewer)
+	c := h.client()
+	link, _ := h.auth.LoginLink(ctx, u)
+	get(t, c, link)
+	if _, who := get(t, c, h.srv.URL+"/whoami"); who == "" {
+		t.Fatal("not signed in before")
+	}
+	if err := h.st.SetUserDisabled(ctx, h.ws.OrgID, u.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, who := get(t, c, h.srv.URL+"/whoami"); who != "" {
+		t.Errorf("session outlived deactivation: %q", who)
+	}
+	link, _ = h.auth.LoginLink(ctx, u)
+	c = h.client()
+	get(t, c, link)
+	if _, who := get(t, c, h.srv.URL+"/whoami"); who != "" {
+		t.Errorf("a deactivated person signed in with a link: %q", who)
 	}
 }

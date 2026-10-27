@@ -50,6 +50,9 @@ type User struct {
 	// PasswordChangedAt is zero when the user has never set a password.
 	PasswordChangedAt time.Time
 	HomeView          string // what "/" opens: "" by device, "table" or "tiles"
+	// Disabled is set when the identity provider deactivated the person (SCIM): they cannot sign in.
+	Disabled   bool
+	ExternalID string // the identity provider's ID for the person, from SCIM
 }
 
 // ErrExists means a unique value is already taken.
@@ -118,17 +121,45 @@ func (s *Store) DeleteUser(ctx context.Context, orgID, userID string) error {
 }
 
 const userColumns = `id, org_id, email, name, role, created_at, last_login_at, password_hash <> '', password_changed_at,
-	totp_enabled_at IS NOT NULL, (SELECT COUNT(*) FROM passkeys k WHERE k.user_id = users.id), home_view`
+	totp_enabled_at IS NOT NULL, (SELECT COUNT(*) FROM passkeys k WHERE k.user_id = users.id), home_view,
+	disabled_at IS NOT NULL, external_id`
 
 func scanUser(row scanner) (User, error) {
 	var u User
 	var last, changed sql.NullTime
 	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed, &u.TOTPEnabled,
-		&u.Passkeys, &u.HomeView); err != nil {
+		&u.Passkeys, &u.HomeView, &u.Disabled, &u.ExternalID); err != nil {
 		return User{}, notFound(err)
 	}
 	u.CreatedAt, u.LastLoginAt, u.PasswordChangedAt = u.CreatedAt.UTC(), timeOrZero(last), timeOrZero(changed)
 	return u, nil
+}
+
+// SetUserDisabled deactivates a person, ending their sessions and the apps they let in, or activates them again.
+func (s *Store) SetUserDisabled(ctx context.Context, orgID, userID string, disabled bool) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		var at sql.NullTime
+		if disabled {
+			at = sql.NullTime{Time: s.now(), Valid: true}
+		}
+		res, err := s.exec(ctx, tx, `UPDATE users SET disabled_at = ? WHERE org_id = ? AND id = ?`, at, orgID, userID)
+		if err := expectOne(res, err); err != nil || !disabled {
+			return err
+		}
+		for _, q := range []string{`DELETE FROM sessions WHERE user_id = ?`, `DELETE FROM oauth_grants WHERE user_id = ?`, `DELETE FROM oauth_codes WHERE user_id = ?`} {
+			if _, err := s.exec(ctx, tx, q, userID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// SetUserProfile changes a person's e-mail, name and identity provider ID, as SCIM sends them.
+func (s *Store) SetUserProfile(ctx context.Context, orgID, userID, email, name, externalID string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE users SET email = ?, name = ?, external_id = ? WHERE org_id = ? AND id = ?`,
+		strings.ToLower(strings.TrimSpace(email)), name, externalID, orgID, userID)
+	return expectOne(res, err)
 }
 
 // SetHomeView sets what "/" opens for a user: "", "table" or "tiles".
@@ -208,7 +239,7 @@ func (s *Store) SessionUser(ctx context.Context, idHash string) (User, string, e
 		u.password_hash <> '', u.password_changed_at, u.totp_enabled_at IS NOT NULL,
 		(SELECT COUNT(*) FROM passkeys k WHERE k.user_id = u.id), u.home_view, x.method
 		FROM sessions x JOIN users u ON u.id = x.user_id
-		WHERE x.id = ? AND x.expires_at > ? AND COALESCE(x.last_seen_at, x.created_at) > ?`, idHash, now, idleCutoff)
+		WHERE x.id = ? AND x.expires_at > ? AND COALESCE(x.last_seen_at, x.created_at) > ? AND u.disabled_at IS NULL`, idHash, now, idleCutoff)
 	var u User
 	var last, changed sql.NullTime
 	if err := row.Scan(&u.ID, &u.OrgID, &u.Email, &u.Name, &u.Role, &u.CreatedAt, &last, &u.HasPassword, &changed,

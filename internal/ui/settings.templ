@@ -251,7 +251,12 @@ templ SettingsPage(v SettingsView) {
 					<tbody>
 						for _, u := range v.Users {
 							<tr>
-								<td><strong>{ u.Email }</strong></td>
+								<td>
+									<strong>{ u.Email }</strong>
+									if u.Disabled {
+										<span class="badge neutral" title="Deactivated at the identity provider (SCIM): cannot sign in">deactivated</span>
+									}
+								</td>
 								<td>
 									if u.IsSelf || (u.OrgWide && !v.OrgAdmin) || (u.OrgRole == "owner" && !v.CanGrantOwner) {
 										{ u.Access }

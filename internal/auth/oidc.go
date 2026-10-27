@@ -184,8 +184,15 @@ func (a *Auth) oidcAccount(ctx context.Context, email, name string, groups []str
 	}
 	orgID := ws[0].OrgID
 	if len(a.oidc.groups) > 0 {
-		grants, ok := a.oidc.groups.For(groups)
 		u, err := a.store.GetUserByEmail(ctx, orgID, email)
+		if err == nil { // the groups SCIM pushed count too, for providers that send no groups claim
+			if pushed, err := a.store.UserSCIMGroups(ctx, u.ID); err == nil {
+				for _, g := range pushed {
+					groups = append(groups, g.DisplayName, g.ExternalID)
+				}
+			}
+		}
+		grants, ok := a.oidc.groups.For(groups)
 		switch {
 		case err == nil && u.Role == store.RoleOwner:
 			return u, nil // owners stay owners, whatever their groups
@@ -200,6 +207,9 @@ func (a *Auth) oidcAccount(ctx context.Context, email, name string, groups []str
 		case err != nil:
 			return store.User{}, err
 		}
+		if u.Disabled {
+			return store.User{}, fmt.Errorf("%w: %s", ErrDisabled, email)
+		}
 		if err := ApplyGrants(ctx, a.store, u, grants); err != nil {
 			return u, err
 		}
@@ -212,6 +222,9 @@ func (a *Auth) oidcAccount(ctx context.Context, email, name string, groups []str
 // invitedAccount is the account of an invited person, or a new viewer from an allowed e-mail domain.
 func (a *Auth) invitedAccount(ctx context.Context, orgID, firstWorkspace, email, name string) (store.User, error) {
 	u, err := a.store.GetUserByEmail(ctx, orgID, email)
+	if err == nil && u.Disabled {
+		return store.User{}, fmt.Errorf("%w: %s", ErrDisabled, email)
+	}
 	if err == nil {
 		return u, nil
 	}

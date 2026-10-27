@@ -991,6 +991,7 @@ type UserView struct {
 	IsSelf      bool
 	HasPassword bool
 	TOTP        bool
+	Disabled    bool // deactivated by the identity provider (SCIM)
 }
 
 // TokenView is one API token on Workspace settings.

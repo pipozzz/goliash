@@ -203,6 +203,9 @@ func SessionID(r *http.Request) string {
 // SetOIDC enables OIDC sign-in.
 func (a *Auth) SetOIDC(o *OIDC) { a.oidc = o }
 
+// ErrDisabled is returned for a person the identity provider deactivated.
+var ErrDisabled = errors.New("this account is deactivated")
+
 // GroupRoles reports whether the identity provider's groups decide people's roles.
 func (a *Auth) GroupRoles() bool { return a.oidc != nil && len(a.oidc.groups) > 0 }
 
@@ -344,6 +347,9 @@ func (a *Auth) oauthPrincipal(r *http.Request, token string) (Principal, bool, e
 
 // startSession signs a user in on this browser.
 func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User, method string) error {
+	if u.Disabled {
+		return ErrDisabled
+	}
 	raw, hash := randomToken()
 	ua := r.UserAgent()
 	if len(ua) > 300 {
