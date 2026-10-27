@@ -66,6 +66,8 @@ var tagsBefore = map[string][]string{
 	"rds.amazonaws.com/aurora-mysql":                {"3.05.2", "3.06.1", "3.07.1"},
 	"elasticache.amazonaws.com/redis":               {"5.0.6", "6.2.6", "7.0.7", "7.1.0"},
 	"eks.amazonaws.com/kubernetes":                  {"1.31", "1.32", "1.33", "1.34"},
+	"opensearch.amazonaws.com/opensearch":           {"2.11", "2.13", "2.15", "2.17", "2.19"},
+	"kafka.amazonaws.com/kafka":                     {"3.6.0", "3.7", "3.8", "3.9"},
 }
 
 var tagsAfter = map[string][]string{
@@ -102,6 +104,8 @@ var images = map[string]string{
 	"orders-aurora": "rds.amazonaws.com/aurora-mysql",
 	"sessions":      "elasticache.amazonaws.com/redis",
 	"shop-eks":      "eks.amazonaws.com/kubernetes",
+	"logs-search":   "opensearch.amazonaws.com/opensearch",
+	"events":        "kafka.amazonaws.com/kafka",
 }
 
 var targets = []demoTarget{
@@ -156,6 +160,13 @@ var targets = []demoTarget{
 	// version further behind.
 	{name: "demo-eks", env: "prod", platform: "eks", steps: []step{
 		{0, map[string]string{"shop-eks": "1.32"}},
+	}},
+	// The log search domain, a few minor versions behind, and the order events on Kafka 3.6, past its end of support.
+	{name: "demo-opensearch", env: "prod", platform: "opensearch", steps: []step{
+		{0, map[string]string{"logs-search": "2.11"}},
+	}},
+	{name: "demo-msk", env: "prod", platform: "msk", steps: []step{
+		{0, map[string]string{"events": "3.6.0"}},
 	}},
 	// Internal tools on Nomad and a plain Docker host.
 	{name: "demo-nomad", env: "prod", platform: "nomad", steps: []step{
@@ -279,6 +290,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		"webhook-relay": "team-integrations", "image-resizer": "team-media", "invoice-pdf": "team-orders",
 		"gitea": "devex", "vault": "security", "fluent-bit": "observability", "nginx": "devex",
 		"billing-db": "team-payments", "orders-aurora": "team-orders", "sessions": "team-shop", "shop-eks": "platform",
+		"logs-search": "observability", "events": "team-orders",
 	} {
 		s, err := st.GetServiceByName(ctx, sc, name)
 		if err != nil {
@@ -647,6 +659,10 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 		kind, ns = agentproto.ElasticacheCluster, "us-east-1"
 	case t.platform == "eks":
 		kind, ns = agentproto.EksCluster, "us-east-1"
+	case t.platform == "opensearch":
+		kind, ns = agentproto.OpensearchDomain, "us-east-1"
+	case t.platform == "msk":
+		kind, ns = agentproto.MskCluster, "us-east-1"
 	case t.platform == "nomad":
 		kind = agentproto.NomadJob
 	case t.platform == "docker":

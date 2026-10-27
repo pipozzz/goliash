@@ -84,6 +84,18 @@ variable "watch_eks" {
   default     = false
 }
 
+variable "watch_opensearch" {
+  description = "Also watch the region's OpenSearch Service domains: lets the task role call es:ListDomainNames, es:DescribeDomains, es:ListTags and es:ListVersions."
+  type        = bool
+  default     = false
+}
+
+variable "watch_msk" {
+  description = "Also watch the region's MSK clusters: lets the task role call kafka:ListClustersV2 and kafka:ListKafkaVersions."
+  type        = bool
+  default     = false
+}
+
 variable "regions" {
   description = "More regions to watch besides the agent's own; with an enrollment code the agent adds their ECS clusters (and Lambda functions with watch_lambda)."
   type        = list(string)

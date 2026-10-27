@@ -88,7 +88,9 @@ const (
 	Kubernetes  Platform = "kubernetes"
 	Lambda      Platform = "lambda"
 	Manual      Platform = "manual"
+	Msk         Platform = "msk"
 	Nomad       Platform = "nomad"
+	Opensearch  Platform = "opensearch"
 	Rds         Platform = "rds"
 	Swarm       Platform = "swarm"
 )
@@ -114,7 +116,11 @@ func (e Platform) Valid() bool {
 		return true
 	case Manual:
 		return true
+	case Msk:
+		return true
 	case Nomad:
+		return true
+	case Opensearch:
 		return true
 	case Rds:
 		return true
@@ -159,7 +165,9 @@ const (
 	HostPackage           WorkloadKind = "host_package"
 	LambdaFunction        WorkloadKind = "lambda_function"
 	ManualEntry           WorkloadKind = "manual_entry"
+	MskCluster            WorkloadKind = "msk_cluster"
 	NomadJob              WorkloadKind = "nomad_job"
+	OpensearchDomain      WorkloadKind = "opensearch_domain"
 	RdsCluster            WorkloadKind = "rds_cluster"
 	RdsInstance           WorkloadKind = "rds_instance"
 	Statefulset           WorkloadKind = "statefulset"
@@ -197,7 +205,11 @@ func (e WorkloadKind) Valid() bool {
 		return true
 	case ManualEntry:
 		return true
+	case MskCluster:
+		return true
 	case NomadJob:
+		return true
+	case OpensearchDomain:
 		return true
 	case RdsCluster:
 		return true
@@ -316,8 +328,19 @@ type DeclaredTarget struct {
 	// from a container image reports that image; a .zip function reports its runtime as the matching AWS base
 	// image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
 	Lambda *LambdaSettings `json:"lambda,omitempty"`
-	Name   string          `json:"name"`
-	Nomad  *NomadSettings  `json:"nomad,omitempty"`
+
+	// Msk Amazon MSK provisioned clusters of a region, read with kafka:ListClustersV2. Each cluster reports its Kafka
+	// version as an image, kafka.amazonaws.com/kafka:<version>, so newer versions and the end of support show up;
+	// the agent reads the versions MSK offers with kafka:ListKafkaVersions.
+	Msk   *MSKSettings   `json:"msk,omitempty"`
+	Name  string         `json:"name"`
+	Nomad *NomadSettings `json:"nomad,omitempty"`
+
+	// Opensearch Amazon OpenSearch Service domains of a region (OpenSearch and legacy Elasticsearch), read with
+	// es:ListDomainNames, es:DescribeDomains and es:ListTags. Each domain reports its engine as an image,
+	// opensearch.amazonaws.com/<engine>:<version>, so newer versions and the end of standard support show up;
+	// the agent reads the versions the service offers with es:ListVersions.
+	Opensearch *OpenSearchSettings `json:"opensearch,omitempty"`
 
 	// Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
 	Platform            Platform `json:"platform"`
@@ -598,6 +621,14 @@ type LambdaSettings struct {
 	Region string `json:"region"`
 }
 
+// MSKSettings Amazon MSK provisioned clusters of a region, read with kafka:ListClustersV2. Each cluster reports its Kafka
+// version as an image, kafka.amazonaws.com/kafka:<version>, so newer versions and the end of support show up;
+// the agent reads the versions MSK offers with kafka:ListKafkaVersions.
+type MSKSettings struct {
+	// Region Example: eu-west-1
+	Region string `json:"region"`
+}
+
 // NomadSettings defines model for NomadSettings.
 type NomadSettings struct {
 	// Address Example: https://nomad.service.consul:4646
@@ -606,6 +637,15 @@ type NomadSettings struct {
 	// Namespaces Empty means all namespaces the token can read.
 	Namespaces []string `json:"namespaces,omitempty"`
 	Region     *string  `json:"region,omitempty"`
+}
+
+// OpenSearchSettings Amazon OpenSearch Service domains of a region (OpenSearch and legacy Elasticsearch), read with
+// es:ListDomainNames, es:DescribeDomains and es:ListTags. Each domain reports its engine as an image,
+// opensearch.amazonaws.com/<engine>:<version>, so newer versions and the end of standard support show up;
+// the agent reads the versions the service offers with es:ListVersions.
+type OpenSearchSettings struct {
+	// Region Example: eu-west-1
+	Region string `json:"region"`
 }
 
 // Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
@@ -795,9 +835,20 @@ type Target struct {
 	// image (python3.12 as public.ecr.aws/lambda/python:3.12), so newer runtimes and their end of life show up.
 	Lambda *LambdaSettings `json:"lambda,omitempty"`
 
+	// Msk Amazon MSK provisioned clusters of a region, read with kafka:ListClustersV2. Each cluster reports its Kafka
+	// version as an image, kafka.amazonaws.com/kafka:<version>, so newer versions and the end of support show up;
+	// the agent reads the versions MSK offers with kafka:ListKafkaVersions.
+	Msk *MSKSettings `json:"msk,omitempty"`
+
 	// Name Example: prod-eu-west-1
 	Name  string         `json:"name"`
 	Nomad *NomadSettings `json:"nomad,omitempty"`
+
+	// Opensearch Amazon OpenSearch Service domains of a region (OpenSearch and legacy Elasticsearch), read with
+	// es:ListDomainNames, es:DescribeDomains and es:ListTags. Each domain reports its engine as an image,
+	// opensearch.amazonaws.com/<engine>:<version>, so newer versions and the end of standard support show up;
+	// the agent reads the versions the service offers with es:ListVersions.
+	Opensearch *OpenSearchSettings `json:"opensearch,omitempty"`
 
 	// Platform manual is a target whose versions people enter on the server, for software Goliash does not collect (a virtual machine, a managed service); it is never assigned to an agent.
 	Platform Platform `json:"platform"`

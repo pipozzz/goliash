@@ -84,6 +84,22 @@ data "aws_iam_policy_document" "read_ecs" {
       resources = ["*"]
     }
   }
+  dynamic "statement" {
+    for_each = var.watch_opensearch ? [1] : []
+    content {
+      sid       = "ReadOpenSearch"
+      actions   = ["es:ListDomainNames", "es:DescribeDomains", "es:ListTags", "es:ListVersions"]
+      resources = ["*"]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.watch_msk ? [1] : []
+    content {
+      sid       = "ReadMSK"
+      actions   = ["kafka:ListClustersV2", "kafka:ListKafkaVersions"]
+      resources = ["*"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "read_ecs" {
@@ -140,6 +156,8 @@ resource "aws_ecs_task_definition" "agent" {
       { name = "GOLIASH_RDS", value = var.watch_rds ? "on" : "off" },
       { name = "GOLIASH_ELASTICACHE", value = var.watch_elasticache ? "on" : "off" },
       { name = "GOLIASH_EKS", value = var.watch_eks ? "on" : "off" },
+      { name = "GOLIASH_OPENSEARCH", value = var.watch_opensearch ? "on" : "off" },
+      { name = "GOLIASH_MSK", value = var.watch_msk ? "on" : "off" },
       ],
       length(var.regions) > 0 ? [{ name = "GOLIASH_AWS_REGIONS", value = join(",", var.regions) }] : [],
       length(var.clusters) > 0 ? [{ name = "GOLIASH_ECS_CLUSTERS", value = join(",", var.clusters) }] : [],

@@ -15,6 +15,8 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/internal/collectors/eks"
 	"github.com/pipozzz/goliash/internal/collectors/elasticache"
+	"github.com/pipozzz/goliash/internal/collectors/msk"
+	"github.com/pipozzz/goliash/internal/collectors/opensearch"
 	"github.com/pipozzz/goliash/internal/collectors/rds"
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/registry/ecr"
@@ -83,7 +85,7 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 				r.Tags = append(r.Tags, agentproto.RegistryTag{Name: t})
 			}
 		}
-		if !strings.HasPrefix(c.Repository, rds.Host+"/") && !strings.HasPrefix(c.Repository, elasticache.Host+"/") && c.Repository != eks.Image {
+		if !managed(c.Repository) {
 			// engine versions have no manifests to read
 			r.Resolved = a.resolveDigests(ctx, c, creds)
 			r.Inspected = a.inspectDigests(ctx, c, creds)
@@ -143,6 +145,24 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 			return nil, none, err
 		}
 		tags, err := rds.EngineVersions(ctx, api, c.Repository)
+		return tags, none, err
+	}
+	if strings.HasPrefix(c.Repository, opensearch.Host+"/") {
+		// OpenSearch Service: the versions it offers of the engine.
+		api, err := opensearch.Client(ctx, "", strings.TrimSpace(secret))
+		if err != nil {
+			return nil, none, err
+		}
+		tags, err := opensearch.Versions(ctx, api, c.Repository)
+		return tags, none, err
+	}
+	if c.Repository == msk.Image {
+		// Kafka on MSK: the versions MSK offers.
+		api, err := msk.Client(ctx, "", strings.TrimSpace(secret))
+		if err != nil {
+			return nil, none, err
+		}
+		tags, err := msk.Versions(ctx, api, c.Repository)
 		return tags, none, err
 	}
 	if c.Repository == eks.Image {
@@ -352,4 +372,11 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 		out = append(out, in)
 	}
 	return out
+}
+
+// managed reports whether repo is the engine of a managed AWS service, which the agent answers with the versions
+// the service offers: there are no manifests to read.
+func managed(repo string) bool {
+	return strings.HasPrefix(repo, rds.Host+"/") || strings.HasPrefix(repo, elasticache.Host+"/") ||
+		strings.HasPrefix(repo, opensearch.Host+"/") || repo == eks.Image || repo == msk.Image
 }

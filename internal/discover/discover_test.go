@@ -107,6 +107,8 @@ type fakeAWS struct {
 	rds      map[string]bool
 	caches   map[string]bool
 	eks      map[string]bool
+	domains  map[string]bool
+	kafka    map[string]bool
 	asked    []string
 }
 
@@ -153,6 +155,22 @@ func (f *fakeAWS) CanListEKS(_ context.Context, region string) error {
 	return nil
 }
 
+func (f *fakeAWS) CanListDomains(_ context.Context, region string) error {
+	f.asked = append(f.asked, "opensearch "+region)
+	if !f.domains[region] {
+		return errors.New("AccessDeniedException")
+	}
+	return nil
+}
+
+func (f *fakeAWS) CanListKafka(_ context.Context, region string) error {
+	f.asked = append(f.asked, "msk "+region)
+	if !f.kafka[region] {
+		return errors.New("AccessDeniedException")
+	}
+	return nil
+}
+
 func names(ts []agentproto.DeclaredTarget) string {
 	var out []string
 	for _, t := range ts {
@@ -168,10 +186,12 @@ func TestAWS(t *testing.T) {
 			"eu-west-1":    {arn("eu-west-1", "prod"), arn("eu-west-1", "staging"), arn("eu-west-1", "tools")},
 			"eu-central-1": {arn("eu-central-1", "prod")},
 		},
-		lambda: map[string]bool{"eu-west-1": true},
-		rds:    map[string]bool{"eu-west-1": true},
-		caches: map[string]bool{"eu-west-1": true},
-		eks:    map[string]bool{"eu-west-1": true},
+		lambda:  map[string]bool{"eu-west-1": true},
+		rds:     map[string]bool{"eu-west-1": true},
+		caches:  map[string]bool{"eu-west-1": true},
+		eks:     map[string]bool{"eu-west-1": true},
+		domains: map[string]bool{"eu-west-1": true},
+		kafka:   map[string]bool{"eu-west-1": true},
 	}
 	o := opts(map[string]string{
 		"AWS_REGION": "eu-west-1", "GOLIASH_AWS_REGIONS": "eu-central-1, us-east-1",
@@ -183,7 +203,7 @@ func TestAWS(t *testing.T) {
 		t.Fatalf("aws: %+v %v", r, err)
 	}
 	// Every cluster its own target; another region's clusters carry the region.
-	if got := names(r.Targets); got != "ecs prod, ecs staging, ecs tools, rds rds-eu-west-1, elasticache elasticache-eu-west-1, eks eks-eu-west-1, lambda lambda-eu-west-1, ecs prod-eu-central-1" {
+	if got := names(r.Targets); got != "ecs prod, ecs staging, ecs tools, rds rds-eu-west-1, elasticache elasticache-eu-west-1, eks eks-eu-west-1, opensearch opensearch-eu-west-1, msk msk-eu-west-1, lambda lambda-eu-west-1, ecs prod-eu-central-1" {
 		t.Fatalf("targets: %s", got)
 	}
 	if d := r.Targets[3].Rds; d.Region != "eu-west-1" {
@@ -195,22 +215,29 @@ func TestAWS(t *testing.T) {
 	if k := r.Targets[5].Eks; k.Region != "eu-west-1" {
 		t.Fatalf("eks: %+v", k)
 	}
-	if l := r.Targets[6].Lambda; len(l.AliasEnvironments) != 2 || l.AliasEnvironments["live"] != "prod" || l.AliasEnvironments["canary"] != "-" {
+	if os, m := r.Targets[6].Opensearch, r.Targets[7].Msk; os.Region != "eu-west-1" || m.Region != "eu-west-1" {
+		t.Fatalf("opensearch, msk: %+v %+v", os, m)
+	}
+	if l := r.Targets[8].Lambda; len(l.AliasEnvironments) != 2 || l.AliasEnvironments["live"] != "prod" || l.AliasEnvironments["canary"] != "-" {
 		t.Fatalf("aliases: %+v", l)
 	}
-	if c := r.Targets[7].Ecs; c.Region != "eu-central-1" || c.Clusters[0] != "prod" {
+	if c := r.Targets[9].Ecs; c.Region != "eu-central-1" || c.Clusters[0] != "prod" {
 		t.Fatalf("other region: %+v", c)
 	}
-	if len(r.Notes) != 9 { // no RDS, ElastiCache, EKS nor Lambda in eu-central-1, nothing in us-east-1
+	if len(r.Notes) != 13 { // none of RDS, ElastiCache, EKS, OpenSearch, MSK, Lambda in eu-central-1, nothing in us-east-1
 		t.Fatalf("notes: %v", r.Notes)
 	}
 
 	// Only some clusters, and Lambda off.
-	o = opts(map[string]string{"AWS_REGION": "eu-west-1", "GOLIASH_ECS_CLUSTERS": "prod,staging,tools", "GOLIASH_ECS_EXCLUDE": "tools", "GOLIASH_LAMBDA": "off", "GOLIASH_RDS": "off", "GOLIASH_ELASTICACHE": "off", "GOLIASH_EKS": "off"})
+	o = opts(map[string]string{
+		"AWS_REGION": "eu-west-1", "GOLIASH_ECS_CLUSTERS": "prod,staging,tools", "GOLIASH_ECS_EXCLUDE": "tools", "GOLIASH_LAMBDA": "off", "GOLIASH_RDS": "off", "GOLIASH_ELASTICACHE": "off", "GOLIASH_EKS": "off",
+		"GOLIASH_OPENSEARCH": "off", "GOLIASH_MSK": "off",
+	})
 	f.asked = nil
 	o.AWS = f
 	r, _ = Run(context.Background(), o)
-	if got := names(r.Targets); got != "ecs prod, ecs staging" || slices.Contains(f.asked, "lambda eu-west-1") || slices.Contains(f.asked, "rds eu-west-1") || slices.Contains(f.asked, "elasticache eu-west-1") || slices.Contains(f.asked, "eks eu-west-1") {
+	if got := names(r.Targets); got != "ecs prod, ecs staging" || slices.Contains(f.asked, "lambda eu-west-1") || slices.Contains(f.asked, "rds eu-west-1") || slices.Contains(f.asked, "elasticache eu-west-1") || slices.Contains(f.asked, "eks eu-west-1") ||
+		slices.Contains(f.asked, "opensearch eu-west-1") || slices.Contains(f.asked, "msk eu-west-1") {
 		t.Fatalf("filtered: %s %v", got, f.asked)
 	}
 }

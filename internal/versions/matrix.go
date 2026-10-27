@@ -65,7 +65,11 @@ func Manual(platform string) bool { return platform == "manual" }
 // Packaged reports whether a platform reports software that is no image (a host's installed packages, the
 // engines of managed databases, caches and clusters), so digests and registries do not apply.
 func Packaged(platform string) bool {
-	return platform == "host" || platform == "rds" || platform == "elasticache" || platform == "eks"
+	switch platform {
+	case "host", "rds", "elasticache", "eks", "opensearch", "msk":
+		return true
+	}
+	return false
 }
 
 // RunningVersion is one tag running in a cell.

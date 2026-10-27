@@ -56,7 +56,9 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors/elasticache"
 	"github.com/pipozzz/goliash/internal/collectors/kubernetes"
 	"github.com/pipozzz/goliash/internal/collectors/lambda"
+	"github.com/pipozzz/goliash/internal/collectors/msk"
 	"github.com/pipozzz/goliash/internal/collectors/nomad"
+	"github.com/pipozzz/goliash/internal/collectors/opensearch"
 	"github.com/pipozzz/goliash/internal/collectors/rds"
 	"github.com/pipozzz/goliash/internal/collectors/swarm"
 	"github.com/pipozzz/goliash/internal/demo"
@@ -697,6 +699,8 @@ func serve(ctx context.Context, args []string) error {
 				agentproto.Rds:         rds.New,
 				agentproto.Elasticache: elasticache.New,
 				agentproto.Eks:         eks.New,
+				agentproto.Opensearch:  opensearch.New,
+				agentproto.Msk:         msk.New,
 				agentproto.Nomad:       nomad.New,
 				agentproto.Swarm:       swarm.New,
 				agentproto.Docker:      docker.New,

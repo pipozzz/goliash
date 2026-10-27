@@ -178,6 +178,8 @@ templ AgentsPage(v AgentsView) {
 											<option value="rds">Amazon RDS and Aurora</option>
 											<option value="elasticache">Amazon ElastiCache</option>
 											<option value="eks">Amazon EKS (cluster versions)</option>
+											<option value="opensearch">Amazon OpenSearch Service</option>
+											<option value="msk">Amazon MSK (Kafka)</option>
 										</select>
 									</label>
 									<label>
@@ -201,7 +203,7 @@ templ AgentsPage(v AgentsView) {
 								<label>
 									Settings (JSON)
 									<textarea name="settings" rows="2" class="mono" placeholder={ `{"kubernetes":{"exclude_namespaces":["kube-system"]}}` }></textarea>
-									<span class="hint">ECS: { `{"ecs":{"region":"eu-west-1"}}` } · Nomad: { `{"nomad":{"address":"https://nomad:4646"}}` } · Swarm or Docker: { `{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}` }, with "docker" for a standalone host · Lambda: { `{"lambda":{"region":"eu-west-1"}}` } · RDS: { `{"rds":{"region":"eu-west-1"}}` } · ElastiCache: { `{"elasticache":{"region":"eu-west-1"}}` } · EKS: { `{"eks":{"region":"eu-west-1"}}` } · Compose: { `{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}` }</span>
+									<span class="hint">ECS: { `{"ecs":{"region":"eu-west-1"}}` } · Nomad: { `{"nomad":{"address":"https://nomad:4646"}}` } · Swarm or Docker: { `{"swarm":{"docker_host":"tcp://docker-socket-proxy:2375"}}` }, with "docker" for a standalone host · Lambda: { `{"lambda":{"region":"eu-west-1"}}` } · RDS: { `{"rds":{"region":"eu-west-1"}}` } · ElastiCache: { `{"elasticache":{"region":"eu-west-1"}}` } · EKS, OpenSearch, MSK: { `{"eks":{"region":"eu-west-1"}}` }, likewise "opensearch", "msk" · Compose: { `{"compose":{"files":["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"]}}` }</span>
 								</label>
 								<div><button type="submit">Create target</button></div>
 							</form>

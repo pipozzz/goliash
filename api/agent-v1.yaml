@@ -256,7 +256,7 @@ components:
       description: >-
         manual is a target whose versions people enter on the server, for software Goliash does not collect
         (a virtual machine, a managed service); it is never assigned to an agent.
-      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, rds, elasticache, eks, manual, host]
+      enum: [kubernetes, ecs, nomad, swarm, docker, compose, lambda, rds, elasticache, eks, opensearch, msk, manual, host]
 
     RegisterRequest:
       type: object
@@ -356,6 +356,10 @@ components:
           $ref: '#/components/schemas/ElastiCacheSettings'
         eks:
           $ref: '#/components/schemas/EKSSettings'
+        opensearch:
+          $ref: '#/components/schemas/OpenSearchSettings'
+        msk:
+          $ref: '#/components/schemas/MSKSettings'
         host:
           $ref: '#/components/schemas/HostSettings'
 
@@ -460,6 +464,10 @@ components:
           $ref: '#/components/schemas/ElastiCacheSettings'
         eks:
           $ref: '#/components/schemas/EKSSettings'
+        opensearch:
+          $ref: '#/components/schemas/OpenSearchSettings'
+        msk:
+          $ref: '#/components/schemas/MSKSettings'
         host:
           $ref: '#/components/schemas/HostSettings'
 
@@ -606,6 +614,31 @@ components:
           type: string
           example: eu-west-1
 
+    OpenSearchSettings:
+      type: object
+      required: [region]
+      description: |
+        Amazon OpenSearch Service domains of a region (OpenSearch and legacy Elasticsearch), read with
+        es:ListDomainNames, es:DescribeDomains and es:ListTags. Each domain reports its engine as an image,
+        opensearch.amazonaws.com/<engine>:<version>, so newer versions and the end of standard support show up;
+        the agent reads the versions the service offers with es:ListVersions.
+      properties:
+        region:
+          type: string
+          example: eu-west-1
+
+    MSKSettings:
+      type: object
+      required: [region]
+      description: |
+        Amazon MSK provisioned clusters of a region, read with kafka:ListClustersV2. Each cluster reports its Kafka
+        version as an image, kafka.amazonaws.com/kafka:<version>, so newer versions and the end of support show up;
+        the agent reads the versions MSK offers with kafka:ListKafkaVersions.
+      properties:
+        region:
+          type: string
+          example: eu-west-1
+
     HostSettings:
       type: object
       description: |
@@ -731,7 +764,7 @@ components:
 
     WorkloadKind:
       type: string
-      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, rds_instance, rds_cluster, elasticache_cluster, elasticache_serverless, eks_cluster, eks_nodegroup, manual_entry, host_os, host_package]
+      enum: [deployment, statefulset, daemonset, cronjob, ecs_service, nomad_job, swarm_service, compose_service, docker_container, lambda_function, rds_instance, rds_cluster, elasticache_cluster, elasticache_serverless, eks_cluster, eks_nodegroup, opensearch_domain, msk_cluster, manual_entry, host_os, host_package]
 
     Workload:
       type: object

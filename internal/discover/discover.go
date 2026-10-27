@@ -25,7 +25,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/kafka"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
@@ -69,6 +71,8 @@ type AWS interface {
 	CanListDatabases(ctx context.Context, region string) error
 	CanListCaches(ctx context.Context, region string) error
 	CanListEKS(ctx context.Context, region string) error
+	CanListDomains(ctx context.Context, region string) error
+	CanListKafka(ctx context.Context, region string) error
 }
 
 // Paths the agent looks at.
@@ -329,8 +333,8 @@ func arnParts(arn string) (region, cluster string) {
 // ECS cluster (or those in GOLIASH_ECS_CLUSTERS, without those in GOLIASH_ECS_EXCLUDE)
 // as a target of its own, so each can
 // sit in its own environment, and the region's Lambda functions (GOLIASH_LAMBDA=off
-// leaves them out), RDS databases (GOLIASH_RDS=off), ElastiCache caches (GOLIASH_ELASTICACHE=off) and EKS
-// clusters (GOLIASH_EKS=off). Platforms the credentials may not read are left out with
+// leaves them out), RDS databases (GOLIASH_RDS=off), ElastiCache caches (GOLIASH_ELASTICACHE=off), EKS
+// clusters (GOLIASH_EKS=off), OpenSearch domains (GOLIASH_OPENSEARCH=off) and MSK clusters (GOLIASH_MSK=off). Platforms the credentials may not read are left out with
 // a note.
 func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, string, agentproto.DeclaredTarget),
 	nameOr func(string) string, home, ownCluster string,
@@ -414,6 +418,24 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 				})
 			} else {
 				r.Notes = append(r.Notes, "eks "+region+": "+err.Error())
+			}
+		}
+		if o.Env("GOLIASH_OPENSEARCH") != "off" {
+			if err := o.AWS.CanListDomains(ctx, region); err == nil {
+				found(identity, agentName, agentproto.DeclaredTarget{
+					Platform: agentproto.Opensearch, Name: "opensearch-" + region, Opensearch: &agentproto.OpenSearchSettings{Region: region},
+				})
+			} else {
+				r.Notes = append(r.Notes, "opensearch "+region+": "+err.Error())
+			}
+		}
+		if o.Env("GOLIASH_MSK") != "off" {
+			if err := o.AWS.CanListKafka(ctx, region); err == nil {
+				found(identity, agentName, agentproto.DeclaredTarget{
+					Platform: agentproto.Msk, Name: "msk-" + region, Msk: &agentproto.MSKSettings{Region: region},
+				})
+			} else {
+				r.Notes = append(r.Notes, "msk "+region+": "+err.Error())
 			}
 		}
 		if o.Env("GOLIASH_LAMBDA") == "off" {
@@ -515,6 +537,29 @@ func (sdkAWS) CanListEKS(ctx context.Context, region string) error {
 	}
 	one := int32(1)
 	_, err = eks.NewFromConfig(cfg).ListClusters(ctx, &eks.ListClustersInput{MaxResults: &one})
+	return err
+}
+
+func (sdkAWS) CanListDomains(ctx context.Context, region string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cfg, err := awsConfig(ctx, region)
+	if err != nil {
+		return err
+	}
+	_, err = opensearch.NewFromConfig(cfg).ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
+	return err
+}
+
+func (sdkAWS) CanListKafka(ctx context.Context, region string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cfg, err := awsConfig(ctx, region)
+	if err != nil {
+		return err
+	}
+	one := int32(1)
+	_, err = kafka.NewFromConfig(cfg).ListClustersV2(ctx, &kafka.ListClustersV2Input{MaxResults: &one})
 	return err
 }
 

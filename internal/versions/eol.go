@@ -135,6 +135,8 @@ var managedProducts = map[string]string{
 	"elasticache.amazonaws.com/redis": "amazon-elasticache-redis", "elasticache.amazonaws.com/valkey": "valkey",
 	"elasticache.amazonaws.com/memcached": "memcached",
 	"eks.amazonaws.com/kubernetes":        "amazon-eks",
+	"opensearch.amazonaws.com/opensearch": "amazon-opensearch", "opensearch.amazonaws.com/elasticsearch": "amazon-elasticsearch",
+	"kafka.amazonaws.com/kafka": "amazon-msk",
 }
 
 // Managed reports whether repo is the engine of a managed service (rds.amazonaws.com/postgres), which AWS runs and

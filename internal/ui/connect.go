@@ -63,6 +63,14 @@ var connectPlatforms = []PlatformInfo{
 		AgentFirst: true, ServerHint: "The server can read EKS itself when it runs with AWS credentials that may describe clusters.",
 	},
 	{
+		Key: "opensearch", Title: "Amazon OpenSearch Service", Summary: "OpenSearch and Elasticsearch domains of a region: engine versions, the versions the service offers, end of standard support, waiting software updates.",
+		AgentFirst: true, ServerHint: "The server can read OpenSearch Service itself when it runs with AWS credentials that may describe domains.",
+	},
+	{
+		Key: "msk", Title: "Amazon MSK", Summary: "Kafka clusters of a region: Kafka versions, the versions MSK offers, end of support.",
+		AgentFirst: true, ServerHint: "The server can read MSK itself when it runs with AWS credentials that may list clusters.",
+	},
+	{
 		Key: "compose", Title: "Compose files", Summary: "What Compose files in Git declare, without a Docker engine.",
 		ServerHint: "The server fetches the files from their URLs; no agent needed.",
 	},
@@ -234,6 +242,18 @@ func connectSettings(platform string, f url.Values) (json.RawMessage, string) {
 			return nil, "Enter the AWS region, e.g. eu-west-1."
 		}
 		t.Eks = &agentproto.EKSSettings{Region: region}
+	case "opensearch":
+		region := val("region")
+		if region == "" {
+			return nil, "Enter the AWS region, e.g. eu-west-1."
+		}
+		t.Opensearch = &agentproto.OpenSearchSettings{Region: region}
+	case "msk":
+		region := val("region")
+		if region == "" {
+			return nil, "Enter the AWS region, e.g. eu-west-1."
+		}
+		t.Msk = &agentproto.MSKSettings{Region: region}
 	case "lambda":
 		region := val("region")
 		if region == "" {
@@ -649,7 +669,7 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			"nomad var put -force nomad/jobs/goliash-agent token=" + token + "\n" +
 			"# with Nomad ACLs, add nomad_token=<secret ID> above (a token that may list-jobs and read-job)\n" +
 			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
-	case "ecs", "lambda", "rds", "elasticache", "eks":
+	case "ecs", "lambda", "rds", "elasticache", "eks", "opensearch", "msk":
 		lambda := "false"
 		title := "Run the agent on ECS Fargate with CloudFormation (default VPC)"
 		switch platform {
@@ -661,6 +681,10 @@ func installCommand(platform, serverURL, token string, files []string, version s
 			title = "Run the agent on ECS Fargate with CloudFormation; it watches the region's caches"
 		case "eks":
 			title = "Run the agent on ECS Fargate with CloudFormation; it watches the region's EKS clusters"
+		case "opensearch":
+			title = "Run the agent on ECS Fargate with CloudFormation; it watches the region's OpenSearch domains"
+		case "msk":
+			title = "Run the agent on ECS Fargate with CloudFormation; it watches the region's MSK clusters"
 		}
 		return title, "curl -fsSLo goliash-agent.cfn.yaml " + raw + "ecs/goliash-agent.cfn.yaml && \\\n" +
 			"aws cloudformation deploy --stack-name goliash-agent --template-file goliash-agent.cfn.yaml --capabilities CAPABILITY_IAM \\\n" +
@@ -735,7 +759,7 @@ func agentLogs(platform string) string {
 		return "docker service logs goliash-agent_agent"
 	case "nomad":
 		return "nomad alloc logs -job goliash-agent"
-	case "ecs", "lambda", "rds", "elasticache", "eks":
+	case "ecs", "lambda", "rds", "elasticache", "eks", "opensearch", "msk":
 		return "aws logs tail /ecs/goliash-agent --follow"
 	}
 	return "docker logs goliash-agent"
@@ -766,7 +790,7 @@ func upgradeCommand(platform, serverURL, version string) (title, cmd string) {
 	case "nomad":
 		return "Run the job again with the new version", "curl -fsSLO " + raw + "nomad/goliash-agent.nomad.hcl\n" +
 			"nomad job run -var server_url=" + serverURL + " -var version=" + tag + " goliash-agent.nomad.hcl"
-	case "ecs", "lambda", "rds", "elasticache", "eks":
+	case "ecs", "lambda", "rds", "elasticache", "eks", "opensearch", "msk":
 		// The new template, so the role gains what the new version reads; parameters added since keep their
 		// defaults.
 		keep := ""

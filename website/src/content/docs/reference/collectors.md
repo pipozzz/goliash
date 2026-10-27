@@ -13,6 +13,8 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Amazon RDS | PostgreSQL, MySQL, MariaDB and Aurora databases of a region: engine version, the versions RDS offers, public accessibility; tags | IAM `rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon ElastiCache | Redis OSS, Valkey and Memcached caches of a region (replication groups, clusters, serverless): engine version, the versions ElastiCache offers; tags | IAM `elasticache:Describe*`, `elasticache:ListTagsForResource` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon EKS | clusters of a region: the Kubernetes version of the control plane and managed node groups, the versions EKS offers, a public API endpoint; tags | IAM `eks:ListClusters`, `eks:DescribeCluster`, `eks:ListNodegroups`, `eks:DescribeNodegroup`, `eks:DescribeClusterVersions` | default AWS chain; `credentials_ref` names an AWS profile |
+| Amazon OpenSearch Service | OpenSearch and Elasticsearch domains of a region: engine version, the versions offered, waiting service software update, public endpoint; tags | IAM `es:ListDomainNames`, `es:DescribeDomains`, `es:ListTags`, `es:ListVersions` | default AWS chain; `credentials_ref` names an AWS profile |
+| Amazon MSK | provisioned Kafka clusters of a region: Kafka version, the versions MSK offers, public brokers; tags | IAM `kafka:ListClustersV2`, `kafka:ListKafkaVersions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Nomad | jobs, job versions, allocations | ACL token with `list-jobs` and `read-job` | `credentials_ref` resolves to the token, else `NOMAD_TOKEN` |
 | Docker Swarm | services and running tasks | Docker API `GET` (docker-socket-proxy) | none |
 | Docker | running containers, grouped into Compose services; image digests | Docker API `GET` on containers and images | none |
@@ -34,6 +36,8 @@ Each target has the settings object of its platform:
 {"rds": {"region": "eu-west-1"}}
 {"elasticache": {"region": "eu-west-1"}}
 {"eks": {"region": "eu-west-1"}}
+{"opensearch": {"region": "eu-west-1"}}
+{"msk": {"region": "eu-west-1"}}
 {"compose": {"files": ["https://raw.githubusercontent.com/acme/infra/main/compose.yaml"], "project": "shop", "variables": {"TAG": "1.3.0"}}}
 ```
 
@@ -58,6 +62,8 @@ Vulnerabilities put those first (see [Exposed to the outside](../../guide/securi
 | Docker, Compose | a port published on every interface of the host (not on `127.0.0.1`). |
 | Amazon RDS | the database (or one of an Aurora cluster's instances) is publicly accessible. |
 | Amazon EKS | the cluster's API endpoint is public and open to `0.0.0.0/0`. |
+| OpenSearch Service | the domain is outside a VPC (a public endpoint). |
+| Amazon MSK | the brokers have public access. |
 
 A `goliash.exposed` label, tag or meta on the workload overrides it: `internet` marks it exposed whatever the agent
 saw, `internal` not exposed (an internal load balancer, a VPN-only ingress). On a Kubernetes Service, the label or
