@@ -15,7 +15,7 @@ import (
 )
 
 func TestLeaderSQLiteAlwaysLeads(t *testing.T) {
-	s, err := Open(context.Background(), "sqlite://:memory:")
+	s, err := Open(context.Background(), migratedDSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

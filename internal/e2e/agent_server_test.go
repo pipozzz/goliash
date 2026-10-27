@@ -18,6 +18,7 @@ import (
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
@@ -39,7 +40,7 @@ func TestAgentAgainstServer(t *testing.T) {
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

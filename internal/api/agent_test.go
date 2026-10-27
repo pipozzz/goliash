@@ -21,6 +21,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/ingest"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
@@ -39,7 +40,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

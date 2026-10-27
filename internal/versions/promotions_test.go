@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 func TestBetween(t *testing.T) {
@@ -41,7 +42,7 @@ func TestBetween(t *testing.T) {
 // A service compared per application waits for promotion per application.
 func TestPromotionsPerApp(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

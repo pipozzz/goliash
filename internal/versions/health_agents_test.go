@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 // An agent left on an older release than the server is a warning on the Status page.
 func TestHealthOlderAgents(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

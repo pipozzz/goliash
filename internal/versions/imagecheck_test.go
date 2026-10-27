@@ -15,6 +15,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 // checkRegistry is a registry holding one signed image with an SBOM attestation.
@@ -49,7 +50,7 @@ func (r checkRegistry) ImageSBOM(context.Context, string, string, registry.Crede
 
 func TestCheckImage(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

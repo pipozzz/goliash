@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 func TestHashAndVerifyPassword(t *testing.T) {
@@ -59,7 +60,7 @@ func TestCheckPassword(t *testing.T) {
 
 func TestLimiter(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

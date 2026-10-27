@@ -16,6 +16,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 const token = "0123456789abcdef0123456789abcdef"
@@ -31,7 +32,7 @@ type env struct {
 func newEnv(t *testing.T, roles string) *env {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

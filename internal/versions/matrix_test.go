@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 func TestBuildMatrix(t *testing.T) {
@@ -132,7 +133,7 @@ func TestMatrixSplitsByApplication(t *testing.T) {
 // promotions, the API iterate it) and found per application with DriftsIn.
 func TestOverviewDriftsOnce(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

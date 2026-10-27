@@ -23,6 +23,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 	"github.com/pipozzz/goliash/internal/tokens"
 )
 
@@ -39,7 +40,7 @@ type harness struct {
 func newHarness(t *testing.T, mail bool) *harness {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,6 +19,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 	"github.com/pipozzz/goliash/internal/tokens"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -35,7 +36,7 @@ type publicEnv struct {
 func newPublicEnv(t *testing.T) *publicEnv {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

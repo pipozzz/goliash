@@ -10,17 +10,57 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+// migrated is a SQLite database with every migration applied, made once per test binary (as storetest does
+// for other packages, which this one cannot import).
+var migrated struct {
+	once sync.Once
+	db   []byte
+	err  error
+}
+
+// migratedDSN returns a fresh copy of the migrated database for one test.
+func migratedDSN(t testing.TB) string {
+	t.Helper()
+	migrated.once.Do(func() {
+		dir, err := os.MkdirTemp("", "goliash-store-test")
+		if err != nil {
+			migrated.err = err
+			return
+		}
+		defer func() { _ = os.RemoveAll(dir) }()
+		path := filepath.Join(dir, "goliash.db")
+		s, err := Open(context.Background(), path)
+		if err != nil {
+			migrated.err = err
+			return
+		}
+		if migrated.err = s.Close(); migrated.err == nil {
+			migrated.db, migrated.err = os.ReadFile(path)
+		}
+	})
+	if migrated.err != nil {
+		t.Fatal(migrated.err)
+	}
+	path := filepath.Join(t.TempDir(), "goliash.db")
+	if err := os.WriteFile(path, migrated.db, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 // forEachDialect runs fn against a fresh SQLite database and, when
 // GOLIASH_TEST_POSTGRES_DSN is set, against a fresh PostgreSQL schema.
 func forEachDialect(t *testing.T, fn func(t *testing.T, s *Store)) {
 	t.Helper()
 	t.Run("sqlite", func(t *testing.T) {
-		s, err := Open(context.Background(), "sqlite://:memory:")
+		s, err := Open(context.Background(), migratedDSN(t))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -434,7 +474,7 @@ func TestSchemaParity(t *testing.T) {
 		t.Skip("GOLIASH_TEST_POSTGRES_DSN not set")
 	}
 	ctx := context.Background()
-	lite, err := Open(ctx, "sqlite://:memory:")
+	lite, err := Open(ctx, migratedDSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

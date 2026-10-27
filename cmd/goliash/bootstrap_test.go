@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 const bootYAML = `
@@ -30,7 +31,7 @@ targets:
 
 func TestBootstrap(t *testing.T) {
 	ctx := context.Background()
-	db, err := store.Open(ctx, "sqlite://:memory:")
+	db, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

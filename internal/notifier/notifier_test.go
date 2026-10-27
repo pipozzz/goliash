@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/store/storetest"
 )
 
 type sink struct {
@@ -83,7 +84,7 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, "sqlite://:memory:")
+	st, err := store.Open(ctx, storetest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}

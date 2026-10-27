@@ -12,7 +12,7 @@ import (
 
 func TestAcceptedRiskApproval(t *testing.T) {
 	ctx := context.Background()
-	st, err := Open(ctx, "sqlite://:memory:")
+	st, err := Open(ctx, migratedDSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}
