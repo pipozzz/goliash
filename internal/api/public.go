@@ -76,6 +76,7 @@ func (h *PublicHandler) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/summary", h.with(store.RoleViewer, h.summary))
 	mux.Handle("GET /api/v1/notifications/sent", h.with(store.RoleViewer, h.notificationsSent))
 	mux.Handle("POST /api/v1/acks", h.with(store.RoleMember, h.createAck))
+	mux.Handle("POST /api/v1/check", h.with(store.RoleViewer, h.checkImage))
 	mux.Handle("GET /metrics", h.with(store.RoleViewer, h.metrics))
 	mux.HandleFunc("GET /api/v1/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/yaml")
@@ -1636,4 +1637,50 @@ func teamMetrics(b *strings.Builder, prod string, teams []versions.TeamPatching)
 			fmt.Fprintf(b, "goliash_team_patch_median_days{owner=%q,environment=%q} %d\n", t.Owner, prod, t.MedianPatch)
 		}
 	}
+}
+
+// checkImage checks an image before it is deployed (goliash check in CI): exploited and critical vulnerabilities
+// of its packages, its signature against the service's policy, and the end of life of its release cycle. The
+// answer is 200 whether the image passes or not; passed says.
+func (h *PublicHandler) checkImage(w http.ResponseWriter, r *http.Request, p auth.Principal) {
+	var in struct {
+		Image   string          `json:"image"`
+		Service string          `json:"service"`
+		SBOM    json.RawMessage `json:"sbom"`
+		FailOn  []string        `json:"fail_on"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<20)).Decode(&in); err != nil {
+		writeProblem(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		return
+	}
+	if strings.TrimSpace(in.Image) == "" {
+		writeProblem(w, http.StatusBadRequest, "Missing image", "image is the reference to check, e.g. ghcr.io/acme/app:1.2.3")
+		return
+	}
+	for _, rule := range in.FailOn {
+		if rule != "none" && !slices.Contains(versions.CheckRules, rule) {
+			writeProblem(w, http.StatusBadRequest, "Unknown rule", rule+": use "+strings.Join(versions.CheckRules, ", ")+" or none")
+			return
+		}
+	}
+	if h.checker == nil {
+		writeProblem(w, http.StatusServiceUnavailable, "No checker", "this server does not check images")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+	req := versions.ImageCheckRequest{Image: in.Image, Service: in.Service, FailOn: in.FailOn}
+	if len(in.SBOM) > 0 && string(in.SBOM) != "null" {
+		req.SBOM = in.SBOM
+	}
+	res, err := h.checker.CheckImage(ctx, p.Scope, req)
+	if err != nil {
+		writeProblem(w, http.StatusBadRequest, "Check failed", err.Error())
+		return
+	}
+	_ = h.store.Audit(r.Context(), store.AuditEntry{
+		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID, Actor: p.Name(), Action: "image.check",
+		Details: map[string]string{"image": in.Image, "passed": strconv.FormatBool(res.Passed)},
+	})
+	writeJSON(w, http.StatusOK, res)
 }

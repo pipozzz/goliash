@@ -308,3 +308,22 @@ func (c cycloneComponent) license() string {
 	}
 	return truncate(strings.Join(parts, " AND "), maxLicense)
 }
+
+// ParseSBOM reads the packages of an SBOM document someone hands in (SPDX or CycloneDX JSON, bare or in an in-toto
+// statement), as ImageSBOM would read it from a registry.
+func ParseSBOM(body []byte) SBOM {
+	seen := map[string]bool{}
+	licenses := map[string]string{}
+	for _, p := range sbomPackages(body) {
+		seen[p.purl] = true
+		if p.license != "" {
+			licenses[p.purl] = p.license
+		}
+	}
+	out := SBOM{Purls: make([]string, 0, len(seen)), Licenses: licenses}
+	for p := range seen {
+		out.Purls = append(out.Purls, p)
+	}
+	sort.Strings(out.Purls)
+	return out
+}

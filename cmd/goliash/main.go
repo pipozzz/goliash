@@ -104,6 +104,10 @@ const usage = `Usage:
   goliash ask [-server URL] [-token T] [-i] QUESTION
                                           ask Goli, the assistant; the answer streams to stdout (env GOLIASH_URL, GOLIASH_TOKEN);
                                           -i keeps the conversation going
+  goliash verify [-server URL] [-token T] [-service S] [-sbom FILE] [-fail-on RULES] [-json] IMAGE
+                                          in CI, before a deploy: exits 1 when the image carries a vulnerability
+                                          exploited in the wild, is past its end of life or is not signed as its
+                                          service's policy wants (env GOLIASH_URL, GOLIASH_TOKEN)
   goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
   goliash drift                           open drifts
   goliash promotions                      versions waiting for the next environment, with their releases
@@ -239,6 +243,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return imagesCmd(ctx, args, out)
 	case "ask":
 		return askCmd(ctx, args, os.Stdin, os.Stdout, os.Stderr)
+	case "verify":
+		return verifyCmd(ctx, args, os.Stdout)
 	case "login":
 		return loginCmd(ctx, args, out)
 	case "logout":

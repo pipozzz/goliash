@@ -80,7 +80,9 @@ func newPublicEnv(t *testing.T) *publicEnv {
 		t.Fatal(err)
 	}
 	a.Routes(mux)
-	NewPublicHandler(st, a, log).Register(mux)
+	h := NewPublicHandler(st, a, log)
+	h.SetHealth(versions.NewChecker(st, nil, log, 0), "", false) // no registry or network: checks use what is stored
+	h.Register(mux)
 
 	token, hash := tokens.New(tokens.API)
 	_, _ = st.CreateAPIToken(ctx, sc, store.APIToken{Name: "test", Role: store.RoleMember}, hash)

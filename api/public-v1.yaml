@@ -985,6 +985,62 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
+  /api/v1/check:
+    post:
+      operationId: checkImage
+      summary: Check an image before it is deployed
+      description: |
+        For CI (goliash check): the vulnerabilities of the image's packages (from the SBOM handed in, its SBOM
+        attestation, or its package database, looked up on OSV and CISA KEV), its signature against the service's
+        policy, and the end of life of its release cycle. The answer is 200 whether the image passes or not.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, example: ghcr.io/acme/payments-api:1.6.0 }
+                service: { type: string, description: The service whose policy applies; default the one running this repository. }
+                sbom: { type: object, description: The SPDX or CycloneDX JSON document the build made. }
+                fail_on:
+                  type: array
+                  items: { type: string, enum: [exploited, eol, signer, unsigned, critical, no-sbom, unreadable, none] }
+                  description: The rules that fail the check; default exploited, eol, signer, unsigned. none fails on nothing.
+      responses:
+        "200":
+          description: The verdict.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image, passed, findings, packages, sbom_source, signed]
+                properties:
+                  image: { type: string }
+                  digest: { type: string }
+                  service: { type: string }
+                  passed: { type: boolean }
+                  findings:
+                    type: array
+                    items:
+                      type: object
+                      required: [rule, blocking, detail]
+                      properties:
+                        rule: { type: string }
+                        blocking: { type: boolean }
+                        detail: { type: string }
+                  packages: { type: integer }
+                  sbom_source: { type: string, enum: [request, attestation, packages, none] }
+                  signed: { type: boolean }
+                  signers: { type: array, items: { type: string } }
+                  exploited: { type: array, items: { type: string } }
+                  critical: { type: array, items: { type: string } }
+                  eol: { type: string, description: "The end of life of its release cycle, when known." }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+
   /api/v1/openapi.yaml:
     get:
       operationId: getSpec

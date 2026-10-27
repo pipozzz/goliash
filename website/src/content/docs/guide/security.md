@@ -289,6 +289,62 @@ authentication, a Docker port published on every interface (details and permissi
 What the agent reads is a hint, not a scan: a load balancer may be internal, a firewall may close a port. Label a
 workload `goliash.exposed=internal` (or `internet`) where you know better.
 
+## Verify images in CI
+
+Everything above looks at what already runs. `goliash verify` looks before: a step in the pipeline that fails
+when the image about to be deployed
+
+- carries a vulnerability CISA lists as **exploited** in the wild,
+- is on a release cycle past its **end of life**,
+- or is **not signed** as its service's policy wants (`signer` in the version policy): unsigned, or signed by
+  someone else.
+
+```sh
+GOLIASH_URL=https://goliash.example.com GOLIASH_TOKEN=glsh_api_… goliash verify ghcr.io/acme/payments-api:1.6.0
+```
+
+```
+ghcr.io/acme/payments-api:1.6.0 (sha256:3f1c…): blocked
+  BLOCK exploited: exploited in the wild (CISA KEV): CVE-2021-44228
+  warn  critical: 2 critical vulnerabilities: CVE-2024-0001, CVE-2024-0002
+  412 packages (SBOM: attestation), signed by https://github.com/acme/payments-api/.github/workflows/release.yml@refs/heads/main; policy of payments-api
+```
+
+The exit code is 1 when the image breaks a blocking rule, and 0 when it passes; warnings do not fail it.
+
+- **Where the packages come from.** `-sbom sbom.cdx.json` hands in the SPDX or CycloneDX JSON the build made (syft,
+  docker buildx `--sbom`, Trivy). Without it, the server reads the image's SBOM attestation, or its package
+  database, from the registry with the workspace's registry credentials.
+- **Which rules block.** `-fail-on` chooses: `exploited`, `eol`, `signer`, `unsigned`, `critical`, `no-sbom`,
+  `unreadable`, or `none`. The default is `exploited,eol,signer,unsigned`.
+- **Policy and output.** `-service` names the service whose policy applies; by default it is the one already
+  running the image's repository. `-json` prints the verdict for other tools.
+- **Token and audit.** The token can be a *viewer* API token. Each check is in the audit log as `image.check`.
+  The API is `POST /api/v1/check`.
+
+GitHub Actions, after the image is pushed:
+
+```yaml
+- name: Verify the image with Goliash
+  run: |
+    docker run --rm -e GOLIASH_URL -e GOLIASH_TOKEN -v "$PWD:/w" ghcr.io/pipozzz/goliash:latest \
+      verify -sbom /w/sbom.cdx.json ghcr.io/acme/payments-api:${{ github.sha }}
+  env:
+    GOLIASH_URL: https://goliash.example.com
+    GOLIASH_TOKEN: ${{ secrets.GOLIASH_TOKEN }}
+```
+
+GitLab CI, with the release's binary (the server image has no shell to run a script in):
+
+```yaml
+verify:
+  image: alpine:3.20
+  script:
+    - V=1.151.0 # your server's version
+    - wget -qO- https://github.com/pipozzz/goliash/releases/download/v$V/goliash_${V}_linux_amd64.tar.gz | tar xz goliash
+    - ./goliash verify "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+```
+
 ## Images without an SBOM
 
 Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:

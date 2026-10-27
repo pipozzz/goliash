@@ -90,6 +90,9 @@ func TestPublicAPIMatchesSpec(t *testing.T) {
 		{"GET", "/api/v1/matrix", "", "", 401},
 		{"POST", "/api/v1/acks", e.token, `{"service":"web","kind":"drift","environment":"prod","until":"2030-01-01T00:00:00Z"}`, 201},
 		{"POST", "/api/v1/acks", e.token, `{"service":"web","kind":"release"}`, 400},
+		{"POST", "/api/v1/check", e.token, `{"image":"nginx:1.27.2","sbom":{"bomFormat":"CycloneDX","components":[{"purl":"pkg:deb/debian/openssl@3.0.11"}]},"fail_on":["exploited"]}`, 200},
+		{"POST", "/api/v1/check", e.token, `{"service":"web"}`, 400},
+		{"POST", "/api/v1/check", e.token, `{"image":"nginx:1.27.2","fail_on":["vibes"]}`, 400},
 		{"GET", "/api/v1/openapi.yaml", "", "", 200},
 	} {
 		req, _ := http.NewRequestWithContext(ctx, c.method, e.srv.URL+c.path, strings.NewReader(c.body))
