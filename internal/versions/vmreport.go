@@ -31,6 +31,14 @@ type VMReport struct {
 	Exploited []VulnFinding
 	Overdue   []Update
 	Accepted  []VMAccepted
+	// Mitigations of exploited vulnerabilities with no fix: in force, or closed during or after the month.
+	Mitigations []VMMitigation
+}
+
+// VMMitigation is a mitigation, with the names it applies to.
+type VMMitigation struct {
+	store.Mitigation
+	Service, Environment string
 }
 
 // VMAccepted is a risk accepted as the report is made: an acknowledgement, with the names it applies to.
@@ -162,6 +170,11 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 	for _, u := range LoadUpdates(ctx, st, sc, o, acks, now) {
 		if !u.Acked && u.Overdue(now) && u.Environment.ID == pos.Prod.ID {
 			r.Overdue = append(r.Overdue, u)
+		}
+	}
+	if ms, err := st.ListMitigationsSince(ctx, sc, from); err == nil {
+		for _, m := range ms {
+			r.Mitigations = append(r.Mitigations, VMMitigation{Mitigation: m, Service: o.Services[m.ServiceID].Name, Environment: o.Envs[m.EnvironmentID].Name})
 		}
 	}
 	for _, a := range acks {

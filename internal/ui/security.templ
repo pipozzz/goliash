@@ -238,6 +238,7 @@ templ SecurityPage(v SecurityView) {
 		if len(v.Vulns.Blind) > 0 {
 			@sbomHelper(v.Vulns.Blind)
 		}
+		@noFixPanel(v)
 		<section class="panel" id="vulnerabilities">
 			<div class="panel-head"><h2>Is it running?</h2>@panelInfo("known vulnerabilities in " + v.Prod.Name + ", from the images' SBOMs and OSV")</div>
 			<div class="panel-body stack">
@@ -802,4 +803,43 @@ templ securityNav(v SecurityView) {
 			</a>
 		}
 	</nav>
+}
+
+// noFixPanel lists the vulnerabilities exploited in the wild that have no fix yet, and how each is mitigated.
+templ noFixPanel(v SecurityView) {
+	if fs := noFix(v.Vulns); len(fs) > 0 {
+		<section class="panel" id="no-fix">
+			<div class="panel-head">
+				<h2>Exploited, no fix yet</h2>
+				@panelInfo("Vulnerabilities CISA lists as exploited in the wild, running in " + v.Prod.Name + ", that no affected package has a fixed version of. Until one is out, a mitigation keeps them from being used: a WAF rule, a feature turned off, isolation. Goliash closes the mitigation and says so when a fix comes out.")
+			</div>
+			<div class="scroll" tabindex="0">
+				<table>
+					<thead><tr><th>Vulnerability</th><th>Where</th><th>Mitigation</th></tr></thead>
+					<tbody>
+						for _, f := range fs {
+							<tr>
+								<td class="mono"><a class="u" href={ templ.URL("/security/vulns?q=" + f.Key) }><strong>{ f.Key }</strong></a></td>
+								<td>{ placesText(f.Affected) }</td>
+								<td>
+									for _, m := range mitigationsOf(f) {
+										<div><span class="badge ok">mitigated</span>{ " " + m.Where + ": " + m.Measure + " (review " + m.Review + ")" }</div>
+									}
+									if places := f.Unmitigated(); len(places) > 0 {
+										<div>
+											<span class="badge eol">not mitigated</span>
+											{ " " + placesText(places) }
+											if due := f.MitigateBy(v.Deadlines.Exploited); !due.IsZero() {
+												<span class={ "targets", templ.KV("error-text", v.At.After(due)) }>{ " · by " + due.Format("2 Jan 2006") }</span>
+											}
+										</div>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
 }

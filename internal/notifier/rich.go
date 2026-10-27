@@ -67,6 +67,12 @@ func kindOf(it Item) kind {
 			return kind{"✍️", "#d9822b", "Accepted risk to approve"}
 		case strings.HasPrefix(it.Note, "ends|"):
 			return kind{"⏳", "#d9822b", "Accepted risk ends"}
+		case strings.HasPrefix(it.Note, "unmitigated|"):
+			return kind{"🚨", "#e5484d", "Exploited, no fix, not mitigated"}
+		case strings.HasPrefix(it.Note, "review|"):
+			return kind{"🔁", "#d9822b", "Mitigation due for review"}
+		case strings.HasPrefix(it.Note, "fixed|"):
+			return kind{"🩹", "#e5484d", "A fix is out: upgrade"}
 		}
 		if strings.HasPrefix(it.Note, "passed") {
 			return kind{"⏰", "#e5484d", "Remediation deadline passed"}

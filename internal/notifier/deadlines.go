@@ -42,6 +42,10 @@ func (n *Notifier) CheckDeadlines(ctx context.Context) error {
 			return err
 		}
 		if !anyRuleFor(rules, EventDeadline) {
+			// Mitigations still close when their fix is out, with nobody to tell.
+			if err := n.checkMitigations(ctx, sc, nil, now); err != nil {
+				return err
+			}
 			continue
 		}
 		if rem.Any() {
@@ -50,6 +54,9 @@ func (n *Notifier) CheckDeadlines(ctx context.Context) error {
 			}
 		}
 		if err := n.riskAlerts(ctx, sc, rules, now); err != nil {
+			return err
+		}
+		if err := n.checkMitigations(ctx, sc, rules, now); err != nil {
 			return err
 		}
 	}
@@ -169,6 +176,9 @@ func (n *Notifier) riskAlerts(ctx context.Context, sc store.Scope, rules []store
 // describeDeadline is a deadline item in words: "payments-api @ prod: the deadline for an exploited vulnerability
 // passed on 22 Oct; 15.6 runs, 15.8 fixes it".
 func describeDeadline(where string, it Item) string {
+	if s := describeMitigation(where, it); s != "" {
+		return s
+	}
 	state, rest, _ := strings.Cut(it.Note, "|")
 	why, rest, _ := strings.Cut(rest, "|")
 	date, by, _ := strings.Cut(rest, "|")

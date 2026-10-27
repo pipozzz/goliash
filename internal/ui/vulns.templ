@@ -6,6 +6,8 @@ package ui
 import (
 	"strings"
 	"time"
+
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // VulnsPage answers "is this vulnerability running?" and lists the known vulnerabilities of running images.
@@ -110,6 +112,9 @@ templ VulnsPage(v VulnsView) {
 												<div class="targets">{ "CISA due " + f.Exploited.DueDate }</div>
 											}
 										}
+										if f.NoFix() {
+											@mitigationCell(v, f)
+										}
 										if f.Severity != "" {
 											<span class={ "badge", severityClass(f.Severity) }>{ strings.ToLower(f.Severity) }</span>
 										} else if f.Exploited == nil {
@@ -163,4 +168,67 @@ func inEnv(v VulnsView) string {
 func explainVuln(id string) string {
 	return "Explain " + id + " for us: what it is in plain words, which running services and environments have it, " +
 		"whether it is exploited in the wild, what fixes it, and how urgent it is here."
+}
+
+// mitigationCell says, for an exploited vulnerability with no fix, where it is mitigated and how, and lets a member
+// record a mitigation where it is not.
+templ mitigationCell(v VulnsView, f versions.VulnFinding) {
+	<span class="badge eol" title="No affected package has a fixed version yet: only a mitigation keeps it from being used">no fix</span>
+	for _, m := range mitigationsOf(f) {
+		<div class="targets mitigation">
+			<span class="badge ok">mitigated</span>
+			{ " " + m.Where + ": " + m.Measure + " (" + m.Kind + ", review " + m.Review + ")" }
+			if v.CanMember {
+				<form class="inline" method="post" action={ templ.URL("/security/mitigations/" + m.ID + "/close") }>
+					<button type="submit" class="link" title="Withdraw this mitigation">withdraw</button>
+				</form>
+			}
+		</div>
+	}
+	if places := f.Unmitigated(); len(places) > 0 {
+		<div class="targets">
+			if due := f.MitigateBy(v.ExploitedDays); !due.IsZero() {
+				<span class={ templ.KV("error-text", time.Now().After(due)) }>{ "Mitigate by " + due.Format("2 Jan 2006") + ": " }</span>
+			} else {
+				{ "Not mitigated: " }
+			}
+			{ placesText(places) }
+		</div>
+		if v.CanMember {
+			<details class="mitigate">
+				<summary>Record a mitigation</summary>
+				<form class="stack" method="post" action="/security/mitigations">
+					<input type="hidden" name="cve" value={ f.Key }/>
+					<input type="hidden" name="return" value={ vulnsHref(v, "", "") }/>
+					<label>
+						Where
+						<select name="place">
+							for _, a := range places {
+								<option value={ a.ServiceID + "|" + a.EnvironmentID }>{ a.Service + " (" + a.Env + ")" }</option>
+							}
+						</select>
+					</label>
+					<label>
+						What
+						<select name="kind">
+							<option value="waf">WAF or proxy rule</option>
+							<option value="config">feature or setting turned off</option>
+							<option value="isolation">cut off from the network</option>
+							<option value="other">other</option>
+						</select>
+					</label>
+					<label>Measure<input name="measure" required maxlength="500" placeholder="WAF rule blocks ${jndi: in headers and bodies"/></label>
+					<label>
+						Review in
+						<select name="review">
+							<option value="14">2 weeks</option>
+							<option value="30" selected>30 days</option>
+							<option value="90">90 days</option>
+						</select>
+					</label>
+					<div><button type="submit">Record</button></div>
+				</form>
+			</details>
+		}
+	}
 }

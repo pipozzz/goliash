@@ -684,6 +684,15 @@ func (n *Notifier) deliver(ctx context.Context, rt ruleTarget, batch []store.Que
 		}
 	}
 	sort.SliceStable(msg.Items, func(i, j int) bool { return msg.Items[i].At.Before(msg.Items[j].At) })
+	for i := range msg.Items { // a path into Goliash needs its public URL to be a link anywhere else
+		if u := msg.Items[i].URL; strings.HasPrefix(u, "/") {
+			if n.link == "" {
+				msg.Items[i].URL = ""
+			} else {
+				msg.Items[i].URL = n.link + u
+			}
+		}
+	}
 	n.addTake(ctx, &msg)
 
 	sender, ok := n.senders[rt.channel.Type]

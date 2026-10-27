@@ -138,6 +138,8 @@ func linkLabel(it Item) string {
 		return "Commit"
 	case EventPullRequest:
 		return "Pull request"
+	case EventDeadline, EventSecurityBrief, EventPostureReport:
+		return "Open in Goliash"
 	}
 	return "Release notes"
 }

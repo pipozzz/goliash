@@ -345,6 +345,25 @@ verify:
     - ./goliash verify "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
 ```
 
+## Exploited, no fix yet
+
+Sometimes CISA lists a vulnerability as exploited in the wild before any fixed version exists, so there is no
+upgrade to make. Until there is, a **mitigation** keeps it from being used: a WAF or proxy rule, a feature or
+setting turned off, the service cut off from the network.
+
+- **Where it shows.** The Security page's **Exploited, no fix yet** panel and the vulnerabilities list (*no fix*)
+  show where such a vulnerability runs, and whether each place is mitigated.
+- **Recording one.** **Record a mitigation** (members) takes the place (service and environment), what kind it
+  is, what was done, and when to review it (2 weeks, 30 or 90 days). It is in the audit log, and the monthly
+  report lists mitigations.
+- **The deadline.** With remediation deadlines set, the deadline for an exploited vulnerability is the date to
+  mitigate by: from when CISA listed it while it ran.
+- **Notifications.** The `deadline` notification says, once, where production runs one without a mitigation,
+  and three days before a mitigation's review.
+- **When a fix comes out**, Goliash closes the mitigation and says so (*a fix for CVE-… is out; upgrade now*). From
+  then on the upgrade is on Updates with its deadline, like any other. A mitigation also closes when the
+  vulnerable image no longer runs, and a member can withdraw one.
+
 ## Images without an SBOM
 
 Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:

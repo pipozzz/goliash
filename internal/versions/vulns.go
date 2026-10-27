@@ -195,6 +195,8 @@ type Affected struct {
 	ServiceID, EnvironmentID     string
 	Since                        time.Time // since when the image has run there (its earliest target)
 	Exposed                      []string  // how it can be reached from outside its cluster or host, if it can
+	// Mitigation is what was done there instead of an upgrade, for an exploited vulnerability with no fix.
+	Mitigation *store.Mitigation
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -209,6 +211,43 @@ type VulnFinding struct {
 	Exploited *store.Exploited
 	Fixable   bool      // a fixed version exists for at least one affected package
 	Since     time.Time // since when it has run: the earliest of its affected images
+}
+
+// NoFix reports whether the vulnerability is exploited in the wild and no affected package has a fixed version:
+// something other than an upgrade has to keep it from being used, a mitigation.
+func (f VulnFinding) NoFix() bool { return f.Exploited != nil && !f.Fixable }
+
+// Unmitigated are the places where a vulnerability with no fix runs without a mitigation.
+func (f VulnFinding) Unmitigated() []Affected {
+	if !f.NoFix() {
+		return nil
+	}
+	var out []Affected
+	seen := map[string]bool{}
+	for _, a := range f.Affected {
+		k := a.ServiceID + "|" + a.EnvironmentID
+		if a.Mitigation == nil && !seen[k] {
+			seen[k] = true
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// MitigateBy is the date a mitigation is due for a vulnerability with no fix: the remediation deadline for an
+// exploited vulnerability, from when CISA listed it while it ran (or it started running); zero without a deadline.
+func (f VulnFinding) MitigateBy(days int) time.Time {
+	if !f.NoFix() || days <= 0 {
+		return time.Time{}
+	}
+	from := f.Since
+	if added, err := time.Parse(time.DateOnly, f.Exploited.DateAdded); err == nil && added.After(from) {
+		from = added
+	}
+	if from.IsZero() {
+		return time.Time{}
+	}
+	return from.AddDate(0, 0, days)
 }
 
 // IsExposed reports whether an image with the vulnerability can be reached from outside its cluster or host.
@@ -410,6 +449,10 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err := addProductFindings(ctx, st, sc, active, services, envName, envID, findings); err != nil {
 		return r, err
 	}
+	mitigations, err := st.ListOpenMitigations(ctx, sc)
+	if err != nil {
+		return r, err
+	}
 	for _, f := range findings {
 		sort.Strings(f.IDs)
 		sort.Strings(f.Aliases)
@@ -419,7 +462,14 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				break
 			}
 		}
-		for _, a := range f.Affected {
+		for i := range f.Affected {
+			a := &f.Affected[i]
+			for j := range mitigations {
+				m := &mitigations[j]
+				if m.ServiceID == a.ServiceID && m.EnvironmentID == a.EnvironmentID && (m.CVE == f.Key || slices.Contains(f.Aliases, m.CVE)) {
+					a.Mitigation = m
+				}
+			}
 			f.Fixable = f.Fixable || a.Fix != ""
 			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
 				f.Since = a.Since

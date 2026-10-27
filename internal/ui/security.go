@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -460,6 +461,9 @@ type VulnsView struct {
 	Enabled  bool // vulnerability lookups are on
 	OnlyKEV  bool // only vulnerabilities exploited in the wild
 	Exposed  bool // only those in images reachable from outside
+	// ExploitedDays is the remediation deadline for an exploited vulnerability, which mitigations of those with no
+	// fix are due by; 0 without one.
+	ExploitedDays int
 }
 
 func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
@@ -469,7 +473,7 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		return err
 	}
 	v := VulnsView{
-		Base: s.base(ctx, p, "security", "Vulnerabilities"), Query: strings.TrimSpace(r.URL.Query().Get("q")),
+		Base: withFlash(s.base(ctx, p, "security", "Vulnerabilities"), r), Query: strings.TrimSpace(r.URL.Query().Get("q")),
 		All: r.URL.Query().Get("env") == "all", Enabled: s.checker != nil && s.checker.OSVEnabled(),
 		OnlyKEV: r.URL.Query().Get("kev") == "1", Exposed: r.URL.Query().Get("exposed") == "1",
 	}
@@ -484,6 +488,9 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	}
 	if v.VulnReport, err = versions.LoadVulnReport(ctx, s.store, p.Scope, envID); err != nil {
 		return err
+	}
+	if rem, err := s.store.Remediation(ctx, p.Scope); err == nil {
+		v.ExploitedDays = rem.Exploited
 	}
 	q := strings.ToUpper(v.Query)
 	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
@@ -962,6 +969,13 @@ func securityLinks(v SecurityView) []sectionLink {
 	if len(v.Vulns.Blind) > 0 {
 		out = append(out, sectionLink{ID: "sbom", Label: "Without an SBOM", Note: itoa(len(v.Vulns.Blind))})
 	}
+	if fs := noFix(v.Vulns); len(fs) > 0 {
+		l := sectionLink{ID: "no-fix", Label: "No fix yet"}
+		if n := unmitigatedCount(v.Vulns); n > 0 {
+			l.Note, l.Warn = itoa(n)+" not mitigated", true
+		}
+		out = append(out, l)
+	}
 	vul := sectionLink{ID: "vulnerabilities", Label: "Vulnerabilities"}
 	if v.Vulns.Exploited > 0 {
 		vul.Note, vul.Warn = itoa(v.Vulns.Exploited)+" exploited", true
@@ -1017,4 +1031,98 @@ func exposedWays(f versions.VulnFinding) []string {
 		}
 	}
 	return out
+}
+
+// MitigationView is a mitigation in force, where it applies.
+type MitigationView struct {
+	ID, Where, Kind, Measure, Review string
+}
+
+var mitigationKindLabels = map[string]string{"waf": "WAF or proxy rule", "config": "feature off", "isolation": "isolated", "other": "other"}
+
+// mitigationsOf are the mitigations in force for a finding, each once.
+func mitigationsOf(f versions.VulnFinding) []MitigationView {
+	var out []MitigationView
+	seen := map[string]bool{}
+	for _, a := range f.Affected {
+		if m := a.Mitigation; m != nil && !seen[m.ID] {
+			seen[m.ID] = true
+			out = append(out, MitigationView{
+				ID: m.ID, Where: a.Service + " (" + a.Env + ")", Kind: mitigationKindLabels[m.Kind], Measure: m.Measure,
+				Review: m.ReviewAt.Format("2 Jan 2006"),
+			})
+		}
+	}
+	return out
+}
+
+// placesText lists where a vulnerability runs: "payments-api (prod), web (staging)".
+func placesText(as []versions.Affected) string {
+	parts := make([]string, len(as))
+	for i, a := range as {
+		parts[i] = a.Service + " (" + a.Env + ")"
+	}
+	return strings.Join(parts, ", ")
+}
+
+func (s *Server) createMitigation(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ret := r.FormValue("return")
+	if ret != "/security/vulns" && !strings.HasPrefix(ret, "/security/vulns?") {
+		ret = "/security/vulns"
+	}
+	svcID, envID, ok := strings.Cut(r.FormValue("place"), "|")
+	kind, measure, cve := r.FormValue("kind"), strings.TrimSpace(r.FormValue("measure")), strings.TrimSpace(r.FormValue("cve"))
+	days, err := strconv.Atoi(r.FormValue("review"))
+	switch {
+	case !ok || cve == "" || measure == "":
+		return back(w, r, ret, "error", "Say where, and what was done.")
+	case !slices.Contains(store.MitigationKinds, kind):
+		return back(w, r, ret, "error", "Pick what kind of mitigation it is.")
+	case err != nil || days < 1 || days > 180:
+		return back(w, r, ret, "error", "Pick when to review it.")
+	}
+	if len(measure) > 500 {
+		measure = measure[:500]
+	}
+	m, err := s.store.CreateMitigation(r.Context(), store.Mitigation{
+		Scope: p.Scope, CVE: cve, ServiceID: svcID, EnvironmentID: envID, Kind: kind, Measure: measure,
+		ReviewAt: time.Now().AddDate(0, 0, days), CreatedBy: p.Name(),
+	})
+	if err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "mitigation.create", "cve", cve, "kind", kind, "measure", measure, "id", m.ID)
+	return back(w, r, ret, "notice", "Mitigation recorded. Goliash closes it when a fix is out, and says so: then upgrade.")
+}
+
+func (s *Server) closeMitigation(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	id := r.PathValue("id")
+	if err := s.store.CloseMitigation(r.Context(), p.Scope, id, "withdrawn by "+p.Name()); errors.Is(err, store.ErrNotFound) {
+		return back(w, r, "/security/vulns?kev=1", "error", "It is no longer in force.")
+	} else if err != nil {
+		return err
+	}
+	s.audit(r.Context(), p, "mitigation.withdraw", "id", id)
+	return back(w, r, "/security/vulns?kev=1", "notice", "Mitigation withdrawn.")
+}
+
+// noFix are the findings exploited in the wild with no fix, those not mitigated everywhere first.
+func noFix(r versions.VulnReport) []versions.VulnFinding {
+	var out []versions.VulnFinding
+	for _, f := range r.Findings {
+		if f.NoFix() {
+			out = append(out, f)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return len(out[i].Unmitigated()) > 0 && len(out[j].Unmitigated()) == 0 })
+	return out
+}
+
+// unmitigatedCount counts the places running an exploited vulnerability with no fix and no mitigation.
+func unmitigatedCount(r versions.VulnReport) int {
+	n := 0
+	for _, f := range r.Findings {
+		n += len(f.Unmitigated())
+	}
+	return n
 }

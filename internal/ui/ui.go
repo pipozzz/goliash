@@ -225,6 +225,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /security/watches", s.page(m, s.addWatch))
 	mux.Handle("POST /security/deadlines", s.page(a, s.setDeadlines))
 	mux.Handle("POST /updates/ticket", s.page(m, s.fileTicket))
+	mux.Handle("POST /security/mitigations", s.page(m, s.createMitigation))
+	mux.Handle("POST /security/mitigations/{id}/close", s.page(m, s.closeMitigation))
 	mux.Handle("POST /security/risks/{id}/approve", s.page(a, s.approveRisk))
 	mux.Handle("POST /security/risks/{id}/reject", s.page(a, s.rejectRisk))
 	mux.Handle("POST /security/watches/{id}/delete", s.page(m, s.deleteWatch))
