@@ -106,15 +106,54 @@ templ AgentPage(v AgentPageView) {
 			</section>
 			}
 		</div>
+		if len(v.Found) > 0 {
+			<section class="panel">
+				<div class="panel-head"><h2>Found here, not watched</h2>@panelInfo("what the agent found it could collect when it last started, and does not collect yet")</div>
+				if v.CanAdmin {
+					<form class="panel-body stack" method="post" action={ templ.URL("/agents/" + v.Agent.ID + "/found") }>
+						<fieldset class="checks">
+							for _, f := range v.Found {
+								<label class="check"><input type="checkbox" name="found" value={ itoa(f.Index) } checked/> <strong>{ f.Platform }</strong> { f.Name } <span class="muted">{ f.Detail }</span></label>
+							}
+						</fieldset>
+						<div class="row">
+							<label>
+								Environment
+								<select name="environment">
+									for _, e := range v.EnvNames {
+										<option value={ e }>{ e }</option>
+									}
+								</select>
+							</label>
+							<div><button type="submit">Add</button></div>
+						</div>
+					</form>
+				} else {
+					<ul class="panel-body notes-list">
+						for _, f := range v.Found {
+							<li><strong>{ f.Platform }</strong> { f.Name } <span class="muted">{ f.Detail }</span></li>
+						}
+					</ul>
+				}
+			</section>
+		}
 		if len(v.Agent.Notes) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Not collected</h2>@panelInfo("what the agent found but could not read when it last started")</div>
 				<ul class="panel-body notes-list">
 					for _, n := range v.Agent.Notes {
-						<li class="mono">{ n }</li>
+						<li>
+							<span class="mono">{ n }</span>
+							if h := noteHint(n); h != "" {
+								<div class="hint">{ h }</div>
+							}
+						</li>
 					}
 				</ul>
 			</section>
+		}
+		if v.CanAdmin {
+			<p class="panel-body"><a class="button secondary" href={ templ.URL("/agents/" + v.Agent.ID + "/aws") }>Add AWS to this agent</a> <span class="muted">ECS, Lambda, RDS, ElastiCache, EKS, OpenSearch, MSK: the IAM policy and the lines to add, for this agent.</span></p>
 		}
 		<section class="panel">
 			<div class="panel-head"><h2>Targets</h2>@panelInfo("what this agent collects")</div>

@@ -277,6 +277,18 @@ components:
         started_at:
           type: string
           format: date-time
+        discovered:
+          type: array
+          description: |
+            What the agent found it could collect when it started (Kubernetes, ECS clusters, RDS, …), so Goliash can
+            offer to add what it does not collect yet. Older servers ignore it.
+          items:
+            $ref: '#/components/schemas/DeclaredTarget'
+        notes:
+          type: array
+          description: "What the agent found but could not use, and why: rds eu-west-1, AccessDenied …"
+          items:
+            type: string
 
     EnrollRequest:
       type: object

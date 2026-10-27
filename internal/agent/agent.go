@@ -48,6 +48,9 @@ type Options struct {
 	// Cloud finds credentials for Google and Azure registries from the cloud identity
 	// the agent runs with (default: registry.NewCloudAuth()).
 	Cloud CloudCredentials
+	// Discover finds what the agent could collect, and what it could not use and why, for the server to offer.
+	// Nil: nothing is offered.
+	Discover func(ctx context.Context) ([]agentproto.DeclaredTarget, []string)
 }
 
 // CloudCredentials gives credentials for a registry host from a cloud identity; ok is
@@ -204,9 +207,12 @@ func (a *Agent) register(ctx context.Context) error {
 	}
 	sort.Slice(platforms, func(i, j int) bool { return platforms[i] < platforms[j] })
 	started := a.started.UTC()
-	resp, err := a.client.register(ctx, agentproto.RegisterRequest{
-		Version: buildinfo.Version, Hostname: host, Platforms: platforms, StartedAt: &started,
-	})
+	req := agentproto.RegisterRequest{Version: buildinfo.Version, Hostname: host, Platforms: platforms, StartedAt: &started}
+	if a.opts.Discover != nil {
+		found, notes := a.opts.Discover(ctx)
+		req.Discovered, req.Notes = found, notes
+	}
+	resp, err := a.client.register(ctx, req)
 	if err != nil {
 		return err
 	}

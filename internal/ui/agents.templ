@@ -26,7 +26,7 @@ templ AgentsPage(v AgentsView) {
 			} else {
 				<div class="scroll" tabindex="0">
 					<table>
-						<thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Platforms</th><th>Last seen</th></tr></thead>
+						<thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Collects</th><th>Last seen</th></tr></thead>
 						<tbody>
 							for _, a := range v.Agents {
 								<tr>
@@ -39,7 +39,12 @@ templ AgentsPage(v AgentsView) {
 										}
 									</td>
 									<td class="mono">{ orDash(a.Hostname) }</td>
-									<td>{ orDash(a.Platforms) }</td>
+									<td>
+										<span title={ "Can collect: " + a.Platforms }>{ orDash(a.Collects) }</span>
+										if a.Found > 0 {
+											<a class="badge warn" href={ templ.URL("/agents/" + a.ID) } title="Found when it started, not watched yet: add it on the agent's page">{ itoa(a.Found) + " found" }</a>
+										}
+									</td>
 									<td>@timeAgo(a.LastSeen)</td>
 								</tr>
 							}

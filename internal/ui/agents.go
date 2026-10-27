@@ -73,6 +73,10 @@ func (s *Server) showAgent(w http.ResponseWriter, r *http.Request, p auth.Princi
 	if v.Tokens, err = s.store.AgentTokens(ctx, p.Scope, a.ID); err != nil {
 		return err
 	}
+	if v.Found, err = s.foundOf(ctx, p.Scope, a); err != nil {
+		return err
+	}
+	v.EnvNames = all.EnvNames
 	for _, t := range all.Targets {
 		if t.AgentID == a.ID {
 			v.Targets = append(v.Targets, t)

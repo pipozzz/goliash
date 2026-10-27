@@ -19,6 +19,27 @@ Within a minute the agent registers and adds every ECS cluster of the region, ea
 Lambda functions (`WatchLambda=true`, the default). Its log: `aws logs tail /ecs/goliash-agent --follow`. Remove it
 all with `aws cloudformation delete-stack --stack-name goliash-agent`.
 
+## Add AWS to an agent you already run
+
+An agent on a Docker host or in a Kubernetes cluster can watch AWS too: **Agents → the agent → Add AWS to this
+agent**. Pick the region, the services and how the agent gets credentials (a read-only IAM user's keys, the role
+of the EC2 instance or pod, or a profile). The page writes, for that agent:
+
+1. the read-only IAM policy for exactly those services, and the `aws` commands that give it to a new IAM user or
+   to the instance's role (with the hop limit EC2 needs for containers);
+2. the lines for its `goliash-agent.yml` (or Helm values);
+3. the command that restarts it.
+
+After the restart the agent finds what the credentials may read:
+
+- **With an enrollment code**, it adds those targets by itself.
+- **With a token**, it shows them on its page under **Found here, not watched**: tick them, pick an environment,
+  and **Add**. The Agents list says when an agent found something (*3 found*).
+- **Not collected** says what it could not read and why. A missing permission is named with the IAM actions to
+  allow.
+
+The agent keeps its identity (the Docker host or cluster) when it also gets AWS credentials.
+
 ## CloudFormation
 
 `deploy/ecs/goliash-agent.cfn.yaml` creates the task and execution roles, a Secrets Manager secret holding the

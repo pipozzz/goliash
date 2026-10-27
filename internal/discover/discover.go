@@ -133,25 +133,6 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		}
 	}
 
-	// AWS: on ECS the task metadata names the agent's cluster and region; elsewhere
-	// AWS_REGION does. The agent then adds what its credentials may read.
-	awsRegion := o.Env("AWS_REGION")
-	if awsRegion == "" {
-		awsRegion = o.Env("AWS_DEFAULT_REGION")
-	}
-	ownCluster := ""
-	if uri := o.Env("ECS_CONTAINER_METADATA_URI_V4"); uri != "" {
-		if arn, err := ecsCluster(ctx, o.HTTP, uri); err == nil {
-			ownCluster = arn
-			awsRegion, _ = arnParts(arn)
-		} else {
-			r.Notes = append(r.Notes, "ecs: "+err.Error())
-		}
-	}
-	if awsRegion != "" {
-		o.discoverAWS(ctx, &r, found, nameOr, awsRegion, ownCluster)
-	}
-
 	// Nomad: NOMAD_ADDR, as the job sets it. Inside Nomad the job is what stays the
 	// same when the agent moves to another node.
 	if addr := o.Env("NOMAD_ADDR"); addr != "" {
@@ -225,6 +206,26 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		} else {
 			r.Notes = append(r.Notes, "host: no etc/os-release under "+root)
 		}
+	}
+
+	// AWS, last: an agent on a Docker host or in a cluster keeps that identity when it also gets AWS
+	// credentials. On ECS the task metadata names the agent's cluster and region; elsewhere
+	// AWS_REGION does. The agent then adds what its credentials may read.
+	awsRegion := o.Env("AWS_REGION")
+	if awsRegion == "" {
+		awsRegion = o.Env("AWS_DEFAULT_REGION")
+	}
+	ownCluster := ""
+	if uri := o.Env("ECS_CONTAINER_METADATA_URI_V4"); uri != "" {
+		if arn, err := ecsCluster(ctx, o.HTTP, uri); err == nil {
+			ownCluster = arn
+			awsRegion, _ = arnParts(arn)
+		} else {
+			r.Notes = append(r.Notes, "ecs: "+err.Error())
+		}
+	}
+	if awsRegion != "" {
+		o.discoverAWS(ctx, &r, found, nameOr, awsRegion, ownCluster)
 	}
 
 	if raw := o.Env("GOLIASH_TARGETS"); raw != "" {

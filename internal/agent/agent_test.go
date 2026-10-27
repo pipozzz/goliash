@@ -38,6 +38,7 @@ type fakeServer struct {
 	snapshots  []agentproto.Snapshot
 	heartbeats []agentproto.Heartbeat
 	registered int
+	lastReg    agentproto.RegisterRequest
 	registries []agentproto.RegistryCheck
 	results    []agentproto.RegistryResults
 	down       bool // answer 503 to snapshots
@@ -52,8 +53,11 @@ func newFakeServer(t *testing.T, targets ...agentproto.Target) *fakeServer {
 		if !f.auth(w, r) {
 			return
 		}
+		var req agentproto.RegisterRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		f.mu.Lock()
 		f.registered++
+		f.lastReg = req
 		f.mu.Unlock()
 		writeJSON(w, 200, agentproto.RegisterResponse{AgentID: "A", WorkspaceID: "W", ServerTime: time.Now()})
 	})
@@ -718,5 +722,26 @@ func TestInspectPackagesWithoutSBOM(t *testing.T) {
 	got := a.inspectDigests(context.Background(), agentproto.RegistryCheck{Repository: "harbor.example.com/shop/web", Inspect: []string{"sha256:" + strings.Repeat("b", 64)}}, registry.Credentials{})
 	if len(got) != 1 || len(got[0].Purls) != 1 || got[0].PurlsFrom == nil || *got[0].PurlsFrom != agentproto.Packages || got[0].Components == nil || *got[0].Components != "nginx=1.27.2" {
 		t.Fatalf("inspection %+v", got)
+	}
+}
+
+// An agent that can discover sends what it found, and what it could not use, when it registers.
+func TestRegisterSendsDiscovery(t *testing.T) {
+	f := newFakeServer(t)
+	a := newTestAgent(t, f, map[agentproto.Platform]collectors.Factory{})
+	a.opts.Discover = func(context.Context) ([]agentproto.DeclaredTarget, []string) {
+		return []agentproto.DeclaredTarget{{Platform: agentproto.Rds, Name: "rds-eu-central-1", Rds: &agentproto.RDSSettings{Region: "eu-central-1"}}},
+			[]string{"msk eu-central-1: AccessDenied"}
+	}
+	runAgent(t, a)
+	eventually(t, "register", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return f.registered > 0
+	})
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.lastReg.Discovered) != 1 || f.lastReg.Discovered[0].Name != "rds-eu-central-1" || len(f.lastReg.Notes) != 1 {
+		t.Errorf("register %+v", f.lastReg)
 	}
 }

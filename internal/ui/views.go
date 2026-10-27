@@ -805,6 +805,8 @@ type AgentView struct {
 	LastSeen  time.Time
 	Enrolled  bool     // registers itself with an enrollment code
 	Notes     []string // what it could not use when it last registered
+	Found     int      // what it found it could collect and does not yet
+	Collects  string   // the platforms of its targets: what it collects, as Platforms is what it can
 }
 
 // TargetView is one target row.
@@ -890,7 +892,9 @@ type AgentPageView struct {
 	Code          CodeInfo // for an enrolled agent: the code it registers with
 	UpgradeTitle  string   // how to update an outdated agent
 	UpgradeCmd    string
-	Managed       int // targets the agent found itself, deleted with it
+	Managed       int         // targets the agent found itself, deleted with it
+	Found         []FoundView // what an agent with a token found it could collect and does not yet
+	EnvNames      []string    // to add what it found in
 }
 
 // CodeInfo describes the enrollment code an agent registers with.

@@ -135,6 +135,11 @@ func (s *Service) Register(ctx context.Context, a store.Agent, req agentproto.Re
 	if err := s.store.RegisterAgent(ctx, a.Scope, a.ID, req.Version, req.Hostname, platforms); err != nil {
 		return agentproto.RegisterResponse{}, err
 	}
+	if req.Discovered != nil || req.Notes != nil { // agents before 1.152 send neither: keep what is known
+		if err := s.store.SetAgentDiscovery(ctx, a.Scope, a.ID, req.Discovered, req.Notes); err != nil {
+			return agentproto.RegisterResponse{}, err
+		}
+	}
 	s.log.InfoContext(ctx, "agent registered", "agent", a.Name, "agent_id", a.ID, "version", req.Version,
 		"hostname", req.Hostname, "platforms", platforms)
 	return agentproto.RegisterResponse{

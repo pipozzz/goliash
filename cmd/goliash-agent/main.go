@@ -105,7 +105,8 @@ func main() {
 				agentproto.Compose:     compose.New,
 				agentproto.Host:        host.New,
 			},
-			Logger: log,
+			Logger:   log,
+			Discover: discoverFor(code, log),
 		})
 		if err != nil {
 			log.Error("invalid configuration", "err", err)
@@ -246,4 +247,22 @@ func shortNotes(notes []string) []string {
 		out = append(out, n)
 	}
 	return out
+}
+
+// discoverFor is how an agent with a token finds what it could collect at each start, for Goliash to offer it:
+// an agent with an enrollment code reports it when it enrolls, and its targets are added by themselves.
+func discoverFor(code string, log *slog.Logger) func(context.Context) ([]agentproto.DeclaredTarget, []string) {
+	if code != "" {
+		return nil
+	}
+	return func(ctx context.Context) ([]agentproto.DeclaredTarget, []string) {
+		found, err := discover.Run(ctx, discover.Options{})
+		if err != nil {
+			log.Warn("looking for platforms failed", "err", err)
+		}
+		for _, n := range found.Notes {
+			log.Warn("platform not usable", "detail", n)
+		}
+		return found.Targets, shortNotes(found.Notes)
+	}
 }

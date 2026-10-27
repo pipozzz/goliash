@@ -227,6 +227,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /updates/ticket", s.page(m, s.fileTicket))
 	mux.Handle("POST /security/mitigations", s.page(m, s.createMitigation))
 	mux.Handle("POST /security/mitigations/{id}/close", s.page(m, s.closeMitigation))
+	mux.Handle("GET /agents/{id}/aws", s.page(a, s.addAWS))
+	mux.Handle("POST /agents/{id}/found", s.page(a, s.addFound))
 	mux.Handle("POST /security/risks/{id}/approve", s.page(a, s.approveRisk))
 	mux.Handle("POST /security/risks/{id}/reject", s.page(a, s.rejectRisk))
 	mux.Handle("POST /security/watches/{id}/delete", s.page(m, s.deleteWatch))
@@ -1586,7 +1588,21 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	for _, a := range agents {
 		agentName[a.ID] = a.Name
 		v.AgentNames = append(v.AgentNames, a.Name)
-		v.Agents = append(v.Agents, agentView(a))
+		av := agentView(a)
+		if found, err := s.foundOf(ctx, p.Scope, a); err == nil {
+			av.Found = len(found)
+		}
+		if ts, err := s.store.ListAgentTargets(ctx, p.Scope, a.ID); err == nil {
+			var ps []string
+			for _, t := range ts {
+				if !slices.Contains(ps, t.Platform) {
+					ps = append(ps, t.Platform)
+				}
+			}
+			slices.Sort(ps)
+			av.Collects = strings.Join(ps, ", ")
+		}
+		v.Agents = append(v.Agents, av)
 		v.Moves = append(v.Moves, AgentOption{ID: a.ID, Name: a.Name})
 	}
 	envs, err := s.store.ListEnvironments(ctx, p.Scope)

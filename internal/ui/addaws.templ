@@ -1,0 +1,68 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ AddAWSPage(v AddAWSView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/agents">Agents</a> / <a href={ templ.URL("/agents/" + v.Agent.ID) }>{ v.Agent.Name }</a> /</p>
+				<h1>Add AWS to { v.Agent.Name }</h1>
+				<p class="sub">Three steps: allow read-only access, give the agent the credentials and the region, restart it. It then finds what the credentials may read.</p>
+			</div>
+		</div>
+		<section class="panel">
+			<div class="panel-head"><h2>What to watch</h2></div>
+			<form class="panel-body stack" method="get">
+				<div class="row">
+					<label>Region<input name="region" value={ v.Region } placeholder="eu-central-1"/></label>
+					<label>
+						Credentials
+						<select name="credentials">
+							<option value="keys" selected?={ v.Credentials == "keys" }>a read-only IAM user's keys</option>
+							<option value="role" selected?={ v.Credentials == "role" }>the role of the EC2 instance or pod it runs on</option>
+							<option value="profile" selected?={ v.Credentials == "profile" }>a profile from ~/.aws</option>
+						</select>
+					</label>
+				</div>
+				<fieldset class="checks">
+					for _, s := range v.Services {
+						<label class="check"><input type="checkbox" name="service" value={ s.Key } checked?={ s.On }/> { s.Label }</label>
+					}
+				</fieldset>
+				<div><button type="submit" class="secondary">Update the steps</button></div>
+			</form>
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>1. Allow read-only access</h2>@panelInfo("Only Describe and List calls: the agent changes nothing in the account")</div>
+			<div class="panel-body stack">
+				<p>The IAM policy:</p>
+				<pre tabindex="0" class="mono install-cmd" id="aws-policy">{ v.Policy }</pre>
+				<div class="actions"><button type="button" class="secondary" data-copy="aws-policy">Copy</button></div>
+				<pre tabindex="0" class="mono install-cmd" id="aws-iam">{ v.CreateIAM }</pre>
+				<div class="actions"><button type="button" class="secondary" data-copy="aws-iam">Copy</button></div>
+			</div>
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>2. Give the agent the credentials and the region</h2></div>
+			<div class="panel-body stack">
+				<pre tabindex="0" class="mono install-cmd" id="aws-config">{ v.Config }</pre>
+				<div class="actions"><button type="button" class="secondary" data-copy="aws-config">Copy</button></div>
+			</div>
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>3. Restart it</h2></div>
+			<div class="panel-body stack">
+				<pre tabindex="0" class="mono install-cmd" id="aws-restart">{ v.Restart }</pre>
+				<div class="actions"><button type="button" class="secondary" data-copy="aws-restart">Copy</button></div>
+				if v.Enrolled {
+					<p>It registers again and adds what it finds as targets by itself, in its enrollment code's environment. Move them on the <a href="/agents">Agents</a> page.</p>
+				} else {
+					<p>What it finds then shows on <a href={ templ.URL("/agents/" + v.Agent.ID) }>its page</a> under <strong>Found here, not watched</strong>: tick it, pick an environment, add.</p>
+				}
+				<p class="hint">What it could not read, and why, shows there under <strong>Not collected</strong>. Tag a resource <code>goliash.ignore=true</code> to leave it out, or <code>goliash.env=prod</code> to place it.</p>
+			</div>
+		</section>
+	}
+}

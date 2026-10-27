@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // Agent is a goliash-agent installation. It authenticates with exactly one agent token.
@@ -32,6 +34,23 @@ type Agent struct {
 	// CodeID is the enrollment code the agent registered with; empty for agents
 	// created with a token.
 	CodeID string
+	// Discovered is what an agent with a token found it could collect when it last started.
+	Discovered []agentproto.DeclaredTarget
+}
+
+// SetAgentDiscovery records what an agent with a token found it could collect when it started, and what it could
+// not use and why.
+func (s *Store) SetAgentDiscovery(ctx context.Context, sc Scope, id string, found []agentproto.DeclaredTarget, notes []string) error {
+	if found == nil {
+		found = []agentproto.DeclaredTarget{}
+	}
+	raw, err := json.Marshal(found)
+	if err != nil {
+		return err
+	}
+	res, err := s.exec(ctx, s.db, `UPDATE agents SET discovered = ?, notes = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
+		string(raw), strings.Join(notes, "\n"), sc.OrgID, sc.WorkspaceID, id)
+	return expectOne(res, err)
 }
 
 // CreateAgent creates an agent together with its token. tokenHash is the SHA-256
@@ -183,7 +202,7 @@ func (s *Store) RevokeAgentTokens(ctx context.Context, sc Scope, agentID string)
 }
 
 const agentColumns = `a.id, a.org_id, a.workspace_id, a.name, a.version, a.hostname, a.platforms,
-	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity, a.notes, a.enrollment_code_id,
+	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity, a.notes, a.enrollment_code_id, a.discovered,
 	(SELECT COUNT(*) FROM tokens k WHERE k.agent_id = a.id AND k.kind = 'agent' AND k.revoked_at IS NULL)`
 
 func (s *Store) scanAgent(row scanner) (Agent, string, error) {
@@ -192,11 +211,11 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		platforms, extra                 string
 		registered, lastSeen, staleSince sql.NullTime
 		identity                         sql.NullString
-		notes                            string
+		notes, discovered                string
 		codeID                           sql.NullString
 	)
 	err := row.Scan(&a.ID, &a.Scope.OrgID, &a.Scope.WorkspaceID, &a.Name, &a.Version, &a.Hostname,
-		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &notes, &codeID, &a.ActiveTokens, &extra)
+		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &notes, &codeID, &discovered, &a.ActiveTokens, &extra)
 	if err != nil {
 		return Agent{}, "", notFound(err)
 	}
@@ -208,6 +227,7 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 	if notes != "" {
 		a.Notes = strings.Split(notes, "\n")
 	}
+	_ = json.Unmarshal([]byte(discovered), &a.Discovered)
 	return a, extra, nil
 }
 

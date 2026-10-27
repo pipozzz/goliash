@@ -671,8 +671,15 @@ type RDSSettings struct {
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
+	// Discovered What the agent found it could collect when it started (Kubernetes, ECS clusters, RDS, …), so Goliash can
+	// offer to add what it does not collect yet. Older servers ignore it.
+	Discovered []DeclaredTarget `json:"discovered,omitempty"`
+
 	// Hostname Example: goliash-agent-7d9f8-x2k4p
 	Hostname string `json:"hostname"`
+
+	// Notes What the agent found but could not use, and why: rds eu-west-1, AccessDenied …
+	Notes []string `json:"notes,omitempty"`
 
 	// Platforms Platforms the agent can reach with the credentials it has.
 	Platforms []Platform `json:"platforms"`
