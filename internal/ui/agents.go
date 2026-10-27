@@ -76,12 +76,16 @@ func (s *Server) showAgent(w http.ResponseWriter, r *http.Request, p auth.Princi
 	if v.Found, err = s.foundOf(ctx, p.Scope, a); err != nil {
 		return err
 	}
+
 	v.EnvNames = all.EnvNames
+	var collects []string
 	for _, t := range all.Targets {
 		if t.AgentID == a.ID {
 			v.Targets = append(v.Targets, t)
+			collects = append(collects, t.Platform)
 		}
 	}
+	v.Sources = agentSources(agentRuns(collects), collects, v.Found)
 	if v.Agent.Outdated {
 		for _, t := range v.Targets {
 			if v.UpgradeTitle, v.UpgradeCmd = upgradeCommand(t.Platform, s.publicURL, buildinfo.Version); v.UpgradeCmd != "" {

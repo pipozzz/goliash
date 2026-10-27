@@ -14,17 +14,29 @@ templ ConnectPage(v ConnectView) {
 			<div>
 				<p class="sub"><a href="/agents">Agents and targets</a> /</p>
 				<h1>Connect</h1>
-				<p class="sub">What do you want to watch? You get one command; the agent it starts registers itself.</p>
+				<p class="sub">Where will the agent run? You get one command; the agent it starts registers itself and watches what runs there.</p>
 			</div>
 		</div>
 		<div class="platforms">
-			for _, pl := range v.Platforms {
+			for _, pl := range v.Primary {
 				<a class="platform" href={ templ.URL("/connect/" + pl.Key) }>
 					<strong>{ pl.Title }</strong>
 					<span>{ pl.Summary }</span>
 				</a>
 			}
 		</div>
+		<p class="hint">Have an agent already? Add more to it on its page under <strong>What it watches</strong>: the host's OS and packages, Compose files, AWS services, Nomad. No new agent needed.</p>
+		<details class="connect-more">
+			<summary>More ways</summary>
+			<div class="platforms">
+				for _, pl := range v.More {
+					<a class="platform" href={ templ.URL("/connect/" + pl.Key) }>
+						<strong>{ pl.Title }</strong>
+						<span>{ pl.Summary }</span>
+					</a>
+				}
+			</div>
+		</details>
 		<div class="watch-only">
 			<div>
 				<strong>Nothing to connect?</strong>

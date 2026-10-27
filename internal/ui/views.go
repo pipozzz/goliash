@@ -894,6 +894,7 @@ type AgentPageView struct {
 	UpgradeCmd    string
 	Managed       int         // targets the agent found itself, deleted with it
 	Found         []FoundView // what an agent with a token found it could collect and does not yet
+	Sources       []SourceRow // what it watches, and what it could
 	EnvNames      []string    // to add what it found in
 }
 

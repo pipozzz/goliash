@@ -1,0 +1,83 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// sourcesPanel is what an agent watches and what it could, with a link to set each up.
+templ sourcesPanel(id string, rows []SourceRow, canAdmin bool) {
+	<section class="panel" id="sources">
+		<div class="panel-head"><h2>What it watches</h2>@panelInfo("Where it runs it watches by itself; the rest needs a line or two in its configuration and a restart, then shows under Found here.")</div>
+		<div class="scroll" tabindex="0">
+			<table>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><strong>{ r.Label }</strong></td>
+							<td>
+								switch r.State {
+									case "watching":
+										<span class="badge ok">watching</span> <span class="muted">{ r.Detail }</span>
+									case "found":
+										<span class="badge warn">found: add it below</span>
+									default:
+										<span class="muted">not set up</span>
+								}
+							</td>
+							<td class="num">
+								if canAdmin && !r.Always && r.State == "off" {
+									<a class="button secondary" href={ templ.URL("/agents/" + id + "/add/" + r.Key) }>Set up</a>
+								} else if canAdmin && r.Key == "aws" {
+									<a href={ templ.URL("/agents/" + id + "/add/aws") }>more services</a>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</section>
+}
+
+templ AddSourcePage(v AddSourceView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/agents">Agents</a> / <a href={ templ.URL("/agents/" + v.Agent.ID) }>{ v.Agent.Name }</a> /</p>
+				<h1>{ v.Title }</h1>
+				<p class="sub">Two steps: add the lines to { v.Agent.Name }'s configuration, restart it.</p>
+			</div>
+		</div>
+		if v.What != "host" {
+			<section class="panel">
+				<form class="panel-body row" method="get">
+					switch v.What {
+						case "compose":
+							<label class="grow">Compose file<input name="file" value={ v.Form["file"] } placeholder="/srv/shop/compose.yaml"/><span class="hint">Its full path on the host. Its directory is mounted read-only.</span></label>
+						case "nomad":
+							<label class="grow">Nomad address<input name="address" value={ v.Form["address"] } placeholder="https://nomad.example.com:4646"/></label>
+					}
+					<div><button type="submit" class="secondary">Update</button></div>
+				</form>
+			</section>
+		}
+		<section class="panel">
+			<div class="panel-head"><h2>1. Add to its configuration</h2></div>
+			<div class="panel-body stack">
+				<pre tabindex="0" class="mono install-cmd" id="source-config">{ v.Config }</pre>
+				<div class="actions"><button type="button" class="secondary" data-copy="source-config">Copy</button></div>
+			</div>
+		</section>
+		<section class="panel">
+			<div class="panel-head"><h2>2. Restart it</h2></div>
+			<div class="panel-body stack">
+				<pre tabindex="0" class="mono install-cmd" id="source-restart">{ v.Restart }</pre>
+				<div class="actions"><button type="button" class="secondary" data-copy="source-restart">Copy</button></div>
+				if v.Enrolled {
+					<p>It registers again and adds what it finds by itself.</p>
+				} else {
+					<p>What it finds then shows on <a href={ templ.URL("/agents/" + v.Agent.ID) }>its page</a> under <strong>Found here, not watched</strong>: tick it, pick an environment, add.</p>
+				}
+			</div>
+		</section>
+	}
+}

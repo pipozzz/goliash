@@ -228,6 +228,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /security/mitigations", s.page(m, s.createMitigation))
 	mux.Handle("POST /security/mitigations/{id}/close", s.page(m, s.closeMitigation))
 	mux.Handle("GET /agents/{id}/aws", s.page(a, s.addAWS))
+	mux.Handle("GET /agents/{id}/add/{what}", s.page(a, s.addSource))
 	mux.Handle("POST /agents/{id}/found", s.page(a, s.addFound))
 	mux.Handle("POST /security/risks/{id}/approve", s.page(a, s.approveRisk))
 	mux.Handle("POST /security/risks/{id}/reject", s.page(a, s.rejectRisk))

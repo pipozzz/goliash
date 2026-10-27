@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,14 +39,14 @@ var connectPlatforms = []PlatformInfo{
 		Key: "kubernetes", Title: "Kubernetes", Summary: "Deployments, StatefulSets, DaemonSets, CronJobs and Jobs in a cluster.", AgentFirst: true,
 		ServerHint: "The server can watch the cluster it runs in when installed with collectInCluster=true.",
 	},
-	{Key: "docker", Title: "Docker host", Summary: "Containers on one Docker engine, optionally only some Compose projects.", AgentFirst: true},
+	{Key: "docker", Title: "Docker or Docker Compose host", Summary: "Containers and Compose projects on one Docker engine; then also the host's OS and packages, Compose files on disk, or AWS.", AgentFirst: true},
 	{Key: "host", Title: "Linux server", Summary: "The operating system and installed packages (dpkg, apk) of a server or VM, with their end of life.", AgentFirst: true},
 	{Key: "swarm", Title: "Docker Swarm", Summary: "Services of a Swarm, read on a manager node.", AgentFirst: true},
 	{
 		Key: "nomad", Title: "Nomad", Summary: "Jobs of a Nomad region, with an ACL token that may list and read jobs.", AgentFirst: true,
 		ServerHint: "The server can call the Nomad API itself when it reaches the address.",
 	},
-	{Key: "ecs", Title: "Amazon ECS", Summary: "Services of ECS clusters in a region, and private ECR tags.", AgentFirst: true},
+	{Key: "ecs", Title: "AWS (agent on ECS Fargate)", Summary: "Runs in your AWS account with a read-only role: ECS, Lambda, RDS, ElastiCache, EKS, OpenSearch and MSK of a region.", AgentFirst: true},
 	{
 		Key: "lambda", Title: "AWS Lambda", Summary: "Functions of a region: their container images, or the runtime of .zip functions and its end of life.",
 		AgentFirst: true, ServerHint: "The server can read Lambda itself when it runs with AWS credentials that may list functions.",
@@ -85,11 +86,14 @@ func platformInfo(key string) (PlatformInfo, bool) {
 	return PlatformInfo{}, false
 }
 
-// ConnectView is the platform picker.
+// ConnectView is the platform picker: where the agent runs first, the other ways after.
 type ConnectView struct {
 	Base
-	Platforms []PlatformInfo
+	Primary, More []PlatformInfo
 }
+
+// primaryPlatforms are where an agent runs: everything else is added to an agent from its page.
+var primaryPlatforms = []string{"kubernetes", "docker", "nomad", "ecs"}
 
 // ConnectFormView is the form for one platform.
 type ConnectFormView struct {
@@ -132,7 +136,18 @@ type ConnectStatus struct {
 }
 
 func (s *Server) connect(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	return render(w, r, ConnectPage(ConnectView{Base: withFlash(s.base(r.Context(), p, "agents", "Connect"), r), Platforms: connectPlatforms}))
+	v := ConnectView{Base: withFlash(s.base(r.Context(), p, "agents", "Connect"), r)}
+	for _, key := range primaryPlatforms {
+		if pl, ok := platformInfo(key); ok {
+			v.Primary = append(v.Primary, pl)
+		}
+	}
+	for _, pl := range connectPlatforms {
+		if !slices.Contains(primaryPlatforms, pl.Key) {
+			v.More = append(v.More, pl)
+		}
+	}
+	return render(w, r, ConnectPage(v))
 }
 
 func (s *Server) connectForm(w http.ResponseWriter, r *http.Request, p auth.Principal) error {

@@ -44,7 +44,10 @@ func TestFoundAndAddAWS(t *testing.T) {
 		t.Error("the agents list does not say what was found")
 	}
 	_, page := get(t, admin, e.srv.URL+"/agents/"+a.ID, nil)
-	for _, want := range []string{"Found here, not watched", "<strong>ecs</strong> prod", "<strong>rds</strong> rds-eu-central-1", "may not read msk: allow kafka:ListClustersV2", "Add AWS to this agent"} {
+	for _, want := range []string{
+		"Found here, not watched", "<strong>ecs</strong> prod", "<strong>rds</strong> rds-eu-central-1", "may not read msk: allow kafka:ListClustersV2", "What it watches", "Containers and Compose projects on this host",
+		"found: add it below", "/agents/" + a.ID + "/add/host", "/agents/" + a.ID + "/add/nomad",
+	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("agent page lacks %q", want)
 		}
@@ -97,5 +100,39 @@ func TestFoundAndAddAWS(t *testing.T) {
 	_ = e.st.SetAgentDiscovery(ctx, sc, a.ID, found, notes)
 	if _, aws = get(t, admin, e.srv.URL+"/agents/"+a.ID+"/aws", nil); !strings.Contains(aws, "associate-iam-instance-profile --instance-id i-0abc123") {
 		t.Error("no role: the page does not make one")
+	}
+}
+
+// The pages for the rest write the lines for the agent's configuration; Connect offers where agents run.
+func TestAddSourcePagesAndConnect(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	a, _ := e.st.CreateAgent(ctx, sc, "gw", "hash-src")
+	envs, _ := e.st.ListEnvironments(ctx, sc)
+	_, _ = e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: envs[0].ID, AgentID: a.ID, Platform: "docker", Name: "gw-docker", Settings: json.RawMessage(`{"docker":{}}`)})
+	admin := e.as(store.RoleAdmin)
+	for what, want := range map[string][]string{
+		"host":    {"GOLIASH_HOST_ROOT: &#39;/host&#39;", "- /:/host:ro", "docker compose -f goliash-agent.yml up -d"},
+		"compose": {"GOLIASH_COMPOSE_DIRS: &#39;/srv/app&#39;", "/srv/app/compose.yaml", "- /srv/app:/srv/app:ro"},
+		"nomad":   {"NOMAD_ADDR: &#39;https://nomad.internal:4646&#39;", "GOLIASH_CREDENTIAL_NOMAD"},
+		"aws":     {"rds:DescribeDBInstances"},
+	} {
+		q := map[string]string{"compose": "?file=/srv/app/compose.yaml", "nomad": "?address=https://nomad.internal:4646"}[what]
+		_, page := get(t, admin, e.srv.URL+"/agents/"+a.ID+"/add/"+what+q, nil)
+		for _, w := range want {
+			if !strings.Contains(page, w) {
+				t.Errorf("%s lacks %q", what, w)
+			}
+		}
+	}
+	_, page := get(t, admin, e.srv.URL+"/connect", nil)
+	for _, w := range []string{"Where will the agent run?", "Docker or Docker Compose host", "AWS (agent on ECS Fargate)", "More ways"} {
+		if !strings.Contains(page, w) {
+			t.Errorf("connect lacks %q", w)
+		}
+	}
+	if i, j := strings.Index(page, "More ways"), strings.Index(page, "Amazon RDS and Aurora"); j >= 0 && j < i {
+		t.Error("RDS is offered as a place for an agent to run")
 	}
 }
