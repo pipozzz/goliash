@@ -172,7 +172,8 @@ docker run -d --name goliash-agent --restart unless-stopped \
 ```
 
 With `GOLIASH_HOST_ROOT` set, the agent finds the host by itself (named after `/etc/hostname`, identified by
-`/etc/machine-id`). **Connect → Linux server** gives the same command.
+`/etc/machine-id`). **Connect → More ways → Linux server** gives the same command. The Docker agent from **Connect →
+Docker** mounts the host's root the same way, so on a Docker host the OS and packages come with the containers.
 
 - **The operating system** is a workload named after it (`ubuntu`, `debian`, `alpine`, `rocky` …) at its version,
   compared with the distribution's image, so its end of life (Ubuntu 20.04, Debian 11 …) shows up like any other.

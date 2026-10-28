@@ -55,13 +55,16 @@ the workloads wait in the inbox for you to name their services.
 An agent runs next to the orchestrator and sends snapshots to the server over HTTPS. Use it when the server
 cannot reach the orchestrator, or when credentials must stay in that network.
 
-1. Open **Connect** (on the matrix of a new installation, or **Settings → Agents and targets → Connect a cluster or
-   host**) and pick what to watch: Kubernetes, a Docker host, Swarm, Nomad, ECS or Compose files.
-2. Fill in one form: the name, the environment (pick one or name a new one), **a new agent**, and the platform's
-   settings as plain fields.
-3. Run the command the next page shows where the agent can reach the orchestrator: Helm for Kubernetes, a compose
-   file for Docker, a stack for Swarm, a job for Nomad, a Terraform module for ECS. The token is already in it and
-   shown only once.
+1. Open **Connect** (on the matrix of a new installation, or **Settings → Agents and targets → Connect a cluster or host**) and click
+   where the agent will run: **Kubernetes**, **Docker or Docker Compose host**, **Nomad**, or **AWS, without a
+   server** (ECS Fargate). There is no form: the agent lands in `production` (or your production environment), and
+   what it finds maps to services by itself while the workspace has none. For another environment, a code for many
+   hosts or a name, use the links under the tiles; Swarm, Linux servers and Compose files from Git are under **More
+   ways**.
+2. Run the one command the page shows where the agent runs: Helm for Kubernetes, files in `~/goliash-agent` for
+   Docker, a job for Nomad, a CloudFormation stack for AWS. The enrollment code is already in it and shown only once.
+3. The agent finds by itself what it can read there: workloads, Compose projects, the host's OS and packages, and on
+   EC2 or EKS the AWS services its role may read. It looks again every 15 minutes and adds what turns up.
 4. Keep the page open: it shows when the agent connects and what its first report found, then takes you to the
    matrix or the inbox.
 
