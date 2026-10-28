@@ -85,7 +85,7 @@ func (s *Server) showAgent(w http.ResponseWriter, r *http.Request, p auth.Princi
 			collects = append(collects, t.Platform)
 		}
 	}
-	v.Sources = agentSources(agentRuns(collects), collects, v.Found)
+	v.Sources = agentSources(agentRuns(collects), collects, v.Found, a.Notes)
 	if v.Agent.Outdated {
 		for _, t := range v.Targets {
 			if v.UpgradeTitle, v.UpgradeCmd = upgradeCommand(t.Platform, s.publicURL, buildinfo.Version); v.UpgradeCmd != "" {

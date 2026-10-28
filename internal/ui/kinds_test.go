@@ -94,3 +94,30 @@ func TestCalendarMonths(t *testing.T) {
 		t.Fatalf("months %+v", ms)
 	}
 }
+
+// With AWS, the agent page lists each service: watched, refused with the actions to allow, or not set up; and who it
+// is in AWS.
+func TestAWSSourceRows(t *testing.T) {
+	notes := []string{
+		"msk eu-central-1: operation error Kafka: ListClustersV2, https response error StatusCode: 403, AccessDeniedException",
+		"aws ec2: instance i-0abc in eu-central-1, role dev-gw",
+	}
+	rows := agentSources("docker", []string{"docker", "rds"}, nil, notes)
+	state := map[string]SourceRow{}
+	for _, r := range rows {
+		state[r.Label] = r
+	}
+	if r := state["AWS identity"]; r.State != "watching" || !strings.Contains(r.Detail, "role dev-gw") {
+		t.Errorf("identity %+v", r)
+	}
+	if state["RDS and Aurora databases"].State != "watching" || state["Lambda functions"].State != "off" {
+		t.Errorf("rds %+v lambda %+v", state["RDS and Aurora databases"], state["Lambda functions"])
+	}
+	if r := state["MSK (Kafka) clusters"]; r.State != "denied" || !strings.Contains(r.Detail, "kafka:ListClustersV2") {
+		t.Errorf("msk %+v", r)
+	}
+	// No AWS at all: one row to set it up.
+	if rows := agentSources("docker", []string{"docker"}, nil, nil); rows[len(rows)-2].Key != "aws" || rows[len(rows)-2].State != "off" {
+		t.Errorf("without AWS %+v", rows)
+	}
+}

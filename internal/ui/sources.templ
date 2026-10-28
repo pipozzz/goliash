@@ -19,6 +19,10 @@ templ sourcesPanel(id string, rows []SourceRow, canAdmin bool) {
 										<span class="badge ok">watching</span> <span class="muted">{ r.Detail }</span>
 									case "found":
 										<span class="badge warn">found: add it below</span>
+									case "denied":
+										<span class="badge bad">no permission</span> <span class="muted">{ r.Detail }</span>
+									case "problem":
+										<span class="badge bad">problem</span> <span class="muted">{ r.Detail }</span>
 									default:
 										<span class="muted">not set up</span>
 								}
@@ -26,7 +30,9 @@ templ sourcesPanel(id string, rows []SourceRow, canAdmin bool) {
 							<td class="num">
 								if canAdmin && !r.Always && r.State == "off" {
 									<a class="button secondary" href={ templ.URL("/agents/" + id + "/add/" + r.Key) }>Set up</a>
-								} else if canAdmin && r.Key == "aws" {
+								} else if canAdmin && r.Key == "aws" && (r.State == "denied" || r.State == "problem") {
+									<a class="button secondary" href={ templ.URL("/agents/" + id + "/add/aws") }>Fix</a>
+								} else if canAdmin && r.Key == "aws" && r.Label == "AWS identity" {
 									<a href={ templ.URL("/agents/" + id + "/add/aws") }>more services</a>
 								}
 							</td>
