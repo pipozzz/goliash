@@ -224,6 +224,44 @@ job "vault" {
 }
 ```
 
+On ECS the labels are tags on the **service**, not on the task definition: the collector reads the service's tags
+(`DescribeServices`), so tags on the task definition are not seen. `goliash.git.path` may point at a task definition
+JSON file (`ecs/checkout/task-definition.json`) or at a Terraform file (`terraform/ecs.tf`) that pins the image.
+
+With Terraform, as `tags` on `aws_ecs_service` (quote the keys: they contain dots):
+
+```hcl
+resource "aws_ecs_service" "checkout" {
+  name            = "checkout"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.checkout.arn
+  desired_count   = 2
+
+  tags = {
+    "goliash.git.repo" = "https://github.com/acme/infra"
+    "goliash.git.path" = "ecs/checkout/task-definition.json"
+  }
+}
+```
+
+With CloudFormation, as `Tags` on `AWS::ECS::Service`:
+
+```yaml
+Resources:
+  CheckoutService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: checkout
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref CheckoutTaskDefinition
+      DesiredCount: 2
+      Tags:
+        - Key: goliash.git.repo
+          Value: https://github.com/acme/infra
+        - Key: goliash.git.path
+          Value: ecs/checkout/task-definition.json
+```
+
 The service page then shows a **Git** panel with **Open PR**, and the Updates, Security and Delivery pages, the
 `auto_pr` version policy, the preview and the reminders work as for Argo CD. Goliash changes the tag where the file
 pins it, in HCL (`image = "hashicorp/vault:1.17.2"`), YAML, JSON task definitions or Terraform. A service without
