@@ -5,10 +5,12 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -140,7 +142,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if strings.HasPrefix(c.Repository, rds.Host+"/") {
 		// An RDS engine: the versions RDS offers in the agent's region.
-		api, err := rds.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := rds.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -149,7 +151,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if strings.HasPrefix(c.Repository, opensearch.Host+"/") {
 		// OpenSearch Service: the versions it offers of the engine.
-		api, err := opensearch.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := opensearch.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -158,7 +160,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if c.Repository == msk.Image {
 		// Kafka on MSK: the versions MSK offers.
-		api, err := msk.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := msk.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -167,7 +169,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if c.Repository == eks.Image {
 		// Kubernetes on EKS: the versions EKS offers.
-		api, err := eks.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := eks.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -176,7 +178,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if strings.HasPrefix(c.Repository, elasticache.Host+"/") {
 		// An ElastiCache engine: the versions ElastiCache offers in the agent's region.
-		api, err := elasticache.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := elasticache.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -379,4 +381,40 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 func managed(repo string) bool {
 	return strings.HasPrefix(repo, rds.Host+"/") || strings.HasPrefix(repo, elasticache.Host+"/") ||
 		strings.HasPrefix(repo, opensearch.Host+"/") || repo == eks.Image || repo == msk.Image
+}
+
+// awsRegion is the region of the agent's AWS targets, for asking AWS which engine versions it offers. An agent
+// that found its region in EC2's instance metadata has no AWS_REGION, so the AWS SDK alone would know none; empty
+// leaves it to the SDK (AWS_REGION, the profile).
+func (a *Agent) awsRegion() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	ids := make([]string, 0, len(a.runners))
+	for id := range a.runners {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		var t agentproto.Target
+		if json.Unmarshal(a.runners[id].spec, &t) != nil {
+			continue
+		}
+		switch {
+		case t.Rds != nil && t.Rds.Region != "":
+			return t.Rds.Region
+		case t.Elasticache != nil && t.Elasticache.Region != "":
+			return t.Elasticache.Region
+		case t.Eks != nil && t.Eks.Region != "":
+			return t.Eks.Region
+		case t.Opensearch != nil && t.Opensearch.Region != "":
+			return t.Opensearch.Region
+		case t.Msk != nil && t.Msk.Region != "":
+			return t.Msk.Region
+		case t.Lambda != nil && t.Lambda.Region != "":
+			return t.Lambda.Region
+		case t.Ecs != nil && t.Ecs.Region != "":
+			return t.Ecs.Region
+		}
+	}
+	return ""
 }
