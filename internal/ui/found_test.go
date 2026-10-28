@@ -143,4 +143,16 @@ func TestAddSourcePagesAndConnect(t *testing.T) {
 			t.Errorf("one click lacks %q", w)
 		}
 	}
+	if !strings.Contains(page, `name="env"`) {
+		t.Error("connect does not offer the environment")
+	}
+	// The environment picked above the tiles, or a new one.
+	_, body, _ = post(t, admin, e.srv.URL+"/connect/kubernetes", url.Values{"mode": {"code"}, "quick": {"1"}, "env": {envs[0].ID}})
+	if !strings.Contains(body, ">"+envs[0].Name+"<") {
+		t.Errorf("picked environment %s not used", envs[0].Name)
+	}
+	_, body, _ = post(t, admin, e.srv.URL+"/connect/docker", url.Values{"mode": {"code"}, "quick": {"1"}, "env": {envs[0].ID}, "new_env": {"qa"}})
+	if !strings.Contains(body, ">qa<") {
+		t.Error("new environment not used")
+	}
 }
