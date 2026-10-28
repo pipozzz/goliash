@@ -1530,7 +1530,10 @@
 
   // The page loader: only for navigations and forms (boosted requests), and only when they take a moment, so a
   // fast page does not flash it; live refreshes never show it.
-  let loaderTimer = null;
+  // It never stays: a request that is cancelled (another click replaced it), a page restored from history, or a
+  // response that is a download ends no request the usual way, so the loader goes on those too, and after 15 s at
+  // the latest.
+  let loaderTimer = null, loaderLimit = null;
   function loaderOn() {
     if (loaderTimer) return;
     loaderTimer = setTimeout(function () {
@@ -1538,10 +1541,13 @@
       if (!l) return;
       l.hidden = false;
       requestAnimationFrame(function () { l.classList.add("on"); });
+      clearTimeout(loaderLimit);
+      loaderLimit = setTimeout(loaderOff, 15000);
     }, 250);
   }
   function loaderOff() {
     clearTimeout(loaderTimer);
+    clearTimeout(loaderLimit);
     loaderTimer = null;
     const l = document.querySelector("[data-loader]");
     if (l) { l.classList.remove("on"); l.hidden = true; }
@@ -1562,7 +1568,11 @@
   ["htmx:afterSettle", "htmx:responseError", "htmx:sendError", "htmx:timeout", "htmx:afterRequest"].forEach(function (ev) {
     document.addEventListener(ev, function (e) { if (ev === "htmx:afterSettle" || e.detail.boosted || !e.detail.successful) loaderOff(); });
   });
+  ["htmx:abort", "htmx:xhr:abort", "htmx:historyRestore", "htmx:swapError", "htmx:onLoadError"].forEach(function (ev) {
+    document.addEventListener(ev, loaderOff);
+  });
   window.addEventListener("pageshow", loaderOff);
+  window.addEventListener("popstate", loaderOff);
 
   document.addEventListener("htmx:beforeRequest", function (e) {
     // The live refresh shows now; while the timeline shows the past it waits.
