@@ -95,8 +95,13 @@ templ MatrixGridView(g MatrixGrid) {
 			for _, u := range g.Unread {
 				<p>
 					<strong>{ plural(u.Services, "service", "services") } on <code>{ u.Host }</code></strong>
-					<span class="muted">show no newest release: no agent could read this private registry yet.</span>
-					if u.ECR {
+					if u.Managed {
+						<span class="muted">show no newest release yet: the agent that watches them asks AWS which versions it offers. Update that agent, and let its role call the Describe…EngineVersions actions (the policy on the agent's <strong>Add AWS</strong> page has them).</span>
+					} else {
+						<span class="muted">show no newest release: no agent could read this private registry yet.</span>
+					}
+					if u.Managed {
+					} else if u.ECR {
 						<span class="muted">Give the agent's IAM role <code>ecr:ListImages</code> (or AmazonEC2ContainerRegistryReadOnly).</span>
 						<a class="link" href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How</a>
 					} else if g.CanAdmin {

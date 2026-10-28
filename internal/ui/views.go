@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -296,6 +297,11 @@ func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
 func familyCaption(fams map[string]versions.AppFamily, name string, sources map[string]bool) string {
 	for _, f := range fams {
 		if f.Name == name && len(f.Members) > 1 {
+			// A few names say what was merged; dozens of preview environments would only push the table wide.
+			const shown = 4
+			if len(f.Members) > shown+1 {
+				return strings.Join(f.Members[:shown], " · ") + " and " + strconv.Itoa(len(f.Members)-shown) + " more"
+			}
 			return strings.Join(f.Members, " · ")
 		}
 	}
