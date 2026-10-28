@@ -99,3 +99,69 @@ func kindOptions(rows []MatrixRow) []kind {
 	}
 	return out
 }
+
+// kindGroups name the matrix's groups when it is grouped by kind: what something is, more than where it runs.
+var kindGroups = map[string]string{
+	"kubernetes": "Kubernetes workloads", "ecs": "Containers", "docker": "Containers", "compose": "Containers",
+	"swarm": "Containers", "nomad": "Containers", "lambda": "Functions", "rds": "Databases", "elasticache": "Caches",
+	"opensearch": "Search", "msk": "Streaming", "eks": "Kubernetes clusters", "host": "Hosts", "manual": "Added by hand",
+}
+
+// kindGroupOrder orders the groups: what teams deploy first, then what AWS runs for them.
+var kindGroupOrder = []string{
+	"Kubernetes workloads", "Containers", "Functions", "Databases", "Caches", "Search", "Streaming",
+	"Kubernetes clusters", "Hosts", "Added by hand",
+}
+
+// kindGroup is the group of a row grouped by kind: its first kind's.
+func kindGroup(r MatrixRow) string {
+	if len(r.Kinds) == 0 {
+		return "not running"
+	}
+	return kindGroups[r.Kinds[0]]
+}
+
+// kindGroupIcon is the icon of a kind group: its first kind's.
+func kindGroupIcon(group string) string {
+	for _, k := range kinds {
+		if kindGroups[k.Key] == group {
+			return k.Key
+		}
+	}
+	return ""
+}
+
+// engineNames are how people call the engines of managed services and Lambda runtimes.
+var engineNames = map[string]string{
+	"postgres": "PostgreSQL", "mysql": "MySQL", "mariadb": "MariaDB", "aurora-postgresql": "Aurora PostgreSQL",
+	"aurora-mysql": "Aurora MySQL", "redis": "Redis OSS", "valkey": "Valkey", "memcached": "Memcached",
+	"kubernetes": "Kubernetes", "opensearch": "OpenSearch", "elasticsearch": "Elasticsearch", "kafka": "Kafka",
+	"python": "Python", "nodejs": "Node.js", "java": "Java", "dotnet": ".NET", "ruby": "Ruby", "go": "Go",
+}
+
+// rowWhat says what a row is when its name does not: the engine of a managed database or cache, or the runtime of
+// a .zip Lambda function ("PostgreSQL · RDS", "Node.js runtime"). Empty for images, whose name says it.
+func rowWhat(repo string) string {
+	if family := versions.LambdaRuntime(repo); family != "" {
+		return engineNames[family] + " runtime"
+	}
+	if !versions.Managed(repo) {
+		return ""
+	}
+	host, engine, _ := strings.Cut(repo, "/")
+	service := map[string]string{
+		"rds.amazonaws.com": "RDS", "elasticache.amazonaws.com": "ElastiCache", "eks.amazonaws.com": "EKS",
+		"opensearch.amazonaws.com": "OpenSearch Service", "kafka.amazonaws.com": "MSK",
+	}[host]
+	name := engineNames[engine]
+	if name == "" {
+		name = engine
+	}
+	switch {
+	case service == "" || service == name:
+		return name
+	case strings.HasPrefix(service, name):
+		return service // "OpenSearch Service", not "OpenSearch · OpenSearch Service"
+	}
+	return name + " · " + service
+}

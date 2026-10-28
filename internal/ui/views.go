@@ -112,7 +112,7 @@ func (g MatrixGroup) healthBar(w float64) (ok, warn, bad float64) {
 // matrixGroupModes are the ways to arrange the matrix, application first. Namespaces
 // are left out: one service usually runs in a different one per environment.
 var matrixGroupModes = []struct{ Key, Label string }{
-	{"app", "Application"}, {"team", "Team"}, {"target", "Target"}, {"status", "Status"}, {"none", "None"},
+	{"app", "Application"}, {"team", "Team"}, {"kind", "Kind"}, {"target", "Target"}, {"status", "Status"}, {"none", "None"},
 }
 
 // matrixGroupBy returns a known grouping, application by default.
@@ -147,6 +147,8 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 			}
 		case "status":
 			key = r.Health
+		case "kind":
+			key = kindGroup(r)
 		case "target":
 			key = r.Target
 			if key == "" {
@@ -166,13 +168,20 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 	}
 	last := func(k string) bool { return k == "other" || k == "no owner" || k == "not running" }
 	var keys []string
-	if by == "status" {
+	switch by {
+	case "status":
 		for _, sc := range statusColumns {
 			if len(byKey[sc.key]) > 0 {
 				keys = append(keys, sc.key)
 			}
 		}
-	} else {
+	case "kind":
+		for _, g := range append(kindGroupOrder, "not running") {
+			if len(byKey[g]) > 0 {
+				keys = append(keys, g)
+			}
+		}
+	default:
 		for k := range byKey {
 			keys = append(keys, k)
 		}
@@ -347,6 +356,7 @@ type MatrixRow struct {
 	Target    string                  // grouped by target: the one target this row shows
 	Unknown   versions.UnknownService // why the newest release is not known; empty when it is
 	Kinds     []string                // the platforms it runs on (kubernetes, lambda, rds …), for icons and the filter
+	What      string                  // what it is when its name does not say: "PostgreSQL · RDS", "Node.js runtime"
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -515,6 +525,7 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		}
 	}
 	r.Kinds = rowKinds(o, ids)
+	r.What = rowWhat(o.Refs[row.Service.ID].Repo)
 	r.Health = healthOf(drifts, true)
 	return r
 }
@@ -1087,7 +1098,7 @@ func itoa(n int) string { return fmt.Sprint(n) }
 
 // rowSearch is what the matrix filter matches a row against: service, owner, versions and targets.
 func rowSearch(r MatrixRow) string {
-	parts := []string{r.Service, r.Owner, r.Latest, r.App, kindTokens(r.Kinds)}
+	parts := []string{r.Service, r.Owner, r.Latest, r.App, kindTokens(r.Kinds), r.What}
 	for _, c := range r.Cells {
 		for _, v := range c.Versions {
 			parts = append(parts, v.Tag, v.Resolved, v.Targets)

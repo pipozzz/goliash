@@ -144,6 +144,8 @@ templ MatrixGridView(g MatrixGrid) {
 									<div class="group-line">
 										if g.GroupBy == "app" || g.GroupBy == "team" {
 											<span class={ "app-avatar", versionColour(grp.Name) } aria-hidden="true">{ initial(grp.Name) }</span>
+										} else if g.GroupBy == "kind" {
+											@kindIcons([]string{kindGroupIcon(grp.Name)})
 										}
 										if grp.URL != "" {
 											<a class="group-name" href={ templ.URL(grp.URL) } title={ "The target page of " + grp.Name }>{ grp.Name }</a>
@@ -168,6 +170,9 @@ templ MatrixGridView(g MatrixGrid) {
 									<a href={ templ.URL(r.URL) }>{ r.Service }</a>
 									if r.Split && g.GroupBy != "app" {
 										<span class="part" title="Used by several applications: versions are compared within each">{ "in " + orOther(r.App) }</span>
+									}
+									if r.What != "" {
+										<span class="what">{ r.What }</span>
 									}
 									if r.Owner != "" {
 										<span class="owner">{ r.Owner }</span>
