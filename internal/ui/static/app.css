@@ -1466,3 +1466,13 @@ main section[id] { scroll-margin-top: 72px; }
   #teams table.cards td { grid-template-columns: minmax(0, 1fr); }
   #teams table.cards td > * { grid-column: 1; }
 }
+
+/* Where a service runs: small icons by its name, and buttons that filter by them. */
+.kind-icons { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: -2px; color: var(--muted); }
+.kind-icon { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.board-foot .kind-icons { display: flex; margin: 0 0 4px; color: inherit; opacity: 0.75; }
+.kind-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.kind-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; }
+.kind-chip .kind-icon { color: var(--muted); }
+.kind-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.kind-chip[aria-pressed="true"] .kind-icon { color: var(--accent); }
