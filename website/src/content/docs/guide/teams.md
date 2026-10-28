@@ -14,7 +14,7 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   phone or a security key). Then **Sign in with a passkey** on the sign-in page, or pick it from the browser's
   suggestions in the e-mail field: no password, no code. A passkey only works on this server's address, so it cannot
   be phished. Passkeys need `GOLIASH_PUBLIC_URL` with a domain name over HTTPS (or `http://localhost`).
-- **Single sign-on (OIDC).** Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …),
+- **Single sign-on (OIDC).** Step by step in [Single sign-on](/guide/sso/). Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …),
   one for the whole organization. An owner sets it up under **Settings → Single sign-on**: the page shows the redirect
   URI to register with the provider (`<public URL>/auth/oidc/callback`), takes the issuer, client ID and secret
   (encrypted with the server's secret key), and maps the provider's groups to roles in a table: a group to admin of

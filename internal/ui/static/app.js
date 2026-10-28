@@ -79,6 +79,14 @@
   // Matrix filter: words must all appear in a row (service, owner, versions, targets);
   // "Only with drift" hides rows without drift. The state lives in the URL (?q=, ?drift=1),
   // so a filtered matrix can be shared, and it survives the live refreshes.
+  // matchWords: every word must appear in hay, except kinds (type:lambda), of which one is enough:
+  // "type:ecs type:docker" is what runs on ECS or Docker.
+  function matchWords(words, hay) {
+    const kinds = words.filter(function (w) { return w.indexOf("type:") === 0; });
+    return words.every(function (w) { return w.indexOf("type:") === 0 || hay.indexOf(w) >= 0; }) &&
+      (kinds.length === 0 || kinds.some(function (k) { return hay.indexOf(k) >= 0; }));
+  }
+
   function filterMatrix() {
     const q = document.getElementById("matrix-q");
     const drift = document.getElementById("matrix-drift");
@@ -88,7 +96,7 @@
     let shown = 0;
     rows.forEach(function (tr) {
       const hay = tr.getAttribute("data-search");
-      const ok = words.every(function (w) { return hay.indexOf(w) >= 0; }) && (!drift.checked || tr.getAttribute("data-drift") === "1");
+      const ok = matchWords(words, hay) && (!drift.checked || tr.getAttribute("data-drift") === "1");
       tr.classList.toggle("filtered", !ok);
       if (ok) shown++;
     });
@@ -155,7 +163,7 @@
     let shown = 0, total = 0;
     document.querySelectorAll(input.getAttribute("data-filter")).forEach(function (el) {
       const hay = (el.getAttribute("data-search") || el.textContent).toLowerCase();
-      const ok = words.every(function (w) { return hay.indexOf(w) >= 0; });
+      const ok = matchWords(words, hay);
       total++;
       if (ok) shown++;
       if (dim) el.classList.toggle("filter-out", !ok); else el.hidden = !ok;
