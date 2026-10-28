@@ -511,7 +511,7 @@ table.matrix tr.group-head th {
 table.matrix tbody.mgroup.named:first-of-type tr.group-head th { border-top: 0; }
 .group-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; left: 16px; width: max-content; max-width: calc(100vw - 64px); }
 .group-name { font-weight: 700; font-size: 15px; }
-.group-line small { color: var(--faint); font-weight: 400; font-size: 12px; }
+.group-line small { color: var(--faint); font-weight: 400; font-size: 12px; white-space: normal; min-width: 0; }
 .app-avatar {
   width: 26px; height: 26px; border-radius: 8px; display: inline-grid; place-items: center; flex: none;
   color: #fff; font: 700 13px var(--sans); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);

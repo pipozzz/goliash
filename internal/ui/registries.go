@@ -33,6 +33,8 @@ type UnreadRegistry struct {
 	Host     string
 	Services int
 	ECR      bool // Amazon ECR: read by an agent with its IAM role, never with stored credentials
+	// Managed: an AWS managed engine (RDS, ElastiCache …), whose versions the agent asks AWS for; no registry.
+	Managed bool
 }
 
 // isECR reports whether host is an Amazon ECR registry.
@@ -59,7 +61,7 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 		}
 		host := versions.RegistryHost(ref.Repo)
 		uses[host]++
-		if versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
+		if versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) && !versions.Managed(ref.Repo) {
 			unread[host]++
 		}
 	}

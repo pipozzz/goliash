@@ -3159,9 +3159,15 @@ func unreadRegistries(o versions.Overview) []UnreadRegistry {
 		}
 		count[versions.RegistryHost(ref.Repo)]++
 	}
+	managed := map[string]bool{}
+	for _, ref := range o.Refs {
+		if versions.Managed(ref.Repo) {
+			managed[versions.RegistryHost(ref.Repo)] = true
+		}
+	}
 	out := make([]UnreadRegistry, 0, len(count))
 	for host, n := range count {
-		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host)})
+		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host), Managed: managed[host]})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
 	return out
