@@ -36,7 +36,7 @@ func TestWebPushChannel(t *testing.T) {
 	ctx := context.Background()
 	admin := e.as(store.RoleOwner)
 	// The workspace has its one browser channel by itself, with a rule for what matters now; no second one.
-	_, page := get(t, admin, e.srv.URL+"/notifications", nil)
+	_, _ = get(t, admin, e.srv.URL+"/notifications", nil)
 	chans, _ := e.st.ListChannels(ctx, e.ws.Scope())
 	if len(chans) != 1 || chans[0].Type != "push" || chans[0].Name != pushChannelName {
 		t.Fatalf("channels: %+v", chans)
@@ -48,7 +48,8 @@ func TestWebPushChannel(t *testing.T) {
 	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", url.Values{"name": {"phones"}, "type": {"push"}}); !strings.Contains(body, "the one web push channel") {
 		t.Fatal("a second push channel was allowed")
 	}
-	if _, page = get(t, admin, e.srv.URL+"/notifications", nil); strings.Contains(page, `value="push"`) {
+	_, page := get(t, admin, e.srv.URL+"/notifications", nil)
+	if strings.Contains(page, `value="push"`) {
 		t.Error("the form still offers web push")
 	}
 	if !strings.Contains(page, `data-push-key="B`) || !strings.Contains(page, "Notify this browser") || !strings.Contains(page, "0 browsers") {
