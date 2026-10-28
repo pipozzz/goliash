@@ -38,8 +38,9 @@ templ TilesPage(v TilesView) {
 				</div>
 				<div class="tiles-head-end">
 					if v.App == "" {
-						<input type="search" class="search page-filter" data-filter=".logo-board .board-cell" data-filter-dim data-filter-url data-filter-count="tiles-count" placeholder="Filter applications, services, versions" aria-label="Filter the cells" aria-keyshortcuts="/" autocomplete="off"/>
+						<input type="search" id="tiles-q" class="search page-filter" data-filter=".logo-board .board-cell" data-filter-dim data-filter-url data-filter-count="tiles-count" placeholder="Filter applications, services, versions" aria-label="Filter the cells" aria-keyshortcuts="/" autocomplete="off"/>
 						<span id="tiles-count" class="muted filter-count" aria-live="polite"></span>
+						@kindFilter(v.Kinds, "tiles-q")
 					}
 					if v.At == "" {
 						@viewTabsBar(v.Views)
@@ -252,6 +253,7 @@ templ board(items []BoardItem, cols int, compact bool) {
 						@miniLogo(it.Dots)
 					}
 					<span class="board-foot">
+						@kindIcons(it.Kinds)
 						if it.Headline != "" {
 							<span class="board-headline">{ it.Headline }</span>
 						}

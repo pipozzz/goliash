@@ -346,6 +346,7 @@ type MatrixRow struct {
 	NoteTitle string
 	Target    string                  // grouped by target: the one target this row shows
 	Unknown   versions.UnknownService // why the newest release is not known; empty when it is
+	Kinds     []string                // the platforms it runs on (kubernetes, lambda, rds …), for icons and the filter
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -507,6 +508,13 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		r.Note, r.NoteTitle = u.Short, strings.TrimSpace(u.Reason+" "+u.Fix)
 		r.Unknown = versions.UnknownService{Service: row.Service.Name, Repo: ref.Repo, Unknown: u}
 	}
+	var ids []string
+	for _, c := range part.Cells {
+		for _, v := range c.Versions {
+			ids = append(ids, v.TargetIDs...)
+		}
+	}
+	r.Kinds = rowKinds(o, ids)
 	r.Health = healthOf(drifts, true)
 	return r
 }
@@ -1074,7 +1082,7 @@ func itoa(n int) string { return fmt.Sprint(n) }
 
 // rowSearch is what the matrix filter matches a row against: service, owner, versions and targets.
 func rowSearch(r MatrixRow) string {
-	parts := []string{r.Service, r.Owner, r.Latest, r.App}
+	parts := []string{r.Service, r.Owner, r.Latest, r.App, kindTokens(r.Kinds)}
 	for _, c := range r.Cells {
 		for _, v := range c.Versions {
 			parts = append(parts, v.Tag, v.Resolved, v.Targets)

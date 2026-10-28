@@ -116,7 +116,29 @@
     if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
   }
 
-  document.body.addEventListener("htmx:afterSwap", function (e) { refreshTimes(e.target); filterMatrix(); });
+  // Kind buttons (Kubernetes, Lambda, RDS …) add or remove type:<kind> in their filter box, so the kind
+  // filter is part of the words: shared in ?q= like them, and combined with them.
+  function syncKindChips() {
+    document.querySelectorAll("[data-kind-token]").forEach(function (b) {
+      const input = document.getElementById(b.getAttribute("data-kind-input"));
+      const words = input ? input.value.toLowerCase().split(/\s+/) : [];
+      b.setAttribute("aria-pressed", words.indexOf(b.getAttribute("data-kind-token")) >= 0 ? "true" : "false");
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest("[data-kind-token]");
+    if (!b) return;
+    const input = document.getElementById(b.getAttribute("data-kind-input"));
+    if (!input) return;
+    const token = b.getAttribute("data-kind-token");
+    let words = input.value.split(/\s+/).filter(Boolean);
+    words = words.indexOf(token) >= 0 ? words.filter(function (w) { return w !== token; }) : words.concat(token);
+    input.value = words.join(" ");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  document.addEventListener("input", syncKindChips);
+
+  document.body.addEventListener("htmx:afterSwap", function (e) { refreshTimes(e.target); filterMatrix(); syncKindChips(); });
   document.addEventListener("input", function (e) {
     if (e.target.id === "matrix-q") filterMatrix();
     if (e.target.matches("input[data-filter]")) filterCards(e.target);
@@ -1785,6 +1807,7 @@
       drift.checked = params.get("drift") === "1";
       filterMatrix();
     }
+    syncKindChips();
   }
   // A combobox for names (data-combo names the datalist of existing ones): as you type it lists the existing names
   // that match and, for a name not among them, offers to create it (data-combo-new: "Create team"). Arrow keys

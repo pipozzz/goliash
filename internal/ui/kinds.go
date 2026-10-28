@@ -1,0 +1,101 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/pipozzz/goliash/internal/versions"
+)
+
+// A kind is where a service runs, from its targets' platform: what the matrix and the tiles show as an icon and
+// filter by (type:lambda in the filter box).
+type kind struct {
+	Key, Label string
+	Icon       string // SVG path data on a 16×16 grid, stroked
+}
+
+const (
+	iconWheel     = "M8 1.6l5 2.4 1.2 5.4-3.5 4.3H5.3L1.8 9.4 3 4zM8 6.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6z"
+	iconContainer = "M8 1.8l5.5 3v6.4L8 14.2l-5.5-3V4.8zM2.5 4.8 8 7.8l5.5-3M8 7.8v6.4"
+)
+
+// kinds in the order the filter offers them.
+var kinds = []kind{
+	{"kubernetes", "Kubernetes", iconWheel},
+	{"eks", "EKS", iconWheel},
+	{"ecs", "ECS", "M2 2.5h5v5H2zM9 2.5h5v5H9zM5.5 8.5h5v5h-5z"},
+	{"lambda", "Lambda", "M3.5 2.5h3l6 11M8.6 7.6 4 13.5"},
+	{"docker", "Docker", iconContainer},
+	{"compose", "Compose", iconContainer},
+	{"swarm", "Swarm", iconContainer},
+	{"nomad", "Nomad", "M8 1.5l5.6 3.2v6.6L8 14.5l-5.6-3.2V4.7zM5.8 10.5v-5l4.4 5v-5"},
+	{"rds", "RDS", "M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2zm0 0v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"},
+	{"elasticache", "ElastiCache", "M9 1.5 3.5 9h4L7 14.5 12.5 7h-4z"},
+	{"opensearch", "OpenSearch", "M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM10.3 10.3l3.2 3.2"},
+	{"msk", "MSK", "M2.5 4.5h11M2.5 8h11M2.5 11.5h11"},
+	{"host", "Linux host", "M2.5 2.5h11v4.5h-11zM2.5 9h11v4.5h-11zM5 4.75h.01M5 11.25h.01"},
+	{"manual", "By hand", "M10.5 2.5l3 3L6 13H3v-3z"},
+}
+
+func kindOf(key string) (kind, bool) {
+	for _, k := range kinds {
+		if k.Key == key {
+			return k, true
+		}
+	}
+	return kind{}, false
+}
+
+// rowKinds are the kinds of the targets a row's versions run on, in the filter's order.
+func rowKinds(o versions.Overview, targetIDs []string) []string {
+	var out []string
+	for _, t := range o.Targets {
+		if slices.Contains(targetIDs, t.ID) && !slices.Contains(out, t.Platform) {
+			if _, ok := kindOf(t.Platform); ok {
+				out = append(out, t.Platform)
+			}
+		}
+	}
+	return sortKinds(out)
+}
+
+// sortKinds orders kinds as the filter offers them.
+func sortKinds(ks []string) []string {
+	slices.SortFunc(ks, func(a, b string) int {
+		return slices.IndexFunc(kinds, func(k kind) bool { return k.Key == a }) - slices.IndexFunc(kinds, func(k kind) bool { return k.Key == b })
+	})
+	return ks
+}
+
+// kindTokens are the words the filter box matches a row's kinds by.
+func kindTokens(ks []string) string {
+	out := make([]string, len(ks))
+	for i, k := range ks {
+		out[i] = "type:" + k
+	}
+	return strings.Join(out, " ")
+}
+
+// kindOptions are the kinds present among rows, for the filter's buttons; none when there is only one.
+func kindOptions(rows []MatrixRow) []kind {
+	var keys []string
+	for _, r := range rows {
+		for _, k := range r.Kinds {
+			if !slices.Contains(keys, k) {
+				keys = append(keys, k)
+			}
+		}
+	}
+	if len(keys) < 2 {
+		return nil
+	}
+	var out []kind
+	for _, k := range sortKinds(keys) {
+		kd, _ := kindOf(k)
+		out = append(out, kd)
+	}
+	return out
+}
