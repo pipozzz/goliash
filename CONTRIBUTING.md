@@ -59,7 +59,9 @@ its state stays in `.lab/` until you delete it.
   docker run -d --name goliash-pg -e POSTGRES_USER=goliash -e POSTGRES_PASSWORD=goliash -p 55432:5432 postgres:17-alpine
   GOLIASH_TEST_POSTGRES_DSN='postgres://goliash:goliash@localhost:55432/goliash?sslmode=disable' go test ./internal/store/
   ```
-- **Tests.** New behavior comes with tests; bug fixes come with a test that fails without the fix.
+- **Tests.** New behavior comes with tests; bug fixes come with a test that fails without the fix. A test that
+  needs a database opens `store.Open(ctx, storetest.DSN(t))`: a copy of a database migrated once per test binary
+  (migrating for each test made the race-detector run slow).
 
 ## The image catalog
 

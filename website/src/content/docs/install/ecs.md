@@ -22,15 +22,24 @@ all with `aws cloudformation delete-stack --stack-name goliash-agent`.
 ## Add AWS to an agent you already run
 
 An agent on a Docker host or in a Kubernetes cluster can watch AWS too: **Agents → the agent → Add AWS to this
-agent**. Pick the region, the services and how the agent gets credentials (a read-only IAM user's keys, the role
-of the EC2 instance or pod, or a profile). The page writes, for that agent:
+agent**.
 
-1. the read-only IAM policy for exactly those services, and the `aws` commands that give it to a new IAM user or
-   to the instance's role (with the hop limit EC2 needs for containers);
-2. the lines for its `goliash-agent.yml` (or Helm values);
+**On EC2 with an instance role** (agent 1.153.0 or newer) there is one step. The agent reads its region and role from
+the instance metadata and reports them; the page then shows one `aws iam put-role-policy` command with that role
+and the read-only policy in it (run it anywhere with IAM access, e.g. AWS CloudShell). Within 15 minutes the agent
+looks again and adds what the role may now read; nothing to set on the agent, no restart. An instance without a
+role gets the commands that create one and attach it. If the container gets no metadata token, the page says so
+and gives the command that raises the hop limit to 2.
+
+**Otherwise** pick the region, the services and how the agent gets credentials (a read-only IAM user's keys, a
+pod's role, or a profile). The page writes:
+
+1. the read-only IAM policy for exactly those services, and the `aws` commands that give it to a new IAM user or a
+   role;
+2. the lines for `~/goliash-agent/compose.yml` (or the Helm values);
 3. the command that restarts it.
 
-After the restart the agent finds what the credentials may read:
+Then the agent finds what the credentials may read:
 
 - **With an enrollment code**, it adds those targets by itself.
 - **With a token**, it shows them on its page under **Found here, not watched**: tick them, pick an environment,
