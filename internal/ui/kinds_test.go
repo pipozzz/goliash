@@ -4,6 +4,8 @@
 package ui
 
 import (
+	"context"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -119,5 +121,26 @@ func TestAWSSourceRows(t *testing.T) {
 	// No AWS at all: one row to set it up.
 	if rows := agentSources("docker", []string{"docker"}, nil, nil); rows[len(rows)-2].Key != "aws" || rows[len(rows)-2].State != "off" {
 		t.Errorf("without AWS %+v", rows)
+	}
+}
+
+// Members tick services on the matrix and give them one team.
+func TestMatrixBulkTeam(t *testing.T) {
+	e := newUIEnv(t)
+	member := e.as(store.RoleMember)
+	_, page := get(t, member, e.srv.URL+"/", nil)
+	if !strings.Contains(page, `id="matrix-bulk"`) || !strings.Contains(page, `class="row-tick"`) {
+		t.Fatal("no ticks on the matrix")
+	}
+	svcs, _ := e.st.ListServices(context.Background(), e.ws.Scope())
+	_, body, _ := post(t, member, e.srv.URL+"/services/team", url.Values{"service": {svcs[0].Name, "no-such"}, "team": {"team-pay"}, "return": {"/?group=team"}})
+	if !strings.Contains(body, "1 service belongs to team-pay now.") {
+		t.Fatalf("bulk team: %s", body[:min(len(body), 300)])
+	}
+	if got, _ := e.st.GetServiceByName(context.Background(), e.ws.Scope(), svcs[0].Name); got.Owner != "team-pay" {
+		t.Errorf("owner %q", got.Owner)
+	}
+	if _, page = get(t, e.as(store.RoleViewer), e.srv.URL+"/", nil); strings.Contains(page, `class="row-tick"`) {
+		t.Error("a viewer gets ticks")
 	}
 }

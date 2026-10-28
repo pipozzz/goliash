@@ -1495,3 +1495,7 @@ td.svc .what { display: block; color: var(--muted); font-size: 12px; }
 table.updates td.svc .what { display: block; color: var(--muted); font-size: 12px; }
 /* Channels: add one, or connect a ticket tracker, from the panel's head. */
 .channel-adds { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
+
+/* Ticking services on the matrix to set their team at once. */
+td.svc .row-tick { margin-right: 6px; vertical-align: -1px; }
+.matrix-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--accent); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }

@@ -270,14 +270,38 @@
   // Bulk pull requests (Updates): "Tick all shown" ticks the upgrades the filter shows (again: unticks them), the
   // button counts what goes, and ticked rows a filter hides stay out of the form.
   function bulkShown(form) {
-    return Array.from(document.querySelectorAll('input[form="' + form + '"][name="pr"]')).filter(function (c) {
+    return Array.from(document.querySelectorAll('input[type="checkbox"][form="' + form + '"]')).filter(function (c) {
       const row = c.closest("tr");
       return !row || shownRow(row);
     });
   }
   // shownRow: a row the filter keeps; one folded under "+N more like this" counts, it is only out of sight.
-  function shownRow(r) { return !r.hidden || r.hasAttribute("data-same-hid"); }
+  function shownRow(r) { return (!r.hidden && !r.classList.contains("filtered")) || r.hasAttribute("data-same-hid"); }
+  // The matrix's ticks: kept by service across live refreshes, which redraw the rows; the bar shows while any is ticked.
+  const matrixTicks = new Set();
+  function matrixBulk() {
+    const bar = document.getElementById("matrix-bulk");
+    if (!bar) return;
+    document.querySelectorAll('input.row-tick[form="matrix-bulk"]').forEach(function (c) { c.checked = matrixTicks.has(c.value); });
+    bar.hidden = matrixTicks.size === 0;
+    bar.querySelector("[data-bulk-count]").textContent = matrixTicks.size + " ticked";
+    bar.querySelector("[data-bulk-return]").value = "/" + window.location.search;
+  }
+  document.addEventListener("change", function (e) {
+    if (!e.target.matches || !e.target.matches('input.row-tick[form="matrix-bulk"]')) return;
+    if (e.target.checked) matrixTicks.add(e.target.value); else matrixTicks.delete(e.target.value);
+    matrixBulk();
+  });
+  document.body.addEventListener("htmx:afterSwap", matrixBulk);
+  // Sent: the ticks have done their job (the page that comes back starts with none).
+  document.addEventListener("submit", function (e) { if (e.target.id === "matrix-bulk") setTimeout(function () { matrixTicks.clear(); matrixBulk(); }, 0); });
+
   function bulkCount() {
+    if (document.getElementById("matrix-bulk")) {
+      matrixTicks.clear();
+      document.querySelectorAll('input.row-tick[form="matrix-bulk"]:checked').forEach(function (c) { matrixTicks.add(c.value); });
+      matrixBulk();
+    }
     const form = document.getElementById("bulk-prs");
     if (!form) return;
     const n = bulkShown("bulk-prs").filter(function (c) { return c.checked; }).length;

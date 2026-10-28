@@ -53,6 +53,20 @@ templ MatrixPage(v MatrixView) {
 					<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
 					@kindFilter(kindOptions(v.Grid.Rows), "matrix-q")
 					<span class="muted" id="matrix-count" aria-live="polite"></span>
+					if v.CanMember {
+						<form id="matrix-bulk" method="post" action="/services/team" class="inline matrix-bulk" data-bulk-bar hidden>
+							<input type="hidden" name="return" value="/?" data-bulk-return/>
+							<span data-bulk-count></span>
+							<button type="button" class="link" data-tick-shown="matrix-bulk">Tick all shown</button>
+							<input name="team" list="matrix-teams" placeholder="team, empty for none" aria-label="Team" size="16"/>
+							<datalist id="matrix-teams">
+								for _, t := range matrixTeams(v.Grid.Rows) {
+									<option value={ t }></option>
+								}
+							</datalist>
+							<button type="submit" class="secondary">Set team</button>
+						</form>
+					}
 				}
 				<span class="spacer"></span>
 				if v.Hygiene > 0 {
@@ -173,6 +187,9 @@ templ MatrixGridView(g MatrixGrid) {
 								}
 							>
 								<td class="svc">
+									if g.CanBulk && !g.Past {
+										<input type="checkbox" class="row-tick" name="service" value={ r.Service } form="matrix-bulk" aria-label={ "Tick " + r.Service }/>
+									}
 									@kindIcons(r.Kinds)
 									<a href={ templ.URL(r.URL) }>{ r.Service }</a>
 									if r.Split && g.GroupBy != "app" {

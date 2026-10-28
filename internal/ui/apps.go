@@ -430,6 +430,37 @@ func (s *Server) setServiceTeam(w http.ResponseWriter, r *http.Request, p auth.P
 	return back(w, r, path, "notice", name+" belongs to "+team+" now.")
 }
 
+// setServicesTeam gives the services ticked on the matrix one team (none when empty).
+func (s *Server) setServicesTeam(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	team := strings.TrimSpace(r.PostForm.Get("team"))
+	ret := r.PostForm.Get("return") // back to the matrix as it was (grouping, filter), never elsewhere
+	if !strings.HasPrefix(ret, "/?") || strings.Contains(ret, "//") {
+		ret = "/"
+	}
+	var ids, names []string
+	for _, name := range r.PostForm["service"] {
+		if svc, err := s.store.GetServiceByName(ctx, p.Scope, name); err == nil && !slices.Contains(ids, svc.ID) {
+			ids, names = append(ids, svc.ID), append(names, svc.Name)
+		}
+	}
+	if len(ids) == 0 {
+		return back(w, r, ret, "error", "Tick the services first.")
+	}
+	if _, err := s.store.SetOwners(ctx, p.Scope, ids, team, ""); err != nil {
+		return err
+	}
+	s.hub.Publish(p.Scope.WorkspaceID)
+	s.audit(ctx, p, "team.assign", "team", team, "services", strings.Join(names, ", "))
+	if team == "" {
+		return back(w, r, ret, "notice", plural(len(ids), "service has", "services have")+" no team now.")
+	}
+	return back(w, r, ret, "notice", plural(len(ids), "service belongs", "services belong")+" to "+team+" now.")
+}
+
 // teamPatching adds how each team patches, whether a rule already tells it, and the channels to tell it on.
 func (s *Server) teamPatching(ctx context.Context, p auth.Principal, v *TeamsView) error {
 	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
