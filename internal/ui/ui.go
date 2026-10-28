@@ -3176,6 +3176,9 @@ func unreadRegistries(o versions.Overview) []UnreadRegistry {
 		if u, ok := o.Upstreams[id]; (ok && u.HasLatest) || versions.PackageRepo(ref.Repo) || !versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
 			continue
 		}
+		if o.TagCount[id] > 0 && o.CheckErrs[id] == "" {
+			continue // an agent read its tags; none is a version (its row says why), the registry is not the matter
+		}
 		host := versions.RegistryHost(ref.Repo)
 		count[host]++
 		if e := o.CheckErrs[id]; e != "" && (lastErr[host] == "" || e < lastErr[host]) {

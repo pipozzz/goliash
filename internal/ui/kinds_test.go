@@ -27,3 +27,21 @@ func TestKinds(t *testing.T) {
 		t.Error("one kind is no filter")
 	}
 }
+
+func TestRowWhat(t *testing.T) {
+	for repo, want := range map[string]string{
+		"rds.amazonaws.com/aurora-postgresql": "Aurora PostgreSQL · RDS",
+		"elasticache.amazonaws.com/valkey":    "Valkey · ElastiCache",
+		"opensearch.amazonaws.com/opensearch": "OpenSearch Service",
+		"public.ecr.aws/lambda/nodejs":        "Node.js runtime",
+		"ghcr.io/acme/api":                    "",
+		"kafka.amazonaws.com/kafka":           "Kafka · MSK",
+	} {
+		if got := rowWhat(repo); got != want {
+			t.Errorf("%s: %q, want %q", repo, got, want)
+		}
+	}
+	if kindGroup(MatrixRow{Kinds: []string{"lambda"}}) != "Functions" || kindGroupIcon("Databases") != "rds" {
+		t.Error("kind groups")
+	}
+}

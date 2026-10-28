@@ -50,3 +50,15 @@ func TestUnreadShowsAgentError(t *testing.T) {
 		t.Fatalf("unread %+v", got)
 	}
 }
+
+// Tags an agent read that hold no version (commit hashes, say) are no unreadable registry.
+func TestUnreadSkipsReadTags(t *testing.T) {
+	o := versions.Overview{
+		Refs:     map[string]versions.Reference{"api": {Repo: "123456789012.dkr.ecr.eu-central-1.amazonaws.com/api", Tag: "3f9c2a1"}},
+		Services: map[string]store.Service{"api": {ID: "api"}},
+		TagCount: map[string]int{"api": 40},
+	}
+	if got := unreadRegistries(o); len(got) != 0 {
+		t.Fatalf("unread %+v", got)
+	}
+}

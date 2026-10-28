@@ -1483,3 +1483,6 @@ table.sso-groups input, table.sso-groups select { width: 100%; }
 /* An enrollment code's environment, changed in place. */
 .code-env-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 0; color: var(--muted); }
 .code-env select { width: auto; }
+
+/* What a managed service or a .zip function is, under its name. */
+td.svc .what { display: block; color: var(--muted); font-size: 12px; }
