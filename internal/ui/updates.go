@@ -38,6 +38,22 @@ type UpdatesView struct {
 	Overdue      int    // upgrades past the workspace's remediation deadline, before the urgency filter
 	OnlyOverdue  bool   // ?due=over: only those
 	Kinds        []kind // where the upgrades run, for the filter's buttons
+	Calendar     bool   // ?view=calendar: the upgrades with a date, by month
+	Months       []CalendarMonth
+}
+
+// CalendarMonth is one month of the calendar: the upgrades whose end of life or deadline falls in it.
+type CalendarMonth struct {
+	Label string // "November 2026", or "Past" for what is overdue
+	Past  bool
+	Items []CalendarItem
+}
+
+// CalendarItem is one dated upgrade: when, and what ends or is due then.
+type CalendarItem struct {
+	Date time.Time
+	What string // "end of life" or "deadline: exploited vulnerability"
+	UpdateItem
 }
 
 // WatchedItem is a service watched for its releases that runs nowhere Goliash knows.
@@ -202,7 +218,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 	}
 	q := r.URL.Query()
-	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1, OnlyOverdue: q.Get("due") == "over"}
+	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1, OnlyOverdue: q.Get("due") == "over", Calendar: q.Get("view") == "calendar"}
 	v.Views = s.viewTabs(ctx, r, p, "/updates")
 	if l := q.Get("level"); l != "" {
 		for i := range versions.UrgencyLabels {
@@ -294,7 +310,38 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 	}
 	v.Kinds = kindOptions(rows)
+	v.Months = calendarMonths(v.Items, time.Now())
 	return v, nil
+}
+
+// calendarMonths puts the upgrades with a date (an end of life, a remediation deadline) in order, by month, what is
+// past first.
+func calendarMonths(items []UpdateItem, now time.Time) []CalendarMonth {
+	var dated []CalendarItem
+	for _, it := range items {
+		if !it.Due.IsZero() {
+			dated = append(dated, CalendarItem{Date: it.Due, What: "deadline: " + it.DueFor, UpdateItem: it})
+		}
+		if it.EOL != "" {
+			if d, err := time.Parse(time.DateOnly, it.EOL); err == nil {
+				dated = append(dated, CalendarItem{Date: d, What: "end of life", UpdateItem: it})
+			}
+		}
+	}
+	sort.SliceStable(dated, func(i, j int) bool { return dated[i].Date.Before(dated[j].Date) })
+	var out []CalendarMonth
+	today := now.Truncate(24 * time.Hour)
+	for _, d := range dated {
+		label, past := d.Date.Format("January 2006"), d.Date.Before(today)
+		if past {
+			label = "Past"
+		}
+		if len(out) == 0 || out[len(out)-1].Label != label {
+			out = append(out, CalendarMonth{Label: label, Past: past})
+		}
+		out[len(out)-1].Items = append(out[len(out)-1].Items, d)
+	}
+	return out
 }
 
 // updateSearch is what the filter matches a row by: what it shows, its kinds (type:lambda) and what it is.
@@ -389,6 +436,9 @@ func updatesURL(v UpdatesView, key, value string) string {
 	}
 	if v.OnlyOverdue {
 		q.Set("due", "over")
+	}
+	if v.Calendar {
+		q.Set("view", "calendar")
 	}
 	if value == "" {
 		q.Del(key)

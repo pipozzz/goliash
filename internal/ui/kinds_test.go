@@ -6,6 +6,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
@@ -76,5 +77,20 @@ func TestAWSUpgradeCommand(t *testing.T) {
 	}
 	if targetRegion([]byte(`{"rds":{"region":"eu-central-1"}}`)) != "eu-central-1" || targetRegion([]byte(`{"docker":{}}`)) != "" {
 		t.Error("region")
+	}
+}
+
+func TestCalendarMonths(t *testing.T) {
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	items := []UpdateItem{
+		{Service: "db", EOL: "2026-11-13"},
+		{Service: "api", Due: time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC), DueFor: "exploited vulnerability"},
+		{Service: "web"},
+		{Service: "cache", EOL: "2026-12-01", Due: time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC), DueFor: "critical"},
+	}
+	ms := calendarMonths(items, now)
+	if len(ms) != 3 || ms[0].Label != "Past" || ms[0].Items[0].Service != "api" || ms[1].Label != "November 2026" ||
+		len(ms[1].Items) != 2 || ms[1].Items[0].Service != "cache" || ms[1].Items[1].What != "end of life" || ms[2].Label != "December 2026" {
+		t.Fatalf("months %+v", ms)
 	}
 }
