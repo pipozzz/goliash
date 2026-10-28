@@ -488,3 +488,8 @@ scrape_configs:
 
 Ready-made dashboards and deploy markers on your graphs are on [Grafana dashboard](../grafana/) and
 [SigNoz dashboard](../signoz/); more alerts are in [Metrics and alerts](../observability/#alerts).
+
+## On your desk
+
+[Goli desk bot](/guide/goli-bot/) is a 3D-printable robot of the Goliash mascot that rings a bell when Goliash sends
+a notification.

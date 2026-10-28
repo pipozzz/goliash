@@ -209,7 +209,7 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 	}
 	out := make([]MatrixGroup, 0, len(keys))
 	for _, k := range keys {
-		g := MatrixGroup{Name: k, Rows: byKey[k]}
+		g := MatrixGroup{Name: k, Rows: foldKeys(k, byKey[k])}
 		for _, r := range g.Rows {
 			switch r.Health {
 			case "ok":
@@ -357,6 +357,8 @@ type MatrixRow struct {
 	Unknown   versions.UnknownService // why the newest release is not known; empty when it is
 	Kinds     []string                // the platforms it runs on (kubernetes, lambda, rds …), for icons and the filter
 	What      string                  // what it is when its name does not say: "PostgreSQL · RDS", "Node.js runtime"
+	Repo      string                  // its image repository
+	Same      string                  // rows of its group with the same image and versions share it, for folding them
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -463,6 +465,37 @@ func targetCaption(o versions.Overview, id, env string) string {
 	return env
 }
 
+// foldKeys marks the rows of a group that run the same image at the same versions everywhere (the preview and
+// per-developer copies of one service), so the page folds them under the first: "+12 more like this".
+func foldKeys(group string, rows []MatrixRow) []MatrixRow {
+	key := func(r MatrixRow) string {
+		if r.Repo == "" {
+			return ""
+		}
+		parts := []string{group, r.Repo, r.Health}
+		for _, c := range r.Cells {
+			var tags []string
+			for _, v := range c.Versions {
+				tags = append(tags, v.Tag)
+			}
+			parts = append(parts, strings.Join(tags, ","))
+		}
+		return strings.Join(parts, "|")
+	}
+	count := map[string]int{}
+	for _, r := range rows {
+		count[key(r)]++
+	}
+	out := make([]MatrixRow, len(rows))
+	for i, r := range rows {
+		if k := key(r); k != "" && count[k] > 1 {
+			r.Same = k
+		}
+		out[i] = r
+	}
+	return out
+}
+
 // matrixRow is one matrix line: a service, or its part in one application when its
 // versions are compared per application.
 func matrixRow(o versions.Overview, row versions.Row, part versions.Part) MatrixRow {
@@ -526,6 +559,7 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 	}
 	r.Kinds = rowKinds(o, ids)
 	r.What = rowWhat(o.Refs[row.Service.ID].Repo)
+	r.Repo = o.Refs[row.Service.ID].Repo
 	r.Health = healthOf(drifts, true)
 	return r
 }
