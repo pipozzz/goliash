@@ -1764,6 +1764,9 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	v := NotificationsView{Base: withFlash(s.base(ctx, p, "notifications", "Notifications"), r), SMTP: s.smtp}
+	if add := r.URL.Query().Get("add"); slices.Contains(store.ChannelTypes, add) && add != "push" {
+		v.Add = add
+	}
 	if err := s.ensurePushChannel(r, p); err != nil {
 		return err
 	}
