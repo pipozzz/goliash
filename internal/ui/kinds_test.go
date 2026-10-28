@@ -45,3 +45,17 @@ func TestRowWhat(t *testing.T) {
 		t.Error("kind groups")
 	}
 }
+
+// The copies of one service (same image, same versions) fold in the matrix; a copy behind stays apart.
+func TestFoldKeys(t *testing.T) {
+	cell := func(tag string) MatrixCell { return MatrixCell{Versions: []VersionView{{Tag: tag}}} }
+	rows := foldKeys("api", []MatrixRow{
+		{Service: "api-pr-1", Repo: "ghcr.io/acme/api", Health: "ok", Cells: []MatrixCell{cell("1.2")}},
+		{Service: "api-pr-2", Repo: "ghcr.io/acme/api", Health: "ok", Cells: []MatrixCell{cell("1.2")}},
+		{Service: "api-pr-3", Repo: "ghcr.io/acme/api", Health: "warn", Cells: []MatrixCell{cell("1.1")}},
+		{Service: "web", Health: "ok", Cells: []MatrixCell{cell("1.2")}},
+	})
+	if rows[0].Same == "" || rows[0].Same != rows[1].Same || rows[2].Same != "" || rows[3].Same != "" {
+		t.Fatalf("fold keys %q %q %q %q", rows[0].Same, rows[1].Same, rows[2].Same, rows[3].Same)
+	}
+}

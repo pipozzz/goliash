@@ -164,7 +164,14 @@ templ MatrixGridView(g MatrixGrid) {
 							</tr>
 						}
 						for _, r := range grp.Rows {
-							<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) } data-health={ r.Health }>
+							<tr
+								data-search={ rowSearch(r) }
+								data-drift={ rowDrift(r) }
+								data-health={ r.Health }
+								if r.Same != "" {
+									data-same={ r.Same }
+								}
+							>
 								<td class="svc">
 									@kindIcons(r.Kinds)
 									<a href={ templ.URL(r.URL) }>{ r.Service }</a>
@@ -176,6 +183,9 @@ templ MatrixGridView(g MatrixGrid) {
 									}
 									if r.Owner != "" {
 										<span class="owner">{ r.Owner }</span>
+									}
+									if r.Same != "" {
+										<button type="button" class="link same-more" data-same-more hidden></button>
 									}
 								</td>
 								for i, c := range r.Cells {

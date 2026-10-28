@@ -98,7 +98,7 @@
     document.querySelectorAll("[data-same][data-same-hid]").forEach(function (el) { el.hidden = false; el.removeAttribute("data-same-hid"); });
     const groups = {};
     document.querySelectorAll("[data-same]").forEach(function (el) {
-      if (el.hidden) return;
+      if (el.hidden || el.classList.contains("filtered")) return;
       const k = el.getAttribute("data-same");
       (groups[k] = groups[k] || []).push(el);
     });
@@ -139,6 +139,7 @@
     document.querySelectorAll("table.matrix tbody.mgroup").forEach(function (g) {
       g.classList.toggle("filtered", !g.querySelector("tr[data-search]:not(.filtered)"));
     });
+    foldSame();
     const tbody = document.querySelector("table.matrix tbody:last-of-type");
     let none = tbody && tbody.querySelector("tr.no-match");
     if (tbody && shown === 0 && rows.length > 0) {
