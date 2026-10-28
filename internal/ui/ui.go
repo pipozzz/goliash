@@ -245,6 +245,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /connect/status/{id}", s.page(v, s.connectProgress))
 	mux.Handle("GET /connect/code/{id}", s.page(v, s.connectCodeProgress))
 	mux.Handle("POST /enroll-codes/{id}/revoke", s.page(a, s.revokeCode))
+	mux.Handle("GET /cleanup", s.page(a, s.cleanup))
+	mux.Handle("POST /cleanup", s.page(a, s.cleanupDelete))
 	mux.Handle("POST /enroll-codes/{id}/environment", s.page(a, s.setCodeEnv))
 	mux.Handle("POST /agents/{id}/rotate", s.page(a, s.rotateAgent))
 	mux.Handle("POST /agents/{id}/revoke", s.page(a, s.revokeAgent))

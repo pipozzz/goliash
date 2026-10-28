@@ -123,6 +123,15 @@
   });
   document.body.addEventListener("htmx:afterSwap", foldSame);
 
+  // "Tick all": ticks every box of its form, or unticks them when all are.
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("[data-tick-all]");
+    if (!b || !b.form) return;
+    const boxes = Array.from(b.form.querySelectorAll('input[type="checkbox"][name="id"]'));
+    const all = boxes.length > 0 && boxes.every(function (c) { return c.checked; });
+    boxes.forEach(function (c) { c.checked = !all; });
+  });
+
   function filterMatrix() {
     const q = document.getElementById("matrix-q");
     const drift = document.getElementById("matrix-drift");

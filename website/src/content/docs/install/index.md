@@ -193,3 +193,11 @@ cookies depend on it; with `https://`, cookies are marked Secure. Put the server
 that terminates TLS.
 
 All settings are listed in [Configuration](/reference/configuration/).
+
+## Clean up
+
+**Agents and targets → Clean up** lists what a workspace keeps for nothing, to delete in bulk: agents not heard from
+for a week (with the targets they found themselves), targets nothing has reported for in a week, environments
+without targets, services that run nowhere, and mapping rules that match nothing (their service is gone, or they
+name a Lambda runtime or a database engine, which maps by name). Only what the page still offers when you press
+delete goes: an agent that came back meanwhile stays.
