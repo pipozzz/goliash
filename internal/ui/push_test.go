@@ -145,3 +145,14 @@ func ownRules(t *testing.T, st *store.Store, sc store.Scope, rs []store.Rule) []
 	}
 	return out
 }
+
+// The bell offers notifications on this device: it carries the browser channel and the key.
+func TestBellOffersThisDevice(t *testing.T) {
+	e := newUIEnv(t)
+	viewer := e.as(store.RoleViewer)
+	_, body := get(t, viewer, e.srv.URL+"/ui/notifications", nil)
+	chans, _ := e.st.ListChannels(context.Background(), e.ws.Scope())
+	if len(chans) != 1 || !strings.Contains(body, `"push":{"channel":"`+chans[0].ID+`","key":"B`) {
+		t.Fatalf("bell: %s", body)
+	}
+}

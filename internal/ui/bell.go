@@ -74,6 +74,13 @@ type bellItem struct {
 }
 
 // bellList answers the bell: the latest messages, which are unread, and the count.
+// bellPush lets the bell turn on notifications on this device: the browser channel to join, with the key to
+// subscribe with.
+type bellPush struct {
+	Channel string `json:"channel"`
+	Key     string `json:"key"`
+}
+
 func (s *Server) bellList(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	seen, err := s.store.NotificationsSeen(ctx, p.Scope, p.User.ID)
@@ -91,7 +98,22 @@ func (s *Server) bellList(w http.ResponseWriter, r *http.Request, p auth.Princip
 	out := struct {
 		Unread int        `json:"unread"`
 		Items  []bellItem `json:"items"`
+		// Push is the workspace's browser channel and the server's key, so the bell can offer this device.
+		Push *bellPush `json:"push,omitempty"`
 	}{Items: []bellItem{}}
+	if err := s.ensurePushChannel(r, p); err != nil {
+		return err
+	}
+	if chans, err := s.store.ListChannels(ctx, p.Scope); err == nil {
+		for _, c := range chans {
+			if c.Type == "push" {
+				if key := s.pushKey(r); key != "" {
+					out.Push = &bellPush{Channel: c.ID, Key: key}
+				}
+				break
+			}
+		}
+	}
 	for _, m := range feed {
 		msg := notifier.Message{Workspace: p.Workspace.Name, Digest: m.Mode != "instant" || len(m.Items) > 1}
 		for _, raw := range m.Items {

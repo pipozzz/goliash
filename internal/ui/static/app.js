@@ -1192,6 +1192,28 @@
     if (window.htmx) htmx.process(bellPanel);
     fetch("/ui/notifications", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : { items: [] }; }).then(function (d) {
       list.replaceChildren();
+      // This device: notifications pushed to it, turned on (or off) here rather than in the settings.
+      if (d.push && pushSupported()) {
+        const foot = el("div", "bell-device");
+        foot.setAttribute("data-push-scope", "");
+        const on = el("button", "link", "Notify me on this device");
+        on.type = "button";
+        on.setAttribute("data-push", "subscribe");
+        on.setAttribute("data-channel", d.push.channel);
+        on.hidden = true;
+        const off = el("button", "link", "Stop on this device");
+        off.type = "button";
+        off.setAttribute("data-push", "unsubscribe");
+        off.setAttribute("data-channel", d.push.channel);
+        off.hidden = true;
+        const state = el("span", "muted bell-device-state");
+        const note = el("div", "push-note");
+        note.setAttribute("data-push-key", d.push.key);
+        note.hidden = true;
+        foot.append(state, on, off, note);
+        bellPanel.appendChild(foot);
+        pushSetup();
+      }
       if (!d.items.length) {
         const empty = el("li", "bell-empty");
         empty.appendChild(el("p", null, "Nothing yet."));
@@ -1332,8 +1354,8 @@
 
   // Web push: "Notify this browser" next to a push channel. The browser holds one push
   // subscription (with the server's key), added to each push channel the person picks.
-  function pushNote(text, bad) {
-    const note = document.querySelector("[data-push-key]");
+  function pushNote(text, bad, scope) {
+    const note = (scope && scope.querySelector("[data-push-key]")) || document.querySelector("[data-push-key]");
     if (!note) return;
     note.textContent = text;
     note.className = "push-note " + (bad ? "bad" : "good");
@@ -1370,12 +1392,18 @@
       const subscribed = on.indexOf(b.getAttribute("data-channel")) >= 0;
       b.hidden = (b.getAttribute("data-push") === "subscribe") === subscribed;
     });
+    document.querySelectorAll(".bell-device").forEach(function (f) {
+      const off = f.querySelector('[data-push="unsubscribe"]');
+      f.querySelector(".bell-device-state").textContent = off && !off.hidden ? "On on this device." : "";
+    });
   }
   async function pushToggle(b) {
     const channel = b.getAttribute("data-channel");
-    const key = document.querySelector("[data-push-key]").getAttribute("data-push-key");
+    const scope = b.closest("[data-push-scope]");
+    const key = ((scope && scope.querySelector("[data-push-key]")) || document.querySelector("[data-push-key]")).getAttribute("data-push-key");
+    const note = function (text, bad) { pushNote(text, bad, scope); };
     b.disabled = true;
-    pushNote("Asking this browser…", false);
+    note("Asking this browser…", false);
     try {
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
@@ -1386,12 +1414,12 @@
         const have = sub && sub.options.applicationServerKey && new Uint8Array(sub.options.applicationServerKey);
         if (sub && (!have || have.length !== want.length || have.some(function (x, i) { return x !== want[i]; }))) { await sub.unsubscribe(); sub = null; }
         if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
-        pushNote((await pushPost("/notifications/channels/" + channel + "/push", sub.toJSON())).notice, false);
+        note((await pushPost("/notifications/channels/" + channel + "/push", sub.toJSON())).notice, false);
       } else if (sub) {
-        pushNote((await pushPost("/notifications/channels/" + channel + "/push/delete", { endpoint: sub.endpoint })).notice, false);
+        note((await pushPost("/notifications/channels/" + channel + "/push/delete", { endpoint: sub.endpoint })).notice, false);
       }
     } catch (err) {
-      pushNote("This browser could not subscribe: " + (err.message || String(err)), true);
+      note("This browser could not subscribe: " + (err.message || String(err)), true);
     } finally {
       b.disabled = false;
       pushSetup();
