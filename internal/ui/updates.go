@@ -35,8 +35,9 @@ type UpdatesView struct {
 	Markdown     string // the list as a markdown checklist, to copy into a ticket
 	Total        int    // before filters
 	Watched      []WatchedItem
-	Overdue      int  // upgrades past the workspace's remediation deadline, before the urgency filter
-	OnlyOverdue  bool // ?due=over: only those
+	Overdue      int    // upgrades past the workspace's remediation deadline, before the urgency filter
+	OnlyOverdue  bool   // ?due=over: only those
+	Kinds        []kind // where the upgrades run, for the filter's buttons
 }
 
 // WatchedItem is a service watched for its releases that runs nowhere Goliash knows.
@@ -78,6 +79,9 @@ type UpdateItem struct {
 	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
 	PRs                                  []PromotePR        // Argo CD applications the upgrade can be opened in as a pull request
 	ServiceID, EnvID                     string
+	Kinds                                []string     // where it runs (lambda, ecs …), for icons and the filter
+	What                                 string       // what it is when its name does not say: "Node.js runtime"
+	Same                                 string       // the upgrade it shares with other rows (same image, versions, environment), for folding them
 	Ticket                               *TicketView  // the open ticket filed for it, if any
 	TicketChannels                       []ChannelOpt // trackers a ticket can be filed in by hand
 }
@@ -218,6 +222,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		return UpdatesView{}, err
 	}
 	now := time.Now()
+	kinds := serviceKinds(o)
 	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
@@ -237,6 +242,10 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 		if !u.Due.IsZero() {
 			it.DaysLeft = u.DaysLeft(now)
+		}
+		it.Kinds, it.What = kinds[u.Service.ID], rowWhat(o.Refs[u.Service.ID].Repo)
+		if repo := o.Refs[u.Service.ID].Repo; repo != "" {
+			it.Same = strings.Join([]string{repo, u.Running, u.Target, u.Environment.Name, strconv.Itoa(u.Urgency)}, "|")
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
 			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
@@ -272,7 +281,31 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		return UpdatesView{}, err
 	}
 	v.Markdown = md.String()
+	// A key shared by one row is no fold; the kinds present become the filter's buttons.
+	same := map[string]int{}
+	rows := make([]MatrixRow, 0, len(v.Items))
+	for _, it := range v.Items {
+		same[it.Same]++
+		rows = append(rows, MatrixRow{Kinds: it.Kinds})
+	}
+	for i := range v.Items {
+		if same[v.Items[i].Same] < 2 {
+			v.Items[i].Same = ""
+		}
+	}
+	v.Kinds = kindOptions(rows)
 	return v, nil
+}
+
+// updateSearch is what the filter matches a row by: what it shows, its kinds (type:lambda) and what it is.
+func updateSearch(it UpdateItem) string {
+	parts := []string{it.Service, it.App, it.Owner, it.Env, it.On, it.Running, it.Target, it.Jump, it.LevelLabel, it.What, kindTokens(it.Kinds)}
+	parts = append(parts, it.Exploited...)
+	parts = append(parts, it.Exposed...)
+	if it.EOL != "" {
+		parts = append(parts, "end of life", it.EOL)
+	}
+	return strings.ToLower(strings.Join(parts, " "))
 }
 
 // updateMarkdown is one checklist line: "- [ ] postgres (auth) @ prod: 15.6 → 15.8 (end of life 2026-09-01)".

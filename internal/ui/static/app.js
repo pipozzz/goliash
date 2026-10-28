@@ -81,11 +81,47 @@
   // so a filtered matrix can be shared, and it survives the live refreshes.
   // matchWords: every word must appear in hay, except kinds (type:lambda), of which one is enough:
   // "type:ecs type:docker" is what runs on ECS or Docker.
+  // A word starting with a dash leaves out what has it: "-pr-" hides the preview copies.
   function matchWords(words, hay) {
     const kinds = words.filter(function (w) { return w.indexOf("type:") === 0; });
-    return words.every(function (w) { return w.indexOf("type:") === 0 || hay.indexOf(w) >= 0; }) &&
-      (kinds.length === 0 || kinds.some(function (k) { return hay.indexOf(k) >= 0; }));
+    return words.every(function (w) {
+      if (w.indexOf("type:") === 0) return true;
+      if (w.length > 1 && w[0] === "-") return hay.indexOf(w.slice(1)) < 0;
+      return hay.indexOf(w) >= 0;
+    }) && (kinds.length === 0 || kinds.some(function (k) { return hay.indexOf(k) >= 0; }));
   }
+
+  // Rows with the same data-same (one upgrade of one image in one environment, say every Node.js function
+  // 22 -> 24) fold into the first one shown, with "+N more like this" to unfold them.
+  const sameOpen = new Set();
+  function foldSame() {
+    document.querySelectorAll("[data-same][data-same-hid]").forEach(function (el) { el.hidden = false; el.removeAttribute("data-same-hid"); });
+    const groups = {};
+    document.querySelectorAll("[data-same]").forEach(function (el) {
+      if (el.hidden) return;
+      const k = el.getAttribute("data-same");
+      (groups[k] = groups[k] || []).push(el);
+    });
+    document.querySelectorAll("[data-same-more]").forEach(function (b) { b.hidden = true; });
+    Object.keys(groups).forEach(function (k) {
+      const rows = groups[k];
+      const more = rows[0].querySelector("[data-same-more]");
+      if (rows.length < 2 || !more) return;
+      more.hidden = false;
+      more.setAttribute("data-same-key", k);
+      if (sameOpen.has(k)) { more.textContent = "fold the " + (rows.length - 1) + " like this"; return; }
+      more.textContent = "+" + (rows.length - 1) + " more like this";
+      rows.slice(1).forEach(function (el) { el.hidden = true; el.setAttribute("data-same-hid", ""); });
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("[data-same-more]");
+    if (!b) return;
+    const k = b.getAttribute("data-same-key");
+    if (sameOpen.has(k)) sameOpen.delete(k); else sameOpen.add(k);
+    foldSame();
+  });
+  document.body.addEventListener("htmx:afterSwap", foldSame);
 
   function filterMatrix() {
     const q = document.getElementById("matrix-q");
@@ -166,8 +202,10 @@
       const ok = matchWords(words, hay);
       total++;
       if (ok) shown++;
+      el.removeAttribute("data-same-hid");
       if (dim) el.classList.toggle("filter-out", !ok); else el.hidden = !ok;
     });
+    foldSame();
     document.querySelectorAll("[data-group]").forEach(function (g) {
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
@@ -224,9 +262,11 @@
   function bulkShown(form) {
     return Array.from(document.querySelectorAll('input[form="' + form + '"][name="pr"]')).filter(function (c) {
       const row = c.closest("tr");
-      return !row || !row.hidden;
+      return !row || shownRow(row);
     });
   }
+  // shownRow: a row the filter keeps; one folded under "+N more like this" counts, it is only out of sight.
+  function shownRow(r) { return !r.hidden || r.hasAttribute("data-same-hid"); }
   function bulkCount() {
     const form = document.getElementById("bulk-prs");
     if (!form) return;
@@ -249,7 +289,7 @@
     if (e.target.id !== "bulk-prs") return;
     document.querySelectorAll('input[form="bulk-prs"][name="pr"]:checked').forEach(function (c) {
       const row = c.closest("tr");
-      if (row && row.hidden) c.checked = false; // not shown: not opened
+      if (row && !shownRow(row)) c.checked = false; // not shown: not opened
     });
   }, true);
   // Filters with words in them apply again to what a live refresh brought.
@@ -344,7 +384,7 @@
     const el = document.getElementById(btn.getAttribute("data-copy"));
     // data-copy-rows: the lines of the rows shown (a filter may hide some), else the element's text.
     const rows = btn.getAttribute("data-copy-rows");
-    const text = rows ? Array.from(document.querySelectorAll(rows)).filter(function (r) { return !r.hidden; })
+    const text = rows ? Array.from(document.querySelectorAll(rows)).filter(shownRow)
       .map(function (r) { return r.getAttribute("data-md"); }).join("") : el.textContent;
     navigator.clipboard.writeText(text).then(
       function () { btn.textContent = "Copied"; },
@@ -1844,6 +1884,7 @@
       filterMatrix();
     }
     syncKindChips();
+    foldSame();
   }
   // A combobox for names (data-combo names the datalist of existing ones): as you type it lists the existing names
   // that match and, for a name not among them, offers to create it (data-combo-new: "Create team"). Arrow keys

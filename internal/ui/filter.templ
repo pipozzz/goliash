@@ -7,7 +7,7 @@ package ui
 // selector names stay only when they hold every word (app.js, filterCards).
 templ pageFilter(selector, placeholder string) {
 	<div class="page-filter-box">
-		<input type="search" class="search page-filter" data-filter={ selector } data-filter-url data-filter-count="page-filter-count" placeholder={ placeholder } aria-label={ placeholder } aria-keyshortcuts="/" autocomplete="off"/>
+		<input type="search" id="page-filter" class="search page-filter" data-filter={ selector } data-filter-url data-filter-count="page-filter-count" placeholder={ placeholder } aria-label={ placeholder } aria-keyshortcuts="/" autocomplete="off"/>
 		<span id="page-filter-count" class="muted filter-count" aria-live="polite"></span>
 	</div>
 }
