@@ -93,6 +93,9 @@ func splitRepository(repository string) (host, repo string, err error) {
 	if !ok {
 		return "", "", fmt.Errorf("repository %q has no registry host", repository)
 	}
+	if public, ok := Alias(host); ok {
+		host = public
+	}
 	if host == "docker.io" {
 		host = "registry-1.docker.io"
 	}
