@@ -193,3 +193,33 @@ func browserName(ua string) string {
 	}
 	return name
 }
+
+// pushChannelName is the workspace's one web push channel, which Goliash makes by itself.
+const pushChannelName = "Browser notifications"
+
+// pushDefaultEvents are what the browser channel sends right away: what someone should look at now, not every
+// deploy. People change its rule like any other.
+var pushDefaultEvents = []string{"vulnerability", "deadline", "rollout", "rollback", "agent_stale"}
+
+// ensurePushChannel gives the workspace its web push channel, with a rule for what matters now, unless it has one:
+// people only turn it on in their browser. One channel serves every browser.
+func (s *Server) ensurePushChannel(r *http.Request, p auth.Principal) error {
+	ctx := r.Context()
+	chans, err := s.store.ListChannels(ctx, p.Scope)
+	if err != nil {
+		return err
+	}
+	for _, c := range chans {
+		if c.Type == "push" {
+			return nil
+		}
+	}
+	c, err := s.store.CreateChannel(ctx, store.Channel{Scope: p.Scope, Type: "push", Name: pushChannelName, Config: json.RawMessage(`{}`)})
+	if err != nil {
+		// Made by another request just now, or the name is taken by another channel: the page works without it.
+		s.log.WarnContext(ctx, "browser notifications channel not made", "err", err)
+		return nil
+	}
+	_, err = s.store.CreateRule(ctx, store.Rule{Scope: p.Scope, ChannelID: c.ID, EventTypes: pushDefaultEvents, Filter: json.RawMessage(`{}`), Mode: "instant"})
+	return err
+}

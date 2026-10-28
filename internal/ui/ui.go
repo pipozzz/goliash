@@ -1764,6 +1764,9 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	v := NotificationsView{Base: withFlash(s.base(ctx, p, "notifications", "Notifications"), r), SMTP: s.smtp}
+	if err := s.ensurePushChannel(r, p); err != nil {
+		return err
+	}
 	chans, err := s.store.ListChannels(ctx, p.Scope)
 	if err != nil {
 		return err
@@ -1876,6 +1879,9 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 	}
 	if name == "" {
 		return back(w, r, "/notifications", "error", "Give the channel a name.")
+	}
+	if typ == "push" {
+		return back(w, r, "/notifications", "error", pushChannelName+" is the one web push channel: press Notify this browser in its row.")
 	}
 	if typ == "email" && !s.smtp && cfg["smtp_addr"] == nil {
 		return back(w, r, "/notifications", "error", "This server has no mail relay: give the channel its own mail server.")

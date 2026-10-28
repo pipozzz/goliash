@@ -21,7 +21,7 @@ often). Both are managed on the Notifications page or with the CLI.
 | Grafana | Grafana's URL and a service account token with `annotations:write`; every item becomes an annotation. |
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients, and optionally the channel's own mail server (see below). |
-| Web push | Nothing: each person adds their browsers from the Notifications page (see below). |
+| Web push | Nothing: the channel is there already; each person adds their browsers (see below). |
 | In Goliash | Nothing: messages only show under the bell (see below). |
 
 ```sh
@@ -54,11 +54,12 @@ GOLIASH_CHANNEL_SMTP_PASSWORD=… goliash channel create -type email -name oncal
 
 ### Web push
 
-A **Web push** channel sends to browsers: desktop notifications in Chrome, Edge, Firefox and Safari, and on phones.
-Add the channel, then press **Notify this browser** next to it in every browser that should get its notifications
-(the browser asks for permission once); **Stop on this browser** takes it off again. Anyone with access to the
-workspace can add their own browsers; the channel shows how many are on it. Rules pick the events as for any other
-channel, so a channel for releases and another for end-of-life drift each go only where they were added.
+Every workspace has one web push channel, **Browser notifications**, made by itself: desktop notifications in
+Chrome, Edge, Firefox and Safari, and on phones. Press **Notify this browser** next to it in every browser that should
+get them (the browser asks for permission once); **Stop on this browser** takes it off again. Anyone with access to
+the workspace can add their own browsers; the channel shows how many are on it. It comes with a rule that sends right
+away what someone should look at now: exploited or critical vulnerabilities, remediation deadlines, stuck rollouts
+and services down, rollbacks and stale agents. Change that rule, or add more, as for any other channel.
 
 A notification shows the item's kind, service and change, and opens Goliash on that service when clicked; digests
 show the first lines. Browsers that unsubscribed or expired are forgotten at the next message.

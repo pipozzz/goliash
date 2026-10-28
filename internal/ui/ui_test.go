@@ -926,6 +926,7 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 		t.Fatalf("save: %s", body)
 	}
 	chans, _ := e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	var cfg map[string]string
 	_ = json.Unmarshal(chans[0].Config, &cfg)
 	if chans[0].Name != "ops-2" || cfg["url"] != hook || cfg["secret"] != "s3cr3t" {
@@ -933,6 +934,7 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 	}
 	_, _, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID, url.Values{"name": {"ops-2"}, "url": {"https://example.com/hook"}, "secret": {"new"}})
 	chans, _ = e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	_ = json.Unmarshal(chans[0].Config, &cfg)
 	if cfg["url"] != "https://example.com/hook" || cfg["secret"] != "new" {
 		t.Fatalf("replaced %v", cfg)
@@ -1462,6 +1464,7 @@ func TestEmailChannelOwnServer(t *testing.T) {
 		t.Fatalf("add: %s", body)
 	}
 	chans, _ := e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	_, body := get(t, admin, e.srv.URL+"/notifications/channels/"+chans[0].ID, nil)
 	if strings.Contains(body, "hunter2pass") || !strings.Contains(body, "smtp.example.com:465") || !strings.Contains(body, "set; leave empty to keep") {
 		t.Fatal("edit page leaks the password or misses the server")
@@ -1470,6 +1473,7 @@ func TestEmailChannelOwnServer(t *testing.T) {
 	edit := url.Values{"name": {"oncall"}, "to": {"oncall@example.com"}, "smtp_addr": {"smtp.example.com:465"}, "smtp_from": {"goliash@example.com"}, "smtp_username": {"mailer"}, "smtp_tls": {"tls"}}
 	_, _, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+chans[0].ID, edit)
 	chans, _ = e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	var cfg map[string]any
 	_ = json.Unmarshal(chans[0].Config, &cfg)
 	if cfg["smtp_password"] != "hunter2pass" || cfg["smtp_tls"] != "tls" {
