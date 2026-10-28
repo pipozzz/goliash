@@ -35,6 +35,8 @@ type UnreadRegistry struct {
 	ECR      bool // Amazon ECR: read by an agent with its IAM role, never with stored credentials
 	// Managed: an AWS managed engine (RDS, ElastiCache …), whose versions the agent asks AWS for; no registry.
 	Managed bool
+	// Error is what an agent last got from the registry, when it got an error.
+	Error string
 }
 
 // isECR reports whether host is an Amazon ECR registry.
@@ -162,4 +164,9 @@ func (s *Server) deleteRegistry(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	s.audit(r.Context(), p, "registry.credentials.delete", "host", host)
 	return back(w, r, "/settings#registries", "notice", "Removed the credentials for "+host+". Agents with their own credentials still read it.")
+}
+
+// shortError is an agent's error as the banner shows it: without the "agent: " prefix, at most a line or two.
+func shortError(e string) string {
+	return truncateRunes(strings.TrimPrefix(e, "agent: "), 220)
 }

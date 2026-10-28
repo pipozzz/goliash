@@ -37,3 +37,16 @@ func TestFamilyCaptionShort(t *testing.T) {
 		t.Fatalf("five members are all named: %q", got)
 	}
 }
+
+// The banner says what the agent got, so a missing permission shows its AWS error.
+func TestUnreadShowsAgentError(t *testing.T) {
+	o := versions.Overview{
+		Refs:      map[string]versions.Reference{"api": {Repo: "123456789012.dkr.ecr.eu-central-1.amazonaws.com/api", Tag: "1.0"}},
+		Services:  map[string]store.Service{"api": {ID: "api"}},
+		CheckErrs: map[string]string{"api": "agent: AccessDeniedException: not authorized to perform: ecr:ListImages"},
+	}
+	got := unreadRegistries(o)
+	if len(got) != 1 || !got[0].ECR || !strings.HasPrefix(shortError(got[0].Error), "AccessDeniedException") {
+		t.Fatalf("unread %+v", got)
+	}
+}
