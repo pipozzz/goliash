@@ -956,9 +956,19 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 		t.Fatalf("delete: %s", body)
 	}
 
-	// Workspaces are renamed; the slug stays.
-	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"Acme Production"}}); !strings.Contains(body, "Workspace renamed to Acme Production.") {
+	// Workspaces are renamed, slug too; a bad or taken slug is refused.
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"Acme Production"}, "slug": {"acme-prod"}}); !strings.Contains(body, "Workspace saved as Acme Production (acme-prod)") {
 		t.Fatalf("rename: %s", body)
+	}
+	if wss, _ := e.st.ListOrgWorkspaces(context.Background(), e.ws.OrgID); len(wss) == 0 || wss[0].Slug != "acme-prod" {
+		t.Errorf("slug %+v", wss)
+	}
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"x"}, "slug": {"Not A Slug"}}); !strings.Contains(body, "lowercase letters") {
+		t.Fatal("a bad slug was accepted")
+	}
+	other, _ := e.st.CreateWorkspace(context.Background(), e.ws.OrgID, "Other", "other")
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+other.ID+"/rename", url.Values{"name": {"Other"}, "slug": {"acme-prod"}}); !strings.Contains(body, "Another workspace has the slug") {
+		t.Fatal("a taken slug was accepted")
 	}
 	if code, _, _ := post(t, e.as(store.RoleMember), e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"x"}}); code != http.StatusForbidden {
 		t.Fatal("member renamed a workspace")

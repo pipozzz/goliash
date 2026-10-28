@@ -406,16 +406,23 @@ func (s *Server) renameWorkspace(w http.ResponseWriter, r *http.Request, p auth.
 		return nil
 	}
 	name := strings.TrimSpace(r.FormValue("name"))
+	slug := strings.ToLower(strings.TrimSpace(r.FormValue("slug")))
 	if name == "" || len(name) > 100 {
 		return back(w, r, "/workspaces", "error", "Give the workspace a name of up to 100 characters.")
 	}
-	if err := s.store.RenameWorkspace(r.Context(), p.User.OrgID, r.PathValue("id"), name); errors.Is(err, store.ErrNotFound) {
+	if !workspaceSlug.MatchString(slug) {
+		return back(w, r, "/workspaces", "error", "A slug is lowercase letters, digits and dashes, e.g. client-a.")
+	}
+	switch err := s.store.RenameWorkspace(r.Context(), p.User.OrgID, r.PathValue("id"), name, slug); {
+	case errors.Is(err, store.ErrNotFound):
 		return back(w, r, "/workspaces", "error", "Unknown workspace.")
-	} else if err != nil {
+	case errors.Is(err, store.ErrExists):
+		return back(w, r, "/workspaces", "error", "Another workspace has the slug "+slug+".")
+	case err != nil:
 		return err
 	}
-	s.audit(r.Context(), p, "workspace.rename", "workspace", name)
-	return back(w, r, "/workspaces", "notice", "Workspace renamed to "+name+".")
+	s.audit(r.Context(), p, "workspace.rename", "workspace", name, "slug", slug)
+	return back(w, r, "/workspaces", "notice", "Workspace saved as "+name+" ("+slug+"). Group roles that name its old slug need the new one.")
 }
 
 // orDefault is s, or def when s is empty.

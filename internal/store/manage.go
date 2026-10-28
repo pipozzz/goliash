@@ -106,9 +106,12 @@ func (s *Store) DeleteService(ctx context.Context, sc Scope, id string) error {
 	})
 }
 
-// RenameWorkspace changes a workspace's display name; its slug stays.
-func (s *Store) RenameWorkspace(ctx context.Context, orgID, id, name string) error {
-	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET name = ? WHERE org_id = ? AND id = ?`, name, orgID, id)
+// RenameWorkspace changes a workspace's display name and slug. ErrExists: another workspace has the slug.
+func (s *Store) RenameWorkspace(ctx context.Context, orgID, id, name, slug string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE workspaces SET name = ?, slug = ? WHERE org_id = ? AND id = ?`, name, slug, orgID, id)
+	if err != nil && isUniqueViolation(err) {
+		return ErrExists
+	}
 	return expectOne(res, err)
 }
 
