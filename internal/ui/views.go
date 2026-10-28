@@ -990,6 +990,7 @@ type RuleEditView struct {
 // NotificationsView is the notifications page.
 type NotificationsView struct {
 	Base
+	Add      string // ?add=: the channel type the add form opens with
 	Channels []ChannelView
 	Rules    []RuleView
 	SMTP     bool

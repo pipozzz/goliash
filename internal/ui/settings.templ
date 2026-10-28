@@ -14,7 +14,18 @@ templ NotificationsPage(v NotificationsView) {
 		</div>
 		<div class="notif-panels">
 			<section class="panel">
-				<div class="panel-head"><h2>Channels</h2></div>
+				<div class="panel-head">
+					<h2>Channels</h2>
+					if v.CanAdmin {
+						<span class="channel-adds">
+							<a class="button secondary" href="/notifications?add=slack#add-channel">Add a channel</a>
+							<span class="muted">Tickets in</span>
+							for _, t := range [][2]string{{"jira", "Jira"}, {"shortcut", "Shortcut"}, {"github_issues", "GitHub"}, {"gitlab_issues", "GitLab"}, {"linear", "Linear"}} {
+								<a href={ templ.URL("/notifications?add=" + t[0] + "#add-channel") }>{ t[1] }</a>
+							}
+						</span>
+					}
+				</div>
 				if v.PushKey != "" {
 					<div class="push-note" data-push-key={ v.PushKey } hidden></div>
 				}
@@ -65,7 +76,7 @@ templ NotificationsPage(v NotificationsView) {
 				}
 				if v.CanAdmin {
 					<div class="panel-body" style="border-top:1px solid var(--line)">
-						<details>
+						<details id="add-channel" open?={ v.Add != "" }>
 							<summary>Add a channel</summary>
 							<form class="stack" method="post" action="/notifications/channels">
 								<div class="row">
@@ -73,21 +84,21 @@ templ NotificationsPage(v NotificationsView) {
 									<label>
 										Type
 										<select name="type" data-channel-type>
-											<option value="slack">Slack (incoming webhook)</option>
-											<option value="discord">Discord (channel webhook)</option>
-											<option value="teams">Microsoft Teams (Workflows webhook)</option>
-											<option value="gchat">Google Chat (space webhook)</option>
-											<option value="telegram">Telegram (bot)</option>
-											<option value="ntfy">ntfy</option>
-											<option value="grafana">Grafana annotations</option>
-											<option value="webhook">Webhook</option>
-											<option value="email">E-mail</option>
-											<option value="inapp">In Goliash (the bell)</option>
-											<option value="jira">Jira (tickets)</option>
-											<option value="shortcut">Shortcut (stories)</option>
-											<option value="github_issues">GitHub Issues</option>
-											<option value="gitlab_issues">GitLab Issues</option>
-											<option value="linear">Linear</option>
+											<option value="slack" selected?={ v.Add == "slack" }>Slack (incoming webhook)</option>
+											<option value="discord" selected?={ v.Add == "discord" }>Discord (channel webhook)</option>
+											<option value="teams" selected?={ v.Add == "teams" }>Microsoft Teams (Workflows webhook)</option>
+											<option value="gchat" selected?={ v.Add == "gchat" }>Google Chat (space webhook)</option>
+											<option value="telegram" selected?={ v.Add == "telegram" }>Telegram (bot)</option>
+											<option value="ntfy" selected?={ v.Add == "ntfy" }>ntfy</option>
+											<option value="grafana" selected?={ v.Add == "grafana" }>Grafana annotations</option>
+											<option value="webhook" selected?={ v.Add == "webhook" }>Webhook</option>
+											<option value="email" selected?={ v.Add == "email" }>E-mail</option>
+											<option value="inapp" selected?={ v.Add == "inapp" }>In Goliash (the bell)</option>
+											<option value="jira" selected?={ v.Add == "jira" }>Jira (tickets)</option>
+											<option value="shortcut" selected?={ v.Add == "shortcut" }>Shortcut (stories)</option>
+											<option value="github_issues" selected?={ v.Add == "github_issues" }>GitHub Issues</option>
+											<option value="gitlab_issues" selected?={ v.Add == "gitlab_issues" }>GitLab Issues</option>
+											<option value="linear" selected?={ v.Add == "linear" }>Linear</option>
 										</select>
 									</label>
 								</div>

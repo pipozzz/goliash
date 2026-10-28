@@ -546,6 +546,12 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 }
 
 // vulnsHref links the vulnerability list with its filters.
+// vulnsUnfiltered is the page without its exploited and exposed filters.
+func vulnsUnfiltered(v VulnsView) string {
+	v.OnlyKEV, v.Exposed = false, false
+	return vulnsHref(v, "", "")
+}
+
 func vulnsHref(v VulnsView, key, value string) string {
 	q := url.Values{}
 	if v.Query != "" {

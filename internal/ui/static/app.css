@@ -1493,3 +1493,5 @@ td.svc .what { display: block; color: var(--muted); font-size: 12px; }
 /* "+12 more like this": the same upgrade in many rows, folded into one. */
 .same-more { display: block; margin-top: 4px; font-size: 12px; }
 table.updates td.svc .what { display: block; color: var(--muted); font-size: 12px; }
+/* Channels: add one, or connect a ticket tracker, from the panel's head. */
+.channel-adds { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }

@@ -143,8 +143,30 @@ templ VulnsPage(v VulnsView) {
 					<p class="hint panel-note">{ plural(v.Hidden, "more vulnerability", "more vulnerabilities") } not shown; search to narrow the list.</p>
 				}
 			</section>
+		} else if v.Query == "" {
+			@vulnsEmpty(v)
 		}
 	}
+}
+
+// vulnsEmpty says why the list is empty: nothing known in what Goliash could read, the filters, or nothing read.
+templ vulnsEmpty(v VulnsView) {
+	<section class="panel">
+		<div class="empty stack">
+			if v.Packages == 0 {
+				<p><strong>No packages known yet</strong>, so no vulnerabilities either.</p>
+				<p class="muted">Goliash reads them from the SBOMs attached to the running images (or from the image's package database). Images built without one stay blind spots; the build step that adds an SBOM is on the <a href="/security">Security page</a> under blind spots.</p>
+			} else if v.OnlyKEV || v.Exposed {
+				<p><strong>Nothing with these filters</strong> in the { plural(v.Packages, "package", "packages") } of { plural(v.WithSBOM, "image", "images") }.</p>
+				<p class="muted"><a href={ templ.URL(vulnsUnfiltered(v)) }>Show every vulnerability</a></p>
+			} else {
+				<p><strong>No known vulnerabilities</strong> in the { plural(v.Packages, "package", "packages") } of the { plural(v.WithSBOM, "image", "images") } with an SBOM{ inEnv(v) }.</p>
+			}
+			if len(v.Blind) > 0 {
+				<p class="muted">{ plural(len(v.Blind), "running image has", "running images have") } no known packages, so what they carry is not covered. See the blind spots on the <a href="/security">Security page</a>.</p>
+			}
+		</div>
+	</section>
 }
 
 func severityClass(s string) string {
