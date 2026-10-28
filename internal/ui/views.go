@@ -1036,6 +1036,8 @@ type AuditView struct {
 
 // SettingsView is the users and tokens page.
 type SettingsView struct {
+	SSOOn   bool   // single sign-on works now
+	SSOName string // its button label
 	Base
 	GroupRoles    bool // roles come from the identity provider's groups
 	Freezes       []FreezeView

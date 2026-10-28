@@ -364,6 +364,20 @@ templ SettingsPage(v SettingsView) {
 			</div>
 		</section>
 		if v.CanGrantOwner {
+			<section class="panel" id="sso">
+				<div class="panel-head">
+					<h2>Single sign-on</h2>
+					if v.SSOOn {
+						<span class="badge ok">{ v.SSOName }</span>
+					} else {
+						<span class="badge neutral">off</span>
+					}
+				</div>
+				<div class="panel-body stack">
+					<p class="muted">Sign-in with your identity provider (Google, Entra ID, Okta, Keycloak …), for the whole organization; its groups can decide roles in each workspace.</p>
+					<div class="actions"><a class="button secondary" href="/settings/sso">Set up single sign-on</a></div>
+				</div>
+			</section>
 			<section class="panel" id="two-factor">
 				<div class="panel-head">
 					<h2>Two-factor sign-in</h2>

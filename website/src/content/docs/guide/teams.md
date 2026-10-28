@@ -14,10 +14,16 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   phone or a security key). Then **Sign in with a passkey** on the sign-in page, or pick it from the browser's
   suggestions in the e-mail field: no password, no code. A passkey only works on this server's address, so it cannot
   be phished. Passkeys need `GOLIASH_PUBLIC_URL` with a domain name over HTTPS (or `http://localhost`).
-- **OIDC.** Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …). Set
-  `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID` and `GOLIASH_OIDC_CLIENT_SECRET`, and register the redirect URI
-  `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
-  viewers on first sign-in; others need an invitation.
+- **Single sign-on (OIDC).** Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …),
+  one for the whole organization. An owner sets it up under **Settings → Single sign-on**: the page shows the redirect
+  URI to register with the provider (`<public URL>/auth/oidc/callback`), takes the issuer, client ID and secret
+  (encrypted with the server's secret key), and maps the provider's groups to roles in a table: a group to admin of
+  the organization, or to member or viewer in every workspace or one. With groups, the provider decides at every
+  sign-in who gets in and with which role; without, people need an invitation or an allowed e-mail domain. Saving
+  checks that the provider answers, and **Test a sign-in** shows what an account would get (its e-mail, its groups,
+  the roles) without signing anyone in. The same can be set in the environment instead (`GOLIASH_OIDC_*`,
+  `GOLIASH_GROUP_ROLES`, see [Configuration](/reference/configuration/#oidc-sign-in)); it then takes precedence and
+  the page shows it read-only.
 
 ## Apps with access
 

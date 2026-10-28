@@ -1,0 +1,146 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+import (
+	"strings"
+
+	"github.com/pipozzz/goliash/internal/auth"
+	"github.com/pipozzz/goliash/internal/store"
+)
+
+templ SSOPage(v SSOView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/settings">Settings</a> /</p>
+				<h1>Single sign-on</h1>
+				<p class="sub">One OpenID Connect provider for the whole organization (Google, Microsoft Entra ID, Okta, Keycloak, Authentik …). Its groups can decide who may sign in and with which role, in which workspace.</p>
+			</div>
+			if v.Enabled {
+				<span class="badge ok">on</span>
+			} else {
+				<span class="badge neutral">off</span>
+			}
+		</div>
+		if v.Test != nil {
+			@ssoTestResult(*v.Test)
+		}
+		if v.FromEnv {
+			<section class="panel">
+				<div class="panel-body stack">
+					<p>Set up by the environment (<code>GOLIASH_OIDC_ISSUER</code> and the other <code>GOLIASH_OIDC_*</code> variables, <code>GOLIASH_GROUP_ROLES</code>): change it there and restart, or remove those variables to set it up here.</p>
+					<div class="actions"><a class="button secondary" href="/auth/oidc/start?test=1" hx-boost="false">Test a sign-in</a></div>
+				</div>
+			</section>
+		} else {
+			<form method="post" action="/settings/sso" class="stack">
+				<section class="panel">
+					<div class="panel-head"><h2>1. The provider</h2>@panelInfo("register Goliash with the provider as a web application first")</div>
+					<div class="panel-body stack">
+						<p>Register Goliash as a web application with this redirect URI, then copy its client ID and secret here:</p>
+						<pre tabindex="0" class="mono install-cmd" id="sso-callback">{ v.CallbackURL }</pre>
+						<div class="actions"><button type="button" class="secondary" data-copy="sso-callback">Copy</button></div>
+						<div class="row">
+							<label>Issuer URL<input name="issuer" type="url" required value={ v.Settings.Issuer } placeholder="https://accounts.google.com"/></label>
+							<label>Button label<input name="name" maxlength="40" value={ v.Settings.Name } placeholder="Google"/></label>
+						</div>
+						<div class="row">
+							<label>Client ID<input name="client_id" required value={ v.Settings.ClientID } autocomplete="off"/></label>
+							<label>
+								Client secret
+								<input name="client_secret" type="password" autocomplete="new-password" placeholder={ secretPlaceholder(v.HasSecret) } required?={ !v.HasSecret }/>
+							</label>
+						</div>
+						<details>
+							<summary>More</summary>
+							<div class="row">
+								<label>Groups claim<input name="groups_claim" value={ v.Settings.GroupsClaim } placeholder="groups"/><span class="hint">The ID token claim that lists the groups.</span></label>
+								<label>More scopes<input name="scopes" value={ v.Settings.Scopes } placeholder="groups"/><span class="hint">Some providers send groups only when asked, e.g. Authentik and Keycloak.</span></label>
+							</div>
+						</details>
+					</div>
+				</section>
+				<section class="panel">
+					<div class="panel-head"><h2>2. Who gets in, with which role</h2></div>
+					<div class="panel-body stack">
+						<p class="muted">With groups below, the provider decides at every sign-in: people in none of them cannot sign in, and their roles follow their groups (owners stay owners). Without groups, people need an invitation, or an e-mail domain allowed here.</p>
+						<div class="scroll">
+							<table class="sso-groups">
+								<thead><tr><th>Group in the provider</th><th>Role</th><th>Workspace</th></tr></thead>
+								<tbody>
+									for _, row := range v.Rows {
+										<tr>
+											<td><input name="group" value={ row.Group } placeholder="group name" aria-label="Group"/></td>
+											<td>
+												<select name="role" aria-label="Role">
+													for _, role := range []string{store.RoleAdmin, store.RoleMember, store.RoleViewer} {
+														<option value={ role } selected?={ row.Role == role }>{ role }</option>
+													}
+												</select>
+											</td>
+											<td>
+												<select name="workspace" aria-label="Workspace">
+													<option value="" selected?={ row.Workspace == "" }>every workspace</option>
+													for _, ws := range v.Workspaces {
+														<option value={ ws.Slug } selected?={ row.Workspace == ws.Slug || row.Workspace == ws.Name }>{ ws.Name }</option>
+													}
+												</select>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+						<p class="hint">Admin is for the whole organization. Save to get more empty rows.</p>
+						<label>Or let in an e-mail domain as viewers<input name="domains" value={ v.Settings.Domains } placeholder="example.com, example.org"/><span class="hint">Only without groups: people with these addresses get a viewer account at their first sign-in.</span></label>
+					</div>
+				</section>
+				<div class="actions">
+					<button type="submit">Save</button>
+					if v.Enabled {
+						<a class="button secondary" href="/auth/oidc/start?test=1" hx-boost="false">Test a sign-in</a>
+					}
+				</div>
+			</form>
+			if v.Saved {
+				<form method="post" action="/settings/sso/delete" class="actions" hx-confirm="Turn single sign-on off? People sign in with a link or a password instead.">
+					<button type="submit" class="danger">Turn single sign-on off</button>
+					if v.UpdatedBy != "" {
+						<span class="hint">{ "Last saved by " + v.UpdatedBy }</span>
+					}
+				</form>
+			}
+		}
+	}
+}
+
+func secretPlaceholder(saved bool) string {
+	if saved {
+		return "saved; leave empty to keep it"
+	}
+	return ""
+}
+
+templ ssoTestResult(t auth.SSOTest) {
+	<section class="panel">
+		<div class="panel-head">
+			<h2>Test sign-in</h2>
+			if t.Allowed {
+				<span class="badge ok">would sign in</span>
+			} else {
+				<span class="badge bad">refused</span>
+			}
+		</div>
+		<div class="panel-body stack">
+			<p><strong>{ t.Email }</strong>: { t.Result }</p>
+			if len(t.Groups) > 0 {
+				<p class="muted">{ "Groups in the " + t.Claim + " claim: " + strings.Join(t.Groups, ", ") }</p>
+			} else {
+				<p class="muted">{ "The provider sent no groups in the " + t.Claim + " claim. Some send them only when asked for the groups scope (More → More scopes), or only for groups assigned to the application." }</p>
+			}
+			<p class="hint">Nobody was signed in, and no account changed.</p>
+		</div>
+	</section>
+}

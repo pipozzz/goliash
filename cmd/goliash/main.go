@@ -639,12 +639,19 @@ func serve(ctx context.Context, args []string) error {
 		if len(tok) < 32 {
 			return errors.New("GOLIASH_SCIM_TOKEN: use at least 32 random characters, e.g. openssl rand -hex 32")
 		}
-		roles, err := auth.ParseGroupRoles(os.Getenv("GOLIASH_GROUP_ROLES"))
+		envRoles, err := auth.ParseGroupRoles(os.Getenv("GOLIASH_GROUP_ROLES"))
 		if err != nil {
 			return err
 		}
+		// The environment's group roles, or those of the single sign-on set up in Goliash.
+		roles := func() auth.GroupRoles {
+			if len(envRoles) > 0 {
+				return envRoles
+			}
+			return authn.CurrentGroupRoles()
+		}
 		mux.Handle("/scim/v2/", scim.New(db, tok, roles, *publicURL, log))
-		log.Info("scim provisioning enabled", "url", strings.TrimSuffix(*publicURL, "/")+"/scim/v2", "group_roles", len(roles))
+		log.Info("scim provisioning enabled", "url", strings.TrimSuffix(*publicURL, "/")+"/scim/v2", "group_roles", len(roles()))
 	}
 	notify.SetGitPins(uiServer.GitPinsNow)
 	notify.SetRollback(uiServer.RollbackOffer)
@@ -1446,7 +1453,22 @@ func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL s
 			return nil, err
 		}
 		a.SetOIDC(o)
+		a.SetOIDCFromEnv(true)
 		log.Info("oidc sign-in enabled", "issuer", issuer, "group_roles", len(groups))
+		return a, nil
+	}
+	// Single sign-on set up in Goliash (Settings → Single sign-on). A provider that does not answer leaves the other
+	// ways of signing in working; an admin sees why on the settings page.
+	if ws, err := db.ListWorkspaces(ctx); err == nil && len(ws) > 0 {
+		if v, err := db.GetSSO(ctx, ws[0].OrgID); err == nil {
+			if err := a.ApplySSO(ctx, v); err != nil {
+				log.Error("single sign-on not enabled", "issuer", v.Issuer, "err", err)
+			} else {
+				log.Info("oidc sign-in enabled", "issuer", v.Issuer, "from", "settings")
+			}
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return nil, err
+		}
 	}
 	return a, nil
 }

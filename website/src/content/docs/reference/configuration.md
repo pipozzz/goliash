@@ -111,6 +111,8 @@ address, or 30 from one client, pause sign-in for 15 minutes.
 
 ### OIDC sign-in
 
+Owners can set this up in **Settings → Single sign-on** instead; the variables below take precedence when set.
+
 | Variable | Meaning |
 | --- | --- |
 | `GOLIASH_OIDC_ISSUER` | Issuer URL, e.g. `https://accounts.google.com` |
