@@ -3165,12 +3165,16 @@ func (s *Server) exploreExample(w http.ResponseWriter, r *http.Request, p auth.P
 // unreadRegistries lists private registries whose services have no known release yet: neither the server
 // (no credentials) nor an agent could read them.
 func unreadRegistries(o versions.Overview) []UnreadRegistry {
-	count := map[string]int{}
+	count, lastErr := map[string]int{}, map[string]string{}
 	for id, ref := range o.Refs {
 		if u, ok := o.Upstreams[id]; (ok && u.HasLatest) || versions.PackageRepo(ref.Repo) || !versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
 			continue
 		}
-		count[versions.RegistryHost(ref.Repo)]++
+		host := versions.RegistryHost(ref.Repo)
+		count[host]++
+		if e := o.CheckErrs[id]; e != "" && (lastErr[host] == "" || e < lastErr[host]) {
+			lastErr[host] = e // one of them, the same on every page load
+		}
 	}
 	managed := map[string]bool{}
 	for _, ref := range o.Refs {
@@ -3180,7 +3184,7 @@ func unreadRegistries(o versions.Overview) []UnreadRegistry {
 	}
 	out := make([]UnreadRegistry, 0, len(count))
 	for host, n := range count {
-		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host), Managed: managed[host]})
+		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host), Managed: managed[host], Error: lastErr[host]})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
 	return out

@@ -101,6 +101,9 @@ templ MatrixGridView(g MatrixGrid) {
 					} else {
 						<span class="muted">show no newest release: no agent could read this private registry yet.</span>
 					}
+					if u.Error != "" {
+						<span class="muted unread-error" title={ u.Error }>{ "The agent's last answer: " + shortError(u.Error) }</span>
+					}
 					if u.Managed {
 					} else if u.ECR {
 						<span class="muted">Give the agent's IAM role <code>ecr:ListImages</code> (or AmazonEC2ContainerRegistryReadOnly).</span>

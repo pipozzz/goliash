@@ -56,6 +56,13 @@ func (a *Agent) registryLoop(ctx context.Context) {
 
 		if len(checks) > 0 {
 			res := agentproto.RegistryResults{CheckedAt: time.Now().UTC(), Results: a.checkRegistries(ctx, checks)}
+			// A refused or failed check is tried again sooner: a permission given meanwhile shows within minutes.
+			for _, r := range res.Results {
+				if r.Error != nil && *r.Error != "" {
+					interval = min(interval, 10*time.Minute)
+					break
+				}
+			}
 			if err := a.client.registryResults(ctx, res); err != nil && ctx.Err() == nil {
 				a.log.Warn("sending registry results failed", "err", err)
 				interval = time.Minute
