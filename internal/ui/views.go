@@ -847,12 +847,14 @@ type AgentsView struct {
 	Moves      []AgentOption
 	Envs       []EnvView
 	Codes      []CodeView
+	EnvList    []store.Environment // for moving an enrollment code
 }
 
 // CodeView is an enrollment code on the agents page.
 type CodeView struct {
 	ID       string
 	Env      string
+	EnvID    string
 	Many     bool
 	Agents   int
 	Expires  time.Time // zero: never
@@ -867,6 +869,7 @@ type EnvView struct {
 	Name     string
 	Position int
 	Targets  int
+	Live     int // targets that report: an environment without any can go, with its targets
 }
 
 // TargetEditView is the page that edits one target.

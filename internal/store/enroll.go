@@ -113,6 +113,13 @@ func (s *Store) GetEnrollmentCode(ctx context.Context, sc Scope, id string) (Enr
 		WHERE c.org_id = ? AND c.workspace_id = ? AND c.id = ?`, sc.OrgID, sc.WorkspaceID, id))
 }
 
+// SetEnrollmentCodeEnvironment changes where agents that enroll with the code add what they find from now on.
+func (s *Store) SetEnrollmentCodeEnvironment(ctx context.Context, sc Scope, id, environmentID string) error {
+	res, err := s.exec(ctx, s.db, `UPDATE enrollment_codes SET environment_id = ?
+		WHERE org_id = ? AND workspace_id = ? AND id = ?`, environmentID, sc.OrgID, sc.WorkspaceID, id)
+	return expectOne(res, err)
+}
+
 // RevokeEnrollmentCode stops a code from enrolling any agent. Agents that enrolled
 // with it keep working until they restart.
 func (s *Store) RevokeEnrollmentCode(ctx context.Context, sc Scope, id string) error {
@@ -154,11 +161,17 @@ func (s *Store) Enroll(ctx context.Context, e Enrollment) (Enrolled, error) {
 			return err
 		}
 		sc, now := code.Scope, s.now()
-		identity := sql.NullString{String: e.Identity, Valid: e.Identity != "" && !code.Single}
+		identity := sql.NullString{String: e.Identity, Valid: e.Identity != ""}
+		takeover := false // an installation that enrolled with another code: this one takes it over
 		switch {
 		case code.Single:
 			out.Agent, _, err = s.scanAgent(s.queryRow(ctx, tx, `SELECT `+agentColumns+`, '' FROM agents a
 				WHERE a.org_id = ? AND a.workspace_id = ? AND a.enrollment_code_id = ?`, sc.OrgID, sc.WorkspaceID, code.ID))
+			if errors.Is(err, ErrNotFound) && e.Identity != "" {
+				out.Agent, _, err = s.scanAgent(s.queryRow(ctx, tx, `SELECT `+agentColumns+`, '' FROM agents a
+					WHERE a.org_id = ? AND a.workspace_id = ? AND a.identity = ?`, sc.OrgID, sc.WorkspaceID, e.Identity))
+				takeover = err == nil
+			}
 		case e.Identity == "":
 			return ErrNoIdentity
 		default:
@@ -191,6 +204,19 @@ func (s *Store) Enroll(ctx context.Context, e Enrollment) (Enrolled, error) {
 				AND revoked_at IS NULL`, now, out.Agent.ID); err != nil {
 				return err
 			}
+		}
+		// Enrolled again with another code for one agent (to move it to another environment, say): the agent stays one,
+		// follows the new code, and what it found moves to the new code's environment.
+		if takeover || (!code.Single && out.Agent.CodeID != "" && out.Agent.CodeID != code.ID) {
+			if _, err := s.exec(ctx, tx, `UPDATE agents SET enrollment_code_id = ?, identity = COALESCE(identity, ?) WHERE id = ?`,
+				code.ID, identity, out.Agent.ID); err != nil {
+				return err
+			}
+			if _, err := s.exec(ctx, tx, `UPDATE targets SET environment_id = ? WHERE workspace_id = ? AND agent_id = ? AND agent_key <> ''`,
+				code.EnvironmentID, sc.WorkspaceID, out.Agent.ID); err != nil {
+				return err
+			}
+			out.Agent.CodeID = code.ID
 		}
 		if _, err := s.exec(ctx, tx, `INSERT INTO tokens (id, org_id, workspace_id, kind, name, hash, agent_id, created_at)
 			VALUES (?, ?, ?, 'agent', ?, ?, ?, ?)`,

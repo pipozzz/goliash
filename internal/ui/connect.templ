@@ -463,7 +463,12 @@ templ ConnectCodePage(v ConnectCodeView) {
 		<div class="head">
 			<div>
 				<p class="sub"><a href="/connect">Connect</a> /</p>
-				<h1>{ v.Platform.Title } <span class="badge neutral">{ v.Env }</span></h1>
+				<h1>{ v.Platform.Title }</h1>
+				<p class="code-env-line">
+					Environment
+					@codeEnvPicker(CodeEnvView{CodeID: v.Status.CodeID, Env: v.EnvID, Envs: v.Envs}, true)
+					<span class="hint">Change it now or later on the Agents page: what the agent already added moves along.</span>
+				</p>
 				<p class="sub">
 					if v.Many {
 						Run the command on every { codeMany(v.Platform) }; each registers as its own agent.

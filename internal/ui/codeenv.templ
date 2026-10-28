@@ -1,0 +1,35 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// codeEnvPicker changes an enrollment code's environment. inline: on the command page, swapped in place by htmx so
+// the command stays on screen.
+templ codeEnvPicker(v CodeEnvView, inline bool) {
+	<form
+		class="inline code-env"
+		method="post"
+		action={ templ.URL("/enroll-codes/" + v.CodeID + "/environment") }
+		if inline {
+			hx-post={ "/enroll-codes/" + v.CodeID + "/environment" }
+			hx-target="this"
+			hx-swap="outerHTML"
+		}
+	>
+		if inline {
+			<input type="hidden" name="inline" value="1"/>
+		}
+		<label class="inline-field">
+			<span class="sr-only">Environment</span>
+			<select name="environment" data-autosubmit aria-label="Environment">
+				for _, e := range v.Envs {
+					<option value={ e.ID } selected?={ e.ID == v.Env }>{ e.Name }</option>
+				}
+			</select>
+		</label>
+		<noscript><button type="submit" class="secondary">Move</button></noscript>
+		if v.Moved != "" {
+			<span class="hint" role="status">{ v.Moved }</span>
+		}
+	</form>
+}

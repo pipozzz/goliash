@@ -89,3 +89,40 @@ func TestSingleEnrollmentCode(t *testing.T) {
 		}
 	})
 }
+
+// Enrolling again with a new code, to put the installation in another environment, keeps one agent: it follows the
+// new code, and what it found moves to the new environment.
+func TestEnrollAgainWithAnotherCode(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		dev, err := s.CreateEnvironment(ctx, sc, "dev", 5)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, _ := s.ListAgents(ctx, sc)
+		first, _ := s.CreateEnrollmentCode(ctx, sc, f.env.ID, "first", "ana", time.Time{}, true)
+		second, _ := s.CreateEnrollmentCode(ctx, sc, dev.ID, "second", "ana", time.Time{}, true)
+		docker := agentproto.Target{Platform: agentproto.Docker, Name: "gw", Docker: &agentproto.DockerSettings{DockerHost: "tcp://p:2375"}}
+		a, err := s.Enroll(ctx, Enrollment{CodeHash: "first", Identity: "docker:ENGINE", Name: "gw", TokenHash: "t1", Targets: []agentproto.Target{docker}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := s.Enroll(ctx, Enrollment{CodeHash: "second", Identity: "docker:ENGINE", Name: "gw", TokenHash: "t2", Targets: []agentproto.Target{docker}})
+		if err != nil || b.Created || b.Agent.ID != a.Agent.ID || b.Agent.CodeID != second.ID || len(b.Added) != 0 {
+			t.Fatalf("second code: %+v %v (first %s)", b, err, first.ID)
+		}
+		ts, _ := s.ListAgentTargets(ctx, sc, a.Agent.ID)
+		if len(ts) != 1 || ts[0].EnvironmentID != dev.ID {
+			t.Fatalf("targets did not move: %+v", ts)
+		}
+		// Starting again with the same code moves nothing back.
+		if c, err := s.Enroll(ctx, Enrollment{CodeHash: "second", Identity: "docker:ENGINE", Name: "gw", TokenHash: "t3", Targets: []agentproto.Target{docker}}); err != nil || c.Agent.ID != a.Agent.ID {
+			t.Fatalf("restart: %+v %v", c, err)
+		}
+		if agents, _ := s.ListAgents(ctx, sc); len(agents) != len(before)+1 {
+			t.Fatalf("agents: %d", len(agents))
+		}
+	})
+}
