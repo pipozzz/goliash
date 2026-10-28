@@ -57,9 +57,9 @@ cannot reach the orchestrator, or when credentials must stay in that network.
 
 1. Open **Connect** (on the matrix of a new installation, or **Settings → Agents and targets → Connect a cluster or host**) and click
    where the agent will run: **Kubernetes**, **Docker or Docker Compose host**, **Nomad**, or **AWS, without a
-   server** (ECS Fargate). There is no form: the agent lands in `production` (or your production environment), and
-   what it finds maps to services by itself while the workspace has none. For another environment, a code for many
-   hosts or a name, use the links under the tiles; Swarm, Linux servers and Compose files from Git are under **More
+   server** (ECS Fargate). Above the tiles, pick the environment (production by default) or name a new one; what the
+   agent finds maps to services by itself while the workspace has none. For a code for many hosts or a name, use the
+   links under the tiles; Swarm, Linux servers and Compose files from Git are under **More
    ways**.
 2. Run the one command the page shows where the agent runs: Helm for Kubernetes, files in `~/goliash-agent` for
    Docker, a job for Nomad, a CloudFormation stack for AWS. The enrollment code is already in it and shown only once.
