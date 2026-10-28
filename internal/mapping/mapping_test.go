@@ -156,3 +156,22 @@ func TestLambdaRuntimeSuggestsTheFunction(t *testing.T) {
 		t.Fatalf("image function: %+v", d)
 	}
 }
+
+// A rule by a Lambda runtime or a database engine took every function or database into one service: such rules,
+// made before, no longer match, and the workload maps by its name.
+func TestSharedImageRules(t *testing.T) {
+	m, _ := New([]store.MappingRule{
+		{MatchType: "image_repo", Pattern: ImagePattern("public.ecr.aws/lambda/nodejs"), ServiceID: "hercule-worker"},
+		{MatchType: "image_repo", Pattern: ImagePattern("rds.amazonaws.com/postgres"), ServiceID: "billing-db"},
+		{MatchType: "image_repo", Pattern: ImagePattern("ghcr.io/acme/api"), ServiceID: "api"},
+	})
+	if d := m.Map(Workload{Name: "invoice-pdf"}, "runtime", versions.ParseImage("public.ecr.aws/lambda/nodejs:22")); d.ServiceID != "" || d.Suggested != "invoice-pdf" {
+		t.Fatalf("lambda runtime rule matched: %+v", d)
+	}
+	if d := m.Map(Workload{Name: "orders-db"}, "engine", versions.ParseImage("rds.amazonaws.com/postgres:16.4")); d.ServiceID != "" || d.Suggested != "orders-db" {
+		t.Fatalf("engine rule matched: %+v", d)
+	}
+	if d := m.Map(Workload{Name: "api"}, "api", versions.ParseImage("ghcr.io/acme/api:1.0.0")); d.ServiceID != "api" {
+		t.Fatalf("an ordinary image rule stopped matching: %+v", d)
+	}
+}

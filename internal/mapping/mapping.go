@@ -82,6 +82,13 @@ func New(rules []store.MappingRule) (*Mapper, []error) {
 	return m, errs
 }
 
+// SharedImage reports whether an image stands for many unrelated workloads: the runtime every .zip Lambda function
+// of a language reports, or the engine of managed databases and caches. A rule by such an image would put all of
+// them in one service, so they map by their own names instead.
+func SharedImage(repo string) bool {
+	return versions.LambdaRuntime(repo) != "" || versions.Managed(repo)
+}
+
 // Map classifies one container of a workload.
 func (m *Mapper) Map(w Workload, container string, image versions.ImageRef) Decision {
 	d := Decision{EnvName: w.Labels[LabelEnv]}
@@ -103,7 +110,7 @@ func (m *Mapper) Map(w Workload, container string, image versions.ImageRef) Deci
 		var match bool
 		switch r.MatchType {
 		case "image_repo":
-			match = r.re.MatchString(image.Repo())
+			match = !SharedImage(image.Repo()) && r.re.MatchString(image.Repo())
 		case "workload_name":
 			match = r.re.MatchString(w.Name)
 		case "app_workload": // "<application>/<workload>": one "db" among many
@@ -118,7 +125,7 @@ func (m *Mapper) Map(w Workload, container string, image versions.ImageRef) Deci
 		}
 	}
 	d.Suggested, d.Source = image.Name(), "heuristic"
-	if (versions.LambdaRuntime(image.Repo()) != "" || versions.Managed(image.Repo())) && w.Name != "" {
+	if SharedImage(image.Repo()) && w.Name != "" {
 		// .zip functions all report their runtime's image, databases and caches their engine: the function,
 		// database or cache is the service.
 		d.Suggested = w.Name

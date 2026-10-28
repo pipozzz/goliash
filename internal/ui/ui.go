@@ -1514,7 +1514,8 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return back(w, r, "/inbox", "error", "Service names use letters, digits, dots, dashes and underscores.")
 	}
 	repo, workloadName, app := r.FormValue("repo"), r.FormValue("workload_name"), r.FormValue("app")
-	onlyWorkload := r.FormValue("only") == "workload"
+	// A shared image (a Lambda runtime, a database engine) names no service: map the one workload by its name.
+	onlyWorkload := r.FormValue("only") == "workload" || mapping.SharedImage(repo)
 	if repo == "" || (onlyWorkload && workloadName == "") {
 		return back(w, r, "/inbox", "error", "Nothing to map.")
 	}
@@ -3217,7 +3218,7 @@ func (s *Server) mapImages(ctx context.Context, p auth.Principal, repos, names [
 	}
 	for i, repo := range repos {
 		name := strings.TrimSpace(names[i])
-		if repo == "" || !serviceName.MatchString(name) {
+		if repo == "" || !serviceName.MatchString(name) || mapping.SharedImage(repo) { // a shared image maps workload by workload
 			skipped = append(skipped, repo)
 			continue
 		}

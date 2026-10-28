@@ -122,7 +122,9 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 					return ch, err
 				}
 				r.inst.ServiceID = id
-				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMapped != nil {
+				// No image rule for a shared image (a Lambda runtime, a database engine): it would take every function or
+				// database; they map by name each time instead.
+				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMapped != nil && !mapping.SharedImage(repo) {
 					in.AutoMapped[repo] = id
 				}
 			}
