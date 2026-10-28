@@ -11,6 +11,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/pipozzz/goliash/internal/versions"
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
@@ -114,6 +117,38 @@ func (s *Server) deleteEnvironment(w http.ResponseWriter, r *http.Request, p aut
 	for _, e := range envs {
 		if e.ID != r.PathValue("id") {
 			continue
+		}
+		// Targets nothing reports for (their agent gone or silent) go with the environment, when asked; live ones
+		// have to be moved first.
+		if r.FormValue("targets") == "dead" {
+			ts, err := s.store.ListTargets(ctx, p.Scope)
+			if err != nil {
+				return err
+			}
+			agents, err := s.store.ListAgents(ctx, p.Scope)
+			if err != nil {
+				return err
+			}
+			stale := map[string]bool{}
+			for _, a := range agents {
+				stale[a.ID] = !a.StaleSince.IsZero()
+			}
+			var dead []store.Target
+			for _, t := range ts {
+				if t.EnvironmentID != e.ID {
+					continue
+				}
+				if targetLive(t, stale[t.AgentID]) {
+					return back(w, r, "/agents", "error", t.Name+" in "+e.Name+" still reports: move it to another environment first.")
+				}
+				dead = append(dead, t)
+			}
+			for _, t := range dead {
+				if err := s.store.DeleteTarget(ctx, p.Scope, t.ID); err != nil {
+					return err
+				}
+				s.audit(ctx, p, "target.delete", "target", t.Name, "environment", e.Name)
+			}
 		}
 		if err := s.store.DeleteEnvironment(ctx, p.Scope, e.ID); errors.Is(err, store.ErrInUse) {
 			return back(w, r, "/agents", "error", "Move or delete the targets of "+e.Name+" first.")
@@ -389,4 +424,10 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// targetLive reports whether a target reports: it has a snapshot and is not stale. One whose agent is gone or silent,
+// or that never reported, is not.
+func targetLive(t store.Target, agentStale bool) bool {
+	return !t.LastSnapshotAt.IsZero() && !versions.StaleTarget(t, agentStale, time.Now())
 }

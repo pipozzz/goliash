@@ -75,7 +75,7 @@ templ AgentsPage(v AgentsView) {
 						<tbody>
 							for _, c := range v.Codes {
 								<tr>
-									<td>{ c.Env }</td>
+									<td>@codeEnvPicker(CodeEnvView{CodeID: c.ID, Env: c.EnvID, Envs: v.EnvList}, false)</td>
 									<td>
 										if c.Many {
 											many agents
@@ -130,6 +130,11 @@ templ AgentsPage(v AgentsView) {
 											if e.Targets == 0 {
 												<form method="post" action={ templ.URL("/environments/" + e.ID + "/delete") } hx-confirm={ "Delete environment " + e.Name + "?" }>
 													<button class="link danger-link" type="submit">Delete</button>
+												</form>
+											} else if e.Live == 0 {
+												<form method="post" action={ templ.URL("/environments/" + e.ID + "/delete") } hx-confirm={ "Delete environment " + e.Name + " and its " + plural(e.Targets, "target", "targets") + "? Nothing reports for them." }>
+													<input type="hidden" name="targets" value="dead"/>
+													<button class="link danger-link" type="submit" title="Nothing reports for its targets">Delete</button>
 												</form>
 											}
 										</td>

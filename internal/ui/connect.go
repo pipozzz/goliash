@@ -459,6 +459,8 @@ type ConnectCodeView struct {
 	Base
 	Platform  PlatformInfo
 	Env       string
+	EnvID     string
+	Envs      []store.Environment // for changing it
 	Code      string
 	Many      bool
 	Expires   time.Time // zero: never
@@ -544,8 +546,11 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 	}
 	s.audit(ctx, p, "enroll.create", "environment", env.Name, "platform", info.Key, "code", c.ID)
 	v := ConnectCodeView{
-		Base: s.base(ctx, p, "agents", "Connect "+info.Title), Platform: info, Env: env.Name, Code: code, Many: many,
+		Base: s.base(ctx, p, "agents", "Connect "+info.Title), Platform: info, Env: env.Name, EnvID: env.ID, Code: code, Many: many,
 		Expires: until, ServerURL: s.publicURL,
+	}
+	if v.Envs, err = s.store.ListEnvironments(ctx, p.Scope); err != nil {
+		return err
 	}
 	v.Title, v.Command = installCommand(info.Key, s.publicURL, code, nil, s.version)
 	if name != "" && info.Key == "kubernetes" {

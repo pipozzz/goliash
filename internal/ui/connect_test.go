@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -173,6 +174,7 @@ func TestConnectWithCode(t *testing.T) {
 		t.Fatalf("codes: %+v", codes)
 	}
 	code := codes[0]
+	commandPage := body
 
 	// The agent enrolls: the page shows it and its target, and keeps polling until the report.
 	secret := regexp.MustCompile(`glsh_enroll_[0-9A-Za-z]+`).FindString(body)
@@ -185,6 +187,35 @@ func TestConnectWithCode(t *testing.T) {
 	_, body = get(t, admin, e.srv.URL+"/connect/code/"+code.ID, nil)
 	if !strings.Contains(body, "every 3s") || !strings.Contains(body, "Found web-01 (docker)") || !strings.Contains(body, "Waiting for the first report of web-01") {
 		t.Fatalf("status after enrolling: %s", body)
+	}
+
+	// The environment changes on the command page, in place, and moves what the agent added.
+	if !strings.Contains(commandPage, `/enroll-codes/`+code.ID+`/environment`) {
+		t.Error("the command page cannot change the environment")
+	}
+	staging, _ := e.st.CreateEnvironment(ctx, e.ws.Scope(), "staging", 20)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, e.srv.URL+"/enroll-codes/"+code.ID+"/environment",
+		strings.NewReader(url.Values{"environment": {staging.ID}, "inline": {"1"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	resp, err := admin.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frag, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if !strings.Contains(string(frag), "1 target moved to staging") || strings.Contains(string(frag), "<html") {
+		t.Errorf("inline change: %s", frag)
+	}
+	if c, _ := e.st.GetEnrollmentCode(ctx, e.ws.Scope(), code.ID); c.EnvironmentID != staging.ID {
+		t.Error("the code did not move")
+	}
+	agents, _ := e.st.ListCodeAgents(ctx, e.ws.Scope(), code.ID)
+	if ts, _ := e.st.ListAgentTargets(ctx, e.ws.Scope(), agents[0].ID); len(ts) != 1 || ts[0].EnvironmentID != staging.ID {
+		t.Errorf("targets did not move: %+v", ts)
+	}
+	if _, page := get(t, admin, e.srv.URL+"/agents", nil); !strings.Contains(page, `data-autosubmit`) {
+		t.Error("the Agents page cannot change a code's environment")
 	}
 
 	// Many hosts, no expiry, and a cluster name for Kubernetes.

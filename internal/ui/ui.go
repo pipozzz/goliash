@@ -245,6 +245,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /connect/status/{id}", s.page(v, s.connectProgress))
 	mux.Handle("GET /connect/code/{id}", s.page(v, s.connectCodeProgress))
 	mux.Handle("POST /enroll-codes/{id}/revoke", s.page(a, s.revokeCode))
+	mux.Handle("POST /enroll-codes/{id}/environment", s.page(a, s.setCodeEnv))
 	mux.Handle("POST /agents/{id}/rotate", s.page(a, s.rotateAgent))
 	mux.Handle("POST /agents/{id}/revoke", s.page(a, s.revokeAgent))
 	mux.Handle("POST /agents/{id}/rename", s.page(a, s.renameAgent))
@@ -1623,16 +1624,19 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	if err != nil {
 		return v, err
 	}
-	perEnv := map[string]int{}
-	for _, t := range targets {
-		perEnv[t.EnvironmentID]++
-	}
-	for _, e := range envs {
-		v.Envs = append(v.Envs, EnvView{ID: e.ID, Name: e.Name, Position: e.Position, Targets: perEnv[e.ID]})
-	}
 	agentStale := map[string]bool{}
 	for _, a := range agents {
 		agentStale[a.ID] = !a.StaleSince.IsZero()
+	}
+	perEnv, livePerEnv := map[string]int{}, map[string]int{}
+	for _, t := range targets {
+		perEnv[t.EnvironmentID]++
+		if targetLive(t, agentStale[t.AgentID]) {
+			livePerEnv[t.EnvironmentID]++
+		}
+	}
+	for _, e := range envs {
+		v.Envs = append(v.Envs, EnvView{ID: e.ID, Name: e.Name, Position: e.Position, Targets: perEnv[e.ID], Live: livePerEnv[e.ID]})
 	}
 	for _, t := range targets {
 		by := agentName[t.AgentID]
@@ -1654,10 +1658,15 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	if err != nil {
 		return v, err
 	}
+	if len(codes) > 0 {
+		if v.EnvList, err = s.store.ListEnvironments(ctx, p.Scope); err != nil {
+			return v, err
+		}
+	}
 	now := time.Now()
 	for _, c := range codes {
 		v.Codes = append(v.Codes, CodeView{
-			ID: c.ID, Env: envName[c.EnvironmentID], Many: !c.Single, Agents: c.Agents, Expires: c.ExpiresAt,
+			ID: c.ID, Env: envName[c.EnvironmentID], EnvID: c.EnvironmentID, Many: !c.Single, Agents: c.Agents, Expires: c.ExpiresAt,
 			Expired: c.Expired(now), LastUsed: c.LastUsedAt, By: c.CreatedBy,
 		})
 	}
