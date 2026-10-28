@@ -10,9 +10,14 @@ templ AgentsPage(v AgentsView) {
 				<h1>Agents and targets</h1>
 				@aboutText("Agents run in your network and read orchestrators read-only. Each target belongs to one environment.")
 			</div>
-			if v.CanAdmin || v.Demo {
-				<a class="button" href="/connect">Connect a cluster or host</a>
-			}
+			<span class="actions">
+				if v.CanAdmin {
+					<a class="button secondary" href="/cleanup" title="Agents gone quiet, targets nothing reports for, empty environments, services that run nowhere">Clean up</a>
+				}
+				if v.CanAdmin || v.Demo {
+					<a class="button" href="/connect">Connect a cluster or host</a>
+				}
+			</span>
 		</div>
 		<section class="panel">
 			<div class="panel-head"><h2>Agents</h2></div>
