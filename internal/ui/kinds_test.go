@@ -57,5 +57,21 @@ func TestFoldKeys(t *testing.T) {
 	})
 	if rows[0].Same == "" || rows[0].Same != rows[1].Same || rows[2].Same != "" || rows[3].Same != "" {
 		t.Fatalf("fold keys %q %q %q %q", rows[0].Same, rows[1].Same, rows[2].Same, rows[3].Same)
+func TestAWSUpgradeCommand(t *testing.T) {
+	for _, c := range []struct{ repo, cur, to, want string }{
+		{"rds.amazonaws.com/postgres", "15.6", "16.4", "aws rds modify-db-instance --db-instance-identifier db --engine-version 16.4 --allow-major-version-upgrade --apply-immediately --region eu-west-1"},
+		{"rds.amazonaws.com/aurora-mysql", "3.05", "3.07", "aws rds modify-db-cluster --db-cluster-identifier db --engine-version 3.07 --apply-immediately --region eu-west-1"},
+		{"elasticache.amazonaws.com/redis", "6.2", "7.1", "aws elasticache modify-replication-group --replication-group-id db --engine-version 7.1 --apply-immediately --region eu-west-1"},
+		{"eks.amazonaws.com/kubernetes", "1.31", "1.32", "aws eks update-cluster-version --name db --kubernetes-version 1.32 --region eu-west-1"},
+		{"opensearch.amazonaws.com/opensearch", "2.11", "2.19", "aws opensearch upgrade-domain --domain-name db --target-version OpenSearch_2.19 --region eu-west-1"},
+		{"public.ecr.aws/lambda/nodejs", "22", "24", "aws lambda update-function-configuration --function-name db --runtime nodejs24.x --region eu-west-1"},
+		{"ghcr.io/acme/api", "1", "2", ""},
+	} {
+		if got := awsUpgradeCommand(c.repo, "db", "eu-west-1", c.cur, c.to); got != c.want {
+			t.Errorf("%s:\n got %s\nwant %s", c.repo, got, c.want)
+		}
+	}
+	if targetRegion([]byte(`{"rds":{"region":"eu-central-1"}}`)) != "eu-central-1" || targetRegion([]byte(`{"docker":{}}`)) != "" {
+		t.Error("region")
 	}
 }

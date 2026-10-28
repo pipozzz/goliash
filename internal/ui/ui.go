@@ -898,17 +898,37 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if len(se.Versions) > 0 {
 			v.Runs = true
 		}
+		region := ""
 		for _, ver := range running {
 			for _, id := range ver.TargetIDs {
 				for _, t := range o.Targets {
-					if t.ID == id && !slices.Contains(v.Platforms, t.Platform) {
+					if t.ID != id {
+						continue
+					}
+					if !slices.Contains(v.Platforms, t.Platform) {
 						v.Platforms = append(v.Platforms, t.Platform)
 					}
+					if region == "" {
+						region = targetRegion(t.Settings)
+					}
+				}
+			}
+		}
+		// A managed service or a .zip function behind: the AWS command that upgrades it there.
+		if up, ok := o.Upstreams[svc.ID]; ok && up.HasLatest {
+			for _, ver := range running {
+				if ver.Version() == up.Latest.Raw {
+					continue
+				}
+				if cmd := awsUpgradeCommand(o.Refs[svc.ID].Repo, svc.Name, region, ver.Version(), up.Latest.Raw); cmd != "" {
+					v.Upgrades = append(v.Upgrades, AWSUpgrade{Env: se.Name, From: ver.Version(), To: up.Latest.Raw, Command: cmd})
 				}
 			}
 		}
 	}
 	v.CanPR = s.pulls != nil
+	v.What = rowWhat(o.Refs[svc.ID].Repo)
+	v.Platforms = sortKinds(v.Platforms)
 
 	releases, err := s.store.ListReleases(ctx, p.Scope, svc.ID)
 	if err != nil {

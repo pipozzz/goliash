@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 
@@ -183,4 +184,77 @@ func serviceKinds(o versions.Overview) map[string][]string {
 		out[row.Service.ID] = rowKinds(o, ids)
 	}
 	return out
+}
+
+// AWSUpgrade is how to move a managed service or a .zip function to the newest version in one environment.
+type AWSUpgrade struct {
+	Env, From, To, Command string
+}
+
+// awsUpgradeCommand is the AWS CLI command that upgrades the engine of a managed service, or the runtime of a .zip
+// function, named name in region, from current to target; empty for anything else. The name is the service's: for a
+// resource named otherwise, it is edited before running.
+func awsUpgradeCommand(repo, name, region, current, target string) string {
+	reg := ""
+	if region != "" {
+		reg = " --region " + region
+	}
+	if family := versions.LambdaRuntime(repo); family != "" {
+		runtime := map[string]string{
+			"nodejs": "nodejs" + target + ".x", "python": "python" + target, "java": "java" + target,
+			"dotnet": "dotnet" + target, "ruby": "ruby" + target, "go": "provided.al2023",
+		}[family]
+		return "aws lambda update-function-configuration --function-name " + name + " --runtime " + runtime + reg
+	}
+	host, engine, _ := strings.Cut(repo, "/")
+	major := func(v string) string { m, _, _ := strings.Cut(v, "."); return m }
+	allowMajor := ""
+	if major(current) != major(target) {
+		allowMajor = " --allow-major-version-upgrade"
+	}
+	switch host {
+	case "rds.amazonaws.com":
+		if strings.HasPrefix(engine, "aurora") {
+			return "aws rds modify-db-cluster --db-cluster-identifier " + name + " --engine-version " + target + allowMajor + " --apply-immediately" + reg
+		}
+		return "aws rds modify-db-instance --db-instance-identifier " + name + " --engine-version " + target + allowMajor + " --apply-immediately" + reg
+	case "elasticache.amazonaws.com":
+		return "aws elasticache modify-replication-group --replication-group-id " + name + " --engine-version " + target + " --apply-immediately" + reg
+	case "eks.amazonaws.com":
+		return "aws eks update-cluster-version --name " + name + " --kubernetes-version " + target + reg
+	case "opensearch.amazonaws.com":
+		prefix := "OpenSearch_"
+		if engine == "elasticsearch" {
+			prefix = "Elasticsearch_"
+		}
+		return "aws opensearch upgrade-domain --domain-name " + name + " --target-version " + prefix + target + reg
+	case "kafka.amazonaws.com":
+		return "aws kafka update-cluster-kafka-version --cluster-arn <arn of " + name + "> --current-version <cluster version> --target-kafka-version " + target + reg
+	}
+	return ""
+}
+
+// targetRegion reads the AWS region from a target's settings ({"rds":{"region":"eu-west-1"}}); empty for none.
+func targetRegion(settings []byte) string {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(settings, &m) != nil {
+		return ""
+	}
+	for _, raw := range m {
+		var s struct {
+			Region string `json:"region"`
+		}
+		if json.Unmarshal(raw, &s) == nil && s.Region != "" {
+			return s.Region
+		}
+	}
+	return ""
+}
+
+// awsRunKind says who runs what: a managed engine is AWS's, a .zip function is your code on AWS's runtime.
+func awsRunKind(repo string) string {
+	if versions.LambdaRuntime(repo) != "" {
+		return "your code on an AWS runtime"
+	}
+	return "run by AWS"
 }

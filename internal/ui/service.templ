@@ -15,7 +15,13 @@ templ ServicePage(v ServiceView) {
 		<div class="head">
 			<div>
 				<p class="muted"><a href="/">Matrix</a> / service</p>
-				<h1>{ v.Name }</h1>
+				<h1>
+					@kindIcons(v.Platforms)
+					<span>{ v.Name }</span>
+				</h1>
+				if v.What != "" {
+					<p class="sub">{ v.What }</p>
+				}
 			</div>
 			if v.CanMember && v.PublicRegistry {
 				<form method="post" action={ templ.URL("/services/" + v.Name + "/check") } class="inline">
@@ -42,7 +48,11 @@ templ ServicePage(v ServiceView) {
 					}
 				</dd>
 			</div>
-			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.KindShown) }</dd></div>
+			if v.What != "" {
+				<div class="fact"><dt>Kind</dt><dd>{ awsRunKind(v.RefRepo) }</dd></div>
+			} else {
+				<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.KindShown) }</dd></div>
+			}
 			<div class="fact"><dt>Upstream</dt><dd class="mono">{ orDash(v.RefRepo) }</dd></div>
 			if v.BuiltOn != nil {
 				<div class="fact">
@@ -134,6 +144,19 @@ templ ServicePage(v ServiceView) {
 			</section>
 		}
 		<div class="grid-2">
+			if len(v.Upgrades) > 0 {
+				<section class="panel">
+					<div class="panel-head"><h2>How to upgrade</h2>@panelInfo("AWS runs it; the engine or runtime version is yours to move")</div>
+					<div class="panel-body stack">
+						for i, u := range v.Upgrades {
+							<p><strong>{ u.Env }</strong>{ ": " + u.From + " → " + u.To }</p>
+							<pre tabindex="0" class="mono install-cmd" id={ "aws-up-" + itoa(i) }>{ u.Command }</pre>
+							<div class="actions"><button type="button" class="secondary" data-copy={ "aws-up-" + itoa(i) }>Copy</button></div>
+						}
+						<p class="hint">The command names the resource after the service; change it if the resource is named otherwise. Read the release notes first: a major version can change behaviour, and AWS restarts the resource for most upgrades.</p>
+					</div>
+				</section>
+			}
 			<section class="panel">
 				<div class="panel-head"><h2>Running</h2></div>
 				<div class="scroll" tabindex="0">
@@ -785,7 +808,11 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 						if all {
 							<th>Service</th>
 						}
-						<th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th>
+						<th>Application</th>
+						<th>Where</th>
+						<th>From</th>
+						<th>Synced</th>
+						<th>State</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -809,7 +836,8 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 								} else {
 									<span class="mono">{ orDash(a.Repo) }</span>
 								}
-								<div class="targets">{ a.Path }
+								<div class="targets">
+									{ a.Path }
 									if a.TargetRevision != "" {
 										{ " @ " + a.TargetRevision }
 									}

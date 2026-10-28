@@ -678,6 +678,8 @@ type ServiceView struct {
 	// GitOps panel, the page says how to name the service's place in Git.
 	Platforms []string
 	CanPR     bool
+	What      string       // what it is when its name does not say: "PostgreSQL · RDS"
+	Upgrades  []AWSUpgrade // how to upgrade a managed service or a .zip function, per environment behind
 }
 
 // SplitApp is one application of a service that runs in several.
