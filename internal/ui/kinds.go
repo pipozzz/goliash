@@ -165,3 +165,22 @@ func rowWhat(repo string) string {
 	}
 	return name + " · " + service
 }
+
+// serviceKinds are the kinds each service runs on, by service ID, from the matrix.
+func serviceKinds(o versions.Overview) map[string][]string {
+	out := map[string][]string{}
+	for _, row := range o.Matrix.Rows {
+		var ids []string
+		cells := row.Cells
+		for _, part := range row.Parts {
+			cells = append(cells, part.Cells...)
+		}
+		for _, c := range cells {
+			for _, v := range c.Versions {
+				ids = append(ids, v.TargetIDs...)
+			}
+		}
+		out[row.Service.ID] = rowKinds(o, ids)
+	}
+	return out
+}

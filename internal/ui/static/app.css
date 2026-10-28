@@ -1490,3 +1490,6 @@ td.svc .what { display: block; color: var(--muted); font-size: 12px; }
 /* The bell's footer: notifications on this device. */
 .bell-device { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
 .bell-device .push-note { flex-basis: 100%; }
+/* "+12 more like this": the same upgrade in many rows, folded into one. */
+.same-more { display: block; margin-top: 4px; font-size: 12px; }
+table.updates td.svc .what { display: block; color: var(--muted); font-size: 12px; }
