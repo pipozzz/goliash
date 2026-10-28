@@ -57,6 +57,9 @@ func TestFoldKeys(t *testing.T) {
 	})
 	if rows[0].Same == "" || rows[0].Same != rows[1].Same || rows[2].Same != "" || rows[3].Same != "" {
 		t.Fatalf("fold keys %q %q %q %q", rows[0].Same, rows[1].Same, rows[2].Same, rows[3].Same)
+	}
+}
+
 func TestAWSUpgradeCommand(t *testing.T) {
 	for _, c := range []struct{ repo, cur, to, want string }{
 		{"rds.amazonaws.com/postgres", "15.6", "16.4", "aws rds modify-db-instance --db-instance-identifier db --engine-version 16.4 --allow-major-version-upgrade --apply-immediately --region eu-west-1"},
