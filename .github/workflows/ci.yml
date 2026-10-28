@@ -223,6 +223,15 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+          cache: false
+      # The release's build cache (release-cache below) holds every platform's compiled dependencies.
+      - uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: release-build-${{ hashFiles('go.sum', 'go.mod') }}
+          restore-keys: release-build-
       - name: Build
         run: |
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
