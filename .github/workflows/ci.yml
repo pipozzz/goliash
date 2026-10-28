@@ -14,21 +14,33 @@ concurrency:
 
 jobs:
   # Whether a pull request changes anything the jobs below check. One that only changes the documentation or the
-  # Nomad pack (the release's version bump) skips them; a push to main runs them all.
+  # Nomad pack (the release's version bump) skips them; a push to main runs them all. The slow jobs (Kubernetes
+  # end to end, upgrades, images, deploy files) run on a pull request only when it touches what they test.
   changes:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      k8s: ${{ steps.diff.outputs.k8s }}
+      upgrade: ${{ steps.diff.outputs.upgrade }}
+      docker: ${{ steps.diff.outputs.docker }}
+      deploy: ${{ steps.diff.outputs.deploy }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: diff
         run: |
-          if [ "${{ github.event_name }}" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            printf 'code=true\nk8s=true\nupgrade=true\ndocker=true\ndeploy=true\n' >> "$GITHUB_OUTPUT"; exit 0
+          fi
           changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -Ev '^(website/|deploy/nomad/pack/)|\.md$' || true)
           echo "$changed"
+          has() { if printf '%s\n' "$changed" | grep -Eq "$2"; then echo "$1=true"; else echo "$1=false"; fi >> "$GITHUB_OUTPUT"; }
           if [ -n "$changed" ]; then echo code=true >> "$GITHUB_OUTPUT"; else echo code=false >> "$GITHUB_OUTPUT"; fi
+          has k8s '^(internal/collectors/kubernetes|internal/agent|internal/discover|internal/ingest|cmd/goliash-agent|pkg/agentproto|deploy/helm|scripts/e2e|go\.(mod|sum))'
+          has upgrade '^(internal/store|go\.(mod|sum))'
+          has docker '^(build/|deploy/docker/|docker-compose\.yml|\.goreleaser)'
+          has deploy '^deploy/'
 
   lint:
     needs: changes
@@ -84,20 +96,23 @@ jobs:
         run: |
           go generate ./...
           git diff --exit-code
-      - name: go test -race (${{ matrix.shard }})
+      # The race detector makes the tests several times slower: pull requests run without it, main with it.
+      - name: go test (${{ matrix.shard }})
+        env:
+          RACE: ${{ github.event_name == 'push' && '-race' || '' }}
         run: |
           case "${{ matrix.shard }}" in
             ui) pkgs=$(go list ./internal/ui/...) ;;
             store) pkgs=$(go list ./internal/store/... ./internal/versions/... ./cmd/goliash) ;;
             rest) pkgs=$(go list ./... | grep -Ev '/internal/(ui|store|versions)(/|$)|/cmd/goliash$') ;;
           esac
-          go test -race $pkgs
+          go test $RACE $pkgs
 
   # A database filled by an older release must migrate and keep its data: from the
   # first release and from the latest one, on SQLite and PostgreSQL.
   upgrade:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.upgrade == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -137,7 +152,7 @@ jobs:
 
   docker:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -155,7 +170,7 @@ jobs:
 
   e2e-kubernetes:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.k8s == 'true'
     # Server and agent installed with the Helm charts into a kind cluster; a rollout
     # must show up in the matrix and as a version_changed event.
     runs-on: ubuntu-latest
@@ -173,7 +188,7 @@ jobs:
 
   deploy:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -198,24 +213,23 @@ jobs:
       - name: CloudFormation template is valid
         run: pipx run cfn-lint deploy/ecs/goliash-agent.cfn.yaml
 
+  # Every release platform compiles, in one job: six jobs spent most of their time starting and waiting in line.
   build:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goos: [linux, darwin, windows]
-        goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: make build
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            echo "::group::$target"
+            GOOS=${target%/*} GOARCH=${target#*/} make build
+            echo "::endgroup::"
+          done
 
   # The release compiles twelve binaries; from scratch that takes over ten minutes. On main, when the modules
   # change, compile them once into a cache the release workflow starts from (tags read main's caches).
