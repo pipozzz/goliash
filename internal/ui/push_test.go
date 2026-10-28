@@ -35,12 +35,22 @@ func TestWebPushChannel(t *testing.T) {
 	e := newUIEnv(t)
 	ctx := context.Background()
 	admin := e.as(store.RoleOwner)
-	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", url.Values{"name": {"phones"}, "type": {"push"}}); !strings.Contains(body, "Channel phones added") {
-		t.Fatalf("add push channel: %s", body)
-	}
-	chans, _ := e.st.ListChannels(ctx, e.ws.Scope())
-	ch := chans[0]
+	// The workspace has its one browser channel by itself, with a rule for what matters now; no second one.
 	_, page := get(t, admin, e.srv.URL+"/notifications", nil)
+	chans, _ := e.st.ListChannels(ctx, e.ws.Scope())
+	if len(chans) != 1 || chans[0].Type != "push" || chans[0].Name != pushChannelName {
+		t.Fatalf("channels: %+v", chans)
+	}
+	ch := chans[0]
+	if rules, _ := e.st.ListRules(ctx, e.ws.Scope()); len(rules) != 1 || rules[0].ChannelID != ch.ID || rules[0].Mode != "instant" {
+		t.Fatalf("rules: %+v", rules)
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", url.Values{"name": {"phones"}, "type": {"push"}}); !strings.Contains(body, "the one web push channel") {
+		t.Fatal("a second push channel was allowed")
+	}
+	if _, page = get(t, admin, e.srv.URL+"/notifications", nil); strings.Contains(page, `value="push"`) {
+		t.Error("the form still offers web push")
+	}
 	if !strings.Contains(page, `data-push-key="B`) || !strings.Contains(page, "Notify this browser") || !strings.Contains(page, "0 browsers") {
 		t.Fatal("notifications page misses the push controls or the key")
 	}
@@ -53,7 +63,7 @@ func TestWebPushChannel(t *testing.T) {
 		t.Fatalf("a non-push endpoint was accepted: %d", code)
 	}
 	endpoint := "https://fcm.googleapis.com/fcm/send/abc"
-	if code, body := postJSON(t, viewer, e.srv.URL+"/notifications/channels/"+ch.ID+"/push", `{"endpoint":"`+endpoint+`",`+keys+`}`); code != http.StatusOK || !strings.Contains(body, "now gets the notifications of phones") {
+	if code, body := postJSON(t, viewer, e.srv.URL+"/notifications/channels/"+ch.ID+"/push", `{"endpoint":"`+endpoint+`",`+keys+`}`); code != http.StatusOK || !strings.Contains(body, "now gets the notifications of Browser notifications") {
 		t.Fatalf("subscribe: %d %s", code, body)
 	}
 	if _, body := postJSON(t, viewer, e.srv.URL+"/ui/push/status", `{"endpoint":"`+endpoint+`"}`); !strings.Contains(body, ch.ID) {
@@ -105,4 +115,32 @@ func TestWebPushChannel(t *testing.T) {
 	if code, _ := get(t, http.DefaultClient, e.srv.URL+m.Widgets[0].Screenshots[0].Src, nil); code != http.StatusOK {
 		t.Errorf("widget screenshot: %d", code)
 	}
+}
+
+// ownChannels leaves out the browser channel every workspace gets by itself.
+func ownChannels(cs []store.Channel) []store.Channel {
+	var out []store.Channel
+	for _, c := range cs {
+		if c.Type != "push" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// ownRules leaves out the browser channel's rule.
+func ownRules(t *testing.T, st *store.Store, sc store.Scope, rs []store.Rule) []store.Rule {
+	t.Helper()
+	cs, _ := st.ListChannels(context.Background(), sc)
+	push := map[string]bool{}
+	for _, c := range cs {
+		push[c.ID] = c.Type == "push"
+	}
+	var out []store.Rule
+	for _, r := range rs {
+		if !push[r.ChannelID] {
+			out = append(out, r)
+		}
+	}
+	return out
 }

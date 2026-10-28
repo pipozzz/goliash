@@ -27,6 +27,7 @@ func TestEditRule(t *testing.T) {
 		t.Fatalf("add: %s", body)
 	}
 	rules, _ := e.st.ListRules(ctx, sc)
+	rules = ownRules(t, e.st, sc, rules)
 	id := rules[0].ID
 	_, page := get(t, member, e.srv.URL+"/notifications/rules/"+id, nil)
 	if !strings.Contains(page, "Edit rule") || !strings.Contains(page, `value="web"`) || !strings.Contains(page, `value="new_release" checked`) {
@@ -37,9 +38,11 @@ func TestEditRule(t *testing.T) {
 		t.Fatalf("save: %s", body)
 	}
 	rules, _ = e.st.ListRules(ctx, sc)
+	rules = ownRules(t, e.st, sc, rules)
 	var f notifier.Filter
 	_ = json.Unmarshal(rules[0].Filter, &f)
 	chans, _ := e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	if rules[0].Mode != "weekly" || *f.DigestHour != 6 || f.Owners[0] != "team-pay" || len(f.Services) != 0 || string(f.MinJump) != "major" ||
 		strings.Join(rules[0].EventTypes, ",") != "updates_plan,drift_detected" || rules[0].ChannelID != chans[1].ID {
 		t.Fatalf("saved %+v %+v", rules[0], f)
