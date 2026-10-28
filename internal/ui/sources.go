@@ -18,7 +18,7 @@ import (
 // SourceRow is one thing an agent can watch, on its page: what it is, whether it watches it, and how to set it up.
 type SourceRow struct {
 	Key, Label, Detail string
-	State              string // watching, found (it found it: add it below) or off
+	State              string // watching, found (it found it: add it below), denied (it may not read it), problem or off
 	Always             bool   // where the agent runs: it watches it by itself
 }
 
@@ -39,7 +39,7 @@ func agentRuns(platforms []string) string {
 }
 
 // agentSources lists what an agent can watch, given how it runs, what it collects and what it found.
-func agentSources(runs string, collects []string, found []FoundView) []SourceRow {
+func agentSources(runs string, collects []string, found []FoundView, notes []string) []SourceRow {
 	foundOn := func(ps ...string) bool {
 		return slices.ContainsFunc(found, func(f FoundView) bool { return slices.Contains(ps, f.Platform) })
 	}
@@ -84,11 +84,64 @@ func agentSources(runs string, collects []string, found []FoundView) []SourceRow
 	if runs == "ecs" {
 		aws.Label = "Other AWS services: Lambda, RDS, ElastiCache, EKS, OpenSearch, MSK"
 	}
-	out = append(out, aws)
+	if rows := awsRows(runs, row, notes); len(rows) > 0 {
+		out = append(out, rows...) // the agent has AWS: one row per service, with what it may not read
+	} else {
+		out = append(out, aws)
+	}
 	if runs != "nomad" && runs != "ecs" {
 		out = append(out, row("nomad", "A Nomad cluster", "nomad"))
 	}
 	return out
+}
+
+// awsRows are AWS service by service, once the agent has AWS: its identity (the EC2 instance and role it found, or
+// why it has none), then each service watched, refused (with the IAM actions to allow) or not set up. None when the
+// agent has no AWS at all.
+func awsRows(runs string, row func(key, label string, platforms ...string) SourceRow, notes []string) []SourceRow {
+	in, hopLimit := ec2From(notes)
+	var out []SourceRow
+	denied := map[string]string{}
+	for _, n := range notes {
+		platform, _, _ := strings.Cut(n, " ")
+		if slices.Contains(awsPlatforms, platform) {
+			if h := noteHint(n); h != "" {
+				denied[platform] = h
+			} else {
+				denied[platform] = n
+			}
+		}
+	}
+	switch {
+	case hopLimit:
+		out = append(out, SourceRow{Key: "aws", Label: "AWS identity", State: "problem", Detail: "on EC2, but the container gets no instance metadata token: raise the hop limit to 2 (Add AWS has the command)"})
+	case in.ID != "" && in.Role == "":
+		out = append(out, SourceRow{Key: "aws", Label: "AWS identity", State: "problem", Detail: "EC2 instance " + in.ID + " has no IAM role (Add AWS has the commands that give it one)"})
+	case in.ID != "":
+		out = append(out, SourceRow{Key: "aws", Label: "AWS identity", State: "watching", Always: true, Detail: "EC2 " + in.ID + " in " + in.Region + ", role " + in.Role})
+	}
+	labels := map[string]string{
+		"ecs": "ECS clusters", "lambda": "Lambda functions", "rds": "RDS and Aurora databases", "elasticache": "ElastiCache caches",
+		"eks": "EKS clusters", "opensearch": "OpenSearch domains", "msk": "MSK (Kafka) clusters",
+	}
+	has := len(out) > 0 || len(denied) > 0
+	var rows []SourceRow
+	for _, p := range awsPlatforms {
+		if p == "ecs" && runs == "ecs" {
+			continue // where it runs: listed above
+		}
+		r := row("aws", labels[p], p)
+		if r.State != "off" {
+			has = true
+		} else if why, ok := denied[p]; ok {
+			r.State, r.Detail = "denied", why
+		}
+		rows = append(rows, r)
+	}
+	if !has {
+		return nil
+	}
+	return append(out, rows...)
 }
 
 // AddSourceView is the page that sets up one more thing for an agent to watch: the lines for its configuration.
