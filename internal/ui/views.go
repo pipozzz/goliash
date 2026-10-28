@@ -89,7 +89,7 @@ type MatrixGrid struct {
 	Unread   []UnreadRegistry // private registries whose services have no known release
 	Past     bool             // the matrix as of a moment in the past
 	CanAdmin bool
-	CanBulk  bool // members tick services to set their team at once
+	CanBulk  bool                 // members tick services to set their team at once
 	gitops   []versions.GitOpsApp // the GitOps applications the grid was built with, for markPRs
 }
 
