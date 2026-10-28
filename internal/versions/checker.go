@@ -36,6 +36,9 @@ func PackageRepo(repo string) bool { return strings.HasPrefix(repo, "pkg.goliash
 // IsPublicRegistry reports whether the server checks repo itself.
 func IsPublicRegistry(repo string) bool {
 	host, _, _ := strings.Cut(repo, "/")
+	if public, ok := registry.Alias(host); ok {
+		host = public
+	}
 	return publicRegistries[host]
 }
 
@@ -61,17 +64,19 @@ type Checker struct {
 	ttl      time.Duration
 	onEvents func(store.Scope, []store.Event)
 
-	mu     sync.Mutex
-	cache  map[string]cachedTags
-	now    func() time.Time
-	github *GitHub
-	gitlab *GitLab
-	eol    *EOL
-	osv    *OSV
-	kev    *KEV
-	nvd    *NVD
-	php    *phpFeed   // which PHP releases fix vulnerabilities
-	text   *textFeeds // Go's release history, release notes pages
+	mu    sync.Mutex
+	cache map[string]cachedTags
+	// aliasProbed is when each registry host was last asked whether it redirects to a public registry.
+	aliasProbed map[string]time.Time
+	now         func() time.Time
+	github      *GitHub
+	gitlab      *GitLab
+	eol         *EOL
+	osv         *OSV
+	kev         *KEV
+	nvd         *NVD
+	php         *phpFeed   // which PHP releases fix vulnerabilities
+	text        *textFeeds // Go's release history, release notes pages
 
 	driftMu    sync.Mutex // one drift evaluation at a time
 	upstreamMu sync.Mutex // one upstream check at a time, so a release is announced once
@@ -263,6 +268,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 	sort.Strings(ids)
 	for _, id := range ids {
 		ref := st.refs[id]
+		c.probeAlias(ctx, ref.Repo, st.auth)
 		if ref.Repo == "" || !serverChecks(st.byID[id], ref.Repo, st.auth) {
 			continue
 		}
@@ -799,6 +805,34 @@ func serverChecks(svc store.Service, repo string, auth RegistryAuth) bool {
 		return true
 	}
 	return IsPublicRegistry(repo) && svc.PrivateUpstream != repo
+}
+
+// aliasProbeTTL is how long the answer to whether a registry host is an alias holds.
+const aliasProbeTTL = 24 * time.Hour
+
+// probeAlias asks a registry host the server does not check, and has no credentials for, whether it only redirects
+// to a public registry (registry.ProbeAlias), at most once a day per host.
+func (c *Checker) probeAlias(ctx context.Context, repo string, auth RegistryAuth) {
+	host, _, ok := strings.Cut(repo, "/")
+	if !ok || publicRegistries[host] || PackageRepo(repo) || Managed(repo) || LambdaRuntime(repo) != "" {
+		return
+	}
+	if _, credentialed := auth.For(repo); credentialed {
+		return
+	}
+	c.mu.Lock()
+	if at, done := c.aliasProbed[host]; done && time.Since(at) < aliasProbeTTL {
+		c.mu.Unlock()
+		return
+	}
+	if c.aliasProbed == nil {
+		c.aliasProbed = map[string]time.Time{}
+	}
+	c.aliasProbed[host] = time.Now()
+	c.mu.Unlock()
+	if public, ok := registry.ProbeAlias(ctx, host); ok {
+		c.log.InfoContext(ctx, "registry host redirects to a public registry; the server reads it", "host", host, "registry", public)
+	}
 }
 
 // handOver leaves repo to the agents when a public registry refused it anonymously
