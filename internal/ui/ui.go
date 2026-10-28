@@ -171,6 +171,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
+	mux.Handle("POST /services/team", s.page(m, s.setServicesTeam))
 	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
 	mux.Handle("POST /updates/prs", s.page(m, s.openBulkPRs))
 	mux.Handle("GET /delivery/promote-app/preview", s.page(v, s.previewAppPromotion))
@@ -650,7 +651,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
-	g.CanAdmin = p.Can(store.RoleAdmin)
+	g.CanAdmin, g.CanBulk = p.Can(store.RoleAdmin), p.Can(store.RoleMember)
 	if p.Can(store.RoleMember) || s.demoPulls() {
 		s.markPRs(r.Context(), p.Scope, &g)
 	}
@@ -687,7 +688,7 @@ func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Princ
 		return err
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
-	g.CanAdmin = p.Can(store.RoleAdmin)
+	g.CanAdmin, g.CanBulk = p.Can(store.RoleAdmin), p.Can(store.RoleMember)
 	if p.Can(store.RoleMember) || s.demoPulls() {
 		s.markPRs(r.Context(), p.Scope, &g)
 	}

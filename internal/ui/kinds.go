@@ -258,3 +258,15 @@ func awsRunKind(repo string) string {
 	}
 	return "run by AWS"
 }
+
+// matrixTeams are the teams the matrix's services belong to, for the bulk team field.
+func matrixTeams(rows []MatrixRow) []string {
+	var out []string
+	for _, r := range rows {
+		if r.Owner != "" && !slices.Contains(out, r.Owner) {
+			out = append(out, r.Owner)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
