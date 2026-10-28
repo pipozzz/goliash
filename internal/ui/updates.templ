@@ -36,6 +36,10 @@ templ UpdatesPage(v UpdatesView) {
 			</nav>
 		}
 		<div class="toolbar">
+			<nav class="segmented" aria-label="View">
+				<a href={ templ.URL(updatesURL(v, "view", "")) } class={ templ.KV("on", !v.Calendar) }>List</a>
+				<a href={ templ.URL(updatesURL(v, "view", "calendar")) } class={ templ.KV("on", v.Calendar) } title="Upgrades with an end of life or a remediation deadline, by date">Calendar</a>
+			</nav>
 			@kindFilter(v.Kinds, "page-filter")
 			<form method="get" action="/updates" class="inline">
 				if v.Level >= 0 {
@@ -80,39 +84,43 @@ templ UpdatesPage(v UpdatesView) {
 				<a class="button secondary" href={ templ.URL(updatesCSVHref(v)) } data-filter-q download title="The upgrades shown as a spreadsheet (with the filter, only those it shows)">Download CSV</a>
 			}
 		</div>
-		<section class="panel">
-			if len(v.Items) == 0 {
-				<div class="empty">
-					if v.Total == 0 && len(v.Acked) == 0 {
-						Nothing to upgrade: every service runs a supported, current release.
-					} else {
-						Nothing here with these filters. <a href="/updates">Show all</a>
-					}
-				</div>
-			} else {
-				<div class="scroll" tabindex="0">
-					<table class="updates cards">
-						<thead>
-							<tr>
-								<th>Service</th>
-								<th>Environment</th>
-								<th>Upgrade</th>
-								<th>Why</th>
-								<th>Open for</th>
-								if v.CanMember {
-									<th><span class="sr-only">Actions</span></th>
+		if v.Calendar {
+			@updatesCalendar(v)
+		} else {
+			<section class="panel">
+				if len(v.Items) == 0 {
+					<div class="empty">
+						if v.Total == 0 && len(v.Acked) == 0 {
+							Nothing to upgrade: every service runs a supported, current release.
+						} else {
+							Nothing here with these filters. <a href="/updates">Show all</a>
+						}
+					</div>
+				} else {
+					<div class="scroll" tabindex="0">
+						<table class="updates cards">
+							<thead>
+								<tr>
+									<th>Service</th>
+									<th>Environment</th>
+									<th>Upgrade</th>
+									<th>Why</th>
+									<th>Open for</th>
+									if v.CanMember {
+										<th><span class="sr-only">Actions</span></th>
+									}
+								</tr>
+							</thead>
+							<tbody>
+								for _, it := range v.Items {
+									@updateRow(it, v.CanMember, updatesURL(v, "level", levelParam(v)))
 								}
-							</tr>
-						</thead>
-						<tbody>
-							for _, it := range v.Items {
-								@updateRow(it, v.CanMember, updatesURL(v, "level", levelParam(v)))
-							}
-						</tbody>
-					</table>
-				</div>
-			}
-		</section>
+							</tbody>
+						</table>
+					</div>
+				}
+			</section>
+		}
 		if len(v.Watched) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Watching</h2>@panelInfo("releases of software that runs nowhere Goliash knows")</div>
@@ -368,4 +376,37 @@ func jumpClass(j string) string {
 		return "upstream"
 	}
 	return "neutral"
+}
+
+// updatesCalendar lists the upgrades with a date by month: what ends or is due, and when.
+templ updatesCalendar(v UpdatesView) {
+	if len(v.Months) == 0 {
+		<section class="panel"><div class="empty">No end of life or remediation deadline among these upgrades. An end of life shows here from 60 days before it; deadlines come from the remediation policy on the Security page.</div></section>
+	}
+	for _, m := range v.Months {
+		<section class={ "panel", templ.KV("calendar-past", m.Past) }>
+			<div class="panel-head"><h2>{ m.Label }</h2><span class="count-pill">{ itoa(len(m.Items)) }</span></div>
+			<div class="scroll" tabindex="0">
+				<table class="updates calendar">
+					<tbody>
+						for _, it := range m.Items {
+							<tr data-search={ updateSearch(it.UpdateItem) }>
+								<td class="date mono">{ it.Date.Format("2 Jan") }</td>
+								<td class="svc">
+									@kindIcons(it.Kinds)
+									<a href={ templ.URL(it.ServiceURL) }>{ it.Service }</a>
+									if it.UpdateItem.What != "" {
+										<span class="what">{ it.UpdateItem.What }</span>
+									}
+								</td>
+								<td>{ it.Env }</td>
+								<td class="upgrade"><span class="tag">{ orDash(it.Running) }</span> → <span class="tag">{ orDash(it.Target) }</span></td>
+								<td><span class={ "badge", templ.KV("eol", m.Past), templ.KV("warn", !m.Past) }>{ it.What }</span></td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
 }
