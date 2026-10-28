@@ -1476,3 +1476,7 @@ main section[id] { scroll-margin-top: 72px; }
 .kind-chip .kind-icon { color: var(--muted); }
 .kind-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 .kind-chip[aria-pressed="true"] .kind-icon { color: var(--accent); }
+/* Single sign-on: the groups and the roles they give. */
+table.sso-groups { width: 100%; border-collapse: collapse; }
+table.sso-groups td { padding: 4px 8px 4px 0; }
+table.sso-groups input, table.sso-groups select { width: 100%; }

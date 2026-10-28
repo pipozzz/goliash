@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -89,7 +90,9 @@ type Auth struct {
 	log       *slog.Logger
 	publicURL *url.URL
 	mail      MailFunc
-	oidc      *OIDC
+	oidc      atomic.Pointer[OIDC]
+	oidcEnv   bool     // set up by the environment: the settings page shows it, read only
+	ssoTests  sync.Map // test sign-in results by ID, for the settings page
 
 	passwords  bool
 	sessionTTL time.Duration
@@ -200,24 +203,39 @@ func SessionID(r *http.Request) string {
 	return hashOf(c.Value)
 }
 
-// SetOIDC enables OIDC sign-in.
-func (a *Auth) SetOIDC(o *OIDC) { a.oidc = o }
+// SetOIDC enables OIDC sign-in, or turns it off with nil. It takes effect at the next sign-in.
+func (a *Auth) SetOIDC(o *OIDC) { a.oidc.Store(o) }
+
+// SetOIDCFromEnv marks the OIDC sign-in as set up by the environment, which the settings page cannot change.
+func (a *Auth) SetOIDCFromEnv(on bool) { a.oidcEnv = on }
+
+// OIDCFromEnv reports whether the environment sets up OIDC sign-in.
+func (a *Auth) OIDCFromEnv() bool { return a.oidcEnv }
+
+// CurrentGroupRoles are the roles the identity provider's groups give, for SCIM too; nil without them.
+func (a *Auth) CurrentGroupRoles() GroupRoles {
+	if o := a.oidc.Load(); o != nil {
+		return o.groups
+	}
+	return nil
+}
 
 // ErrDisabled is returned for a person the identity provider deactivated.
 var ErrDisabled = errors.New("this account is deactivated")
 
 // GroupRoles reports whether the identity provider's groups decide people's roles.
-func (a *Auth) GroupRoles() bool { return a.oidc != nil && len(a.oidc.groups) > 0 }
+func (a *Auth) GroupRoles() bool { return len(a.CurrentGroupRoles()) > 0 }
 
 // OIDCEnabled reports whether OIDC sign-in is configured.
-func (a *Auth) OIDCEnabled() bool { return a.oidc != nil }
+func (a *Auth) OIDCEnabled() bool { return a.oidc.Load() != nil }
 
 // OIDCName is the provider name shown on the sign-in button.
 func (a *Auth) OIDCName() string {
-	if a.oidc == nil {
+	o := a.oidc.Load()
+	if o == nil {
 		return ""
 	}
-	return a.oidc.name
+	return o.name
 }
 
 // MailEnabled reports whether magic links can be e-mailed.

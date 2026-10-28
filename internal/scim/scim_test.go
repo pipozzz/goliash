@@ -43,7 +43,7 @@ func newEnv(t *testing.T, roles string) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(New(st, token, gr, "https://goliash.example", slog.New(slog.NewTextHandler(io.Discard, nil))))
+	srv := httptest.NewServer(New(st, token, func() auth.GroupRoles { return gr }, "https://goliash.example", slog.New(slog.NewTextHandler(io.Discard, nil))))
 	t.Cleanup(srv.Close)
 	return &env{t: t, st: st, ws: ws, pay: pay, srv: srv}
 }

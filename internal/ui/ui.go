@@ -305,6 +305,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/passkeys/{id}/delete", s.page(v, s.deletePasskey))
 	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
 	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
+	mux.Handle("GET /settings/sso", s.page(a, s.ssoPage))
+	mux.Handle("POST /settings/sso", s.page(a, s.ssoSave))
+	mux.Handle("POST /settings/sso/delete", s.page(a, s.ssoDelete))
 	mux.Handle("POST /settings/app-label", s.page(a, s.setAppLabel))
 	mux.Handle("POST /settings/freezes", s.page(a, s.addFreeze))
 	mux.Handle("POST /settings/freezes/{id}/delete", s.page(a, s.deleteFreeze))
@@ -2246,7 +2249,7 @@ func accessLabel(u store.User, wsRole string) string {
 }
 
 func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsView, error) {
-	v := SettingsView{Base: s.base(ctx, p, "settings", "Workspace settings"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled, GroupRoles: s.auth.GroupRoles()}
+	v := SettingsView{Base: s.base(ctx, p, "settings", "Workspace settings"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled, GroupRoles: s.auth.GroupRoles(), SSOOn: s.auth.OIDCEnabled(), SSOName: s.auth.OIDCName()}
 	if req, err := s.store.RequireTwoFactor(ctx, p.User.OrgID); err == nil {
 		v.Require2FA = req
 	}
