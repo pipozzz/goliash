@@ -1653,6 +1653,9 @@ type ImageSecurity struct {
 type ServiceFinding struct {
 	Key, Summary, Severity, Package, Fix, Envs string
 	Exploited                                  bool
+	// Upstream says what upstream's versions mean when the distribution has no fix: Advice in a sentence, Short in
+	// a few words.
+	Upstream, UpstreamShort string
 	// NoFix: exploited and no fixed version: it is mitigated instead. Mitigations are those in force for this service,
 	// Places where it still runs without one, and MitigateBy the remediation deadline for that.
 	NoFix       bool

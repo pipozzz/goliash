@@ -381,8 +381,20 @@ affect a service, say so instead of leaving it open:
   auditors.
 - **Withdraw** (admins) puts it back.
 
-"What to do" on the service page also says when upstream has a newer release than the advisory knows about, so
-you can check its release notes before you mark anything.
+### Upstream fixes
+
+For that common case Goliash does not wait for you. When a distribution's advisory has no fix for a package whose
+upstream product Goliash knows (nginx, OpenSSL, curl, PostgreSQL, Redis and others), it asks NVD for the versions
+the CVE affects upstream (exploited and serious ones first; `GOLIASH_NVD_API_KEY` makes it faster) and reads the
+version that runs without the distribution's revision (`1.27.1-1~bookworm` is nginx 1.27.1):
+
+- **Past upstream's fix:** the package leaves the findings, and the service's page lists it under **Not affected**
+  as *Goliash, from NVD*, with the ranges, as does the monthly report. Where NVD only says the last affected
+  version (*up to 1.25.2*) rather than the fixed one, this needs a later release line (1.27 is, 1.25.4 is not):
+  NVD may have closed such a range at the newest release of its time, before there was a fix.
+- **Still in upstream's range:** instead of *no fix yet* it says which version fixes it (*upstream nginx fixed it
+  in 1.25.3*), and "What to do" says to run that version or newer, from upstream's own packages or image when the
+  distribution has none. An exploited vulnerability with an upstream fix asks for the upgrade, not a mitigation.
 
 ## Images without an SBOM
 
