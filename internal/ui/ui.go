@@ -3418,18 +3418,24 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		return out, nil // the evidence is still worth showing
 	}
 	for _, n := range rep.NotAffected {
-		if n.Exception.ServiceID == svc.ID {
-			e := n.Exception
-			out.NotAffected = append(out.NotAffected, NotAffectedView{
-				ID: e.ID, CVE: n.Key, Why: notAffectedLabels[e.Justification], Note: e.Note, By: e.CreatedBy, Review: e.ReviewAt.Format("2 Jan 2006"),
-			})
+		if n.ServiceID != svc.ID {
+			continue
 		}
+		if n.Upstream != nil {
+			out.NotAffected = append(out.NotAffected, NotAffectedView{CVE: n.Key, Why: n.Upstream.Reason(n.Package), By: "Goliash, from NVD"})
+			continue
+		}
+		e := n.Exception
+		out.NotAffected = append(out.NotAffected, NotAffectedView{
+			ID: e.ID, CVE: n.Key, Why: notAffectedLabels[e.Justification], Note: e.Note, By: e.CreatedBy, Review: e.ReviewAt.Format("2 Jan 2006"),
+		})
 	}
 	rank := map[string]int{"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "MEDIUM": 2, "LOW": 1}
 	var all []ServiceFinding
 	for _, f := range rep.Findings {
 		var pkgs, fixes, where []string
 		var whereIDs []string
+		var upstream *versions.UpstreamFix
 		for _, a := range f.Affected {
 			if a.ServiceID != svc.ID {
 				continue
@@ -3443,6 +3449,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			if a.Fix != "" && !slices.Contains(fixes, a.Fix) {
 				fixes = append(fixes, a.Fix)
 			}
+			if a.Upstream != nil && upstream == nil {
+				upstream = a.Upstream
+			}
 		}
 		if len(pkgs) == 0 {
 			continue
@@ -3454,6 +3463,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		sf := ServiceFinding{
 			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),
 			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil, NoFix: f.NoFix(),
+		}
+		if upstream != nil {
+			sf.Upstream, sf.UpstreamShort = upstream.Advice(f.Key), upstream.Short()
 		}
 		if sf.NoFix {
 			for _, m := range mitigationsOf(f) {

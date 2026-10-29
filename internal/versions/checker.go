@@ -137,6 +137,9 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 			if err := c.CheckProductVulns(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "product vulnerability lookup failed", "workspace", ws.Slug, "err", err)
 			}
+			if err := c.CheckUpstreamFixes(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.ErrorContext(ctx, "upstream fix lookup failed", "workspace", ws.Slug, "err", err)
+			}
 			if err := c.AlertVulnerabilities(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "vulnerability alerts failed", "workspace", ws.Slug, "err", err)
 			}

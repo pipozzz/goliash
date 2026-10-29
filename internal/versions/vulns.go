@@ -197,6 +197,8 @@ type Affected struct {
 	Exposed                      []string  // how it can be reached from outside its cluster or host, if it can
 	// Mitigation is what was done there instead of an upgrade, for an exploited vulnerability with no fix.
 	Mitigation *store.Mitigation
+	// Upstream is what NVD says of the product upstream, when the distribution's advisory has no fix.
+	Upstream *UpstreamFix
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -301,14 +303,16 @@ type VulnReport struct {
 	Exploited int // findings CISA lists as exploited in the wild
 	Fixable   int // findings with a fixed version for an affected package
 	PastDue   int // exploited findings still running after CISA's due date
-	// NotAffected are the vulnerabilities people said do not affect a service, left out of Findings.
+	// NotAffected are the vulnerabilities left out of Findings for a service: people said they do not affect it,
+	// or upstream's version ranges show the version that runs is past the fix.
 	NotAffected []NotAffected
 }
 
-// NotAffected is a vulnerability left out for a service because people found it does not affect it.
+// NotAffected is a vulnerability left out for a service, and why: an exception people recorded, or Upstream.
 type NotAffected struct {
-	Key, Service string
-	Exception    store.VulnException
+	Key, Service, ServiceID, Package string
+	Exception                        store.VulnException // zero when Upstream says it
+	Upstream                         *UpstreamFix
 }
 
 // BlindImage is a running image whose packages Goliash does not know, and why.
@@ -465,10 +469,22 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
-	// What people said does not affect a service goes: from the finding, and the finding when nothing is left.
+	if upstream, err := st.ListUpstreamCVEs(ctx); err == nil {
+		addUpstreamFixes(upstream, findings)
+	}
+	// What people said does not affect a service goes, and what upstream fixed before the version that runs: from
+	// the finding, and the finding when nothing is left.
 	for key, f := range findings {
 		kept := f.Affected[:0]
 		for _, a := range f.Affected {
+			if a.Upstream != nil && a.Upstream.Sure {
+				if !slices.ContainsFunc(r.NotAffected, func(n NotAffected) bool {
+					return n.Key == f.Key && n.ServiceID == a.ServiceID && n.Package == a.Package
+				}) {
+					r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Upstream: a.Upstream})
+				}
+				continue
+			}
 			i := slices.IndexFunc(exceptions, func(e store.VulnException) bool {
 				return e.ServiceID == a.ServiceID && (e.CVE == f.Key || slices.Contains(f.Aliases, e.CVE))
 			})
@@ -477,7 +493,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				continue
 			}
 			if !slices.ContainsFunc(r.NotAffected, func(n NotAffected) bool { return n.Key == f.Key && n.Exception.ID == exceptions[i].ID }) {
-				r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, Exception: exceptions[i]})
+				r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Exception: exceptions[i]})
 			}
 		}
 		f.Affected = kept
@@ -502,7 +518,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					a.Mitigation = m
 				}
 			}
-			f.Fixable = f.Fixable || a.Fix != ""
+			f.Fixable = f.Fixable || a.Fix != "" || (a.Upstream != nil && a.Upstream.Affected)
 			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
 				f.Since = a.Since
 			}

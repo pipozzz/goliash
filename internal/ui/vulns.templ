@@ -127,6 +127,8 @@ templ VulnsPage(v VulnsView) {
 												<span class="mono">{ u.Package }</span>
 												if u.Fix != "" {
 													<span class="fix">{ "→ fixed in " + u.Fix }</span>
+												} else if u.Upstream != nil {
+													<span class="fix" title={ u.Upstream.Advice(f.Key) }>{ "→ " + u.Upstream.Short() }</span>
 												} else {
 													<span class="muted">no fix yet</span>
 												}

@@ -242,9 +242,15 @@ templ VMReportPage(v VMReportView) {
 								<tr>
 									<td class="mono">{ e.CVE }</td>
 									<td>{ orDash(e.Service) }</td>
-									<td>{ notAffectedLabels[e.Justification] }<div class="targets">{ e.Note }</div></td>
-									<td>{ e.CreatedBy }<div class="targets">{ e.CreatedAt.Format("2 Jan 2006") }</div></td>
-									<td>{ e.ReviewAt.Format("2 Jan 2006") }</td>
+									if e.Upstream != "" {
+										<td>{ e.Upstream }</td>
+										<td>Goliash, from NVD</td>
+										<td>—</td>
+									} else {
+										<td>{ notAffectedLabels[e.Justification] }<div class="targets">{ e.Note }</div></td>
+										<td>{ e.CreatedBy }<div class="targets">{ e.CreatedAt.Format("2 Jan 2006") }</div></td>
+										<td>{ e.ReviewAt.Format("2 Jan 2006") }</td>
+									}
 									<td>
 										if e.ClosedAt.IsZero() {
 											in force
@@ -268,7 +274,7 @@ templ VMReportPage(v VMReportView) {
 				<li><strong>Time to patch</strong> runs from the publication of the first release newer than the version that ran, to the deploy of an upgrade in production. Rollbacks and versions with no known release are left out.</li>
 				<li><strong>A security fix</strong> is an upgrade whose releases on the way say they fix vulnerabilities (CVE ids or a security note); <strong>in time</strong> means deployed within the deadline for security fixes.</li>
 				<li><strong>Accepted risks</strong> are acknowledgements recorded in Goliash, with who made them and when they end.</li>
-				<li><strong>Not affected</strong> records that a reported vulnerability does not apply to a service (a backported fix, a component that is not there, code that is never reached); it leaves the findings until it is withdrawn, and is reviewed by its date.</li>
+				<li><strong>Not affected</strong> records that a reported vulnerability does not apply to a service (a backported fix, a component that is not there, code that is never reached); it leaves the findings until it is withdrawn, and is reviewed by its date. Goliash also leaves out a package its distribution's advisory has no fix for when NVD's version ranges for the upstream product show the version that runs is past the fix.</li>
 				<li><strong>Mitigations</strong> stand in for an upgrade while an exploited vulnerability has no fix; they close when a fix comes out or the vulnerable image no longer runs.</li>
 			</ul>
 		</section>

@@ -80,3 +80,56 @@ func TestNotAffectedFlow(t *testing.T) {
 		t.Error("withdrawn, but not listed again")
 	}
 }
+
+// A distribution's advisory with no fix, for nginx.org's nginx past upstream's fix, is left out as not affected
+// (Goliash, from NVD); Debian's own older nginx gets the upstream fix as what to do instead of "no fix yet".
+func TestUpstreamNotAffected(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	envs, _ := e.st.ListEnvironments(ctx, sc)
+	prod := envs[len(envs)-1]
+	tg, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: prod.ID, Platform: "kubernetes", Name: "prod-up"})
+	edge, _ := e.st.EnsureService(ctx, sc, "edge")
+	legacy, _ := e.st.EnsureService(ctx, sc, "legacy")
+	ins := []store.Instance{
+		{
+			TargetID: tg.ID, EnvironmentID: prod.ID, ServiceID: edge.ID, WorkloadID: "edge", WorkloadKind: "deployment", WorkloadName: "edge",
+			ContainerName: "nginx", Image: "ghcr.io/acme/edge:1.27.1", Tag: "1.27.1", Digest: "sha256:e1", Running: 1, IsMain: true,
+		},
+		{
+			TargetID: tg.ID, EnvironmentID: prod.ID, ServiceID: legacy.ID, WorkloadID: "legacy", WorkloadKind: "deployment", WorkloadName: "legacy",
+			ContainerName: "web", Image: "ghcr.io/acme/legacy:3.1", Tag: "3.1", Digest: "sha256:l1", Running: 1, IsMain: true,
+		},
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: ins}); err != nil {
+		t.Fatal(err)
+	}
+	upstream, debian := "pkg:deb/debian/nginx@1.27.1-1~bookworm", "pkg:deb/debian/nginx@1.22.1-9+deb12u1"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/edge", Digest: "sha256:e1", Purls: []string{upstream}, Source: "sbom"})
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/legacy", Digest: "sha256:l1", Purls: []string{debian}, Source: "sbom"})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{upstream: {"DEBIAN-CVE-2023-44487"}, debian: {"DEBIAN-CVE-2023-44487"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{ID: "DEBIAN-CVE-2023-44487", Aliases: []string{"CVE-2023-44487"}, Severity: "HIGH", Fixes: map[string][]string{}})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2023-44487", DateAdded: time.Now().Format(time.DateOnly)}})
+	if err := e.st.SetUpstreamCVE(ctx, "CVE-2023-44487", []store.UpstreamRange{{Product: "f5:nginx", StartIncl: "1.9.5", EndIncl: "1.25.2"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	viewer := e.as(store.RoleViewer)
+	_, page := get(t, viewer, e.srv.URL+"/services/edge", nil)
+	if strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "Goliash, from NVD") || !strings.Contains(page, "upstream nginx 1.27.1 is past the affected versions (up to 1.25.2)") {
+		t.Error("edge still lists it, or not as not affected upstream")
+	}
+	_, page = get(t, viewer, e.srv.URL+"/services/legacy", nil)
+	if !strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") || strings.Contains(page, "no fix yet") ||
+		!strings.Contains(page, "a newer nginx fixes CVE-2023-44487") {
+		t.Error("legacy lacks the upstream fix")
+	}
+	_, page = get(t, viewer, e.srv.URL+"/security/vulns?env=all", nil)
+	if !strings.Contains(page, "legacy (prod)") || strings.Contains(page, "edge (prod)") || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") {
+		t.Error("the vulnerabilities page is wrong")
+	}
+	if _, rep := get(t, viewer, e.srv.URL+"/security/report?month="+time.Now().UTC().Format("2006-01"), nil); !strings.Contains(rep, "Goliash, from NVD") {
+		t.Error("the report lacks it")
+	}
+}

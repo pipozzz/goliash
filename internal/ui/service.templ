@@ -731,10 +731,12 @@ templ serviceSecurity(v ServiceView) {
 											<strong>What to do:</strong>
 											if f.Fix != "" {
 												{ " " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
+											} else if f.Upstream != "" && !f.NoFix {
+												{ " " + f.Upstream }
 											} else {
 												{ " no fixed version yet. Keep it from being used (a WAF or proxy rule, the affected feature turned off, the service cut off from the network) and record what you did, so the deadline is met and it is reviewed." }
-												if v.Latest != "" {
-													<div>{ "The newest " + v.Name + " upstream is " + v.Latest + ". \"No fix\" comes from the package's distribution advisory, which may not know about upstream's own builds: if its release notes say it fixes " + f.Key + ", upgrade, or mark it not affected below." }</div>
+												if f.Upstream != "" {
+													<div>{ f.Upstream }</div>
 												}
 												if !f.MitigateBy.IsZero() && len(f.Places) > 0 {
 													<div class={ templ.KV("error-text", time.Now().After(f.MitigateBy)) }>{ "Mitigate by " + f.MitigateBy.Format("2 Jan 2006") + ": " + mitigationPlaces(f.Places) }</div>
@@ -772,6 +774,8 @@ templ serviceSecurity(v ServiceView) {
 									}
 									if f.Fix != "" {
 										<div class="targets">{ "fixed in " + f.Fix }</div>
+									} else if f.UpstreamShort != "" {
+										<div class="targets" title={ f.Upstream }>{ f.UpstreamShort }</div>
 									} else {
 										<div class="targets">no fix yet</div>
 									}
@@ -789,13 +793,17 @@ templ serviceSecurity(v ServiceView) {
 		if len(sec.NotAffected) > 0 {
 			<div class="panel-body" style="border-top:1px solid var(--line)">
 				<h3>Not affected</h3>
-				<p class="muted">Left out of alerts, deadlines and open findings until they are reviewed; the monthly report lists them with the reason.</p>
+				<p class="muted">Left out of alerts, deadlines and open findings: marked by people until they are reviewed, or by Goliash where upstream's version ranges (NVD) show the version that runs is past the fix. The monthly report lists them with the reason.</p>
 				<ul class="not-affected">
 					for _, n := range sec.NotAffected {
 						<li>
 							<strong>{ n.CVE }</strong>{ ": " + n.Why + ". " + n.Note }
-							<span class="muted">{ " (" + n.By + ", review " + n.Review + ")" }</span>
-							if v.CanAdmin {
+							if n.Review != "" {
+								<span class="muted">{ " (" + n.By + ", review " + n.Review + ")" }</span>
+							} else {
+								<span class="muted">{ " (" + n.By + ")" }</span>
+							}
+							if v.CanAdmin && n.ID != "" {
 								<form class="inline" method="post" action={ templ.SafeURL("/security/exceptions/" + n.ID + "/close") }>
 									<input type="hidden" name="return" value={ "/services/" + v.Name + "#security" }/>
 									<button type="submit" class="link">Withdraw</button>

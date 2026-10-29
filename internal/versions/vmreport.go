@@ -40,7 +40,8 @@ type VMReport struct {
 // VMNotAffected is a "not affected" exception, with the service's name.
 type VMNotAffected struct {
 	store.VulnException
-	Service string
+	Service  string
+	Upstream string // why Goliash left it out by upstream's version ranges; empty for an exception people recorded
 }
 
 // VMMitigation is a mitigation, with the names it applies to.
@@ -168,6 +169,11 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 		for _, f := range vulns.Findings {
 			if f.Exploited != nil {
 				r.Exploited = append(r.Exploited, f)
+			}
+		}
+		for _, n := range vulns.NotAffected {
+			if n.Upstream != nil {
+				r.NotAffected = append(r.NotAffected, VMNotAffected{VulnException: store.VulnException{CVE: n.Key}, Service: n.Service, Upstream: n.Upstream.Reason(n.Package)})
 			}
 		}
 	}
