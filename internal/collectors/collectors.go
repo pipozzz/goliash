@@ -19,6 +19,16 @@ type Result struct {
 	Complete bool
 	// Errors explains what made the result incomplete.
 	Errors []string
+	// Code is the packages read from the code of the result's workloads that carry a code digest (.zip Lambda
+	// functions), for the digests read so far.
+	Code []CodePackages
+}
+
+// CodePackages is what the code of a workload is made of: the package URLs of its manifests, by code digest.
+type CodePackages struct {
+	Digest string
+	Purls  []string
+	Error  string // what could not be read, if anything
 }
 
 // Collector reads the full current state of one target. Implementations must only

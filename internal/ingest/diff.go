@@ -88,6 +88,9 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			inst.Team = workloadTeam(w.Labels)
 			inst.Exposed = exposed(w)
 			inst.Maintenance = w.Maintenance
+			if w.CodeDigest != nil {
+				inst.CodeDigest = *w.CodeDigest
+			}
 			if d.EnvName != "" {
 				if id, ok := in.EnvByName[d.EnvName]; ok {
 					inst.EnvironmentID = id

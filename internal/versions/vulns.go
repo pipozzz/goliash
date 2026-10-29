@@ -131,6 +131,10 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	packages, _ := c.tags.(PackageReader)
 	keys := map[string]bool{}
 	for _, in := range active {
+		if in.CodeDigest != "" { // a .zip Lambda function: its agent sends the packages of its code
+			keys[in.PackagesKey("")] = true
+			continue
+		}
 		if in.Digest == "" {
 			continue
 		}
@@ -432,10 +436,10 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
 	for _, in := range active {
-		if in.Digest == "" || (envID != "" && in.EnvironmentID != envID) {
+		key := in.PackagesKey(ParseImage(in.Image).Repo())
+		if key == "" || (envID != "" && in.EnvironmentID != envID) {
 			continue
 		}
-		key := ParseImage(in.Image).Repo() + "@" + in.Digest
 		if !images[key] {
 			images[key] = true
 			r.Images++
@@ -451,7 +455,11 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				if name == "" {
 					name = in.WorkloadName
 				}
-				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: blindWhy(b)})
+				why := blindWhy(b)
+				if in.CodeDigest != "" {
+					why = codeBlindWhy(b)
+				}
+				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: why})
 			}
 		}
 		name := svcName[in.ServiceID]
@@ -893,6 +901,17 @@ func productName(cpe string) string {
 }
 
 // blindWhy says why an image's packages are unknown.
+// codeBlindWhy says why the packages of a .zip Lambda function's code are not known.
+func codeBlindWhy(b store.ImageSBOM) string {
+	switch {
+	case b.FetchedAt.IsZero():
+		return "the code of this .zip function is not read yet (its agent reads a few functions per round)"
+	case b.Error != "":
+		return "its code could not be read: " + b.Error
+	}
+	return "no packages found in its code (no node_modules, Python packages, jars, Go build information, gems or deps.json)"
+}
+
 func blindWhy(b store.ImageSBOM) string {
 	switch {
 	case b.Source == "packages" && strings.Contains(b.Error, "no dpkg or apk package database"):

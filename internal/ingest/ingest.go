@@ -264,6 +264,21 @@ func (s *Service) Heartbeat(ctx context.Context, a store.Agent, hb agentproto.He
 	return agentproto.HeartbeatResponse{ConfigEtag: etag}, nil
 }
 
+// CodePackages keeps the packages an agent read from the code of .zip Lambda functions, as an SBOM of the code
+// digest (Source "code"): the vulnerability report reads it for the instances that run that code.
+func (s *Service) CodePackages(ctx context.Context, a store.Agent, list agentproto.CodePackagesList) error {
+	for _, c := range list.Code {
+		rec := store.ImageSBOM{Repo: store.LambdaCodeRepo, Digest: c.Digest, Purls: c.Purls, Source: "code"}
+		if c.Error != nil {
+			rec.Error = *c.Error
+		}
+		if err := s.store.SetImageSBOM(ctx, a.Scope, rec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RegistryResults records tags an agent found in private registries as releases.
 func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentproto.RegistryResults) error {
 	s.log.DebugContext(ctx, "registry results received", "agent_id", a.ID, "repositories", len(res.Results))

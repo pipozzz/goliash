@@ -188,6 +188,30 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
 
+  /agent/v1/code-packages:
+    post:
+      operationId: postCodePackages
+      summary: Send the packages read from workloads' code
+      description: |
+        The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+        information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+        itself never leaves the agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodePackagesList'
+      responses:
+        '202':
+          description: Packages accepted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /agent/v1/heartbeat:
     post:
       operationId: postHeartbeat
@@ -815,6 +839,12 @@ components:
           items:
             type: string
           example: ["ingress shop.example.com", "LoadBalancer service payments/api"]
+        code_digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+          description: |
+            What a .zip Lambda function version runs, its code and layer versions, as one digest. Its packages are
+            sent once to /agent/v1/code-packages.
         maintenance:
           type: array
           description: |
@@ -1032,6 +1062,32 @@ components:
             $ref: "#/components/schemas/VEXStatement"
         error:
           type: string
+
+    CodePackagesList:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CodePackages'
+
+    CodePackages:
+      type: object
+      required: [digest, purls]
+      properties:
+        digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        purls:
+          type: array
+          maxItems: 20000
+          items: { type: string, maxLength: 500 }
+        error:
+          type: string
+          maxLength: 2000
+          description: What could not be read (a layer without lambda:GetLayerVersion, a download that failed).
 
     VEXStatement:
       type: object

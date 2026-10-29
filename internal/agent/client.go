@@ -157,6 +157,17 @@ func toError(resp *http.Response, body []byte) error {
 	return se
 }
 
+func (c *client) codePackages(ctx context.Context, list agentproto.CodePackagesList) error {
+	resp, err := c.api.PostCodePackagesWithResponse(ctx, list)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode() != http.StatusAccepted {
+		return toError(resp.HTTPResponse, resp.Body)
+	}
+	return nil
+}
+
 func (c *client) registryResults(ctx context.Context, res agentproto.RegistryResults) error {
 	resp, err := c.api.PostRegistryResultsWithResponse(ctx, res)
 	if err != nil {

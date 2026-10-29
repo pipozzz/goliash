@@ -470,6 +470,10 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    [registry credentials](/reference/collectors/#credentials-on-the-server), or by the agents (1.141 and later)
    for registries only they reach.
 
+**.zip Lambda functions** have no image: their agent reads the packages of their code and layers instead
+(npm, PyPI, Maven, Go, RubyGems, NuGet; see [Collectors](/reference/collectors/)), and their vulnerabilities show
+under the function like an image's.
+
 What neither covers, Goliash does not know by itself: software built from source or copied into the image, RPM-based
 images (Red Hat, Rocky, Amazon Linux), scratch images. **Declare** what you built into the image with a label, and
 Goliash looks up its CVEs in NVD by version, like [the products of known images](#is-it-running):
