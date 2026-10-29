@@ -15,8 +15,11 @@ Each workload's application is read from its labels, first match wins:
 1. the label set for the workspace on **Settings → Workspace settings** (*Application label*, e.g. `example.com/app`);
 2. `goliash.app`, `app.kubernetes.io/part-of`, `app.kubernetes.io/instance` or `release` (Helm),
    `com.docker.compose.project`, `com.docker.stack.namespace`;
-3. the Nomad job;
-4. otherwise the namespace.
+3. on AWS, the Copilot application (`copilot-application` tag), else the CloudFormation stack that created the
+   function or service (`aws:cloudformation:stack-name`, which SAM, Serverless, CDK and Copilot set; a nested stack's
+   generated suffix left out), so a region's Lambda functions group by stack, not all under the region;
+4. the Nomad job;
+5. otherwise the namespace (for Lambda the region, for ECS the cluster).
 
 A service runs in the application of its workloads. When it runs in several (one postgres image, a database for each
 application), it shows once per application and drifts within each.

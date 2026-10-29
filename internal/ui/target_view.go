@@ -390,6 +390,10 @@ func appSourceLabel(src string) string {
 		return "Swarm stack"
 	case "nomad job":
 		return "Nomad job"
+	case "CloudFormation stack":
+		return "CloudFormation stack"
+	case "copilot-application":
+		return "Copilot application"
 	case "namespace":
 		return "namespace, no app label"
 	case "":
