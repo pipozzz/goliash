@@ -407,6 +407,15 @@ kernel, so Goliash leaves them out of the image's findings and lists them, group
 package in the image*). The host's kernel is patched with the nodes; dropping those packages from the final stage of
 the build makes the SBOM smaller too.
 
+### Fixed in a newer release of the distribution
+
+A distribution often fixes a vulnerability in its next release before (or instead of) the one an image is built on:
+Debian 13 has a fixed nginx for CVE-2023-44487, Debian 12 none. When the image's own release has no fix and a newer
+one has, Goliash says so instead of *no fix yet*: *fixed in Debian 13 (trixie)*, and "What to do" says to rebuild on
+a trixie base (`debian:trixie-slim`, or the trixie variant of the image it is built on). Debian, Ubuntu (not Pro)
+and Alpine releases count; the finding counts as fixable, so an exploited one asks for the rebuild, not a
+mitigation.
+
 ### Upstream fixes
 
 For that common case Goliash does not wait for you. When a distribution's advisory has no fix for a package whose

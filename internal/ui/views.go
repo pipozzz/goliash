@@ -1657,6 +1657,8 @@ type ServiceFinding struct {
 	// Upstream says what upstream's versions mean when the distribution has no fix: Advice in a sentence, Short in
 	// a few words.
 	Upstream, UpstreamShort string
+	// Newer says which newer release of the image's distribution fixes it, when its own has no fix.
+	Newer, NewerShort string
 	// NoFix: exploited and no fixed version: it is mitigated instead. Mitigations are those in force for this service,
 	// Places where it still runs without one, and MitigateBy the remediation deadline for that.
 	NoFix       bool

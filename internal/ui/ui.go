@@ -3442,6 +3442,8 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		var pkgs, fixes, where []string
 		var whereIDs []string
 		var upstream *versions.UpstreamFix
+		var newer *versions.NewerRelease
+		current := ""
 		for _, a := range f.Affected {
 			if a.ServiceID != svc.ID {
 				continue
@@ -3458,6 +3460,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			if a.Upstream != nil && upstream == nil {
 				upstream = a.Upstream
 			}
+			if a.Newer != nil && newer == nil {
+				newer, current = a.Newer, a.Current
+			}
 		}
 		if len(pkgs) == 0 {
 			continue
@@ -3472,6 +3477,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		}
 		if upstream != nil {
 			sf.Upstream, sf.UpstreamShort = upstream.Advice(f.Key), upstream.Short()
+		}
+		if newer != nil {
+			sf.Newer, sf.NewerShort = newer.Advice(current), "fixed in "+newer.Label()
 		}
 		if sf.NoFix {
 			for _, m := range mitigationsOf(f) {

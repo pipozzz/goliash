@@ -158,3 +158,38 @@ func TestUpstreamNotAffected(t *testing.T) {
 		t.Error("legacy ignores its VEX")
 	}
 }
+
+// Debian 12 has no fix, Debian 13 has: the fix is a trixie base, not a mitigation.
+func TestNewerDistroRelease(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	envs, _ := e.st.ListEnvironments(ctx, sc)
+	prod := envs[len(envs)-1]
+	tg, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: prod.ID, Platform: "kubernetes", Name: "prod-deb"})
+	svc, _ := e.st.EnsureService(ctx, sc, "proxy")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: tg.ID, EnvironmentID: prod.ID, ServiceID: svc.ID, WorkloadID: "proxy", WorkloadKind: "deployment", WorkloadName: "proxy",
+		ContainerName: "nginx", Image: "ghcr.io/acme/proxy:2.0", Tag: "2.0", Digest: "sha256:p1", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	pkg := "pkg:deb/debian/nginx@1.22.1-9+deb12u1?os_distro=bookworm&os_name=debian&os_version=12"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/proxy", Digest: "sha256:p1", Purls: []string{pkg}, Source: "sbom"})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{pkg: {"DEBIAN-CVE-2023-44487"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{
+		ID: "DEBIAN-CVE-2023-44487", Aliases: []string{"CVE-2023-44487"}, Severity: "HIGH",
+		Fixes: map[string][]string{"Debian:13|nginx": {"1.24.0-2"}},
+	})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2023-44487", DateAdded: time.Now().Format(time.DateOnly)}})
+
+	viewer := e.as(store.RoleViewer)
+	_, page := get(t, viewer, e.srv.URL+"/services/proxy", nil)
+	if !strings.Contains(page, "fixed in Debian 13 (trixie)") || strings.Contains(page, "no fix yet") ||
+		!strings.Contains(page, "Debian 12 (bookworm) has no fix; Debian 13 (trixie) fixes it in nginx 1.24.0-2") || strings.Contains(page, "Record a mitigation") {
+		t.Error("the service page does not offer the newer release")
+	}
+	if _, page := get(t, viewer, e.srv.URL+"/security/vulns?env=all", nil); !strings.Contains(page, "→ fixed in Debian 13 (trixie)") {
+		t.Error("the vulnerabilities page does not offer it")
+	}
+}

@@ -267,6 +267,10 @@ type Affected struct {
 	Upstream *UpstreamFix
 	// VEX is what the image's publisher says of it, when its VEX document has a statement.
 	VEX *store.VEXStatement
+	// Newer is a newer release of the image's distribution that fixes it, when its own has no fix; Current names
+	// the image's own release (Debian 12 (bookworm)).
+	Newer   *NewerRelease
+	Current string
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -516,12 +520,20 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
 				a.VEX = vexFor(vex[u.key].Statements, append([]string{id}, f.Aliases...), p)
+				if fix == "" {
+					if n, cur, ok := newerReleaseFix(p, rec.Fixes); ok {
+						a.Newer, a.Current = &n, cur
+					}
+				}
 				if i := indexAffected(f.Affected, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
 					}
 					if f.Affected[i].VEX == nil {
 						f.Affected[i].VEX = a.VEX
+					}
+					if f.Affected[i].Newer == nil && f.Affected[i].Fix == "" {
+						f.Affected[i].Newer, f.Affected[i].Current = a.Newer, a.Current
 					}
 					f.Affected[i].Exposed = union(f.Affected[i].Exposed, u.exposed)
 					if !u.since.IsZero() && (f.Affected[i].Since.IsZero() || u.since.Before(f.Affected[i].Since)) {
@@ -595,7 +607,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					a.Mitigation = m
 				}
 			}
-			f.Fixable = f.Fixable || a.Fix != "" || (a.Upstream != nil && a.Upstream.Affected)
+			f.Fixable = f.Fixable || a.Fix != "" || a.Newer != nil || (a.Upstream != nil && a.Upstream.Affected)
 			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
 				f.Since = a.Since
 			}

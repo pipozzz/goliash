@@ -525,6 +525,8 @@ type PackageUse struct {
 	Fix      string
 	Where    []string // "service (env)"
 	Upstream *versions.UpstreamFix
+	Newer    *versions.NewerRelease
+	Current  string
 }
 
 // byPackage groups a finding's running images by package, each service once.
@@ -536,7 +538,7 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		if !ok {
 			i = len(out)
 			index[a.Package] = i
-			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream})
+			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current})
 		}
 		w := a.Service + " (" + a.Env + ")"
 		if !slices.Contains(out[i].Where, w) {
