@@ -3450,11 +3450,36 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			ID: e.ID, CVE: n.Key, Why: notAffectedLabels[e.Justification], Note: e.Note, By: e.CreatedBy, Review: e.ReviewAt.Format("2 Jan 2006"),
 		})
 	}
+	// Per image: what is in each, and which images an environment runs more than one of (then "where" names them).
+	imageAt := map[[2]string]int{}
+	perEnv := map[string]int{}
+	for i, im := range out.Images {
+		imageAt[[2]string{im.Env, im.Image}] = i
+		perEnv[im.Env]++
+	}
+	for _, b := range rep.Blind {
+		if i, ok := imageAt[[2]string{b.Environment, b.Image}]; ok {
+			out.Images[i].Blind = b.Why
+		}
+	}
+	for _, f := range rep.Findings {
+		counted := map[int]bool{}
+		for _, a := range f.Affected {
+			if i, ok := imageAt[[2]string{a.Env, a.Image}]; ok && a.ServiceID == svc.ID && !counted[i] {
+				counted[i] = true
+				out.Images[i].Vulns++
+				if f.Exploited != nil {
+					out.Images[i].Exploited++
+				}
+			}
+		}
+	}
 	rank := map[string]int{"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "MEDIUM": 2, "LOW": 1}
 	var all []ServiceFinding
 	for _, f := range rep.Findings {
 		var pkgs, fixes, where []string
 		var whereIDs []string
+		tagsAt := map[string][]string{} // environment ID -> the versions it is in there
 		var upstream *versions.UpstreamFix
 		var newer *versions.NewerRelease
 		current := ""
@@ -3464,6 +3489,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			}
 			if !slices.Contains(whereIDs, a.EnvironmentID) {
 				whereIDs = append(whereIDs, a.EnvironmentID)
+			}
+			if tag := versions.ParseImage(a.Image).Tag; tag != "" && !slices.Contains(tagsAt[a.EnvironmentID], tag) {
+				tagsAt[a.EnvironmentID] = append(tagsAt[a.EnvironmentID], tag)
 			}
 			if !slices.Contains(pkgs, a.Package) {
 				pkgs = append(pkgs, a.Package)
@@ -3483,7 +3511,11 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		}
 		sort.Slice(whereIDs, func(i, j int) bool { return envPos[whereIDs[i]] > envPos[whereIDs[j]] })
 		for _, id := range whereIDs {
-			where = append(where, envName[id])
+			w := envName[id]
+			if perEnv[w] > 1 && len(tagsAt[id]) > 0 { // which of the versions running there
+				w += " (" + strings.Join(tagsAt[id], ", ") + ")"
+			}
+			where = append(where, w)
 		}
 		sf := ServiceFinding{
 			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),

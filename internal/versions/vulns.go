@@ -830,7 +830,7 @@ func FindingMatches(f VulnFinding, q string) bool {
 		}
 	}
 	for _, a := range f.Affected {
-		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) {
+		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) || strings.ToUpper(a.Image) == q {
 			return true
 		}
 	}

@@ -1648,6 +1648,8 @@ type ImageSecurity struct {
 	Rebuild                           string // the image down its chain of bases to rebuild first, when not itself
 	Chain                             string // its chain of bases: "acme/base:1 (current) → alpine:3.20 (outdated)"
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
+	Vulns, Exploited                  int    // known vulnerabilities in it, and how many are exploited in the wild
+	Blind                             string // why its packages are not known, when they are not
 }
 
 // ServiceFinding is one vulnerability in the service's images.
