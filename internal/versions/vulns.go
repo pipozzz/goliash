@@ -20,6 +20,68 @@ type SBOMReader interface {
 	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
+// VEXReader reads the OpenVEX statements attached to an image. registry.Client implements it.
+type VEXReader interface {
+	ImageVEX(ctx context.Context, repository, digest string, creds registry.Credentials) ([]registry.VEXStatement, error)
+}
+
+const (
+	vexPerRun  = 20             // images whose VEX documents are read per run
+	vexRefresh = 24 * time.Hour // publishers add statements as they look into new vulnerabilities
+)
+
+// hasVEX reports whether a registry lookup found a VEX document for the image.
+func hasVEX(ev store.ImageEvidence) bool {
+	for _, f := range ev.Found {
+		if strings.HasSuffix(f, " vex") || f == "vex artifact" {
+			return true
+		}
+	}
+	return false
+}
+
+// readVEX reads the VEX documents of running images that have one, a few per run.
+func (c *Checker) readVEX(ctx context.Context, sc store.Scope, keys map[string]bool, evidence map[string]store.ImageEvidence, auth RegistryAuth) error {
+	reader, ok := c.tags.(VEXReader)
+	if !ok {
+		return nil
+	}
+	known, err := c.store.ListImageVEX(ctx, sc)
+	if err != nil {
+		return err
+	}
+	now, read := c.now(), 0
+	for key := range keys {
+		repo, digest, _ := strings.Cut(key, "@")
+		if v, ok := known[key]; !hasVEX(evidence[key]) || !auth.Reads(repo) || (ok && now.Sub(v.FetchedAt) < vexRefresh) || read >= vexPerRun {
+			continue
+		}
+		read++
+		creds, _ := auth.For(repo)
+		list, err := reader.ImageVEX(ctx, repo, digest, creds)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		rec := store.ImageVEX{Repo: repo, Digest: digest, Statements: VEXStatements(list)}
+		if err != nil {
+			rec.Error = err.Error()
+		}
+		if err := c.store.SetImageVEX(ctx, sc, rec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// VEXStatements converts a registry's statements for the store.
+func VEXStatements(list []registry.VEXStatement) []store.VEXStatement {
+	out := make([]store.VEXStatement, 0, len(list))
+	for _, s := range list {
+		out = append(out, store.VEXStatement(s))
+	}
+	return out
+}
+
 // PackageReader reads the operating system packages installed in an image, for an image without an SBOM.
 // registry.Client implements it.
 type PackageReader interface {
@@ -118,6 +180,10 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		sboms[key] = rec
 	}
 
+	if err := c.readVEX(ctx, sc, keys, evidence, auth); err != nil {
+		return err
+	}
+
 	// OSV, for the packages of running images whose answer is missing or old.
 	var purls []string
 	seen := map[string]bool{}
@@ -199,6 +265,8 @@ type Affected struct {
 	Mitigation *store.Mitigation
 	// Upstream is what NVD says of the product upstream, when the distribution's advisory has no fix.
 	Upstream *UpstreamFix
+	// VEX is what the image's publisher says of it, when its VEX document has a statement.
+	VEX *store.VEXStatement
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -348,10 +416,14 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	for _, e := range envs {
 		envName[e.ID] = e.Name
 	}
+	vex, err := st.ListImageVEX(ctx, sc)
+	if err != nil {
+		return r, err
+	}
 	type use struct {
-		service, env, image, serviceID, envID string
-		since                                 time.Time
-		exposed                               []string
+		service, env, image, serviceID, envID, key string
+		since                                      time.Time
+		exposed                                    []string
 	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
@@ -383,7 +455,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, in.FirstSeenAt, in.Exposed})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -443,9 +515,13 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
+				a.VEX = vexFor(vex[u.key].Statements, append([]string{id}, f.Aliases...), p)
 				if i := indexAffected(f.Affected, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
+					}
+					if f.Affected[i].VEX == nil {
+						f.Affected[i].VEX = a.VEX
 					}
 					f.Affected[i].Exposed = union(f.Affected[i].Exposed, u.exposed)
 					if !u.since.IsZero() && (f.Affected[i].Since.IsZero() || u.since.Before(f.Affected[i].Since)) {

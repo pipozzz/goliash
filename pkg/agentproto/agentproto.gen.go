@@ -583,6 +583,9 @@ type ImageInspection struct {
 
 	// Size What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
 	Size *int64 `json:"size,omitempty"`
+
+	// Vex The OpenVEX statements attached to the image (attestations or referrers), later ones about the same vulnerability in place of earlier; absent when the image has no VEX document.
+	Vex []VEXStatement `json:"vex,omitempty"`
 }
 
 // ImageInspectionPurlsFrom Where purls come from; absent means the SBOM (agents before 1.141).
@@ -873,6 +876,20 @@ type Target struct {
 
 // ULID Example: 01J9ZQ3X8M4K2V7T5R6N0P1C2D
 type ULID = string
+
+// VEXStatement defines model for VEXStatement.
+type VEXStatement struct {
+	Author        *string `json:"author,omitempty"`
+	Impact        *string `json:"impact,omitempty"`
+	Justification *string `json:"justification,omitempty"`
+
+	// Packages The package URLs the statement is about; empty for the whole image.
+	Packages []string `json:"packages,omitempty"`
+
+	// Status not_affected, fixed, affected or under_investigation
+	Status        string `json:"status"`
+	Vulnerability string `json:"vulnerability"`
+}
 
 // Workload defines model for Workload.
 type Workload struct {

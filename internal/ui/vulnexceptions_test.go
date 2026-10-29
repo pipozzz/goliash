@@ -141,4 +141,16 @@ func TestUpstreamNotAffected(t *testing.T) {
 	if _, rep := get(t, viewer, e.srv.URL+"/security/report?month="+time.Now().UTC().Format("2006-01"), nil); !strings.Contains(rep, "(NVD)") {
 		t.Error("the report lacks it")
 	}
+
+	// The legacy image's publisher says, in VEX, that its nginx is not affected: that settles it.
+	if err := e.st.SetImageVEX(ctx, sc, store.ImageVEX{Repo: "ghcr.io/acme/legacy", Digest: "sha256:l1", Statements: []store.VEXStatement{{
+		Vulnerability: "CVE-2023-44487", Status: "not_affected", Justification: "vulnerable_code_not_in_execute_path",
+		Packages: []string{"pkg:deb/debian/nginx"}, Author: "Acme Security",
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	_, page = get(t, viewer, e.srv.URL+"/services/legacy", nil)
+	if strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "the vulnerable code is never run, says Acme Security (VEX)") {
+		t.Error("legacy ignores its VEX")
+	}
 }

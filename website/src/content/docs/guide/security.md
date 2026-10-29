@@ -381,6 +381,24 @@ affect a service, say so instead of leaving it open:
   auditors.
 - **Withdraw** (admins) puts it back.
 
+### VEX from the image's publisher
+
+An image can carry an [OpenVEX](https://openvex.dev) document in which its publisher says which vulnerabilities its
+packages match but do not affect it: Docker Hardened Images and Chainguard ship them, and your own builds can too:
+
+```sh
+# with the build
+docker buildx build --attest type=vex,filename=app.vex.json --push -t ghcr.io/acme/app:1.4.0 .
+# for an image already pushed
+cosign attest --type openvex --predicate app.vex.json ghcr.io/acme/app@sha256:…
+```
+
+Goliash reads it beside the SBOM (BuildKit attestations, cosign's `.att` tag, OCI referrers; agents read it for
+private registries) and refreshes it daily. A statement that a vulnerability is `not_affected` or `fixed`, for the
+whole image or for the package it matched, leaves that package out of the findings and lists it under **Not
+affected** with its justification and author (*the vulnerable code is never run, says Acme Security (VEX)*).
+Supply-chain evidence shows *vex* among what was found.
+
 ### Kernel packages
 
 An image often carries the kernel's packages without running them: `linux-libc-dev` comes with build-essential,

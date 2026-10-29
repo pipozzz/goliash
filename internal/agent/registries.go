@@ -299,6 +299,11 @@ type PackageReader interface {
 	ImagePackages(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
+// VEXReader reads the OpenVEX statements attached to an image. registry.Client implements it.
+type VEXReader interface {
+	ImageVEX(ctx context.Context, repository, digest string, creds registry.Credentials) ([]registry.VEXStatement, error)
+}
+
 // maxPurls bounds the packages reported for one image.
 const maxPurls = 20000
 
@@ -378,6 +383,19 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 				}
 			}
 		}
+		if vr, ok := a.registry.(VEXReader); ok && ev.VEX {
+			list, err := vr.ImageVEX(ctx, c.Repository, digest, creds)
+			if err != nil && ctx.Err() == nil {
+				a.log.Warn("vex not readable", "repository", c.Repository, "digest", digest, "err", err)
+			}
+			in.Vex = make([]agentproto.VEXStatement, 0, len(list))
+			for _, s := range list[:min(len(list), 5000)] {
+				in.Vex = append(in.Vex, agentproto.VEXStatement{
+					Vulnerability: s.Vulnerability, Status: s.Status, Packages: s.Packages,
+					Justification: optional(s.Justification), Impact: optional(s.Impact), Author: optional(s.Author),
+				})
+			}
+		}
 		out = append(out, in)
 	}
 	return out
@@ -424,4 +442,12 @@ func (a *Agent) awsRegion() string {
 		}
 	}
 	return ""
+}
+
+// optional is s for an optional field: nil when empty.
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

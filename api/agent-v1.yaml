@@ -1024,8 +1024,29 @@ components:
           additionalProperties:
             type: string
             maxLength: 200
+        vex:
+          type: array
+          maxItems: 5000
+          description: The OpenVEX statements attached to the image (attestations or referrers), later ones about the same vulnerability in place of earlier; absent when the image has no VEX document.
+          items:
+            $ref: "#/components/schemas/VEXStatement"
         error:
           type: string
+
+    VEXStatement:
+      type: object
+      required: [vulnerability, status]
+      properties:
+        vulnerability: { type: string, maxLength: 100 }
+        status: { type: string, maxLength: 40, description: "not_affected, fixed, affected or under_investigation" }
+        justification: { type: string, maxLength: 100 }
+        impact: { type: string, maxLength: 400 }
+        packages:
+          type: array
+          maxItems: 100
+          description: The package URLs the statement is about; empty for the whole image.
+          items: { type: string, maxLength: 500 }
+        author: { type: string, maxLength: 200 }
 
     DigestMatch:
       type: object
