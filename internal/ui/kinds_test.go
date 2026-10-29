@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -142,5 +143,20 @@ func TestMatrixBulkTeam(t *testing.T) {
 	}
 	if _, page = get(t, e.as(store.RoleViewer), e.srv.URL+"/", nil); strings.Contains(page, `class="row-tick"`) {
 		t.Error("a viewer gets ticks")
+	}
+}
+
+// An alert that names a page of Goliash opens it from the bell: the vulnerability to mitigate, not the service.
+func TestBellLinkOpensTheAlertsPage(t *testing.T) {
+	msg := notifier.Message{Items: []notifier.Item{{Type: "deadline", Service: "uptime-kuma", URL: "/security/vulns?env=all&q=CVE-2026-1"}}}
+	if got := bellLink(msg); got != "/security/vulns?env=all&q=CVE-2026-1" {
+		t.Errorf("link %q", got)
+	}
+	msg.Items[0].URL = "https://github.com/x/releases"
+	if got := bellLink(msg); got != "/services/uptime-kuma" {
+		t.Errorf("external link %q", got)
+	}
+	if !strings.Contains(fixAdvice("third_party"), "upstream release") || !strings.Contains(fixAdvice("own"), "Rebuild") {
+		t.Error("fix advice")
 	}
 }

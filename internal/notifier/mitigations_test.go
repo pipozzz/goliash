@@ -43,6 +43,11 @@ func TestMitigations(t *testing.T) {
 	if sink.count() != 1 || !strings.Contains(sink.last(), "CVE-2026-9999 is exploited in the wild and has no fix yet; record a mitigation by ") {
 		t.Fatalf("unmitigated: %d %s", sink.count(), sink.last())
 	}
+	if feed, _ := e.st.NotificationFeed(ctx, e.sc, time.Now().Add(-time.Hour), 10); len(feed) == 0 ||
+		!strings.Contains(string(feed[0].Items[0]), `"url":"/security/vulns?env=all\u0026q=CVE-2026-9999"`) &&
+			!strings.Contains(string(feed[0].Items[0]), `/security/vulns?env=all&q=CVE-2026-9999`) {
+		t.Errorf("the alert does not link the vulnerability: %+v", feed)
+	}
 
 	// Mitigated, review in two days: brought up once.
 	m, err := e.st.CreateMitigation(ctx, store.Mitigation{
