@@ -11,6 +11,10 @@ import (
 // 13 has a fixed nginx while Debian 12 has none. OSV's advisory names the fixed version per release; the newest
 // fix there is moving the image to a base on that release.
 
+// debianStable is Debian's newest stable release: a newer one is testing (forky) or unstable, not a base to move a
+// production image to. Raise it when Debian releases the next.
+const debianStable = 13
+
 // debianNames are Debian's releases by number, as image tags name them.
 var debianNames = map[string]string{"10": "buster", "11": "bullseye", "12": "bookworm", "13": "trixie", "14": "forky", "15": "duke"}
 
@@ -24,6 +28,19 @@ func distroRelease(eco string) (distro, name string, release Version, ok bool) {
 	name = strings.TrimPrefix(parts[1], "v")
 	release, ok = ParseVersion(name)
 	return parts[0], name, release, ok
+}
+
+// movable reports whether a release is one to move a production image to: a stable Debian, an Ubuntu LTS.
+func movable(eco string) bool {
+	parts := strings.Split(eco, ":")
+	switch parts[0] {
+	case "Debian":
+		v, ok := ParseVersion(parts[1])
+		return ok && len(v.Parts) > 0 && v.Parts[0] <= debianStable
+	case "Ubuntu":
+		return len(parts) > 2 && parts[2] == "LTS"
+	}
+	return true
 }
 
 // NewerRelease is a newer release of an image's distribution that fixes a vulnerability its own release does not.
@@ -111,7 +128,7 @@ func newerReleaseFix(purl string, fixes map[string][]string) (NewerRelease, stri
 	for key, fs := range fixes {
 		eco, name, _ := strings.Cut(key, "|")
 		d, rel, v, ok := distroRelease(eco)
-		if !ok || d != distro || name != q.Package.Name || len(fs) == 0 || v.Compare(cur) <= 0 {
+		if !ok || d != distro || name != q.Package.Name || len(fs) == 0 || v.Compare(cur) <= 0 || !movable(eco) {
 			continue
 		}
 		if best.Distro == "" || v.Compare(bestV) < 0 {

@@ -362,7 +362,8 @@ says it, it looks further: a newer release of the distribution, or the upstream 
 A distribution often fixes a vulnerability in its next release before (or instead of) the one an image is built on:
 Debian 13 has a fixed nginx for CVE-2023-44487, Debian 12 none. When the image's own release has no fix and a newer
 one has, Goliash says so instead of *no fix yet*: *fixed in Debian 13 (trixie)*, and "What to do" says to rebuild on
-a trixie base. When it knows what the image is built on (its `org.opencontainers.image.base.name` label, its
+a trixie base. Only releases to move a production image to count: a stable Debian (not testing, such as forky
+before it is released), an Ubuntu LTS. When it knows what the image is built on (its `org.opencontainers.image.base.name` label, its
 provenance, or the service's [base image](#base-images)), it names the image to build on instead: *rebuild on
 python:3.15-trixie instead of python:3.15-bookworm*; `node:22-alpine3.20` becomes `node:22-alpine3.21`,
 `ubuntu:jammy` `ubuntu:noble`. A slim variant also leaves out the build tools and `-dev` libraries a runtime image
