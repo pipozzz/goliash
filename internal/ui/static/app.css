@@ -1506,3 +1506,9 @@ td.svc .row-tick { margin-right: 6px; vertical-align: -1px; }
 .more-packages summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .not-affected form.inline { display: inline; margin-left: 6px; }
 .not-affected li { margin-bottom: 6px; }
+.exposed-ways { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+.exposed-ways li { overflow-wrap: anywhere; }
+.exposed-toggle { display: inline-block; vertical-align: middle; }
+.exposed-toggle > summary { list-style: none; cursor: pointer; }
+.exposed-toggle > summary::-webkit-details-marker { display: none; }
+.exposed-toggle[open] { display: block; }
