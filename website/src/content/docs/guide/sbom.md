@@ -101,20 +101,30 @@ CycloneDX, wherever it is:
 - **OCI referrers**: an SBOM pushed as an artifact (`oras attach --artifact-type application/vnd.cyclonedx+json`) or
   a Sigstore bundle with an SBOM predicate.
 
+An image without an SBOM is not left empty: Goliash reads its operating system's package database instead
+(Debian, Ubuntu, Alpine, Wolfi; see [Images without an SBOM](../security/#images-without-an-sbom)), so its system
+packages are in the export too. An [OpenVEX](https://openvex.dev) document attached the same ways (BuildKit
+`--attest type=vex`, `cosign attest --type openvex`, a referrer) is read beside the SBOM: what the image's publisher
+says does not affect it is left out of its vulnerabilities.
+
 Images on public registries are read by the server. Images on private registries are read by the agents with the
 credentials they already use, or by the server with read access given under
 [Settings → Private registries](../../reference/collectors/#credentials-on-the-server). Each image is read once; its
 package list is kept with its digest.
 
 **Security** shows how many production images carry an SBOM, a signature and provenance, and lists those without.
-An image without an SBOM still appears in the export, with its digest and where it runs, just without packages
+An image Goliash has no packages for (no SBOM, and no package database it can read: scratch, RPM-based, or a
+registry it cannot reach) still appears in the export, with its digest and where it runs, just without packages
 inside: add `--sbom=true` to its build and the next export has them.
 
 ## Vulnerabilities from the same packages
 
 The packages behind the export also answer **Security → Is it running?**: Goliash asks
 [OSV](https://osv.dev) daily which known vulnerabilities affect them, puts those CISA knows to be exploited first, and
-names the version that fixes each. See [Is it running?](../security/#is-it-running).
+names the version that fixes each, or the newer distribution release or upstream version that does. Findings that do
+not apply (kernel packages, packages past upstream's fix, what the image's VEX rules out, what people mark not
+affected) are left out with their reason. See [Is it running?](../security/#is-it-running) and
+[Not affected](../security/#not-affected).
 
 ## For audits and regulation
 
