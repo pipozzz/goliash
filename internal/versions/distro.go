@@ -5,6 +5,7 @@ package versions
 
 import (
 	"strings"
+	"sync"
 )
 
 // A distribution often fixes a vulnerability in its next release and not in the one an image is built on: Debian
@@ -21,6 +22,24 @@ var debianNames = map[string]string{"10": "buster", "11": "bullseye", "12": "boo
 // distroRelease reads an OSV ecosystem as a distribution and its release: "Debian:13" is Debian 13, "Ubuntu:24.04:LTS"
 // Ubuntu 24.04, "Alpine:v3.21" Alpine 3.21. Ubuntu Pro and other ecosystems are not releases to move to.
 func distroRelease(eco string) (distro, name string, release Version, ok bool) {
+	if v, hit := releaseMemo.Load(eco); hit {
+		r := v.(distroRel)
+		return r.distro, r.name, r.release, r.ok
+	}
+	distro, name, release, ok = parseDistroRelease(eco)
+	releaseMemo.Store(eco, distroRel{distro, name, release, ok}) // a few hundred ecosystems at most
+	return distro, name, release, ok
+}
+
+var releaseMemo sync.Map
+
+type distroRel struct {
+	distro, name string
+	release      Version
+	ok           bool
+}
+
+func parseDistroRelease(eco string) (distro, name string, release Version, ok bool) {
 	parts := strings.Split(eco, ":")
 	if len(parts) < 2 || (parts[0] != "Debian" && parts[0] != "Alpine" && parts[0] != "Ubuntu") || parts[1] == "Pro" {
 		return "", "", Version{}, false

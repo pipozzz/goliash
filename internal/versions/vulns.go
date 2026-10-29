@@ -5,10 +5,12 @@ package versions
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/registry"
@@ -411,7 +413,54 @@ type BlindImage struct {
 
 // LoadVulnReport builds the report for the running images, envID limiting it to one environment ("" for all).
 func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
-	return memoized(ctx, "vulns "+sc.WorkspaceID+" "+envID, func() (VulnReport, error) { return loadVulnReport(ctx, st, sc, envID) })
+	return memoized(ctx, "vulns "+sc.WorkspaceID+" "+envID, func() (VulnReport, error) { return sharedVulnReport(ctx, st, sc, envID) })
+}
+
+// vulnTables are the tables the vulnerability report is read from: a kept report is stale once one is written.
+var vulnTables = []string{
+	"instances", "services", "environments", "image_sboms", "osv_packages", "osv_vulns", "known_exploited", "mitigations",
+	"vuln_exceptions", "upstream_cves", "product_releases", "image_vex", "product_vulns", "image_evidence", "tag_resolutions",
+}
+
+// vulnTTL bounds how long a report is reused, for other processes' writes.
+const vulnTTL = time.Minute
+
+var vulnCache struct {
+	sync.Mutex
+	m map[string]keptVulns
+}
+
+type keptVulns struct {
+	gens string
+	at   time.Time
+	r    VulnReport
+}
+
+// sharedVulnReport is the report reused across requests while its tables are unchanged: every page marks
+// exploited vulnerabilities, and building it goes through every package of every image. It is shared: callers
+// must not change it in place.
+func sharedVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
+	key := fmt.Sprintf("%p|%s|%s", st, sc.WorkspaceID, envID)
+	gens := st.Generations(vulnTables...)
+	vulnCache.Lock()
+	k, ok := vulnCache.m[key]
+	vulnCache.Unlock()
+	if ok && k.gens == gens && time.Since(k.at) < vulnTTL {
+		return k.r, nil
+	}
+	r, err := loadVulnReport(ctx, st, sc, envID)
+	if err != nil {
+		return r, err
+	}
+	if st.Generations(vulnTables...) == gens {
+		vulnCache.Lock()
+		if vulnCache.m == nil {
+			vulnCache.m = map[string]keptVulns{}
+		}
+		vulnCache.m[key] = keptVulns{gens: gens, at: time.Now(), r: r}
+		vulnCache.Unlock()
+	}
+	return r, nil
 }
 
 func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
@@ -504,6 +553,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		return r, err
 	}
 	findings := map[string]*VulnFinding{}
+	where := affectedIndex{}
 	pending := map[string]bool{}
 	for p, k := range pv {
 		for _, id := range k.Vulns {
@@ -540,15 +590,19 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				f.Severity = rec.Severity
 			}
 			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
+			var newer *NewerRelease // once a package and advisory, not once an image that has them
+			current := ""
+			if fix == "" {
+				if n, cur, ok := newerReleaseFix(p, rec.Fixes); ok {
+					newer, current = &n, cur
+				}
+			}
+			ids := append([]string{id}, f.Aliases...)
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
-				a.VEX = vexFor(vex[u.key].Statements, append([]string{id}, f.Aliases...), p)
-				if fix == "" {
-					if n, cur, ok := newerReleaseFix(p, rec.Fixes); ok {
-						a.Newer, a.Current = &n, cur
-					}
-				}
-				if i := indexAffected(f.Affected, a); i >= 0 {
+				a.VEX = vexFor(vex[u.key].Statements, ids, p)
+				a.Newer, a.Current = newer, current
+				if i := where.index(f, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
 					}
@@ -563,7 +617,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 						f.Affected[i].Since = u.since
 					}
 				} else {
-					f.Affected = append(f.Affected, a)
+					where.add(f, a)
 				}
 			}
 		}
@@ -586,13 +640,13 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	}
 	// What people said does not affect a service goes, what upstream fixed before the version that runs, and the
 	// kernel's packages: from the finding, and the finding when nothing is left.
+	listed := map[string]bool{} // not affected entries already listed: a set, not a search through the list
 	for key, f := range findings {
 		kept := f.Affected[:0]
 		for _, a := range f.Affected {
 			if why := autoNotAffected(a); why != "" {
-				if !slices.ContainsFunc(r.NotAffected, func(n NotAffected) bool {
-					return n.Key == f.Key && n.ServiceID == a.ServiceID && n.Package == a.Package
-				}) {
+				if k := f.Key + "|" + a.ServiceID + "|" + a.Package; !listed[k] {
+					listed[k] = true
 					r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Auto: why})
 				}
 				continue
@@ -604,7 +658,8 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				kept = append(kept, a)
 				continue
 			}
-			if !slices.ContainsFunc(r.NotAffected, func(n NotAffected) bool { return n.Key == f.Key && n.Exception.ID == exceptions[i].ID }) {
+			if k := f.Key + "|exception|" + exceptions[i].ID; !listed[k] {
+				listed[k] = true
 				r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Exception: exceptions[i]})
 			}
 		}
@@ -676,6 +731,29 @@ func purlName(p string) string {
 
 func severityRank(s string) int {
 	return map[string]int{"LOW": 1, "MODERATE": 2, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}[strings.ToUpper(s)]
+}
+
+// affectedIndex finds an affected image in a finding by service, environment, image and package without searching
+// its list: a vulnerability in a package every image has is in hundreds of them.
+type affectedIndex map[*VulnFinding]map[string]int
+
+func affectedKey(a Affected) string {
+	return a.Service + "\x00" + a.Env + "\x00" + a.Image + "\x00" + a.Package
+}
+
+func (x affectedIndex) index(f *VulnFinding, a Affected) int {
+	if i, ok := x[f][affectedKey(a)]; ok {
+		return i
+	}
+	return -1
+}
+
+func (x affectedIndex) add(f *VulnFinding, a Affected) {
+	if x[f] == nil {
+		x[f] = map[string]int{}
+	}
+	x[f][affectedKey(a)] = len(f.Affected)
+	f.Affected = append(f.Affected, a)
 }
 
 // indexAffected finds the same service, environment, image and package in list, fix aside.

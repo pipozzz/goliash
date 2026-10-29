@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -72,6 +73,28 @@ func osvQueryFor(purl string) (osvQuery, bool) {
 // origin without its release line (openssl for openssl-4.0) is not tried: advisories of another release line,
 // often open-ended, would match every version of this one.
 func osvQueries(purl string) []osvQuery {
+	if v, ok := queriesMemo.Load(purl); ok {
+		return v.([]osvQuery)
+	}
+	q := parseQueries(purl)
+	if queriesMemoN.Add(1) > memoMax { // a bound, not an eviction policy: start again
+		queriesMemo.Clear()
+		queriesMemoN.Store(0)
+	}
+	queriesMemo.Store(purl, q)
+	return q
+}
+
+// queriesMemo keeps what a package URL is asked as: the vulnerability report asks it for every advisory of every
+// package, many thousand times a page.
+var (
+	queriesMemo  sync.Map
+	queriesMemoN atomic.Int64
+)
+
+const memoMax = 200000
+
+func parseQueries(purl string) []osvQuery {
 	q, ok := osvPrimary(purl)
 	if !ok {
 		return nil

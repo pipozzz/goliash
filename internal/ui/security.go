@@ -146,6 +146,7 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
 		return err
 	}
+	v.Vulns.Blind = slices.Clone(v.Vulns.Blind) // the report is shared: sorted in a copy
 	sort.Slice(v.Vulns.Blind, func(i, j int) bool {
 		return v.Vulns.Blind[i].Service+v.Vulns.Blind[i].Image < v.Vulns.Blind[j].Service+v.Vulns.Blind[j].Image
 	})
