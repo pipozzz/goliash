@@ -3363,6 +3363,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		return out, err
 	}
 	seen := map[string]bool{}
+	base := versions.ShortImage(versions.BaseImage(svc)) // what its images are built on, for the release to move to
 	type row struct {
 		ImageSecurity
 		pos int
@@ -3392,6 +3393,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		}
 		if len(ev.BaseChain) > 0 {
 			rows[len(rows)-1].Chain = versions.ChainText(ev.BaseChain)
+		}
+		if base == "" && ev.BaseImage != "" {
+			base = versions.ShortImage(ev.BaseImage)
 		}
 		if ev.SBOM {
 			out.WithSBOM++
@@ -3479,7 +3483,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			sf.Upstream, sf.UpstreamShort = upstream.Advice(f.Key), upstream.Short()
 		}
 		if newer != nil {
-			sf.Newer, sf.NewerShort = newer.Advice(current), "fixed in "+newer.Label()
+			sf.Newer, sf.NewerShort = newer.AdviceOn(current, base), "fixed in "+newer.Label()
 		}
 		if sf.NoFix {
 			for _, m := range mitigationsOf(f) {
