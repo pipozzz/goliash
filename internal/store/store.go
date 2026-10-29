@@ -43,6 +43,7 @@ var migrations embed.FS
 // and rebound for PostgreSQL.
 type Store struct {
 	db      *sql.DB
+	rdb     *sql.DB // SQLite file: connections that only read, beside db's one writer; nil otherwise
 	dialect Dialect
 	now     func() time.Time
 	aead    cipher.AEAD // encrypts secrets at rest; nil without a secret key
@@ -89,8 +90,27 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	// SQLite in WAL mode lets readers run beside the one writer: pages no longer queue behind a checker writing
+	// thousands of rows. The readers open the same file, read-only, with a smaller page cache each.
+	if dialect == SQLite && !strings.Contains(source, ":memory:") {
+		rsource := strings.Replace(source, url.QueryEscape("cache_size(-32768)"), url.QueryEscape("cache_size(-8192)"), 1) +
+			"&_pragma=" + url.QueryEscape("query_only(1)")
+		rdb, err := sql.Open(driver, rsource)
+		if err == nil {
+			rdb.SetMaxOpenConns(readers)
+			rdb.SetMaxIdleConns(readers)
+			if err = rdb.PingContext(ctx); err == nil {
+				s.rdb = rdb
+			} else {
+				_ = rdb.Close()
+			}
+		}
+	}
 	return s, nil
 }
+
+// readers is how many SQLite connections read at once, beside the one that writes.
+const readers = 4
 
 func parseDSN(dsn string) (dialect Dialect, driver, source string, err error) {
 	switch {
@@ -151,7 +171,12 @@ func (s *Store) migrate(ctx context.Context) error {
 }
 
 // Close closes the database.
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	if s.rdb != nil {
+		_ = s.rdb.Close()
+	}
+	return s.db.Close()
+}
 
 // Dialect reports which database the Store uses.
 func (s *Store) Dialect() Dialect { return s.dialect }
@@ -194,11 +219,20 @@ func (s *Store) exec(ctx context.Context, q queryer, query string, args ...any) 
 }
 
 func (s *Store) queryRow(ctx context.Context, q queryer, query string, args ...any) *sql.Row {
-	return q.QueryRowContext(ctx, s.rebind(query), args...)
+	return s.reader(q).QueryRowContext(ctx, s.rebind(query), args...)
 }
 
 func (s *Store) query(ctx context.Context, q queryer, query string, args ...any) (*sql.Rows, error) {
-	return q.QueryContext(ctx, s.rebind(query), args...)
+	return s.reader(q).QueryContext(ctx, s.rebind(query), args...)
+}
+
+// reader is where a read outside a transaction goes: a SQLite reader connection when there are any. A read in a
+// transaction stays in it, and so sees its writes.
+func (s *Store) reader(q queryer) queryer {
+	if q == queryer(s.db) && s.rdb != nil {
+		return s.rdb
+	}
+	return q
 }
 
 // inTx runs fn in a transaction and commits it when fn returns nil.
