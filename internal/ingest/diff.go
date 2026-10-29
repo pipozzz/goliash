@@ -5,6 +5,7 @@ package ingest
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 	}
 
 	observed := map[string]bool{}
+	var seen []store.Instance // every instance the snapshot shows, written or not
 	observedWorkloads := map[string]bool{}
 	for _, w := range in.Snapshot.Workloads {
 		observedWorkloads[w.ID] = true
@@ -134,13 +136,19 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 					in.AutoMapped[repo] = id
 				}
 			}
-			if prev, ok := existing[r.inst.Key()]; ok {
+			prev, had := existing[r.inst.Key()]
+			if had {
 				r.inst.ID = prev.ID
 			} else {
 				r.inst.ID = store.NewID()
 			}
 			observed[r.inst.Key()] = true
-			ch.Upsert = append(ch.Upsert, r.inst)
+			seen = append(seen, r.inst)
+			// An instance as it was is not written again (only its last sighting, for the whole target at once):
+			// most of an agent's snapshots change nothing, and rewriting every row each time kept the database busy.
+			if !had || !prev.Active() || !sameInstance(prev, r.inst) {
+				ch.Upsert = append(ch.Upsert, r.inst)
+			}
 		}
 	}
 
@@ -156,7 +164,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 	}
 
 	if !in.Baseline {
-		ch.Events = events(in.Existing, ch.Upsert, ch.Remove, in.LastVersions, in.Snapshot.CollectedAt)
+		ch.Events = events(in.Existing, seen, ch.Remove, in.LastVersions, in.Snapshot.CollectedAt)
 	}
 	return ch, nil
 }
@@ -369,3 +377,14 @@ func exposed(w agentproto.Workload) []string {
 	}
 	return w.Exposed
 }
+
+// sameInstance reports whether an instance is as it was: nothing to write but its last sighting.
+func sameInstance(a, b store.Instance) bool {
+	return a.EnvironmentID == b.EnvironmentID && a.ServiceID == b.ServiceID && a.SuggestedService == b.SuggestedService &&
+		a.WorkloadKind == b.WorkloadKind && a.Namespace == b.Namespace && a.WorkloadName == b.WorkloadName && a.Tag == b.Tag &&
+		a.Running == b.Running && a.IsMain == b.IsMain && a.App == b.App && a.AppSource == b.AppSource && a.Team == b.Team &&
+		sameInt(a.Desired, b.Desired) && slices.Equal(a.Exposed, b.Exposed) && slices.Equal(a.Maintenance, b.Maintenance) &&
+		a.CodeDigest == b.CodeDigest
+}
+
+func sameInt(a, b *int) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
