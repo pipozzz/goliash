@@ -5,6 +5,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 )
@@ -94,5 +95,50 @@ func TestWrittenTable(t *testing.T) {
 		if got != want {
 			t.Errorf("%q: %q, want %q", q, got, want)
 		}
+	}
+}
+
+// SQLite: a page reads while a long write is under way, instead of waiting for it.
+func TestReadersBesideWriter(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(ctx, migratedDSN(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	if st.Dialect() != SQLite {
+		t.Skip("SQLite only")
+	}
+	if st.rdb == nil {
+		t.Fatal("no reader connections")
+	}
+	ws, _ := st.EnsureDefaultWorkspace(ctx)
+	writing, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- st.inTx(ctx, func(tx *sql.Tx) error {
+			if _, err := st.exec(ctx, tx, `UPDATE workspaces SET name = name WHERE id = ?`, ws.ID); err != nil {
+				return err
+			}
+			close(writing)
+			<-release // a long write
+			return nil
+		})
+	}()
+	<-writing
+	start := time.Now()
+	if _, err := st.listServices(ctx, ws.Scope()); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > time.Second {
+		t.Error("a read waited for the write")
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	// The readers only read.
+	if _, err := st.rdb.ExecContext(ctx, `UPDATE workspaces SET name = name`); err == nil {
+		t.Error("a reader connection wrote")
 	}
 }
