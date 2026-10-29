@@ -556,7 +556,33 @@ templ envNotes(e ServiceEnv) {
 				<a class="badge neutral" href={ templ.SafeURL(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>
 			}
 		</div>
+		if len(e.Exposed) > 0 {
+			<ul class="exposed-ways">
+				for _, w := range e.Exposed {
+					<li>{ w }</li>
+				}
+			</ul>
+		}
+		if len(e.Maintenance) > 0 {
+			<ul class="exposed-ways">
+				for _, m := range e.Maintenance {
+					<li>{ m }</li>
+				}
+			</ul>
+		}
 	}
+}
+
+// exposedBadge is the exposed badge of a list: it opens to say how the service can be reached from outside.
+templ exposedBadge(ways []string, class string) {
+	<details class="exposed-toggle">
+		<summary class={ "badge", class } title={ exposedTitle(ways) }>exposed</summary>
+		<ul class="exposed-ways">
+			for _, w := range ways {
+				<li>{ w }</li>
+			}
+		</ul>
+	</details>
 }
 
 templ runningVersion(ver VersionView) {

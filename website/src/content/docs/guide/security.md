@@ -285,7 +285,9 @@ host, a LoadBalancer or NodePort service, an ECS load balancer or public IP, a L
 authentication, a Docker port published on every interface (details and permissions in
 [Collectors](../../reference/collectors/#exposure)).
 
-- **Updates** marks such an upgrade **exposed** (hover for the ways in) and puts it first within its urgency: an
+- **The service page** lists the ways in under each environment marked **exposed** in Running; its Security panel
+  below has the vulnerabilities of those images.
+- **Updates** marks such an upgrade **exposed** (click the badge for the ways in) and puts it first within its urgency: an
   exploited vulnerability behind an ingress before one in an internal service, then production first as before.
 - **Vulnerabilities** puts findings in exposed images right after those exploited in the wild, marks them, and
   **Only exposed** narrows the list (`?exposed=1`; the CSV and `GET /api/v1/vulnerabilities?exposed=true` too).

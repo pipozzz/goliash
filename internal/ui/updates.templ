@@ -235,7 +235,11 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 					<span class="badge warn" title={ maintenanceTitle(it.Maintenance) }>patch pending</span>
 				}
 				if len(it.Exposed) > 0 {
-					<span class={ "badge", templ.KV("eol", len(it.Exploited) > 0 || it.SecurityFix != ""), templ.KV("warn", len(it.Exploited) == 0 && it.SecurityFix == "") } title={ exposedTitle(it.Exposed) }>exposed</span>
+					if len(it.Exploited) > 0 || it.SecurityFix != "" {
+						@exposedBadge(it.Exposed, "eol")
+					} else {
+						@exposedBadge(it.Exposed, "warn")
+					}
 				}
 				if it.SecurityFix == "security" {
 					<span class="badge eol" title="The project says a release up to this one fixes vulnerabilities">security fix</span>

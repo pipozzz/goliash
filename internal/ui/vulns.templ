@@ -98,7 +98,7 @@ templ VulnsPage(v VulnsView) {
 									</td>
 									<td>
 										if ways := exposedWays(f); len(ways) > 0 {
-											<span class="badge eol" title={ exposedTitle(ways) }>exposed</span>
+											@exposedBadge(ways, "eol")
 										}
 										if f.Exploited != nil {
 											<span class="badge eol" title={ "CISA: " + f.Exploited.Name + ", added " + f.Exploited.DateAdded }>exploited</span>
