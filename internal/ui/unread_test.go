@@ -62,3 +62,16 @@ func TestUnreadSkipsReadTags(t *testing.T) {
 		t.Fatalf("unread %+v", got)
 	}
 }
+
+// ECR in another account refuses for want of a repository policy: Goliash says so and gives the command.
+func TestECRCrossAccount(t *testing.T) {
+	msg := "agent: ecr ListImages aws-logs: operation error ECR: ListImages, https response error StatusCode: 400, RequestID: x, api error AccessDeniedException: User: arn:aws:sts::672088933272:assumed-role/resource-metrics/i-0da52e1dd63167af2 is not authorized to perform: ecr:ListImages on resource: arn:aws:ecr:us-west-2:240220093055:repository/aws-logs because no resource-based policy allows the ecr:ListImages action"
+	role, account, cmd, ok := ecrCrossAccount(msg, "240220093055.dkr.ecr.us-west-2.amazonaws.com/aws-logs")
+	if !ok || role != "arn:aws:iam::672088933272:role/resource-metrics" || account != "240220093055" ||
+		!strings.Contains(cmd, "--region us-west-2 --repository-name aws-logs") || !strings.Contains(cmd, `"AWS":"arn:aws:iam::672088933272:role/resource-metrics"`) {
+		t.Fatalf("%q %q %q %v", role, account, cmd, ok)
+	}
+	if _, _, _, ok := ecrCrossAccount("AccessDeniedException: not authorized to perform: ecr:ListImages", "240220093055.dkr.ecr.us-west-2.amazonaws.com/aws-logs"); ok {
+		t.Error("a same-account refusal taken for cross-account")
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -165,6 +166,8 @@ func bellLink(msg notifier.Message) string {
 		return "/updates"
 	case len(msg.Items) == 1 && msg.Items[0].Type == "posture":
 		return "/security"
+	case len(msg.Items) == 1 && strings.HasPrefix(msg.Items[0].URL, "/") && !strings.HasPrefix(msg.Items[0].URL, "//"):
+		return msg.Items[0].URL // a page of Goliash the alert names: the vulnerability to mitigate, say
 	case len(msg.Items) == 1 && msg.Items[0].Service != "":
 		return "/services/" + url.PathEscape(msg.Items[0].Service)
 	}

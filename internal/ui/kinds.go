@@ -270,3 +270,12 @@ func matrixTeams(rows []MatrixRow) []string {
 	slices.Sort(out)
 	return out
 }
+
+// fixAdvice says how a fixed package gets into a running image: an own image is rebuilt on its patched base, a
+// third-party one needs a release that has it.
+func fixAdvice(kind string) string {
+	if kind == "third_party" {
+		return "Move to an upstream release built with it (the Upstream releases panel), or ask its maintainers for one."
+	}
+	return "Rebuild the image so it pulls the patched package (update its base image or run the package upgrade in the build), then deploy it."
+}

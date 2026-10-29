@@ -93,7 +93,16 @@ templ ServicePage(v ServiceView) {
 		if v.CheckError != "" {
 			<div class="notice error">
 				Upstream check failed: { v.CheckError }
-				if v.Private && strings.Contains(v.CheckError, "denied") {
+				if role, account, cmd, ok := ecrCrossAccount(v.CheckError, v.RefRepo); ok {
+					<p class="hint">
+						{ "The repository is in AWS account " + account + ", the agent's role (" + role + ") in another one. Its IAM policy is not enough across accounts: the repository's own policy has to let the role read. In account " + account + ":" }
+					</p>
+					<pre tabindex="0" class="mono install-cmd" id="ecr-cross">{ cmd }</pre>
+					<div class="actions"><button type="button" class="secondary" data-copy="ecr-cross">Copy</button></div>
+					<p class="hint">This replaces the repository's policy: add the statement to it if it has one. The agent tries again within 10 minutes.</p>
+				} else if v.Private && isECR(versions.RegistryHost(v.RefRepo)) && strings.Contains(v.CheckError, "denied") {
+					<p class="hint">Give the agent's IAM role <code>ecr:ListImages</code>, <code>ecr:BatchGetImage</code> and <code>ecr:GetDownloadUrlForLayer</code> (or AmazonEC2ContainerRegistryReadOnly); the agent's page, Add AWS, has the policy. The agent tries again within 10 minutes.</p>
+				} else if v.Private && strings.Contains(v.CheckError, "denied") {
 					<p class="hint">
 						The agents check this registry with their own credentials: a <code>GOLIASH_CREDENTIAL_…</code> variable named after the registry host, a <code>docker login</code> on the host, or the cluster's image pull secrets. Or give the server read access under Settings → Private registries.
 						<a href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How to give agents credentials</a>
@@ -712,9 +721,20 @@ templ serviceSecurity(v ServiceView) {
 						for _, f := range sec.Findings {
 							<tr>
 								<td>
-									<a href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }><strong>{ f.Key }</strong></a>
+									<a id={ "vuln-" + f.Key } href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }><strong>{ f.Key }</strong></a>
 									if f.Summary != "" {
 										<div class="targets">{ f.Summary }</div>
+									}
+									if f.Exploited {
+										<div class="what-to-do">
+											<strong>What to do:</strong>
+											if f.Fix != "" {
+												{ " " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
+											} else {
+												{ " no fixed version yet. Keep it from being used: a WAF rule, the feature off, or the service isolated, and record it so the deadline is met. " }
+												<a href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }>Record a mitigation →</a>
+											}
+										</div>
 									}
 								</td>
 								<td data-label="Severity">

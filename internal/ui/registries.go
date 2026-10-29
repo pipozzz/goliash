@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -169,4 +170,25 @@ func (s *Server) deleteRegistry(w http.ResponseWriter, r *http.Request, p auth.P
 // shortError is an agent's error as the banner shows it: without the "agent: " prefix, at most a line or two.
 func shortError(e string) string {
 	return truncateRunes(strings.TrimPrefix(e, "agent: "), 220)
+}
+
+var ecrDeniedRole = regexp.MustCompile(`arn:aws:sts::(\d{12}):assumed-role/([^/\s]+)/`)
+
+// ecrCrossAccount reads an ECR refusal that names no resource-based policy: the agent's role is in another account
+// than the repository, and only the repository's own policy can let it read. It returns that role, the repository's
+// account, and the command to run there.
+func ecrCrossAccount(checkErr, repo string) (role, account, command string, ok bool) {
+	if !strings.Contains(checkErr, "no resource-based policy") {
+		return "", "", "", false
+	}
+	m := ecrDeniedRole.FindStringSubmatch(checkErr)
+	acct, region, name, isECR := ecr.Parse(repo)
+	if m == nil || !isECR {
+		return "", "", "", false
+	}
+	role = "arn:aws:iam::" + m[1] + ":role/" + m[2]
+	command = "aws ecr set-repository-policy --region " + region + " --repository-name " + name + " --policy-text '" +
+		`{"Version":"2012-10-17","Statement":[{"Sid":"GoliashRead","Effect":"Allow","Principal":{"AWS":"` + role +
+		`"},"Action":["ecr:ListImages","ecr:DescribeImages","ecr:BatchGetImage","ecr:GetDownloadUrlForLayer"]}]}'`
+	return role, acct, command, true
 }

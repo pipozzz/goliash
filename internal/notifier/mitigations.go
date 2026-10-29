@@ -6,6 +6,7 @@ package notifier
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -41,6 +42,12 @@ func (n *Notifier) checkMitigations(ctx context.Context, sc store.Scope, rules [
 		it := Item{
 			Type: EventDeadline, Service: svc.Name, Owner: svc.Owner, Environment: nm.envs[envID], Production: envID == nm.prod,
 			At: now, Note: note, URL: "/security/vulns?kev=1",
+		}
+		// The vulnerability itself, where its mitigation is recorded.
+		if _, rest, ok := strings.Cut(note, "|"); ok {
+			if cve, _, _ := strings.Cut(rest, "|"); cve != "" {
+				it.URL = "/security/vulns?env=all&q=" + url.QueryEscape(cve)
+			}
 		}
 		it.Text = Describe(it)
 		return it
