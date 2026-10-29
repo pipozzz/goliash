@@ -697,7 +697,7 @@ templ serviceSecurity(v ServiceView) {
 		</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">
-				<thead><tr><th>Environment</th><th>Image</th><th class="num">Size</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
+				<thead><tr><th>Environment</th><th>Image</th><th>Vulnerabilities</th><th class="num">Size</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
 				<tbody>
 					for _, im := range sec.Images {
 						<tr>
@@ -711,6 +711,22 @@ templ serviceSecurity(v ServiceView) {
 								}
 								if im.Chain != "" {
 									<div class="muted base-chain" title="The chain of base images, each built on the next: current or outdated against its tag now">{ "on " + im.Chain }</div>
+								}
+							</td>
+							<td data-label="Vulnerabilities">
+								if im.Vulns > 0 {
+									<a href={ templ.URL("/security/vulns?env=all&q=" + url.QueryEscape(im.Image)) } title={ "The known vulnerabilities of " + im.Image }>
+										if im.Exploited > 0 {
+											<span class="badge exploited">{ itoa(im.Exploited) + " exploited" }</span>
+										}
+										{ " " + itoa(im.Vulns) }
+									</a>
+								} else if im.Blind != "" {
+									<span class="muted" title={ im.Blind }>packages unknown</span>
+								} else if im.Checked {
+									<span class="muted">none known</span>
+								} else {
+									<span class="muted">—</span>
 								}
 							</td>
 							<td class="num" data-label="Size">

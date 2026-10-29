@@ -198,3 +198,44 @@ func TestNewerDistroRelease(t *testing.T) {
 		t.Error("the base image to move to is not named")
 	}
 }
+
+// Two versions in one environment: each image says what is in it, and each vulnerability which version has it.
+func TestVulnsPerImage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	envs, _ := e.st.ListEnvironments(ctx, sc)
+	prod := envs[len(envs)-1]
+	tg, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: prod.ID, Platform: "ecs", Name: "ecs-prod"})
+	svc, _ := e.st.EnsureService(ctx, sc, "le-certs")
+	in := func(w, tag, digest string) store.Instance {
+		return store.Instance{
+			TargetID: tg.ID, EnvironmentID: prod.ID, ServiceID: svc.ID, WorkloadID: w, WorkloadKind: "ecs_service", WorkloadName: w,
+			ContainerName: "app", Image: "1.dkr.ecr.us-west-2.amazonaws.com/le-certs:" + tag, Tag: tag, Digest: digest, Running: 1, IsMain: true,
+		}
+	}
+	_ = e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{
+		in("le-certs", "v2.3", "sha256:new"), in("qa-le-certs", "v2.1.1", "sha256:old"),
+	}})
+	repo := "1.dkr.ecr.us-west-2.amazonaws.com/le-certs"
+	old := "pkg:deb/debian/libbrotli1@1.0.9-2+b6?arch=amd64&os_version=12&upstream=brotli"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: "sha256:old", Purls: []string{old}, Source: "packages"})
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: "sha256:new", Purls: []string{"pkg:deb/debian/base-files@13.8?arch=amd64&os_version=13"}, Source: "packages"})
+	_ = e.st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: repo, Digest: "sha256:old", CheckedAt: time.Now()})
+	_ = e.st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: repo, Digest: "sha256:new", CheckedAt: time.Now()})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{old: {"DEBIAN-CVE-2026-111497"}, "pkg:deb/debian/base-files@13.8?arch=amd64&os_version=13": {}})
+	_ = e.st.SetVuln(ctx, store.Vuln{ID: "DEBIAN-CVE-2026-111497", Aliases: []string{"CVE-2026-111497"}, Severity: "HIGH", Fixes: map[string][]string{"Debian:12|brotli": {"1.0.9-2+deb12u1"}}})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2026-111497", DateAdded: time.Now().Format(time.DateOnly)}})
+
+	viewer := e.as(store.RoleViewer)
+	_, page := get(t, viewer, e.srv.URL+"/services/le-certs", nil)
+	if !strings.Contains(page, ">1 exploited</span>") || !strings.Contains(page, "none known") {
+		t.Error("the images do not say what is in each")
+	}
+	if !strings.Contains(page, ">"+prod.Name+" (v2.1.1)<") {
+		t.Error("the vulnerability does not say which version has it")
+	}
+	if _, list := get(t, viewer, e.srv.URL+"/security/vulns?env=all&q="+repo+":v2.3", nil); strings.Contains(list, "CVE-2026-111497") {
+		t.Error("the image's link lists another image's vulnerability")
+	}
+}
