@@ -439,7 +439,10 @@ func TestWorkspaceIsolationForClients(t *testing.T) {
 	if token == nil {
 		t.Fatalf("no confirm form: %s", page[:min(len(page), 300)])
 	}
-	post(t, client, e.srv.URL+"/auth/magic/use", url.Values{"token": {token[1]}})
+	// New, with no password yet: asked to set one first.
+	if _, welcome, _ := post(t, client, e.srv.URL+"/auth/magic/use", url.Values{"token": {token[1]}}); !strings.Contains(welcome, "Set a password below") {
+		t.Error("a new person is not asked to set a password")
+	}
 	// Used: the link does not work again.
 	if _, again := get(t, preview, link, nil); !strings.Contains(again, "error") && strings.Contains(again, "Continue to Goliash") {
 		t.Error("the link works twice")

@@ -13,7 +13,8 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   in with a button, so a chat's link preview or a mail scanner, which opens links but presses no buttons, does not
   use it up.
 - **Invitations.** **Settings → People → Invite** gives an e-mail address a role and shows a sign-in link for it,
-  which works once, for 7 days; with SMTP configured Goliash e-mails it too. **Sign-in link** beside a person makes
+  which works once, for 7 days; with SMTP configured Goliash e-mails it too. Signing in with it, someone without a
+  password yet lands on their account page and is asked to set one, or add a passkey (not with single sign-on). **Sign-in link** beside a person makes
   a new one (an expired invitation, a lost password).
 - **Passkeys.** On the account page, **Add a passkey** saves one in the device (Touch ID, Face ID, Windows Hello, a
   phone or a security key). Then **Sign in with a passkey** on the sign-in page, or pick it from the browser's

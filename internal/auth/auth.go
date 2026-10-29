@@ -259,14 +259,17 @@ func hashOf(raw string) string {
 // LoginLink creates a single-use sign-in URL for a user, valid for 15 minutes. People
 // with two-factor sign-in still enter a code after it.
 func (a *Auth) LoginLink(ctx context.Context, u store.User) (string, error) {
-	return a.link(ctx, u, store.TokenLink, loginTokenTTL)
+	return a.link(ctx, u, store.TokenLink, loginTokenTTL, "")
 }
 
 // InviteLink is a sign-in link an admin hands someone (an invitation, or a new link from the people list): it
 // works once, for InviteDays days.
 func (a *Auth) InviteLink(ctx context.Context, u store.User) (string, error) {
-	return a.link(ctx, u, store.TokenLink, inviteTTL)
+	return a.link(ctx, u, store.TokenLink, inviteTTL, inviteMethod)
 }
+
+// inviteMethod marks a sign-in link an admin handed out: whoever uses it without a password yet is asked to set one.
+const inviteMethod = "invite"
 
 // InviteDays is how long an InviteLink works.
 const InviteDays = int(inviteTTL / (24 * time.Hour))
@@ -284,12 +287,12 @@ func (a *Auth) MailInvite(ctx context.Context, to, by, workspace, link string) e
 // RecoveryLink is a LoginLink that skips the second factor, for GOLIASH_RECOVERY_EMAIL:
 // whoever sets the server's environment and reads its logs controls it anyway.
 func (a *Auth) RecoveryLink(ctx context.Context, u store.User) (string, error) {
-	return a.link(ctx, u, store.TokenRecovery, loginTokenTTL)
+	return a.link(ctx, u, store.TokenRecovery, loginTokenTTL, "")
 }
 
-func (a *Auth) link(ctx context.Context, u store.User, purpose string, ttl time.Duration) (string, error) {
+func (a *Auth) link(ctx context.Context, u store.User, purpose string, ttl time.Duration, method string) (string, error) {
 	raw, hash := randomToken()
-	if err := a.store.CreateLoginToken(ctx, hash, u.ID, ttl, purpose, ""); err != nil {
+	if err := a.store.CreateLoginToken(ctx, hash, u.ID, ttl, purpose, method); err != nil {
 		return "", err
 	}
 	return a.publicURL.String() + "/auth/magic?token=" + url.QueryEscape(raw), nil
@@ -486,6 +489,7 @@ func (a *Auth) PeekLink(ctx context.Context, raw string) (store.User, bool) {
 }
 
 func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
+	_, _, method, _ := a.store.PeekLoginToken(r.Context(), hashOf(r.FormValue("token")), store.TokenLink, store.TokenRecovery)
 	u, purpose, err := a.store.ConsumeLoginToken(r.Context(), hashOf(r.FormValue("token")), store.TokenLink, store.TokenRecovery)
 	if err != nil {
 		http.Redirect(w, r, "/login?error=link", http.StatusSeeOther)
@@ -505,6 +509,11 @@ func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.startSession(w, r, u, "link"); err != nil {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
+		return
+	}
+	// Someone invited has no other way in yet: ask them to set a password or add a passkey first.
+	if method == inviteMethod && a.passwords && !u.HasPassword && u.Passkeys == 0 && !a.OIDCEnabled() {
+		http.Redirect(w, r, "/account?welcome=1#password", http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, a.landing(w, r), http.StatusSeeOther) //nolint:gosec // landing is a path on this server (localPath)

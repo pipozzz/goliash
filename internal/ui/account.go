@@ -93,6 +93,9 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 	for _, k := range keys {
 		v.Passkeys = append(v.Passkeys, PasskeyView{ID: k.ID, Name: k.Name, CreatedAt: k.CreatedAt, LastUsed: k.LastUsedAt})
 	}
+	if r.URL.Query().Get("welcome") == "1" && v.Notice == "" && !v.HasPassword {
+		v.Notice = "Welcome to Goliash. Set a password below (or add a passkey), so you can sign in next time without a link."
+	}
 	if r.URL.Query().Get("passkey") == "added" && v.Notice == "" {
 		v.Notice = "Passkey added. Next time, sign in with it: no password or code needed."
 	}
