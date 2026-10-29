@@ -101,9 +101,10 @@ CycloneDX, wherever it is:
 - **OCI referrers**: an SBOM pushed as an artifact (`oras attach --artifact-type application/vnd.cyclonedx+json`) or
   a Sigstore bundle with an SBOM predicate.
 
-An image without an SBOM is not left empty: Goliash reads its operating system's package database instead
-(Debian, Ubuntu, Alpine, Wolfi; see [Images without an SBOM](../security/#images-without-an-sbom)), so its system
-packages are in the export too. An [OpenVEX](https://openvex.dev) document attached the same ways (BuildKit
+An image without an SBOM is not left empty: Goliash reads its operating system's package database (Debian,
+Ubuntu, Alpine, Wolfi) and its application's manifests (npm, PyPI, Maven, Go, RubyGems, NuGet) from its layers
+instead (see [Images without an SBOM](../security/#images-without-an-sbom)), so its packages are in the export too.
+Images read before 1.177 are read again once, for their application packages. An [OpenVEX](https://openvex.dev) document attached the same ways (BuildKit
 `--attest type=vex`, `cosign attest --type openvex`, a referrer) is read beside the SBOM: what the image's publisher
 says does not affect it is left out of its vulnerabilities.
 

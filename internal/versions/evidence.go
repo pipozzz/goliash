@@ -139,7 +139,7 @@ func (c *Checker) pendingInspections(ctx context.Context, sc store.Scope, active
 	for _, in := range active {
 		repo := ParseImage(in.Image).Repo()
 		key := repo + "@" + in.Digest
-		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || (fresh(known[key], now) && !NeedsLicenses(sboms[key])) ||
+		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || (fresh(known[key], now) && !NeedsLicenses(sboms[key]) && !NeedsAppPackages(sboms[key])) ||
 			len(out[repo]) >= inspectPerRepo || !validDigest(in.Digest) {
 			continue
 		}

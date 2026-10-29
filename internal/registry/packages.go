@@ -18,13 +18,16 @@ import (
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/pipozzz/goliash/internal/pkgscan"
 )
 
 // Without an SBOM, an image's operating system packages are still written in it: Debian and Ubuntu keep them in
 // /var/lib/dpkg/status (distroless images one file each under /var/lib/dpkg/status.d), Alpine, Wolfi and
 // Chainguard in /lib/apk/db/installed. ImagePackages reads those files from the image's layers, newest first, and
-// lists the packages as package URLs, as an SBOM would. It does not see what was built from source or copied in,
-// nor the application's own dependencies: those take a real SBOM.
+// lists the packages as package URLs, as an SBOM would. It also reads the application's own packages from their
+// manifests (pkgscan: node_modules, Python dist-info, jars, Go executables, gemspecs, deps.json), outside the
+// directories the distribution owns. It does not see what was built from source or copied in without a manifest.
 
 // Bounds on reading an image for its packages.
 const (
@@ -66,9 +69,9 @@ func (c *Client) ImagePackages(ctx context.Context, repository, digest string, c
 			return SBOM{}, err
 		}
 	}
-	var fs imageFiles
+	fs := imageFiles{apps: pkgscan.Scanner{System: true}}
 	read := int64(0)
-	for i := len(m.Layers) - 1; i >= 0 && !fs.done(); i-- { // newest first: an upper layer's file wins
+	for i := len(m.Layers) - 1; i >= 0; i-- { // newest first: an upper layer's file wins
 		l := m.Layers[i]
 		if read += l.Size; read > maxPackagesRead {
 			return SBOM{}, fmt.Errorf("the image is larger than %d MB to read for its packages", maxPackagesRead>>20)
@@ -90,11 +93,22 @@ type imageFiles struct {
 	dpkg      []byte
 	dpkgD     map[string][]byte // /var/lib/dpkg/status.d/<package>
 	apk       []byte
+	apps      pkgscan.Scanner
 	seen      map[string]bool // paths already taken from a newer layer, or deleted in one
+	gone      []string        // directories deleted, or made opaque, in a newer layer: what lower layers hold there is hidden
 }
 
-func (f *imageFiles) done() bool {
-	return f.osRelease != nil && (f.dpkg != nil || f.apk != nil)
+// hidden reports whether a newer layer replaced or deleted a path.
+func (f *imageFiles) hidden(name string) bool {
+	if f.seen[name] {
+		return true
+	}
+	for _, d := range f.gone {
+		if strings.HasPrefix(name, d+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // readLayer reads one layer (a gzip or plain tar) for the files not found in a newer one.
@@ -123,7 +137,7 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 		fs.seen, fs.dpkgD = map[string]bool{}, map[string][]byte{}
 	}
 	tr := tar.NewReader(r)
-	var deleted []string // whiteouts in this layer hide the lower layers' files, not this one's
+	var deleted, opaque []string // whiteouts in this layer hide the lower layers' files, not this one's
 	for {
 		h, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -133,11 +147,28 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 			return err
 		}
 		name := strings.TrimPrefix(path.Clean("/"+h.Name), "/")
-		if dir, file := path.Split(name); strings.HasPrefix(file, ".wh.") {
+		if dir, file := path.Split(name); file == ".wh..wh..opq" {
+			opaque = append(opaque, strings.TrimSuffix(dir, "/"))
+			continue
+		} else if strings.HasPrefix(file, ".wh.") {
 			deleted = append(deleted, dir+strings.TrimPrefix(file, ".wh."))
 			continue
 		}
-		if h.Typeflag != tar.TypeReg || h.Size > maxPackageFile || fs.seen[name] {
+		if h.Typeflag != tar.TypeReg || fs.hidden(name) {
+			continue
+		}
+		if limit := fs.apps.Wants(name, h.Size, h.Mode&0o111 != 0); limit > 0 {
+			b, err := pkgscan.ReadAll(tr, limit)
+			if err != nil && !errors.Is(err, pkgscan.ErrTooLarge) {
+				return err
+			}
+			if b != nil {
+				fs.apps.Add(name, b)
+			}
+			fs.seen[name] = true
+			continue
+		}
+		if h.Size > maxPackageFile {
 			continue
 		}
 		var dst *[]byte
@@ -171,7 +202,9 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 	}
 	for _, d := range deleted {
 		fs.seen[d] = true
+		fs.gone = append(fs.gone, d)
 	}
+	fs.gone = append(fs.gone, opaque...)
 	return ctx.Err()
 }
 
@@ -208,6 +241,9 @@ func (f imageFiles) purls() []string {
 		for _, p := range apkPackages(f.apk) {
 			set[apkPurl(id, version, p)] = true
 		}
+	}
+	for _, p := range f.apps.Purls() {
+		set[p] = true
 	}
 	out := make([]string, 0, len(set))
 	for p := range set {

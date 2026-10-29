@@ -93,6 +93,16 @@ func NeedsLicenses(b store.ImageSBOM) bool {
 	return b.Error == "" && len(b.Purls) > 0 && !b.LicensesRead
 }
 
+// appPackagesFrom is when reading an image without an SBOM started to include the application's packages, not
+// only the operating system's.
+var appPackagesFrom = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+
+// NeedsAppPackages reports whether an image's packages were read from its package database before the application's
+// packages were read too (or none were found then): it is read again, once.
+func NeedsAppPackages(b store.ImageSBOM) bool {
+	return b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom)
+}
+
 const (
 	sbomsPerRun    = 5              // SBOMs read per workspace and run
 	packagesPerRun = 2              // images without an SBOM read for their packages per workspace and run (layers are big)
@@ -147,8 +157,8 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		b, have := sboms[key]
 		ev, checked := evidence[key]
 		if auth.Reads(repo) && checked && !ev.CheckedAt.IsZero() && ev.Error == "" && !ev.SBOM && packages != nil && unpacked < packagesPerRun &&
-			(!have || (b.Source == "packages" && b.Error != "" && now.Sub(b.FetchedAt) >= sbomRetry)) {
-			// No SBOM: read the image's own package database, so its system packages are not a blind spot.
+			(!have || (b.Source == "packages" && b.Error != "" && now.Sub(b.FetchedAt) >= sbomRetry) || NeedsAppPackages(b)) {
+			// No SBOM: read the image's own package database and application manifests, so it is not a blind spot.
 			unpacked++
 			creds, _ := auth.For(repo)
 			list, err := packages.ImagePackages(ctx, repo, in.Digest, creds)
@@ -915,7 +925,7 @@ func codeBlindWhy(b store.ImageSBOM) string {
 func blindWhy(b store.ImageSBOM) string {
 	switch {
 	case b.Source == "packages" && strings.Contains(b.Error, "no dpkg or apk package database"):
-		return "no SBOM, and no dpkg or apk package database (scratch, distroless, RPM-based or built from source)"
+		return "no SBOM, no dpkg or apk package database and no application manifests (scratch, distroless, RPM-based or built from source)"
 	case b.Error != "":
 		return "no SBOM; " + readFailure(b.Error)
 	case b.FetchedAt.IsZero():
