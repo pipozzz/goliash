@@ -111,14 +111,23 @@ func TestUpstreamNotAffected(t *testing.T) {
 	_ = e.st.SetPackageVulns(ctx, map[string][]string{upstream: {"DEBIAN-CVE-2023-44487"}, debian: {"DEBIAN-CVE-2023-44487"}})
 	_ = e.st.SetVuln(ctx, store.Vuln{ID: "DEBIAN-CVE-2023-44487", Aliases: []string{"CVE-2023-44487"}, Severity: "HIGH", Fixes: map[string][]string{}})
 	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2023-44487", DateAdded: time.Now().Format(time.DateOnly)}})
+	// The kernel's headers bring every kernel CVE; none applies in a container.
+	kernel := "pkg:deb/debian/linux-libc-dev@6.1.106-3"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/edge", Digest: "sha256:e1", Purls: []string{upstream, kernel}, Source: "sbom"})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{kernel: {"DEBIAN-CVE-2024-1086", "DEBIAN-CVE-2024-26581"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{ID: "DEBIAN-CVE-2024-1086", Aliases: []string{"CVE-2024-1086"}, Severity: "HIGH", Fixes: map[string][]string{}})
+	_ = e.st.SetVuln(ctx, store.Vuln{ID: "DEBIAN-CVE-2024-26581", Aliases: []string{"CVE-2024-26581"}, Severity: "HIGH", Fixes: map[string][]string{}})
 	if err := e.st.SetUpstreamCVE(ctx, "CVE-2023-44487", []store.UpstreamRange{{Product: "f5:nginx", StartIncl: "1.9.5", EndIncl: "1.25.2"}}); err != nil {
 		t.Fatal(err)
 	}
 
 	viewer := e.as(store.RoleViewer)
 	_, page := get(t, viewer, e.srv.URL+"/services/edge", nil)
-	if strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "Goliash, from NVD") || !strings.Contains(page, "upstream nginx 1.27.1 is past the affected versions (up to 1.25.2)") {
+	if strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "(NVD)") || !strings.Contains(page, "upstream nginx 1.27.1 is past the affected versions (up to 1.25.2)") {
 		t.Error("edge still lists it, or not as not affected upstream")
+	}
+	if strings.Contains(page, `id="vuln-CVE-2024-1086"`) || !strings.Contains(page, "<strong>2 vulnerabilities</strong>: linux-libc-dev: a kernel package") {
+		t.Error("edge lists kernel CVEs, or not grouped as not affected")
 	}
 	_, page = get(t, viewer, e.srv.URL+"/services/legacy", nil)
 	if !strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") || strings.Contains(page, "no fix yet") ||
@@ -129,7 +138,7 @@ func TestUpstreamNotAffected(t *testing.T) {
 	if !strings.Contains(page, "legacy (prod)") || strings.Contains(page, "edge (prod)") || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") {
 		t.Error("the vulnerabilities page is wrong")
 	}
-	if _, rep := get(t, viewer, e.srv.URL+"/security/report?month="+time.Now().UTC().Format("2006-01"), nil); !strings.Contains(rep, "Goliash, from NVD") {
+	if _, rep := get(t, viewer, e.srv.URL+"/security/report?month="+time.Now().UTC().Format("2006-01"), nil); !strings.Contains(rep, "(NVD)") {
 		t.Error("the report lacks it")
 	}
 }

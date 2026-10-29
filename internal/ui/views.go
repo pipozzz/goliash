@@ -1634,6 +1634,7 @@ type ServiceSecurity struct {
 // NotAffectedView is a vulnerability left out for a service, and why.
 type NotAffectedView struct {
 	ID, CVE, Why, Note, By, Review string
+	CVEs                           []string // more than one when Goliash left out several for one reason
 }
 
 // ImageSecurity is one running image of the service in one environment.

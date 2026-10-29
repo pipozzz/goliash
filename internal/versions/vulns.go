@@ -308,11 +308,11 @@ type VulnReport struct {
 	NotAffected []NotAffected
 }
 
-// NotAffected is a vulnerability left out for a service, and why: an exception people recorded, or Upstream.
+// NotAffected is a vulnerability left out for a service, and why: an exception people recorded, or Goliash's Auto.
 type NotAffected struct {
 	Key, Service, ServiceID, Package string
-	Exception                        store.VulnException // zero when Upstream says it
-	Upstream                         *UpstreamFix
+	Exception                        store.VulnException // zero when Goliash left it out itself
+	Auto                             string              // why Goliash left it out: upstream fixed it, or a kernel package
 }
 
 // BlindImage is a running image whose packages Goliash does not know, and why.
@@ -472,16 +472,16 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if upstream, err := st.ListUpstreamCVEs(ctx); err == nil {
 		addUpstreamFixes(upstream, findings)
 	}
-	// What people said does not affect a service goes, and what upstream fixed before the version that runs: from
-	// the finding, and the finding when nothing is left.
+	// What people said does not affect a service goes, what upstream fixed before the version that runs, and the
+	// kernel's packages: from the finding, and the finding when nothing is left.
 	for key, f := range findings {
 		kept := f.Affected[:0]
 		for _, a := range f.Affected {
-			if a.Upstream != nil && a.Upstream.Sure {
+			if why := autoNotAffected(a); why != "" {
 				if !slices.ContainsFunc(r.NotAffected, func(n NotAffected) bool {
 					return n.Key == f.Key && n.ServiceID == a.ServiceID && n.Package == a.Package
 				}) {
-					r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Upstream: a.Upstream})
+					r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Auto: why})
 				}
 				continue
 			}

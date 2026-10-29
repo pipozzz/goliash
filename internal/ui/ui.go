@@ -3421,8 +3421,14 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		if n.ServiceID != svc.ID {
 			continue
 		}
-		if n.Upstream != nil {
-			out.NotAffected = append(out.NotAffected, NotAffectedView{CVE: n.Key, Why: n.Upstream.Reason(n.Package), By: "Goliash, from NVD"})
+		if n.Auto != "" { // one line per reason: a kernel package can bring hundreds
+			if i := slices.IndexFunc(out.NotAffected, func(v NotAffectedView) bool { return v.ID == "" && v.Why == n.Auto }); i >= 0 {
+				if !slices.Contains(out.NotAffected[i].CVEs, n.Key) {
+					out.NotAffected[i].CVEs = append(out.NotAffected[i].CVEs, n.Key)
+				}
+				continue
+			}
+			out.NotAffected = append(out.NotAffected, NotAffectedView{CVE: n.Key, CVEs: []string{n.Key}, Why: n.Auto, By: "Goliash"})
 			continue
 		}
 		e := n.Exception

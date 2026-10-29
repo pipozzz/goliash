@@ -240,11 +240,18 @@ templ VMReportPage(v VMReportView) {
 						<tbody>
 							for _, e := range v.NotAffected {
 								<tr>
-									<td class="mono">{ e.CVE }</td>
+									if len(e.CVEs) > 1 {
+										<td>
+											{ plural(len(e.CVEs), "vulnerability", "vulnerabilities") }
+											<details class="more-packages"><summary>which</summary><code>{ strings.Join(e.CVEs, ", ") }</code></details>
+										</td>
+									} else {
+										<td class="mono">{ e.CVE }</td>
+									}
 									<td>{ orDash(e.Service) }</td>
-									if e.Upstream != "" {
-										<td>{ e.Upstream }</td>
-										<td>Goliash, from NVD</td>
+									if e.Auto != "" {
+										<td>{ e.Auto }</td>
+										<td>Goliash</td>
 										<td>—</td>
 									} else {
 										<td>{ notAffectedLabels[e.Justification] }<div class="targets">{ e.Note }</div></td>

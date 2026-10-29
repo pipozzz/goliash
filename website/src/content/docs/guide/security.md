@@ -381,6 +381,14 @@ affect a service, say so instead of leaving it open:
   auditors.
 - **Withdraw** (admins) puts it back.
 
+### Kernel packages
+
+An image often carries the kernel's packages without running them: `linux-libc-dev` comes with build-essential,
+`kernel-headers` with gcc on Red Hat-like images. Every kernel CVE matches them, but a container runs on its host's
+kernel, so Goliash leaves them out of the image's findings and lists them, grouped, under **Not affected** (*a kernel
+package in the image*). The host's kernel is patched with the nodes; dropping those packages from the final stage of
+the build makes the SBOM smaller too.
+
 ### Upstream fixes
 
 For that common case Goliash does not wait for you. When a distribution's advisory has no fix for a package whose
