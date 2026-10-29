@@ -1628,6 +1628,12 @@ type ServiceSecurity struct {
 	Findings         []ServiceFinding
 	Total, Exploited int
 	WithSBOM, More   int
+	NotAffected      []NotAffectedView // vulnerabilities people said do not affect it
+}
+
+// NotAffectedView is a vulnerability left out for a service, and why.
+type NotAffectedView struct {
+	ID, CVE, Why, Note, By, Review string
 }
 
 // ImageSecurity is one running image of the service in one environment.

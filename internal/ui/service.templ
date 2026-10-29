@@ -733,6 +733,9 @@ templ serviceSecurity(v ServiceView) {
 												{ " " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
 											} else {
 												{ " no fixed version yet. Keep it from being used (a WAF or proxy rule, the affected feature turned off, the service cut off from the network) and record what you did, so the deadline is met and it is reviewed." }
+												if v.Latest != "" {
+													<div>{ "The newest " + v.Name + " upstream is " + v.Latest + ". \"No fix\" comes from the package's distribution advisory, which may not know about upstream's own builds: if its release notes say it fixes " + f.Key + ", upgrade, or mark it not affected below." }</div>
+												}
 												if !f.MitigateBy.IsZero() && len(f.Places) > 0 {
 													<div class={ templ.KV("error-text", time.Now().After(f.MitigateBy)) }>{ "Mitigate by " + f.MitigateBy.Format("2 Jan 2006") + ": " + mitigationPlaces(f.Places) }</div>
 												}
@@ -744,6 +747,9 @@ templ serviceSecurity(v ServiceView) {
 												}
 											}
 										</div>
+									}
+									if v.CanAdmin {
+										@notAffectedForm(v.Name, f.Key)
 									}
 								</td>
 								<td data-label="Severity">
@@ -779,6 +785,26 @@ templ serviceSecurity(v ServiceView) {
 			if sec.More > 0 {
 				<div class="panel-body"><a href={ templ.URL("/security/vulns?env=all&q=" + v.Name) }>{ plural(sec.More, "more", "more") } →</a></div>
 			}
+		}
+		if len(sec.NotAffected) > 0 {
+			<div class="panel-body" style="border-top:1px solid var(--line)">
+				<h3>Not affected</h3>
+				<p class="muted">Left out of alerts, deadlines and open findings until they are reviewed; the monthly report lists them with the reason.</p>
+				<ul class="not-affected">
+					for _, n := range sec.NotAffected {
+						<li>
+							<strong>{ n.CVE }</strong>{ ": " + n.Why + ". " + n.Note }
+							<span class="muted">{ " (" + n.By + ", review " + n.Review + ")" }</span>
+							if v.CanAdmin {
+								<form class="inline" method="post" action={ templ.SafeURL("/security/exceptions/" + n.ID + "/close") }>
+									<input type="hidden" name="return" value={ "/services/" + v.Name + "#security" }/>
+									<button type="submit" class="link">Withdraw</button>
+								</form>
+							}
+						</li>
+					}
+				</ul>
+			</div>
 		}
 	</section>
 }
@@ -968,6 +994,39 @@ templ serviceMitigationForm(service string, f ServiceFinding) {
 			</div>
 			<label>What was done<input name="measure" required maxlength="500" placeholder="WAF rule blocks the payload; the endpoint is not reachable from outside"/></label>
 			<div><button type="submit">Record</button></div>
+		</form>
+	</details>
+}
+
+// notAffectedForm records that a vulnerability does not affect the service (VEX "not affected"), with why.
+templ notAffectedForm(service, cve string) {
+	<details class="mitigate">
+		<summary>Not affected?</summary>
+		<form class="stack" method="post" action="/security/exceptions">
+			<input type="hidden" name="cve" value={ cve }/>
+			<input type="hidden" name="service" value={ service }/>
+			<div class="row">
+				<label>
+					Why
+					<select name="justification">
+						<option value="fixed">already fixed in the version that runs</option>
+						<option value="not_present">the component is not in the image</option>
+						<option value="not_reachable">the code is never run or reached</option>
+						<option value="mitigated_upstream">the software prevents it another way</option>
+						<option value="other">other</option>
+					</select>
+				</label>
+				<label>
+					Review in
+					<select name="review">
+						<option value="30">30 days</option>
+						<option value="90" selected>90 days</option>
+						<option value="180">6 months</option>
+					</select>
+				</label>
+			</div>
+			<label>How you know<input name="note" required maxlength="1000" placeholder="nginx 1.25.3 fixed it upstream (nginx.org/en/security_advisories.html); this runs 1.27.1"/></label>
+			<div><button type="submit">Mark not affected</button></div>
 		</form>
 	</details>
 }

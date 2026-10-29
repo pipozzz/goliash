@@ -364,6 +364,26 @@ setting turned off, the service cut off from the network.
   then on the upgrade is on Updates with its deadline, like any other. A mitigation also closes when the
   vulnerable image no longer runs, and a member can withdraw one.
 
+## Not affected
+
+A scanner matches packages against advisories, and sometimes the advisory does not fit what runs. A common case:
+an image ships `nginx 1.27.1-1~bookworm` from nginx.org, which is matched against Debian's advisory for
+CVE-2023-44487 (*no fix yet* there), while nginx itself fixed it in 1.25.3. When you know a vulnerability does not
+affect a service, say so instead of leaving it open:
+
+- **Marking one.** On the service's page, **Not affected?** under the vulnerability (admins) takes the reason (after
+  VEX's justifications: already fixed in the version that runs, the component is not in the image, the vulnerable
+  code is never reached, the software prevents it another way, or other), a sentence on how you know, and when to
+  review it (90 days by default).
+- **What it changes.** The vulnerability leaves that service's findings everywhere: the vulnerabilities page,
+  alerts, remediation deadlines, Security and the API. Other services that have it still count it. The service's
+  page lists it under **Not affected**, with the reason, and the monthly report has a **Not affected** section for
+  auditors.
+- **Withdraw** (admins) puts it back.
+
+"What to do" on the service page also says when upstream has a newer release than the advisory knows about, so
+you can check its release notes before you mark anything.
+
 ## Images without an SBOM
 
 Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:
