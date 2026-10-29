@@ -381,7 +381,7 @@ func jumpClass(j string) string {
 // updatesCalendar lists the upgrades with a date by month: what ends or is due, and when.
 templ updatesCalendar(v UpdatesView) {
 	if len(v.Months) == 0 {
-		<section class="panel"><div class="empty">No end of life or remediation deadline among these upgrades. An end of life shows here from 60 days before it; deadlines come from the remediation policy on the Security page.</div></section>
+		<section class="panel"><div class="empty">Nothing with a date: no end of life known for what runs in the next 18 months, and no remediation deadline. Deadlines come from the remediation policy on the Security page.</div></section>
 	}
 	for _, m := range v.Months {
 		<section class={ "panel", templ.KV("calendar-past", m.Past) }>
@@ -400,7 +400,12 @@ templ updatesCalendar(v UpdatesView) {
 									}
 								</td>
 								<td>{ it.Env }</td>
-								<td class="upgrade"><span class="tag">{ orDash(it.Running) }</span> → <span class="tag">{ orDash(it.Target) }</span></td>
+								<td class="upgrade">
+									<span class="tag">{ orDash(it.Running) }</span>
+									if it.Target != "" {
+										→ <span class="tag">{ it.Target }</span>
+									}
+								</td>
 								<td><span class={ "badge", templ.KV("eol", m.Past), templ.KV("warn", !m.Past) }>{ it.What }</span></td>
 							</tr>
 						}

@@ -91,7 +91,14 @@ func TestCalendarMonths(t *testing.T) {
 		{Service: "web"},
 		{Service: "cache", EOL: "2026-12-01", Due: time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC), DueFor: "critical"},
 	}
-	ms := calendarMonths(items, now)
+	ms := calendarMonths(items, []CalendarItem{
+		{Date: time.Date(2027, 4, 30, 0, 0, 0, 0, time.UTC), What: "end of life of nodejs 20", UpdateItem: UpdateItem{Service: "api", Env: "prod"}},
+		{Date: time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC), What: "end of life of postgresql 13", UpdateItem: UpdateItem{Service: "db"}},
+	}, now)
+	if last := ms[len(ms)-1]; last.Label != "April 2027" || last.Items[0].Service != "api" {
+		t.Errorf("an end of life of what runs is missing: %+v", last)
+	}
+	ms = ms[:len(ms)-1] // db's own upgrade line has its end of life: the extra one is left out
 	if len(ms) != 3 || ms[0].Label != "Past" || ms[0].Items[0].Service != "api" || ms[1].Label != "November 2026" ||
 		len(ms[1].Items) != 2 || ms[1].Items[0].Service != "cache" || ms[1].Items[1].What != "end of life" || ms[2].Label != "December 2026" {
 		t.Fatalf("months %+v", ms)
