@@ -279,3 +279,12 @@ func fixAdvice(kind string) string {
 	}
 	return "Rebuild the image so it pulls the patched package (update its base image or run the package upgrade in the build), then deploy it."
 }
+
+// mitigationPlaces names where a vulnerability runs without a mitigation.
+func mitigationPlaces(ps []MitigationPlace) string {
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = p.Label
+	}
+	return strings.Join(out, ", ")
+}

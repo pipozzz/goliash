@@ -1647,6 +1647,17 @@ type ImageSecurity struct {
 type ServiceFinding struct {
 	Key, Summary, Severity, Package, Fix, Envs string
 	Exploited                                  bool
+	// NoFix: exploited and no fixed version: it is mitigated instead. Mitigations are those in force for this service,
+	// Places where it still runs without one, and MitigateBy the remediation deadline for that.
+	NoFix       bool
+	Mitigations []MitigationView
+	Places      []MitigationPlace
+	MitigateBy  time.Time
+}
+
+// MitigationPlace is an environment of a service a mitigation can be recorded for.
+type MitigationPlace struct {
+	Value, Label string // "<service ID>|<environment ID>", "aws-logs (production)"
 }
 
 // exploitedNote counts the exploited vulnerabilities among some: " (1 exploited)", or nothing.
