@@ -5,13 +5,9 @@ package lambda
 
 import (
 	"archive/zip"
-	"bufio"
-	"bytes"
 	"context"
 	"crypto/sha256"
-	"debug/buildinfo"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/pkgscan"
 )
 
 // A .zip function runs its own code on a runtime AWS patches: the code's dependencies (node_modules, Python
@@ -45,8 +42,6 @@ type LayerAPI interface {
 const (
 	maxDownload    = 300 << 20 // a function's zip is at most 250 MB unpacked; its compressed download less
 	maxEntries     = 200000
-	maxManifest    = 2 << 20  // a package.json, METADATA, deps.json …
-	maxNested      = 64 << 20 // a jar inside the zip, or an executable read for Go build information
 	maxPurls       = 20000
 	codePerCollect = 4 // new code packages read per collect, so a first look at many functions spreads out
 )
@@ -193,220 +188,27 @@ func (r *codeReader) packagesAt(ctx context.Context, location string) ([]string,
 	if err != nil {
 		return nil, fmt.Errorf("not a zip: %w", err)
 	}
-	return zipPackages(zr, 0)
+	return zipPackages(zr)
 }
 
-// zipPackages reads the package URLs of the manifests in a zip: npm, PyPI, Maven (jars, nested ones too), Go
-// (executables' build information), RubyGems and NuGet.
-func zipPackages(zr *zip.Reader, depth int) ([]string, error) {
+// zipPackages reads the package URLs of the manifests in a zip, as pkgscan finds them.
+func zipPackages(zr *zip.Reader) ([]string, error) {
 	if len(zr.File) > maxEntries {
 		return nil, fmt.Errorf("%d files: too many to read", len(zr.File))
 	}
-	var out []string
-	hasModules := false
+	var s pkgscan.Scanner
 	for _, f := range zr.File {
-		if strings.Contains(f.Name, "node_modules/") {
-			hasModules = true
-			break
-		}
-	}
-	for _, f := range zr.File {
-		name := strings.TrimPrefix(f.Name, "/")
-		base := path.Base(name)
-		switch {
-		case f.FileInfo().IsDir():
-		case base == "package.json" && strings.Contains(name, "node_modules/"):
-			if p := npmPackage(name, read(f, maxManifest)); p != "" {
-				out = append(out, p)
-			}
-		case base == "package-lock.json" && !hasModules && !strings.Contains(name, "node_modules/"):
-			out = append(out, npmLock(read(f, 64<<20))...)
-		case base == "METADATA" && strings.HasSuffix(path.Dir(name), ".dist-info"), base == "PKG-INFO" && strings.HasSuffix(path.Dir(name), ".egg-info"):
-			if p := pypiPackage(read(f, maxManifest)); p != "" {
-				out = append(out, p)
-			}
-		case base == "pom.properties" && strings.Contains(name, "META-INF/maven/"):
-			if p := mavenPackage(read(f, maxManifest)); p != "" {
-				out = append(out, p)
-			}
-		case strings.HasSuffix(base, ".jar") && depth < 2 && f.UncompressedSize64 <= maxNested:
-			b := read(f, maxNested)
-			if jr, err := zip.NewReader(bytes.NewReader(b), int64(len(b))); err == nil {
-				inner, _ := zipPackages(jr, depth+1)
-				out = append(out, inner...)
-			}
-		case strings.HasSuffix(base, ".gemspec") && strings.Contains(name, "/specifications/"):
-			if p := gemPackage(base); p != "" {
-				out = append(out, p)
-			}
-		case strings.HasSuffix(base, ".deps.json"):
-			out = append(out, nugetPackages(read(f, 16<<20))...)
-		case executable(f) && f.UncompressedSize64 <= maxNested:
-			out = append(out, goPackages(read(f, maxNested))...)
-		}
-	}
-	return out, nil
-}
-
-// read reads a zip entry, up to limit bytes; nil when it is larger or unreadable.
-func read(f *zip.File, limit int64) []byte {
-	if f.UncompressedSize64 > uint64(limit) { //nolint:gosec // limit is one of the positive constants above
-		return nil
-	}
-	rc, err := f.Open()
-	if err != nil {
-		return nil
-	}
-	defer func() { _ = rc.Close() }()
-	b, err := io.ReadAll(io.LimitReader(rc, limit+1))
-	if err != nil || int64(len(b)) > limit {
-		return nil
-	}
-	return b
-}
-
-// executable reports whether an entry may be a Go binary: executable, or the custom runtime's bootstrap.
-func executable(f *zip.File) bool {
-	return path.Base(f.Name) == "bootstrap" || (f.Mode()&0o111 != 0 && !strings.Contains(path.Base(f.Name), "."))
-}
-
-func npmName(name string) string {
-	if strings.HasPrefix(name, "@") {
-		return "%40" + name[1:]
-	}
-	return name
-}
-
-// npmPackage reads node_modules/<name>/package.json (or node_modules/@scope/<name>/…), not files deeper in a
-// package.
-func npmPackage(name string, b []byte) string {
-	i := strings.LastIndex(name, "node_modules/")
-	rest := strings.TrimSuffix(name[i+len("node_modules/"):], "/package.json")
-	if parts := strings.Split(rest, "/"); len(parts) > 2 || (len(parts) == 2 && !strings.HasPrefix(parts[0], "@")) {
-		return ""
-	}
-	var p struct{ Name, Version string }
-	if json.Unmarshal(b, &p) != nil || p.Name == "" || p.Version == "" || p.Name != rest {
-		return ""
-	}
-	return "pkg:npm/" + npmName(p.Name) + "@" + p.Version
-}
-
-// npmLock reads a package-lock.json (lockfile versions 2 and 3) when the code ships no node_modules.
-func npmLock(b []byte) []string {
-	var lock struct {
-		Packages map[string]struct {
-			Version string `json:"version"`
-			Dev     bool   `json:"dev"`
-		} `json:"packages"`
-	}
-	if json.Unmarshal(b, &lock) != nil {
-		return nil
-	}
-	var out []string
-	for key, p := range lock.Packages {
-		i := strings.LastIndex(key, "node_modules/")
-		if i < 0 || p.Version == "" || p.Dev {
+		if f.FileInfo().IsDir() {
 			continue
 		}
-		out = append(out, "pkg:npm/"+npmName(key[i+len("node_modules/"):])+"@"+p.Version)
-	}
-	return out
-}
-
-// headers reads "Key: value" lines up to the first empty one.
-func headers(b []byte) map[string]string {
-	out := map[string]string{}
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	for sc.Scan() {
-		line := sc.Text()
-		if line == "" {
-			break
+		exec := path.Base(f.Name) == "bootstrap" || f.Mode()&0o111 != 0
+		limit := s.Wants(f.Name, int64(f.UncompressedSize64), exec) //nolint:gosec // sizes in a zip fit
+		if limit == 0 {
+			continue
 		}
-		if k, v, ok := strings.Cut(line, ":"); ok {
-			k = strings.TrimSpace(k)
-			if _, set := out[k]; !set {
-				out[k] = strings.TrimSpace(v)
-			}
+		if b := pkgscan.Read(f, limit); b != nil {
+			s.Add(f.Name, b)
 		}
 	}
-	return out
-}
-
-// pypiPackage reads a dist-info METADATA or egg-info PKG-INFO.
-func pypiPackage(b []byte) string {
-	h := headers(b)
-	name, version := h["Name"], h["Version"]
-	if name == "" || version == "" {
-		return ""
-	}
-	name = strings.ToLower(strings.NewReplacer("_", "-", ".", "-").Replace(name))
-	return "pkg:pypi/" + name + "@" + version
-}
-
-// mavenPackage reads a jar's META-INF/maven/…/pom.properties.
-func mavenPackage(b []byte) string {
-	props := map[string]string{}
-	for _, line := range strings.Split(string(b), "\n") {
-		if k, v, ok := strings.Cut(strings.TrimSpace(line), "="); ok && !strings.HasPrefix(k, "#") {
-			props[strings.TrimSpace(k)] = strings.TrimSpace(v)
-		}
-	}
-	g, a, v := props["groupId"], props["artifactId"], props["version"]
-	if g == "" || a == "" || v == "" {
-		return ""
-	}
-	return "pkg:maven/" + g + "/" + a + "@" + v
-}
-
-// gemPackage reads a gem's name and version from its specification's file name: rack-3.1.8.gemspec.
-func gemPackage(base string) string {
-	s := strings.TrimSuffix(base, ".gemspec")
-	i := strings.LastIndex(s, "-")
-	if i <= 0 || i == len(s)-1 || s[i+1] < '0' || s[i+1] > '9' {
-		return ""
-	}
-	return "pkg:gem/" + s[:i] + "@" + s[i+1:]
-}
-
-// nugetPackages reads a .NET deps.json: its libraries of type package.
-func nugetPackages(b []byte) []string {
-	var deps struct {
-		Libraries map[string]struct {
-			Type string `json:"type"`
-		} `json:"libraries"`
-	}
-	if json.Unmarshal(b, &deps) != nil {
-		return nil
-	}
-	var out []string
-	for key, l := range deps.Libraries {
-		name, version, ok := strings.Cut(key, "/")
-		if ok && l.Type == "package" {
-			out = append(out, "pkg:nuget/"+name+"@"+version)
-		}
-	}
-	return out
-}
-
-// goPackages reads a Go binary's build information: its modules, and the Go standard library it was built with.
-func goPackages(b []byte) []string {
-	info, err := buildinfo.Read(bytes.NewReader(b))
-	if err != nil {
-		return nil
-	}
-	var out []string
-	if v := strings.TrimPrefix(info.GoVersion, "go"); v != "" {
-		out = append(out, "pkg:golang/stdlib@"+strings.SplitN(v, " ", 2)[0])
-	}
-	for _, d := range info.Deps {
-		m := d
-		if d.Replace != nil {
-			m = d.Replace
-		}
-		if m.Version != "" && m.Version != "(devel)" {
-			out = append(out, "pkg:golang/"+m.Path+"@"+m.Version)
-		}
-	}
-	return out
+	return s.Purls(), nil
 }

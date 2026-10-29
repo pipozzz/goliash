@@ -64,7 +64,7 @@ func TestZipPackages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := zipPackages(zr, 0)
+	got, err := zipPackages(zr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestZipPackages(t *testing.T) {
 	// Without node_modules, the lock file says what is installed.
 	lock := zipOf(t, map[string][]byte{"package-lock.json": []byte(`{"packages":{"":{},"node_modules/express":{"version":"4.18.2"},"node_modules/jest":{"version":"29.0.0","dev":true}}}`)})
 	zr, _ = zip.NewReader(bytes.NewReader(lock), int64(len(lock)))
-	if got, _ := zipPackages(zr, 0); len(got) != 1 || got[0] != "pkg:npm/express@4.18.2" {
+	if got, _ := zipPackages(zr); len(got) != 1 || got[0] != "pkg:npm/express@4.18.2" {
 		t.Errorf("lock: %v", got)
 	}
 }

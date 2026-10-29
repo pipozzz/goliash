@@ -464,11 +464,17 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    `/var/lib/dpkg/status` (Debian and Ubuntu; distroless images' `/var/lib/dpkg/status.d`) or
    `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard), and `/etc/os-release`. An image built `FROM ubuntu:22.04`
    with `apt-get install nginx php8.1-fpm` is checked against Ubuntu's own advisories, which know Ubuntu's patched
-   builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. This covers the system packages only,
-   not the application's dependencies. Images up to 1 GB of layers (gzip or plain), two per check, are read once
+   builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. The application's own dependencies come
+   from their manifests in the same layers: `node_modules/*/package.json` (else `package-lock.json`), Python
+   `*.dist-info/METADATA`, `pom.properties` in jars, the build information of Go executables (a `scratch` image
+   with one Go binary is no longer blind), gemspecs and .NET `*.deps.json`. Directories the distribution owns
+   (`usr/lib`, `usr/share`, `bin` …) are left out: a Debian `python3-urllib3` is known as Debian's package, with its
+   patches, not matched again against PyPI's advisories. Files a later layer deleted (`npm prune`, `rm -rf`) do not
+   count. Images up to 1 GB of layers (gzip or plain), two per check, are read once
    per digest; private images are read with the workspace's
    [registry credentials](/reference/collectors/#credentials-on-the-server), or by the agents (1.141 and later)
-   for registries only they reach.
+   for registries only they reach (agents from 1.177 read the application's packages too). Images read before
+   1.177 are read again once, for their application packages.
 
 **.zip Lambda functions** have no image: their agent reads the packages of their code and layers instead
 (npm, PyPI, Maven, Go, RubyGems, NuGet; see [Collectors](/reference/collectors/)), and their vulnerabilities show

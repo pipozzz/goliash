@@ -393,6 +393,7 @@ The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validate
 | `internal/agent` | Agent loop | Apache-2.0 |
 | `internal/collectors/{kubernetes,ecs,nomad,swarm,docker,compose}` | Read-only collectors | Apache-2.0 |
 | `internal/registry` | OCI Distribution API client | Apache-2.0 |
+| `internal/pkgscan` | Application packages from their manifests (images without an SBOM, Lambda code) | Apache-2.0 |
 | `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
 | `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
 | `pkg/buildinfo` | Build metadata | Apache-2.0 |
