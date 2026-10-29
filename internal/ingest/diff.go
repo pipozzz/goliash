@@ -17,11 +17,14 @@ import (
 
 // diffInput is everything needed to turn one snapshot into changes.
 type diffInput struct {
-	Target    store.Target
-	Snapshot  agentproto.Snapshot
-	Existing  []store.Instance // every instance ever seen on the target
-	Mapper    *mapping.Mapper
-	EnvByName map[string]string // environment name -> ID
+	Target   store.Target
+	Snapshot agentproto.Snapshot
+	Existing []store.Instance // every instance ever seen on the target
+	// LastVersions is, by instance, the version the history last said it changed to: where a rollout that ran
+	// two versions side by side came from.
+	LastVersions map[string]store.VersionMark
+	Mapper       *mapping.Mapper
+	EnvByName    map[string]string // environment name -> ID
 	// ServiceID resolves a service name from a label, creating the service if needed.
 	ServiceID func(name string) (string, error)
 	// AppLabel is the workspace's own label key for applications, tried first.
@@ -153,13 +156,13 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 	}
 
 	if !in.Baseline {
-		ch.Events = events(in.Existing, ch.Upsert, ch.Remove, in.Snapshot.CollectedAt)
+		ch.Events = events(in.Existing, ch.Upsert, ch.Remove, in.LastVersions, in.Snapshot.CollectedAt)
 	}
 	return ch, nil
 }
 
 // events compares, per main container slot, the dominant version before and after.
-func events(existing, upsert []store.Instance, removed []string, at time.Time) []store.Event {
+func events(existing, upsert []store.Instance, removed []string, last map[string]store.VersionMark, at time.Time) []store.Event {
 	removedSet := map[string]bool{}
 	for _, id := range removed {
 		removedSet[id] = true
@@ -220,9 +223,48 @@ func events(existing, upsert []store.Instance, removed []string, at time.Time) [
 		return ordered[i].container < ordered[j].container
 	})
 
+	// When each instance of a slot was first seen: rows of the snapshot carry no date, new ones arrive now.
+	firstSeen := map[string]time.Time{}
+	for _, i := range existing {
+		firstSeen[i.ID] = i.FirstSeenAt
+	}
+	for _, i := range upsert {
+		if _, ok := firstSeen[i.ID]; !ok {
+			firstSeen[i.ID] = at
+		}
+	}
 	var out []store.Event
 	for _, s := range ordered {
 		old, cur := dominant(before[s], nil), dominant(after[s], isNew)
+		if old != nil && cur != nil {
+			// While two versions run side by side (a rolling update, a canary), which one has more replicas
+			// flips as containers start and restart. A change forward is said when the new version takes over; a
+			// change back only once the older version runs alone, so a restarting new container is not a rollback.
+			if mixed(before[s]) {
+				from := settled(existing, s, last)
+				if from == "" { // no history yet: the version that ran there first
+					from = earliest(before[s]).Tag
+				}
+				o := store.Instance{Tag: from} // no digest: a change of version, not a retag
+				for _, i := range before[s] {
+					if i.Tag == from {
+						o = i
+					}
+				}
+				old = &o
+			}
+			if mixed(after[s]) && old.Tag != cur.Tag {
+				for _, i := range after[s] {
+					if i.Tag == old.Tag && !firstSeen[cur.ID].After(firstSeen[i.ID]) {
+						cur = nil // the older version is winning again, but the newer still runs: wait
+						break
+					}
+				}
+				if cur == nil {
+					continue
+				}
+			}
+		}
 		switch {
 		case old == nil && cur != nil:
 			out = append(out, event("deployed", *cur, "", cur.Tag, "", at))
@@ -240,6 +282,41 @@ func events(existing, upsert []store.Instance, removed []string, at time.Time) [
 		}
 	}
 	return out
+}
+
+// settled is the version the history last said a slot changed to, "" when it says nothing.
+func settled(existing []store.Instance, s slot, last map[string]store.VersionMark) string {
+	var latest store.VersionMark
+	for _, i := range existing {
+		if i.WorkloadID != s.workload || i.ContainerName != s.container {
+			continue
+		}
+		if m, ok := last[i.ID]; ok && (latest.Version == "" || m.At.After(latest.At)) {
+			latest = m
+		}
+	}
+	return latest.Version
+}
+
+// earliest is the instance first seen.
+func earliest(rows []store.Instance) store.Instance {
+	best := rows[0]
+	for _, r := range rows[1:] {
+		if r.FirstSeenAt.Before(best.FirstSeenAt) {
+			best = r
+		}
+	}
+	return best
+}
+
+// mixed reports whether more than one version is present in a slot, running or (re)starting.
+func mixed(rows []store.Instance) bool {
+	for _, r := range rows {
+		if r.Tag != rows[0].Tag {
+			return true
+		}
+	}
+	return false
 }
 
 // dominant is the instance with the most running replicas; ties go to the newer one,

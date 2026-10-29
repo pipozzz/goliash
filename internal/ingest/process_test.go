@@ -332,3 +332,33 @@ func TestExposed(t *testing.T) {
 		t.Errorf("no longer exposed, still %v", e)
 	}
 }
+
+// A rolling update whose new container restarts while the old one still runs is one change forward, not a
+// rollback and a redeploy; a real rollback is still one.
+func TestRollingUpdateFlap(t *testing.T) {
+	w := newWorld(t)
+	w.send(true, payments(map[string]int{"1.4.2": 1}, false))
+	var got []string
+	for _, step := range []map[string]int{
+		{"1.4.2": 1, "1.5.0": 1}, // both up
+		{"1.4.2": 1, "1.5.0": 0}, // the new one restarts
+		{"1.4.2": 1, "1.5.0": 1},
+		{"1.5.0": 1}, // done
+	} {
+		got = append(got, describe(w.send(true, payments(step, false))))
+	}
+	// Said as soon as the new version takes over (a stuck rollout gets its rollback offer), and only once.
+	if strings.Join(got, " | ") != "version_changed:1.4.2->1.5.0 |  |  | " {
+		t.Errorf("rolling update: %q", got)
+	}
+	// Rolled back through a rolling update: one change back.
+	got = nil
+	for _, step := range []map[string]int{{"1.4.2": 1, "1.5.0": 1}, {"1.4.2": 1}} {
+		if d := describe(w.send(true, payments(step, false))); d != "" {
+			got = append(got, d)
+		}
+	}
+	if strings.Join(got, " | ") != "version_changed:1.5.0->1.4.2" {
+		t.Errorf("rollback: %v", got)
+	}
+}

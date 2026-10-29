@@ -407,3 +407,31 @@ func (s *Store) imagePeriods(ctx context.Context, sc Scope, serviceID string, si
 	}
 	return out, rows.Err()
 }
+
+// VersionMark is the version an event said an instance changed to, and when.
+type VersionMark struct {
+	Version string
+	At      time.Time
+}
+
+// LastVersions returns, per instance of a target, the version its latest deployed or version_changed event went to:
+// what the history last said ran there.
+func (s *Store) LastVersions(ctx context.Context, sc Scope, targetID string) (map[string]VersionMark, error) {
+	rows, err := s.query(ctx, s.db, `SELECT instance_id, to_version, at FROM events
+		WHERE workspace_id = ? AND target_id = ? AND type IN ('deployed', 'version_changed') AND instance_id IS NOT NULL
+		ORDER BY at, id`, sc.WorkspaceID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]VersionMark{}
+	for rows.Next() {
+		var id string
+		var m VersionMark
+		if err := rows.Scan(&id, &m.Version, &m.At); err != nil {
+			return nil, err
+		}
+		out[id] = m // later events overwrite earlier ones
+	}
+	return out, rows.Err()
+}

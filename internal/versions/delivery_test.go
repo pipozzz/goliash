@@ -101,3 +101,18 @@ func TestIsRollback(t *testing.T) {
 		t.Errorf("retag note %q", n)
 	}
 }
+
+func TestFlapBack(t *testing.T) {
+	at := time.Date(2026, 10, 29, 10, 0, 0, 0, time.UTC)
+	ev := func(from, to string, minutes int) store.Event {
+		return store.Event{Type: "version_changed", ServiceID: "s", EnvironmentID: "prod", FromVersion: from, ToVersion: to, At: at.Add(time.Duration(minutes) * time.Minute)}
+	}
+	flap := []store.Event{ev("1.176.0", "1.177.0", 0), ev("1.177.0", "1.176.0", 1), ev("1.176.0", "1.177.0", 2)}
+	if !flapBack(flap, 1) {
+		t.Error("a rollback undone a minute later counts")
+	}
+	fixed := []store.Event{ev("1.176.0", "1.177.0", 0), ev("1.177.0", "1.176.0", 10), ev("1.176.0", "1.177.0", 300)}
+	if flapBack(fixed, 1) {
+		t.Error("a rollback fixed forward hours later does not count")
+	}
+}
