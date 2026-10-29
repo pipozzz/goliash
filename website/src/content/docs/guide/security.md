@@ -212,7 +212,8 @@ vulnerability of the running images:
 
 1. For images whose registry holds an SBOM (a BuildKit or cosign attestation, or an OCI referrer, see
    [SBOM of what runs](../sbom/#where-the-packages-come-from)), Goliash reads its package list once: package URLs
-   such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`.
+   such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`. Images without one are read from
+   their package database ([Images without an SBOM](#images-without-an-sbom)).
 2. It asks [OSV](https://osv.dev) which known vulnerabilities affect those packages, again every day, and reads
    each advisory once for its CVE aliases, summary and severity. Debian, Ubuntu and Alpine packages are asked about
    in their distribution release, Wolfi and Chainguard packages under their source package (Chainguard's own
@@ -223,8 +224,11 @@ vulnerability of the running images:
 **What to patch first.** Vulnerabilities in CISA's catalog of
 [known exploited vulnerabilities](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) (KEV) come first,
 marked *exploited* with CISA's due date and *ransomware* when CISA knows of ransomware using them; *Only exploited
-in the wild* shows just those. Each affected package says the version that fixes it (the lowest above the running
-one, from OSV), or *no fix yet*. The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
+in the wild* shows just those. Each affected package says what fixes it: the version (the lowest above the running
+one, from OSV); else a newer release of its distribution
+([Fixed in a newer release](#fixed-in-a-newer-release-of-the-distribution)); else the version upstream fixed it in,
+with the newest release to run ([Upstream fixes](#upstream-fixes)); and only when none of these, *no fix yet*.
+What does not apply is left out, with its reason ([Not affected](#not-affected)). The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
 
 **How long it has run.** Each vulnerability says how long it has been running (*running for 23 days*: since the
 first affected image started), and an exploited one still running after the date CISA set for fixing it
@@ -248,7 +252,8 @@ vulnerability and affected image, with CISA's exploited flag and due date, wheth
 when it runs there: for an audit, or to import into a ticket system. `GET /api/v1/vulnerabilities?format=csv` gives
 the same. Cells that start like a formula are quoted, so a package name cannot run in a spreadsheet.
 
-The answer covers only images with an SBOM Goliash could read, and the page says how many those are. While
+The answer covers only images whose packages Goliash could read (an SBOM or a package database), and the page says
+how many those are. While
 advisories are still being looked up it says so, and does not answer "not running".
 
 Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
@@ -345,10 +350,45 @@ verify:
     - ./goliash verify "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
 ```
 
+## When the distribution has no fix
+
+*No fix yet* in a distribution's advisory is about that distribution's package in that release. Before Goliash
+says it, it looks further: a newer release of the distribution, or the upstream project, may have fixed it.
+
+### Fixed in a newer release of the distribution
+
+A distribution often fixes a vulnerability in its next release before (or instead of) the one an image is built on:
+Debian 13 has a fixed nginx for CVE-2023-44487, Debian 12 none. When the image's own release has no fix and a newer
+one has, Goliash says so instead of *no fix yet*: *fixed in Debian 13 (trixie)*, and "What to do" says to rebuild on
+a trixie base (`debian:trixie-slim`, or the trixie variant of the image it is built on). Debian, Ubuntu (not Pro)
+and Alpine releases count; the finding counts as fixable, so an exploited one asks for the rebuild, not a
+mitigation.
+
+### Upstream fixes
+
+An image often installs the product from upstream rather than from its distribution (the official nginx image has
+nginx.org's `nginx 1.27.1-1~bookworm`), and upstream may have fixed a vulnerability long before the distribution.
+When a distribution's advisory has no fix for a package whose upstream product Goliash knows (nginx, OpenSSL, curl, PostgreSQL, Redis and others), it asks NVD for the versions
+the CVE affects upstream (exploited and serious ones first; `GOLIASH_NVD_API_KEY` makes it faster) and reads the
+version that runs without the distribution's revision (`1.27.1-1~bookworm` is nginx 1.27.1):
+
+- **Past upstream's fix:** the package leaves the findings, and the service's page lists it under **Not affected**
+  with the ranges and *(NVD)*, as does the monthly report. Where NVD only says the last affected
+  version (*up to 1.25.2*) rather than the fixed one, this needs a later release line (1.27 is, 1.25.4 is not):
+  NVD may have closed such a range at the newest release of its time, before there was a fix.
+- **Still in upstream's range:** instead of *no fix yet* it says which version fixes it (*upstream nginx fixed it
+  in 1.25.3*), and "What to do" says to run that version or newer, from upstream's own packages or image when the
+  distribution has none. An exploited vulnerability with an upstream fix asks for the upgrade, not a mitigation.
+- **Which version to run.** Beside a fix it names the product's newest release (*· latest 1.31.8*) and, when the
+  release cycle that runs is still supported, the newest of that cycle too (*on 1.30, 1.30.4*), only when they fix
+  it. Releases come from [endoflife.date](https://endoflife.date) for most products, else from the project's GitHub
+  releases (curl, zlib), refreshed daily.
+
 ## Exploited, no fix yet
 
 Sometimes CISA lists a vulnerability as exploited in the wild before any fixed version exists, so there is no
-upgrade to make. Until there is, a **mitigation** keeps it from being used: a WAF or proxy rule, a feature or
+upgrade to make. (Goliash first looks for one: a newer release of the image's distribution, or an upstream fix,
+counts as a fix and asks for the upgrade instead.) Until there is, a **mitigation** keeps it from being used: a WAF or proxy rule, a feature or
 setting turned off, the service cut off from the network.
 
 - **Where it shows.** The Security page's **Exploited, no fix yet** panel and the vulnerabilities list (*no fix*)
@@ -366,10 +406,16 @@ setting turned off, the service cut off from the network.
 
 ## Not affected
 
-A scanner matches packages against advisories, and sometimes the advisory does not fit what runs. A common case:
-an image ships `nginx 1.27.1-1~bookworm` from nginx.org, which is matched against Debian's advisory for
-CVE-2023-44487 (*no fix yet* there), while nginx itself fixed it in 1.25.3. When you know a vulnerability does not
-affect a service, say so instead of leaving it open:
+A scanner matches packages against advisories, and sometimes the advisory does not fit what runs. Goliash leaves out
+by itself what it can tell does not apply, and lists each under **Not affected** on the service's page and in the
+monthly report, grouped by reason, with *Goliash* as who said so:
+
+- a package past the version upstream fixed it in ([Upstream fixes](#upstream-fixes)): nginx.org's `nginx
+  1.27.1-1~bookworm` matched against Debian's advisory for CVE-2023-44487, which nginx fixed in 1.25.3;
+- what the image's publisher rules out in VEX ([below](#vex-from-the-images-publisher));
+- the kernel's packages in a container image ([below](#kernel-packages)).
+
+For the rest, when you know a vulnerability does not affect a service, say so instead of leaving it open:
 
 - **Marking one.** On the service's page, **Not affected?** under the vulnerability (admins) takes the reason (after
   VEX's justifications: already fixed in the version that runs, the component is not in the image, the vulnerable
@@ -406,34 +452,6 @@ An image often carries the kernel's packages without running them: `linux-libc-d
 kernel, so Goliash leaves them out of the image's findings and lists them, grouped, under **Not affected** (*a kernel
 package in the image*). The host's kernel is patched with the nodes; dropping those packages from the final stage of
 the build makes the SBOM smaller too.
-
-### Fixed in a newer release of the distribution
-
-A distribution often fixes a vulnerability in its next release before (or instead of) the one an image is built on:
-Debian 13 has a fixed nginx for CVE-2023-44487, Debian 12 none. When the image's own release has no fix and a newer
-one has, Goliash says so instead of *no fix yet*: *fixed in Debian 13 (trixie)*, and "What to do" says to rebuild on
-a trixie base (`debian:trixie-slim`, or the trixie variant of the image it is built on). Debian, Ubuntu (not Pro)
-and Alpine releases count; the finding counts as fixable, so an exploited one asks for the rebuild, not a
-mitigation.
-
-### Upstream fixes
-
-For that common case Goliash does not wait for you. When a distribution's advisory has no fix for a package whose
-upstream product Goliash knows (nginx, OpenSSL, curl, PostgreSQL, Redis and others), it asks NVD for the versions
-the CVE affects upstream (exploited and serious ones first; `GOLIASH_NVD_API_KEY` makes it faster) and reads the
-version that runs without the distribution's revision (`1.27.1-1~bookworm` is nginx 1.27.1):
-
-- **Past upstream's fix:** the package leaves the findings, and the service's page lists it under **Not affected**
-  as *Goliash, from NVD*, with the ranges, as does the monthly report. Where NVD only says the last affected
-  version (*up to 1.25.2*) rather than the fixed one, this needs a later release line (1.27 is, 1.25.4 is not):
-  NVD may have closed such a range at the newest release of its time, before there was a fix.
-- **Still in upstream's range:** instead of *no fix yet* it says which version fixes it (*upstream nginx fixed it
-  in 1.25.3*), and "What to do" says to run that version or newer, from upstream's own packages or image when the
-  distribution has none. An exploited vulnerability with an upstream fix asks for the upgrade, not a mitigation.
-- **Which version to run.** Beside a fix it names the product's newest release (*· latest 1.31.8*) and, when the
-  release cycle that runs is still supported, the newest of that cycle too (*on 1.30, 1.30.4*), only when they fix
-  it. Releases come from [endoflife.date](https://endoflife.date) for most products, else from the project's GitHub
-  releases (curl, zlib), refreshed daily.
 
 ## Images without an SBOM
 
