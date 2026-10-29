@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sort"
 	"time"
@@ -117,6 +118,7 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 	if err != nil {
 		return r, err
 	}
+	o.ReleaseSecurity = maps.Clone(o.ReleaseSecurity) // the overview is shared: added to in a copy
 	for id, rels := range all {
 		for _, rel := range rels {
 			if rel.Security != "" {

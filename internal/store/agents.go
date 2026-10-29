@@ -150,6 +150,10 @@ func (s *Store) TouchAgent(ctx context.Context, sc Scope, id string) (staleSince
 		if since.Valid {
 			staleSince = since.Time.UTC()
 		}
+		if staleSince.IsZero() { // only its last contact
+			_, err := s.touch(ctx, tx, `UPDATE agents SET last_seen_at = ? WHERE id = ?`, s.now(), id)
+			return err
+		}
 		_, err := s.exec(ctx, tx, `UPDATE agents SET last_seen_at = ?, stale_since = NULL WHERE id = ?`, s.now(), id)
 		return err
 	})

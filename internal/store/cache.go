@@ -152,6 +152,9 @@ func keep[T any](s *Store, name string, tables []string, load func() (T, error))
 	return v, nil
 }
 
+// Generations is the write counts of tables, for a cache of something read from them: it is stale once they differ.
+func (s *Store) Generations(tables ...string) string { return s.tables.key(tables) }
+
 // copySlice returns a slice the caller may change without changing what is kept.
 func copySlice[T any](v []T) []T {
 	if v == nil {
