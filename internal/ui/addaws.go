@@ -29,7 +29,7 @@ var awsServices = []struct{ Key, Label, Env string }{
 
 // awsActions are the read-only IAM actions of each service.
 var awsActions = map[string][]string{
-	"ecs":         {"ecs:List*", "ecs:Describe*", "ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"},
+	"ecs":         {"ecs:List*", "ecs:Describe*", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeLoadBalancers", "ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"},
 	"lambda":      {"lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs", "lambda:GetLayerVersion"},
 	"rds":         {"rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:DescribeDBEngineVersions", "rds:DescribePendingMaintenanceActions"},
 	"elasticache": {"elasticache:Describe*", "elasticache:ListTagsForResource"},

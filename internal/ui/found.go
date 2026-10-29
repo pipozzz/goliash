@@ -167,7 +167,7 @@ func noteHint(note string) string {
 
 // awsPermissions are the read-only IAM actions each AWS platform needs.
 var awsPermissions = map[string]string{
-	"ecs":         "ecs:List*, ecs:Describe*",
+	"ecs":         "ecs:List*, ecs:Describe*, elasticloadbalancing:DescribeTargetGroups, elasticloadbalancing:DescribeLoadBalancers",
 	"lambda":      "lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases, lambda:ListFunctionUrlConfigs, lambda:GetLayerVersion",
 	"rds":         "rds:DescribeDBInstances, rds:DescribeDBClusters, rds:DescribeDBEngineVersions, rds:DescribePendingMaintenanceActions",
 	"elasticache": "elasticache:Describe*, elasticache:ListTagsForResource",

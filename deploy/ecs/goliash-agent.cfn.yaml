@@ -138,7 +138,7 @@ Resources:
             Statement:
               - Sid: ReadOnlyEcs
                 Effect: Allow
-                Action: ["ecs:List*", "ecs:Describe*"]
+                Action: ["ecs:List*", "ecs:Describe*", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeLoadBalancers"]
                 Resource: "*"
               - Sid: ReadEcrImages
                 Effect: Allow

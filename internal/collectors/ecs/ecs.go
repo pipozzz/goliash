@@ -14,6 +14,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/pkg/agentproto"
@@ -45,7 +46,9 @@ func New(ctx context.Context, t agentproto.Target) (collectors.Collector, error)
 	if err != nil {
 		return nil, fmt.Errorf("aws config: %w", err)
 	}
-	return NewWithAPI(ecs.NewFromConfig(cfg), t.Ecs.Clusters), nil
+	c := NewWithAPI(ecs.NewFromConfig(cfg), t.Ecs.Clusters)
+	c.lbs = &balancers{api: elasticloadbalancingv2.NewFromConfig(cfg)}
+	return c, nil
 }
 
 // NewWithAPI returns a collector using api. clusters are names or ARNs; empty means all.
@@ -57,6 +60,7 @@ func NewWithAPI(api API, clusters []string) *Collector {
 type Collector struct {
 	api      API
 	clusters []string
+	lbs      *balancers // which load balancers are internet-facing; nil without Elastic Load Balancing
 }
 
 // Collect walks clusters → services → running tasks. A cluster that cannot be read
@@ -150,7 +154,7 @@ func (c *Collector) service(ctx context.Context, cluster string, svc types.Servi
 			w.Labels[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
 		}
 	}
-	w.Exposed = exposed(svc)
+	w.Exposed = c.exposed(ctx, svc)
 
 	var taskArns []string
 	var next *string
@@ -264,14 +268,30 @@ func chunks(items []string, size int) func(func([]string) bool) {
 	}
 }
 
-// exposed says how an ECS service can be reached from outside its VPC: a load balancer it registers with (which
-// may be internal: tag it goliash.exposed=internal), or a public IP on its tasks.
-func exposed(svc types.Service) []string {
+// exposed says how an ECS service can be reached from outside its VPC: an internet-facing load balancer it
+// registers with, or a public IP on its tasks. Internal load balancers are left out; when Elastic Load Balancing
+// cannot say which is which, every target group counts (tag the service goliash.exposed=internal where it is not).
+func (c *Collector) exposed(ctx context.Context, svc types.Service) []string {
 	var out []string
+	var groups []string
+	for _, lb := range svc.LoadBalancers {
+		if lb.TargetGroupArn != nil {
+			groups = append(groups, aws.ToString(lb.TargetGroupArn))
+		}
+	}
+	known, ok := c.lbs.of(ctx, groups)
+	seen := map[string]bool{}
 	for _, lb := range svc.LoadBalancers {
 		switch {
+		case lb.TargetGroupArn != nil && ok:
+			for _, b := range known[aws.ToString(lb.TargetGroupArn)] {
+				if way := "internet-facing load balancer " + b.Name + " (" + b.DNS + ")"; b.Public && !seen[way] {
+					seen[way] = true
+					out = append(out, way)
+				}
+			}
 		case lb.TargetGroupArn != nil:
-			out = append(out, "load balancer target group "+targetGroup(aws.ToString(lb.TargetGroupArn)))
+			out = append(out, "load balancer target group "+targetGroup(aws.ToString(lb.TargetGroupArn))+" (internal or not: not known)")
 		case lb.LoadBalancerName != nil:
 			out = append(out, "load balancer "+aws.ToString(lb.LoadBalancerName))
 		}

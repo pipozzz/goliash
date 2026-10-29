@@ -16,6 +16,14 @@ func TestNewerReleaseFix(t *testing.T) {
 		!strings.Contains(n.Advice(cur), "Debian 12 (bookworm) has no fix; Debian 13 (trixie) fixes it in nginx 1.24.0-2: rebuild on a trixie base image") {
 		t.Errorf("debian: %+v %s %v", n, cur, ok)
 	}
+	// Debian 14 is testing: not a release to move to.
+	if n, _, ok := newerReleaseFix("pkg:deb/debian/mariadb@1:11.8.6-0+deb13u1?os_version=13", map[string][]string{"Debian:14|mariadb": {"1:11.8.7-1"}}); ok {
+		t.Errorf("testing offered: %+v", n)
+	}
+	// An Ubuntu interim release is not one either.
+	if _, _, ok := newerReleaseFix("pkg:deb/ubuntu/curl@7.81.0-1?os_version=22.04", map[string][]string{"Ubuntu:25.10|curl": {"8"}}); ok {
+		t.Error("interim Ubuntu offered")
+	}
 	// Already on the newest: nothing newer.
 	if _, _, ok := newerReleaseFix("pkg:deb/debian/nginx@1.26.3-3?os_name=debian&os_version=14", fixes); ok {
 		t.Error("14 has a newer release")

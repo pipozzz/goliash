@@ -43,7 +43,7 @@ resource "aws_iam_role" "task" {
 data "aws_iam_policy_document" "read_ecs" {
   statement {
     sid       = "ReadOnlyEcs"
-    actions   = ["ecs:List*", "ecs:Describe*"]
+    actions   = ["ecs:List*", "ecs:Describe*", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeLoadBalancers"]
     resources = ["*"]
   }
   statement {
