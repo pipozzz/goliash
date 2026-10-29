@@ -264,7 +264,8 @@
   function cellsReach() {
     const only = document.body.dataset.tileOnly;
     document.querySelectorAll(".logo-board .board-cell").forEach(function (c) {
-      c.inert = c.classList.contains("filter-out") || Boolean(only && !c.classList.contains("s-" + only));
+      const out = only === "problem" ? c.classList.contains("s-current") : Boolean(only && !c.classList.contains("s-" + only));
+      c.inert = c.classList.contains("filter-out") || out;
     });
   }
   // Bulk pull requests (Updates): "Tick all shown" ticks the upgrades the filter shows (again: unticks them), the
@@ -1138,8 +1139,8 @@
     if (btn) btn.focus();
   }
   // A question ready to ask, e.g. the Brief button of an upgrade.
-  // Tiles: a legend item picks out the cells in its state; again, or Escape, shows all. The choice is kept on the
-  // body, so the board's live refresh keeps it.
+  // Tiles: a legend item shows only the cells in its state ("problem": all but the current ones); again, or Escape,
+  // shows all. The choice is kept on the body, so the board's live refresh keeps it.
   function tileOnly(state) {
     if (state) document.body.dataset.tileOnly = state; else delete document.body.dataset.tileOnly;
     document.querySelectorAll("[data-tile-only]").forEach(function (b) {

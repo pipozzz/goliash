@@ -158,15 +158,17 @@ templ stack(v TilesView) {
 				<a class="stack-only" href={ templ.URL(tilesWith(v, "only", "1")) } title={ "Only " + v.App + ", as the whole board: for a team's page or wall screen" }>{ "Only this " + singularWord(v.GroupBy) }</a>
 				<a class="stack-close" href={ templ.URL(up) } hx-swap="innerHTML transition:true" aria-label="Close" title="Back (Escape)">×</a>
 			</header>
+			if v.Env != "side" && len(v.Items) > 0 {
+				<div class="stack-legend">
+					@tileLegend(v.Counts)
+				</div>
+			}
 			if len(v.Items) == 0 {
 				<div class="empty">Nothing runs here in this environment.</div>
 			} else if v.Env == "side" {
 				@envBoards(v)
 			} else {
 				@board(v.Items, v.Cols, false)
-			}
-			if v.Env != "side" {
-				@tileLegend(v.Counts)
 			}
 			if len(v.AppGrid.Rows) > 0 {
 				<div class="stack-matrix">
@@ -199,10 +201,10 @@ templ alone(v TilesView) {
 		} else if v.Env == "side" {
 			@envBoards(v)
 		} else {
+			@tileLegend(v.Counts)
 			<div style={ "--rows:" + itoa(v.Rows) }>
 				@board(v.Items, v.Cols, false)
 			</div>
-			@tileLegend(v.Counts)
 		}
 	</section>
 }
@@ -294,19 +296,27 @@ templ envStrip(envs []TileEnv) {
 	}
 }
 
-// tileLegend counts the cells per state; each is a button that picks out the cells in its state (app.js).
+// tileLegend counts the cells per state; each is a button that shows only the cells in its state (app.js), and
+// "not up to date" all but the current ones.
 templ tileLegend(c TileCounts) {
 	<ul class="tile-legend">
 		@legendItem("current", "up to date", c.Current)
 		@legendItem("behind", "behind", c.Behind)
 		@legendItem("attention", "needs attention", c.Attention)
 		@legendItem("unknown", "unknown", c.Unknown)
+		if c.Current > 0 && c.Behind+c.Attention+c.Unknown > 0 {
+			<li class="legend-problem">
+				<button type="button" class="tile-filter" data-tile-only="problem" aria-pressed="false" title="Show only the cells not up to date; again to show all">
+					{ "not up to date " }<strong>{ itoa(c.Behind + c.Attention + c.Unknown) }</strong>
+				</button>
+			</li>
+		}
 	</ul>
 }
 
 templ legendItem(state, label string, n int) {
 	<li>
-		<button type="button" class="tile-filter" data-tile-only={ state } aria-pressed="false" title={ "Pick out the cells " + label + "; again to show all" }>
+		<button type="button" class="tile-filter" data-tile-only={ state } aria-pressed="false" title={ "Show only the cells " + label + "; again to show all" }>
 			<span class={ "tcell", state }></span>{ label } <strong>{ itoa(n) }</strong>
 		</button>
 	</li>

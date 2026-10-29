@@ -91,6 +91,9 @@ to compare with, and warm means it needs attention: end of life, or targets disa
   behind, dimmed, with the application marked, and its cells open the other applications directly. Under its cells
   the card has the application's matrix: its services (by part) with the running versions in every environment.
   × or Escape lays the card down again. Arrow keys move between cells, Enter opens one.
+- **Only what is not OK.** The legend counts the cells per state, on the board and above an opened card's cells; a
+  state shows only its cells, and **not up to date** all but the current ones, so the few that need work in an
+  application of hundreds of services stand alone. Again, or Escape, shows all.
 - **Grouped by target**, each cell is a cluster or cloud account (`/tiles?group=target`): open one to see what runs
   on it, `/tiles?group=target&app=k8s-prod&only=1&tv=1` puts one cluster on a wall screen.
 - **Only this team** (or application) on the card shows it alone, as the whole board: its services as large cells,
