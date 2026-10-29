@@ -29,11 +29,37 @@ func TestNewerReleaseFix(t *testing.T) {
 		t.Error("Ubuntu Pro offered")
 	}
 	n, _, ok = newerReleaseFix("pkg:deb/ubuntu/curl@7.81.0-1?os_version=22.04", map[string][]string{"Ubuntu:24.04:LTS|curl": {"8.5.0-2ubuntu10.4"}})
-	if !ok || n.Label() != "Ubuntu 24.04" {
+	if !ok || n.Label() != "Ubuntu 24.04 (noble)" {
 		t.Errorf("ubuntu: %+v", n)
 	}
 	// Not a distribution package.
 	if _, _, ok := newerReleaseFix("pkg:npm/lodash@4.17.15", fixes); ok {
 		t.Error("npm has releases")
+	}
+}
+
+func TestBaseOn(t *testing.T) {
+	fixes := map[string][]string{"Debian:13|nginx": {"1.24.0-2"}}
+	n, cur, _ := newerReleaseFix("pkg:deb/debian/nginx@1.22.1-9?os_version=12", fixes)
+	for base, want := range map[string]string{
+		"python:3.15-bookworm":                "python:3.15-trixie",
+		"python:3.15-slim-bookworm@sha256:ab": "python:3.15-slim-trixie",
+		"debian:bookworm-slim":                "debian:trixie-slim",
+		"python:3.15":                         "",
+		"ghcr.io/acme/base:1":                 "",
+	} {
+		if got := n.BaseOn(base); got != want {
+			t.Errorf("%s: %q, want %q", base, got, want)
+		}
+	}
+	if a := n.AdviceOn(cur, "python:3.15-bookworm"); !strings.Contains(a, "rebuild on python:3.15-trixie instead of python:3.15-bookworm") {
+		t.Errorf("advice: %s", a)
+	}
+	if a := n.AdviceOn(cur, ""); a != n.Advice(cur) {
+		t.Errorf("unknown base: %s", a)
+	}
+	al, _, _ := newerReleaseFix("pkg:apk/alpine/busybox@1.36.1-r29?os_version=3.20.3", map[string][]string{"Alpine:v3.21|busybox": {"1.37.0-r12"}})
+	if got := al.BaseOn("node:22-alpine3.20"); got != "node:22-alpine3.21" {
+		t.Errorf("alpine: %q", got)
 	}
 }

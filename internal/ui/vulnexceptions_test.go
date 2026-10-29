@@ -192,4 +192,9 @@ func TestNewerDistroRelease(t *testing.T) {
 	if _, page := get(t, viewer, e.srv.URL+"/security/vulns?env=all", nil); !strings.Contains(page, "→ fixed in Debian 13 (trixie)") {
 		t.Error("the vulnerabilities page does not offer it")
 	}
+	// Built on python:3.15-bookworm: the image to build on instead is named.
+	_ = e.st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: "ghcr.io/acme/proxy", Digest: "sha256:p1", CheckedAt: time.Now(), BaseImage: "docker.io/library/python:3.15-bookworm"})
+	if _, page := get(t, viewer, e.srv.URL+"/services/proxy", nil); !strings.Contains(page, "rebuild on python:3.15-trixie instead of python:3.15-bookworm") {
+		t.Error("the base image to move to is not named")
+	}
 }
