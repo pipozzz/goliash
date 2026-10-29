@@ -212,6 +212,13 @@ func (s *Store) rebind(query string) string {
 	return b.String()
 }
 
+// touch writes only timestamps (an agent's or a target's last contact, a collector's status): it does not count as
+// a change for what is kept, which then shows them up to cacheTTL late. Heartbeats would otherwise drop every
+// kept list each minute.
+func (s *Store) touch(ctx context.Context, q queryer, query string, args ...any) (sql.Result, error) {
+	return q.ExecContext(ctx, s.rebind(query), args...)
+}
+
 func (s *Store) exec(ctx context.Context, q queryer, query string, args ...any) (sql.Result, error) {
 	res, err := q.ExecContext(ctx, s.rebind(query), args...)
 	s.tables.wrote(q, query)

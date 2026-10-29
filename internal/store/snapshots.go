@@ -44,7 +44,7 @@ func (s *Store) InsertSnapshot(ctx context.Context, snap Snapshot) (inserted boo
 			return err
 		}
 		inserted = true
-		_, err = s.exec(ctx, tx, `
+		_, err = s.touch(ctx, tx, `
 			UPDATE targets SET last_snapshot_at = ?
 			WHERE id = ? AND (last_snapshot_at IS NULL OR last_snapshot_at < ?)`,
 			snap.CollectedAt.UTC(), snap.TargetID, snap.CollectedAt.UTC())

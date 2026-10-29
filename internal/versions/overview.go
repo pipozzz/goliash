@@ -79,7 +79,55 @@ func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
 
 // LoadOverview reads the matrix, upstream state and open drifts of a workspace.
 func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
-	return memoized(ctx, "overview "+sc.WorkspaceID, func() (Overview, error) { return loadOverview(ctx, st, sc) })
+	return memoized(ctx, "overview "+sc.WorkspaceID, func() (Overview, error) { return sharedOverview(ctx, st, sc) })
+}
+
+// overviewTables are the tables the overview is read from: a kept overview is stale once one is written.
+var overviewTables = []string{
+	"services", "registry_credentials", "environments", "targets", "agents", "instances", "app_names", "tag_resolutions",
+	"releases", "drifts",
+}
+
+// overviewTTL bounds how long an overview is reused: its stale targets depend on the time, and other processes'
+// writes are not counted.
+const overviewTTL = 20 * time.Second
+
+var overviewCache struct {
+	sync.Mutex
+	m map[string]keptOverview
+}
+
+type keptOverview struct {
+	gens string
+	at   time.Time
+	o    Overview
+}
+
+// sharedOverview is the overview reused across requests while its tables are unchanged: the matrix, the tiles,
+// the favicon and the badges all start from it, and building it (the newest release of every service from all its
+// tags) is the heaviest read of a page. It is shared: callers must not change it in place.
+func sharedOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
+	key := fmt.Sprintf("%p|%s", st, sc.WorkspaceID)
+	gens := st.Generations(overviewTables...) + fmt.Sprint(st.ReleasesGeneration())
+	overviewCache.Lock()
+	k, ok := overviewCache.m[key]
+	overviewCache.Unlock()
+	if ok && k.gens == gens && time.Since(k.at) < overviewTTL {
+		return k.o, nil
+	}
+	o, err := loadOverview(ctx, st, sc)
+	if err != nil {
+		return o, err
+	}
+	if st.Generations(overviewTables...)+fmt.Sprint(st.ReleasesGeneration()) == gens {
+		overviewCache.Lock()
+		if overviewCache.m == nil {
+			overviewCache.m = map[string]keptOverview{}
+		}
+		overviewCache.m[key] = keptOverview{gens: gens, at: time.Now(), o: o}
+		overviewCache.Unlock()
+	}
+	return o, nil
 }
 
 func loadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
