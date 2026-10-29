@@ -727,15 +727,12 @@ body.kiosk .logo-board:not(.compact) { max-width: min(100%, calc((100vh - 150px)
 body:not(.kiosk) .board-fit > .logo-board:not(.compact) {
   max-width: min(calc(var(--cols) * 190px + 120px), max(420px, calc((100vh - 290px) * var(--cols) / var(--rows, 3))));
 }
-/* On a wide screen the cells are wider than tall (4:3), so the board uses the width a laptop has and names keep to
-   one line, rather than a square board in the middle with names broken under the environment strip. */
+/* A wide screen: a board of many cells takes the width (and scrolls), rather than shrinking to the screen's height
+   until names and statuses no longer fit its cells. */
 @media (min-width: 900px) {
   body:not(.kiosk) .board-fit > .logo-board:not(.compact) {
-    --ratio: 4 / 3;
-    max-width: min(calc(var(--cols) * 260px + 120px), max(560px, calc((100vh - 290px) * var(--cols) / var(--rows, 3) * 4 / 3)));
+    max-width: min(calc(var(--cols) * 230px + 120px), max(min(100%, calc(var(--cols) * 150px + 120px)), calc((100vh - 290px) * var(--cols) / var(--rows, 3))));
   }
-  body:not(.kiosk) .board-fit > .logo-board:not(.compact) .board-cell { aspect-ratio: var(--ratio); }
-  body:not(.kiosk) .board-fit > .logo-board:not(.compact) .board-cell.big { aspect-ratio: auto; }
 }
 .tiles-toolbar #tiles-legend .tile-legend { justify-content: flex-end; }
 .tiles-head-end { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }

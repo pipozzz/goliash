@@ -51,6 +51,9 @@ type Store struct {
 
 	// releasesGen counts this process's writes to releases, so a cache of them knows when it is stale.
 	releasesGen atomic.Uint64
+
+	tables tableGens // writes per table, for cache
+	cache  readCache // whole tables pages read again and again
 }
 
 // ReleasesGeneration changes whenever this process writes releases: a cache built at one generation is
@@ -185,7 +188,9 @@ func (s *Store) rebind(query string) string {
 }
 
 func (s *Store) exec(ctx context.Context, q queryer, query string, args ...any) (sql.Result, error) {
-	return q.ExecContext(ctx, s.rebind(query), args...)
+	res, err := q.ExecContext(ctx, s.rebind(query), args...)
+	s.tables.wrote(q, query)
+	return res, err
 }
 
 func (s *Store) queryRow(ctx context.Context, q queryer, query string, args ...any) *sql.Row {
@@ -202,6 +207,7 @@ func (s *Store) inTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	if err != nil {
 		return err
 	}
+	defer s.tables.done(tx)
 	if err := fn(tx); err != nil {
 		_ = tx.Rollback()
 		return err

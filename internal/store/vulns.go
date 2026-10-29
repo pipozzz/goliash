@@ -47,7 +47,7 @@ func (s *Store) SetImageSBOM(ctx context.Context, sc Scope, b ImageSBOM) error {
 }
 
 // ListImageSBOMs returns the workspace's SBOMs keyed by repo + "@" + digest.
-func (s *Store) ListImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageSBOM, error) {
+func (s *Store) listImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageSBOM, error) {
 	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, licenses, error, fetched_at, source FROM image_sboms
 		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
@@ -155,7 +155,7 @@ func (s *Store) SetVuln(ctx context.Context, v Vuln) error {
 }
 
 // ListVulns returns every vulnerability record kept, by ID.
-func (s *Store) ListVulns(ctx context.Context) (map[string]Vuln, error) {
+func (s *Store) listVulns(ctx context.Context) (map[string]Vuln, error) {
 	rows, err := s.query(ctx, s.db, `SELECT id, aliases, summary, severity, fixes, fetched_at FROM osv_vulns`)
 	if err != nil {
 		return nil, err
@@ -212,7 +212,7 @@ func (s *Store) SetKnownExploited(ctx context.Context, list []Exploited) error {
 }
 
 // KnownExploited returns the catalog by CVE, and when it was last fetched (zero when never).
-func (s *Store) KnownExploited(ctx context.Context) (map[string]Exploited, time.Time, error) {
+func (s *Store) knownExploited(ctx context.Context) (map[string]Exploited, time.Time, error) {
 	rows, err := s.query(ctx, s.db, `SELECT cve, vendor_product, name, date_added, due_date, ransomware, fetched_at FROM known_exploited`)
 	if err != nil {
 		return nil, time.Time{}, err

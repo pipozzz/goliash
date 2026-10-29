@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -40,6 +41,7 @@ type EOL struct {
 	products map[string]string // image repository -> product
 	loaded   time.Time
 	cycles   map[string]eolEntry
+	fetching map[string]bool // background fetches under way
 }
 
 type eolEntry struct {
@@ -55,6 +57,42 @@ func NewEOL() *EOL {
 // SetEOL enables end-of-life drift.
 func (c *Checker) SetEOL(e *EOL) { c.eol = e }
 
+// cacheOnlyKey marks a context whose lookups use what is cached and never wait for endoflife.date: a page being
+// answered. What is missing or old is fetched in the background, for the next page.
+type cacheOnlyKey struct{}
+
+// CacheOnly returns ctx for lookups that must not wait on the network (a request being answered).
+func CacheOnly(ctx context.Context) context.Context {
+	return context.WithValue(ctx, cacheOnlyKey{}, true)
+}
+
+func cacheOnly(ctx context.Context) bool { v, _ := ctx.Value(cacheOnlyKey{}).(bool); return v }
+
+// ErrNotCached means a cache-only lookup had nothing yet; it is being fetched.
+var ErrNotCached = errors.New("not fetched yet")
+
+// refresh fetches in the background, once at a time per key.
+func (e *EOL) refresh(key string, fetch func(context.Context)) {
+	e.mu.Lock()
+	if e.fetching == nil {
+		e.fetching = map[string]bool{}
+	}
+	if e.fetching[key] {
+		e.mu.Unlock()
+		return
+	}
+	e.fetching[key] = true
+	e.mu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		fetch(ctx)
+		e.mu.Lock()
+		delete(e.fetching, key)
+		e.mu.Unlock()
+	}()
+}
+
 // Product returns the endoflife.date product of an image repository
 // ("docker.io/library/postgres" -> "postgresql"), or "" when the site does not list it.
 func (e *EOL) Product(ctx context.Context, repo string) (string, error) {
@@ -66,7 +104,15 @@ func (e *EOL) Product(ctx context.Context, repo string) (string, error) {
 	}
 	e.mu.Lock()
 	fresh := e.products != nil && time.Since(e.loaded) < 24*time.Hour
+	have := e.products != nil
 	e.mu.Unlock()
+	if !fresh && cacheOnly(ctx) {
+		e.refresh("products", func(ctx context.Context) { _, _ = e.Product(ctx, repo) })
+		if !have {
+			return "", ErrNotCached
+		}
+		fresh = true // the old list, for now
+	}
 	if !fresh {
 		var out struct {
 			Result []struct {
@@ -199,6 +245,13 @@ func (e *EOL) Cycles(ctx context.Context, product string) ([]EOLCycle, error) {
 	e.mu.Unlock()
 	if ok && time.Since(c.at) < 24*time.Hour {
 		return c.cycles, nil
+	}
+	if cacheOnly(ctx) {
+		e.refresh("cycles "+product, func(ctx context.Context) { _, _ = e.Cycles(ctx, product) })
+		if ok {
+			return c.cycles, nil // the old ones, for now
+		}
+		return nil, ErrNotCached
 	}
 	var out struct {
 		Result struct {

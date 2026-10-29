@@ -79,6 +79,10 @@ func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
 
 // LoadOverview reads the matrix, upstream state and open drifts of a workspace.
 func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
+	return memoized(ctx, "overview "+sc.WorkspaceID, func() (Overview, error) { return loadOverview(ctx, st, sc) })
+}
+
+func loadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
 	o := Overview{
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, AppDrifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},

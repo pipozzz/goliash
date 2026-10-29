@@ -28,6 +28,9 @@ type AppFamily struct {
 var derivedSources = map[string]bool{
 	"nomad job": true, "namespace": true, "compose project": true, "com.docker.compose.project": true, "com.docker.stack.namespace": true,
 	SourceWorkload: true,
+	// Stacks are often one per function or per developer (shop-api-dev-ana, shop-api-dev-bo): a family per first
+	// word keeps a region's functions from being hundreds of applications.
+	"CloudFormation stack": true,
 }
 
 // AppFamilies maps each application to its family. Applications from generated

@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"embed"
@@ -338,6 +339,9 @@ type handler func(w http.ResponseWriter, r *http.Request, p auth.Principal) erro
 // page authenticates, checks the role and turns handler errors into a page.
 func (s *Server) page(role string, h handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet { // the overview and the vulnerability report, built once a page (an action changes them)
+			r = r.WithContext(versions.WithMemo(r.Context()))
+		}
 		p, ok, err := s.auth.Authenticate(r)
 		if err != nil {
 			s.fail(w, r, err)
@@ -478,7 +482,25 @@ func (s *Server) audit(ctx context.Context, p auth.Principal, action string, kv 
 
 func render(w http.ResponseWriter, r *http.Request, c templ.Component) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return c.Render(r.Context(), w)
+	if r.Method != http.MethodGet || r.Header.Get("HX-Request") != "true" {
+		return c.Render(r.Context(), w)
+	}
+	// A live panel's refresh (the matrix, the tiles, every minute and at every change an agent reports) sends the
+	// version of what it shows: when nothing changed, 204 tells it to keep it, instead of a megabyte of HTML the
+	// browser lays out again.
+	var buf bytes.Buffer
+	if err := c.Render(r.Context(), &buf); err != nil {
+		return err
+	}
+	sum := sha256.Sum256(buf.Bytes())
+	version := hex.EncodeToString(sum[:12])
+	w.Header().Set("X-Content-Version", version)
+	if r.Header.Get("X-Have-Version") == version {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	_, err := w.Write(buf.Bytes())
+	return err
 }
 
 // ---- sign-in ----
@@ -825,7 +847,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.Policy.Reviewers, v.Policy.Labels = strings.Join(own.PRReviewers, ", "), strings.Join(own.PRLabels, ", ")
 	}
 	if base := versions.BaseImage(svc); base != "" {
-		st := s.checker.BaseStatus(ctx, base, time.Now())
+		st := s.checker.BaseStatus(versions.CacheOnly(ctx), base, time.Now())
 		v.BuiltOn = &st
 	}
 	if pol.PinMajor != nil {
