@@ -209,7 +209,8 @@ func (s *Server) needsTwoFactor(r *http.Request, p auth.Principal) bool {
 		return false
 	}
 	switch r.URL.Path {
-	case "/account", "/account/2fa", "/account/2fa/setup", "/account/2fa/enable", "/account/passkeys/options", "/account/passkeys":
+	// What it takes to meet the requirement, and a password (someone invited sets one first; it is no way around it).
+	case "/account", "/account/2fa", "/account/2fa/setup", "/account/2fa/enable", "/account/passkeys/options", "/account/passkeys", "/account/password":
 		return false
 	}
 	required, err := s.store.RequireTwoFactor(r.Context(), p.User.OrgID)

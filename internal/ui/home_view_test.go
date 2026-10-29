@@ -24,7 +24,7 @@ func TestHomeView(t *testing.T) {
 		link, _ := e.auth.LoginLink(ctx, u)
 		jar, _ := cookiejar.New(nil)
 		c := &http.Client{Jar: jar}
-		get(t, c, link, nil)
+		signIn(t, c, link)
 		return c
 	}
 	const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"

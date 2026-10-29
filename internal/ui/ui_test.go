@@ -96,10 +96,21 @@ func (e *uiEnv) as(role string) *http.Client {
 	link, _ := e.auth.LoginLink(context.Background(), u)
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Jar: jar}
-	if code, _ := get(e.t, c, link, nil); code != 200 {
+	if code := signIn(e.t, c, link); code != 200 {
 		e.t.Fatalf("sign-in as %s failed: %d", role, code)
 	}
 	return c
+}
+
+// signIn signs in with a sign-in link as its confirm page does: the token posted, not the link opened.
+func signIn(t *testing.T, c *http.Client, link string) int {
+	t.Helper()
+	u, err := url.Parse(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _, _ := post(t, c, u.Scheme+"://"+u.Host+"/auth/magic/use", url.Values{"token": {u.Query().Get("token")}})
+	return code
 }
 
 func get(t *testing.T, c *http.Client, u string, header map[string]string) (int, string) {
@@ -261,7 +272,7 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 	}
 
 	_, body, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {"dev@example.com"}, "role": {"member"}})
-	if !strings.Contains(body, "/auth/magic?token=") || !strings.Contains(body, "dev@example.com invited (member)") {
+	if !strings.Contains(body, "/auth/magic?token=") || !strings.Contains(body, "dev@example.com invited (member)") || !strings.Contains(body, "works once, for 7 days") {
 		t.Fatal("invite link not shown")
 	}
 	if _, body, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {"boss@example.com"}, "role": {"owner"}}); !strings.Contains(body, "allowed to give") {
@@ -418,10 +429,27 @@ func TestWorkspaceIsolationForClients(t *testing.T) {
 	link := regexp.MustCompile(`http://[^"<\s]+/auth/magic\?token=[A-Za-z0-9_-]+`).FindString(body)
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Jar: jar}
-	get(t, client, link, nil)
+	// A link preview opens it first: that signs nobody in and leaves the link working.
+	preview := &http.Client{}
+	if _, page := get(t, preview, link, nil); !strings.Contains(page, "Continue to Goliash") || !strings.Contains(page, "as ops@client-a.example") {
+		t.Fatalf("the link does not ask to confirm: %s", page[:min(len(page), 300)])
+	}
+	_, page := get(t, client, link, nil)
+	token := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
+	if token == nil {
+		t.Fatalf("no confirm form: %s", page[:min(len(page), 300)])
+	}
+	// New, with no password yet: asked to set one first.
+	if _, welcome, _ := post(t, client, e.srv.URL+"/auth/magic/use", url.Values{"token": {token[1]}}); !strings.Contains(welcome, "Set a password below") {
+		t.Error("a new person is not asked to set a password")
+	}
+	// Used: the link does not work again.
+	if _, again := get(t, preview, link, nil); !strings.Contains(again, "error") && strings.Contains(again, "Continue to Goliash") {
+		t.Error("the link works twice")
+	}
 
 	// The client works in Client A: no services from the MSP's own workspace.
-	_, page := get(t, client, e.srv.URL+"/", nil)
+	_, page = get(t, client, e.srv.URL+"/", nil)
 	if strings.Contains(page, "k8s-prod") || strings.Contains(page, "onerror") || !strings.Contains(page, "Client A") {
 		t.Fatal("client sees another workspace's data")
 	}

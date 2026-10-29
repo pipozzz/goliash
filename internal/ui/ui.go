@@ -159,6 +159,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	s.oauthRoutes(mux)
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
+	mux.HandleFunc("GET /login/link", s.linkConfirm)
 	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("/", s.notFound)
 
@@ -2443,12 +2444,20 @@ func (s *Server) inviteUser(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if !isNew {
 		return back(w, r, "/settings", "notice", u.Email+" now has "+access+" access to "+p.Workspace.Name+".")
 	}
-	link, err := s.auth.LoginLink(ctx, u)
+	link, err := s.auth.InviteLink(ctx, u)
 	if err != nil {
 		return err
 	}
-	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link,
-		u.Email+" invited ("+access+"). They can also sign in with an e-mailed link or single sign-on.")
+	notice := u.Email + " invited (" + access + "). Send them this link: it works once, for " + strconv.Itoa(auth.InviteDays) +
+		" days, and asks them to confirm, so a chat's link preview does not use it up."
+	if s.auth.MailEnabled() {
+		if err := s.auth.MailInvite(ctx, u.Email, p.Name(), p.Workspace.Name, link); err != nil {
+			s.log.ErrorContext(ctx, "sending the invitation failed", "to", u.Email, "err", err)
+		} else {
+			notice = u.Email + " invited (" + access + ") and e-mailed the link below, which works once, for " + strconv.Itoa(auth.InviteDays) + " days."
+		}
+	}
+	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, notice)
 }
 
 // manageable returns a user the principal may manage in the current workspace.
@@ -2475,12 +2484,12 @@ func (s *Server) userLink(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}
-	link, err := s.auth.LoginLink(r.Context(), u)
+	link, err := s.auth.InviteLink(r.Context(), u)
 	if err != nil {
 		return err
 	}
 	s.audit(r.Context(), p, "user.login_link", "user", u.Email)
-	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, "")
+	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, "It works once, for "+strconv.Itoa(auth.InviteDays)+" days.")
 }
 
 // setRole changes a person's role in this workspace; "none" takes their access away.

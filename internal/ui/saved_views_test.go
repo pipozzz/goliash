@@ -43,7 +43,7 @@ func TestSavedViews(t *testing.T) {
 		link, _ := e.auth.LoginLink(ctx, u)
 		jar, _ := cookiejar.New(nil)
 		c := &http.Client{Jar: jar}
-		get(t, c, link, nil)
+		signIn(t, c, link)
 		return c, u
 	}
 	pat, patUser := sign("pat@example.com", store.RoleMember)

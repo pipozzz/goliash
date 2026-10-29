@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -93,7 +94,8 @@ func newPublicEnv(t *testing.T) *publicEnv {
 	_ = st.SetMembership(ctx, viewer.ID, ws.ID, store.RoleViewer)
 	link, _ := a.LoginLink(ctx, viewer)
 	jarClient := &http.Client{Jar: newJar()}
-	resp, err := jarClient.Get(link) //nolint:noctx // test
+	lu, _ := url.Parse(link)
+	resp, err := jarClient.PostForm(lu.Scheme+"://"+lu.Host+"/auth/magic/use", url.Values{"token": {lu.Query().Get("token")}}) //nolint:noctx // test
 	if err != nil {
 		t.Fatal(err)
 	}

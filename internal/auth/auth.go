@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,6 +33,7 @@ const (
 	sessionCookie = "goliash_session"
 	sessionTTL    = 30 * 24 * time.Hour // default; GOLIASH_SESSION_TTL
 	loginTokenTTL = 15 * time.Minute
+	inviteTTL     = 7 * 24 * time.Hour // a link an admin hands someone: read days later, not in a quarter of an hour
 )
 
 // Principal is who a request acts as.
@@ -257,18 +259,40 @@ func hashOf(raw string) string {
 // LoginLink creates a single-use sign-in URL for a user, valid for 15 minutes. People
 // with two-factor sign-in still enter a code after it.
 func (a *Auth) LoginLink(ctx context.Context, u store.User) (string, error) {
-	return a.link(ctx, u, store.TokenLink)
+	return a.link(ctx, u, store.TokenLink, loginTokenTTL, "")
+}
+
+// InviteLink is a sign-in link an admin hands someone (an invitation, or a new link from the people list): it
+// works once, for InviteDays days.
+func (a *Auth) InviteLink(ctx context.Context, u store.User) (string, error) {
+	return a.link(ctx, u, store.TokenLink, inviteTTL, inviteMethod)
+}
+
+// inviteMethod marks a sign-in link an admin handed out: whoever uses it without a password yet is asked to set one.
+const inviteMethod = "invite"
+
+// InviteDays is how long an InviteLink works.
+const InviteDays = int(inviteTTL / (24 * time.Hour))
+
+// MailInvite e-mails someone their invitation link, when the server sends e-mail.
+func (a *Auth) MailInvite(ctx context.Context, to, by, workspace, link string) error {
+	if a.mail == nil {
+		return nil
+	}
+	body := by + " invited you to " + workspace + " on Goliash. Sign in:\r\n\r\n" + link + "\r\n\r\nThe link works once, for " +
+		strconv.Itoa(InviteDays) + " days. Afterwards, ask for a new one on the sign-in page.\r\n"
+	return a.mail(ctx, to, "You are invited to Goliash", body)
 }
 
 // RecoveryLink is a LoginLink that skips the second factor, for GOLIASH_RECOVERY_EMAIL:
 // whoever sets the server's environment and reads its logs controls it anyway.
 func (a *Auth) RecoveryLink(ctx context.Context, u store.User) (string, error) {
-	return a.link(ctx, u, store.TokenRecovery)
+	return a.link(ctx, u, store.TokenRecovery, loginTokenTTL, "")
 }
 
-func (a *Auth) link(ctx context.Context, u store.User, purpose string) (string, error) {
+func (a *Auth) link(ctx context.Context, u store.User, purpose string, ttl time.Duration, method string) (string, error) {
 	raw, hash := randomToken()
-	if err := a.store.CreateLoginToken(ctx, hash, u.ID, loginTokenTTL, purpose, ""); err != nil {
+	if err := a.store.CreateLoginToken(ctx, hash, u.ID, ttl, purpose, method); err != nil {
 		return "", err
 	}
 	return a.publicURL.String() + "/auth/magic?token=" + url.QueryEscape(raw), nil
@@ -397,7 +421,8 @@ func (a *Auth) startSession(w http.ResponseWriter, r *http.Request, u store.User
 //
 //	POST /auth/password   sign in with e-mail and password
 //	POST /auth/magic      e-mail a sign-in link (form field "email")
-//	GET  /auth/magic      sign in with a link
+//	GET  /auth/magic      a sign-in link: asks to confirm (/login/link), so link previews do not use it up
+//	POST /auth/magic/use  sign in with a link's token (form field "token")
 //	GET  /auth/oidc/start, /auth/oidc/callback
 //	POST /auth/logout
 func (a *Auth) Routes(mux *http.ServeMux) {
@@ -409,7 +434,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /auth/2fa/passkey", a.secondPasskey)
 	mux.HandleFunc("POST /auth/setup", a.setup)
 	mux.HandleFunc("POST /auth/magic", a.requestLink)
-	mux.HandleFunc("GET /auth/magic", a.useLink)
+	mux.HandleFunc("GET /auth/magic", a.openLink)
+	mux.HandleFunc("POST /auth/magic/use", a.useLink)
 	mux.HandleFunc("GET /auth/oidc/start", a.oidcStart)
 	mux.HandleFunc("GET /auth/oidc/callback", a.oidcCallback)
 	mux.HandleFunc("POST /auth/logout", a.logout)
@@ -442,8 +468,29 @@ func (a *Auth) requestLink(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// openLink answers a sign-in link without using it up: Slack's and Teams' link previews and mail scanners open
+// links before the person does. A link still good leads to /login/link, which signs in with a button (POST).
+func (a *Auth) openLink(w http.ResponseWriter, r *http.Request) {
+	raw := r.URL.Query().Get("token")
+	if _, ok := a.PeekLink(r.Context(), raw); !ok {
+		http.Redirect(w, r, "/login?error=link", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/login/link?token="+url.QueryEscape(raw), http.StatusSeeOther)
+}
+
+// PeekLink returns whom a sign-in link (its raw token) is for, while it is unused and unexpired.
+func (a *Auth) PeekLink(ctx context.Context, raw string) (store.User, bool) {
+	if raw == "" {
+		return store.User{}, false
+	}
+	u, _, _, err := a.store.PeekLoginToken(ctx, hashOf(raw), store.TokenLink, store.TokenRecovery)
+	return u, err == nil
+}
+
 func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
-	u, purpose, err := a.store.ConsumeLoginToken(r.Context(), hashOf(r.URL.Query().Get("token")), store.TokenLink, store.TokenRecovery)
+	_, _, method, _ := a.store.PeekLoginToken(r.Context(), hashOf(r.FormValue("token")), store.TokenLink, store.TokenRecovery)
+	u, purpose, err := a.store.ConsumeLoginToken(r.Context(), hashOf(r.FormValue("token")), store.TokenLink, store.TokenRecovery)
 	if err != nil {
 		http.Redirect(w, r, "/login?error=link", http.StatusSeeOther)
 		return
@@ -462,6 +509,11 @@ func (a *Auth) useLink(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.startSession(w, r, u, "link"); err != nil {
 		http.Error(w, "could not sign in", http.StatusInternalServerError)
+		return
+	}
+	// Someone invited has no other way in yet: ask them to set a password or add a passkey first.
+	if method == inviteMethod && a.passwords && !u.HasPassword && u.Passkeys == 0 && !a.OIDCEnabled() {
+		http.Redirect(w, r, "/account?welcome=1#password", http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, a.landing(w, r), http.StatusSeeOther) //nolint:gosec // landing is a path on this server (localPath)

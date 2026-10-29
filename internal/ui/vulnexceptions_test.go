@@ -5,6 +5,8 @@ package ui
 
 import (
 	"context"
+	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strings"
@@ -237,5 +239,35 @@ func TestVulnsPerImage(t *testing.T) {
 	}
 	if _, list := get(t, viewer, e.srv.URL+"/security/vulns?env=all&q="+repo+":v2.3", nil); strings.Contains(list, "CVE-2026-111497") {
 		t.Error("the image's link lists another image's vulnerability")
+	}
+}
+
+// Invited where two-factor sign-in is required: welcomed with both steps, and able to set a password first.
+func TestInviteWithRequiredTwoFactor(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	if err := e.st.SetRequireTwoFactor(ctx, e.ws.OrgID, true); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := e.st.CreateUser(ctx, e.ws.OrgID, "new@example.com", "", store.RoleMember)
+	_ = e.st.SetMembership(ctx, u.ID, e.ws.ID, store.RoleMember)
+	link, _ := e.auth.InviteLink(ctx, u)
+	jar, _ := cookiejar.New(nil)
+	c := &http.Client{Jar: jar}
+	lu, _ := url.Parse(link)
+	_, page, _ := post(t, c, e.srv.URL+"/auth/magic/use", url.Values{"token": {lu.Query().Get("token")}})
+	if !strings.Contains(page, "Set a password below") || !strings.Contains(page, "also requires two-factor sign-in") {
+		t.Fatal("the welcome does not say both steps")
+	}
+	_, body, _ := post(t, c, e.srv.URL+"/account/password", url.Values{"password": {"correct horse battery staple 42"}, "confirm": {"correct horse battery staple 42"}})
+	if strings.Contains(body, "requires two-factor sign-in. Set it up") {
+		t.Fatal("setting a password is blocked by the two-factor requirement")
+	}
+	if got, _ := e.st.GetUser(ctx, u.ID); !got.HasPassword {
+		t.Fatal("no password set")
+	}
+	// Everything else still waits for the second factor.
+	if _, home := get(t, c, e.srv.URL+"/updates", nil); !strings.Contains(home, "requires two-factor sign-in") {
+		t.Error("the requirement no longer holds after a password")
 	}
 }
