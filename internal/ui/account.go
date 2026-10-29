@@ -95,6 +95,9 @@ func (s *Server) account(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	if r.URL.Query().Get("welcome") == "1" && v.Notice == "" && !v.HasPassword {
 		v.Notice = "Welcome to Goliash. Set a password below (or add a passkey), so you can sign in next time without a link."
+		if req, err := s.store.RequireTwoFactor(r.Context(), p.User.OrgID); err == nil && req && !v.TOTP.Enabled {
+			v.Notice += " Your organization also requires two-factor sign-in: set up an authenticator app below, or sign in with a passkey."
+		}
 	}
 	if r.URL.Query().Get("passkey") == "added" && v.Notice == "" {
 		v.Notice = "Passkey added. Next time, sign in with it: no password or code needed."
