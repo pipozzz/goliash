@@ -33,6 +33,14 @@ type VMReport struct {
 	Accepted  []VMAccepted
 	// Mitigations of exploited vulnerabilities with no fix: in force, or closed during or after the month.
 	Mitigations []VMMitigation
+	// NotAffected are vulnerabilities said not to affect a service: in force, or withdrawn during or after the month.
+	NotAffected []VMNotAffected
+}
+
+// VMNotAffected is a "not affected" exception, with the service's name.
+type VMNotAffected struct {
+	store.VulnException
+	Service string
 }
 
 // VMMitigation is a mitigation, with the names it applies to.
@@ -175,6 +183,11 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 	if ms, err := st.ListMitigationsSince(ctx, sc, from); err == nil {
 		for _, m := range ms {
 			r.Mitigations = append(r.Mitigations, VMMitigation{Mitigation: m, Service: o.Services[m.ServiceID].Name, Environment: o.Envs[m.EnvironmentID].Name})
+		}
+	}
+	if es, err := st.ListVulnExceptionsSince(ctx, sc, from); err == nil {
+		for _, e := range es {
+			r.NotAffected = append(r.NotAffected, VMNotAffected{VulnException: e, Service: o.Services[e.ServiceID].Name})
 		}
 	}
 	for _, a := range acks {

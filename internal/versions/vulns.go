@@ -301,6 +301,14 @@ type VulnReport struct {
 	Exploited int // findings CISA lists as exploited in the wild
 	Fixable   int // findings with a fixed version for an affected package
 	PastDue   int // exploited findings still running after CISA's due date
+	// NotAffected are the vulnerabilities people said do not affect a service, left out of Findings.
+	NotAffected []NotAffected
+}
+
+// NotAffected is a vulnerability left out for a service because people found it does not affect it.
+type NotAffected struct {
+	Key, Service string
+	Exception    store.VulnException
 }
 
 // BlindImage is a running image whose packages Goliash does not know, and why.
@@ -452,6 +460,30 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	mitigations, err := st.ListOpenMitigations(ctx, sc)
 	if err != nil {
 		return r, err
+	}
+	exceptions, err := st.ListOpenVulnExceptions(ctx, sc)
+	if err != nil {
+		return r, err
+	}
+	// What people said does not affect a service goes: from the finding, and the finding when nothing is left.
+	for key, f := range findings {
+		kept := f.Affected[:0]
+		for _, a := range f.Affected {
+			i := slices.IndexFunc(exceptions, func(e store.VulnException) bool {
+				return e.ServiceID == a.ServiceID && (e.CVE == f.Key || slices.Contains(f.Aliases, e.CVE))
+			})
+			if i < 0 {
+				kept = append(kept, a)
+				continue
+			}
+			if !slices.ContainsFunc(r.NotAffected, func(n NotAffected) bool { return n.Key == f.Key && n.Exception.ID == exceptions[i].ID }) {
+				r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, Exception: exceptions[i]})
+			}
+		}
+		f.Affected = kept
+		if len(f.Affected) == 0 {
+			delete(findings, key)
+		}
 	}
 	for _, f := range findings {
 		sort.Strings(f.IDs)

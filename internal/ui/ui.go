@@ -227,6 +227,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /security/deadlines", s.page(a, s.setDeadlines))
 	mux.Handle("POST /updates/ticket", s.page(m, s.fileTicket))
 	mux.Handle("POST /security/mitigations", s.page(m, s.createMitigation))
+	mux.Handle("POST /security/exceptions", s.page(a, s.createVulnException))
+	mux.Handle("POST /security/exceptions/{id}/close", s.page(a, s.closeVulnException))
 	mux.Handle("POST /security/mitigations/{id}/close", s.page(m, s.closeMitigation))
 	mux.Handle("GET /agents/{id}/aws", s.page(a, s.addAWS))
 	mux.Handle("GET /agents/{id}/add/{what}", s.page(a, s.addSource))
@@ -3414,6 +3416,14 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	rep, err := versions.LoadVulnReport(ctx, s.store, sc, "")
 	if err != nil {
 		return out, nil // the evidence is still worth showing
+	}
+	for _, n := range rep.NotAffected {
+		if n.Exception.ServiceID == svc.ID {
+			e := n.Exception
+			out.NotAffected = append(out.NotAffected, NotAffectedView{
+				ID: e.ID, CVE: n.Key, Why: notAffectedLabels[e.Justification], Note: e.Note, By: e.CreatedBy, Review: e.ReviewAt.Format("2 Jan 2006"),
+			})
+		}
 	}
 	rank := map[string]int{"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "MEDIUM": 2, "LOW": 1}
 	var all []ServiceFinding

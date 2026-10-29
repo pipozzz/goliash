@@ -1504,3 +1504,5 @@ td.svc .row-tick { margin-right: 6px; vertical-align: -1px; }
 .what-to-do { margin-top: 6px; padding: 6px 10px; border-left: 3px solid var(--danger, #c0392b); background: color-mix(in srgb, var(--danger, #c0392b) 6%, var(--surface)); font-size: 13px; }
 
 .more-packages summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.not-affected form.inline { display: inline; margin-left: 6px; }
+.not-affected li { margin-bottom: 6px; }
