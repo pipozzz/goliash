@@ -755,7 +755,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
 	v.KindShown, v.KindChosen = versions.ServiceKind(svc, ref.Repo), svc.KindChosen
-	v.KindAuto = versions.ServiceKind(store.Service{Upstream: svc.Upstream}, ref.Repo)
+	v.KindAuto = versions.ServiceKind(store.Service{Upstream: svc.Upstream, PrivateUpstream: svc.PrivateUpstream}, ref.Repo)
 	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)
 	v.PublicRegistry = ref.Repo != "" && versions.IsPublicRegistry(ref.Repo)
 	if u, ok := o.Upstreams[svc.ID]; ok {

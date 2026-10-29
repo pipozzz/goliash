@@ -746,7 +746,15 @@ templ serviceSecurity(v ServiceView) {
 									}
 								</td>
 								<td data-label="Package">
-									<code>{ f.Package }</code>
+									if pk := strings.Split(f.Package, ", "); len(pk) > 2 {
+										<code>{ strings.Join(pk[:2], ", ") }</code>
+										<details class="more-packages">
+											<summary>{ "and " + itoa(len(pk)-2) + " more" }</summary>
+											<code>{ strings.Join(pk[2:], ", ") }</code>
+										</details>
+									} else {
+										<code>{ f.Package }</code>
+									}
 									if f.Fix != "" {
 										<div class="targets">{ "fixed in " + f.Fix }</div>
 									} else {
