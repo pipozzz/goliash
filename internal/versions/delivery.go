@@ -58,6 +58,23 @@ func EventNote(e store.Event) string {
 	return e.Note
 }
 
+// flapWindow is how soon a change back to the newer version makes a "rollback" a rollout flapping instead: a
+// rolling update whose new container restarted while the old one still ran (before agents held the change until
+// one version ran alone).
+const flapWindow = 30 * time.Minute
+
+// flapBack reports whether the rollback at evs[i] was undone within flapWindow, in the same service and environment.
+func flapBack(evs []store.Event, i int) bool {
+	r := evs[i]
+	for _, e := range evs {
+		if e.Type == "version_changed" && e.ServiceID == r.ServiceID && e.EnvironmentID == r.EnvironmentID &&
+			e.FromVersion == r.ToVersion && e.ToVersion == r.FromVersion && e.At.After(r.At) && e.At.Sub(r.At) <= flapWindow {
+			return true
+		}
+	}
+	return false
+}
+
 // maxDeliveryEvents bounds the history read for the statistics.
 const maxDeliveryEvents = 50000
 
@@ -78,8 +95,8 @@ func DeliveryStats(ctx context.Context, st *store.Store, sc store.Scope, o Overv
 	type envKey struct{ service, env string }
 	rollbacks, lastChange := map[envKey]int{}, map[envKey]time.Time{}
 	since := now.Add(-window)
-	for _, e := range evs {
-		if EventNote(e) == RollbackNote {
+	for i, e := range evs {
+		if EventNote(e) == RollbackNote && !flapBack(evs, i) {
 			k := envKey{e.ServiceID, e.EnvironmentID}
 			if !e.At.Before(since) {
 				rollbacks[k]++
