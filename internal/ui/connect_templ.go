@@ -1188,7 +1188,7 @@ func connectManualForm(v ConnectFormView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "\" placeholder=\"every cluster in the region\"></label></div><p class=\"hint\">The agent's task role needs only ecs:List*, ecs:Describe* and ecr:ListImages; the Terraform module sets that up.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "\" placeholder=\"every cluster in the region\"></label></div><p class=\"hint\">The agent's task role needs only ecs:List*, ecs:Describe*, ecr:ListImages and elasticloadbalancing:DescribeTargetGroups and DescribeLoadBalancers (which load balancers face the internet); the Terraform module sets that up.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

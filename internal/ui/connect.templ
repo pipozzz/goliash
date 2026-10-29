@@ -300,7 +300,7 @@ templ connectManualForm(v ConnectFormView) {
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
 								<label>Clusters<input name="clusters" value={ formVal(v.Form, "clusters", "") } placeholder="every cluster in the region"/></label>
 							</div>
-							<p class="hint">The agent's task role needs only ecs:List*, ecs:Describe* and ecr:ListImages; the Terraform module sets that up.</p>
+							<p class="hint">The agent's task role needs only ecs:List*, ecs:Describe*, ecr:ListImages and elasticloadbalancing:DescribeTargetGroups and DescribeLoadBalancers (which load balancers face the internet); the Terraform module sets that up.</p>
 						case "lambda":
 							<div class="row">
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>

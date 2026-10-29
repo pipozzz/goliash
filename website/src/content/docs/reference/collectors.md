@@ -8,7 +8,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Platform | Reads | Needs | Credentials |
 | --- | --- | --- | --- |
 | Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context`) |
-| Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` names an AWS profile |
+| Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*`; `elasticloadbalancing:DescribeTargetGroups` and `elasticloadbalancing:DescribeLoadBalancers` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
 | AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions and the packages in their code; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure; `lambda:GetLayerVersion` for the packages of layers | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon RDS | PostgreSQL, MySQL, MariaDB and Aurora databases of a region: engine version, the versions RDS offers, pending maintenance, public accessibility; tags | IAM `rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions`, `rds:DescribePendingMaintenanceActions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon ElastiCache | Redis OSS, Valkey and Memcached caches of a region (replication groups, clusters, serverless): engine version, the versions ElastiCache offers, service updates waiting; tags | IAM `elasticache:Describe*`, `elasticache:ListTagsForResource` | default AWS chain; `credentials_ref` names an AWS profile |
@@ -57,7 +57,7 @@ Vulnerabilities put those first (see [Exposed to the outside](../../guide/securi
 | Platform | Exposed when |
 | --- | --- |
 | Kubernetes | a LoadBalancer service (not marked internal by its cloud's annotation), a NodePort service, an Ingress or a Gateway API HTTPRoute sends to its pods. Needs `list` on `services`, `ingresses.networking.k8s.io` and `httproutes.gateway.networking.k8s.io` (the Helm charts grant it); without it, nothing is exposed. |
-| Amazon ECS | the service registers with a load balancer (which may be internal), or its tasks get a public IP. |
+| Amazon ECS | the service registers with an internet-facing load balancer (named with its DNS name; internal ones do not count), or its tasks get a public IP. Without `elasticloadbalancing:DescribeTargetGroups` and `DescribeLoadBalancers` every target group counts, marked *internal or not: not known*. |
 | AWS Lambda | a function URL anyone may call (auth type `NONE`); needs `lambda:ListFunctionUrlConfigs`. |
 | Docker, Compose | a port published on every interface of the host (not on `127.0.0.1`). |
 | Amazon RDS | the database (or one of an Aurora cluster's instances) is publicly accessible. |
