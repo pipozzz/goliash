@@ -201,6 +201,9 @@ const instanceColumns = `id, org_id, workspace_id, target_id, environment_id, se
 	workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running, is_main,
 	first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest`
 
+// touchInstances moves a target's running instances' last sighting.
+const touchInstances = `UPDATE instances SET last_seen_at = ? WHERE org_id = ? AND workspace_id = ? AND target_id = ? AND removed_at IS NULL`
+
 // ApplySnapshot writes the instances, removals and events derived from a snapshot
 // and marks the snapshot processed, in one transaction.
 func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
@@ -238,6 +241,11 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 				NewID(), at, ch.TargetID, i.WorkloadID, i.ContainerName, i.Image, i.Digest); err != nil {
 				return err
 			}
+		}
+		// Every instance the target still runs was seen now, written above or not: one statement for all. It does
+		// not count as a change for what is kept of the instances, whose last sightings may lag by cacheTTL.
+		if _, err := tx.ExecContext(ctx, s.rebind(touchInstances), at, ch.Scope.OrgID, ch.Scope.WorkspaceID, ch.TargetID); err != nil { //nolint:gosec // a constant statement
+			return err
 		}
 		for _, id := range ch.Remove {
 			if _, err := s.exec(ctx, tx, `UPDATE instances SET removed_at = ?, running = 0

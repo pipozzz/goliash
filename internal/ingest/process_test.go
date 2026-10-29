@@ -362,3 +362,20 @@ func TestRollingUpdateFlap(t *testing.T) {
 		t.Errorf("rollback: %v", got)
 	}
 }
+
+// A snapshot that changes nothing writes no instance again; the instances' last sighting still moves on.
+func TestUnchangedSnapshotWritesNothing(t *testing.T) {
+	w := newWorld(t)
+	w.send(true, payments(map[string]int{"1.4.2": 3}, false))
+	before := w.active()["payments-api/app:1.4.2"]
+	w.send(true, payments(map[string]int{"1.4.2": 3}, false))
+	after := w.active()["payments-api/app:1.4.2"]
+	if after.ID != before.ID || !after.LastSeenAt.After(before.LastSeenAt) {
+		t.Fatalf("last sighting did not move: %v → %v", before.LastSeenAt, after.LastSeenAt)
+	}
+	// A change is still written.
+	w.send(true, payments(map[string]int{"1.4.2": 2}, false))
+	if got := w.active()["payments-api/app:1.4.2"]; got.Running != 2 {
+		t.Fatalf("running %d", got.Running)
+	}
+}
