@@ -129,7 +129,11 @@ func TestUpstreamNotAffected(t *testing.T) {
 	if strings.Contains(page, `id="vuln-CVE-2024-1086"`) || !strings.Contains(page, "<strong>2 vulnerabilities</strong>: linux-libc-dev: a kernel package") {
 		t.Error("edge lists kernel CVEs, or not grouped as not affected")
 	}
+	_ = e.st.SetProductReleases(ctx, "f5:nginx", []store.ProductCycle{{Name: "1.31", Latest: "1.31.8"}, {Name: "1.22", Latest: "1.22.1", EOL: true}})
 	_, page = get(t, viewer, e.srv.URL+"/services/legacy", nil)
+	if !strings.Contains(page, "upstream nginx fixed it after 1.25.2 · latest 1.31.8") || !strings.Contains(page, "The newest is 1.31.8.") {
+		t.Error("legacy lacks the newest release")
+	}
 	if !strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") || strings.Contains(page, "no fix yet") ||
 		!strings.Contains(page, "a newer nginx fixes CVE-2023-44487") {
 		t.Error("legacy lacks the upstream fix")

@@ -26,6 +26,7 @@ type EOLCycle struct {
 	IsEOL   bool
 	// IsEOAS: its active support ended; until its end of life it gets security fixes only (Python, Ruby).
 	IsEOAS bool
+	Latest string // its newest release, when the site says
 }
 
 // EOL reads end-of-life dates from endoflife.date: which product an image is (from the
@@ -206,6 +207,9 @@ func (e *EOL) Cycles(ctx context.Context, product string) ([]EOLCycle, error) {
 				IsEOL   bool   `json:"isEol"`
 				EOLFrom string `json:"eolFrom"`
 				IsEOAS  bool   `json:"isEoas"`
+				Latest  *struct {
+					Name string `json:"name"`
+				} `json:"latest"`
 			} `json:"releases"`
 		} `json:"result"`
 	}
@@ -215,6 +219,9 @@ func (e *EOL) Cycles(ctx context.Context, product string) ([]EOLCycle, error) {
 	cycles := make([]EOLCycle, 0, len(out.Result.Releases))
 	for _, r := range out.Result.Releases {
 		cy := EOLCycle{Name: r.Name, IsEOL: r.IsEOL, IsEOAS: r.IsEOAS}
+		if r.Latest != nil {
+			cy.Latest = r.Latest.Name
+		}
 		if t, err := time.Parse("2006-01-02", r.EOLFrom); err == nil {
 			cy.EOLFrom = t
 		}

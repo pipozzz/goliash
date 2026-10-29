@@ -546,7 +546,8 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		return r, err
 	}
 	if upstream, err := st.ListUpstreamCVEs(ctx); err == nil {
-		addUpstreamFixes(upstream, findings)
+		releases, _ := st.ListProductReleases(ctx)
+		addUpstreamFixes(upstream, releases, findings)
 	}
 	// What people said does not affect a service goes, what upstream fixed before the version that runs, and the
 	// kernel's packages: from the finding, and the finding when nothing is left.

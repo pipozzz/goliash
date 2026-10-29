@@ -67,6 +67,47 @@ type UpstreamFix struct {
 	// apply. A range that ends at a last affected version (not a fixed one) counts only for a later release line
 	// (1.27 past "up to 1.25.2"): NVD may have closed it at the newest release of its time, before a fix existed.
 	Sure bool
+	// CPE is the NVD product the ranges are about; Latest its newest release, and CycleLatest the newest of the
+	// cycle that runs (Cycle) when that is still supported and fixes it, when known.
+	CPE                        string
+	Latest, CycleLatest, Cycle string
+}
+
+// fixes reports whether version is past the fix: at or after Fix, or after Last.
+func (u UpstreamFix) fixes(version string) bool {
+	v, ok := ParseVersion(version)
+	if !ok {
+		return false
+	}
+	if f, ok := ParseVersion(u.Fix); u.Fix != "" && ok {
+		return v.Compare(f) >= 0
+	}
+	if l, ok := ParseVersion(u.Last); u.Last != "" && ok {
+		return v.Compare(l) > 0
+	}
+	return false
+}
+
+// withReleases adds the newest releases to say beside the fix.
+func (u *UpstreamFix) withReleases(cycles []store.ProductCycle) {
+	latest, inCycle, cycle := newestReleases(cycles, u.Running)
+	if latest != "" && u.fixes(latest) {
+		u.Latest = latest
+	}
+	if inCycle != "" && u.fixes(inCycle) {
+		u.CycleLatest, u.Cycle = inCycle, cycle
+	}
+}
+
+// newest says which release to run: " The newest is 1.31.8 (1.30.4 in 1.30)." or nothing.
+func (u UpstreamFix) newest() string {
+	switch {
+	case u.Latest != "" && u.CycleLatest != "":
+		return " The newest is " + u.Latest + "; on " + u.Cycle + ", " + u.CycleLatest + "."
+	case u.Latest != "":
+		return " The newest is " + u.Latest + "."
+	}
+	return ""
 }
 
 // Advice says what it means, in a sentence.
@@ -74,9 +115,9 @@ func (u UpstreamFix) Advice(cve string) string {
 	p := u.Product
 	if u.Affected {
 		if u.Fix != "" {
-			return p + " fixed " + cve + " upstream in " + u.Fix + ": run " + p + " " + u.Fix + " or newer (upstream's own packages or image, if the distribution has none)."
+			return p + " fixed " + cve + " upstream in " + u.Fix + ": run " + p + " " + u.Fix + " or newer (upstream's own packages or image, if the distribution has none)." + u.newest()
 		}
-		return p + " " + u.Last + " is the last version upstream lists as affected: a newer " + p + " fixes " + cve + "."
+		return p + " " + u.Last + " is the last version upstream lists as affected: a newer " + p + " fixes " + cve + "." + u.newest()
 	}
 	past := "past the versions it affects"
 	switch {
@@ -103,11 +144,15 @@ func (u UpstreamFix) Reason(pkg string) string {
 
 // Short says it in a few words, beside "no fix yet".
 func (u UpstreamFix) Short() string {
+	latest := ""
+	if u.Latest != "" {
+		latest = " · latest " + u.Latest
+	}
 	switch {
 	case u.Affected && u.Fix != "":
-		return "upstream " + u.Product + " fixed it in " + u.Fix
+		return "upstream " + u.Product + " fixed it in " + u.Fix + latest
 	case u.Affected:
-		return "upstream " + u.Product + " fixed it after " + u.Last
+		return "upstream " + u.Product + " fixed it after " + u.Last + latest
 	case u.Fix != "":
 		return "upstream: not affected (fixed in " + u.Fix + ")"
 	case u.Last != "":
@@ -135,6 +180,9 @@ func upstreamFix(ranges []store.UpstreamRange, pkg string) (UpstreamFix, bool) {
 			continue
 		}
 		known = true
+		if u.CPE == "" {
+			u.CPE = r.Product
+		}
 		if r.Exact != "" {
 			if e, ok := ParseVersion(r.Exact); ok && running.Compare(e) == 0 {
 				u.Affected = true
@@ -310,7 +358,16 @@ func (c *Checker) CheckUpstreamFixes(ctx context.Context, sc store.Scope) error 
 			return err
 		}
 	}
-	return nil
+	// The newest releases of the products upstream fixed something in, to say which version to run.
+	var cpes []string
+	for _, f := range rep.Findings {
+		for _, a := range f.Affected {
+			if a.Upstream != nil && a.Upstream.Affected && a.Upstream.CPE != "" && !slices.Contains(cpes, a.Upstream.CPE) {
+				cpes = append(cpes, a.Upstream.CPE)
+			}
+		}
+	}
+	return c.refreshProductReleases(ctx, cpes)
 }
 
 // upstreamCVE is the CVE a finding is known by at NVD, "" without one.
@@ -325,7 +382,7 @@ func upstreamCVE(f VulnFinding) string {
 
 // addUpstreamFixes notes, on affected packages with no fix in their distribution, what upstream's ranges say. A
 // fix upstream for the version that runs makes the finding fixable.
-func addUpstreamFixes(known map[string]store.UpstreamCVE, findings map[string]*VulnFinding) {
+func addUpstreamFixes(known map[string]store.UpstreamCVE, releases map[string]store.ProductReleases, findings map[string]*VulnFinding) {
 	for _, f := range findings {
 		u, ok := known[upstreamCVE(*f)]
 		if !ok {
@@ -337,6 +394,9 @@ func addUpstreamFixes(known map[string]store.UpstreamCVE, findings map[string]*V
 				continue
 			}
 			if fix, ok := upstreamFix(u.Ranges, a.Package); ok {
+				if fix.Affected {
+					fix.withReleases(releases[fix.CPE].Cycles)
+				}
 				a.Upstream = &fix
 			}
 		}

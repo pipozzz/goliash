@@ -421,6 +421,10 @@ version that runs without the distribution's revision (`1.27.1-1~bookworm` is ng
 - **Still in upstream's range:** instead of *no fix yet* it says which version fixes it (*upstream nginx fixed it
   in 1.25.3*), and "What to do" says to run that version or newer, from upstream's own packages or image when the
   distribution has none. An exploited vulnerability with an upstream fix asks for the upgrade, not a mitigation.
+- **Which version to run.** Beside a fix it names the product's newest release (*· latest 1.31.8*) and, when the
+  release cycle that runs is still supported, the newest of that cycle too (*on 1.30, 1.30.4*), only when they fix
+  it. Releases come from [endoflife.date](https://endoflife.date) for most products, else from the project's GitHub
+  releases (curl, zlib), refreshed daily.
 
 ## Images without an SBOM
 

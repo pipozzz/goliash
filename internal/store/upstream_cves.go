@@ -60,3 +60,53 @@ func (s *Store) ListUpstreamCVEs(ctx context.Context) (map[string]UpstreamCVE, e
 	}
 	return out, rows.Err()
 }
+
+// ProductCycle is a release cycle of an upstream product and its newest release. Name is empty when only the
+// newest release overall is known.
+type ProductCycle struct {
+	Name   string `json:"name,omitempty"`
+	Latest string `json:"latest"`
+	EOL    bool   `json:"eol,omitempty"`
+}
+
+// ProductReleases is what is known of a product's releases, and when it was asked.
+type ProductReleases struct {
+	Product   string
+	Cycles    []ProductCycle
+	CheckedAt time.Time
+}
+
+// SetProductReleases records a product's release cycles.
+func (s *Store) SetProductReleases(ctx context.Context, product string, cycles []ProductCycle) error {
+	if cycles == nil {
+		cycles = []ProductCycle{}
+	}
+	b, err := json.Marshal(cycles)
+	if err != nil {
+		return err
+	}
+	_, err = s.exec(ctx, s.db, `INSERT INTO product_releases (product, cycles, checked_at) VALUES (?, ?, ?)
+		ON CONFLICT (product) DO UPDATE SET cycles = excluded.cycles, checked_at = excluded.checked_at`, product, string(b), s.now())
+	return err
+}
+
+// ListProductReleases returns every product asked, by product.
+func (s *Store) ListProductReleases(ctx context.Context) (map[string]ProductReleases, error) {
+	rows, err := s.query(ctx, s.db, `SELECT product, cycles, checked_at FROM product_releases`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]ProductReleases{}
+	for rows.Next() {
+		var p ProductReleases
+		var raw string
+		if err := rows.Scan(&p.Product, &raw, &p.CheckedAt); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(raw), &p.Cycles)
+		p.CheckedAt = p.CheckedAt.UTC()
+		out[p.Product] = p
+	}
+	return out, rows.Err()
+}
