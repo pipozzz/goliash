@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,16 @@ import (
 type OSV struct {
 	HTTP    *http.Client
 	BaseURL string // https://api.osv.dev/v1
+
+	mu       sync.Mutex
+	modified map[string]time.Time // when OSV last changed each record, as its batch answers say
+}
+
+// Modified is when OSV last changed a record, as a batch query since the server started said; zero when unknown.
+func (o *OSV) Modified(id string) time.Time {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.modified[id]
 }
 
 // NewOSV returns a client for baseURL; empty means osv.dev.
@@ -190,7 +201,8 @@ func (o *OSV) queryBatch(ctx context.Context, queries []osvQuery, asked []string
 		var res struct {
 			Results []struct {
 				Vulns []struct {
-					ID string `json:"id"`
+					ID       string    `json:"id"`
+					Modified time.Time `json:"modified"`
 				} `json:"vulns"`
 			} `json:"results"`
 		}
@@ -202,9 +214,17 @@ func (o *OSV) queryBatch(ctx context.Context, queries []osvQuery, asked []string
 				break
 			}
 			ids := []string{}
+			o.mu.Lock()
+			if o.modified == nil {
+				o.modified = map[string]time.Time{}
+			}
 			for _, v := range r.Vulns {
 				ids = append(ids, v.ID)
+				if v.Modified.After(o.modified[v.ID]) {
+					o.modified[v.ID] = v.Modified
+				}
 			}
+			o.mu.Unlock()
 			out[asked[start+i]] = ids
 		}
 	}

@@ -3087,8 +3087,18 @@ func (s *Server) instanceParts(ctx context.Context, sc store.Scope, events []sto
 		if err != nil {
 			continue
 		}
+		// An application the service runs as several workloads on the target (two ECS services) is told apart by
+		// workload: one lane each, not one lane that seems to switch between their versions.
+		workloads := map[[2]string]map[string]bool{}
 		for _, in := range insts {
-			if in.App != "" {
+			k := [2]string{in.ServiceID, in.App}
+			if workloads[k] == nil {
+				workloads[k] = map[string]bool{}
+			}
+			workloads[k][in.WorkloadName] = true
+		}
+		for _, in := range insts {
+			if in.App != "" && len(workloads[[2]string{in.ServiceID, in.App}]) == 1 {
 				parts[in.ID] = in.App
 			} else {
 				parts[in.ID] = in.WorkloadName

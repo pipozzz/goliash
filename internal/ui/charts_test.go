@@ -117,6 +117,26 @@ func TestVersionTimelineApplications(t *testing.T) {
 	}
 }
 
+// Versions get colours in version order: never two the same, whatever their names hash to.
+func TestVersionTimelineColours(t *testing.T) {
+	now := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	day := 24 * time.Hour
+	envs := []store.Environment{{ID: "prod", Name: "production"}}
+	evs := []store.Event{
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "a", ToVersion: "v2.1.1", At: now.Add(-3 * day)},
+		{Type: "version_changed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "a", ToVersion: "v2.2.2", At: now.Add(-1 * day)},
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "eu", InstanceID: "b", ToVersion: "v2.1.1", At: now.Add(-2 * day)},
+	}
+	tl := versionTimeline(evs, envs, map[string]string{"eu": "ecs"}, map[string]string{"a": "le-certs", "b": "qa-le-certs"}, now, 30*day)
+	if len(tl.Lanes) != 2 {
+		t.Fatalf("lanes %+v", tl.Lanes)
+	}
+	a := tl.Lanes[0].Segments
+	if len(a) != 2 || a[0].Class == a[1].Class || a[0].Class != "c0" || tl.Lanes[1].Segments[0].Class != a[0].Class {
+		t.Errorf("colours %+v / %+v", a, tl.Lanes[1].Segments)
+	}
+}
+
 // The smooth curve bends without overshooting: every control point stays between
 // the two points it joins, so a curve never dips below zero or above a peak.
 func TestSmoothPathMonotone(t *testing.T) {
