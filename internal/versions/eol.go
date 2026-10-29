@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 // eolWarning is how long before its end of life a release cycle is reported.
@@ -304,4 +306,34 @@ func EOLDrifts(m Matrix, cycles map[string][]EOLCycle, now time.Time) []WantedDr
 		}
 	}
 	return out
+}
+
+// EOLOf is when the release cycle of tag, which svc runs from repo, stops being supported: the date and the cycle
+// ("nodejs 20"). ok is false when the product or the cycle, or its date, is not known.
+func (c *Checker) EOLOf(ctx context.Context, svc store.Service, repo, tag string) (time.Time, string, bool) {
+	if c.eol == nil {
+		return time.Time{}, "", false
+	}
+	product := ""
+	if policy, _, err := PolicyFor(svc, repo); err == nil {
+		if policy.EOL == "none" {
+			return time.Time{}, "", false
+		}
+		product = policy.EOL
+	}
+	if product == "" {
+		product, _ = c.eol.Product(ctx, repo)
+	}
+	if product == "" {
+		return time.Time{}, "", false
+	}
+	cycles, err := c.eol.Cycles(ctx, product)
+	if err != nil {
+		return time.Time{}, "", false
+	}
+	cy, ok := CycleFor(tag, cycles)
+	if !ok || cy.EOLFrom.IsZero() {
+		return time.Time{}, "", false
+	}
+	return cy.EOLFrom, product + " " + cy.Name, true
 }

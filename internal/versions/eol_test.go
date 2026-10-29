@@ -199,3 +199,32 @@ func TestRDSEndOfStandardSupport(t *testing.T) {
 	}
 	t.Fatalf("no end-of-life drift: %+v", open)
 }
+
+// EOLOf says when the cycle of a running tag ends, for the calendar; a policy can turn it off.
+func TestEOLOf(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/identifiers/purl":
+			_, _ = w.Write([]byte(`{"result":[{"identifier":"pkg:docker/library/nginx","product":{"name":"nginx"}}]}`))
+		case "/products/nginx":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.29","isEol":false,"eolFrom":"2027-04-01"}]}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	l := newLab(t)
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	l.checker.SetEOL(e)
+	date, cycle, ok := l.checker.EOLOf(context.Background(), store.Service{}, "docker.io/library/nginx", "1.29.3")
+	if !ok || date.Format(time.DateOnly) != "2027-04-01" || cycle != "nginx 1.29" {
+		t.Fatalf("%v %q %v", date, cycle, ok)
+	}
+	if _, _, ok := l.checker.EOLOf(context.Background(), store.Service{VersionPolicy: []byte(`{"eol":"none"}`)}, "docker.io/library/nginx", "1.29.3"); ok {
+		t.Error("eol none still gave a date")
+	}
+	if _, _, ok := l.checker.EOLOf(context.Background(), store.Service{}, "ghcr.io/acme/api", "1.0"); ok {
+		t.Error("a product endoflife.date does not list gave a date")
+	}
+}

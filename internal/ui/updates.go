@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -310,14 +311,63 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 	}
 	v.Kinds = kindOptions(rows)
-	v.Months = calendarMonths(v.Items, time.Now())
+	var more []CalendarItem
+	if v.Calendar {
+		more = s.calendarEOL(ctx, o, v)
+	}
+	v.Months = calendarMonths(v.Items, more, time.Now())
 	return v, nil
+}
+
+// calendarHorizon is how far ahead the calendar lists ends of life of what runs.
+const calendarHorizon = 18 * 31 * 24 * time.Hour
+
+// calendarEOL are the ends of life of every version that runs, beyond the upgrades: the release cycle's date from
+// endoflife.date, up to calendarHorizon ahead, for the calendar.
+func (s *Server) calendarEOL(ctx context.Context, o versions.Overview, v UpdatesView) []CalendarItem {
+	if s.checker == nil {
+		return nil
+	}
+	kinds := serviceKinds(o)
+	limit := time.Now().Add(calendarHorizon)
+	var out []CalendarItem
+	for _, row := range o.Matrix.Rows {
+		svc := row.Service
+		if v.Team != "" && svc.Owner != v.Team {
+			continue
+		}
+		repo := o.Refs[svc.ID].Repo
+		for i, c := range row.Cells {
+			env := o.Matrix.Environments[i].Name
+			if v.Env != "" && env != v.Env {
+				continue
+			}
+			for _, ver := range c.Versions {
+				date, cycle, ok := s.checker.EOLOf(ctx, svc, repo, ver.Tag)
+				if !ok || date.After(limit) {
+					continue
+				}
+				out = append(out, CalendarItem{Date: date, What: "end of life of " + cycle, UpdateItem: UpdateItem{
+					Service: svc.Name, ServiceURL: serviceURL(svc.Name), Owner: svc.Owner, Env: env, Running: ver.Version(),
+					Kinds: kinds[svc.ID], What: rowWhat(repo),
+				}})
+			}
+		}
+	}
+	return out
 }
 
 // calendarMonths puts the upgrades with a date (an end of life, a remediation deadline) in order, by month, what is
 // past first.
-func calendarMonths(items []UpdateItem, now time.Time) []CalendarMonth {
-	var dated []CalendarItem
+func calendarMonths(items []UpdateItem, more []CalendarItem, now time.Time) []CalendarMonth {
+	dated := append([]CalendarItem(nil), more...)
+	listed := map[string]bool{}
+	for _, it := range items {
+		if it.EOL != "" {
+			listed[it.Service+"|"+it.Env] = true
+		}
+	}
+	dated = slices.DeleteFunc(dated, func(c CalendarItem) bool { return listed[c.Service+"|"+c.Env] }) // the upgrade's own line has it
 	for _, it := range items {
 		if !it.Due.IsZero() {
 			dated = append(dated, CalendarItem{Date: it.Due, What: "deadline: " + it.DueFor, UpdateItem: it})
