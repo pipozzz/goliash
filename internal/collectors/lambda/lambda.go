@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -24,7 +25,7 @@ import (
 
 // API is the subset of the Lambda client the collector uses, matching an IAM policy
 // of lambda:ListFunctions, lambda:GetFunction and lambda:ListAliases, and lambda:ListFunctionUrlConfigs to see
-// which functions anyone may call.
+// which functions anyone may call (lambda:GetLayerVersion reads the packages of .zip functions' layers).
 type API interface {
 	ListFunctions(ctx context.Context, in *lambda.ListFunctionsInput, opts ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
 	GetFunction(ctx context.Context, in *lambda.GetFunctionInput, opts ...func(*lambda.Options)) (*lambda.GetFunctionOutput, error)
@@ -46,8 +47,12 @@ func New(ctx context.Context, t agentproto.Target) (collectors.Collector, error)
 	if err != nil {
 		return nil, fmt.Errorf("aws config: %w", err)
 	}
-	c := NewWithAPI(lambda.NewFromConfig(cfg), t.Lambda.Region, t.Lambda.NamePrefixes)
+	client := lambda.NewFromConfig(cfg)
+	c := NewWithAPI(client, t.Lambda.Region, t.Lambda.NamePrefixes)
 	c.aliasEnvs = t.Lambda.AliasEnvironments
+	if !strings.EqualFold(os.Getenv("GOLIASH_LAMBDA_CODE"), "off") {
+		c.code = newCodeReader(client)
+	}
 	return c, nil
 }
 
@@ -69,6 +74,7 @@ type Collector struct {
 	aliasEnvs map[string]string
 
 	noAliases atomic.Bool // lambda:ListAliases was denied: report latest code only
+	code      *codeReader // reads the packages of .zip functions' code; nil when GOLIASH_LAMBDA_CODE=off
 }
 
 // aliasLabel names the alias a workload stands for.
@@ -98,6 +104,9 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 		}
 	}
 
+	if c.code != nil {
+		c.code.startCollect()
+	}
 	res := collectors.Result{Complete: true, Workloads: []agentproto.Workload{}}
 	found := make([][]agentproto.Workload, len(fns))
 	errs := make([]error, len(fns))
@@ -122,6 +131,9 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 	if c.noAliases.Load() {
 		res.Errors = append(res.Errors, "aliases not read (lambda:ListAliases denied): reporting each function's latest code")
+	}
+	if c.code != nil {
+		res.Code = c.code.collected()
 	}
 	sort.SliceStable(res.Workloads, func(i, j int) bool { return res.Workloads[i].ID < res.Workloads[j].ID })
 	sort.SliceStable(res.Workloads, func(i, j int) bool { return res.Workloads[i].Name < res.Workloads[j].Name })
@@ -190,6 +202,23 @@ func (c *Collector) function(ctx context.Context, f types.FunctionConfiguration)
 		}
 		if ct != nil {
 			w.Containers = append(w.Containers, *ct)
+		}
+		cfg := &f // the version's own configuration, else the function's as listed
+		if out.Configuration != nil && out.Configuration.CodeSha256 != nil {
+			cfg = out.Configuration
+		}
+		if ct != nil && ct.Name == "runtime" && c.code != nil && cfg.CodeSha256 != nil {
+			var layers []string
+			for _, l := range cfg.Layers {
+				layers = append(layers, aws.ToString(l.Arn))
+			}
+			digest := codeDigest(aws.ToString(cfg.CodeSha256), layers)
+			w.CodeDigest = &digest
+			location := ""
+			if out.Code != nil {
+				location = aws.ToString(out.Code.Location)
+			}
+			c.code.read(ctx, digest, location, cfg.Layers)
 		}
 		return w, nil
 	}

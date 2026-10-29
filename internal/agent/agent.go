@@ -87,6 +87,9 @@ type Agent struct {
 	refresh           chan struct{}
 	registriesChanged chan struct{}
 	registry          TagLister
+
+	codeMu   sync.Mutex
+	codeSent map[string]bool // code digests whose packages the server has
 }
 
 // TagLister lists image tags; registry.Client in production.
@@ -324,6 +327,9 @@ func (a *Agent) emit(t agentproto.Target, res collectors.Result) (string, error)
 	if err := zw.Close(); err != nil {
 		return "", err
 	}
+	if len(res.Code) > 0 {
+		go a.sendCode(res.Code)
+	}
 	dropped, err := a.outbox.put(snap.SnapshotID, buf.Bytes())
 	if dropped > 0 {
 		a.log.Warn("snapshot buffer full; dropped oldest snapshots", "dropped", dropped)
@@ -486,4 +492,47 @@ func mustJSON(v any) []byte {
 		panic(err)
 	}
 	return b
+}
+
+// sendCode sends the packages of code the server does not have yet, once per digest. A server too old to take
+// them answers 404: they count as sent, and go again after the agent restarts.
+func (a *Agent) sendCode(list []collectors.CodePackages) {
+	a.codeMu.Lock()
+	if a.codeSent == nil {
+		a.codeSent = map[string]bool{}
+	}
+	var todo []agentproto.CodePackages
+	for _, c := range list {
+		if a.codeSent[c.Digest] {
+			continue
+		}
+		a.codeSent[c.Digest] = true // claimed: a failed send gives it back
+		p := agentproto.CodePackages{Digest: c.Digest, Purls: c.Purls}
+		if p.Purls == nil {
+			p.Purls = []string{}
+		}
+		if c.Error != "" {
+			e := c.Error[:min(len(c.Error), 2000)]
+			p.Error = &e
+		}
+		todo = append(todo, p)
+	}
+	a.codeMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	for len(todo) > 0 {
+		batch := todo[:min(len(todo), 100)]
+		todo = todo[len(batch):]
+		err := a.client.codePackages(ctx, agentproto.CodePackagesList{Code: batch})
+		if err == nil || statusCode(err) == http.StatusNotFound {
+			continue
+		}
+		a.log.Warn("code packages not sent; trying again next round", "err", err)
+		a.codeMu.Lock()
+		for _, p := range append(batch, todo...) {
+			delete(a.codeSent, p.Digest)
+		}
+		a.codeMu.Unlock()
+		return
+	}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/store/storetest"
 	"github.com/pipozzz/goliash/internal/tokens"
+	"github.com/pipozzz/goliash/internal/versions"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
@@ -439,4 +440,42 @@ func flipLast(token string) string {
 		last = "y"
 	}
 	return token[:len(token)-1] + last
+}
+
+// A .zip Lambda function's code digest comes with the snapshot and its packages apart; together they make its
+// vulnerabilities.
+func TestLambdaCodePackages(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	snap := e.snapshot(store.NewID(), e.target.ID)
+	snap.Workloads = []agentproto.Workload{{
+		ID: "arn:aws:lambda:eu-west-1:1:function:thumbs", Kind: agentproto.LambdaFunction, Name: "thumbs", CodeDigest: &digest,
+		Containers: []agentproto.Container{{Name: "runtime", Image: "public.ecr.aws/lambda/nodejs:20", Running: 1}},
+	}}
+	resp, body := e.do(request{method: "POST", path: "/agent/v1/snapshot", body: snap})
+	expectStatus(t, resp, body, http.StatusAccepted)
+	resp, body = e.do(request{method: "POST", path: "/agent/v1/code-packages", body: agentproto.CodePackagesList{Code: []agentproto.CodePackages{
+		{Digest: digest, Purls: []string{"pkg:npm/lodash@4.17.15"}},
+	}}})
+	expectStatus(t, resp, body, http.StatusAccepted)
+	resp, body = e.do(request{method: "POST", path: "/agent/v1/code-packages", body: agentproto.CodePackagesList{Code: []agentproto.CodePackages{
+		{Digest: "sha256:nope", Purls: []string{}},
+	}}})
+	expectStatus(t, resp, body, http.StatusBadRequest)
+
+	sc := e.ws.Scope()
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{"pkg:npm/lodash@4.17.15": {"GHSA-p6mc"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{ID: "GHSA-p6mc", Aliases: []string{"CVE-2021-23337"}, Severity: "HIGH", Fixes: map[string][]string{"npm|lodash": {"4.17.21"}}})
+	if _, err := e.h.ingest.ProcessPending(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := versions.LoadVulnReport(ctx, e.st, sc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Findings) != 1 || rep.Findings[0].Key != "CVE-2021-23337" || rep.Findings[0].Affected[0].Package != "lodash 4.17.15" ||
+		rep.Findings[0].Affected[0].Fix != "4.17.21" || rep.WithSBOM != 1 {
+		t.Errorf("report: %+v", rep)
+	}
 }

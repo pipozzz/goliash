@@ -296,10 +296,10 @@ func LoadLicenseReport(ctx context.Context, st *store.Store, sc store.Scope, env
 	byPurl := map[string]*LicensedPackage{}
 	images := map[string]bool{}
 	for _, in := range active {
-		if in.Digest == "" || (envID != "" && in.EnvironmentID != envID) {
+		key := in.PackagesKey(ParseImage(in.Image).Repo())
+		if key == "" || (envID != "" && in.EnvironmentID != envID) {
 			continue
 		}
-		key := ParseImage(in.Image).Repo() + "@" + in.Digest
 		b := sboms[key]
 		if !images[key] {
 			images[key] = true

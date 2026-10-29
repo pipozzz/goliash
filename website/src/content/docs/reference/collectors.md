@@ -9,7 +9,7 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | --- | --- | --- | --- |
 | Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context`) |
 | Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` names an AWS profile |
-| AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
+| AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions and the packages in their code; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure; `lambda:GetLayerVersion` for the packages of layers | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon RDS | PostgreSQL, MySQL, MariaDB and Aurora databases of a region: engine version, the versions RDS offers, pending maintenance, public accessibility; tags | IAM `rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions`, `rds:DescribePendingMaintenanceActions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon ElastiCache | Redis OSS, Valkey and Memcached caches of a region (replication groups, clusters, serverless): engine version, the versions ElastiCache offers, service updates waiting; tags | IAM `elasticache:Describe*`, `elasticache:ListTagsForResource` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon EKS | clusters of a region: the Kubernetes version of the control plane and managed node groups, the versions EKS offers, a public API endpoint; tags | IAM `eks:ListClusters`, `eks:DescribeCluster`, `eks:ListNodegroups`, `eks:DescribeNodegroup`, `eks:DescribeClusterVersions` | default AWS chain; `credentials_ref` names an AWS profile |
@@ -85,6 +85,16 @@ function reports its runtime as the matching AWS base image, `python3.12` as `pu
 and `nodejs20.x` as `public.ecr.aws/lambda/nodejs:20`: Goliash then tells when a newer runtime exists and, from
 endoflife.date, when AWS deprecates the one in use. The inbox suggests the function's name as its service, so
 functions on the same runtime stay apart.
+
+**The packages in a .zip function's code.** AWS patches the runtime; what can be vulnerable is the code's own
+dependencies. Once per function version (its code and layer versions), the agent downloads the code and its layers
+from the presigned S3 URL `lambda:GetFunction` and `lambda:GetLayerVersion` give, reads the package manifests in
+it (`node_modules/*/package.json`, else `package-lock.json`; Python `*.dist-info/METADATA`; `pom.properties` in
+jars, nested ones too; the build information of Go executables such as `bootstrap`; gemspecs; .NET `*.deps.json`)
+and sends only the package URLs. Nothing is unpacked to disk or run, the code never leaves the agent, downloads
+come only from `*.amazonaws.com` and stop at 300 MB, and a few functions are read per round. Their vulnerabilities
+then show like an image's, under the function. Without `lambda:GetLayerVersion` the layers are left out, and the
+service page says so; `GOLIASH_LAMBDA_CODE=off` on the agent turns it off. Agents from 1.176 send it.
 
 A function with **aliases** shows once per alias, with the version the alias points to, in the environment named
 like the alias: `dev`, `staging` and `prod` aliases fill three columns of the matrix, so a version waiting to be

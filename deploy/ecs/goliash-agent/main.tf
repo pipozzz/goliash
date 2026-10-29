@@ -56,7 +56,7 @@ data "aws_iam_policy_document" "read_ecs" {
     for_each = var.watch_lambda ? [1] : []
     content {
       sid       = "ReadLambda"
-      actions   = ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs"]
+      actions   = ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs", "lambda:GetLayerVersion"]
       resources = ["*"]
     }
   }

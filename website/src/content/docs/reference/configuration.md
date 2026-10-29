@@ -190,6 +190,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_ECS_EXCLUDE` | | | ECS clusters, by name, an enrolling agent leaves out (the CloudFormation template sets its own cluster) |
 | `GOLIASH_LAMBDA_ALIASES` | | | Lambda aliases named otherwise than environments, e.g. `live=prod,canary=-` (`-` leaves one out) |
 | `GOLIASH_LAMBDA` | | on | `off` stops an enrolling agent from adding its AWS region's Lambda functions |
+| `GOLIASH_LAMBDA_CODE` | | on | `off` stops the agent from downloading .zip Lambda functions' code and layers to read the packages in them ([Collectors](/reference/collectors/)) |
 | `GOLIASH_TARGETS` | | | Targets an enrolling agent declares, as a JSON array of [agent protocol targets](/reference/agent-protocol/) without `id` |
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |

@@ -239,6 +239,20 @@ type AgentConfig struct {
 	Targets                      []Target        `json:"targets"`
 }
 
+// CodePackages defines model for CodePackages.
+type CodePackages struct {
+	Digest string `json:"digest"`
+
+	// Error What could not be read (a layer without lambda:GetLayerVersion, a download that failed).
+	Error *string  `json:"error,omitempty"`
+	Purls []string `json:"purls"`
+}
+
+// CodePackagesList defines model for CodePackagesList.
+type CodePackagesList struct {
+	Code []CodePackages `json:"code"`
+}
+
 // CollectorStatus defines model for CollectorStatus.
 type CollectorStatus struct {
 	LastError *string `json:"last_error,omitempty"`
@@ -893,6 +907,10 @@ type VEXStatement struct {
 
 // Workload defines model for Workload.
 type Workload struct {
+	// CodeDigest What a .zip Lambda function version runs, its code and layer versions, as one digest. Its packages are
+	// sent once to /agent/v1/code-packages.
+	CodeDigest *string `json:"code_digest,omitempty"`
+
 	// Containers What is running, grouped by container name, image and digest. During a rollout the same container name
 	// appears more than once with different images or digests.
 	Containers      []Container `json:"containers"`
@@ -950,6 +968,9 @@ type Unauthorized = Problem
 type GetConfigParams struct {
 	IfNoneMatch *string `json:"If-None-Match,omitempty"`
 }
+
+// PostCodePackagesJSONRequestBody defines body for PostCodePackages for application/json ContentType.
+type PostCodePackagesJSONRequestBody = CodePackagesList
 
 // EnrollAgentJSONRequestBody defines body for EnrollAgent for application/json ContentType.
 type EnrollAgentJSONRequestBody = EnrollRequest
@@ -1039,6 +1060,28 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+
+	// PostCodePackagesWithBody Send the packages read from workloads' code
+	//
+	// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+	// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+	// itself never leaves the agent.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+	PostCodePackagesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostCodePackages Send the packages read from workloads' code
+	//
+	// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+	// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+	// itself never leaves the agent.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+	PostCodePackages(ctx context.Context, body PostCodePackagesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetConfig Fetch the agent configuration
 	//
@@ -1149,6 +1192,48 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /agent/v1/snapshot (the `PostSnapshot` operationId).
 	PostSnapshot(ctx context.Context, body PostSnapshotJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// PostCodePackagesWithBody Send the packages read from workloads' code
+//
+// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+// itself never leaves the agent.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+func (c *Client) PostCodePackagesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCodePackagesRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostCodePackages Send the packages read from workloads' code
+//
+// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+// itself never leaves the agent.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+func (c *Client) PostCodePackages(ctx context.Context, body PostCodePackagesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostCodePackagesRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // GetConfig Fetch the agent configuration
@@ -1369,6 +1454,46 @@ func (c *Client) PostSnapshot(ctx context.Context, body PostSnapshotJSONRequestB
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewPostCodePackagesRequest calls the generic PostCodePackages builder with application/json body
+func NewPostCodePackagesRequest(server string, body PostCodePackagesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostCodePackagesRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostCodePackagesRequestWithBody constructs an http.Request for the PostCodePackages method, with any body, and a specified content type
+func NewPostCodePackagesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/agent/v1/code-packages")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewGetConfigRequest constructs an http.Request for the GetConfig method
@@ -1657,6 +1782,28 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// PostCodePackagesWithBodyWithResponse Send the packages read from workloads' code
+	//
+	// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+	// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+	// itself never leaves the agent.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+	PostCodePackagesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCodePackagesResponse, error)
+
+	// PostCodePackagesWithResponse Send the packages read from workloads' code
+	//
+	// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+	// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+	// itself never leaves the agent.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+	PostCodePackagesWithResponse(ctx context.Context, body PostCodePackagesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCodePackagesResponse, error)
+
 	// GetConfigWithResponse Fetch the agent configuration
 	//
 	// Polled every minute. Send the last `ETag` in `If-None-Match`; the server answers `304` when nothing
@@ -1768,6 +1915,68 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /agent/v1/snapshot (the `PostSnapshot` operationId).
 	PostSnapshotWithResponse(ctx context.Context, body PostSnapshotJSONRequestBody, reqEditors ...RequestEditorFn) (*PostSnapshotResponse, error)
+}
+
+// PostCodePackagesResponse429Headers the declared response headers of an HTTP 429 response for PostCodePackages
+type PostCodePackagesResponse429Headers struct {
+	RetryAfter *int
+}
+
+type PostCodePackagesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationProblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationProblemJSON400 *BadRequest
+	// ApplicationProblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationProblemJSON401 *Unauthorized
+	// ApplicationProblemJSON429 the response for an HTTP 429 `application/problem+json` response
+	ApplicationProblemJSON429 *TooManyRequests
+	// Headers429 the parsed response headers for an HTTP 429 response
+	Headers429 *PostCodePackagesResponse429Headers
+}
+
+// GetApplicationProblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostCodePackagesResponse) GetApplicationProblemJSON400() *BadRequest {
+	return r.ApplicationProblemJSON400
+}
+
+// GetApplicationProblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostCodePackagesResponse) GetApplicationProblemJSON401() *Unauthorized {
+	return r.ApplicationProblemJSON401
+}
+
+// GetApplicationProblemJSON429 returns the response for an HTTP 429 `application/problem+json` response
+func (r PostCodePackagesResponse) GetApplicationProblemJSON429() *TooManyRequests {
+	return r.ApplicationProblemJSON429
+}
+
+// GetBody returns the raw response body bytes
+func (r PostCodePackagesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostCodePackagesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostCodePackagesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostCodePackagesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 // GetConfigResponse200Headers the declared response headers of an HTTP 200 response for GetConfig
@@ -2198,6 +2407,40 @@ func (r PostSnapshotResponse) ContentType() string {
 	return ""
 }
 
+// PostCodePackagesWithBodyWithResponse Send the packages read from workloads' code
+//
+// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+// itself never leaves the agent.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+func (c *ClientWithResponses) PostCodePackagesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostCodePackagesResponse, error) {
+	rsp, err := c.PostCodePackagesWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCodePackagesResponse(rsp)
+}
+
+// PostCodePackagesWithResponse Send the packages read from workloads' code
+//
+// The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+// information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+// itself never leaves the agent.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /agent/v1/code-packages (the `PostCodePackages` operationId).
+func (c *ClientWithResponses) PostCodePackagesWithResponse(ctx context.Context, body PostCodePackagesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostCodePackagesResponse, error) {
+	rsp, err := c.PostCodePackages(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostCodePackagesResponse(rsp)
+}
+
 // GetConfigWithResponse Fetch the agent configuration
 //
 // Polled every minute. Send the last `ETag` in `If-None-Match`; the server answers `304` when nothing
@@ -2374,6 +2617,62 @@ func (c *ClientWithResponses) PostSnapshotWithResponse(ctx context.Context, body
 		return nil, err
 	}
 	return ParsePostSnapshotResponse(rsp)
+}
+
+// ParsePostCodePackagesResponse parses an HTTP response from a PostCodePackagesWithResponse call
+func ParsePostCodePackagesResponse(rsp *http.Response) (*PostCodePackagesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostCodePackagesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 202:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationProblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationProblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationProblemJSON429 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 429:
+		var headers PostCodePackagesResponse429Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
+		response.Headers429 = &headers
+	}
+
+	return response, nil
 }
 
 // ParseGetConfigResponse parses an HTTP response from a GetConfigWithResponse call
