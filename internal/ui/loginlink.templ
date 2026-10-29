@@ -1,0 +1,37 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// LinkConfirmView is the page a sign-in link opens: whom it signs in, and the button that does.
+type LinkConfirmView struct {
+	Email, Token string
+}
+
+// LinkConfirmPage signs in with a link's token on a button press, so link previews and mail scanners, which open
+// links but press no buttons, do not use the link up.
+templ LinkConfirmPage(v LinkConfirmView) {
+	<!DOCTYPE html>
+	<html lang="en">
+		@head("Sign in")
+		<body>
+			<main class="login">
+				<div class="card">
+					<span class="brand">
+						@logo()
+						Goliash
+					</span>
+					<div>
+						<h1>Sign in</h1>
+						<p class="muted">{ "as " + v.Email }</p>
+					</div>
+					<form class="stack" method="post" action="/auth/magic/use">
+						<input type="hidden" name="token" value={ v.Token }/>
+						<button type="submit" autofocus>Continue to Goliash</button>
+					</form>
+					<p class="hint">Not you? Close this page; the link stays unused.</p>
+				</div>
+			</main>
+		</body>
+	</html>
+}
