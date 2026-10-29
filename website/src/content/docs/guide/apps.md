@@ -17,7 +17,9 @@ Each workload's application is read from its labels, first match wins:
    `com.docker.compose.project`, `com.docker.stack.namespace`;
 3. on AWS, the Copilot application (`copilot-application` tag), else the CloudFormation stack that created the
    function or service (`aws:cloudformation:stack-name`, which SAM, Serverless, CDK and Copilot set; a nested stack's
-   generated suffix left out), so a region's Lambda functions group by stack, not all under the region;
+   generated suffix left out), so a region's Lambda functions group by stack, not all under the region. Stacks that
+   share a first word (`bbd-3-api`, `bbd-3-worker`, or one per developer) are one application of several parts, as
+   other generated names are;
 4. the Nomad job;
 5. otherwise the namespace (for Lambda the region, for ECS the cluster).
 

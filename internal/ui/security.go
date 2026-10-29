@@ -302,7 +302,7 @@ type BaseRow struct {
 
 // baseRows lists the running services built on a base image past or near its end of life.
 func (s *Server) baseRows(r *http.Request, p auth.Principal) ([]BaseRow, error) {
-	ctx := r.Context()
+	ctx := versions.CacheOnly(r.Context()) // end-of-life dates as known: a page does not wait for endoflife.date
 	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
 	if err != nil {
 		return nil, err

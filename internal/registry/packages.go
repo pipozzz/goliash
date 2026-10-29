@@ -157,6 +157,11 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 		if h.Typeflag != tar.TypeReg || fs.hidden(name) {
 			continue
 		}
+		if fs.apps.IsExecutable(name, h.Mode&0o111 != 0) { // read as it streams by: executables are large
+			fs.apps.AddStream(tr)
+			fs.seen[name] = true
+			continue
+		}
 		if limit := fs.apps.Wants(name, h.Size, h.Mode&0o111 != 0); limit > 0 {
 			b, err := pkgscan.ReadAll(tr, limit)
 			if err != nil && !errors.Is(err, pkgscan.ErrTooLarge) {

@@ -106,7 +106,7 @@ func (s *Store) ListTargetInstances(ctx context.Context, sc Scope, targetID stri
 }
 
 // ListActiveInstances returns the instances present in each target's latest snapshot.
-func (s *Store) ListActiveInstances(ctx context.Context, sc Scope) ([]Instance, error) {
+func (s *Store) listActiveInstances(ctx context.Context, sc Scope) ([]Instance, error) {
 	return s.listInstances(ctx, `WHERE org_id = ? AND workspace_id = ? AND removed_at IS NULL ORDER BY workload_name, container_name`,
 		sc.OrgID, sc.WorkspaceID)
 }

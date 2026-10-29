@@ -78,6 +78,8 @@ func (s *Scanner) Wants(name string, size int64, executable bool) int64 {
 	return limit
 }
 
+func baseName(name string) string { return path.Base(name) }
+
 // Add reads a file Wants wanted.
 func (s *Scanner) Add(name string, b []byte) { s.add(name, b, 0) }
 

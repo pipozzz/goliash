@@ -202,6 +202,13 @@ func zipPackages(zr *zip.Reader) ([]string, error) {
 			continue
 		}
 		exec := path.Base(f.Name) == "bootstrap" || f.Mode()&0o111 != 0
+		if s.IsExecutable(f.Name, exec) {
+			if rc, err := f.Open(); err == nil {
+				s.AddStream(rc)
+				_ = rc.Close()
+			}
+			continue
+		}
 		limit := s.Wants(f.Name, int64(f.UncompressedSize64), exec) //nolint:gosec // sizes in a zip fit
 		if limit == 0 {
 			continue

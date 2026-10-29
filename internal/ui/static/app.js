@@ -2034,3 +2034,19 @@
   window.goliash = { init: init };
   init();
 })();
+
+// Live panels (hx-trigger "… every 60s"): each refresh says which version of the panel the page shows, and an
+// unchanged panel comes back as 204, kept as it is, instead of being sent and laid out again.
+(function () {
+  function live(elt) { return elt && /\bevery\b/.test(elt.getAttribute("hx-trigger") || ""); }
+  document.body.addEventListener("htmx:configRequest", function (e) {
+    const elt = e.detail.elt;
+    if (live(elt) && elt.dataset.contentVersion) e.detail.headers["X-Have-Version"] = elt.dataset.contentVersion;
+  });
+  document.body.addEventListener("htmx:afterRequest", function (e) {
+    const elt = e.detail.elt, xhr = e.detail.xhr;
+    if (!live(elt) || !xhr || xhr.status !== 200) return;
+    const v = xhr.getResponseHeader("X-Content-Version");
+    if (v) elt.dataset.contentVersion = v; else delete elt.dataset.contentVersion;
+  });
+})();

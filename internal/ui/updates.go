@@ -343,7 +343,7 @@ func (s *Server) calendarEOL(ctx context.Context, o versions.Overview, v Updates
 				continue
 			}
 			for _, ver := range c.Versions {
-				date, cycle, ok := s.checker.EOLOf(ctx, svc, repo, ver.Tag)
+				date, cycle, ok := s.checker.EOLOf(versions.CacheOnly(ctx), svc, repo, ver.Tag)
 				if !ok || date.After(limit) {
 					continue
 				}

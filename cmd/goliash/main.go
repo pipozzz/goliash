@@ -469,6 +469,8 @@ func serve(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	limitMemory(log)
+	servePprof(log)
 	slog.SetDefault(log)
 
 	db, ws, err := openDefault(ctx, *dsn)

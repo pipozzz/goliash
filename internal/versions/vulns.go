@@ -411,6 +411,10 @@ type BlindImage struct {
 
 // LoadVulnReport builds the report for the running images, envID limiting it to one environment ("" for all).
 func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
+	return memoized(ctx, "vulns "+sc.WorkspaceID+" "+envID, func() (VulnReport, error) { return loadVulnReport(ctx, st, sc, envID) })
+}
+
+func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
 	var r VulnReport
 	active, err := st.ListActiveInstances(ctx, sc)
 	if err != nil {

@@ -69,7 +69,7 @@ func (s *Store) GetService(ctx context.Context, sc Scope, id string) (Service, e
 }
 
 // ListServices returns the workspace's services by name.
-func (s *Store) ListServices(ctx context.Context, sc Scope) ([]Service, error) {
+func (s *Store) listServices(ctx context.Context, sc Scope) ([]Service, error) {
 	rows, err := s.query(ctx, s.db, `SELECT `+serviceColumns+` FROM services
 		WHERE org_id = ? AND workspace_id = ? ORDER BY name`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
