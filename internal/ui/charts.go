@@ -15,6 +15,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // Charts are drawn on the server as SVG: no script (the Content-Security-Policy
@@ -214,11 +215,47 @@ func versionTimeline(events []store.Event, envs []store.Environment, targets, pa
 			}
 		}
 	}
+	colourVersions(t.Lanes)
 	for i := 0; i <= 4; i++ {
 		at := from.Add(window * time.Duration(i) / 4)
 		t.Ticks = append(t.Ticks, Tick{At: float64(i) / 4, Label: at.UTC().Format("Jan 2")})
 	}
 	return t
+}
+
+// colourVersions gives the chart's versions colours in version order, so two versions never share one (up to
+// six) and the same version has the same colour in every lane. A hash of the name could give two the same.
+func colourVersions(lanes []Lane) {
+	var names []string
+	seen := map[string]bool{}
+	for _, l := range lanes {
+		for _, s := range l.Segments {
+			if !seen[s.Version] {
+				seen[s.Version] = true
+				names = append(names, s.Version)
+			}
+		}
+	}
+	sort.Slice(names, func(i, j int) bool {
+		a, okA := versions.ParseVersion(names[i])
+		b, okB := versions.ParseVersion(names[j])
+		switch {
+		case okA && okB && a.Compare(b) != 0:
+			return a.Compare(b) < 0
+		case okA != okB:
+			return okA
+		}
+		return names[i] < names[j]
+	})
+	class := map[string]string{}
+	for i, n := range names {
+		class[n] = colour(i)
+	}
+	for li := range lanes {
+		for si := range lanes[li].Segments {
+			lanes[li].Segments[si].Class = class[lanes[li].Segments[si].Version]
+		}
+	}
 }
 
 func sortedKeys(m map[string]bool, less func(a, b string) bool) []string {

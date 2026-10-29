@@ -249,7 +249,8 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 				continue
 			}
 			asked[id] = true
-			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh {
+			// Kept until it is a week old, or OSV says it changed since (a distribution added a fix).
+			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) {
 				continue
 			}
 			fetched++
