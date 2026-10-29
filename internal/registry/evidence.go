@@ -17,6 +17,7 @@ type Evidence struct {
 	Signed     bool     // a cosign or Notation signature, or a Sigstore bundle
 	SBOM       bool     // an SPDX or CycloneDX SBOM attestation or artifact
 	Provenance bool     // a SLSA provenance attestation
+	VEX        bool     // an OpenVEX document: which vulnerabilities do not affect it, says its publisher
 	Found      []string // what was found, for people: "cosign signature", "buildkit sbom" …
 	// Signers are who signed it, as the certificates of keyless signatures name them; empty for key-based
 	// signatures and when no signature carries a certificate.
@@ -113,6 +114,9 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 		case strings.Contains(p, "slsa.dev/provenance"):
 			ev.Provenance = true
 			found(how + " provenance")
+		case vexPredicate(p):
+			ev.VEX = true
+			found(how + " vex")
 		}
 	}
 
@@ -191,6 +195,9 @@ func (c *Client) ImageEvidence(ctx context.Context, repository, digest string, c
 				case t == mediaCosignSig:
 					ev.Signed = true
 					found("cosign signature")
+				case vexPredicate(t):
+					ev.VEX = true
+					found("vex artifact")
 				case strings.Contains(t, mediaSPDX) || strings.Contains(t, mediaCycloneDX):
 					ev.SBOM = true
 					found("sbom artifact")

@@ -731,6 +731,8 @@ templ serviceSecurity(v ServiceView) {
 											<strong>What to do:</strong>
 											if f.Fix != "" {
 												{ " " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
+											} else if f.Newer != "" {
+												{ " " + f.Newer }
 											} else if f.Upstream != "" && !f.NoFix {
 												{ " " + f.Upstream }
 											} else {
@@ -774,6 +776,8 @@ templ serviceSecurity(v ServiceView) {
 									}
 									if f.Fix != "" {
 										<div class="targets">{ "fixed in " + f.Fix }</div>
+									} else if f.NewerShort != "" {
+										<div class="targets" title={ f.Newer }>{ f.NewerShort }</div>
 									} else if f.UpstreamShort != "" {
 										<div class="targets" title={ f.Upstream }>{ f.UpstreamShort }</div>
 									} else {

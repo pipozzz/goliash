@@ -129,7 +129,11 @@ func TestUpstreamNotAffected(t *testing.T) {
 	if strings.Contains(page, `id="vuln-CVE-2024-1086"`) || !strings.Contains(page, "<strong>2 vulnerabilities</strong>: linux-libc-dev: a kernel package") {
 		t.Error("edge lists kernel CVEs, or not grouped as not affected")
 	}
+	_ = e.st.SetProductReleases(ctx, "f5:nginx", []store.ProductCycle{{Name: "1.31", Latest: "1.31.8"}, {Name: "1.22", Latest: "1.22.1", EOL: true}})
 	_, page = get(t, viewer, e.srv.URL+"/services/legacy", nil)
+	if !strings.Contains(page, "upstream nginx fixed it after 1.25.2 · latest 1.31.8") || !strings.Contains(page, "The newest is 1.31.8.") {
+		t.Error("legacy lacks the newest release")
+	}
 	if !strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") || strings.Contains(page, "no fix yet") ||
 		!strings.Contains(page, "a newer nginx fixes CVE-2023-44487") {
 		t.Error("legacy lacks the upstream fix")
@@ -140,5 +144,52 @@ func TestUpstreamNotAffected(t *testing.T) {
 	}
 	if _, rep := get(t, viewer, e.srv.URL+"/security/report?month="+time.Now().UTC().Format("2006-01"), nil); !strings.Contains(rep, "(NVD)") {
 		t.Error("the report lacks it")
+	}
+
+	// The legacy image's publisher says, in VEX, that its nginx is not affected: that settles it.
+	if err := e.st.SetImageVEX(ctx, sc, store.ImageVEX{Repo: "ghcr.io/acme/legacy", Digest: "sha256:l1", Statements: []store.VEXStatement{{
+		Vulnerability: "CVE-2023-44487", Status: "not_affected", Justification: "vulnerable_code_not_in_execute_path",
+		Packages: []string{"pkg:deb/debian/nginx"}, Author: "Acme Security",
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	_, page = get(t, viewer, e.srv.URL+"/services/legacy", nil)
+	if strings.Contains(page, `id="vuln-CVE-2023-44487"`) || !strings.Contains(page, "the vulnerable code is never run, says Acme Security (VEX)") {
+		t.Error("legacy ignores its VEX")
+	}
+}
+
+// Debian 12 has no fix, Debian 13 has: the fix is a trixie base, not a mitigation.
+func TestNewerDistroRelease(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	envs, _ := e.st.ListEnvironments(ctx, sc)
+	prod := envs[len(envs)-1]
+	tg, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: prod.ID, Platform: "kubernetes", Name: "prod-deb"})
+	svc, _ := e.st.EnsureService(ctx, sc, "proxy")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: tg.ID, EnvironmentID: prod.ID, ServiceID: svc.ID, WorkloadID: "proxy", WorkloadKind: "deployment", WorkloadName: "proxy",
+		ContainerName: "nginx", Image: "ghcr.io/acme/proxy:2.0", Tag: "2.0", Digest: "sha256:p1", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	pkg := "pkg:deb/debian/nginx@1.22.1-9+deb12u1?os_distro=bookworm&os_name=debian&os_version=12"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/proxy", Digest: "sha256:p1", Purls: []string{pkg}, Source: "sbom"})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{pkg: {"DEBIAN-CVE-2023-44487"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{
+		ID: "DEBIAN-CVE-2023-44487", Aliases: []string{"CVE-2023-44487"}, Severity: "HIGH",
+		Fixes: map[string][]string{"Debian:13|nginx": {"1.24.0-2"}},
+	})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2023-44487", DateAdded: time.Now().Format(time.DateOnly)}})
+
+	viewer := e.as(store.RoleViewer)
+	_, page := get(t, viewer, e.srv.URL+"/services/proxy", nil)
+	if !strings.Contains(page, "fixed in Debian 13 (trixie)") || strings.Contains(page, "no fix yet") ||
+		!strings.Contains(page, "Debian 12 (bookworm) has no fix; Debian 13 (trixie) fixes it in nginx 1.24.0-2") || strings.Contains(page, "Record a mitigation") {
+		t.Error("the service page does not offer the newer release")
+	}
+	if _, page := get(t, viewer, e.srv.URL+"/security/vulns?env=all", nil); !strings.Contains(page, "→ fixed in Debian 13 (trixie)") {
+		t.Error("the vulnerabilities page does not offer it")
 	}
 }

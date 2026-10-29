@@ -213,6 +213,18 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		if err := c.store.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}
+		if in.Vex != nil {
+			rec := store.ImageVEX{Repo: repo, Digest: in.Digest, Statements: make([]store.VEXStatement, 0, len(in.Vex))}
+			for _, v := range in.Vex {
+				rec.Statements = append(rec.Statements, store.VEXStatement{
+					Vulnerability: v.Vulnerability, Status: v.Status, Justification: deref(v.Justification), Impact: deref(v.Impact),
+					Packages: v.Packages, Author: deref(v.Author),
+				})
+			}
+			if err := c.store.SetImageVEX(ctx, sc, rec); err != nil {
+				return err
+			}
+		}
 		fromPackages := in.PurlsFrom != nil && *in.PurlsFrom == agentproto.Packages
 		if (ev.SBOM || fromPackages) && len(in.Purls) > 0 {
 			src := "sbom"
@@ -225,4 +237,12 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		}
 	}
 	return nil
+}
+
+// deref is an optional field's value, "" when absent.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
