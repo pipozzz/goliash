@@ -1072,8 +1072,8 @@ func placesText(as []versions.Affected) string {
 }
 
 func (s *Server) createMitigation(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	ret := r.FormValue("return")
-	if ret != "/security/vulns" && !strings.HasPrefix(ret, "/security/vulns?") {
+	ret := r.FormValue("return") // the vulnerabilities page, or the service page it was recorded on
+	if ret != "/security/vulns" && !strings.HasPrefix(ret, "/security/vulns?") && (!strings.HasPrefix(ret, "/services/") || strings.Contains(ret, "//")) {
 		ret = "/security/vulns"
 	}
 	svcID, envID, ok := strings.Cut(r.FormValue("place"), "|")

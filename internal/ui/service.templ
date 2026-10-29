@@ -6,6 +6,7 @@ package ui
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -731,8 +732,16 @@ templ serviceSecurity(v ServiceView) {
 											if f.Fix != "" {
 												{ " " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
 											} else {
-												{ " no fixed version yet. Keep it from being used: a WAF rule, the feature off, or the service isolated, and record it so the deadline is met. " }
-												<a href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }>Record a mitigation →</a>
+												{ " no fixed version yet. Keep it from being used (a WAF or proxy rule, the affected feature turned off, the service cut off from the network) and record what you did, so the deadline is met and it is reviewed." }
+												if !f.MitigateBy.IsZero() && len(f.Places) > 0 {
+													<div class={ templ.KV("error-text", time.Now().After(f.MitigateBy)) }>{ "Mitigate by " + f.MitigateBy.Format("2 Jan 2006") + ": " + mitigationPlaces(f.Places) }</div>
+												}
+												for _, m := range f.Mitigations {
+													<div><span class="badge ok">mitigated</span>{ " " + m.Where + ": " + m.Measure + " (" + m.Kind + ", review " + m.Review + ")" }</div>
+												}
+												if v.CanMember && len(f.Places) > 0 {
+													@serviceMitigationForm(v.Name, f)
+												}
 											}
 										</div>
 									}
@@ -921,4 +930,44 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 			</table>
 		</div>
 	</section>
+}
+
+// serviceMitigationForm records a mitigation of an exploited vulnerability with no fix, from the service's page.
+templ serviceMitigationForm(service string, f ServiceFinding) {
+	<details class="mitigate" open>
+		<summary>Record a mitigation</summary>
+		<form class="stack" method="post" action="/security/mitigations">
+			<input type="hidden" name="cve" value={ f.Key }/>
+			<input type="hidden" name="return" value={ "/services/" + service + "#vuln-" + f.Key }/>
+			<div class="row">
+				<label>
+					Where
+					<select name="place">
+						for _, p := range f.Places {
+							<option value={ p.Value }>{ p.Label }</option>
+						}
+					</select>
+				</label>
+				<label>
+					What
+					<select name="kind">
+						<option value="waf">WAF or proxy rule</option>
+						<option value="config">feature or setting turned off</option>
+						<option value="isolation">cut off from the network</option>
+						<option value="other">other</option>
+					</select>
+				</label>
+				<label>
+					Review in
+					<select name="review">
+						<option value="14">2 weeks</option>
+						<option value="30" selected>30 days</option>
+						<option value="90">90 days</option>
+					</select>
+				</label>
+			</div>
+			<label>What was done<input name="measure" required maxlength="500" placeholder="WAF rule blocks the payload; the endpoint is not reachable from outside"/></label>
+			<div><button type="submit">Record</button></div>
+		</form>
+	</details>
 }

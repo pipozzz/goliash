@@ -43,10 +43,10 @@ func (n *Notifier) checkMitigations(ctx context.Context, sc store.Scope, rules [
 			Type: EventDeadline, Service: svc.Name, Owner: svc.Owner, Environment: nm.envs[envID], Production: envID == nm.prod,
 			At: now, Note: note, URL: "/security/vulns?kev=1",
 		}
-		// The vulnerability itself, where its mitigation is recorded.
+		// The service's page, at the vulnerability: what to do about it, and the mitigation recorded there.
 		if _, rest, ok := strings.Cut(note, "|"); ok {
-			if cve, _, _ := strings.Cut(rest, "|"); cve != "" {
-				it.URL = "/security/vulns?env=all&q=" + url.QueryEscape(cve)
+			if cve, _, _ := strings.Cut(rest, "|"); cve != "" && svc.Name != "" {
+				it.URL = "/services/" + url.PathEscape(svc.Name) + "#vuln-" + url.PathEscape(cve)
 			}
 		}
 		it.Text = Describe(it)
@@ -87,7 +87,11 @@ func (n *Notifier) checkMitigations(ctx context.Context, sc store.Scope, rules [
 		return nil
 	}
 
-	// Production running an exploited vulnerability with no fix and no mitigation: once each.
+	// Production running an exploited vulnerability with no fix and no mitigation: once each. Not while advisories
+	// or packages are still being looked up: a fix may be in a record not read yet (an Ubuntu or Debian advisory).
+	if rep.Pending > 0 || rep.Unasked > 0 {
+		return nil
+	}
 	for _, f := range rep.Findings {
 		due := f.MitigateBy(rem.Exploited)
 		for _, a := range f.Unmitigated() {

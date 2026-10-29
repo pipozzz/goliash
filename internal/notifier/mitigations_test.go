@@ -45,7 +45,7 @@ func TestMitigations(t *testing.T) {
 	}
 	if feed, _ := e.st.NotificationFeed(ctx, e.sc, time.Now().Add(-time.Hour), 10); len(feed) == 0 ||
 		!strings.Contains(string(feed[0].Items[0]), `"url":"/security/vulns?env=all\u0026q=CVE-2026-9999"`) &&
-			!strings.Contains(string(feed[0].Items[0]), `/security/vulns?env=all&q=CVE-2026-9999`) {
+			!strings.Contains(string(feed[0].Items[0]), `/services/payments-api#vuln-CVE-2026-9999`) {
 		t.Errorf("the alert does not link the vulnerability: %+v", feed)
 	}
 

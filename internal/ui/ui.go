@@ -3443,7 +3443,22 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		}
 		sf := ServiceFinding{
 			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),
-			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil,
+			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil, NoFix: f.NoFix(),
+		}
+		if sf.NoFix {
+			for _, m := range mitigationsOf(f) {
+				if strings.HasPrefix(m.Where, svc.Name+" (") {
+					sf.Mitigations = append(sf.Mitigations, m)
+				}
+			}
+			for _, a := range f.Unmitigated() {
+				if a.ServiceID == svc.ID {
+					sf.Places = append(sf.Places, MitigationPlace{Value: a.ServiceID + "|" + a.EnvironmentID, Label: a.Service + " (" + a.Env + ")"})
+				}
+			}
+			if rem, err := s.store.Remediation(ctx, sc); err == nil {
+				sf.MitigateBy = f.MitigateBy(rem.Exploited)
+			}
 		}
 		if sf.Exploited {
 			out.Exploited++
