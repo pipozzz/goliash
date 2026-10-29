@@ -797,7 +797,15 @@ templ serviceSecurity(v ServiceView) {
 				<ul class="not-affected">
 					for _, n := range sec.NotAffected {
 						<li>
-							<strong>{ n.CVE }</strong>{ ": " + n.Why + ". " + n.Note }
+							if len(n.CVEs) > 1 {
+								<strong>{ plural(len(n.CVEs), "vulnerability", "vulnerabilities") }</strong>{ ": " + n.Why + ". " }
+								<details class="more-packages">
+									<summary>which</summary>
+									<code>{ strings.Join(n.CVEs, ", ") }</code>
+								</details>
+							} else {
+								<strong>{ n.CVE }</strong>{ ": " + n.Why + ". " + n.Note }
+							}
 							if n.Review != "" {
 								<span class="muted">{ " (" + n.By + ", review " + n.Review + ")" }</span>
 							} else {

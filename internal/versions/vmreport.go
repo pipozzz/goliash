@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"time"
 
@@ -40,8 +41,9 @@ type VMReport struct {
 // VMNotAffected is a "not affected" exception, with the service's name.
 type VMNotAffected struct {
 	store.VulnException
-	Service  string
-	Upstream string // why Goliash left it out by upstream's version ranges; empty for an exception people recorded
+	Service string
+	Auto    string   // why Goliash left it out itself; empty for an exception people recorded
+	CVEs    []string // what it left out for that reason, in that service
 }
 
 // VMMitigation is a mitigation, with the names it applies to.
@@ -172,9 +174,16 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 			}
 		}
 		for _, n := range vulns.NotAffected {
-			if n.Upstream != nil {
-				r.NotAffected = append(r.NotAffected, VMNotAffected{VulnException: store.VulnException{CVE: n.Key}, Service: n.Service, Upstream: n.Upstream.Reason(n.Package)})
+			if n.Auto == "" {
+				continue
 			}
+			if i := slices.IndexFunc(r.NotAffected, func(x VMNotAffected) bool { return x.Auto == n.Auto && x.Service == n.Service }); i >= 0 {
+				if !slices.Contains(r.NotAffected[i].CVEs, n.Key) {
+					r.NotAffected[i].CVEs = append(r.NotAffected[i].CVEs, n.Key)
+				}
+				continue
+			}
+			r.NotAffected = append(r.NotAffected, VMNotAffected{VulnException: store.VulnException{CVE: n.Key}, Service: n.Service, Auto: n.Auto, CVEs: []string{n.Key}})
 		}
 	}
 	acks, err := st.ListAcks(ctx, sc)

@@ -280,7 +280,7 @@ func (c *Checker) CheckUpstreamFixes(ctx context.Context, sc store.Scope) error 
 		}
 	}
 	for _, n := range rep.NotAffected {
-		if n.Upstream != nil {
+		if name, _ := splitPackage(n.Package); n.Auto != "" && len(packageCPEs[name]) > 0 {
 			cves = append(cves, n.Key)
 		}
 	}
