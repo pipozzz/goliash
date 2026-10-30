@@ -17,7 +17,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.5
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.100.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.102.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.105.0
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.64.1
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.63.6
