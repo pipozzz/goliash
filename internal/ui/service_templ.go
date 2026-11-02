@@ -3474,9 +3474,9 @@ func serviceSecurity(v ServiceView) templ.Component {
 					}
 					if f.Fix != "" {
 						var templ_7745c5c3_Var178 string
-						templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs(" " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown))
+						templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs(" Running " + f.Package + "; " + f.Fix + " fixes it. " + fixAdvice(v.KindShown))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `service.templ`, Line: 775, Col: 84}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `service.templ`, Line: 775, Col: 93}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var178))
 						if templ_7745c5c3_Err != nil {

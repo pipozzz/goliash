@@ -772,7 +772,7 @@ templ serviceSecurity(v ServiceView) {
 										<div class="what-to-do">
 											<strong>What to do:</strong>
 											if f.Fix != "" {
-												{ " " + f.Package + " " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
+												{ " Running " + f.Package + "; " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
 											} else if f.Newer != "" {
 												{ " " + f.Newer }
 											} else if f.Upstream != "" && !f.NoFix {
