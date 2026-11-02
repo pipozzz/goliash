@@ -195,6 +195,36 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		sboms[key] = rec
 	}
 
+	// The packages of the bases' current builds that images were built on older builds of: which of an image's
+	// vulnerabilities a rebuild on its base fixes. Read from the layers, as for an image without an SBOM.
+	bases := map[string]bool{}
+	for key := range keys {
+		base, ok := RebuildBase(evidence[key])
+		if !ok || bases[base] {
+			continue
+		}
+		bases[base] = true
+		repo, digest, _ := strings.Cut(base, "@")
+		if b, have := sboms[base]; packages == nil || !auth.Reads(repo) || unpacked >= packagesPerRun ||
+			(have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) {
+			continue
+		}
+		unpacked++
+		creds, _ := auth.For(repo)
+		list, err := packages.ImagePackages(ctx, repo, digest, creds)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		rec := store.ImageSBOM{Repo: repo, Digest: digest, Purls: list.Purls, Source: "packages"}
+		if err != nil {
+			rec.Error = err.Error()
+		}
+		if err := c.store.SetImageSBOM(ctx, sc, rec); err != nil {
+			return err
+		}
+		sboms[base] = rec
+	}
+
 	if err := c.readVEX(ctx, sc, keys, evidence, auth); err != nil {
 		return err
 	}
@@ -202,11 +232,13 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	// OSV, for the packages of running images whose answer is missing or old.
 	var purls []string
 	seen := map[string]bool{}
-	for key := range keys {
-		for _, p := range sboms[key].Purls {
-			if !seen[p] {
-				seen[p] = true
-				purls = append(purls, p)
+	for _, set := range []map[string]bool{keys, bases} {
+		for key := range set {
+			for _, p := range sboms[key].Purls {
+				if !seen[p] {
+					seen[p] = true
+					purls = append(purls, p)
+				}
 			}
 		}
 	}
@@ -293,6 +325,9 @@ type Affected struct {
 	// the image's own release (Debian 12 (bookworm)).
 	Newer   *NewerRelease
 	Current string
+	// Rebuild is the base (node:22-alpine) whose current build no longer has it: the image was built on an older
+	// build of its base, and rebuilding it with --pull fixes it, with no change to the Dockerfile.
+	Rebuild string
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -471,6 +506,10 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
+	evidence, err := st.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return r, err
+	}
 	distroStatuses, _, err := st.DistroStatuses(ctx, "Debian")
 	if err != nil {
 		return r, err
@@ -545,6 +584,10 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
+	rebuilds, err := rebuildBases(ctx, st, images, evidence, sboms, records)
+	if err != nil {
+		return r, err
+	}
 	findings := map[string]*VulnFinding{}
 	where := affectedIndex{}
 	pending := map[string]bool{}
@@ -597,7 +640,11 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
 				a.Distro = distro
 				a.Newer, a.Current = newer, current
+				a.Rebuild = rebuilds[u.key].fixes(p, ids)
 				if i := where.index(f, a); i >= 0 {
+					if f.Affected[i].Rebuild == "" {
+						f.Affected[i].Rebuild = a.Rebuild
+					}
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
 					}
@@ -683,7 +730,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					a.Mitigation = m
 				}
 			}
-			f.Fixable = f.Fixable || a.Fix != "" || a.Newer != nil || (a.Upstream != nil && a.Upstream.Affected)
+			f.Fixable = f.Fixable || a.Fix != "" || a.Newer != nil || a.Rebuild != "" || (a.Upstream != nil && a.Upstream.Affected)
 			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
 				f.Since = a.Since
 			}
@@ -716,6 +763,79 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		return a.Key > b.Key // newest CVEs first
 	})
 	return r, nil
+}
+
+// baseBuild is the current build of an image's base, as a rebuild with --pull would use it: its packages by name,
+// and what OSV says of them.
+type baseBuild struct {
+	name    string            // node:22-alpine
+	purls   map[string]string // package name -> its package URL in the base
+	vulns   map[string]store.PackageVulns
+	records map[string]store.Vuln // for the CVEs an advisory names
+}
+
+// rebuildBases finds, for each running image built on an older build of its base, the base's current build, when
+// its packages are read and asked about.
+func rebuildBases(ctx context.Context, st *store.Store, images map[string]bool, evidence map[string]store.ImageEvidence, sboms map[string]store.ImageSBOM,
+	records map[string]store.Vuln,
+) (map[string]*baseBuild, error) {
+	out := map[string]*baseBuild{}
+	builds := map[string]*baseBuild{}
+	var purls []string
+	for key := range images {
+		base, ok := RebuildBase(evidence[key])
+		if !ok || len(sboms[base].Purls) == 0 {
+			continue
+		}
+		b := builds[base]
+		if b == nil {
+			b = &baseBuild{name: ShortImage(evidence[key].BaseImage), purls: map[string]string{}}
+			for _, p := range sboms[base].Purls {
+				name, _, _ := strings.Cut(purlName(p), " ")
+				b.purls[name] = p
+				purls = append(purls, p)
+			}
+			builds[base] = b
+		}
+		out[key] = b
+	}
+	if len(purls) == 0 {
+		return out, nil
+	}
+	vulns, err := st.PackageVulnsOf(ctx, purls)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range builds {
+		b.vulns, b.records = vulns, records
+	}
+	return out, nil
+}
+
+// fixes names the base when its current build has package p at another version without the vulnerability ids
+// (an advisory and the CVEs it names) name: "" when the image has no such base, the package is not the base's (the image added it), or OSV has not
+// answered for the base's version yet.
+func (b *baseBuild) fixes(p string, ids []string) string {
+	if b == nil {
+		return ""
+	}
+	name, _, _ := strings.Cut(purlName(p), " ")
+	bp, ok := b.purls[name]
+	if !ok || purlVersion(bp) == purlVersion(p) {
+		return ""
+	}
+	k, asked := b.vulns[bp]
+	if !asked {
+		return ""
+	}
+	for _, id := range k.Vulns { // the same vulnerability, under this advisory or another naming its CVE
+		for _, a := range append([]string{id}, b.records[id].Aliases...) {
+			if slices.Contains(ids, a) || (CVEOf(a) != "" && slices.Contains(ids, CVEOf(a))) {
+				return ""
+			}
+		}
+	}
+	return b.name
 }
 
 // purlName is a package URL as people read it: openssl 3.0.11-1~deb12u2.

@@ -1650,6 +1650,7 @@ type ImageSecurity struct {
 	Chain                             string // its chain of bases: "acme/base:1 (current) → alpine:3.20 (outdated)"
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
 	Vulns, Exploited                  int    // known vulnerabilities in it, and how many are exploited in the wild
+	RebuildFixes                      int    // of those, how many rebuilding it with --pull on its base's current build fixes
 	Blind                             string // why its packages are not known, when they are not
 	Unsupported                       string // why its vulnerabilities are undercounted, when they are
 }
@@ -1665,6 +1666,8 @@ type ServiceFinding struct {
 	Newer, NewerShort string
 	// Unassessed: no fix because the distribution has not assessed it yet.
 	Unassessed bool
+	// Rebuild is the base (node:22-alpine) whose current build fixes it: rebuild the image with --pull.
+	Rebuild string
 	// NoFix: exploited and no fixed version: it is mitigated instead. Mitigations are those in force for this service,
 	// Places where it still runs without one, and MitigateBy the remediation deadline for that.
 	NoFix       bool

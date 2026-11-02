@@ -721,6 +721,9 @@ templ serviceSecurity(v ServiceView) {
 										}
 										{ " " + itoa(im.Vulns) }
 									</a>
+									if im.RebuildFixes > 0 {
+										<div class="targets" title={ "Built on an older " + im.OldBase + " than its tag has now; its current build no longer has these. No change to the Dockerfile is needed." }>{ itoa(im.RebuildFixes) + " fixed by a rebuild with --pull" }</div>
+									}
 								} else if im.Blind != "" {
 									<span class="muted" title={ im.Blind }>packages unknown</span>
 								} else if im.Checked {
@@ -774,7 +777,9 @@ templ serviceSecurity(v ServiceView) {
 									if f.Exploited {
 										<div class="what-to-do">
 											<strong>What to do:</strong>
-											if f.Fix != "" {
+											if f.Rebuild != "" {
+												{ " rebuild the image with --pull: the current build of " + f.Rebuild + " no longer has it, so no change to the Dockerfile is needed." }
+											} else if f.Fix != "" {
 												{ " Running " + f.Package + "; " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
 											} else if f.Newer != "" {
 												{ " " + f.Newer }
@@ -819,7 +824,9 @@ templ serviceSecurity(v ServiceView) {
 									} else {
 										<code>{ f.Package }</code>
 									}
-									if f.Fix != "" {
+									if f.Rebuild != "" {
+										<div class="targets" title={ "The current build of " + f.Rebuild + " no longer has it: rebuild the image with --pull" }>{ "fixed by a rebuild on " + f.Rebuild }</div>
+									} else if f.Fix != "" {
 										<div class="targets">{ "fixed in " + f.Fix }</div>
 									} else if f.NewerShort != "" {
 										<div class="targets" title={ f.Newer }>{ f.NewerShort }</div>
