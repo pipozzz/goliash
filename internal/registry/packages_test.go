@@ -191,7 +191,7 @@ func TestImagePackagesZstd(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	zw, _ := zstd.NewWriter(&buf)
-	if _, err := io.Copy(zw, zr); err != nil {
+	if _, err := io.Copy(zw, zr); err != nil { //nolint:gosec // the test's own small layer
 		t.Fatal(err)
 	}
 	_ = zw.Close()
