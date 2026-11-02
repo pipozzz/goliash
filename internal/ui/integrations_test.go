@@ -236,6 +236,15 @@ func TestManualService(t *testing.T) {
 	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, "Watching") || !strings.Contains(page, "docker.io/hashicorp/terraform") {
 		t.Error("watched service not on the updates page")
 	}
+	// It has no row in the matrix: the matrix names it, and search finds it by name and by image.
+	if _, page := get(t, member, e.srv.URL+"/?view=table", nil); !strings.Contains(page, "Watched for their releases only") || !strings.Contains(page, `href="/services/terraform"`) {
+		t.Error("watched service not named on the matrix")
+	}
+	for _, q := range []string{"terraform", "hashicorp"} {
+		if _, page := get(t, member, e.srv.URL+"/search?q="+q, nil); !strings.Contains(page, `href="/services/terraform"`) {
+			t.Errorf("search %q does not find the watched service", q)
+		}
+	}
 	if code, _, _ := post(t, e.as(store.RoleViewer), e.srv.URL+"/services/new", url.Values{"name": {"x"}, "upstream": {"x"}}); code != http.StatusForbidden {
 		t.Errorf("viewer added a service: %d", code)
 	}

@@ -131,6 +131,19 @@ templ MatrixGridView(g MatrixGrid) {
 			}
 		</div>
 	}
+	if len(g.Watched) > 0 && !g.Past {
+		<p class="watched-only muted">
+			{ "Watched for their releases only, running nowhere Goliash knows: " }
+			for i, name := range g.Watched {
+				if i > 0 {
+					{ ", " }
+				}
+				<a href={ templ.URL(serviceURL(name)) }>{ name }</a>
+			}
+			<span>·</span>
+			<a href="/updates#watching">their newest releases</a>
+		</p>
+	}
 	if len(g.Rows) == 0 && g.Past {
 		<p class="empty-past muted">Nothing Goliash knows of ran then: no target had reported yet, or nothing ran.</p>
 	} else if len(g.Rows) == 0 {

@@ -510,6 +510,23 @@ func sortedSet(m map[string]bool) []string {
 	return out
 }
 
+// watchedOnly names the services with an upstream that run nowhere Goliash knows (added by hand to watch their
+// releases), sorted: the matrix has no row for them.
+func watchedOnly(o versions.Overview) []string {
+	running := map[string]bool{}
+	for _, row := range o.Matrix.Rows {
+		running[row.Service.ID] = true
+	}
+	var out []string
+	for id, svc := range o.Services {
+		if !running[id] && svc.Upstream != "" {
+			out = append(out, svc.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // watched lists the services with an upstream that run nowhere, with their newest release.
 func (s *Server) watched(ctx context.Context, sc store.Scope, o versions.Overview) ([]WatchedItem, error) {
 	running := map[string]bool{}
