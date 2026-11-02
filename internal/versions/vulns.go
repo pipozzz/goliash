@@ -10,7 +10,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/registry"
@@ -432,45 +431,15 @@ var vulnTables = []string{
 	"vuln_exceptions", "upstream_cves", "product_releases", "image_vex", "product_vulns", "image_evidence", "tag_resolutions", "distro_statuses",
 }
 
-// vulnTTL bounds how long a report is reused, for other processes' writes.
-const vulnTTL = time.Minute
-
-var vulnCache struct {
-	sync.Mutex
-	m map[string]keptVulns
-}
-
-type keptVulns struct {
-	gens string
-	at   time.Time
-	r    VulnReport
-}
+// vulnCache keeps the reports (see sharedBuilds).
+var vulnCache = sharedBuilds[VulnReport]{ttl: time.Minute, cheap: 250 * time.Millisecond, stale: 5 * time.Minute, rebuild: 15 * time.Second}
 
 // sharedVulnReport is the report reused across requests while its tables are unchanged: every page marks
 // exploited vulnerabilities, and building it goes through every package of every image. It is shared: callers
 // must not change it in place.
 func sharedVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
-	key := fmt.Sprintf("%p|%s|%s", st, sc.WorkspaceID, envID)
-	gens := st.Generations(vulnTables...)
-	vulnCache.Lock()
-	k, ok := vulnCache.m[key]
-	vulnCache.Unlock()
-	if ok && k.gens == gens && time.Since(k.at) < vulnTTL {
-		return k.r, nil
-	}
-	r, err := loadVulnReport(ctx, st, sc, envID)
-	if err != nil {
-		return r, err
-	}
-	if st.Generations(vulnTables...) == gens {
-		vulnCache.Lock()
-		if vulnCache.m == nil {
-			vulnCache.m = map[string]keptVulns{}
-		}
-		vulnCache.m[key] = keptVulns{gens: gens, at: time.Now(), r: r}
-		vulnCache.Unlock()
-	}
-	return r, nil
+	return vulnCache.get(ctx, fmt.Sprintf("%p|%s|%s", st, sc.WorkspaceID, envID), st.Generations(vulnTables...),
+		func(ctx context.Context) (VulnReport, error) { return loadVulnReport(ctx, st, sc, envID) })
 }
 
 func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
