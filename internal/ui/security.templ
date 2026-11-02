@@ -400,6 +400,14 @@ templ SecurityPage(v SecurityView) {
 							</ul>
 						}
 					}
+					if len(v.Vulns.Unsupported) > 0 {
+						<p><strong>{ plural(len(v.Vulns.Unsupported), "image runs", "images run") }</strong> on a distribution release past its security support, whose advisories stopped with it, so their vulnerabilities are undercounted:</p>
+						<ul class="unknowns">
+							for _, u := range v.Vulns.Unsupported {
+								<li><a class="u" href={ templ.URL("/services/" + url.PathEscape(u.Service) + "#security") }><strong>{ u.Service }</strong></a>{ " (" + u.Image + "): " + u.Why }</li>
+							}
+						</ul>
+					}
 					if !v.DigestOK {
 						<p><strong>{ plural(v.NoDigest, "target", "targets") }</strong> report no image digests, so a tag pushed again would go unnoticed there; <a href="/hygiene?kind=unpinned">see why</a>.</p>
 					}

@@ -521,6 +521,10 @@ func serve(ctx context.Context, args []string) error {
 		if kevURL := os.Getenv("GOLIASH_KEV_URL"); kevURL != "off" {
 			checker.SetKEV(versions.NewKEV(kevURL))
 		}
+		// Debian's security tracker, for what OSV's copy of it lags behind on: no data about the images leaves.
+		if u := os.Getenv("GOLIASH_DEBIAN_TRACKER_URL"); u != "off" {
+			checker.SetDebianTracker(u)
+		}
 		// NVD's CVEs for the version of products built into their images (PostgreSQL, nginx, Keycloak…), named by
 		// the catalog's CPE: only the product and version leave the server.
 		if os.Getenv("GOLIASH_NVD") != "off" {

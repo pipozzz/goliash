@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"path"
 	"runtime/debug"
 	"strings"
 )
@@ -25,10 +26,11 @@ const (
 	goFlagLine = 0x2 // inline strings, the format since Go 1.18
 )
 
-// goStream reads a Go executable's modules and Go version from r, as package URLs; nil when r is not one. A program
+// goStream reads a Go executable's modules and Go version from r, as package URLs; nil when r is not one, or when
+// moduleOnly and it was built without modules. A program
 // that reads build information itself (a scanner, a debugger) holds the magic as data too: a match counts only when
 // a Go version follows it.
-func goStream(r io.Reader) []string {
+func goStream(r io.Reader, moduleOnly bool) []string {
 	br := bufio.NewReaderSize(r, goChunk)
 	window := make([]byte, 0, 2*goChunk)
 	buf := make([]byte, goChunk)
@@ -51,7 +53,7 @@ func goStream(r io.Reader) []string {
 				break
 			}
 			if goVersionAt(window[i:]) {
-				return goInfo(io.MultiReader(bytes.NewReader(window[i:]), br))
+				return goInfo(io.MultiReader(bytes.NewReader(window[i:]), br), moduleOnly)
 			}
 			from = i + 1
 		}
@@ -85,7 +87,7 @@ func goVersionAt(b []byte) bool {
 }
 
 // goInfo reads the build information that follows the magic.
-func goInfo(r io.Reader) []string {
+func goInfo(r io.Reader, moduleOnly bool) []string {
 	br := bufio.NewReader(r)
 	head := make([]byte, goHeader)
 	if _, err := io.ReadFull(br, head); err != nil || head[15]&goFlagLine == 0 {
@@ -105,6 +107,9 @@ func goInfo(r io.Reader) []string {
 	info, err := debug.ParseBuildInfo(mod)
 	if err != nil {
 		info = &debug.BuildInfo{}
+	}
+	if moduleOnly && info.Main.Path == "" {
+		return nil
 	}
 	var out []string
 	if v := strings.TrimPrefix(vers, "go"); v != "" {
@@ -143,12 +148,13 @@ func (s *Scanner) IsExecutable(name string, executable bool) bool {
 	return executable && !strings.Contains(baseName(name), ".") && s.Wants(name, 0, true) > 0
 }
 
-// AddStream reads an executable's Go build information while it streams by.
-func (s *Scanner) AddStream(r io.Reader) {
+// AddStream reads the Go build information of executable name while it streams by.
+func (s *Scanner) AddStream(name string, r io.Reader) {
 	if s.found == nil {
 		s.found = map[string]bool{}
 	}
-	for _, p := range goStream(r) {
+	name = strings.TrimPrefix(path.Clean("/"+name), "/")
+	for _, p := range goStream(r, s.System && systemFile(name)) {
 		s.found[p] = true
 	}
 }

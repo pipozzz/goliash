@@ -31,12 +31,33 @@ func TestGoStreamSkipsMagicAsData(t *testing.T) {
 	b.Write(bytes.Repeat([]byte{1}, goChunk))
 	mods := "path\texample.com/app\nmod\texample.com/app\t(devel)\t\ndep\tgolang.org/x/net\tv0.17.0\th1:x=\n"
 	b.Write(buildInfo("go1.22.3", mods))
-	got := goStream(&b)
+	got := goStream(&b, false)
 	want := []string{"pkg:golang/stdlib@1.22.3", "pkg:golang/golang.org/x/net@v0.17.0"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	if got := goStream(bytes.NewReader(append(slices.Clone(goMagic), "\x08\x02garbage"...))); got != nil {
+	if got := goStream(bytes.NewReader(append(slices.Clone(goMagic), "\x08\x02garbage"...)), false); got != nil {
 		t.Errorf("magic without a Go version read as %v", got)
+	}
+}
+
+// In usr/bin, a vendor's Go executable is read; one the distribution built without modules is not.
+func TestGoInSystemDirs(t *testing.T) {
+	sys := Scanner{System: true}
+	if !sys.IsExecutable("usr/bin/cloudflared", true) || sys.IsExecutable("usr/bin/cloudflared", false) || sys.IsExecutable("usr/lib/libfoo.so.1", true) ||
+		sys.IsExecutable("etc/init.d/nginx", true) {
+		t.Error("system executables")
+	}
+	vendor := buildInfo("go1.27.3", "path\tgithub.com/cloudflare/cloudflared/cmd/cloudflared\nmod\tgithub.com/cloudflare/cloudflared\t(devel)\t\ndep\tgithub.com/go-jose/go-jose/v4\tv4.1.4\th1:x=\n")
+	distro := buildInfo("go1.19.8", "path\tgithub.com/containerd/containerd/cmd/ctr\n")
+	sys.AddStream("usr/bin/cloudflared", bytes.NewReader(vendor))
+	sys.AddStream("/usr/bin/ctr", bytes.NewReader(distro))
+	if got := sys.Purls(); !slices.Equal(got, []string{"pkg:golang/github.com/go-jose/go-jose/v4@v4.1.4", "pkg:golang/stdlib@1.27.3"}) {
+		t.Errorf("got %v", got)
+	}
+	var app Scanner // outside a system directory, or in a Lambda zip, every Go executable counts
+	app.AddStream("bin/ctr", bytes.NewReader(distro))
+	if got := app.Purls(); !slices.Equal(got, []string{"pkg:golang/stdlib@1.19.8"}) {
+		t.Errorf("got %v", got)
 	}
 }

@@ -528,6 +528,7 @@ type PackageUse struct {
 	Upstream *versions.UpstreamFix
 	Newer    *versions.NewerRelease
 	Current  string
+	Distro   string
 }
 
 // ServicePlace is a service in one environment.
@@ -545,7 +546,7 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		if !ok {
 			i = len(out)
 			index[a.Package] = i
-			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current})
+			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current, Distro: a.Distro})
 		}
 		w := ServicePlace{a.Service, a.Env}
 		if !slices.Contains(out[i].Where, w) {

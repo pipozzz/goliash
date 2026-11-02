@@ -74,9 +74,12 @@ type Checker struct {
 	eol         *EOL
 	osv         *OSV
 	kev         *KEV
-	nvd         *NVD
-	php         *phpFeed   // which PHP releases fix vulnerabilities
-	text        *textFeeds // Go's release history, release notes pages
+	// debianTracker is where Debian's security tracker data is read; debianTried, when it was last tried.
+	debianTracker string
+	debianTried   time.Time
+	nvd           *NVD
+	php           *phpFeed   // which PHP releases fix vulnerabilities
+	text          *textFeeds // Go's release history, release notes pages
 
 	driftMu    sync.Mutex // one drift evaluation at a time
 	upstreamMu sync.Mutex // one upstream check at a time, so a release is announced once

@@ -71,3 +71,16 @@ func TestBaseOn(t *testing.T) {
 		t.Errorf("alpine: %q", got)
 	}
 }
+
+func TestUnsupportedRelease(t *testing.T) {
+	for purls, want := range map[string]string{
+		"pkg:npm/x@1 pkg:deb/debian/libpq5@13.15-0+deb11u1?arch=amd64&os_version=11&upstream=postgresql-13": "Debian 11 (bullseye)",
+		"pkg:deb/debian/libc6@2.36-9+deb12u10?arch=amd64&os_version=12&upstream=glibc":                      "",
+		"pkg:deb/debian/libc6@2.41-12?os_distro=trixie&os_name=debian&os_version=13":                        "",
+		"pkg:apk/alpine/musl@1.2.5-r0?arch=x86_64&os_version=3.20.2":                                        "",
+	} {
+		if got := unsupportedRelease(strings.Fields(purls)); got != want {
+			t.Errorf("%s: %q", purls, got)
+		}
+	}
+}

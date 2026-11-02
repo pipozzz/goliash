@@ -19,6 +19,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
 | `GOLIASH_OSV_URL` | | `https://api.osv.dev/v1` | Where the packages of running images' SBOMs are looked up for known vulnerabilities: an OSV API mirror, or `off`. Only package names and versions are sent |
 | `GOLIASH_KEV_URL` | | CISA's feed | Where the catalog of known exploited vulnerabilities is read from (a mirror of CISA's JSON), or `off` |
+| `GOLIASH_DEBIAN_TRACKER_URL` | | Debian's tracker | Where [Debian's security tracker](https://security-tracker.debian.org) data is read from, to correct OSV where it lags (a release that never had the vulnerable code, a CVE not assessed yet), or `off`. Nothing about the images is sent |
 | `GOLIASH_NVD` | | on | `off` stops asking [NVD](https://nvd.nist.gov) for the CVEs of running product versions (PostgreSQL 16.2, nginx 1.25.3…), and for the versions a CVE affects upstream when a distribution has no fix ([Upstream fixes](/guide/security/#upstream-fixes)). Only products, versions and CVE IDs are sent |
 | `GOMEMLIMIT` | | ⅔ of the container's memory limit, else of the machine's | Go's soft memory limit: near it the garbage collector works harder instead of letting the heap grow into swap. Set it to choose another, e.g. `300MiB` |
 | `GOLIASH_PPROF` | | | An address such as `127.0.0.1:6060` to serve Go's profiles (`/debug/pprof/`) on, for finding what is slow or large on a running server. Keep it on localhost |

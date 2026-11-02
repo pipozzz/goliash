@@ -3493,6 +3493,11 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			out.Images[i].Blind = b.Why
 		}
 	}
+	for _, b := range rep.Unsupported {
+		if i, ok := imageAt[[2]string{b.Environment, b.Image}]; ok {
+			out.Images[i].Unsupported = b.Why
+		}
+	}
 	for _, f := range rep.Findings {
 		counted := map[int]bool{}
 		for _, a := range f.Affected {
@@ -3513,6 +3518,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		tagsAt := map[string][]string{} // environment ID -> the versions it is in there
 		var upstream *versions.UpstreamFix
 		var newer *versions.NewerRelease
+		unassessed := false
 		current := ""
 		for _, a := range f.Affected {
 			if a.ServiceID != svc.ID {
@@ -3536,6 +3542,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			if a.Newer != nil && newer == nil {
 				newer, current = a.Newer, a.Current
 			}
+			unassessed = unassessed || a.Distro == versions.DistroUndetermined
 		}
 		if len(pkgs) == 0 {
 			continue
@@ -3551,6 +3558,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		sf := ServiceFinding{
 			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),
 			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil, NoFix: f.NoFix(),
+			Unassessed: unassessed,
 		}
 		if upstream != nil {
 			sf.Upstream, sf.UpstreamShort = upstream.Advice(f.Key), upstream.Short()

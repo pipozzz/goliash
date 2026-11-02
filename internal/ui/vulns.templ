@@ -57,6 +57,17 @@ templ VulnsPage(v VulnsView) {
 		if v.Pending > 0 || v.Unasked > 0 {
 			<div class="notice pending">{ "Still looking up " + plural(v.Pending, "advisory", "advisories") + " and " + plural(v.Unasked, "package", "packages") + " on OSV; until then a vulnerability may be listed under another ID, and an answer may be incomplete." }</div>
 		}
+		if len(v.Unsupported) > 0 {
+			<div class="notice pending">
+				{ plural(len(v.Unsupported), "running image is", "running images are") + " on a distribution release past its security support; its advisories stopped with it, so fewer vulnerabilities are listed than there are: " }
+				for i, u := range v.Unsupported {
+					if i > 0 {
+						{ ", " }
+					}
+					<a href={ templ.URL(ServicePlace{u.Service, u.Environment}.URL()) } title={ u.Why }>{ u.Service }</a>{ " (" + u.Image + ")" }
+				}
+			</div>
+		}
 		if v.Query != "" && len(v.Shown) == 0 {
 			<section class={ "panel", "answer", templ.KV("answer-ok", v.LooksCVE && v.Pending == 0 && v.Unasked == 0) }>
 				<div class="panel-body">
@@ -131,6 +142,8 @@ templ VulnsPage(v VulnsView) {
 													<span class="fix" title={ u.Newer.Advice(u.Current) }>{ "→ fixed in " + u.Newer.Label() }</span>
 												} else if u.Upstream != nil {
 													<span class="fix" title={ u.Upstream.Advice(f.Key) }>{ "→ " + u.Upstream.Short() }</span>
+												} else if u.Distro == versions.DistroUndetermined {
+													<span class="muted" title="Debian's security tracker has not assessed whether its release is affected">not assessed by Debian yet</span>
 												} else {
 													<span class="muted">no fix yet</span>
 												}
