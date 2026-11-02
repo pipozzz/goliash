@@ -134,7 +134,14 @@ templ VulnsPage(v VulnsView) {
 												} else {
 													<span class="muted">no fix yet</span>
 												}
-												<div class="targets">{ strings.Join(u.Where, ", ") }</div>
+												<div class="targets">
+													for i, w := range u.Where {
+														if i > 0 {
+															{ ", " }
+														}
+														<a href={ templ.URL(w.URL()) }>{ w.Service }</a>{ " (" + w.Env + ")" }
+													}
+												</div>
 											</div>
 										}
 									</td>
