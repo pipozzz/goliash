@@ -70,6 +70,9 @@ func (c *Client) ImagePackages(ctx context.Context, repository, digest string, c
 		}
 	}
 	fs := imageFiles{apps: pkgscan.Scanner{System: true}}
+	if c.GoProxy != nil {
+		fs.apps.Resolve = func(mod, rev string) string { return c.GoProxy.Version(ctx, mod, rev) }
+	}
 	read := int64(0)
 	for i := len(m.Layers) - 1; i >= 0; i-- { // newest first: an upper layer's file wins
 		l := m.Layers[i]

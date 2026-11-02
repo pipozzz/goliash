@@ -37,6 +37,11 @@ type Scanner struct {
 	// has no module list (GOPATH mode), and is left out.
 	System bool
 
+	// Resolve, when set, finds the version a Go module is tagged as at a commit: a program built from a release's
+	// checkout says only "(devel)" and the commit (GoProxy.Version). Without it, or when it finds none, the
+	// program's own module is left out.
+	Resolve func(module, revision string) string
+
 	found   map[string]bool
 	modules bool     // node_modules seen: a lock file then only repeats them
 	lock    []string // packages of package-lock.json files, used when there is no node_modules
@@ -143,6 +148,16 @@ func (s *Scanner) add(name string, b []byte, depth int) {
 func (s *Scanner) Purls() []string {
 	set := map[string]bool{}
 	for p := range s.found {
+		if rest, ok := strings.CutPrefix(p, goRevision); ok {
+			module, rev, _ := strings.Cut(rest, "@")
+			if s.Resolve == nil {
+				continue
+			}
+			if v := s.Resolve(module, rev); v != "" {
+				set["pkg:golang/"+module+"@"+v] = true
+			}
+			continue
+		}
 		set[p] = true
 	}
 	if !s.modules {
@@ -306,18 +321,5 @@ func goPackages(b []byte) []string {
 	if err != nil {
 		return nil
 	}
-	var out []string
-	if v := strings.TrimPrefix(info.GoVersion, "go"); v != "" {
-		out = append(out, "pkg:golang/stdlib@"+strings.SplitN(v, " ", 2)[0])
-	}
-	for _, d := range info.Deps {
-		m := d
-		if d.Replace != nil {
-			m = d.Replace
-		}
-		if m.Version != "" && m.Version != "(devel)" {
-			out = append(out, "pkg:golang/"+m.Path+"@"+m.Version)
-		}
-	}
-	return out
+	return goModules(info)
 }

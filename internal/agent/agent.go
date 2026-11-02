@@ -130,7 +130,9 @@ func New(opts Options) (*Agent, error) {
 		return nil, err
 	}
 	if opts.Registry == nil {
-		opts.Registry = registry.New()
+		reg := registry.New()
+		reg.GoProxy = registry.GoProxySetting(os.Getenv("GOLIASH_GOPROXY"))
+		opts.Registry = reg
 	}
 	if opts.ECR == nil {
 		opts.ECR = ecr.New()

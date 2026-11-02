@@ -41,6 +41,8 @@ type Client struct {
 	HTTP *http.Client
 	// Scheme is "https" except in tests.
 	Scheme string
+	// GoProxy resolves the version of a Go program built from a release's checkout; nil leaves it out.
+	GoProxy *GoProxy
 
 	mu     sync.Mutex
 	tokens map[string]cachedToken // realm+scope+user -> token
@@ -53,7 +55,7 @@ type cachedToken struct {
 
 // New returns a client with sensible timeouts.
 func New() *Client {
-	return &Client{HTTP: &http.Client{Timeout: 30 * time.Second}, Scheme: "https", tokens: map[string]cachedToken{}}
+	return &Client{HTTP: &http.Client{Timeout: 30 * time.Second}, Scheme: "https", GoProxy: NewGoProxy(""), tokens: map[string]cachedToken{}}
 }
 
 // ErrUnauthorized means the registry refused the credentials (or anonymous access).

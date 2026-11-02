@@ -111,9 +111,29 @@ func goInfo(r io.Reader, moduleOnly bool) []string {
 	if moduleOnly && info.Main.Path == "" {
 		return nil
 	}
+	info.GoVersion = vers
+	return goModules(info)
+}
+
+// goRevision marks, among what a scan found, a Go program's own module built from a checkout: its version is
+// "(devel)", and only the commit it was built from is known (go-revision:github.com/traefik/traefik/v3@4b4eaa49…).
+// Purls asks Resolve for the version tagged at that commit.
+const goRevision = "go-revision:"
+
+// goModules lists a Go binary's modules and the Go standard library it was built with, as package URLs. The
+// program's own module is among them when it was installed at a version (go install …@v1.2.3), or built from a
+// clean git checkout, a release usually is: the commit it was built from is kept to be resolved.
+func goModules(info *debug.BuildInfo) []string {
 	var out []string
-	if v := strings.TrimPrefix(vers, "go"); v != "" {
+	if v := strings.TrimPrefix(info.GoVersion, "go"); v != "" {
 		out = append(out, "pkg:golang/stdlib@"+strings.SplitN(v, " ", 2)[0])
+	}
+	if m := info.Main; m.Path != "" && m.Replace == nil {
+		if m.Version != "" && m.Version != "(devel)" {
+			out = append(out, "pkg:golang/"+m.Path+"@"+m.Version)
+		} else if rev := goCommit(info.Settings); rev != "" {
+			out = append(out, goRevision+m.Path+"@"+rev)
+		}
 	}
 	for _, d := range info.Deps {
 		m := d
@@ -125,6 +145,25 @@ func goInfo(r io.Reader, moduleOnly bool) []string {
 		}
 	}
 	return out
+}
+
+// goCommit is the git commit a binary was built from, when its checkout had no changes of its own.
+func goCommit(settings []debug.BuildSetting) string {
+	var vcs, rev, modified string
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs":
+			vcs = s.Value
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value
+		}
+	}
+	if vcs != "git" || modified == "true" || len(rev) != 40 {
+		return ""
+	}
+	return rev
 }
 
 func goString(br *bufio.Reader) (string, error) {
