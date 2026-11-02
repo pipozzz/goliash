@@ -73,6 +73,18 @@ func (s *Server) paletteEntries(ctx context.Context, p auth.Principal) ([]Palett
 	}
 	// Services split by application appear once per application; keep one entry.
 	out = dedupeEntries(out)
+	// Services only watched for their releases have no row: found by name and by the image they are watched in.
+	if services, err := s.store.ListServices(ctx, p.Scope); err == nil {
+		listed := map[string]bool{}
+		for _, e := range out {
+			listed[e.Label] = true
+		}
+		for _, svc := range services {
+			if svc.Upstream != "" && !listed[svc.Name] {
+				out = append(out, PaletteEntry{Kind: "service", Label: svc.Name, Sub: "watched for its releases, runs nowhere Goliash knows", URL: serviceURL(svc.Name), Keys: []string{svc.Upstream}})
+			}
+		}
+	}
 	v := TilesView{GroupBy: "app"}
 	apps, _ := appItems(v, groupRows(g.Rows, "app"), g.Envs, "")
 	for _, a := range apps {

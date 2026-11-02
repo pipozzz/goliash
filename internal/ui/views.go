@@ -87,6 +87,7 @@ type MatrixGrid struct {
 	Steps    []Step           // first-run checklist, while the matrix is empty
 	Explore  bool             // the viewer may open an Example workspace with example data
 	Unread   []UnreadRegistry // private registries whose services have no known release
+	Watched  []string         // services watched for their releases only, running nowhere Goliash knows
 	Past     bool             // the matrix as of a moment in the past
 	CanAdmin bool
 	CanBulk  bool                 // members tick services to set their team at once
