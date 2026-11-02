@@ -114,7 +114,7 @@ credentials they already use, or by the server with read access given under
 package list is kept with its digest.
 
 **Security** shows how many production images carry an SBOM, a signature and provenance, and lists those without.
-An image Goliash has no packages for (no SBOM, and no package database it can read: scratch, RPM-based, or a
+An image Goliash has no packages for (no SBOM, and no package database it can read: scratch, an RPM release older than 9, or a
 registry it cannot reach) still appears in the export, with its digest and where it runs, just without packages
 inside: add `--sbom=true` to its build and the next export has them.
 

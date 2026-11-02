@@ -2167,7 +2167,7 @@ func SecurityPage(v SecurityView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 215, "</strong> on a distribution release past its security support, whose advisories stopped with it, so their vulnerabilities are undercounted:</p><ul class=\"unknowns\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 215, "</strong> on an operating system without advisories (a release past its security support, or a distribution OSV does not cover), so their vulnerabilities are undercounted:</p><ul class=\"unknowns\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -3414,7 +3414,7 @@ func sbomHelper(blind []versions.BlindImage) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg or apk package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg, apk or RPM package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

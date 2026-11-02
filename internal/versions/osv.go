@@ -100,6 +100,19 @@ func parseQueries(purl string) []osvQuery {
 		return nil
 	}
 	out := []osvQuery{q}
+	if base, ok := strings.CutSuffix(q.Package.Ecosystem, "::baseos"); ok { // a Red Hat package from AppStream
+		alt := q
+		alt.Package.Ecosystem = base + "::appstream"
+		return append(out, alt)
+	}
+	if strings.HasPrefix(q.Package.Ecosystem, "Rocky Linux:") { // filed under the package itself, sometimes
+		if name, _, _ := strings.Cut(purlName(purl), " "); name != q.Package.Name {
+			alt := q
+			alt.Package.Name = name
+			out = append(out, alt)
+		}
+		return out
+	}
 	if q.Package.Ecosystem != "Wolfi" && q.Package.Ecosystem != "Chainguard" {
 		return out
 	}
@@ -185,10 +198,74 @@ func osvPrimary(purl string) (osvQuery, bool) {
 				break
 			}
 		}
+	case "rpm":
+		return rpmQuery(strings.ToLower(strings.SplitN(rest, "/", 2)[0]), name, version, qs)
 	default:
 		q.Package.Purl = strings.SplitN(purl, "?", 2)[0]
 	}
 	return q, true
+}
+
+// rpmEcosystems are OSV's ecosystems of the RPM distributions it has advisories for, by the package URL's
+// namespace, and whether they are filed under the source package (Rocky: openssl, not openssl-libs). Red Hat's
+// are filed by binary package, under the repository each comes from ("::baseos", else "::appstream"). Others
+// (Fedora, Amazon Linux, CentOS Stream, Oracle Linux) are not asked: OSV has nothing of theirs, and asking by
+// package URL alone would match the advisories of every Red Hat release.
+var rpmEcosystems = map[string]struct {
+	prefix string
+	source bool
+}{
+	"redhat": {"Red Hat:enterprise_linux:", false}, "rhel": {"Red Hat:enterprise_linux:", false},
+	"rocky": {"Rocky Linux:", true}, "almalinux": {"AlmaLinux:", false},
+}
+
+// rpmQuery is the query for an RPM package: the version with its epoch (1:3.0.7-27.el9), as RPM compares them.
+// The release's major version comes from os_version (Goliash's own reading) or distro (rhel-9.4, as SBOM tools
+// write it).
+func rpmQuery(namespace, name, version string, qs url.Values) (osvQuery, bool) {
+	var q osvQuery
+	eco, ok := rpmEcosystems[namespace]
+	if !ok {
+		return q, false
+	}
+	release := qs.Get("os_version")
+	if release == "" {
+		d := qs.Get("distro")
+		release = d[strings.LastIndex(d, "-")+1:]
+	}
+	major, _, _ := strings.Cut(release, ".")
+	if major == "" || strings.Trim(major, "0123456789") != "" {
+		return q, false
+	}
+	q.Package.Ecosystem = eco.prefix + major
+	if strings.HasPrefix(eco.prefix, "Red Hat") {
+		q.Package.Ecosystem += "::baseos"
+	}
+	q.Package.Name, q.Version = name, version
+	if e := qs.Get("epoch"); e != "" && e != "0" {
+		q.Version = e + ":" + version
+	}
+	if src := rpmSource(qs.Get("upstream")); eco.source && src != "" {
+		q.Package.Name = src
+	}
+	return q, true
+}
+
+// rpmSource is a source package's name from an upstream qualifier: Goliash writes the name (openssl), SBOM tools
+// the file (openssl-3.0.7-27.el9.src.rpm).
+func rpmSource(upstream string) string {
+	if !strings.HasSuffix(upstream, ".rpm") {
+		return upstream
+	}
+	s := strings.TrimSuffix(strings.TrimSuffix(upstream, ".src.rpm"), ".nosrc.rpm")
+	for range 2 {
+		i := strings.LastIndexByte(s, '-')
+		if i <= 0 {
+			return ""
+		}
+		s = s[:i]
+	}
+	return s
 }
 
 // QueryBatch returns the IDs of the vulnerabilities affecting each package URL; packages OSV cannot be asked

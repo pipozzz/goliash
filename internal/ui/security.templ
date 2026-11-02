@@ -401,7 +401,7 @@ templ SecurityPage(v SecurityView) {
 						}
 					}
 					if len(v.Vulns.Unsupported) > 0 {
-						<p><strong>{ plural(len(v.Vulns.Unsupported), "image runs", "images run") }</strong> on a distribution release past its security support, whose advisories stopped with it, so their vulnerabilities are undercounted:</p>
+						<p><strong>{ plural(len(v.Vulns.Unsupported), "image runs", "images run") }</strong> on an operating system without advisories (a release past its security support, or a distribution OSV does not cover), so their vulnerabilities are undercounted:</p>
 						<ul class="unknowns">
 							for _, u := range v.Vulns.Unsupported {
 								<li><a class="u" href={ templ.URL("/services/" + url.PathEscape(u.Service) + "#security") }><strong>{ u.Service }</strong></a>{ " (" + u.Image + "): " + u.Why }</li>
@@ -669,7 +669,7 @@ templ sbomHelper(blind []versions.BlindImage) {
 	<section class="panel" id="sbom">
 		<div class="panel-head">
 			<h2>{ plural(len(blind), "image without an SBOM", "images without an SBOM") }</h2>
-			@panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg or apk package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.")
+			@panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg, apk or RPM package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.")
 		</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">

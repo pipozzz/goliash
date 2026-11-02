@@ -285,9 +285,9 @@ func VulnsPage(v VulnsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(plural(len(v.Unsupported), "running image is", "running images are") + " on a distribution release past its security support; its advisories stopped with it, so fewer vulnerabilities are listed than there are: ")
+				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(plural(len(v.Unsupported), "running image is", "running images are") + " on an operating system without advisories (a release past its security support, or a distribution OSV does not cover), so fewer vulnerabilities are listed than there are: ")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 62, Col: 217}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 62, Col: 251}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {

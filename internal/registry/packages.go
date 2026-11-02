@@ -35,9 +35,9 @@ const (
 	maxPackageFile  = 64 << 20 // one package database or os-release file
 )
 
-// ErrNoPackageDatabase means an image has no package database Goliash reads (dpkg, apk): scratch, distroless
-// static, RPM-based, or software built from source.
-var ErrNoPackageDatabase = errors.New("no dpkg or apk package database in the image")
+// ErrNoPackageDatabase means an image has no package database Goliash reads (dpkg, apk, RPM's SQLite one):
+// scratch, distroless static, an older RPM-based release, or software built from source.
+var ErrNoPackageDatabase = errors.New("no dpkg, apk or RPM package database in the image")
 
 // ImagePackages lists the operating system packages installed in digest of repository, for linux/amd64 (or the
 // first platform), as package URLs: pkg:deb/ubuntu/nginx@1.18.0-6ubuntu14.4?arch=amd64&os_version=22.04.
@@ -83,8 +83,14 @@ func (c *Client) ImagePackages(ctx context.Context, repository, digest string, c
 			return SBOM{}, fmt.Errorf("layer %s: %w", l.Digest, err)
 		}
 	}
-	purls := fs.purls()
+	purls, err := fs.purls(ctx)
+	if err != nil {
+		return SBOM{}, err
+	}
 	if len(purls) == 0 {
+		if fs.rpmBerkeley {
+			return SBOM{}, fmt.Errorf("%w: %w", ErrNoPackageDatabase, errRPMBerkeley)
+		}
 		return SBOM{}, ErrNoPackageDatabase
 	}
 	return SBOM{Purls: purls}, nil
@@ -96,9 +102,12 @@ type imageFiles struct {
 	dpkg      []byte
 	dpkgD     map[string][]byte // /var/lib/dpkg/status.d/<package>
 	apk       []byte
-	apps      pkgscan.Scanner
-	seen      map[string]bool // paths already taken from a newer layer, or deleted in one
-	gone      []string        // directories deleted, or made opaque, in a newer layer: what lower layers hold there is hidden
+	rpm       []byte // rpmdb.sqlite
+	// rpmBerkeley is set when the image's RPM database is an older one, not read
+	rpmBerkeley bool
+	apps        pkgscan.Scanner
+	seen        map[string]bool // paths already taken from a newer layer, or deleted in one
+	gone        []string        // directories deleted, or made opaque, in a newer layer: what lower layers hold there is hidden
 }
 
 // hidden reports whether a newer layer replaced or deleted a path.
@@ -198,6 +207,14 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 			continue
 		case name == "lib/apk/db/installed":
 			dst = &fs.apk
+		case rpmDBPaths[name]:
+			if fs.rpm != nil {
+				continue
+			}
+			dst = &fs.rpm
+		case rpmBerkeleyPaths[name]:
+			fs.rpmBerkeley = true
+			continue
 		default:
 			continue
 		}
@@ -217,7 +234,7 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 }
 
 // purls lists the packages the files name.
-func (f imageFiles) purls() []string {
+func (f imageFiles) purls(ctx context.Context) ([]string, error) {
 	id, version := osRelease(f.osRelease)
 	set := map[string]bool{}
 	if f.dpkg != nil || len(f.dpkgD) > 0 {
@@ -250,6 +267,15 @@ func (f imageFiles) purls() []string {
 			set[apkPurl(id, version, p)] = true
 		}
 	}
+	if f.rpm != nil {
+		ps, err := rpmPackages(ctx, f.rpm)
+		if err != nil {
+			return nil, fmt.Errorf("reading the RPM database: %w", err)
+		}
+		for _, p := range ps {
+			set[rpmPurl(id, version, p)] = true
+		}
+	}
 	for _, p := range f.apps.Purls() {
 		set[p] = true
 	}
@@ -258,11 +284,11 @@ func (f imageFiles) purls() []string {
 		out = append(out, p)
 	}
 	sort.Strings(out)
-	return out
+	return out, nil
 }
 
 // osPackage is an installed package as a package database records it.
-type osPackage struct{ name, version, arch, source string }
+type osPackage struct{ name, version, arch, source, epoch string }
 
 // dpkgPackages reads a dpkg status file: the installed packages of its stanzas.
 func dpkgPackages(b []byte) []osPackage {

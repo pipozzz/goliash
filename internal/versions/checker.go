@@ -27,6 +27,7 @@ const maxReleases = 30
 var publicRegistries = map[string]bool{
 	"docker.io": true, "ghcr.io": true, "quay.io": true, "registry.k8s.io": true, "gcr.io": true,
 	"public.ecr.aws": true, "mcr.microsoft.com": true, "registry.gitlab.com": true, "docker.elastic.co": true,
+	"registry.access.redhat.com": true, "cgr.dev": true,
 }
 
 // PackageRepo reports whether repo stands for an operating system package without an image
