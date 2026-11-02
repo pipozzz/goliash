@@ -25,19 +25,40 @@ const (
 	goFlagLine = 0x2 // inline strings, the format since Go 1.18
 )
 
-// goStream reads a Go executable's modules and Go version from r, as package URLs; nil when r is not one.
+// goStream reads a Go executable's modules and Go version from r, as package URLs; nil when r is not one. A program
+// that reads build information itself (a scanner, a debugger) holds the magic as data too: a match counts only when
+// a Go version follows it.
 func goStream(r io.Reader) []string {
 	br := bufio.NewReaderSize(r, goChunk)
 	window := make([]byte, 0, 2*goChunk)
 	buf := make([]byte, goChunk)
+	var done bool
 	for {
-		n, err := br.Read(buf)
-		window = append(window, buf[:n]...)
-		if i := bytes.Index(window, goMagic); i >= 0 {
-			rest := io.MultiReader(bytes.NewReader(window[i:]), br)
-			return goInfo(rest)
+		if !done {
+			n, err := br.Read(buf)
+			window = append(window, buf[:n]...)
+			done = err != nil
 		}
-		if err != nil {
+		from := 0
+		for {
+			i := bytes.Index(window[from:], goMagic)
+			if i < 0 {
+				break
+			}
+			i += from
+			if len(window)-i < goPeek && !done {
+				from = -1 // read more before judging it
+				break
+			}
+			if goVersionAt(window[i:]) {
+				return goInfo(io.MultiReader(bytes.NewReader(window[i:]), br))
+			}
+			from = i + 1
+		}
+		if from < 0 {
+			continue
+		}
+		if done {
 			return nil
 		}
 		// Keep the end that may hold the first bytes of the magic.
@@ -45,6 +66,22 @@ func goStream(r io.Reader) []string {
 			window = append(window[:0], window[len(window)-keep:]...)
 		}
 	}
+}
+
+// goPeek is enough of the build information to see its Go version.
+const goPeek = goHeader + 1 + 64
+
+// goVersionAt reports whether b starts with build information whose Go version reads like one.
+func goVersionAt(b []byte) bool {
+	if len(b) < goHeader+1 || b[15]&goFlagLine == 0 {
+		return false
+	}
+	n, k := binary.Uvarint(b[goHeader:])
+	if k <= 0 || n < 3 || n > 64 || len(b) < goHeader+k+int(n) {
+		return false
+	}
+	v := string(b[goHeader+k : goHeader+k+int(n)])
+	return strings.HasPrefix(v, "go1.") || strings.HasPrefix(v, "devel ")
 }
 
 // goInfo reads the build information that follows the magic.

@@ -99,10 +99,14 @@ func NeedsLicenses(b store.ImageSBOM) bool {
 // only the operating system's.
 var appPackagesFrom = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 
+// goVersionFix is when a Go version stopped being read from bytes that only looked like build information; an
+// agent older than that would misread it again, so an image read since is not read once more.
+var goVersionFix = time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+
 // NeedsAppPackages reports whether an image's packages were read from its package database before the application's
-// packages were read too (or none were found then): it is read again, once.
+// packages were read too (or none were found then), or a Go version was misread: it is read again, once.
 func NeedsAppPackages(b store.ImageSBOM) bool {
-	return b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom)
+	return b.Source == "packages" && !b.FetchedAt.IsZero() && (b.FetchedAt.Before(appPackagesFrom) || (b.Misread && b.FetchedAt.Before(goVersionFix)))
 }
 
 const (

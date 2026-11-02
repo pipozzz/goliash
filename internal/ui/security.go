@@ -524,11 +524,17 @@ func vulnURL(id string) string { return "https://osv.dev/vulnerability/" + id }
 type PackageUse struct {
 	Package  string
 	Fix      string
-	Where    []string // "service (env)"
+	Where    []ServicePlace
 	Upstream *versions.UpstreamFix
 	Newer    *versions.NewerRelease
 	Current  string
 }
+
+// ServicePlace is a service in one environment.
+type ServicePlace struct{ Service, Env string }
+
+// URL is the service's page at its security panel.
+func (p ServicePlace) URL() string { return "/services/" + url.PathEscape(p.Service) + "#security" }
 
 // byPackage groups a finding's running images by package, each service once.
 func byPackage(f versions.VulnFinding) []PackageUse {
@@ -541,7 +547,7 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 			index[a.Package] = i
 			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current})
 		}
-		w := a.Service + " (" + a.Env + ")"
+		w := ServicePlace{a.Service, a.Env}
 		if !slices.Contains(out[i].Where, w) {
 			out[i].Where = append(out[i].Where, w)
 		}

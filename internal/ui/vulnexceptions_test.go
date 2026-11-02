@@ -141,7 +141,7 @@ func TestUpstreamNotAffected(t *testing.T) {
 		t.Error("legacy lacks the upstream fix")
 	}
 	_, page = get(t, viewer, e.srv.URL+"/security/vulns?env=all", nil)
-	if !strings.Contains(page, "legacy (prod)") || strings.Contains(page, "edge (prod)") || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") {
+	if !strings.Contains(page, `<a href="/services/legacy#security">legacy</a> (prod)`) || strings.Contains(page, ">edge</a> (prod)") || !strings.Contains(page, "upstream nginx fixed it after 1.25.2") {
 		t.Error("the vulnerabilities page is wrong")
 	}
 	if _, rep := get(t, viewer, e.srv.URL+"/security/report?month="+time.Now().UTC().Format("2006-01"), nil); !strings.Contains(rep, "(NVD)") {
