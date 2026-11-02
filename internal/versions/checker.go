@@ -169,7 +169,8 @@ type workspaceState struct {
 	matrix    Matrix
 	refs      map[string]Reference
 	instances []store.Instance
-	auth      RegistryAuth // the workspace's credentials for private registries
+	auth      RegistryAuth      // the workspace's credentials for private registries
+	agentOf   map[string]string // target ID -> the agent collecting it ("" for the server)
 }
 
 // Reference is what a service's upstream is compared against: its image repository
@@ -192,6 +193,10 @@ func (c *Checker) load(ctx context.Context, sc store.Scope) (workspaceState, err
 	targets, err := c.store.ListTargets(ctx, sc)
 	if err != nil {
 		return st, err
+	}
+	st.agentOf = make(map[string]string, len(targets))
+	for _, t := range targets {
+		st.agentOf[t.ID] = t.AgentID
 	}
 	if st.instances, err = c.store.ListActiveInstances(ctx, sc); err != nil {
 		return st, err
@@ -866,9 +871,15 @@ func CheckedByAgent(svc store.Service, repo string, auth RegistryAuth) bool {
 }
 
 // PrivateRepositories lists upstream repositories the server cannot check itself,
-// for the agent to check. credentials_ref is the registry host, so an agent finds
+// for agentID to check. credentials_ref is the registry host, so an agent finds
 // credentials for registry.example.com in GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM.
-func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error) {
+//
+// A repository goes to the agents whose targets run the service: they are the ones
+// with access to it (an agent in one AWS account has none to another account's ECR,
+// and its refusal would overwrite the tags the right agent found). One no agent runs
+// (a service watched for its releases only, or run where the server collects) goes to
+// every agent.
+func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope, agentID string) ([]agentproto.RegistryCheck, error) {
 	st, err := c.load(ctx, sc)
 	if err != nil {
 		return nil, err
@@ -881,10 +892,25 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 	if err != nil {
 		return nil, err
 	}
+	runBy := map[string]map[string]bool{} // service ID -> the agents running it
+	for _, in := range st.instances {
+		if a := st.agentOf[in.TargetID]; a != "" && in.ServiceID != "" {
+			if runBy[in.ServiceID] == nil {
+				runBy[in.ServiceID] = map[string]bool{}
+			}
+			runBy[in.ServiceID][a] = true
+		}
+	}
+	mine := map[string]bool{} // repositories agentID runs, and those no agent runs
+	for id, ref := range st.refs {
+		if agents := runBy[id]; len(agents) == 0 || agents[agentID] {
+			mine[ref.Repo] = true
+		}
+	}
 	seen := map[string]bool{}
 	var out []agentproto.RegistryCheck
 	for id, ref := range st.refs {
-		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo, st.auth) || seen[ref.Repo] || PackageRepo(ref.Repo) {
+		if ref.Repo == "" || !mine[ref.Repo] || serverChecks(st.byID[id], ref.Repo, st.auth) || seen[ref.Repo] || PackageRepo(ref.Repo) {
 			continue
 		}
 		seen[ref.Repo] = true

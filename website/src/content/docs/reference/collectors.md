@@ -120,6 +120,10 @@ Images from registries other than the public ones are checked by the agents. So 
 registries (GHCR, Docker Hub, Quay, …): when a registry refuses the server's anonymous check, the repository is
 handed to the agents. **Check upstream now** on the service page tries anonymously again, in case it became public.
 
+A repository goes to the agents whose targets run it, since those have access to it: an agent in one AWS account is
+not asked about another account's ECR. A repository no agent runs (a service watched only for its releases, or run
+where the server collects) goes to every agent.
+
 ### Credentials on the server
 
 The quickest way is **Settings → Private registries**: an admin enters the registry host, a username and a

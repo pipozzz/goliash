@@ -330,7 +330,7 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 	const nginx = "docker.io/library/nginx"
 	l.tags.denied = map[string]bool{nginx: true}
 	repos := func() string {
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -463,7 +463,7 @@ func TestMovingTagThroughAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	lookups := func() []agentproto.DigestLookup {
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -515,7 +515,7 @@ func TestRegistryCredentialsOnServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	agents := func() int {
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -581,5 +581,43 @@ func TestNewerGoliash(t *testing.T) {
 	}
 	if v, _ := l.checker.NewerGoliash(ctx, "dev"); v != "" {
 		t.Fatalf("dev build: %q", v)
+	}
+}
+
+// A private repository goes to the agents whose targets run it, not to an agent elsewhere (another AWS account,
+// whose refusal would overwrite the tags the right agent found); one no agent runs goes to every agent.
+func TestPrivateRepositoriesByAgent(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	runs, _ := l.st.CreateAgent(ctx, l.sc, "runs-payments", "h1")
+	other, _ := l.st.CreateAgent(ctx, l.sc, "elsewhere", "h2")
+	if err := l.st.SetTargetAgent(ctx, l.sc, l.targets["prod-a"].ID, runs.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.st.SetTargetAgent(ctx, l.sc, l.targets["dev-1"].ID, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	l.run(map[string]string{"prod-a": "1.27.2"})
+	watched, _ := l.st.EnsureService(ctx, l.sc, "billing")
+	watched.Upstream = "registry.internal.example/team/billing"
+	if err := l.st.UpdateService(ctx, watched); err != nil {
+		t.Fatal(err)
+	}
+	repos := func(agentID string) string {
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, agentID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, c := range checks {
+			out = append(out, c.Repository)
+		}
+		return strings.Join(out, " ")
+	}
+	if got := repos(runs.ID); got != "registry.internal.example/team/billing registry.internal.example/team/payments" {
+		t.Errorf("the agent running it: %s", got)
+	}
+	if got := repos(other.ID); got != "registry.internal.example/team/billing" {
+		t.Errorf("another agent: %s", got)
 	}
 }
