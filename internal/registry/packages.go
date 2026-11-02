@@ -19,6 +19,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/klauspost/compress/zstd"
+
 	"github.com/pipozzz/goliash/internal/pkgscan"
 )
 
@@ -33,6 +35,7 @@ import (
 const (
 	maxPackagesRead = 1 << 30  // compressed bytes read across an image's layers
 	maxPackageFile  = 64 << 20 // one package database or os-release file
+	maxZstdWindow   = 64 << 20 // the memory a zstd layer may ask for to be decompressed
 )
 
 // ErrNoPackageDatabase means an image has no package database Goliash reads (dpkg, apk, RPM's SQLite one):
@@ -123,7 +126,7 @@ func (f *imageFiles) hidden(name string) bool {
 	return false
 }
 
-// readLayer reads one layer (a gzip or plain tar) for the files not found in a newer one.
+// readLayer reads one layer (a gzip, zstd or plain tar) for the files not found in a newer one.
 func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credentials, fs *imageFiles) error {
 	resp, err := c.request(ctx, http.MethodGet, url, repo, creds, "*/*")
 	if err != nil {
@@ -143,7 +146,12 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 		defer func() { _ = gz.Close() }()
 		r = gz
 	} else if len(magic) == 4 && bytes.Equal(magic, []byte{0x28, 0xb5, 0x2f, 0xfd}) {
-		return errors.New("zstd layers are not read")
+		zr, err := zstd.NewReader(br, zstd.WithDecoderConcurrency(1), zstd.WithDecoderLowmem(true), zstd.WithDecoderMaxWindow(maxZstdWindow))
+		if err != nil {
+			return err
+		}
+		defer zr.Close()
+		r = zr
 	}
 	if fs.seen == nil {
 		fs.seen, fs.dpkgD = map[string]bool{}, map[string][]byte{}

@@ -9,11 +9,14 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 // layer is a gzip tar of files: path -> content ("" with a .wh. name is a whiteout).
@@ -176,5 +179,26 @@ func TestImagePackagesApplication(t *testing.T) {
 		if strings.Contains(got, not) {
 			t.Errorf("read %s: %s", not, got)
 		}
+	}
+}
+
+// A layer compressed with zstd (docker buildx --output compression=zstd) is read as a gzip one.
+func TestImagePackagesZstd(t *testing.T) {
+	gz := layer(t, map[string]string{"etc/os-release": "ID=alpine\nVERSION_ID=3.20.3\n", "lib/apk/db/installed": "P:musl\nV:1.2.5-r0\nA:x86_64\n\n"})
+	zr, err := gzip.NewReader(bytes.NewReader(gz))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw, _ := zstd.NewWriter(&buf)
+	if _, err := io.Copy(zw, zr); err != nil { //nolint:gosec // the test's own small layer
+		t.Fatal(err)
+	}
+	_ = zw.Close()
+	srv := packagesServer(t, buf.Bytes())
+	defer srv.Close()
+	sbom, err := client().ImagePackages(context.Background(), strings.TrimPrefix(srv.URL, "http://")+"/acme/app", "sha256:img", Credentials{})
+	if err != nil || strings.Join(sbom.Purls, " ") != "pkg:apk/alpine/musl@1.2.5-r0?arch=x86_64&os_version=3.20.3" {
+		t.Fatalf("%v %v", sbom.Purls, err)
 	}
 }
