@@ -44,7 +44,7 @@ type Service struct {
 // Upstreams is the version checker as seen by ingest: which private repositories
 // agents should check, and where their results go.
 type Upstreams interface {
-	PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error)
+	PrivateRepositories(ctx context.Context, sc store.Scope, agentID string) ([]agentproto.RegistryCheck, error)
 	RecordPrivateTags(ctx context.Context, sc store.Scope, repo string, tags []string, checkErr string) error
 	RecordDigestMatches(ctx context.Context, sc store.Scope, repo string, matches map[string]string) error
 	RecordInspections(ctx context.Context, sc store.Scope, repo string, found []agentproto.ImageInspection) error
@@ -160,7 +160,7 @@ func (s *Service) Config(ctx context.Context, a store.Agent) (agentproto.AgentCo
 		Targets:                  make([]agentproto.Target, 0, len(targets)),
 	}
 	if s.upstreams != nil {
-		if cfg.Registries, err = s.upstreams.PrivateRepositories(ctx, a.Scope); err != nil {
+		if cfg.Registries, err = s.upstreams.PrivateRepositories(ctx, a.Scope, a.ID); err != nil {
 			return agentproto.AgentConfig{}, "", err
 		}
 		interval := int(RegistryCheckInterval / time.Second)
