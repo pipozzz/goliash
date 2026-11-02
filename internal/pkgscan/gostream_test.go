@@ -6,6 +6,7 @@ package pkgscan
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"slices"
 	"testing"
 )
@@ -59,5 +60,34 @@ func TestGoInSystemDirs(t *testing.T) {
 	app.AddStream("bin/ctr", bytes.NewReader(distro))
 	if got := app.Purls(); !slices.Equal(got, []string{"pkg:golang/stdlib@1.19.8"}) {
 		t.Errorf("got %v", got)
+	}
+}
+
+// A program's own module is kept at the version it was installed at, or, built from a clean git checkout, by
+// its commit, which Resolve turns into the version tagged there.
+func TestGoMainModule(t *testing.T) {
+	const rev = "4b4eaa49b5c93460cac089ed6d87e1c68c29d8d1"
+	clean := "path\tgithub.com/traefik/traefik/v3/cmd/traefik\nmod\tgithub.com/traefik/traefik/v3\t(devel)\t\n" +
+		"build\tvcs=git\nbuild\tvcs.revision=" + rev + "\nbuild\tvcs.modified=false\n"
+	installed := "path\texample.com/tool\nmod\texample.com/tool\tv1.2.3\th1:x=\n"
+	modified := "path\texample.com/app\nmod\texample.com/app\t(devel)\t\nbuild\tvcs=git\nbuild\tvcs.revision=" + rev + "\nbuild\tvcs.modified=true\n"
+	var asked []string
+	s := Scanner{Resolve: func(mod, r string) string {
+		asked = append(asked, mod+"@"+r)
+		return "v3.1.0"
+	}}
+	for i, mods := range []string{clean, installed, modified} {
+		s.AddStream(fmt.Sprintf("usr/local/bin/p%d", i), bytes.NewReader(buildInfo("go1.22.5", mods)))
+	}
+	want := []string{"pkg:golang/example.com/tool@v1.2.3", "pkg:golang/github.com/traefik/traefik/v3@v3.1.0", "pkg:golang/stdlib@1.22.5"}
+	if got := s.Purls(); !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if !slices.Equal(asked, []string{"github.com/traefik/traefik/v3@" + rev}) {
+		t.Errorf("asked %v", asked)
+	}
+	s.Resolve = func(string, string) string { return "" }
+	if got := s.Purls(); slices.Contains(got, "pkg:golang/github.com/traefik/traefik/v3@v3.1.0") {
+		t.Errorf("an unresolved commit listed: %v", got)
 	}
 }

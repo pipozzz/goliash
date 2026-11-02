@@ -507,7 +507,11 @@ func serve(ctx context.Context, args []string) error {
 	}
 
 	svc := ingest.New(db, log)
-	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
+	reg := registry.New()
+	// A Go module proxy, for the version of a Go program built from a release's checkout: asked only about
+	// modules the Go vulnerability database lists, never a company's own. "off" leaves those programs out.
+	reg.GoProxy = registry.GoProxySetting(os.Getenv("GOLIASH_GOPROXY"))
+	checker := versions.NewChecker(db, reg, log, *upstreamEvery)
 	checker.SetGitHub(versions.NewGitHub(os.Getenv("GOLIASH_GITHUB_TOKEN")))
 	checker.SetGitLab(versions.NewGitLab(os.Getenv("GOLIASH_GITLAB_URL"), os.Getenv("GOLIASH_GITLAB_TOKEN")))
 	if *eol {

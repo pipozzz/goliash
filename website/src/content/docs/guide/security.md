@@ -486,13 +486,16 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    (`usr/lib`, `usr/share`, `bin` …) are left out: a Debian `python3-urllib3` is known as Debian's package, with its
    patches, not matched again against PyPI's advisories. Go executables there are still read: a vendor's own
    package (`cloudflared` in `/usr/bin`) carries the modules it was built from, which the distribution knows nothing
-   of; one the distribution built itself has no module list and is left out. Files a later layer deleted (`npm prune`, `rm -rf`) do not
+   of; one the distribution built itself has no module list and is left out. A Go program built from its release's
+   git checkout (Traefik) records its own version only as the commit: Goliash asks the Go module proxy which version
+   is tagged there, for modules the Go vulnerability database lists only, so a company's own module names and
+   commits are never sent (`GOLIASH_GOPROXY` names another proxy, or `off`). Files a later layer deleted (`npm prune`, `rm -rf`) do not
    count. Images up to 1 GB of layers (gzip or plain), two per check, are read once
    per digest; private images are read with the workspace's
    [registry credentials](/reference/collectors/#credentials-on-the-server), or by the agents (1.141 and later)
    for registries only they reach (agents from 1.177 read the application's packages too). Images read before
    1.177 are read again once, for their application packages, and those read before 1.193 once more, for the Go
-   executables in `/usr/bin`.
+   executables in `/usr/bin`; those with a Go executable, read before 1.194, once more for the program's own version.
 
 **.zip Lambda functions** have no image: their agent reads the packages of their code and layers instead
 (npm, PyPI, Maven, Go, RubyGems, NuGet; see [Collectors](/reference/collectors/)), and their vulnerabilities show
