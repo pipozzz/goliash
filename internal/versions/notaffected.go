@@ -62,6 +62,9 @@ func autoNotAffected(a Affected) string {
 			by = a.VEX.Author
 		}
 		return a.Package + ": " + why + ", says " + by + " (VEX)"
+	case a.Distro == DistroNotAffected:
+		name, _ := splitPackage(a.Package)
+		return name + ": this release never had the vulnerable code (Debian security tracker)"
 	case kernelPackage(a.Package):
 		name, _ := splitPackage(a.Package)
 		return name + ": a kernel package in the image; the container runs on its host's kernel, which is patched with the nodes"

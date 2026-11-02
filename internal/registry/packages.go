@@ -158,7 +158,7 @@ func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credenti
 			continue
 		}
 		if fs.apps.IsExecutable(name, h.Mode&0o111 != 0) { // read as it streams by: executables are large
-			fs.apps.AddStream(tr)
+			fs.apps.AddStream(name, tr)
 			fs.seen[name] = true
 			continue
 		}

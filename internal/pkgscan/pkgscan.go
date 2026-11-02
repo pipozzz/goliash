@@ -31,7 +31,10 @@ const (
 type Scanner struct {
 	// System leaves out files under the directories an operating system's package manager owns (usr/lib,
 	// usr/share, bin …): packages a distribution installed there are known as its own, with its patches, and
-	// matching them against upstream advisories too would report what the distribution fixed.
+	// matching them against upstream advisories too would report what the distribution fixed. Go executables
+	// there are still read: a vendor's own package (cloudflared, a Kubernetes tool) puts one in usr/bin with
+	// the modules it was built from, which the distribution knows nothing of. One the distribution built itself
+	// has no module list (GOPATH mode), and is left out.
 	System bool
 
 	found   map[string]bool
@@ -42,17 +45,22 @@ type Scanner struct {
 // systemDirs are where a distribution's packages put files.
 var systemDirs = []string{"usr/lib/", "usr/lib64/", "usr/share/", "usr/bin/", "usr/sbin/", "usr/libexec/", "lib/", "lib64/", "bin/", "sbin/", "etc/"}
 
+func systemFile(name string) bool {
+	for _, d := range systemDirs {
+		if strings.HasPrefix(name, d) {
+			return true
+		}
+	}
+	return false
+}
+
 // Wants says whether a file is one the scanner reads, and up to how many bytes; 0 when it does not want it.
 func (s *Scanner) Wants(name string, size int64, executable bool) int64 {
 	name = strings.TrimPrefix(path.Clean("/"+name), "/")
-	if s.System {
-		for _, d := range systemDirs {
-			if strings.HasPrefix(name, d) {
-				return 0
-			}
-		}
-	}
 	base := path.Base(name)
+	if s.System && systemFile(name) && (!executable || strings.Contains(base, ".") || strings.HasPrefix(name, "etc/")) {
+		return 0
+	}
 	limit := int64(0)
 	switch {
 	case base == "package.json" && strings.Contains(name, "node_modules/"):

@@ -728,6 +728,9 @@ templ serviceSecurity(v ServiceView) {
 								} else {
 									<span class="muted">—</span>
 								}
+								if im.Unsupported != "" {
+									<div class="targets" title={ im.Unsupported }>undercounted: release past its support</div>
+								}
 							</td>
 							<td class="num" data-label="Size">
 								if im.Size > 0 {
@@ -822,6 +825,8 @@ templ serviceSecurity(v ServiceView) {
 										<div class="targets" title={ f.Newer }>{ f.NewerShort }</div>
 									} else if f.UpstreamShort != "" {
 										<div class="targets" title={ f.Upstream }>{ f.UpstreamShort }</div>
+									} else if f.Unassessed {
+										<div class="targets" title="Debian's security tracker has not assessed whether its release is affected">not assessed by Debian yet</div>
 									} else {
 										<div class="targets">no fix yet</div>
 									}

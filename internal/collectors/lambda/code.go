@@ -204,7 +204,7 @@ func zipPackages(zr *zip.Reader) ([]string, error) {
 		exec := path.Base(f.Name) == "bootstrap" || f.Mode()&0o111 != 0
 		if s.IsExecutable(f.Name, exec) {
 			if rc, err := f.Open(); err == nil {
-				s.AddStream(rc)
+				s.AddStream(f.Name, rc)
 				_ = rc.Close()
 			}
 			continue

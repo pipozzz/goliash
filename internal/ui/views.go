@@ -1650,6 +1650,7 @@ type ImageSecurity struct {
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
 	Vulns, Exploited                  int    // known vulnerabilities in it, and how many are exploited in the wild
 	Blind                             string // why its packages are not known, when they are not
+	Unsupported                       string // why its vulnerabilities are undercounted, when they are
 }
 
 // ServiceFinding is one vulnerability in the service's images.
@@ -1661,6 +1662,8 @@ type ServiceFinding struct {
 	Upstream, UpstreamShort string
 	// Newer says which newer release of the image's distribution fixes it, when its own has no fix.
 	Newer, NewerShort string
+	// Unassessed: no fix because the distribution has not assessed it yet.
+	Unassessed bool
 	// NoFix: exploited and no fixed version: it is mitigated instead. Mitigations are those in force for this service,
 	// Places where it still runs without one, and MitigateBy the remediation deadline for that.
 	NoFix       bool

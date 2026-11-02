@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 )
@@ -19,11 +20,8 @@ type ImageSBOM struct {
 	Licenses     map[string]string // purl -> SPDX license expression, for the packages whose license the SBOM names
 	// LicensesRead is false for an SBOM read before licenses were kept.
 	LicensesRead bool
-	// Misread is true when the list held a Go version read from bytes that only looked like a Go binary's build
-	// information (fixed in 1.193); that entry is left out.
-	Misread   bool
-	Error     string
-	FetchedAt time.Time
+	Error        string
+	FetchedAt    time.Time
 	// Source is where the packages came from: "sbom", the image's SBOM attestation, or "packages", its operating
 	// system package database read by Goliash for an image without one.
 	Source string
@@ -67,7 +65,7 @@ func (s *Store) listImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageS
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(purls), &b.Purls)
-		b.Purls, b.Misread = dropMisread(b.Purls)
+		b.Purls = dropMisread(b.Purls)
 		b.LicensesRead = licenses.Valid
 		_ = json.Unmarshal([]byte(licenses.String), &b.Licenses)
 		b.FetchedAt = b.FetchedAt.UTC()
@@ -76,18 +74,13 @@ func (s *Store) listImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageS
 	return out, rows.Err()
 }
 
-// dropMisread leaves out Go versions that are not one ("pkg:golang/stdlib@rServerService...").
-func dropMisread(purls []string) ([]string, bool) {
-	misread := false
-	out := purls[:0]
-	for _, p := range purls {
-		if v, ok := strings.CutPrefix(p, "pkg:golang/stdlib@"); ok && (v == "" || v[0] < '0' || v[0] > '9') {
-			misread = true
-			continue
-		}
-		out = append(out, p)
-	}
-	return out, misread
+// dropMisread leaves out Go versions that are not one ("pkg:golang/stdlib@rServerService..."), read before 1.193
+// from bytes that only looked like a Go executable's build information.
+func dropMisread(purls []string) []string {
+	return slices.DeleteFunc(purls, func(p string) bool {
+		v, ok := strings.CutPrefix(p, "pkg:golang/stdlib@")
+		return ok && (v == "" || v[0] < '0' || v[0] > '9')
+	})
 }
 
 // PackageVulns are the vulnerability IDs OSV knows for a package URL, as of CheckedAt.

@@ -4,6 +4,7 @@
 package versions
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -169,4 +170,30 @@ func newerReleaseFix(purl string, fixes map[string][]string) (NewerRelease, stri
 		current += " (" + debianNames[curName] + ")"
 	}
 	return best, current, true
+}
+
+// unsupportedRelease names the Debian release an image's packages come from when it is past its security support
+// (older than oldstable: its LTS has ended too), "" otherwise.
+func unsupportedRelease(purls []string) string {
+	for _, p := range purls {
+		if !strings.HasPrefix(p, "pkg:deb/debian/") {
+			continue
+		}
+		q, ok := osvPrimary(p)
+		if !ok {
+			continue
+		}
+		major, err := strconv.Atoi(strings.TrimPrefix(q.Package.Ecosystem, "Debian:"))
+		if err != nil {
+			continue
+		}
+		if major < debianStable-1 {
+			if name := debianNames[strconv.Itoa(major)]; name != "" {
+				return "Debian " + strconv.Itoa(major) + " (" + name + ")"
+			}
+			return "Debian " + strconv.Itoa(major)
+		}
+		return ""
+	}
+	return ""
 }

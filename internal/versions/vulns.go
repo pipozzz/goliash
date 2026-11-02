@@ -96,17 +96,13 @@ func NeedsLicenses(b store.ImageSBOM) bool {
 }
 
 // appPackagesFrom is when reading an image without an SBOM started to include the application's packages, not
-// only the operating system's.
+// only the operating system's. Migrations that make every such image be read again set its read time before it.
 var appPackagesFrom = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 
-// goVersionFix is when a Go version stopped being read from bytes that only looked like build information; an
-// agent older than that would misread it again, so an image read since is not read once more.
-var goVersionFix = time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
-
 // NeedsAppPackages reports whether an image's packages were read from its package database before the application's
-// packages were read too (or none were found then), or a Go version was misread: it is read again, once.
+// packages were read too (or none were found then): it is read again, once.
 func NeedsAppPackages(b store.ImageSBOM) bool {
-	return b.Source == "packages" && !b.FetchedAt.IsZero() && (b.FetchedAt.Before(appPackagesFrom) || (b.Misread && b.FetchedAt.Before(goVersionFix)))
+	return b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom)
 }
 
 const (
@@ -216,6 +212,9 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 	}
 	sort.Strings(purls)
+	if err := c.refreshDebianTracker(ctx, purls); err != nil && ctx.Err() == nil {
+		c.log.WarnContext(ctx, "debian security tracker not read", "err", err)
+	}
 	known, err := c.store.PackageVulnsOf(ctx, purls)
 	if err != nil {
 		return err
@@ -288,6 +287,9 @@ type Affected struct {
 	Upstream *UpstreamFix
 	// VEX is what the image's publisher says of it, when its VEX document has a statement.
 	VEX *store.VEXStatement
+	// Distro is what the distribution's security tracker says when OSV may lag behind it: DistroNotAffected
+	// (the release never had the vulnerable code) or DistroUndetermined (not assessed yet).
+	Distro string
 	// Newer is a newer release of the image's distribution that fixes it, when its own has no fix; Current names
 	// the image's own release (Debian 12 (bookworm)).
 	Newer   *NewerRelease
@@ -389,13 +391,16 @@ type VulnReport struct {
 	// FromPackages counts the images without an SBOM whose system packages Goliash read from the image itself.
 	FromPackages int
 	// Blind are the running images whose packages are not known at all: their vulnerabilities are not either.
-	Blind     []BlindImage
-	Packages  int // distinct packages in those SBOMs
-	Unasked   int // packages OSV has not answered for yet
-	Pending   int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
-	Exploited int // findings CISA lists as exploited in the wild
-	Fixable   int // findings with a fixed version for an affected package
-	PastDue   int // exploited findings still running after CISA's due date
+	Blind []BlindImage
+	// Unsupported are the running images on a distribution release past its security support: OSV's data for it
+	// stops with that support, so its count is too low.
+	Unsupported []BlindImage
+	Packages    int // distinct packages in those SBOMs
+	Unasked     int // packages OSV has not answered for yet
+	Pending     int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
+	Exploited   int // findings CISA lists as exploited in the wild
+	Fixable     int // findings with a fixed version for an affected package
+	PastDue     int // exploited findings still running after CISA's due date
 	// NotAffected are the vulnerabilities left out of Findings for a service: people said they do not affect it,
 	// or upstream's version ranges show the version that runs is past the fix.
 	NotAffected []NotAffected
@@ -423,7 +428,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 // vulnTables are the tables the vulnerability report is read from: a kept report is stale once one is written.
 var vulnTables = []string{
 	"instances", "services", "environments", "image_sboms", "osv_packages", "osv_vulns", "known_exploited", "mitigations",
-	"vuln_exceptions", "upstream_cves", "product_releases", "image_vex", "product_vulns", "image_evidence", "tag_resolutions",
+	"vuln_exceptions", "upstream_cves", "product_releases", "image_vex", "product_vulns", "image_evidence", "tag_resolutions", "distro_statuses",
 }
 
 // vulnTTL bounds how long a report is reused, for other processes' writes.
@@ -496,6 +501,10 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
+	distroStatuses, _, err := st.DistroStatuses(ctx, "Debian")
+	if err != nil {
+		return r, err
+	}
 	type use struct {
 		service, env, image, serviceID, envID, key string
 		since                                      time.Time
@@ -517,6 +526,16 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				r.WithSBOM++
 				if b.Source == "packages" {
 					r.FromPackages++
+				}
+				if rel := unsupportedRelease(b.Purls); rel != "" {
+					name := svcName[in.ServiceID]
+					if name == "" {
+						name = in.WorkloadName
+					}
+					r.Unsupported = append(r.Unsupported, BlindImage{
+						Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID],
+						Why: rel + " is past its security support: advisories for it stopped, so vulnerabilities found since are not listed. Move it to a supported release.",
+					})
 				}
 			default:
 				name := svcName[in.ServiceID]
@@ -602,9 +621,11 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				}
 			}
 			ids := append([]string{id}, f.Aliases...)
+			distro := distroStatus(distroStatuses, p, ids)
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
+				a.Distro = distro
 				a.Newer, a.Current = newer, current
 				if i := where.index(f, a); i >= 0 {
 					if f.Affected[i].Fix == "" {
@@ -612,6 +633,9 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					}
 					if f.Affected[i].VEX == nil {
 						f.Affected[i].VEX = a.VEX
+					}
+					if f.Affected[i].Distro == "" {
+						f.Affected[i].Distro = a.Distro
 					}
 					if f.Affected[i].Newer == nil && f.Affected[i].Fix == "" {
 						f.Affected[i].Newer, f.Affected[i].Current = a.Newer, a.Current

@@ -420,7 +420,15 @@ monthly report, grouped by reason, with *Goliash* as who said so:
 - a package past the version upstream fixed it in ([Upstream fixes](#upstream-fixes)): nginx.org's `nginx
   1.27.1-1~bookworm` matched against Debian's advisory for CVE-2023-44487, which nginx fixed in 1.25.3;
 - what the image's publisher rules out in VEX ([below](#vex-from-the-images-publisher));
-- the kernel's packages in a container image ([below](#kernel-packages)).
+- the kernel's packages in a container image ([below](#kernel-packages));
+- what Debian's security tracker says its release never had: OSV copies the tracker, sometimes days late, and may
+  still list such a CVE as affected with no fix (*this release never had the vulnerable code*). CVEs Debian has not
+  assessed yet stay listed, marked *not assessed by Debian yet* instead of *no fix yet*. The tracker's data is read
+  once a day while Debian images run; `GOLIASH_DEBIAN_TRACKER_URL` names a mirror or turns it off.
+
+An image on a Debian release past its security support (Debian 11 since its LTS ended) is flagged as undercounted:
+advisories for it stopped, so a vulnerability found since is not listed for it, however serious. Move it to a
+supported release.
 
 For the rest, when you know a vulnerability does not affect a service, say so instead of leaving it open:
 
@@ -476,12 +484,15 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    `*.dist-info/METADATA`, `pom.properties` in jars, the build information of Go executables (a `scratch` image
    with one Go binary is no longer blind), gemspecs and .NET `*.deps.json`. Directories the distribution owns
    (`usr/lib`, `usr/share`, `bin` …) are left out: a Debian `python3-urllib3` is known as Debian's package, with its
-   patches, not matched again against PyPI's advisories. Files a later layer deleted (`npm prune`, `rm -rf`) do not
+   patches, not matched again against PyPI's advisories. Go executables there are still read: a vendor's own
+   package (`cloudflared` in `/usr/bin`) carries the modules it was built from, which the distribution knows nothing
+   of; one the distribution built itself has no module list and is left out. Files a later layer deleted (`npm prune`, `rm -rf`) do not
    count. Images up to 1 GB of layers (gzip or plain), two per check, are read once
    per digest; private images are read with the workspace's
    [registry credentials](/reference/collectors/#credentials-on-the-server), or by the agents (1.141 and later)
    for registries only they reach (agents from 1.177 read the application's packages too). Images read before
-   1.177 are read again once, for their application packages.
+   1.177 are read again once, for their application packages, and those read before 1.193 once more, for the Go
+   executables in `/usr/bin`.
 
 **.zip Lambda functions** have no image: their agent reads the packages of their code and layers instead
 (npm, PyPI, Maven, Go, RubyGems, NuGet; see [Collectors](/reference/collectors/)), and their vulnerabilities show
