@@ -9,7 +9,7 @@ For each service, Goliash picks an **upstream repository**: the one set on the s
 containers run. It lists that repository's tags and keeps the newest versions the policy accepts as releases.
 
 - **Public registries** are checked by the server: Docker Hub, GHCR, Quay, registry.k8s.io, gcr.io,
-  public.ecr.aws, mcr.microsoft.com, registry.gitlab.com and docker.elastic.co.
+  public.ecr.aws, mcr.microsoft.com, registry.gitlab.com, docker.elastic.co, registry.access.redhat.com and cgr.dev.
 - **Private registries**, and private repositories on the public ones, are checked by the server when an admin
   gives it read access under **Settings → Private registries**, else by the agents with credentials from their own
   environment: a configured credential, `docker login`, or Kubernetes pull secrets. See

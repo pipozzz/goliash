@@ -59,7 +59,7 @@ templ VulnsPage(v VulnsView) {
 		}
 		if len(v.Unsupported) > 0 {
 			<div class="notice pending">
-				{ plural(len(v.Unsupported), "running image is", "running images are") + " on a distribution release past its security support; its advisories stopped with it, so fewer vulnerabilities are listed than there are: " }
+				{ plural(len(v.Unsupported), "running image is", "running images are") + " on an operating system without advisories (a release past its security support, or a distribution OSV does not cover), so fewer vulnerabilities are listed than there are: " }
 				for i, u := range v.Unsupported {
 					if i > 0 {
 						{ ", " }

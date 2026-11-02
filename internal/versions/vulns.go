@@ -392,7 +392,8 @@ type VulnReport struct {
 	FromPackages int
 	// Blind are the running images whose packages are not known at all: their vulnerabilities are not either.
 	Blind []BlindImage
-	// Unsupported are the running images on a distribution release past its security support: OSV's data for it
+	// Unsupported are the running images on a distribution release past its security support, or on one OSV has no
+	// advisories for (Amazon Linux, Fedora): OSV's data for it
 	// stops with that support, so its count is too low.
 	Unsupported []BlindImage
 	Packages    int // distinct packages in those SBOMs
@@ -527,14 +528,14 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				if b.Source == "packages" {
 					r.FromPackages++
 				}
-				if rel := unsupportedRelease(b.Purls); rel != "" {
+				if why := undercounted(b.Purls); why != "" {
 					name := svcName[in.ServiceID]
 					if name == "" {
 						name = in.WorkloadName
 					}
 					r.Unsupported = append(r.Unsupported, BlindImage{
 						Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID],
-						Why: rel + " is past its security support: advisories for it stopped, so vulnerabilities found since are not listed. Move it to a supported release.",
+						Why: why,
 					})
 				}
 			default:
@@ -1035,8 +1036,10 @@ func codeBlindWhy(b store.ImageSBOM) string {
 
 func blindWhy(b store.ImageSBOM) string {
 	switch {
-	case b.Source == "packages" && strings.Contains(b.Error, "no dpkg or apk package database"):
-		return "no SBOM, no dpkg or apk package database and no application manifests (scratch, distroless, RPM-based or built from source)"
+	case b.Source == "packages" && strings.Contains(b.Error, "Berkeley DB"):
+		return "no SBOM, and its RPM database is a Berkeley DB (RHEL 8, Amazon Linux 2 and older), which Goliash does not read"
+	case b.Source == "packages" && (strings.Contains(b.Error, "no dpkg or apk package database") || strings.Contains(b.Error, "no dpkg, apk or RPM package database")):
+		return "no SBOM, no dpkg, apk or RPM package database and no application manifests (scratch, distroless or built from source)"
 	case b.Error != "":
 		return "no SBOM; " + readFailure(b.Error)
 	case b.FetchedAt.IsZero():

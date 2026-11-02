@@ -477,7 +477,12 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    packages and the application's own dependencies (npm, Composer, Maven, Go modules…);
 2. **the image's package database**, when it has no SBOM: Goliash reads the layers, newest first, for
    `/var/lib/dpkg/status` (Debian and Ubuntu; distroless images' `/var/lib/dpkg/status.d`) or
-   `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard), and `/etc/os-release`. An image built `FROM ubuntu:22.04`
+   `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard) or the RPM database `rpmdb.sqlite` (Red Hat UBI 9, Rocky
+   and AlmaLinux 9, Fedora, Amazon Linux 2023), and `/etc/os-release`. Red Hat, Rocky and AlmaLinux packages are
+   checked against their distribution's advisories in OSV, by the full version with its epoch (`1:3.0.7-27.el9`);
+   for Red Hat only advisories with a fix, not the CVEs Red Hat lists as unfixed. OSV has nothing for Fedora and
+   Amazon Linux: their images are flagged as undercounted. Older RPM releases (RHEL 8, Amazon Linux 2) keep a
+   Berkeley DB, which is not read. An image built `FROM ubuntu:22.04`
    with `apt-get install nginx php8.1-fpm` is checked against Ubuntu's own advisories, which know Ubuntu's patched
    builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. The application's own dependencies come
    from their manifests in the same layers: `node_modules/*/package.json` (else `package-lock.json`), Python
@@ -501,8 +506,8 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
 (npm, PyPI, Maven, Go, RubyGems, NuGet; see [Collectors](/reference/collectors/)), and their vulnerabilities show
 under the function like an image's.
 
-What neither covers, Goliash does not know by itself: software built from source or copied into the image, RPM-based
-images (Red Hat, Rocky, Amazon Linux), scratch images. **Declare** what you built into the image with a label, and
+What neither covers, Goliash does not know by itself: software built from source or copied into the image, images
+of RPM releases older than 9, scratch images. **Declare** what you built into the image with a label, and
 Goliash looks up its CVEs in NVD by version, like [the products of known images](#is-it-running):
 
 ```dockerfile

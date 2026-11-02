@@ -172,6 +172,38 @@ func newerReleaseFix(purl string, fixes map[string][]string) (NewerRelease, stri
 	return best, current, true
 }
 
+// undercounted says why an image's operating system packages have fewer vulnerabilities listed than there are,
+// "" when they do not: a Debian release past its security support, or an RPM distribution OSV has no advisories
+// for.
+func undercounted(purls []string) string {
+	if rel := unsupportedRelease(purls); rel != "" {
+		return rel + " is past its security support: advisories for it stopped, so vulnerabilities found since are not listed. Move it to a supported release."
+	}
+	for _, p := range purls {
+		ns, ok := strings.CutPrefix(p, "pkg:rpm/")
+		if !ok {
+			continue
+		}
+		ns, _, _ = strings.Cut(ns, "/")
+		if _, known := rpmEcosystems[strings.ToLower(ns)]; known {
+			return ""
+		}
+		name := rpmDistroNames[strings.ToLower(ns)]
+		if name == "" {
+			name = ns
+		}
+		return "OSV has no advisories for " + name + "'s packages, so their vulnerabilities are not listed (an SBOM from a scanner that knows them, or a Red Hat, Rocky or AlmaLinux base, covers them)."
+	}
+	return ""
+}
+
+// rpmDistroNames are the names of RPM distributions OSV has no advisories for, by package URL namespace.
+var rpmDistroNames = map[string]string{
+	"amzn": "Amazon Linux", "amazon": "Amazon Linux", "fedora": "Fedora", "centos": "CentOS", "ol": "Oracle Linux",
+	"oracle": "Oracle Linux", "opensuse": "openSUSE", "sles": "SUSE", "photon": "Photon OS", "mariner": "CBL-Mariner",
+	"azurelinux": "Azure Linux",
+}
+
 // unsupportedRelease names the Debian release an image's packages come from when it is past its security support
 // (older than oldstable: its LTS has ended too), "" otherwise.
 func unsupportedRelease(purls []string) string {
