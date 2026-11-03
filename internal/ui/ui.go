@@ -3505,6 +3505,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			if i, ok := imageAt[[2]string{a.Env, a.Image}]; ok && a.ServiceID == svc.ID && !counted[i] {
 				counted[i] = true
 				out.Images[i].Vulns++
+				if a.Rebuild != "" {
+					out.Images[i].RebuildFixes++
+				}
 				if f.Exploited != nil {
 					out.Images[i].Exploited++
 				}
@@ -3520,7 +3523,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		var upstream *versions.UpstreamFix
 		var newer *versions.NewerRelease
 		unassessed := false
-		current := ""
+		current, rebuild := "", ""
 		for _, a := range f.Affected {
 			if a.ServiceID != svc.ID {
 				continue
@@ -3544,6 +3547,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 				newer, current = a.Newer, a.Current
 			}
 			unassessed = unassessed || a.Distro == versions.DistroUndetermined
+			if rebuild == "" {
+				rebuild = a.Rebuild
+			}
 		}
 		if len(pkgs) == 0 {
 			continue
@@ -3559,7 +3565,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		sf := ServiceFinding{
 			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),
 			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil, NoFix: f.NoFix(),
-			Unassessed: unassessed,
+			Unassessed: unassessed, Rebuild: rebuild,
 		}
 		if upstream != nil {
 			sf.Upstream, sf.UpstreamShort = upstream.Advice(f.Key), upstream.Short()

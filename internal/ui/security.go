@@ -529,6 +529,7 @@ type PackageUse struct {
 	Newer    *versions.NewerRelease
 	Current  string
 	Distro   string
+	Rebuild  string // the base whose current build fixes it, when every image with it was built on an older one
 }
 
 // ServicePlace is a service in one environment.
@@ -546,7 +547,9 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		if !ok {
 			i = len(out)
 			index[a.Package] = i
-			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current, Distro: a.Distro})
+			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current, Distro: a.Distro, Rebuild: a.Rebuild})
+		} else if out[i].Rebuild != a.Rebuild {
+			out[i].Rebuild = ""
 		}
 		w := ServicePlace{a.Service, a.Env}
 		if !slices.Contains(out[i].Where, w) {

@@ -128,7 +128,10 @@ evidence, Goliash also reads the base's tag (for the same platform, once per che
 Outdated ones show as **Outdated base** on [Image hygiene](/guide/matrix/#image-hygiene), with when the base's current build was
 made (*built on an older node:22-alpine than the one its tag has now (built Oct 2, 14 days ago): rebuild with
 `--pull`*), in the Security page's supply chain, as an **older base** badge on the service's images, and in
-`goliash_image_hygiene_findings{kind="outdated-base"}`. Bases pinned to a digest (`node@sha256:…`) are pinned on
+`goliash_image_hygiene_findings{kind="outdated-base"}`. Goliash also reads the packages of the base's current build and says, for
+each vulnerability, whether it is gone there: *fixed by a rebuild on debian:bookworm-slim* on the vulnerability,
+and *132 fixed by a rebuild with --pull* on the service's image. A rebuild fixes those with no change to the
+Dockerfile, usually the cheapest fix there is. Bases pinned to a digest (`node@sha256:…`) are pinned on
 purpose and left alone. Agents send the layers of private images (agent 1.61); the base itself must be readable by
 the server, as public bases are.
 

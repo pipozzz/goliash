@@ -62,7 +62,7 @@ func (c *Checker) judgeBase(ctx context.Context, ev *store.ImageEvidence, svc st
 	if b == nil {
 		return
 	}
-	ev.BaseImage, ev.BaseStatus, ev.BaseSince = key, "outdated", b.Created
+	ev.BaseImage, ev.BaseStatus, ev.BaseSince, ev.BaseDigest = key, "outdated", b.Created, b.Digest
 	if b.BuiltOn(layers) {
 		ev.BaseStatus = "current"
 	}
@@ -165,6 +165,19 @@ func OutdatedBase(ev store.ImageEvidence) (stale, rebuild string) {
 		return l.Base, l.Image
 	}
 	return ev.BaseImage, ""
+}
+
+// RebuildBase is the base's current build (repository@digest) an image with an outdated base would be built on by
+// a rebuild with --pull: false when its base is current, or the outdated link is further down its chain (the
+// image below has to be rebuilt first).
+func RebuildBase(ev store.ImageEvidence) (string, bool) {
+	if ev.BaseStatus != "outdated" || ev.BaseDigest == "" {
+		return "", false
+	}
+	if _, rebuild := OutdatedBase(ev); rebuild != "" {
+		return "", false
+	}
+	return ParseImage(ev.BaseImage).Repo() + "@" + ev.BaseDigest, true
 }
 
 // StaleLink is the first link of a chain built on an older build of its base: the image to rebuild first.
