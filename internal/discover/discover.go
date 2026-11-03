@@ -67,6 +67,9 @@ type Options struct {
 	AWS AWS
 	// IMDS is the EC2 instance metadata service (default: http://169.254.169.254).
 	IMDS string
+	// GCP is Google Cloud's metadata server (default: http://metadata.google.internal), Azure Azure's instance
+	// metadata service (default: the IMDS address): asked for where the agent runs when it is not on AWS.
+	GCP, Azure string
 }
 
 // AWS is what discovery asks of AWS: who the credentials are (which needs no
@@ -112,6 +115,12 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	}
 	if o.IMDS == "" {
 		o.IMDS = "http://169.254.169.254"
+	}
+	if o.GCP == "" {
+		o.GCP = "http://metadata.google.internal"
+	}
+	if o.Azure == "" {
+		o.Azure = o.IMDS
 	}
 	r := Result{Where: map[string]string{"arch": runtime.GOARCH}}
 	where := func(k, v string) {
@@ -273,6 +282,11 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			instance, awsRegion = &in, in.Region
 		}
 	}
+	if r.Where["cloud"] == "" && o.Env("GOLIASH_CLOUD_METADATA") != "off" {
+		for k, v := range o.otherCloud(ctx) {
+			where(k, v)
+		}
+	}
 	if awsRegion != "" {
 		before := len(r.Notes)
 		o.discoverAWS(ctx, &r, found, nameOr, awsRegion, ownCluster)
@@ -374,6 +388,63 @@ func ecsCluster(ctx context.Context, hc *http.Client, uri string) (arn, zone str
 		return "", "", fmt.Errorf("task metadata names no cluster ARN (%q)", task.Cluster)
 	}
 	return task.Cluster, task.AvailabilityZone, nil
+}
+
+// otherCloud asks Google Cloud's and Azure's metadata services where the agent runs; nothing off those clouds.
+func (o Options) otherCloud(ctx context.Context) map[string]string {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	get := func(url string, header [2]string) []byte {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil
+		}
+		req.Header.Set(header[0], header[1])
+		resp, err := o.HTTP.Do(req)
+		if err != nil {
+			return nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			return nil
+		}
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		return b
+	}
+	google := [2]string{"Metadata-Flavor", "Google"}
+	if project := get(o.GCP+"/computeMetadata/v1/project/project-id", google); len(project) > 0 {
+		out := map[string]string{"cloud": "gcp", "account": strings.TrimSpace(string(project))}
+		zone := path.Base(strings.TrimSpace(string(get(o.GCP+"/computeMetadata/v1/instance/zone", google)))) // projects/1/zones/europe-west1-b
+		if zone != "." && zone != "/" {
+			out["zone"] = zone
+			if i := strings.LastIndex(zone, "-"); i > 0 {
+				out["region"] = zone[:i]
+			}
+		}
+		out["instance"] = strings.TrimSpace(string(get(o.GCP+"/computeMetadata/v1/instance/name", google)))
+		out["instance_type"] = path.Base(strings.TrimSpace(string(get(o.GCP+"/computeMetadata/v1/instance/machine-type", google))))
+		return out
+	}
+	var vm struct {
+		Compute struct {
+			SubscriptionID string `json:"subscriptionId"`
+			Location       string `json:"location"`
+			Zone           string `json:"zone"`
+			Name           string `json:"name"`
+			VMSize         string `json:"vmSize"`
+		} `json:"compute"`
+	}
+	if b := get(o.Azure+"/metadata/instance?api-version=2021-02-01", [2]string{"Metadata", "true"}); len(b) > 0 && json.Unmarshal(b, &vm) == nil && vm.Compute.SubscriptionID != "" {
+		out := map[string]string{
+			"cloud": "azure", "account": vm.Compute.SubscriptionID, "region": vm.Compute.Location,
+			"instance": vm.Compute.Name, "instance_type": vm.Compute.VMSize,
+		}
+		if vm.Compute.Zone != "" {
+			out["zone"] = vm.Compute.Location + "-" + vm.Compute.Zone
+		}
+		return out
+	}
+	return nil
 }
 
 // arnAccount is the account of an ARN (arn:aws:ecs:eu-west-1:123456789012:cluster/prod).
