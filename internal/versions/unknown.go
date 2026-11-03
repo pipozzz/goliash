@@ -50,6 +50,14 @@ func WhyUnknown(o Overview, serviceID string) (Unknown, bool) {
 			Fix:    "Deploy a version tag. A moving tag is resolved when the registry also lists the same image under a version tag.",
 		}, true
 	}
+	if o.CheckErrs[serviceID] == BuiltLocally {
+		return Unknown{
+			Short:  "built locally",
+			Reason: fmt.Sprintf("%s is no image on Docker Hub: no official image has that name, so it was built where it runs, not pulled from a registry.", strings.TrimPrefix(ref.Repo, "docker.io/library/")),
+			Fix:    "If its releases are published to a registry, set that repository as the service's upstream; otherwise there is no newer release to compare with.",
+			Where:  "upstream",
+		}, true
+	}
 	if msg := o.CheckErrs[serviceID]; msg != "" {
 		u := Unknown{Short: "check failed", Reason: "The last look at " + ref.Repo + " failed: " + msg + "."}
 		low := strings.ToLower(msg)

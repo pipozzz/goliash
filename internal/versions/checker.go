@@ -291,7 +291,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 		}
 		tags, err := c.listTags(ctx, sc, ref.Repo, st.auth)
 		if err != nil {
-			if c.handOver(ctx, sc, st.byID[id], ref.Repo, st.auth, err) {
+			if c.builtLocally(ctx, sc, st.byID[id], ref.Repo, err) || c.handOver(ctx, sc, st.byID[id], ref.Repo, st.auth, err) {
 				continue
 			}
 			c.log.WarnContext(ctx, "upstream check failed", "service", st.byID[id].Name, "repo", ref.Repo, "err", err)
@@ -787,6 +787,9 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	svc := st.byID[serviceID]
 	tags, err := c.listTags(ctx, sc, ref.Repo, st.auth)
 	if err != nil {
+		if c.builtLocally(ctx, sc, svc, ref.Repo, err) {
+			return errors.New(BuiltLocally)
+		}
 		if c.handOver(ctx, sc, svc, ref.Repo, st.auth, err) {
 			return fmt.Errorf("%s: %w", ref.Repo, ErrNeedsCredentials)
 		}
@@ -816,7 +819,30 @@ func serverChecks(svc store.Service, repo string, auth RegistryAuth) bool {
 	if _, ok := auth.For(repo); ok {
 		return true
 	}
-	return IsPublicRegistry(repo) && svc.PrivateUpstream != repo
+	// Docker Hub's library is official images only, all public: one handed to the agents before is the server's again.
+	return IsPublicRegistry(repo) && (svc.PrivateUpstream != repo || libraryRepo(repo))
+}
+
+// BuiltLocally is the upstream error of an image named like an official Docker Hub image that Docker Hub does not
+// have: built where it runs (docker build, docker compose build), never pulled from a registry.
+const BuiltLocally = "no official image on Docker Hub has this name: built where it runs, not pulled from a registry"
+
+// libraryRepo reports whether repo is in Docker Hub's library of official images: a short name, "nginx".
+func libraryRepo(repo string) bool { return strings.HasPrefix(repo, "docker.io/library/") }
+
+// builtLocally records a library repository Docker Hub refused anonymously as built where it runs, rather than
+// handing it to the agents as private: the library has no private images, so there is nothing to read anywhere.
+func (c *Checker) builtLocally(ctx context.Context, sc store.Scope, svc store.Service, repo string, err error) bool {
+	if !libraryRepo(repo) || !errors.Is(err, registry.ErrUnauthorized) && !errors.Is(err, registry.ErrNotFound) {
+		return false
+	}
+	if svc.PrivateUpstream == repo {
+		if err := c.store.SetPrivateUpstream(ctx, sc, svc.ID, ""); err != nil {
+			c.log.WarnContext(ctx, "clear private upstream", "service", svc.Name, "err", err)
+		}
+	}
+	_ = c.store.RecordUpstreamCheck(ctx, sc, svc.ID, BuiltLocally)
+	return true
 }
 
 // aliasProbeTTL is how long the answer to whether a registry host is an alias holds.
