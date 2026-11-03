@@ -848,6 +848,9 @@ templ serviceSecurity(v ServiceView) {
 				<div class="panel-body"><a href={ templ.URL("/security/vulns?env=all&q=" + v.Name) }>{ plural(sec.More, "more", "more") } →</a></div>
 			}
 		}
+		if len(sec.Resolved) > 0 {
+			@resolvedPanel(sec.Resolved)
+		}
 		if len(sec.NotAffected) > 0 {
 			<div class="panel-body" style="border-top:1px solid var(--line)">
 				<h3>Not affected</h3>
@@ -1103,4 +1106,78 @@ templ notAffectedForm(service, cve string) {
 			<div><button type="submit">Mark not affected</button></div>
 		</form>
 	</details>
+}
+
+// resolvedPanel says what the last deploy of the service in each environment closed: fixed (its package at a
+// version without it), removed (with its package) or only no longer seen (the new image's packages not known yet).
+templ resolvedPanel(rs []versions.Resolution) {
+	<div class="panel-body resolved" style="border-top:1px solid var(--line)">
+		<h3>Closed by deploys</h3>
+		for _, r := range rs {
+			<div class="resolved-deploy">
+				<p>
+					<strong>{ r.Env }</strong>
+					<span class="muted">{ " · " + r.From + " → " + r.To + " · " }</span>
+					@timeAgo(r.At)
+				</p>
+				<p class="resolved-counts">
+					if len(r.Fixed) > 0 {
+						<span class="badge ok" title="Its package is at a version without it">{ itoa(len(r.Fixed)) + " fixed" }</span>
+					}
+					if len(r.Removed) > 0 {
+						<span class="badge ok" title="Its package is no longer in the image">{ itoa(len(r.Removed)) + " removed" }</span>
+					}
+					if len(r.Unverified) > 0 {
+						<span class="badge warn" title="Not seen in the new image, whose packages (or OSV's answers for them) are not known yet: no longer detected, not verified">{ itoa(len(r.Unverified)) + " not verified" }</span>
+					}
+					if r.Still > 0 {
+						<span class="muted">{ itoa(r.Still) + " still there" }</span>
+					}
+				</p>
+				<details>
+					<summary>Which</summary>
+					<div class="scroll" tabindex="0">
+						<table class="cards">
+							<thead><tr><th>Vulnerability</th><th>Package</th><th>Before</th><th>Now</th></tr></thead>
+							<tbody>
+								for _, v := range r.Fixed {
+									@resolvedRow(v, "fixed")
+								}
+								for _, v := range r.Removed {
+									@resolvedRow(v, "removed")
+								}
+								for _, v := range r.Unverified {
+									@resolvedRow(v, "not verified")
+								}
+							</tbody>
+						</table>
+					</div>
+				</details>
+			</div>
+		}
+	</div>
+}
+
+templ resolvedRow(v versions.ResolvedVuln, how string) {
+	<tr>
+		<td>
+			<strong>{ v.CVE }</strong>
+			if v.Exploited {
+				<span class="badge exploited">exploited</span>
+			}
+			if v.Severity != "" {
+				<span class="muted">{ strings.ToLower(v.Severity) }</span>
+			}
+		</td>
+		<td data-label="Package"><code>{ v.Package }</code></td>
+		<td data-label="Before"><code>{ v.From }</code></td>
+		<td data-label="Now">
+			if v.To != "" {
+				<code>{ v.To }</code>
+			} else {
+				<span class="muted">gone</span>
+			}
+			<div class="targets">{ how }</div>
+		</td>
+	</tr>
 }
