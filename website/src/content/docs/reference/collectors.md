@@ -175,8 +175,9 @@ Credentials never leave the agent.
 ## Linux servers
 
 A server or virtual machine outside containers: the agent reads its operating system from `/etc/os-release` and
-its packages from the dpkg (Debian, Ubuntu) or apk (Alpine) database. It only reads files and runs nothing on the
-host. RPM-based systems report the operating system only, for now.
+its packages from the dpkg (Debian, Ubuntu), apk (Alpine) or RPM database (`rpmdb.sqlite`: RHEL, Rocky and
+AlmaLinux 9, Fedora, Amazon Linux 2023). It only reads files and runs nothing on the host. Older RPM releases (RHEL 8,
+Amazon Linux 2) keep a Berkeley DB and report the operating system only.
 
 ```sh
 docker run -d --name goliash-agent --restart unless-stopped \
