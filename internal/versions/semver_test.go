@@ -18,6 +18,8 @@ func TestParseVersion(t *testing.T) {
 		"1.27.2-bookworm":  {Parts: []int{1, 27, 2}, Variant: "bookworm"},
 		"7":                {Parts: []int{7}},
 		"1.2.3.4":          {Parts: []int{1, 2, 3, 4}},
+		"v0.63.x":          {Parts: []int{0, 63}}, // a release line, as Metabase tags it
+		"2.x-alpine":       {Parts: []int{2}, Variant: "alpine"},
 	}
 	for in, want := range cases {
 		got, ok := ParseVersion(in)
@@ -31,7 +33,13 @@ func TestParseVersion(t *testing.T) {
 			}
 		}
 	}
-	for _, bad := range []string{"latest", "stable", "sha-1a2b3c", "main", "20240101", "sha256-abc.sig", ""} {
+	if !IsMoving("v0.63.x") || !IsMoving("v0.63.22.x") || IsMoving("v0.63.22.3") {
+		t.Error("a .x tag is a moving one")
+	}
+	if got := movingCandidates("v0.63.x", []string{"v0.64.x", "v0.63.x", "v0.63.22.x", "v0.63.22.3", "v0.63.22.2", "v0.62.9"}, 8); strings.Join(got, " ") != "v0.63.22.3 v0.63.22.2" {
+		t.Errorf("candidates for v0.63.x: %v", got)
+	}
+	for _, bad := range []string{"latest", "stable", "sha-1a2b3c", "main", "20240101", "sha256-abc.sig", "", "x", "1.y"} {
 		if _, ok := ParseVersion(bad); ok {
 			t.Errorf("%q parsed as a version", bad)
 		}

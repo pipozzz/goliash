@@ -44,7 +44,7 @@ const (
 // IsMoving reports whether tag names a line of releases rather than one release.
 func IsMoving(tag string) bool {
 	v, ok := ParseVersion(tag)
-	return !ok || (len(v.Parts) < 3 && v.Pre == "")
+	return !ok || v.Line || (len(v.Parts) < 3 && v.Pre == "")
 }
 
 // movingCandidates lists the tags tag may stand for, newest and most specific first:
@@ -56,7 +56,7 @@ func movingCandidates(tag string, tags []string, limit int) []string {
 	var vs []Version
 	for _, t := range tags {
 		v, ok := ParseVersion(t)
-		if !ok || v.Pre != "" || t == tag {
+		if !ok || v.Pre != "" || v.Line || t == tag {
 			continue
 		}
 		if isVersion {
