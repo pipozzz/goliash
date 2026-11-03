@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -21,6 +22,8 @@ const (
 	releasesPerRepo = 3              // release images read per repository: the most urgent upgrades first
 	releasesPerRun  = 2              // release images the server reads per workspace and run (layers are big)
 	releaseReread   = 24 * time.Hour // how long a release tag's digest is trusted before it is read again
+	requestTTL      = 24 * time.Hour // how long a check asked for keeps being tried
+	checkedKeep     = 14 * 24 * time.Hour
 )
 
 // releaseTarget is a version an upgrade would move a service to, in its repository, that runs nowhere yet.
@@ -62,9 +65,18 @@ func (c *Checker) releasesToRead(ctx context.Context, sc store.Scope, active []s
 	}
 	now := c.now()
 	out := map[string][]string{}
+	// Images someone asked to check come first, in a steady order: the agents' configuration changes only when it does.
+	for _, r := range have {
+		if r.Digest == "" && now.Sub(r.ReadAt) < requestTTL {
+			out[r.Repo] = append(out[r.Repo], r.Tag)
+		}
+	}
+	for repo := range out {
+		sort.Strings(out[repo])
+	}
 	for _, t := range releaseTargets(o, active, now) {
-		if r, ok := have[t.repo+":"+t.tag]; ok && now.Sub(r.ReadAt) < releaseReread {
-			continue
+		if r, ok := have[t.repo+":"+t.tag]; ok && (r.Digest == "" || now.Sub(r.ReadAt) < releaseReread) {
+			continue // asked for above, or read lately
 		}
 		if !slices.Contains(out[t.repo], t.tag) {
 			out[t.repo] = append(out[t.repo], t.tag)
@@ -138,7 +150,12 @@ func releaseKeys(ctx context.Context, st *store.Store, sc store.Scope, active []
 	}
 	out := map[string]bool{}
 	for _, t := range releaseTargets(o, active, now) {
-		if r, ok := have[t.repo+":"+t.tag]; ok {
+		if r, ok := have[t.repo+":"+t.tag]; ok && r.Digest != "" {
+			out[r.Repo+"@"+r.Digest] = true
+		}
+	}
+	for _, r := range have { // and the images checked lately
+		if r.Digest != "" && now.Sub(r.ReadAt) < checkedKeep {
 			out[r.Repo+"@"+r.Digest] = true
 		}
 	}

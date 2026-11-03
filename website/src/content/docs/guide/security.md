@@ -250,6 +250,13 @@ A cell of the matrix whose running image has a vulnerability exploited in the wi
 A notification rule with the `vulnerability` event announces each exploited or critical vulnerability as it starts
 running ([Notifications](../notifications/#vulnerabilities)).
 
+**Check an image before it runs.** Type an image with its tag in the vulnerabilities page's search
+(`123456789012.dkr.ecr.eu-central-1.amazonaws.com/api:6.0.241`): Goliash reads it from its registry even when it
+runs nowhere (the server for registries it reads, an agent from 1.203 for the private ones it checks), asks OSV about
+its packages and says which exploited vulnerabilities it has, and, against each version of the repository that
+runs, which it fixes and which it keeps. The panel looks again by itself until the answer is there, usually within a
+few minutes.
+
 **Export CSV** on the vulnerabilities page downloads what it shows (all of it, not only the first 300), one row per
 vulnerability and affected image, with CISA's exploited flag and due date, whether it is past due, the fix and since
 when it runs there: for an audit, or to import into a ticket system. `GET /api/v1/vulnerabilities?format=csv` gives

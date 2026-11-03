@@ -237,8 +237,8 @@ func TestVulnsPerImage(t *testing.T) {
 	if !strings.Contains(page, ">"+prod.Name+" (v2.1.1)<") {
 		t.Error("the vulnerability does not say which version has it")
 	}
-	if _, list := get(t, viewer, e.srv.URL+"/security/vulns?env=all&q="+repo+":v2.3", nil); strings.Contains(list, "CVE-2026-111497") {
-		t.Error("the image's link lists another image's vulnerability")
+	if _, list := get(t, viewer, e.srv.URL+"/security/vulns?env=all&q="+repo+":v2.3", nil); strings.Contains(list, "<strong>CVE-2026-111497</strong>") || !strings.Contains(list, "fixes exploited CVE-2026-111497") {
+		t.Error("the image's link lists another image's vulnerability, or does not say it fixes it")
 	}
 }
 
