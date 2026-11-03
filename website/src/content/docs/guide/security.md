@@ -578,6 +578,20 @@ goliash licenses -environment prod -fail-on network-copyleft,source-available
 package in the [CycloneDX inventory](../sbom/). Goliash reads licenses as the SBOMs declare them: it is a map, not
 legal advice.
 
+## Closed by deploys
+
+A vulnerability that no longer shows after a deploy is not always fixed: the new image may not be read yet. On the
+service's page, **Closed by deploys** compares, for the last deploy in each environment in the last 90 days, the
+packages of the image it replaced with those of the new one:
+
+- **fixed**: its package is in the new image at a version without it (`libbrotli1 1.0.9-2+b6 → 1.0.9-2+deb12u1`);
+- **removed**: its package is no longer in the image;
+- **not verified**: it is not seen in the new image, whose packages (or OSV's answer for their versions) are not
+  known yet: no longer detected, but not confirmed;
+- **still there**: counted, and listed with the service's vulnerabilities as before.
+
+Exploited ones come first.
+
 ## Time to patch, and patching by team
 
 Every upgrade deployed to production closes an exposure: from when the first release after the old version came out

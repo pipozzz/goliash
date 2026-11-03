@@ -1636,8 +1636,12 @@ type ServiceSecurity struct {
 	Findings         []ServiceFinding
 	Total, Exploited int
 	WithSBOM, More   int
-	NotAffected      []NotAffectedView // vulnerabilities people said do not affect it
+	NotAffected      []NotAffectedView     // vulnerabilities people said do not affect it
+	Resolved         []versions.Resolution // what its last deploy in each environment closed, in the last 90 days
 }
+
+// resolvedDays is how far back the service page looks for what deploys closed.
+const resolvedDays = 90
 
 // NotAffectedView is a vulnerability left out for a service, and why.
 type NotAffectedView struct {

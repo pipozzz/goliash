@@ -3459,6 +3459,13 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	if len(out.Images) == 0 {
 		return out, nil
 	}
+	if res, err := versions.Resolutions(ctx, s.store, sc, time.Now().AddDate(0, 0, -resolvedDays)); err == nil {
+		for _, r := range res {
+			if r.ServiceID == svc.ID {
+				out.Resolved = append(out.Resolved, r)
+			}
+		}
+	}
 	rep, err := versions.LoadVulnReport(ctx, s.store, sc, "")
 	if err != nil {
 		return out, nil // the evidence is still worth showing

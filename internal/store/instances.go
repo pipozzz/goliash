@@ -105,6 +105,12 @@ func (s *Store) ListTargetInstances(ctx context.Context, sc Scope, targetID stri
 		sc.OrgID, sc.WorkspaceID, targetID)
 }
 
+// ListRemovedInstances returns the instances of services removed since since: what deploys replaced.
+func (s *Store) ListRemovedInstances(ctx context.Context, sc Scope, since time.Time) ([]Instance, error) {
+	return s.listInstances(ctx, `WHERE org_id = ? AND workspace_id = ? AND removed_at IS NOT NULL AND removed_at >= ? AND service_id IS NOT NULL
+		ORDER BY removed_at`, sc.OrgID, sc.WorkspaceID, since.UTC())
+}
+
 // ListActiveInstances returns the instances present in each target's latest snapshot.
 func (s *Store) listActiveInstances(ctx context.Context, sc Scope) ([]Instance, error) {
 	return s.listInstances(ctx, `WHERE org_id = ? AND workspace_id = ? AND removed_at IS NULL ORDER BY workload_name, container_name`,
