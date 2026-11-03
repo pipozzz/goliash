@@ -110,7 +110,7 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 	if err != nil {
 		return err
 	}
-	updates := versions.LoadUpdates(ctx, n.store, sc, o, acks, now)
+	updates := versions.LoadWork(ctx, n.store, sc, o, acks, now)
 	apps, err := versions.ServiceApps(ctx, n.store, sc)
 	if err != nil {
 		return err
@@ -183,7 +183,7 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 		return 0, err
 	}
 	msg := Message{Workspace: rt.workspace, Digest: true, Link: n.link}
-	for _, u := range versions.LoadUpdates(ctx, n.store, sc, o, acks, now) {
+	for _, u := range versions.LoadWork(ctx, n.store, sc, o, acks, now) {
 		if u.Acked {
 			continue
 		}
@@ -238,6 +238,9 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 		From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
 	}
 	it.Text = Describe(it)
+	if u.Target == "" && u.Remedy != "" {
+		it.Text += "; no newer release known, fix: " + u.Remedy
+	}
 	if n := len(u.Vulns.Fixed); n > 0 {
 		it.Text += "; fixes " + plural(n, "known vulnerability", "known vulnerabilities")
 		if x := versions.Exploited(u.Vulns.Fixed); x > 0 {
