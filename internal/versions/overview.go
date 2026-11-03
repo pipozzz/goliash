@@ -31,6 +31,8 @@ type Overview struct {
 	// Stale lists targets whose data may be out of date (agent silent, or no recent
 	// snapshot), with their last snapshot time.
 	Stale map[string]time.Time
+	// Where is where each target is (TargetWhere), by target ID.
+	Where map[string]map[string]string
 	// ReleaseURL maps service ID + "|" + version to its release notes link.
 	ReleaseURL map[string]string
 	// ReleaseSecurity maps service ID + "|" + version to the security fixes that release names.
@@ -133,11 +135,15 @@ func loadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		return o, err
 	}
 	agentStale := map[string]bool{}
+	agentWhere := map[string]map[string]string{}
 	for _, a := range agents {
 		agentStale[a.ID] = !a.StaleSince.IsZero()
+		agentWhere[a.ID] = a.Where
 	}
 	now := time.Now()
+	o.Where = make(map[string]map[string]string, len(o.Targets))
 	for _, t := range o.Targets {
+		o.Where[t.ID] = TargetWhere(t, agentWhere[t.AgentID])
 		if StaleTarget(t, agentStale[t.AgentID], now) {
 			o.Stale[t.ID] = t.LastSnapshotAt
 		}

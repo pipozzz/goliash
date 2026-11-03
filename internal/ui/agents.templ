@@ -43,7 +43,12 @@ templ AgentsPage(v AgentsView) {
 											<span class="badge outdated">update available</span>
 										}
 									</td>
-									<td class="mono">{ orDash(a.Hostname) }</td>
+									<td class="mono">
+										{ orDash(a.Hostname) }
+										if w := whereShort(a.Where); w != "" {
+											<div class="targets">{ w }</div>
+										}
+									</td>
 									<td>
 										<span title={ "Can collect: " + a.Platforms }>{ orDash(a.Collects) }</span>
 										if a.Found > 0 {

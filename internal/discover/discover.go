@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -46,6 +47,9 @@ type Result struct {
 	Targets []agentproto.DeclaredTarget
 	// Notes explain platforms that looked present but could not be used.
 	Notes []string
+	// Where is where the agent runs, as Goliash shows it and filters by: cloud, account, region, zone, instance,
+	// instance_type, cluster, os, kernel and arch, those it could tell.
+	Where map[string]string
 }
 
 // Env reads the environment; os.Getenv in production.
@@ -109,7 +113,12 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if o.IMDS == "" {
 		o.IMDS = "http://169.254.169.254"
 	}
-	var r Result
+	r := Result{Where: map[string]string{"arch": runtime.GOARCH}}
+	where := func(k, v string) {
+		if v = strings.TrimSpace(v); v != "" && r.Where[k] == "" {
+			r.Where[k] = v
+		}
+	}
 	found := func(identity, name string, t agentproto.DeclaredTarget) {
 		if r.Identity == "" {
 			r.Identity, r.Name = identity, name
@@ -127,6 +136,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	// Kubernetes: in-cluster service account. The cluster CA tells clusters apart.
 	if o.Env("KUBERNETES_SERVICE_HOST") != "" {
 		if ca, err := o.ReadFile(kubernetesCA); err == nil {
+			where("platform", "kubernetes")
 			name := nameOr("kubernetes")
 			found("kubernetes:"+shortHash(ca), name, agentproto.DeclaredTarget{
 				Platform: agentproto.Kubernetes, Name: name, Kubernetes: &agentproto.KubernetesSettings{
@@ -170,6 +180,8 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	}
 	if host != "" {
 		if info, err := dockerInfo(ctx, host); err == nil {
+			where("os", info.OperatingSystem)
+			where("kernel", info.KernelVersion)
 			hostName := info.Name
 			if hostName == "" {
 				hostName, _ = o.Hostname()
@@ -193,6 +205,9 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	// "/" for an agent installed on the host itself.
 	if root := o.Env("GOLIASH_HOST_ROOT"); root != "" {
 		if o.Exists(path.Join(root, "etc", "os-release")) {
+			if b, err := o.ReadFile(path.Join(root, "etc", "os-release")); err == nil {
+				where("os", osName(b))
+			}
 			name := ""
 			if b, err := o.ReadFile(path.Join(root, "etc", "hostname")); err == nil {
 				name = strings.TrimSpace(string(b))
@@ -224,17 +239,32 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	}
 	ownCluster := ""
 	if uri := o.Env("ECS_CONTAINER_METADATA_URI_V4"); uri != "" {
-		if arn, err := ecsCluster(ctx, o.HTTP, uri); err == nil {
+		if arn, zone, err := ecsCluster(ctx, o.HTTP, uri); err == nil {
 			ownCluster = arn
-			awsRegion, _ = arnParts(arn)
+			var cluster string
+			awsRegion, cluster = arnParts(arn)
+			where("cloud", "aws")
+			where("account", arnAccount(arn))
+			where("region", awsRegion)
+			where("zone", zone)
+			where("cluster", cluster)
 		} else {
 			r.Notes = append(r.Notes, "ecs: "+err.Error())
 		}
 	}
 	var instance *ec2Instance
-	if awsRegion == "" && o.Env("GOLIASH_AWS") != "off" {
+	if o.Env("GOLIASH_AWS") != "off" && ownCluster == "" {
+		// The instance the agent runs on, for where it runs, and for its region when nothing else says it.
 		in, err := o.ec2(ctx)
+		if in.ID != "" {
+			where("cloud", "aws")
+			where("region", in.Region)
+			where("zone", in.Zone)
+			where("instance", in.ID)
+			where("instance_type", in.Type)
+		}
 		switch {
+		case awsRegion != "":
 		case err != nil:
 			r.Notes = append(r.Notes, "aws ec2: "+err.Error())
 		case in.Region != "" && in.Role == "":
@@ -281,9 +311,11 @@ func shortHash(b []byte) string {
 }
 
 type info struct {
-	ID    string
-	Name  string
-	Swarm struct {
+	ID              string
+	Name            string
+	OperatingSystem string // of the host the engine runs on: Ubuntu 24.04.1 LTS
+	KernelVersion   string
+	Swarm           struct {
 		LocalNodeState   string
 		ControlAvailable bool
 		Cluster          struct{ ID string }
@@ -320,31 +352,54 @@ func dockerInfo(ctx context.Context, host string) (info, error) {
 	return in, nil
 }
 
-func ecsCluster(ctx context.Context, hc *http.Client, uri string) (string, error) {
+// ecsCluster reads the agent's ECS task metadata: its cluster's ARN and the availability zone it runs in.
+func ecsCluster(ctx context.Context, hc *http.Client, uri string) (arn, zone string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSuffix(uri, "/")+"/task", nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("task metadata: %d", resp.StatusCode)
+		return "", "", fmt.Errorf("task metadata: %d", resp.StatusCode)
 	}
-	var task struct{ Cluster string }
+	var task struct{ Cluster, AvailabilityZone string }
 	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
-		return "", fmt.Errorf("task metadata: %w", err)
+		return "", "", fmt.Errorf("task metadata: %w", err)
 	}
 	if !strings.HasPrefix(task.Cluster, "arn:") {
-		return "", fmt.Errorf("task metadata names no cluster ARN (%q)", task.Cluster)
+		return "", "", fmt.Errorf("task metadata names no cluster ARN (%q)", task.Cluster)
 	}
-	return task.Cluster, nil
+	return task.Cluster, task.AvailabilityZone, nil
+}
+
+// arnAccount is the account of an ARN (arn:aws:ecs:eu-west-1:123456789012:cluster/prod).
+func arnAccount(arn string) string {
+	if parts := strings.SplitN(arn, ":", 6); len(parts) == 6 {
+		return parts[4]
+	}
+	return ""
+}
+
+// osName is the operating system an os-release file names: PRETTY_NAME, else ID and VERSION_ID.
+func osName(b []byte) string {
+	kv := map[string]string{}
+	for _, line := range strings.Split(string(b), "\n") {
+		if k, v, ok := strings.Cut(strings.TrimSpace(line), "="); ok {
+			kv[k] = strings.Trim(v, `"'`)
+		}
+	}
+	if kv["PRETTY_NAME"] != "" {
+		return kv["PRETTY_NAME"]
+	}
+	return strings.TrimSpace(kv["ID"] + " " + kv["VERSION_ID"])
 }
 
 // ec2Instance is the EC2 instance the agent runs on.
-type ec2Instance struct{ ID, Region, Role string }
+type ec2Instance struct{ ID, Region, Zone, Type, Role string }
 
 // ec2 asks the instance metadata service which instance, region and IAM role the agent runs on. Off EC2 it
 // returns an empty instance; on EC2 where the token request goes unanswered (a container behind a hop limit
@@ -393,6 +448,12 @@ func (o Options) ec2(ctx context.Context) (ec2Instance, error) {
 	if code, region := get(token, "placement/region"); code == http.StatusOK {
 		in.Region = region
 	}
+	if code, zone := get(token, "placement/availability-zone"); code == http.StatusOK {
+		in.Zone = zone
+	}
+	if code, typ := get(token, "instance-type"); code == http.StatusOK {
+		in.Type = typ
+	}
 	if code, roles := get(token, "iam/security-credentials/"); code == http.StatusOK {
 		in.Role, _, _ = strings.Cut(roles, "\n")
 	}
@@ -424,6 +485,11 @@ func (o Options) discoverAWS(ctx context.Context, r *Result, found func(string, 
 	if err != nil {
 		r.Notes = append(r.Notes, "aws: "+err.Error())
 		return
+	}
+	for k, v := range map[string]string{"cloud": "aws", "account": account, "region": home} {
+		if r.Where[k] == "" {
+			r.Where[k] = v
+		}
 	}
 	identity, agentName := "aws:"+account+"/"+home, nameOr("aws-"+home)
 	if ownCluster != "" {

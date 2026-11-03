@@ -263,6 +263,10 @@ func TestEC2(t *testing.T) {
 			_, _ = w.Write([]byte("i-0abc"))
 		case "placement/region":
 			_, _ = w.Write([]byte("eu-central-1"))
+		case "placement/availability-zone":
+			_, _ = w.Write([]byte("eu-central-1b"))
+		case "instance-type":
+			_, _ = w.Write([]byte("t3.medium"))
 		case "iam/security-credentials/":
 			if role == "" {
 				http.NotFound(w, r)
@@ -281,6 +285,10 @@ func TestEC2(t *testing.T) {
 	if err != nil || r.Identity != "aws:123456789012/eu-central-1" || !strings.Contains(names(r.Targets), "rds rds-eu-central-1") ||
 		!slices.Contains(r.Notes, "aws ec2: instance i-0abc in eu-central-1, role dev-vpn-gw") {
 		t.Fatalf("ec2: %+v %v", r, err)
+	}
+	if w := r.Where; w["cloud"] != "aws" || w["account"] != "123456789012" || w["region"] != "eu-central-1" || w["zone"] != "eu-central-1b" ||
+		w["instance"] != "i-0abc" || w["instance_type"] != "t3.medium" || w["arch"] == "" {
+		t.Fatalf("where: %v", w)
 	}
 
 	// No role: nothing to ask AWS with.
@@ -306,7 +314,10 @@ func TestEC2(t *testing.T) {
 
 func TestHost(t *testing.T) {
 	o := opts(map[string]string{"GOLIASH_HOST_ROOT": "/host"})
-	files := map[string]string{"/host/etc/hostname": "db-vm-1\n", "/host/etc/machine-id": "abc123\n"}
+	files := map[string]string{
+		"/host/etc/hostname": "db-vm-1\n", "/host/etc/machine-id": "abc123\n",
+		"/host/etc/os-release": "ID=rocky\nVERSION_ID=\"9.3\"\nPRETTY_NAME=\"Rocky Linux 9.3 (Blue Onyx)\"\n",
+	}
 	o.Exists = func(p string) bool { return p == "/host/etc/os-release" }
 	o.ReadFile = func(p string) ([]byte, error) {
 		if b, ok := files[p]; ok {
@@ -318,7 +329,7 @@ func TestHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Identity != "host:abc123" || r.Name != "db-vm-1" || len(r.Targets) != 1 {
+	if r.Identity != "host:abc123" || r.Name != "db-vm-1" || len(r.Targets) != 1 || r.Where["os"] != "Rocky Linux 9.3 (Blue Onyx)" {
 		t.Fatalf("result %+v", r)
 	}
 	if tg := r.Targets[0]; tg.Platform != agentproto.Host || tg.Host == nil || *tg.Host.Root != "/host" {

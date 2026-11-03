@@ -49,7 +49,7 @@ templ MatrixPage(v MatrixView) {
 					</nav>
 				}
 				if v.At == "" && len(v.Grid.Rows) > 0 {
-					<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
+					<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions, region:…" title="Words match services, owners and versions; region:eu-west-1, account:…, os:ubuntu, instance:… match where they run" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
 					<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
 					@kindFilter(kindOptions(v.Grid.Rows), "matrix-q")
 					<span class="muted" id="matrix-count" aria-live="polite"></span>

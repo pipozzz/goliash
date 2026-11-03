@@ -225,7 +225,7 @@ func MatrixPage(v MatrixView) templ.Component {
 					}
 				}
 				if v.At == "" && len(v.Grid.Rows) > 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<input type=\"search\" id=\"matrix-q\" class=\"search\" placeholder=\"Filter services, owners, versions\" aria-label=\"Filter services\" aria-keyshortcuts=\"/\" autocomplete=\"off\"> <label class=\"check\"><input type=\"checkbox\" id=\"matrix-drift\"> Only with drift</label>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<input type=\"search\" id=\"matrix-q\" class=\"search\" placeholder=\"Filter services, owners, versions, region:…\" title=\"Words match services, owners and versions; region:eu-west-1, account:…, os:ubuntu, instance:… match where they run\" aria-label=\"Filter services\" aria-keyshortcuts=\"/\" autocomplete=\"off\"> <label class=\"check\"><input type=\"checkbox\" id=\"matrix-drift\"> Only with drift</label>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

@@ -361,6 +361,7 @@ type MatrixRow struct {
 	What      string                  // what it is when its name does not say: "PostgreSQL · RDS", "Node.js runtime"
 	Repo      string                  // its image repository
 	Same      string                  // rows of its group with the same image and versions share it, for folding them
+	Where     []string                // where its targets are, as filter words: region:eu-west-1, account:…, os:…
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -527,6 +528,9 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 				vv.On = append(vv.On, tag)
 			}
 			cell.Versions = append(cell.Versions, vv)
+			for _, id := range v.TargetIDs {
+				r.Where = append(r.Where, versions.WhereTokens(o.Where[id])...)
+			}
 			for i, id := range v.TargetIDs {
 				if last, ok := o.Stale[id]; ok {
 					stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))
@@ -542,6 +546,8 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		drifts = append(drifts, cell.Drifts...)
 		r.Cells = append(r.Cells, cell)
 	}
+	slices.Sort(r.Where)
+	r.Where = slices.Compact(r.Where)
 	ref := o.Refs[row.Service.ID]
 	if u, ok := o.Upstreams[row.Service.ID]; ok && u.HasLatest {
 		r.Latest = u.Latest.Raw
@@ -865,6 +871,7 @@ type AgentView struct {
 	Version   string
 	Hostname  string
 	Platforms string
+	Where     []WhereItem // where it runs, as it reported: cloud, account, region …
 	LastSeen  time.Time
 	Enrolled  bool     // registers itself with an enrollment code
 	Notes     []string // what it could not use when it last registered
@@ -1137,7 +1144,7 @@ func itoa(n int) string { return fmt.Sprint(n) }
 
 // rowSearch is what the matrix filter matches a row against: service, owner, versions and targets.
 func rowSearch(r MatrixRow) string {
-	parts := []string{r.Service, r.Owner, r.Latest, r.App, kindTokens(r.Kinds), r.What}
+	parts := append([]string{r.Service, r.Owner, r.Latest, r.App, kindTokens(r.Kinds), r.What}, r.Where...)
 	for _, c := range r.Cells {
 		for _, v := range c.Versions {
 			parts = append(parts, v.Tag, v.Resolved, v.Targets)
