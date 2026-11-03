@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package host collects a Linux server: its operating system and the installed packages that matter, read
-// from /etc/os-release and the dpkg or apk databases. It only reads files; it runs nothing on the host.
+// from /etc/os-release and the dpkg, apk or RPM databases. It only reads files; it runs nothing on the host.
 package host
 
 import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/pipozzz/goliash/internal/collectors"
+	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
@@ -50,7 +52,7 @@ func New(_ context.Context, t agentproto.Target) (collectors.Collector, error) {
 }
 
 // Collect reports the operating system and the packages.
-func (c *Collector) Collect(context.Context) (collectors.Result, error) {
+func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	osr, err := readKeyValues(filepath.Join(c.root, "etc", "os-release"))
 	if err != nil {
 		return collectors.Result{}, err
@@ -60,7 +62,7 @@ func (c *Collector) Collect(context.Context) (collectors.Result, error) {
 	if id != "" && version != "" {
 		res.Workloads = append(res.Workloads, workload("os/"+id, agentproto.HostOs, id, osImage(id)+":"+version))
 	}
-	pkgs, err := c.packages()
+	pkgs, err := c.packages(ctx)
 	if err != nil {
 		res.Complete = false
 		res.Errors = append(res.Errors, err.Error())
@@ -94,8 +96,8 @@ func workload(id string, kind agentproto.WorkloadKind, name, image string) agent
 	}
 }
 
-// packages reads the installed packages and their versions from dpkg or apk.
-func (c *Collector) packages() (map[string]string, error) {
+// packages reads the installed packages and their versions from dpkg, apk or RPM's SQLite database.
+func (c *Collector) packages(ctx context.Context) (map[string]string, error) {
 	if f, err := os.Open(filepath.Join(c.root, "var", "lib", "dpkg", "status")); err == nil {
 		defer func() { _ = f.Close() }()
 		return parseDpkg(f)
@@ -104,7 +106,46 @@ func (c *Collector) packages() (map[string]string, error) {
 		defer func() { _ = f.Close() }()
 		return parseApk(f)
 	}
-	return nil, errors.New("no dpkg or apk package database found; packages are not reported (rpm is not supported yet)")
+	for _, p := range rpmDBs {
+		b, err := readLimited(filepath.Join(c.root, p), maxRPMDB)
+		if err != nil {
+			continue
+		}
+		ps, err := registry.RPMPackages(ctx, b)
+		if err != nil {
+			return nil, fmt.Errorf("reading the RPM database %s: %w", p, err)
+		}
+		out := make(map[string]string, len(ps))
+		for _, pk := range ps {
+			out[pk.Name] = pk.Version
+		}
+		return out, nil
+	}
+	if _, err := os.Stat(filepath.Join(c.root, "var", "lib", "rpm", "Packages")); err == nil {
+		return nil, errors.New("the RPM database is a Berkeley DB (RHEL 8, Amazon Linux 2 and older), which is not read; packages are not reported")
+	}
+	return nil, errors.New("no dpkg, apk or RPM package database found; packages are not reported")
+}
+
+// rpmDBs are where RPM's SQLite database is, under the root: the usual place, and Fedora's newer one.
+var rpmDBs = []string{"var/lib/rpm/rpmdb.sqlite", "usr/lib/sysimage/rpm/rpmdb.sqlite"}
+
+// maxRPMDB bounds the RPM database read: a server's is a few tens of megabytes at most.
+const maxRPMDB = 256 << 20
+
+// readLimited reads a file of at most limit bytes. The RPM database is copied, not opened in place: rpm may be
+// writing it, and SQLite would want to write beside it.
+func readLimited(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // a fixed file under the root the target names: reading the host is the point
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err == nil && int64(len(b)) > limit {
+		err = fmt.Errorf("%s is larger than %d MB", path, limit>>20)
+	}
+	return b, err
 }
 
 // parseDpkg reads /var/lib/dpkg/status: stanzas of "Field: value", installed when Status ends in "installed".
@@ -219,6 +260,10 @@ var knownPackages = map[string]string{
 	"nomad": "docker.io/hashicorp/nomad", "keycloak": "quay.io/keycloak/keycloak",
 	"openssl": PackageRegistry + "/openssl", "libssl3": PackageRegistry + "/openssl", "openssh-server": PackageRegistry + "/openssh",
 	"sudo": PackageRegistry + "/sudo", "containerd.io": PackageRegistry + "/containerd", "kubelet": PackageRegistry + "/kubelet",
+	// As RPM-based distributions name them.
+	"openssl-libs": PackageRegistry + "/openssl", "postgresql-server": "docker.io/library/postgres",
+	"java-17-openjdk-headless": "docker.io/library/eclipse-temurin", "java-21-openjdk-headless": "docker.io/library/eclipse-temurin",
+	"java-11-openjdk-headless": "docker.io/library/eclipse-temurin", "containerd": PackageRegistry + "/containerd",
 }
 
 var versionedPackage = regexp.MustCompile(`^(postgresql|openjdk|php|tomcat|python)-?(\d+(\.\d+)?)(-jre|-jdk|-headless|-jre-headless|-jdk-headless|-fpm|-cli)?$`)
@@ -253,8 +298,12 @@ func serviceName(pkg string) string {
 		return "mariadb"
 	case "mongodb-org-server":
 		return "mongodb"
-	case "libssl3":
+	case "libssl3", "openssl-libs":
 		return "openssl"
+	case "postgresql-server":
+		return "postgresql"
+	case "java-11-openjdk-headless", "java-17-openjdk-headless", "java-21-openjdk-headless":
+		return "openjdk"
 	case "containerd.io":
 		return "containerd"
 	}

@@ -29,6 +29,20 @@ var rpmBerkeleyPaths = map[string]bool{"var/lib/rpm/Packages": true, "var/lib/rp
 // errRPMBerkeley means an image's RPM database is a Berkeley DB, which Goliash does not read.
 var errRPMBerkeley = errors.New("its RPM database is a Berkeley DB (RHEL 8, Amazon Linux 2 and older), which is not read")
 
+// RPMPackage is a package an RPM database lists: Version is the version and release (3.0.7-27.el9).
+type RPMPackage struct{ Name, Version, Epoch, Arch, Source string }
+
+// RPMPackages reads the packages of an rpmdb.sqlite file's bytes (RHEL 9 and later, Fedora, Amazon Linux 2023):
+// for a host's database as for an image's.
+func RPMPackages(ctx context.Context, b []byte) ([]RPMPackage, error) {
+	ps, err := rpmPackages(ctx, b)
+	out := make([]RPMPackage, len(ps))
+	for i, p := range ps {
+		out[i] = RPMPackage{Name: p.name, Version: p.version, Epoch: p.epoch, Arch: p.arch, Source: p.source}
+	}
+	return out, err
+}
+
 // rpmPackages reads the packages of an rpmdb.sqlite file.
 func rpmPackages(ctx context.Context, b []byte) ([]osPackage, error) {
 	f, err := os.CreateTemp("", "goliash-rpmdb-*.sqlite")

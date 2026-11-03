@@ -66,6 +66,16 @@ func TestAlpine(t *testing.T) {
 	}
 }
 
+// Rocky 9 keeps its packages in RPM's SQLite database (testdata/rocky/var/lib/rpm/rpmdb.sqlite holds nginx,
+// openssl-libs and postgresql-server headers).
+func TestRocky(t *testing.T) {
+	got := collect(t, "testdata/rocky", agentproto.HostSettings{})
+	if got["os/rocky"] != "host_os rocky docker.io/library/rockylinux:9.3" || got["pkg/nginx"] != "host_package nginx docker.io/library/nginx:1.20.1" ||
+		got["pkg/openssl-libs"] != "host_package openssl pkg.goliash/openssl:3.0.7" || got["pkg/postgresql-server"] != "host_package postgresql docker.io/library/postgres:13.14" {
+		t.Errorf("rocky: %v", got)
+	}
+}
+
 func TestNoHost(t *testing.T) {
 	root := t.TempDir()
 	if _, err := New(context.Background(), agentproto.Target{Host: &agentproto.HostSettings{Root: &root}}); err == nil {
