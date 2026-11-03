@@ -6,9 +6,12 @@ package notifier
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // A rule for one region gets what runs there: a drift in that environment, a release of a service running there.
@@ -43,5 +46,28 @@ func TestWhereFilter(t *testing.T) {
 	e.emit(release(e.svc, "1.5.0", "1.7.0", "minor"))
 	if slack.count() != 2 {
 		t.Fatalf("delivered %d of the two that run in eu-central-1", slack.count())
+	}
+}
+
+// With no newer release, a deadline, a plan line and a ticket say what fixes it instead.
+func TestNoReleaseRemedy(t *testing.T) {
+	it := Item{
+		Type: EventDeadline, Service: "leadqc", Environment: "production", From: "4.2.0",
+		Note: "passed|exploited vulnerability|2026-11-01|rebuild on the current node:22-alpine",
+	}
+	if got := Describe(it); !strings.Contains(got, "4.2.0 runs, no newer release known; fix: rebuild on the current node:22-alpine") {
+		t.Fatalf("deadline %q", got)
+	}
+	u := versions.Update{
+		Service: store.Service{Name: "leadqc"}, Environment: store.Environment{Name: "production"}, Running: "4.2.0",
+		Remedy: "openssl 3.0.15", Exploited: []string{"CVE-2025-1"}, Urgency: versions.UrgencyExploited,
+	}
+	if got := planItem(u, time.Now(), nil).Text; !strings.Contains(got, "no newer release known, fix: openssl 3.0.15") {
+		t.Fatalf("plan %q", got)
+	}
+	n := &Notifier{}
+	d := n.ticketDraft(u, "")
+	if !strings.Contains(d.Title, "fix the exploited vulnerability in 4.2.0") || !strings.Contains(d.Body, "What fixes it: openssl 3.0.15.") {
+		t.Fatalf("ticket %q\n%s", d.Title, d.Body)
 	}
 }

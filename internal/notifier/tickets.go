@@ -98,7 +98,7 @@ func (n *Notifier) ticketWorld(ctx context.Context, sc store.Scope) (ticketWorld
 	if err != nil {
 		return w, err
 	}
-	w.o, w.updates = o, versions.LoadUpdates(ctx, n.store, sc, o, acks, n.now())
+	w.o, w.updates = o, versions.LoadWork(ctx, n.store, sc, o, acks, n.now())
 	for _, s := range o.Services {
 		w.services[s.Name] = s
 	}
@@ -166,9 +166,12 @@ func (n *Notifier) ticketDraft(u versions.Update, note string) tickets.Draft {
 		where = u.Service.Name + " (" + u.App + ") @ " + u.Environment.Name
 	}
 	d := tickets.Draft{Team: u.Service.Owner, Due: u.Due, Labels: []string{"goliash"}}
-	if u.Target != "" {
+	switch {
+	case u.Target != "":
 		d.Title = fmt.Sprintf("[Goliash] %s: upgrade %s → %s", where, orDash(u.Running), u.Target)
-	} else {
+	case u.Remedy != "":
+		d.Title = fmt.Sprintf("[Goliash] %s: fix the exploited vulnerability in %s", where, orDash(u.Running))
+	default:
 		d.Title = fmt.Sprintf("[Goliash] %s: %s reaches its end of life", where, orDash(u.Running))
 	}
 	var b []string
@@ -180,6 +183,9 @@ func (n *Notifier) ticketDraft(u versions.Update, note string) tickets.Draft {
 			line += " Release notes: " + u.TargetURL
 		}
 		add("%s", line)
+	}
+	if u.Target == "" && u.Remedy != "" {
+		add("No newer release of it is known. What fixes it: %s.", u.Remedy)
 	}
 	if len(u.Exploited) > 0 {
 		add("Exploited in the wild (CISA KEV), in the running image: %s.", strings.Join(u.Exploited, ", "))

@@ -90,7 +90,8 @@ func (n *Notifier) deadlineAlerts(ctx context.Context, sc store.Scope, rules []s
 	if len(envs) > 0 {
 		prod = envs[len(envs)-1].ID // ordered by position
 	}
-	for _, u := range versions.LoadUpdates(ctx, n.store, sc, o, acks, now) {
+	// The to-do list: what runs an exploited vulnerability with no newer release has a deadline too.
+	for _, u := range versions.LoadWork(ctx, n.store, sc, o, acks, now) {
 		if u.Acked || u.Due.IsZero() {
 			continue
 		}
@@ -107,7 +108,7 @@ func (n *Notifier) deadlineAlerts(ctx context.Context, sc store.Scope, rules []s
 		it := Item{
 			Type: EventDeadline, Service: u.Service.Name, App: u.App, Owner: u.Service.Owner, Environment: u.Environment.Name,
 			Production: u.Environment.ID == prod, From: u.Running, To: u.Target, At: now,
-			Note: state + "|" + u.DueFor + "|" + u.Due.Format(time.DateOnly), URL: "/updates?due=over",
+			Note: state + "|" + u.DueFor + "|" + u.Due.Format(time.DateOnly) + "|" + u.Remedy, URL: "/updates?due=over",
 		}
 		it.Text = Describe(it)
 		dedup := "deadline|" + state + "|" + u.Service.ID + "|" + u.App + "|" + u.Environment.ID + "|" + u.Due.Format(time.DateOnly)
@@ -193,8 +194,11 @@ func describeDeadline(where string, it Item) string {
 		return fmt.Sprintf("%s: the accepted risk ends on %s (“%s”); upgrade, or accept it again", where, when, why)
 	}
 	upgrade := ""
-	if it.To != "" {
+	switch {
+	case it.To != "":
 		upgrade = fmt.Sprintf("; %s runs, %s fixes it", orDash(it.From), it.To)
+	case by != "": // no newer release known: what fixes it instead
+		upgrade = fmt.Sprintf("; %s runs, no newer release known; fix: %s", orDash(it.From), by)
 	}
 	if state == "passed" {
 		return fmt.Sprintf("%s: the remediation deadline for the %s passed on %s%s", where, why, when, upgrade)
