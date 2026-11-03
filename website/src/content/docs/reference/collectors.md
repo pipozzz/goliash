@@ -37,7 +37,8 @@ RDS, Lambda …) shares only the agent's cloud and account, and has its own regi
 the matrix, filter by them like by any word: `region:eu-central-1`, `account:123456789012`,
 `instance:i-0f13cfa9b0e9b58a2`, `os:ubuntu`, `zone:eu-central-1b`, `platform:ecs`. The same words filter
 **Updates** (and its CSV) and **Vulnerabilities**, which then lists each vulnerability only where it runs there:
-`region:eu-central-1 openssl`. Agents before 1.198 report nothing of this.
+`region:eu-central-1 openssl`. Agents before 1.198 report nothing of this. **Group by → Place** on the matrix lists services under each cloud account and region
+they run in (*AWS 123456789012 · eu-central-1*), a service in two accounts under both.
 
 ## Target settings
 
