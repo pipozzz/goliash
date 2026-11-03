@@ -25,10 +25,12 @@ type Version struct {
 	Parts   []int  // 1 to 4 numeric components
 	Pre     string // prerelease: rc.1, beta2, alpha …
 	Variant string // build flavour that is not a prerelease: alpine, bookworm-slim …
+	Line    bool   // a release line tagged with a trailing ".x" (v0.63.x): a moving tag, whatever its precision
 }
 
 var (
-	versionRe = regexp.MustCompile(`^[vV]?(\d+(?:\.\d+){0,3})(?:[-_+](.+))?$`)
+	// A trailing ".x" names a release line as a moving tag (Metabase's v0.63.x): read as 0.63.
+	versionRe = regexp.MustCompile(`^[vV]?(\d+(?:\.\d+){0,3})(\.[xX])?(?:[-_+](.+))?$`)
 	preRe     = regexp.MustCompile(`^(?i)(alpha|beta|rc|pre|preview|dev|snapshot|canary|nightly|next|m|testing|test|unstable|experimental|insiders)[.]?\d*$`)
 )
 
@@ -39,7 +41,7 @@ func ParseVersion(tag string) (Version, bool) {
 	if m == nil {
 		return Version{}, false
 	}
-	v := Version{Raw: tag}
+	v := Version{Raw: tag, Line: m[2] != ""}
 	for _, p := range strings.Split(m[1], ".") {
 		n, err := strconv.Atoi(p)
 		if err != nil || n > 1_000_000 { // dates and build numbers like 20240101 are not versions
@@ -47,8 +49,8 @@ func ParseVersion(tag string) (Version, bool) {
 		}
 		v.Parts = append(v.Parts, n)
 	}
-	if m[2] != "" {
-		tokens := strings.FieldsFunc(m[2], func(r rune) bool { return r == '-' })
+	if m[3] != "" {
+		tokens := strings.FieldsFunc(m[3], func(r rune) bool { return r == '-' })
 		i := 0
 		for i < len(tokens) && preRe.MatchString(tokens[i]) {
 			i++
