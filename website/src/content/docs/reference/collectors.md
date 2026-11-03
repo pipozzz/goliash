@@ -33,8 +33,9 @@ filtered to what runs there.
 Its targets are where it is: a Docker host, a Kubernetes cluster or a server. A target read through AWS's API (ECS,
 RDS, Lambda …) shares only the agent's cloud and account, and has its own region (and the account of its ARNs). On
 the matrix, filter by them like by any word: `region:eu-central-1`, `account:123456789012`,
-`instance:i-0f13cfa9b0e9b58a2`, `os:ubuntu`, `zone:eu-central-1b`, `platform:ecs`. Agents before 1.198 report
-nothing of this.
+`instance:i-0f13cfa9b0e9b58a2`, `os:ubuntu`, `zone:eu-central-1b`, `platform:ecs`. The same words filter
+**Updates** (and its CSV) and **Vulnerabilities**, which then lists each vulnerability only where it runs there:
+`region:eu-central-1 openssl`. Agents before 1.198 report nothing of this.
 
 ## Target settings
 

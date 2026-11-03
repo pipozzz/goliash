@@ -30,3 +30,14 @@ func TestTargetWhere(t *testing.T) {
 		t.Errorf("server's own target: %v", server)
 	}
 }
+
+func TestSplitWhere(t *testing.T) {
+	where, rest := SplitWhere("openssl Region:EU-Central account:6258 foo:bar")
+	if strings.Join(where, " ") != "region:eu-central account:6258" || rest != "openssl foo:bar" {
+		t.Fatalf("%v %q", where, rest)
+	}
+	tokens := []string{"account:625853223232", "os:amazon linux 2023", "region:eu-central-1"}
+	if !WhereMatches(tokens, where) || WhereMatches(tokens, []string{"region:eu-west"}) || !WhereMatches(tokens, []string{"os:amazon"}) {
+		t.Error("matching")
+	}
+}

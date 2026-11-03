@@ -63,3 +63,66 @@ func WhereTokens(where map[string]string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// WhereIndex is where each service runs in each environment, as filter words (WhereTokens of its targets there),
+// keyed by service ID + "|" + environment ID.
+func (o Overview) WhereIndex() map[string][]string {
+	out := map[string][]string{}
+	for _, row := range o.Matrix.Rows {
+		for ei, c := range row.Cells {
+			if ei >= len(o.Matrix.Environments) {
+				break
+			}
+			key := row.Service.ID + "|" + o.Matrix.Environments[ei].ID
+			seen := map[string]bool{}
+			for _, v := range c.Versions {
+				for _, id := range v.TargetIDs {
+					for _, t := range WhereTokens(o.Where[id]) {
+						if !seen[t] {
+							seen[t] = true
+							out[key] = append(out[key], t)
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// whereKeys are the keys a filter word names a place by (region:eu-west-1).
+var whereKeys = map[string]bool{
+	"cloud": true, "account": true, "region": true, "zone": true, "cluster": true, "instance": true,
+	"instance_type": true, "platform": true, "os": true, "kernel": true, "arch": true,
+}
+
+// SplitWhere splits a filter into its words about where (region:eu-west-1, account:…), lowercased, and the rest.
+func SplitWhere(q string) (where []string, rest string) {
+	var others []string
+	for _, w := range strings.Fields(q) {
+		if k, v, ok := strings.Cut(w, ":"); ok && v != "" && whereKeys[strings.ToLower(k)] {
+			where = append(where, strings.ToLower(w))
+			continue
+		}
+		others = append(others, w)
+	}
+	return where, strings.Join(others, " ")
+}
+
+// WhereMatches reports whether a place's filter words match every where word: region:eu-west matches
+// region:eu-west-1.
+func WhereMatches(tokens, where []string) bool {
+	for _, w := range where {
+		found := false
+		for _, t := range tokens {
+			if strings.HasPrefix(t, w) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}

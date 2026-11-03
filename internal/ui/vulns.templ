@@ -48,7 +48,7 @@ templ VulnsPage(v VulnsView) {
 			if v.Exposed {
 				<input type="hidden" name="exposed" value="1"/>
 			}
-			<label class="grow"><span class="sr-only">Vulnerability, package or service</span><input name="q" value={ v.Query } placeholder="CVE-2024-3094, openssl, payments-api"/></label>
+			<label class="grow"><span class="sr-only">Vulnerability, package or service</span><input name="q" value={ v.Query } placeholder="CVE-2024-3094, openssl, payments-api, region:eu-west-1" title="A CVE, a package or a service; region:…, account:…, os:… keep what runs there"/></label>
 			<button type="submit">Check</button>
 		</form>
 		if !v.Enabled {

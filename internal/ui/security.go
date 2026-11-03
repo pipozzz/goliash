@@ -493,11 +493,33 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	if rem, err := s.store.Remediation(ctx, p.Scope); err == nil {
 		v.ExploitedDays = rem.Exploited
 	}
-	q := strings.ToUpper(v.Query)
+	// Words about where (region:eu-west-1, account:…) keep the places that match; the rest matches as before.
+	where, rest := versions.SplitWhere(v.Query)
+	var whereIdx map[string][]string
+	if len(where) > 0 {
+		o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+		if err != nil {
+			return err
+		}
+		whereIdx = o.WhereIndex()
+	}
+	q := strings.ToUpper(strings.TrimSpace(rest))
 	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
 	for _, f := range v.Findings {
 		if (q != "" && !versions.FindingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) || (v.Exposed && !f.IsExposed()) {
 			continue
+		}
+		if len(where) > 0 {
+			var there []versions.Affected
+			for _, a := range f.Affected {
+				if versions.WhereMatches(whereIdx[a.ServiceID+"|"+a.EnvironmentID], where) {
+					there = append(there, a)
+				}
+			}
+			if len(there) == 0 {
+				continue
+			}
+			f.Affected = there // a copy of the finding: the report is shared
 		}
 		if len(v.Shown) >= 300 {
 			v.Hidden++

@@ -242,7 +242,7 @@ func VulnsPage(v VulnsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" placeholder=\"CVE-2024-3094, openssl, payments-api\"></label> <button type=\"submit\">Check</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" placeholder=\"CVE-2024-3094, openssl, payments-api, region:eu-west-1\" title=\"A CVE, a package or a service; region:…, account:…, os:… keep what runs there\"></label> <button type=\"submit\">Check</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
