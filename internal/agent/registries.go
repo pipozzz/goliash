@@ -308,97 +308,125 @@ type VEXReader interface {
 const maxPurls = 20000
 
 // inspectDigests answers the server's inspections: what the registry holds beside each running digest, and
-// the packages of its SBOM, read with the agent's own credentials.
+// the packages of its SBOM, read with the agent's own credentials; and the same of the releases it asks about
+// by tag, which run nowhere yet.
 func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, creds registry.Credentials) []agentproto.ImageInspection {
 	reader, ok := a.registry.(Inspector)
-	if !ok || len(c.Inspect) == 0 {
+	if !ok || len(c.Inspect)+len(c.ReleaseTags) == 0 {
 		return nil
 	}
 	if _, _, _, isECR := ecr.Parse(c.Repository); isECR && creds.Password == "" {
 		return nil // no ECR token
 	}
-	out := make([]agentproto.ImageInspection, 0, len(c.Inspect))
+	out := make([]agentproto.ImageInspection, 0, len(c.Inspect)+len(c.ReleaseTags))
 	for _, digest := range c.Inspect {
-		in := agentproto.ImageInspection{Digest: digest}
-		ev, err := reader.ImageEvidence(ctx, c.Repository, digest, creds)
+		in := a.inspectOne(ctx, reader, c.Repository, digest, creds)
+		if ctx.Err() != nil {
+			return out
+		}
+		out = append(out, in)
+	}
+	digests, _ := a.registry.(interface {
+		TagDigest(ctx context.Context, repository, reference string, creds registry.Credentials) (string, error)
+	})
+	for _, tag := range c.ReleaseTags {
+		if digests == nil {
+			break
+		}
+		digest, err := digests.TagDigest(ctx, c.Repository, tag, creds)
 		if ctx.Err() != nil {
 			return out
 		}
 		if err != nil {
-			msg := err.Error()
-			in.Error = &msg
-			out = append(out, in)
-			continue
+			a.log.Debug("release tag not readable", "repository", c.Repository, "tag", tag, "err", err)
+			continue // asked again on a later check
 		}
-		in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
-		for _, s := range ev.Signers {
-			signer := struct {
-				Identity string  `json:"identity"`
-				Issuer   *string `json:"issuer,omitempty"`
-			}{Identity: s.Identity}
-			if s.Issuer != "" {
-				issuer := s.Issuer
-				signer.Issuer = &issuer
-			}
-			in.Signers = append(in.Signers, signer)
+		in := a.inspectOne(ctx, reader, c.Repository, digest, creds)
+		if ctx.Err() != nil {
+			return out
 		}
-		if ev.Size > 0 {
-			in.Size = &ev.Size
-		}
-		in.Layers = ev.Layers[:min(len(ev.Layers), 512)]
-		for _, l := range ev.LayerDetails[:min(len(ev.LayerDetails), 512)] {
-			d := l
-			in.LayerDetails = append(in.LayerDetails, struct {
-				Command *string `json:"command,omitempty"`
-				Digest  string  `json:"digest"`
-				Size    int64   `json:"size"`
-			}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
-		}
-		if ev.Components != "" {
-			comp := ev.Components[:min(len(ev.Components), 2000)]
-			in.Components = &comp
-		}
-		if pr, ok := a.registry.(PackageReader); ok && !ev.SBOM {
-			// No SBOM: the image's own package database, so its system packages are not a blind spot.
-			if list, err := pr.ImagePackages(ctx, c.Repository, digest, creds); err == nil {
-				in.Purls = list.Purls[:min(len(list.Purls), maxPurls)]
-				from := agentproto.Packages
-				in.PurlsFrom = &from
-			} else if ctx.Err() == nil {
-				a.log.Debug("packages not readable", "repository", c.Repository, "digest", digest, "err", err)
-			}
-		}
-		if ev.SBOM {
-			sbom, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
-			if err != nil {
-				a.log.Warn("sbom not readable", "repository", c.Repository, "digest", digest, "err", err)
-			}
-			in.Purls = sbom.Purls[:min(len(sbom.Purls), maxPurls)]
-			for _, p := range in.Purls {
-				if l := sbom.Licenses[p]; l != "" {
-					if in.Licenses == nil {
-						in.Licenses = map[string]string{}
-					}
-					in.Licenses[p] = l
-				}
-			}
-		}
-		if vr, ok := a.registry.(VEXReader); ok && ev.VEX {
-			list, err := vr.ImageVEX(ctx, c.Repository, digest, creds)
-			if err != nil && ctx.Err() == nil {
-				a.log.Warn("vex not readable", "repository", c.Repository, "digest", digest, "err", err)
-			}
-			in.Vex = make([]agentproto.VEXStatement, 0, len(list))
-			for _, s := range list[:min(len(list), 5000)] {
-				in.Vex = append(in.Vex, agentproto.VEXStatement{
-					Vulnerability: s.Vulnerability, Status: s.Status, Packages: s.Packages,
-					Justification: optional(s.Justification), Impact: optional(s.Impact), Author: optional(s.Author),
-				})
-			}
-		}
+		in.Tag = &tag
 		out = append(out, in)
 	}
 	return out
+}
+
+// inspectOne reads what the registry holds of one image: its signatures and attestations, and its packages.
+func (a *Agent) inspectOne(ctx context.Context, reader Inspector, repository, digest string, creds registry.Credentials) agentproto.ImageInspection {
+	in := agentproto.ImageInspection{Digest: digest}
+	ev, err := reader.ImageEvidence(ctx, repository, digest, creds)
+	if err != nil {
+		msg := err.Error()
+		in.Error = &msg
+		return in
+	}
+	in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
+	for _, s := range ev.Signers {
+		signer := struct {
+			Identity string  `json:"identity"`
+			Issuer   *string `json:"issuer,omitempty"`
+		}{Identity: s.Identity}
+		if s.Issuer != "" {
+			issuer := s.Issuer
+			signer.Issuer = &issuer
+		}
+		in.Signers = append(in.Signers, signer)
+	}
+	if ev.Size > 0 {
+		in.Size = &ev.Size
+	}
+	in.Layers = ev.Layers[:min(len(ev.Layers), 512)]
+	for _, l := range ev.LayerDetails[:min(len(ev.LayerDetails), 512)] {
+		d := l
+		in.LayerDetails = append(in.LayerDetails, struct {
+			Command *string `json:"command,omitempty"`
+			Digest  string  `json:"digest"`
+			Size    int64   `json:"size"`
+		}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
+	}
+	if ev.Components != "" {
+		comp := ev.Components[:min(len(ev.Components), 2000)]
+		in.Components = &comp
+	}
+	if pr, ok := a.registry.(PackageReader); ok && !ev.SBOM {
+		// No SBOM: the image's own package database, so its system packages are not a blind spot.
+		if list, err := pr.ImagePackages(ctx, repository, digest, creds); err == nil {
+			in.Purls = list.Purls[:min(len(list.Purls), maxPurls)]
+			from := agentproto.Packages
+			in.PurlsFrom = &from
+		} else if ctx.Err() == nil {
+			a.log.Debug("packages not readable", "repository", repository, "digest", digest, "err", err)
+		}
+	}
+	if ev.SBOM {
+		sbom, err := reader.ImageSBOM(ctx, repository, digest, creds)
+		if err != nil {
+			a.log.Warn("sbom not readable", "repository", repository, "digest", digest, "err", err)
+		}
+		in.Purls = sbom.Purls[:min(len(sbom.Purls), maxPurls)]
+		for _, p := range in.Purls {
+			if l := sbom.Licenses[p]; l != "" {
+				if in.Licenses == nil {
+					in.Licenses = map[string]string{}
+				}
+				in.Licenses[p] = l
+			}
+		}
+	}
+	if vr, ok := a.registry.(VEXReader); ok && ev.VEX {
+		list, err := vr.ImageVEX(ctx, repository, digest, creds)
+		if err != nil && ctx.Err() == nil {
+			a.log.Warn("vex not readable", "repository", repository, "digest", digest, "err", err)
+		}
+		in.Vex = make([]agentproto.VEXStatement, 0, len(list))
+		for _, s := range list[:min(len(list), 5000)] {
+			in.Vex = append(in.Vex, agentproto.VEXStatement{
+				Vulnerability: s.Vulnerability, Status: s.Status, Packages: s.Packages,
+				Justification: optional(s.Justification), Impact: optional(s.Impact), Author: optional(s.Author),
+			})
+		}
+	}
+	return in
 }
 
 // managed reports whether repo is the engine of a managed AWS service, which the agent answers with the versions

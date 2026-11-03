@@ -625,3 +625,14 @@ func (s *Server) fileTicket(w http.ResponseWriter, r *http.Request, p auth.Princ
 	s.audit(r.Context(), p, "ticket.file", "ticket", t.ExternalKey, "url", t.URL)
 	return back(w, r, ret, "notice", "Ticket "+t.ExternalKey+" filed: "+t.URL)
 }
+
+// stillExploited are the exploited vulnerabilities of the running version that the version to move to does not fix.
+func stillExploited(exploited []string, d versions.VulnDelta) []string {
+	var out []string
+	for _, id := range exploited {
+		if !slices.ContainsFunc(d.Fixed, func(v versions.VulnRef) bool { return v.ID == id }) {
+			out = append(out, id)
+		}
+	}
+	return out
+}

@@ -764,6 +764,16 @@ components:
           items:
             type: string
             pattern: '^sha256:[a-f0-9]{64}$'
+        release_tags:
+          type: array
+          maxItems: 5
+          description: |
+            Tags of releases that run nowhere yet (the version an upgrade would move to): the agent reads the digest
+            each tag points at and inspects it as it does `inspect`, answering with `tag` set, so Goliash can tell
+            which vulnerabilities upgrading fixes before anyone deploys. Older agents ignore it.
+          items:
+            type: string
+            maxLength: 128
 
     DigestLookup:
       type: object
@@ -998,6 +1008,10 @@ components:
         digest:
           type: string
           pattern: '^sha256:[a-f0-9]{64}$'
+        tag:
+          type: string
+          maxLength: 128
+          description: The release tag asked for in `release_tags` whose digest this is; absent for `inspect`.
         signed:
           type: boolean
         sbom:
