@@ -55,3 +55,31 @@ func TestTargetPageSaysWhere(t *testing.T) {
 		t.Fatal("the target page does not say where it runs")
 	}
 }
+
+// The agents page filters agents and targets by where they run; an API target keeps its own region.
+func TestAgentsPageFilterWords(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	a, _ := e.st.CreateAgent(ctx, e.ws.Scope(), "eu", "eu-hash")
+	_ = e.st.SetAgentWhere(ctx, e.ws.Scope(), a.ID, map[string]string{"cloud": "aws", "account": "098225058563", "region": "eu-central-1", "os": "Ubuntu 26.04 LTS"})
+	_, _ = e.st.CreateTarget(ctx, store.Target{
+		Scope: e.ws.Scope(), EnvironmentID: e.prod.ID, AgentID: a.ID, Platform: "ecs", Name: "ecs-us",
+		Settings: []byte(`{"ecs":{"region":"us-east-1"}}`),
+	})
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/agents", nil)
+	for _, want := range []string{
+		`id="page-filter"`,
+		`data-search="eu never  `, // name, status, no version
+		"os:ubuntu 26.04 lts",
+		`data-search="ecs-us ecs prod eu`,
+		"region:us-east-1",
+		"098225058563 · us-east-1",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("agents page misses %q", want)
+		}
+	}
+	if strings.Contains(page, `data-search="ecs-us ecs prod eu  cloud:aws account:098225058563 region:us-east-1 os:`) {
+		t.Error("an API target took the agent's OS")
+	}
+}

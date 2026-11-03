@@ -351,3 +351,26 @@ func returnTo(r *http.Request) string {
 	}
 	return "/agents"
 }
+
+// whereSearch is what a page filter matches where something runs against: "region:eu-central-1 os:ubuntu 26.04 lts".
+func whereSearch(items []WhereItem) string {
+	parts := make([]string, 0, len(items))
+	for _, it := range items {
+		parts = append(parts, it.Key+":"+strings.ToLower(it.Value))
+	}
+	return strings.Join(parts, " ")
+}
+
+// agentSearch is what the agents page filter matches an agent against.
+func agentSearch(a AgentView) string {
+	parts := []string{a.Name, a.Status, a.Version, a.Hostname, a.Collects, whereSearch(a.Where)}
+	if a.Outdated {
+		parts = append(parts, "outdated update available")
+	}
+	return strings.ToLower(strings.Join(parts, " "))
+}
+
+// targetSearch is what the agents page filter matches a target against.
+func targetSearch(t TargetView) string {
+	return strings.ToLower(strings.Join([]string{t.Name, t.Platform, t.Env, t.Agent, t.Status, whereSearch(t.Where)}, " "))
+}
