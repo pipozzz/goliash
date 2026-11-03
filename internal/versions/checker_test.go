@@ -327,7 +327,11 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 	ctx := context.Background()
 	l := newLab(t)
 	l.run(map[string]string{"prod-a": "1.27.2"})
-	const nginx = "docker.io/library/nginx"
+	const nginx = "docker.io/acme/nginx" // a private repository on Docker Hub; the library has none
+	l.svc.Upstream = nginx
+	if err := l.st.UpdateService(ctx, l.svc); err != nil {
+		t.Fatal(err)
+	}
 	l.tags.denied = map[string]bool{nginx: true}
 	repos := func() string {
 		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
@@ -344,7 +348,7 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
 		t.Fatal(err)
 	}
-	if got := repos(); got != "docker.io/library/nginx@docker.io registry.internal.example/team/payments@registry.internal.example" {
+	if got := repos(); got != "docker.io/acme/nginx@docker.io registry.internal.example/team/payments@registry.internal.example" {
 		t.Fatalf("handed to agents: %s", got)
 	}
 	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
@@ -619,5 +623,36 @@ func TestPrivateRepositoriesByAgent(t *testing.T) {
 	}
 	if got := repos(other.ID); got != "registry.internal.example/team/billing" {
 		t.Errorf("another agent: %s", got)
+	}
+}
+
+// An image named like an official one that Docker Hub does not have was built where it runs: it is not handed to
+// the agents as private (and one handed over before is taken back), and says so.
+func TestBuiltLocally(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"})
+	const repo = "docker.io/library/nginx"
+	l.tags.denied = map[string]bool{repo: true}
+	if err := l.st.SetPrivateUpstream(ctx, l.sc, l.svc.ID, repo); err != nil { // handed over by an older release
+		t.Fatal(err)
+	}
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+	_, msg, _ := l.st.UpstreamStatus(ctx, l.sc, l.svc.ID)
+	if svc.PrivateUpstream != "" || msg != BuiltLocally {
+		t.Fatalf("private upstream %q, error %q", svc.PrivateUpstream, msg)
+	}
+	checks, _ := l.checker.PrivateRepositories(ctx, l.sc, "")
+	for _, c := range checks {
+		if c.Repository == repo {
+			t.Fatal("handed to the agents")
+		}
+	}
+	o, _ := LoadOverview(ctx, l.st, l.sc)
+	if u, ok := WhyUnknown(o, l.svc.ID); !ok || u.Short != "built locally" {
+		t.Fatalf("unknown %+v", u)
 	}
 }
