@@ -41,3 +41,17 @@ func TestWhereLinksAndSearch(t *testing.T) {
 		t.Error("search does not find an agent by its zone")
 	}
 }
+
+// A target's page says where it runs, each a filter of the matrix.
+func TestTargetPageSaysWhere(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	a, _ := e.st.CreateAgent(ctx, e.ws.Scope(), "eu", "eu-hash")
+	tgts, _ := e.st.ListTargets(ctx, e.ws.Scope())
+	_ = e.st.SetTargetAgent(ctx, e.ws.Scope(), tgts[0].ID, a.ID)
+	_ = e.st.SetAgentWhere(ctx, e.ws.Scope(), a.ID, map[string]string{"cloud": "aws", "region": "eu-central-1"})
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/targets/"+tgts[0].ID, nil)
+	if !strings.Contains(page, `q=region%3Aeu-central-1`) || strings.Contains(page, `q=platform%3A`) {
+		t.Fatal("the target page does not say where it runs")
+	}
+}

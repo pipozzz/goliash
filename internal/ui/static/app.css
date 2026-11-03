@@ -973,6 +973,11 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 /* Matrix: private registries nobody reads yet, one step from credentials. */
 .unread-hint { padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--warn-soft, var(--accent-soft)); }
 .unread-hint p { margin: 2px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+/* Where a target runs: cloud, account, region … each a filter of the matrix. */
+.where-line { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.where-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 2px 8px; border: 1px solid var(--line);
+  border-radius: 999px; font-size: 12px; text-decoration: none; color: inherit; }
+.where-chip:hover { border-color: var(--accent); }
 /* The services behind an unread registry, on a line of their own. */
 .unread-services { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
 .unread-service { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
