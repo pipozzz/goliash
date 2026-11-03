@@ -66,3 +66,38 @@ func TestEditRule(t *testing.T) {
 		t.Fatalf("viewer may edit: %d", code)
 	}
 }
+
+// A rule can be for where things run; words that say no place are refused.
+func TestRuleWhere(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	_, _ = e.st.CreateChannel(ctx, store.Channel{Scope: sc, Type: "slack", Name: "eu", Config: json.RawMessage(`{"url":"https://hooks.slack.com/x"}`)})
+	member := e.as(store.RoleMember)
+	bad := url.Values{"channel": {"eu"}, "mode": {"instant"}, "events": {"drift_detected"}, "where": {"eu-central-1"}}
+	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules", bad); !strings.Contains(body, "not eu-central-1") {
+		t.Fatalf("a bare word was taken: %s", body)
+	}
+	add := url.Values{"channel": {"eu"}, "mode": {"instant"}, "events": {"drift_detected"}, "where": {"Region:EU-Central-1  account:111111111111"}}
+	if _, body, _ := post(t, member, e.srv.URL+"/notifications/rules", add); !strings.Contains(body, "Rule added") {
+		t.Fatalf("add: %s", body)
+	}
+	rules := ownRules(t, e.st, sc, mustRules(t, e.st, sc))
+	var f notifier.Filter
+	_ = json.Unmarshal(rules[0].Filter, &f)
+	if strings.Join(f.Where, " ") != "region:eu-central-1 account:111111111111" {
+		t.Fatalf("where %v", f.Where)
+	}
+	if _, page := get(t, member, e.srv.URL+"/notifications", nil); !strings.Contains(page, "running in region:eu-central-1 account:111111111111") {
+		t.Fatal("the rule does not say where")
+	}
+}
+
+func mustRules(t *testing.T, st *store.Store, sc store.Scope) []store.Rule {
+	t.Helper()
+	rules, err := st.ListRules(context.Background(), sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rules
+}
