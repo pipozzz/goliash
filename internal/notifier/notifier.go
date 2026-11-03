@@ -41,6 +41,9 @@ type Item struct {
 	URL         string    `json:"url,omitempty"`         // release notes of a new release
 	Action      string    `json:"action,omitempty"`      // a button for what to do about it: "Rollback PR → 1.4.2"
 	ActionPath  string    `json:"action_path,omitempty"` // and where it leads in Goliash, a path under the public URL
+	// Where is where the service runs (in its environment, when it has one), as filter words; set only when a rule
+	// filters by it.
+	Where []string `json:"-"`
 }
 
 // Message is what one delivery sends: one item, or a digest of many.
@@ -87,16 +90,18 @@ type Sender interface {
 
 // Filter narrows a rule. Empty lists match everything.
 type Filter struct {
-	Services     []string      `json:"services,omitempty"`
-	Owners       []string      `json:"owners,omitempty"`
-	Environments []string      `json:"environments,omitempty"`
-	Production   bool          `json:"production,omitempty"` // only the last environment, whatever it is called
-	Apps         []string      `json:"apps,omitempty"`       // applications, as the matrix shows them
-	MinJump      versions.Jump `json:"min_jump,omitempty"`   // for new_release: smallest version jump to report
-	DigestHour   *int          `json:"digest_hour,omitempty"`
-	Timezone     string        `json:"timezone,omitempty"`   // IANA name for the digest hour and quiet hours; UTC when empty
-	QuietFrom    *int          `json:"quiet_from,omitempty"` // instant rules hold notifications from this hour…
-	QuietTo      *int          `json:"quiet_to,omitempty"`   // …to this one, then send them together
+	Services     []string `json:"services,omitempty"`
+	Owners       []string `json:"owners,omitempty"`
+	Environments []string `json:"environments,omitempty"`
+	Production   bool     `json:"production,omitempty"` // only the last environment, whatever it is called
+	Apps         []string `json:"apps,omitempty"`       // applications, as the matrix shows them
+	// Where are words about where it runs, as the matrix filters by them: account:123456789012, region:eu-central-1.
+	Where      []string      `json:"where,omitempty"`
+	MinJump    versions.Jump `json:"min_jump,omitempty"` // for new_release: smallest version jump to report
+	DigestHour *int          `json:"digest_hour,omitempty"`
+	Timezone   string        `json:"timezone,omitempty"`   // IANA name for the digest hour and quiet hours; UTC when empty
+	QuietFrom  *int          `json:"quiet_from,omitempty"` // instant rules hold notifications from this hour…
+	QuietTo    *int          `json:"quiet_to,omitempty"`   // …to this one, then send them together
 }
 
 // Location is the rule's time zone.
@@ -444,11 +449,18 @@ func (n *Notifier) enqueue(ctx context.Context, sc store.Scope, rules []store.Ru
 	if err != nil {
 		return err
 	}
+	whereKnown := false
 	for _, r := range rules {
 		var f Filter
 		if err := json.Unmarshal(r.Filter, &f); err != nil {
 			n.log.Warn("notification rule has an invalid filter", "rule_id", r.ID, "err", err)
 			continue
+		}
+		if len(f.Where) > 0 && !whereKnown && item.Service != "" {
+			whereKnown = true
+			if item.Where, err = serviceWhere(ctx, n.store, sc, item.Service, item.Environment); err != nil {
+				return err
+			}
 		}
 		if !matches(r, f, item) {
 			continue
@@ -490,6 +502,9 @@ func matches(r store.Rule, f Filter, it Item) bool {
 		return false
 	}
 	if f.Production && it.Environment != "" && !it.Production {
+		return false
+	}
+	if len(f.Where) > 0 && it.Service != "" && !versions.WhereMatches(it.Where, f.Where) {
 		return false
 	}
 	if f.MinJump != versions.JumpNone && it.Type == "new_release" {
@@ -909,4 +924,26 @@ func orDash(s string) string {
 		return "—"
 	}
 	return s
+}
+
+// serviceWhere is where the service named service runs, as filter words: in the environment named env, or anywhere
+// when env is empty.
+func serviceWhere(ctx context.Context, st *store.Store, sc store.Scope, service, env string) ([]string, error) {
+	o, err := versions.LoadOverview(ctx, st, sc)
+	if err != nil {
+		return nil, err
+	}
+	index := o.WhereIndex()
+	var out []string
+	for _, row := range o.Matrix.Rows {
+		if row.Service.Name != service {
+			continue
+		}
+		for _, e := range o.Matrix.Environments {
+			if env == "" || e.Name == env {
+				out = append(out, index[row.Service.ID+"|"+e.ID]...)
+			}
+		}
+	}
+	return out, nil
 }

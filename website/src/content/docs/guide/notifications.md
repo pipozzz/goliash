@@ -159,6 +159,11 @@ or only for releases of at least a given size. Applications are matched by the n
 (after renames and merges, see [Applications and teams](/guide/apps/)): a rule for `webshop` gets every service
 running in it, and a drift only when it is in that application.
 
+**Where it runs** narrows a rule to a place, with the words the matrix filters by: `account:123456789012`,
+`region:eu-central-1`, `os:ubuntu`; every word must match, and `region:eu` matches `eu-central-1` and `eu-west-1`.
+A change in an environment counts where the service runs in it; a new release, where it runs anywhere. Agents gone
+quiet and Goliash's own news are tied to no place and always pass.
+
 A deploy back to an older version (2.4.1 → 2.3.9) is a **rollback**: ⏪ *payments-api @ prod: rolled back from
 2.4.1 to 2.3.9*. Rules for deploys get rollbacks too, and the event type `rollback` (*rollbacks* in the form) sends
 only those, e.g. to the people on call:

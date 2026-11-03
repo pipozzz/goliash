@@ -677,6 +677,11 @@ templ ruleFields(channels []ChannelView, f RuleForm) {
 		<label>Environments<input name="envs" value={ f.Envs } placeholder="all"/></label>
 		<label class="check" title="Only the last environment, whatever it is called"><input type="checkbox" name="production" value="1" checked?={ f.Production }/> Production only</label>
 	</div>
+	<label>
+		Where it runs
+		<input name="where" value={ f.Where } placeholder="anywhere" spellcheck="false" autocomplete="off"/>
+		<span class="hint">Words like <code>account:123456789012</code>, <code>region:eu-central-1</code>, <code>cluster:…</code> or <code>os:ubuntu</code>, as on the matrix; all must match. Agents and Goliash's own news are not tied to a place and always pass.</span>
+	</label>
 }
 
 templ RulePage(v RuleEditView) {

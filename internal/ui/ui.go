@@ -1878,6 +1878,9 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if f.Production {
 			parts = append(parts, "production only")
 		}
+		if len(f.Where) > 0 {
+			parts = append(parts, "running in "+strings.Join(f.Where, " "))
+		}
 		if f.MinJump != "" {
 			parts = append(parts, "releases from "+string(f.MinJump))
 		}
@@ -2200,6 +2203,11 @@ func (s *Server) ruleFromForm(r *http.Request, p auth.Principal) (rule store.Rul
 		Environments: split(r.FormValue("envs")), MinJump: versions.Jump(r.FormValue("min_jump")), DigestHour: &hour,
 		Apps: split(r.FormValue("apps")), Production: r.FormValue("production") == "1",
 	}
+	where, rest := versions.SplitWhere(r.FormValue("where"))
+	if rest = strings.TrimSpace(rest); rest != "" {
+		return rule, "", "Where it runs takes words like region:eu-central-1 or account:123456789012, not " + rest + "."
+	}
+	f.Where = where
 	if tz := strings.TrimSpace(r.FormValue("timezone")); tz != "" && tz != "UTC" {
 		if _, err := time.LoadLocation(tz); err != nil {
 			return rule, "", "Unknown time zone " + tz + "; use a name such as Europe/Bratislava."
@@ -2281,7 +2289,7 @@ func ruleForm(rule store.Rule) RuleForm {
 	out := RuleForm{
 		Mode: rule.Mode, MinJump: string(f.MinJump), Events: rule.EventTypes, DigestHour: 8,
 		Services: strings.Join(f.Services, ", "), Owners: strings.Join(f.Owners, ", "), Envs: strings.Join(f.Environments, ", "), Production: f.Production,
-		Apps: strings.Join(f.Apps, ", "),
+		Apps: strings.Join(f.Apps, ", "), Where: strings.Join(f.Where, " "),
 	}
 	if f.DigestHour != nil {
 		out.DigestHour = *f.DigestHour

@@ -1046,6 +1046,7 @@ type RuleForm struct {
 	Envs       string
 	Production bool // only the last environment
 	Apps       string
+	Where      string // region:eu-central-1 account:…
 	DigestHour int
 	Timezone   string // empty: UTC
 	QuietFrom  int    // -1: no quiet hours

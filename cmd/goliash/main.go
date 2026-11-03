@@ -2227,6 +2227,7 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	apps := fs.String("apps", "", "only services in these applications")
 	envs := fs.String("envs", "", "only these environments")
 	production := fs.Bool("production", false, "only the last environment (production), whatever it is called")
+	where := fs.String("where", "", "only what runs there, e.g. \"region:eu-central-1 account:123456789012\"")
 	minJump := fs.String("min-jump", "", "new releases: smallest jump to report (patch, minor, major)")
 	digestHour := fs.Int("digest-hour", 8, "hour digests go out, in -timezone")
 	timezone := fs.String("timezone", "", "IANA time zone for -digest-hour and -quiet, e.g. Europe/Bratislava (default UTC)")
@@ -2250,6 +2251,11 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs), Production: *production,
 		Apps: splitList(*apps), MinJump: versions.Jump(*minJump), DigestHour: digestHour, Timezone: *timezone,
 	}
+	w, rest := versions.SplitWhere(*where)
+	if rest = strings.TrimSpace(rest); rest != "" {
+		return fmt.Errorf("-where takes words like region:eu-central-1, not %q", rest)
+	}
+	f.Where = w
 	if *timezone != "" {
 		if _, err := time.LoadLocation(*timezone); err != nil {
 			return fmt.Errorf("-timezone: %w", err)
