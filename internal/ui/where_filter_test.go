@@ -116,3 +116,17 @@ func TestStillExploited(t *testing.T) {
 		t.Fatalf("still %v", got)
 	}
 }
+
+// The vulnerabilities list says which versions of a service have the package, so a release built on the old base
+// shows as itself.
+func TestByPackageVersions(t *testing.T) {
+	f := versions.VulnFinding{Affected: []versions.Affected{
+		{Service: "leadsystem", Env: "production", Image: "1.dkr.ecr.us-east-2.amazonaws.com/leadsystem:6.0.239", Package: "libbrotli1 1.0.9-2+b6"},
+		{Service: "leadsystem", Env: "production", Image: "1.dkr.ecr.us-east-2.amazonaws.com/leadsystem:6.0.240", Package: "libbrotli1 1.0.9-2+b6"},
+		{Service: "leadsystem", Env: "production", Image: "1.dkr.ecr.us-east-2.amazonaws.com/leadsystem:6.0.240", Package: "libbrotli1 1.0.9-2+b6"},
+	}}
+	got := byPackage(f)
+	if len(got) != 1 || len(got[0].Where) != 1 || got[0].Where[0].Label() != " 6.0.239, 6.0.240 (production)" {
+		t.Fatalf("uses %+v", got)
+	}
+}

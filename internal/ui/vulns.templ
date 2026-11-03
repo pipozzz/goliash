@@ -64,7 +64,7 @@ templ VulnsPage(v VulnsView) {
 					if i > 0 {
 						{ ", " }
 					}
-					<a href={ templ.URL(ServicePlace{u.Service, u.Environment}.URL()) } title={ u.Why }>{ u.Service }</a>{ " (" + u.Image + ")" }
+					<a href={ templ.URL(ServicePlace{Service: u.Service, Env: u.Environment}.URL()) } title={ u.Why }>{ u.Service }</a>{ " (" + u.Image + ")" }
 				}
 			</div>
 		}
@@ -154,7 +154,7 @@ templ VulnsPage(v VulnsView) {
 														if i > 0 {
 															{ ", " }
 														}
-														<a href={ templ.URL(w.URL()) }>{ w.Service }</a>{ " (" + w.Env + ")" }
+														<a href={ templ.URL(w.URL()) }>{ w.Service }</a>{ w.Label() }
 													}
 												</div>
 											</div>

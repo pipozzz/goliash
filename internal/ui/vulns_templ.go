@@ -314,9 +314,9 @@ func VulnsPage(v VulnsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var16 templ.SafeURL
-					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(ServicePlace{u.Service, u.Environment}.URL()))
+					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(ServicePlace{Service: u.Service, Env: u.Environment}.URL()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 84}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -329,7 +329,7 @@ func VulnsPage(v VulnsView) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(u.Why)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 100}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 					if templ_7745c5c3_Err != nil {
@@ -342,7 +342,7 @@ func VulnsPage(v VulnsView) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(u.Service)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 100}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 114}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -355,7 +355,7 @@ func VulnsPage(v VulnsView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(" (" + u.Image + ")")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 128}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 67, Col: 142}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -904,9 +904,9 @@ func VulnsPage(v VulnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var49 string
-							templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(" (" + w.Env + ")")
+							templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(w.Label())
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 157, Col: 82}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `vulns.templ`, Line: 157, Col: 73}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 							if templ_7745c5c3_Err != nil {

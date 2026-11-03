@@ -554,8 +554,16 @@ type PackageUse struct {
 	Rebuild  string // the base whose current build fixes it, when every image with it was built on an older one
 }
 
-// ServicePlace is a service in one environment.
-type ServicePlace struct{ Service, Env string }
+// ServicePlace is a service in one environment, with the versions it runs there that have the package.
+type ServicePlace struct{ Service, Env, Versions string }
+
+// Label is what follows the service's name: the versions with the package, and the environment: " 6.0.240 (prod)".
+func (p ServicePlace) Label() string {
+	if p.Versions == "" {
+		return " (" + p.Env + ")"
+	}
+	return " " + p.Versions + " (" + p.Env + ")"
+}
 
 // URL is the service's page at its security panel.
 func (p ServicePlace) URL() string { return "/services/" + url.PathEscape(p.Service) + "#security" }
@@ -573,9 +581,13 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		} else if out[i].Rebuild != a.Rebuild {
 			out[i].Rebuild = ""
 		}
-		w := ServicePlace{a.Service, a.Env}
-		if !slices.Contains(out[i].Where, w) {
-			out[i].Where = append(out[i].Where, w)
+		tag := versions.ParseImage(a.Image).Tag
+		j := slices.IndexFunc(out[i].Where, func(w ServicePlace) bool { return w.Service == a.Service && w.Env == a.Env })
+		switch {
+		case j < 0:
+			out[i].Where = append(out[i].Where, ServicePlace{a.Service, a.Env, tag})
+		case tag != "" && !slices.Contains(strings.Split(out[i].Where[j].Versions, ", "), tag):
+			out[i].Where[j].Versions += ", " + tag
 		}
 	}
 	return out
