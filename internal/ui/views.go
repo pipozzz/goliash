@@ -90,8 +90,10 @@ type MatrixGrid struct {
 	Watched  []string         // services watched for their releases only, running nowhere Goliash knows
 	Past     bool             // the matrix as of a moment in the past
 	CanAdmin bool
-	CanBulk  bool                 // members tick services to set their team at once
-	gitops   []versions.GitOpsApp // the GitOps applications the grid was built with, for markPRs
+	CanBulk  bool                         // members tick services to set their team at once
+	gitops   []versions.GitOpsApp         // the GitOps applications the grid was built with, for markPRs
+	targets  []store.Target               // the workspace's targets, for the palette
+	where    map[string]map[string]string // where each target runs, by ID
 }
 
 // MatrixGroup is a run of matrix rows under one heading.

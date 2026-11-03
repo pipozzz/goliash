@@ -29,8 +29,9 @@ account (from its credentials or its ECS cluster's ARN), region and availability
 type (from the instance metadata), its ECS cluster, and the host's operating system, kernel and architecture (from
 the Docker engine or the host's `/etc/os-release`). On Google Cloud the metadata server gives the project (as the
 account), zone, region, instance and machine type; on Azure the instance metadata gives the subscription, location,
-zone, VM name and size. `GOLIASH_CLOUD_METADATA=off` leaves Google Cloud and Azure out. The agent's page lists them, each a link to the matrix
-filtered to what runs there.
+zone, VM name and size. `GOLIASH_CLOUD_METADATA=off` leaves Google Cloud and Azure out. The agent's page lists them, each with the
+number of services it finds and a link to the matrix filtered to them; the palette and Search find services, targets
+and agents by them too.
 
 Its targets are where it is: a Docker host, a Kubernetes cluster or a server. A target read through AWS's API (ECS,
 RDS, Lambda …) shares only the agent's cloud and account, and has its own region (and the account of its ARNs). On

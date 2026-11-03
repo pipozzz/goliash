@@ -544,6 +544,7 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 		return MatrixGrid{}, err
 	}
 	g := buildGrid(o, len(agents), groupBy)
+	g.targets, g.where = o.Targets, o.Where
 	g.Unread = unreadRegistries(o)
 	g.Watched = watchedOnly(o)
 	if rep, err := versions.LoadVulnReport(ctx, s.store, sc, ""); err == nil {

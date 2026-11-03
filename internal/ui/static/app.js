@@ -638,6 +638,10 @@
       out.push({ label: "Vulnerabilities matching “" + raw + "”", sub: "CVE, package or service", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(raw) });
       out.push({ label: "Packages named “" + raw + "”", sub: "in running images, with their licenses", kind: "search", url: "/security/licenses?q=" + encodeURIComponent(raw) });
     }
+    // Where things run (region:eu-central-1, account:…, os:ubuntu) is a matrix filter.
+    if (/^(cloud|account|region|zone|cluster|instance|instance_type|platform|os|kernel|arch):\S+$/i.test(raw)) {
+      out.push({ label: "What runs in " + raw, sub: "the matrix, filtered", kind: "search", url: "/?view=table&q=" + encodeURIComponent(raw), top: true });
+    }
     if (raw.length >= 2) {
       out.push({ label: "Search everywhere for “" + raw + "”", sub: "services, vulnerabilities, packages, pull requests, history, notifications", kind: "search", url: "/search?q=" + encodeURIComponent(raw) });
     }
