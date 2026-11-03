@@ -654,5 +654,25 @@ func TestBuiltLocally(t *testing.T) {
 	o, _ := LoadOverview(ctx, l.st, l.sc)
 	if u, ok := WhyUnknown(o, l.svc.ID); !ok || u.Short != "built locally" {
 		t.Fatalf("unknown %+v", u)
+// A security refresh on request runs once per workspace at a time, in the background, and says when it is done.
+func TestRefreshSecurity(t *testing.T) {
+	l := newLab(t)
+	release, finished := make(chan struct{}), make(chan struct{})
+	if !l.checker.RefreshSecurity(l.sc, func() { <-release; close(finished) }) {
+		t.Fatal("first refresh refused")
+	}
+	if l.checker.RefreshSecurity(l.sc, nil) {
+		t.Fatal("a second refresh ran beside the first")
+	}
+	close(release)
+	<-finished
+	again := false
+	for i := 0; i < 100 && !again; i++ {
+		if again = l.checker.RefreshSecurity(l.sc, nil); !again {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if !again {
+		t.Fatal("no refresh after the first finished")
 	}
 }

@@ -82,6 +82,7 @@ type Checker struct {
 	php           *phpFeed   // which PHP releases fix vulnerabilities
 	text          *textFeeds // Go's release history, release notes pages
 
+	refreshing sync.Map   // workspace ID -> a security refresh runs (RefreshSecurity)
 	driftMu    sync.Mutex // one drift evaluation at a time
 	upstreamMu sync.Mutex // one upstream check at a time, so a release is announced once
 }
@@ -985,4 +986,31 @@ func (c *Checker) RecordPrivateTags(ctx context.Context, sc store.Scope, repo st
 		c.emit(sc, evs)
 	}
 	return nil
+}
+
+// RefreshSecurity reads the workspace's images and asks OSV about their packages now, in the background, rather
+// than at the next hourly run, then calls done; it reports false, and does nothing, when one already runs.
+func (c *Checker) RefreshSecurity(sc store.Scope, done func()) bool {
+	if _, running := c.refreshing.LoadOrStore(sc.WorkspaceID, true); running {
+		return false
+	}
+	go func() {
+		defer c.refreshing.Delete(sc.WorkspaceID)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := c.CheckEvidence(ctx, sc); err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "evidence lookup on request failed", "err", err)
+		}
+		if err := c.CheckVulnerabilities(ctx, sc); err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "vulnerability lookup on request failed", "err", err)
+		}
+		if err := c.CheckUpstreamFixes(ctx, sc); err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "upstream fix lookup on request failed", "err", err)
+		}
+		_ = c.EvaluateDrift(ctx, sc)
+		if done != nil {
+			done()
+		}
+	}()
+	return true
 }

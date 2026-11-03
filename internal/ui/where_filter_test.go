@@ -83,3 +83,17 @@ func TestAgentsPageFilterWords(t *testing.T) {
 		t.Error("an API target took the agent's OS")
 	}
 }
+
+// Check now reads a service's images and asks OSV again, whatever registry it is on.
+func TestCheckNow(t *testing.T) {
+	e := newUIEnv(t)
+	c := e.as(store.RoleMember)
+	svcs, _ := e.st.ListServices(t.Context(), e.ws.Scope())
+	name := svcs[0].Name
+	if _, page := get(t, c, e.srv.URL+serviceURL(name), nil); !strings.Contains(page, ">Check now</button>") {
+		t.Fatal("no Check now")
+	}
+	if _, body, _ := post(t, c, e.srv.URL+serviceURL(name)+"/check", nil); !strings.Contains(body, "asking OSV") && !strings.Contains(body, "being read already") {
+		t.Fatalf("check now: %s", body)
+	}
+}
