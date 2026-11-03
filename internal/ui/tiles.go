@@ -295,12 +295,21 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		} else {
 			v.AppGrid.Groups = []MatrixGroup{{Rows: rows}}
 		}
+		// A service that runs as several applications here (proxysql for four databases) is one cell each: their
+		// application tells them apart.
+		times := map[string]int{}
+		for _, row := range rows {
+			times[row.Service]++
+		}
 		for _, row := range rows {
 			c, running, runEnv := service(row, g.Envs, env)
 			if c.State == stNone {
 				continue
 			}
 			it := BoardItem{Key: c.Key, Name: c.Service, Caption: c.Owner, Href: "#" + c.Key, State: c.State, Envs: c.Envs, Total: 1, Span: 1, Kinds: row.Kinds}
+			if times[row.Service] > 1 && row.App != "" {
+				it.Caption = strings.TrimSuffix(row.App+" · "+c.Owner, " · ")
+			}
 			if c.State == stCurrent {
 				it.OK = 1
 			}
