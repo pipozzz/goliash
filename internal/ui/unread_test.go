@@ -75,3 +75,26 @@ func TestECRCrossAccount(t *testing.T) {
 		t.Error("a same-account refusal taken for cross-account")
 	}
 }
+
+// The banner names the services behind each registry, sorted, with the repository each runs from.
+func TestUnreadNamesServices(t *testing.T) {
+	o := versions.Overview{
+		Refs: map[string]versions.Reference{
+			"b": {Repo: "672088933272.dkr.ecr.us-east-2.amazonaws.com/team/worker", Tag: "1.0"},
+			"a": {Repo: "672088933272.dkr.ecr.us-east-2.amazonaws.com/team/api", Tag: "1.0"},
+		},
+		Services: map[string]store.Service{"a": {ID: "a", Name: "api"}, "b": {ID: "b", Name: "worker"}},
+	}
+	got := unreadRegistries(o)
+	want := []UnreadService{{Name: "api", Repo: "team/api"}, {Name: "worker", Repo: "team/worker"}}
+	if len(got) != 1 || len(got[0].Items) != 2 || got[0].Items[0] != want[0] || got[0].Items[1] != want[1] {
+		t.Fatalf("unread %+v", got)
+	}
+	var b strings.Builder
+	if err := MatrixGridView(MatrixGrid{Unread: got, Rows: []MatrixRow{{Service: "api"}}}).Render(t.Context(), &b); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `href="/services/worker"`) || !strings.Contains(b.String(), "team/worker") {
+		t.Fatalf("banner does not name the services:\n%s", b.String())
+	}
+}

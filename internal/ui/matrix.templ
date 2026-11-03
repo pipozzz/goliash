@@ -118,6 +118,7 @@ templ MatrixGridView(g MatrixGrid) {
 					if u.Error != "" {
 						<span class="muted unread-error" title={ u.Error }>{ "The agent's last answer: " + shortError(u.Error) }</span>
 					}
+					@unreadServices(u.Items)
 					if u.Managed {
 					} else if u.ECR {
 						<span class="muted">Give the agent's IAM role <code>ecr:ListImages</code> (or AmazonEC2ContainerRegistryReadOnly).</span>
@@ -403,4 +404,37 @@ templ timeTravel(t TimeTravel) {
 			</form>
 		</div>
 	</section>
+}
+
+// unreadServicesShown is how many services of an unread registry are named before the rest fold away.
+const unreadServicesShown = 6
+
+// unreadServices names the services of an unread registry, each linked, with the repository it runs from.
+templ unreadServices(items []UnreadService) {
+	if len(items) > 0 {
+		<span class="unread-services">
+			for i, it := range items {
+				if i < unreadServicesShown {
+					@unreadServiceLink(it)
+				}
+			}
+			if len(items) > unreadServicesShown {
+				<details>
+					<summary>{ "+" + itoa(len(items)-unreadServicesShown) + " more" }</summary>
+					for _, it := range items[unreadServicesShown:] {
+						@unreadServiceLink(it)
+					}
+				</details>
+			}
+		</span>
+	}
+}
+
+templ unreadServiceLink(it UnreadService) {
+	<span class="unread-service">
+		<a href={ templ.URL(serviceURL(it.Name)) }>{ it.Name }</a>
+		if it.Repo != "" && it.Repo != it.Name {
+			<code class="muted">{ it.Repo }</code>
+		}
+	</span>
 }

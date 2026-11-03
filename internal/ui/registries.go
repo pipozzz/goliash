@@ -38,6 +38,28 @@ type UnreadRegistry struct {
 	Managed bool
 	// Error is what an agent last got from the registry, when it got an error.
 	Error string
+	// Items are those services, by name, with the repository each runs from.
+	Items []UnreadService
+}
+
+// UnreadService is a service on an unread registry and the repository its image comes from, without the host.
+type UnreadService struct{ Name, Repo string }
+
+// unreadService names the service with ID id and the repository of ref on its registry.
+func unreadService(o versions.Overview, id string, ref versions.Reference) UnreadService {
+	name := o.Services[id].Name
+	if name == "" {
+		name = id
+	}
+	return UnreadService{Name: name, Repo: strings.TrimPrefix(ref.Repo, versions.RegistryHost(ref.Repo)+"/")}
+}
+
+// sortUnread orders each registry's services by name.
+func sortUnread(l []UnreadRegistry) {
+	sort.Slice(l, func(i, j int) bool { return l[i].Host < l[j].Host })
+	for _, u := range l {
+		sort.Slice(u.Items, func(i, j int) bool { return u.Items[i].Name < u.Items[j].Name })
+	}
 }
 
 // isECR reports whether host is an Amazon ECR registry.
@@ -57,7 +79,7 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 	if err != nil {
 		return nil, nil, err
 	}
-	uses, unread := map[string]int{}, map[string]int{}
+	uses, unread := map[string]int{}, map[string][]UnreadService{}
 	for id, ref := range o.Refs {
 		if ref.Repo == "" || versions.PackageRepo(ref.Repo) {
 			continue
@@ -65,7 +87,7 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 		host := versions.RegistryHost(ref.Repo)
 		uses[host]++
 		if versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) && !versions.Managed(ref.Repo) {
-			unread[host]++
+			unread[host] = append(unread[host], unreadService(o, id, ref))
 		}
 	}
 	var out []RegistryView
@@ -76,10 +98,10 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 		})
 	}
 	var missing []UnreadRegistry
-	for host, n := range unread {
-		missing = append(missing, UnreadRegistry{Host: host, Services: n, ECR: isECR(host)})
+	for host, items := range unread {
+		missing = append(missing, UnreadRegistry{Host: host, Services: len(items), ECR: isECR(host), Items: items})
 	}
-	sort.Slice(missing, func(i, j int) bool { return missing[i].Host < missing[j].Host })
+	sortUnread(missing)
 	return out, missing, nil
 }
 

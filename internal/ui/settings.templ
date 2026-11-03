@@ -724,6 +724,7 @@ templ registriesPanel(v SettingsView) {
 						<li>
 							<code>{ u.Host }</code>
 							<span class="muted">{ plural(u.Services, "service", "services") } only agents can check</span>
+							@unreadServices(u.Items)
 							if u.ECR {
 								<span class="muted">Amazon ECR: the agent reads it with its IAM role (<code>ecr:ListImages</code>).</span>
 							} else {

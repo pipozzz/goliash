@@ -503,10 +503,14 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</span> ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
+				}
+				templ_7745c5c3_Err = unreadServices(u.Items).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
 				}
 				if u.Managed {
 				} else if u.ECR {
@@ -522,7 +526,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var21 templ.SafeURL
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/settings?registry=" + u.Host + "#registries"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 126, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 127, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -556,7 +560,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs("Watched for their releases only, running nowhere Goliash knows: ")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 136, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 137, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -571,7 +575,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(", ")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 139, Col: 11}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 140, Col: 11}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -585,7 +589,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 				var templ_7745c5c3_Var24 templ.SafeURL
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(serviceURL(name)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 141, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 142, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -598,7 +602,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 141, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 142, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -637,7 +641,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(e.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 159, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 160, Col: 16}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -650,7 +654,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(plural(e.Targets, "target", "targets"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 160, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 161, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {
@@ -696,7 +700,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var30 string
 					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(itoa(len(g.Envs) + 2))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 170, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 171, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 					if templ_7745c5c3_Err != nil {
@@ -732,7 +736,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var33 string
 						templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(initial(grp.Name))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 173, Col: 103}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 174, Col: 103}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 						if templ_7745c5c3_Err != nil {
@@ -756,7 +760,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var34 templ.SafeURL
 						templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(grp.URL))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 178, Col: 58}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 179, Col: 58}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 						if templ_7745c5c3_Err != nil {
@@ -769,7 +773,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var35 string
 						templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue("The target page of " + grp.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 178, Col: 101}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 179, Col: 101}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 						if templ_7745c5c3_Err != nil {
@@ -782,7 +786,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var36 string
 						templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(grp.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 178, Col: 114}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 179, Col: 114}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 						if templ_7745c5c3_Err != nil {
@@ -800,7 +804,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var37 string
 						templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(grp.Name)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 180, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 181, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 						if templ_7745c5c3_Err != nil {
@@ -818,7 +822,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(len(grp.Rows)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 182, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 183, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {
@@ -836,7 +840,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var39 string
 						templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(grp.Caption)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 184, Col: 31}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 185, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 						if templ_7745c5c3_Err != nil {
@@ -866,7 +870,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var40 string
 					templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(rowSearch(r))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 195, Col: 34}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 196, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 					if templ_7745c5c3_Err != nil {
@@ -879,7 +883,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue(rowDrift(r))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 196, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 197, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 					if templ_7745c5c3_Err != nil {
@@ -892,7 +896,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var42 string
 					templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.Health)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 197, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 198, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 					if templ_7745c5c3_Err != nil {
@@ -910,7 +914,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var43 string
 						templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.Same)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 199, Col: 27}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 200, Col: 27}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 						if templ_7745c5c3_Err != nil {
@@ -933,7 +937,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var44 string
 						templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.Service)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 204, Col: 82}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 205, Col: 82}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 						if templ_7745c5c3_Err != nil {
@@ -946,7 +950,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var45 string
 						templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue("Tick " + r.Service)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 204, Col: 136}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 205, Col: 136}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 						if templ_7745c5c3_Err != nil {
@@ -968,7 +972,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var46 templ.SafeURL
 					templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(r.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 207, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 208, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 					if templ_7745c5c3_Err != nil {
@@ -981,7 +985,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 					var templ_7745c5c3_Var47 string
 					templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(r.Service)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 207, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 208, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 					if templ_7745c5c3_Err != nil {
@@ -999,7 +1003,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var48 string
 						templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs("in " + orOther(r.App))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 209, Col: 125}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 210, Col: 125}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 						if templ_7745c5c3_Err != nil {
@@ -1018,7 +1022,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var49 string
 						templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(r.What)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 212, Col: 37}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 213, Col: 37}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 						if templ_7745c5c3_Err != nil {
@@ -1037,7 +1041,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var50 string
 						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(r.Owner)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 215, Col: 39}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 216, Col: 39}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 						if templ_7745c5c3_Err != nil {
@@ -1066,7 +1070,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var51 string
 						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue(envLabel(g.Envs, i))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 222, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 223, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 						if templ_7745c5c3_Err != nil {
@@ -1079,7 +1083,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var52 string
 						templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.Service + "|" + r.App + "|" + envLabel(g.Envs, i))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 222, Col: 110}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 223, Col: 110}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var52)
 						if templ_7745c5c3_Err != nil {
@@ -1110,7 +1114,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var53 templ.SafeURL
 						templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(r.LatestURL))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 228, Col: 54}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 229, Col: 54}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 						if templ_7745c5c3_Err != nil {
@@ -1123,7 +1127,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var54 string
 						templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(r.Latest)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 228, Col: 131}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 229, Col: 131}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 						if templ_7745c5c3_Err != nil {
@@ -1141,7 +1145,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var55 string
 						templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(r.Latest)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 230, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 231, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 						if templ_7745c5c3_Err != nil {
@@ -1165,7 +1169,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var56 string
 						templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(r.NoteTitle)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 235, Col: 50}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 236, Col: 50}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 						if templ_7745c5c3_Err != nil {
@@ -1178,7 +1182,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 						var templ_7745c5c3_Var57 string
 						templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(r.Note)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 235, Col: 61}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 236, Col: 61}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 						if templ_7745c5c3_Err != nil {
@@ -1211,7 +1215,7 @@ func MatrixGridView(g MatrixGrid) templ.Component {
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(plural(g.Unmapped, "workload is", "workloads are"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 246, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 247, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 				if templ_7745c5c3_Err != nil {
@@ -1257,7 +1261,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var60 string
 		templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.ResolveAttributeValue(itoa(grp.OK) + " up to date, " + itoa(grp.Warn) + " behind, " + itoa(grp.Bad) + " need attention")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 256, Col: 133}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 257, Col: 133}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var60)
 		if templ_7745c5c3_Err != nil {
@@ -1270,7 +1274,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var61 string
 		templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.ResolveAttributeValue(f(ok))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 259, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 260, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var61)
 		if templ_7745c5c3_Err != nil {
@@ -1283,7 +1287,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var62 string
 		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.ResolveAttributeValue(f(ok))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 260, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 261, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var62)
 		if templ_7745c5c3_Err != nil {
@@ -1296,7 +1300,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var63 string
 		templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.ResolveAttributeValue(f(warn))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 260, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 261, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var63)
 		if templ_7745c5c3_Err != nil {
@@ -1309,7 +1313,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var64 string
 		templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.ResolveAttributeValue(f(ok + warn))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 261, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 262, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var64)
 		if templ_7745c5c3_Err != nil {
@@ -1322,7 +1326,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var65 string
 		templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(f(bad))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 261, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 262, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var65)
 		if templ_7745c5c3_Err != nil {
@@ -1335,7 +1339,7 @@ func groupHealth(grp MatrixGroup) templ.Component {
 		var templ_7745c5c3_Var66 string
 		templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(grp.OK) + " of " + itoa(len(grp.Rows)) + " current")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 263, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 264, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 		if templ_7745c5c3_Err != nil {
@@ -1379,7 +1383,7 @@ func resolvedTag(tag, resolved string) templ.Component {
 			var templ_7745c5c3_Var68 string
 			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.ResolveAttributeValue(tag + " is a moving tag; the image that runs is " + resolved + " (same digest)")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 270, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 271, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var68)
 			if templ_7745c5c3_Err != nil {
@@ -1392,7 +1396,7 @@ func resolvedTag(tag, resolved string) templ.Component {
 			var templ_7745c5c3_Var69 string
 			templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(resolved)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 270, Col: 127}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 271, Col: 127}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 			if templ_7745c5c3_Err != nil {
@@ -1446,7 +1450,7 @@ func cellView(c MatrixCell) templ.Component {
 				var templ_7745c5c3_Var71 string
 				templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(v.Tag)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 281, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 282, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 				if templ_7745c5c3_Err != nil {
@@ -1467,7 +1471,7 @@ func cellView(c MatrixCell) templ.Component {
 				var templ_7745c5c3_Var72 string
 				templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(v.Running))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 283, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 284, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 				if templ_7745c5c3_Err != nil {
@@ -1485,7 +1489,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var73 string
 					templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(v.Targets)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 286, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 287, Col: 37}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 					if templ_7745c5c3_Err != nil {
@@ -1534,7 +1538,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var76 string
 					templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.ResolveAttributeValue(d.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 295, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 296, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var76)
 					if templ_7745c5c3_Err != nil {
@@ -1547,7 +1551,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var77 string
 					templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(d.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 295, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 296, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 					if templ_7745c5c3_Err != nil {
@@ -1566,7 +1570,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var78 string
 					templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.StaleTitle)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 298, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 299, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var78)
 					if templ_7745c5c3_Err != nil {
@@ -1591,7 +1595,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var79 templ.SafeURL
 					templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pr.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 304, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 305, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 					if templ_7745c5c3_Err != nil {
@@ -1604,7 +1608,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var80 string
 					templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.ResolveAttributeValue(pr.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 304, Col: 102}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 305, Col: 102}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var80)
 					if templ_7745c5c3_Err != nil {
@@ -1617,7 +1621,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var81 string
 					templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(pr.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 304, Col: 115}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 305, Col: 115}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 					if templ_7745c5c3_Err != nil {
@@ -1635,7 +1639,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var82 templ.SafeURL
 					templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(pr.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 306, Col: 62}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 307, Col: 62}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 					if templ_7745c5c3_Err != nil {
@@ -1648,7 +1652,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var83 string
 					templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.ResolveAttributeValue(pr.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 306, Col: 81}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 307, Col: 81}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var83)
 					if templ_7745c5c3_Err != nil {
@@ -1661,7 +1665,7 @@ func cellView(c MatrixCell) templ.Component {
 					var templ_7745c5c3_Var84 string
 					templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(pr.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 306, Col: 94}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 307, Col: 94}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 					if templ_7745c5c3_Err != nil {
@@ -1733,7 +1737,7 @@ func firstRun(steps []Step, explore bool) templ.Component {
 			var templ_7745c5c3_Var88 string
 			templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(st.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 322, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 323, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 			if templ_7745c5c3_Err != nil {
@@ -1762,7 +1766,7 @@ func firstRun(steps []Step, explore bool) templ.Component {
 			var templ_7745c5c3_Var89 string
 			templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(st.Text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 329, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 330, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 			if templ_7745c5c3_Err != nil {
@@ -1798,7 +1802,7 @@ func firstRun(steps []Step, explore bool) templ.Component {
 				var templ_7745c5c3_Var92 templ.SafeURL
 				templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(st.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 332, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 333, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 				if templ_7745c5c3_Err != nil {
@@ -1811,7 +1815,7 @@ func firstRun(steps []Step, explore bool) templ.Component {
 				var templ_7745c5c3_Var93 string
 				templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(st.Action)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 332, Col: 100}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 333, Col: 100}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 				if templ_7745c5c3_Err != nil {
@@ -1880,7 +1884,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var95 string
 		templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Kind)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 354, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 355, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var95)
 		if templ_7745c5c3_Err != nil {
@@ -1893,7 +1897,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var96 string
 		templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Base)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 354, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 355, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var96)
 		if templ_7745c5c3_Err != nil {
@@ -1906,7 +1910,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var97 string
 		templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Group)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 354, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 355, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var97)
 		if templ_7745c5c3_Err != nil {
@@ -1919,7 +1923,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var98 string
 		templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.At)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 354, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 355, Col: 126}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var98)
 		if templ_7745c5c3_Err != nil {
@@ -1943,7 +1947,7 @@ func timeTravel(t TimeTravel) templ.Component {
 			var templ_7745c5c3_Var99 string
 			templ_7745c5c3_Var99, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Replace(t.At, "T", " ", 1))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 360, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 361, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var99))
 			if templ_7745c5c3_Err != nil {
@@ -1966,7 +1970,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var100 templ.SafeURL
 		templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(t.Base))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 373, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 374, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var100))
 		if templ_7745c5c3_Err != nil {
@@ -1989,7 +1993,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var101 templ.SafeURL
 		templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(t.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 397, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 398, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 		if templ_7745c5c3_Err != nil {
@@ -2002,7 +2006,7 @@ func timeTravel(t TimeTravel) templ.Component {
 		var templ_7745c5c3_Var102 string
 		templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.At)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 398, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 399, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var102)
 		if templ_7745c5c3_Err != nil {
@@ -2020,7 +2024,7 @@ func timeTravel(t TimeTravel) templ.Component {
 			var templ_7745c5c3_Var103 string
 			templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.ResolveAttributeValue(h[0])
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 400, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 401, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var103)
 			if templ_7745c5c3_Err != nil {
@@ -2033,7 +2037,7 @@ func timeTravel(t TimeTravel) templ.Component {
 			var templ_7745c5c3_Var104 string
 			templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.ResolveAttributeValue(h[1])
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 400, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 401, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var104)
 			if templ_7745c5c3_Err != nil {
@@ -2045,6 +2049,160 @@ func timeTravel(t TimeTravel) templ.Component {
 			}
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 202, "<button type=\"submit\" class=\"secondary\">Show</button></form></div></section>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// unreadServicesShown is how many services of an unread registry are named before the rest fold away.
+const unreadServicesShown = 6
+
+// unreadServices names the services of an unread registry, each linked, with the repository it runs from.
+func unreadServices(items []UnreadService) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var105 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var105 == nil {
+			templ_7745c5c3_Var105 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		if len(items) > 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 203, "<span class=\"unread-services\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for i, it := range items {
+				if i < unreadServicesShown {
+					templ_7745c5c3_Err = unreadServiceLink(it).Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+			}
+			if len(items) > unreadServicesShown {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 204, "<details><summary>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var106 string
+				templ_7745c5c3_Var106, templ_7745c5c3_Err = templ.JoinStringErrs("+" + itoa(len(items)-unreadServicesShown) + " more")
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 423, Col: 68}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var106))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 205, "</summary> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for _, it := range items[unreadServicesShown:] {
+					templ_7745c5c3_Err = unreadServiceLink(it).Render(ctx, templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 206, "</details>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 207, "</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		return nil
+	})
+}
+
+func unreadServiceLink(it UnreadService) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var107 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var107 == nil {
+			templ_7745c5c3_Var107 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, "<span class=\"unread-service\"><a href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var108 templ.SafeURL
+		templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(serviceURL(it.Name)))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 435, Col: 42}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 209, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var109 string
+		templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(it.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 435, Col: 54}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 210, "</a> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if it.Repo != "" && it.Repo != it.Name {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 211, "<code class=\"muted\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var110 string
+			templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(it.Repo)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `matrix.templ`, Line: 437, Col: 32}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 212, "</code>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 213, "</span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

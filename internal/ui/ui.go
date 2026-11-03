@@ -3241,7 +3241,7 @@ func (s *Server) exploreExample(w http.ResponseWriter, r *http.Request, p auth.P
 // unreadRegistries lists private registries whose services have no known release yet: neither the server
 // (no credentials) nor an agent could read them.
 func unreadRegistries(o versions.Overview) []UnreadRegistry {
-	count, lastErr := map[string]int{}, map[string]string{}
+	items, lastErr := map[string][]UnreadService{}, map[string]string{}
 	for id, ref := range o.Refs {
 		if u, ok := o.Upstreams[id]; (ok && u.HasLatest) || versions.PackageRepo(ref.Repo) || !versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
 			continue
@@ -3250,7 +3250,7 @@ func unreadRegistries(o versions.Overview) []UnreadRegistry {
 			continue // an agent read its tags; none is a version (its row says why), the registry is not the matter
 		}
 		host := versions.RegistryHost(ref.Repo)
-		count[host]++
+		items[host] = append(items[host], unreadService(o, id, ref))
 		if e := o.CheckErrs[id]; e != "" && (lastErr[host] == "" || e < lastErr[host]) {
 			lastErr[host] = e // one of them, the same on every page load
 		}
@@ -3261,11 +3261,13 @@ func unreadRegistries(o versions.Overview) []UnreadRegistry {
 			managed[versions.RegistryHost(ref.Repo)] = true
 		}
 	}
-	out := make([]UnreadRegistry, 0, len(count))
-	for host, n := range count {
-		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host), Managed: managed[host], Error: lastErr[host]})
+	out := make([]UnreadRegistry, 0, len(items))
+	for host, l := range items {
+		out = append(out, UnreadRegistry{
+			Host: host, Services: len(l), ECR: isECR(host), Managed: managed[host], Error: lastErr[host], Items: l,
+		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
+	sortUnread(out)
 	return out
 }
 
