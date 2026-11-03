@@ -27,7 +27,9 @@ Collectors only read. They run in the agent, or in the server for targets withou
 When it starts, an agent says where it runs, as far as it can tell without extra permissions: the cloud, AWS
 account (from its credentials or its ECS cluster's ARN), region and availability zone, the EC2 instance and its
 type (from the instance metadata), its ECS cluster, and the host's operating system, kernel and architecture (from
-the Docker engine or the host's `/etc/os-release`). The agent's page lists them, each a link to the matrix
+the Docker engine or the host's `/etc/os-release`). On Google Cloud the metadata server gives the project (as the
+account), zone, region, instance and machine type; on Azure the instance metadata gives the subscription, location,
+zone, VM name and size. `GOLIASH_CLOUD_METADATA=off` leaves Google Cloud and Azure out. The agent's page lists them, each a link to the matrix
 filtered to what runs there.
 
 Its targets are where it is: a Docker host, a Kubernetes cluster or a server. A target read through AWS's API (ECS,

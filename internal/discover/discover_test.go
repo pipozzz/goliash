@@ -22,7 +22,47 @@ func opts(env map[string]string) Options {
 		Exists:   func(string) bool { return false },
 		Hostname: func() (string, error) { return "box", nil },
 		AWS:      &fakeAWS{},
-		IMDS:     "http://127.0.0.1:1", // nothing listens: not EC2
+		IMDS:     "http://127.0.0.1:1", // nothing listens: not EC2, not Azure
+		GCP:      "http://127.0.0.1:1", // nor Google Cloud
+	}
+}
+
+// Off AWS, Google Cloud's and Azure's metadata say where the agent runs.
+func TestOtherClouds(t *testing.T) {
+	gcp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Metadata-Flavor") != "Google" {
+			http.Error(w, "", http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(map[string]string{
+			"/computeMetadata/v1/project/project-id":    "acme-prod",
+			"/computeMetadata/v1/instance/zone":         "projects/123/zones/europe-west1-b",
+			"/computeMetadata/v1/instance/name":         "gke-node-1",
+			"/computeMetadata/v1/instance/machine-type": "projects/123/machineTypes/e2-standard-4",
+		}[r.URL.Path]))
+	}))
+	defer gcp.Close()
+	o := opts(nil)
+	o.GCP = gcp.URL
+	r, _ := Run(context.Background(), o)
+	if w := r.Where; w["cloud"] != "gcp" || w["account"] != "acme-prod" || w["zone"] != "europe-west1-b" || w["region"] != "europe-west1" ||
+		w["instance"] != "gke-node-1" || w["instance_type"] != "e2-standard-4" {
+		t.Fatalf("gcp: %v", w)
+	}
+
+	azure := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Metadata") != "true" || r.URL.Path != "/metadata/instance" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"compute":{"subscriptionId":"sub-1","location":"westeurope","zone":"2","name":"vm-1","vmSize":"Standard_D2s_v5"}}`))
+	}))
+	defer azure.Close()
+	o = opts(nil)
+	o.Azure = azure.URL
+	r, _ = Run(context.Background(), o)
+	if w := r.Where; w["cloud"] != "azure" || w["account"] != "sub-1" || w["region"] != "westeurope" || w["zone"] != "westeurope-2" || w["instance_type"] != "Standard_D2s_v5" {
+		t.Fatalf("azure: %v", w)
 	}
 }
 
