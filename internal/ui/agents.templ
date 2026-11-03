@@ -10,6 +10,9 @@ templ AgentsPage(v AgentsView) {
 				<h1>Agents and targets</h1>
 				@aboutText("Agents run in your network and read orchestrators read-only. Each target belongs to one environment.")
 			</div>
+			if len(v.Agents)+len(v.Targets) > 1 {
+				@pageFilter("main table.agent-list tbody tr, main table.target-list tbody tr", "Filter by name, version, region:…, os:…")
+			}
 			<span class="actions">
 				if v.CanAdmin {
 					<a class="button secondary" href="/cleanup" title="Agents gone quiet, targets nothing reports for, empty environments, services that run nowhere">Clean up</a>
@@ -30,11 +33,11 @@ templ AgentsPage(v AgentsView) {
 				</div>
 			} else {
 				<div class="scroll" tabindex="0">
-					<table>
+					<table class="agent-list">
 						<thead><tr><th>Name</th><th>Status</th><th>Version</th><th>Host</th><th>Collects</th><th>Last seen</th></tr></thead>
 						<tbody>
 							for _, a := range v.Agents {
-								<tr>
+								<tr data-search={ agentSearch(a) }>
 									<td><a href={ templ.URL("/agents/" + a.ID) }><strong>{ a.Name }</strong></a></td>
 									<td><span class={ "badge", a.Status }>{ a.Status }</span></td>
 									<td class="mono">

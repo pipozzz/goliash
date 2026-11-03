@@ -213,7 +213,7 @@ templ AgentPage(v AgentPageView) {
 // targetsTable lists targets; admins move them to another collector or delete them.
 templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, from string) {
 	<div class="scroll" tabindex="0">
-		<table>
+		<table class="target-list">
 			<thead>
 				<tr>
 					<th>Target</th>
@@ -229,8 +229,13 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 			</thead>
 			<tbody>
 				for _, t := range targets {
-					<tr>
-						<td><a href={ templ.URL("/targets/" + t.ID) }><strong>{ t.Name }</strong></a></td>
+					<tr data-search={ targetSearch(t) }>
+						<td>
+							<a href={ templ.URL("/targets/" + t.ID) }><strong>{ t.Name }</strong></a>
+							if w := whereShort(t.Where); w != "" {
+								<div class="targets">{ w }</div>
+							}
+						</td>
 						<td>{ t.Platform }</td>
 						<td>{ t.Env }</td>
 						<td>

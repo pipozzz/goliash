@@ -923,6 +923,7 @@ type TargetView struct {
 	Status       string
 	Error        string
 	LastSnapshot time.Time
+	Where        []WhereItem // where it runs: its agent's place, or for an API target its own region
 }
 
 // AgentsView is the agents and targets page.

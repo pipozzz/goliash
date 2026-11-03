@@ -1674,9 +1674,10 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	if err != nil {
 		return v, err
 	}
-	agentStale := map[string]bool{}
+	agentStale, agentWhere := map[string]bool{}, map[string]map[string]string{}
 	for _, a := range agents {
 		agentStale[a.ID] = !a.StaleSince.IsZero()
+		agentWhere[a.ID] = a.Where
 	}
 	perEnv, livePerEnv := map[string]int{}, map[string]int{}
 	for _, t := range targets {
@@ -1697,6 +1698,11 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 			ID: t.ID, AgentID: t.AgentID,
 			Name: t.Name, Platform: t.Platform, Env: envName[t.EnvironmentID], Agent: by,
 			Status: t.CollectorStatus, Error: t.CollectorError, LastSnapshot: t.LastSnapshotAt,
+		}
+		for _, it := range whereItems(versions.TargetWhere(t, agentWhere[t.AgentID])) {
+			if it.Key != "platform" {
+				tv.Where = append(tv.Where, it)
+			}
 		}
 		if versions.StaleTarget(t, agentStale[t.AgentID], time.Now()) {
 			tv.Status = "stale"
