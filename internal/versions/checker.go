@@ -893,6 +893,10 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope, agent
 	if err != nil {
 		return nil, err
 	}
+	releases, err := c.releasesToRead(ctx, sc, st.instances)
+	if err != nil {
+		return nil, err
+	}
 	runBy := map[string]map[string]bool{} // service ID -> the agents running it
 	for _, in := range st.instances {
 		if a := st.agentOf[in.TargetID]; a != "" && in.ServiceID != "" {
@@ -917,6 +921,9 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope, agent
 		seen[ref.Repo] = true
 		host, _, _ := strings.Cut(ref.Repo, "/")
 		check := agentproto.RegistryCheck{Repository: ref.Repo, CredentialsRef: &host, Resolve: pending[ref.Repo], Inspect: inspect[ref.Repo]}
+		if tags := releases[ref.Repo]; len(tags) > 0 {
+			check.ReleaseTags = tags[:min(len(tags), 5)]
+		}
 		if p, _, err := PolicyFor(st.byID[id], ref.Repo); err == nil && p.TagFilter != "" {
 			filter := p.TagFilter
 			check.TagFilter = &filter

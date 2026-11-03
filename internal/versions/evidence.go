@@ -180,6 +180,11 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 	}
 	auth, bases := c.registryAuth(ctx, sc), newBaseLookups()
 	for _, in := range found {
+		if in.Tag != nil && *in.Tag != "" { // a release asked for by tag, that runs nowhere yet
+			if err := c.store.SetReleaseImage(ctx, sc, store.ReleaseImage{Repo: repo, Tag: *in.Tag, Digest: in.Digest}); err != nil {
+				return err
+			}
+		}
 		ev := store.ImageEvidence{Repo: repo, Digest: in.Digest, Found: in.Found}
 		if in.Error != nil {
 			ev.Error = *in.Error

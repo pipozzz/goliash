@@ -598,6 +598,9 @@ type ImageInspection struct {
 	// Size What pulling the image downloads, in bytes (compressed layers and config, linux/amd64 or the first platform).
 	Size *int64 `json:"size,omitempty"`
 
+	// Tag The release tag asked for in `release_tags` whose digest this is; absent for `inspect`.
+	Tag *string `json:"tag,omitempty"`
+
 	// Vex The OpenVEX statements attached to the image (attestations or referrers), later ones about the same vulnerability in place of earlier; absent when the image has no VEX document.
 	Vex []VEXStatement `json:"vex,omitempty"`
 }
@@ -734,6 +737,11 @@ type RegistryCheck struct {
 	// Inspect Digests of running images to look up signatures and attestations for (cosign tags, BuildKit
 	// attestation manifests, OCI referrers), and the packages of their SBOM. Older agents ignore it.
 	Inspect []string `json:"inspect,omitempty"`
+
+	// ReleaseTags Tags of releases that run nowhere yet (the version an upgrade would move to): the agent reads the digest
+	// each tag points at and inspects it as it does `inspect`, answering with `tag` set, so Goliash can tell
+	// which vulnerabilities upgrading fixes before anyone deploys. Older agents ignore it.
+	ReleaseTags []string `json:"release_tags,omitempty"`
 
 	// Repository Image repository without tag or digest.
 	//

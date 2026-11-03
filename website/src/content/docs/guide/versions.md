@@ -168,6 +168,12 @@ image, say): its line says *no newer release known · fix:* and what fixes it �
 node:22-alpine* when the current build of its base no longer has it, a base on a newer release of its distribution,
 or the package version that fixes it. Mitigated vulnerabilities, and ones the image's VEX or its distribution says do
 not apply, do not add a line.
+
+A line also says what the upgrade does to known vulnerabilities: *fixes 206 vulnerabilities (2 exploited) · brings
+110 new ones*, and *v3.0.11 still has CVE-…* when it leaves an exploited one. When the version to move to runs
+nowhere yet, Goliash reads its image in the registry before anyone deploys it (the server for registries it reads, the
+agent for the private ones it checks, from 1.202) and asks OSV about its packages, so the answer is there within the
+hour a release appears.
 When the release notes on the way (GitHub or GitLab releases, or the project's own notes pages) say something breaks,
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible

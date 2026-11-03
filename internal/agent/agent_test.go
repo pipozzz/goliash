@@ -746,3 +746,22 @@ func TestRegisterSendsDiscovery(t *testing.T) {
 		t.Errorf("register %+v", f.lastReg)
 	}
 }
+
+// releaseRegistry knows the digest of release tags, and the packages of the images behind them.
+type releaseRegistry struct{ pkgRegistry }
+
+func (r *releaseRegistry) TagDigest(_ context.Context, _, ref string, _ registry.Credentials) (string, error) {
+	if ref == "v3.0.11" {
+		return "sha256:" + strings.Repeat("c", 64), nil
+	}
+	return "", errors.New("manifest unknown")
+}
+
+// A release asked for by tag is read like a running image, and answered with its tag; an unknown tag is left out.
+func TestInspectReleaseTags(t *testing.T) {
+	a := &Agent{registry: &releaseRegistry{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	got := a.inspectDigests(context.Background(), agentproto.RegistryCheck{Repository: "harbor.example.com/shop/proxysql", ReleaseTags: []string{"v3.0.11", "v9"}}, registry.Credentials{})
+	if len(got) != 1 || got[0].Tag == nil || *got[0].Tag != "v3.0.11" || got[0].Digest != "sha256:"+strings.Repeat("c", 64) || len(got[0].Purls) != 1 {
+		t.Fatalf("inspections %+v", got)
+	}
+}

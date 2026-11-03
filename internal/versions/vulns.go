@@ -229,10 +229,16 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		return err
 	}
 
+	// The images of the versions open upgrades move to, that run nowhere yet: what upgrading fixes.
+	releases, err := c.readReleases(ctx, sc, active, auth, sboms)
+	if err != nil {
+		return err
+	}
+
 	// OSV, for the packages of running images whose answer is missing or old.
 	var purls []string
 	seen := map[string]bool{}
-	for _, set := range []map[string]bool{keys, bases} {
+	for _, set := range []map[string]bool{keys, bases, releases} {
 		for key := range set {
 			for _, p := range sboms[key].Purls {
 				if !seen[p] {

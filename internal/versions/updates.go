@@ -262,6 +262,7 @@ func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 				}
 			}
 		}
+		_ = releaseDeltas(ctx, st, sc, o, us) // the versions that run nowhere yet, from their release images
 	}
 	if r, err := st.Remediation(ctx, sc); err == nil && r.Any() {
 		us = WithDeadlines(us, r)
