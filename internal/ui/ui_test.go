@@ -740,6 +740,12 @@ func TestAgentPage(t *testing.T) {
 		t.Fatalf("rotate: %s", body)
 	}
 
+	// Where it runs, as it reported: on its page, linked to the matrix filtered to it.
+	_ = e.st.SetAgentWhere(ctx, e.ws.Scope(), a.ID, map[string]string{"cloud": "aws", "account": "098225058563", "region": "eu-central-1", "instance": "i-0f13"})
+	if _, b := get(t, c, page, nil); !strings.Contains(b, "098225058563") || !strings.Contains(b, `q=instance%3Ai-0f13`) {
+		t.Fatal("where it runs not on its page")
+	}
+
 	// Viewers see the page without actions.
 	viewer := e.as(store.RoleViewer)
 	if _, b := get(t, viewer, page, nil); !strings.Contains(b, "swarm-eu") || strings.Contains(b, "Rotate token") {

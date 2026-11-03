@@ -267,14 +267,15 @@ func shortNotes(notes []string) []string {
 	return out
 }
 
-// discoverFor is how an agent with a token finds what it could collect at each start, for Goliash to offer it:
-// an agent with an enrollment code reports it when it enrolls, and its targets are added by themselves.
-func discoverFor(code string, seen *platforms, log *slog.Logger) func(context.Context) ([]agentproto.DeclaredTarget, []string) {
-	if code != "" {
-		return nil
-	}
-	return func(ctx context.Context) ([]agentproto.DeclaredTarget, []string) {
+// discoverFor is how an agent finds, at each start, where it runs and, with a token, what it could collect, for
+// Goliash to offer it: an agent with an enrollment code reports that when it enrolls, and its targets are added
+// by themselves.
+func discoverFor(code string, seen *platforms, log *slog.Logger) func(context.Context) ([]agentproto.DeclaredTarget, []string, map[string]string) {
+	return func(ctx context.Context) ([]agentproto.DeclaredTarget, []string, map[string]string) {
 		found, err := discover.Run(ctx, discover.Options{})
+		if code != "" {
+			return nil, nil, found.Where
+		}
 		seen.remember(found.Targets)
 		if err != nil {
 			log.Warn("looking for platforms failed", "err", err)
@@ -282,7 +283,7 @@ func discoverFor(code string, seen *platforms, log *slog.Logger) func(context.Co
 		for _, n := range found.Notes {
 			log.Warn("platform not usable", "detail", n)
 		}
-		return found.Targets, shortNotes(found.Notes)
+		return found.Targets, shortNotes(found.Notes), found.Where
 	}
 }
 

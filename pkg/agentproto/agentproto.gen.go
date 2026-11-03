@@ -706,6 +706,13 @@ type RegisterRequest struct {
 	//
 	// Example: 0.1.0
 	Version string `json:"version"`
+
+	// Where Where the agent runs, as far as it can tell, for Goliash to show and filter by: cloud (aws), account,
+	// region, zone, instance, instance_type, cluster, platform, os, kernel, arch. Older servers ignore it.
+	//
+	//
+	// Example: {"account":"123456789012","cloud":"aws","instance":"i-0f13cfa9b0e9b58a2","region":"eu-west-1"}
+	Where map[string]string `json:"where,omitempty"`
 }
 
 // RegisterResponse defines model for RegisterResponse.

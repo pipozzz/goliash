@@ -50,7 +50,7 @@ type Options struct {
 	Cloud CloudCredentials
 	// Discover finds what the agent could collect, and what it could not use and why, for the server to offer.
 	// Nil: nothing is offered.
-	Discover func(ctx context.Context) ([]agentproto.DeclaredTarget, []string)
+	Discover func(ctx context.Context) ([]agentproto.DeclaredTarget, []string, map[string]string)
 }
 
 // CloudCredentials gives credentials for a registry host from a cloud identity; ok is
@@ -214,8 +214,7 @@ func (a *Agent) register(ctx context.Context) error {
 	started := a.started.UTC()
 	req := agentproto.RegisterRequest{Version: buildinfo.Version, Hostname: host, Platforms: platforms, StartedAt: &started}
 	if a.opts.Discover != nil {
-		found, notes := a.opts.Discover(ctx)
-		req.Discovered, req.Notes = found, notes
+		req.Discovered, req.Notes, req.Where = a.opts.Discover(ctx)
 	}
 	resp, err := a.client.register(ctx, req)
 	if err != nil {

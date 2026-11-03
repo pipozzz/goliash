@@ -6,6 +6,9 @@ package ui
 import (
 	"errors"
 	"net/http"
+	"net/url"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/pipozzz/goliash/internal/auth"
@@ -29,8 +32,70 @@ func agentView(a store.Agent) AgentView {
 	return AgentView{
 		ID: a.ID, Name: a.Name, Status: status, Outdated: olderThanServer(a.Version), Version: a.Version,
 		Hostname: a.Hostname, LastSeen: a.LastSeenAt, Platforms: strings.Join(a.Platforms, ", "),
-		Enrolled: a.CodeID != "", Notes: a.Notes,
+		Enrolled: a.CodeID != "", Notes: a.Notes, Where: whereItems(a.Where),
 	}
+}
+
+// WhereItem is one thing known of where an agent or target runs: its label, value and filter word.
+type WhereItem struct{ Key, Label, Value string }
+
+// whereKeys are the keys of where something runs, in the order shown, with their labels.
+var whereKeys = []struct{ key, label string }{
+	{"cloud", "Cloud"},
+	{"account", "Account"},
+	{"region", "Region"},
+	{"zone", "Zone"},
+	{"cluster", "Cluster"},
+	{"instance", "Instance"},
+	{"instance_type", "Instance type"},
+	{"platform", "Platform"},
+	{"os", "OS"},
+	{"kernel", "Kernel"},
+	{"arch", "Architecture"},
+}
+
+// whereItems lists where something runs in a steady order; keys Goliash does not know follow, sorted.
+func whereItems(where map[string]string) []WhereItem {
+	var out []WhereItem
+	known := map[string]bool{}
+	for _, k := range whereKeys {
+		known[k.key] = true
+		if v := where[k.key]; v != "" {
+			out = append(out, WhereItem{Key: k.key, Label: k.label, Value: v})
+		}
+	}
+	var rest []string
+	for k, v := range where {
+		if !known[k] && v != "" {
+			rest = append(rest, k)
+		}
+	}
+	sort.Strings(rest)
+	for _, k := range rest {
+		out = append(out, WhereItem{Key: k, Label: k, Value: where[k]})
+	}
+	return out
+}
+
+// whereShort is where something runs in a few words: "aws 123456789012 · eu-west-1a · t3.medium".
+func whereShort(items []WhereItem) string {
+	var parts []string
+	for _, it := range items {
+		switch it.Key {
+		case "account", "zone", "instance_type", "os":
+			parts = append(parts, it.Value)
+		case "region":
+			if !slices.ContainsFunc(items, func(i WhereItem) bool { return i.Key == "zone" }) {
+				parts = append(parts, it.Value)
+			}
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
+// whereFilter is the matrix filtered to what runs where an item says.
+func whereFilter(it WhereItem) string {
+	return "/?view=table&q=" + url.QueryEscape(it.Key+":"+strings.ToLower(strings.Fields(it.Value + " ")[0]))
 }
 
 // olderThanServer reports whether an agent runs an older release than the server.

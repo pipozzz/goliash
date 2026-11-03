@@ -51,6 +51,10 @@ templ AgentPage(v AgentPageView) {
 					<dd class="mono">{ orDash(v.Agent.Hostname) }</dd>
 					<dt>Platforms</dt>
 					<dd>{ orDash(v.Agent.Platforms) }</dd>
+					for _, it := range v.Agent.Where {
+						<dt>{ it.Label }</dt>
+						<dd class="mono"><a href={ templ.URL(whereFilter(it)) } title="What runs here, on the matrix">{ it.Value }</a></dd>
+					}
 					<dt>Last seen</dt>
 					<dd>@timeAgo(v.Agent.LastSeen)</dd>
 					<dt>Connected first</dt>

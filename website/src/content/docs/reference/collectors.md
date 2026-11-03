@@ -22,6 +22,20 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Linux server | the operating system (`/etc/os-release`) and installed packages that matter (dpkg, apk) | read access to the host's files: the root mounted at `/host` read-only, or the agent on the host | none |
 | Manual | versions people enter on a service page (**Add by hand**), for software Goliash does not collect | nothing: never collected, never stale | none |
 
+## Where an agent runs
+
+When it starts, an agent says where it runs, as far as it can tell without extra permissions: the cloud, AWS
+account (from its credentials or its ECS cluster's ARN), region and availability zone, the EC2 instance and its
+type (from the instance metadata), its ECS cluster, and the host's operating system, kernel and architecture (from
+the Docker engine or the host's `/etc/os-release`). The agent's page lists them, each a link to the matrix
+filtered to what runs there.
+
+Its targets are where it is: a Docker host, a Kubernetes cluster or a server. A target read through AWS's API (ECS,
+RDS, Lambda …) shares only the agent's cloud and account, and has its own region (and the account of its ARNs). On
+the matrix, filter by them like by any word: `region:eu-central-1`, `account:123456789012`,
+`instance:i-0f13cfa9b0e9b58a2`, `os:ubuntu`, `zone:eu-central-1b`, `platform:ecs`. Agents before 1.198 report
+nothing of this.
+
 ## Target settings
 
 Each target has the settings object of its platform:

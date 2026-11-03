@@ -725,13 +725,13 @@ func TestInspectPackagesWithoutSBOM(t *testing.T) {
 	}
 }
 
-// An agent that can discover sends what it found, and what it could not use, when it registers.
+// An agent that can discover sends what it found, what it could not use, and where it runs, when it registers.
 func TestRegisterSendsDiscovery(t *testing.T) {
 	f := newFakeServer(t)
 	a := newTestAgent(t, f, map[agentproto.Platform]collectors.Factory{})
-	a.opts.Discover = func(context.Context) ([]agentproto.DeclaredTarget, []string) {
+	a.opts.Discover = func(context.Context) ([]agentproto.DeclaredTarget, []string, map[string]string) {
 		return []agentproto.DeclaredTarget{{Platform: agentproto.Rds, Name: "rds-eu-central-1", Rds: &agentproto.RDSSettings{Region: "eu-central-1"}}},
-			[]string{"msk eu-central-1: AccessDenied"}
+			[]string{"msk eu-central-1: AccessDenied"}, map[string]string{"cloud": "aws", "region": "eu-central-1"}
 	}
 	runAgent(t, a)
 	eventually(t, "register", func() bool {
@@ -741,7 +741,8 @@ func TestRegisterSendsDiscovery(t *testing.T) {
 	})
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(f.lastReg.Discovered) != 1 || f.lastReg.Discovered[0].Name != "rds-eu-central-1" || len(f.lastReg.Notes) != 1 {
+	if len(f.lastReg.Discovered) != 1 || f.lastReg.Discovered[0].Name != "rds-eu-central-1" || len(f.lastReg.Notes) != 1 ||
+		f.lastReg.Where["region"] != "eu-central-1" {
 		t.Errorf("register %+v", f.lastReg)
 	}
 }
