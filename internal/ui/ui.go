@@ -977,8 +977,39 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	sort.Slice(parsed, func(i, j int) bool { return parsed[i].v.Compare(parsed[j].v) > 0 })
+	runs := map[string][]string{} // version -> the environments running it
+	for _, row := range o.Matrix.Rows {
+		if row.Service.ID != svc.ID {
+			continue
+		}
+		for ei, c := range row.Cells {
+			for _, ver := range c.Versions {
+				if ei < len(o.Matrix.Environments) && !slices.Contains(runs[ver.Tag], o.Matrix.Environments[ei].Name) {
+					runs[ver.Tag] = append(runs[ver.Tag], o.Matrix.Environments[ei].Name)
+				}
+			}
+		}
+	}
+	upgrades := map[string]versions.Update{} // target -> the upgrade to it that leaves the fewest exploited
+	if acks, err := s.store.ListAcks(ctx, p.Scope); err == nil {
+		for _, u := range versions.LoadWork(ctx, s.store, p.Scope, o, acks, time.Now()) {
+			if u.Service.ID != svc.ID || u.Target == "" || !u.Vulns.Known || len(u.Exploited) == 0 {
+				continue
+			}
+			if prev, ok := upgrades[u.Target]; !ok || len(u.Exploited) > len(prev.Exploited) {
+				upgrades[u.Target] = u
+			}
+		}
+	}
 	for i := 0; i < len(parsed) && i < 12; i++ {
-		v.Releases = append(v.Releases, ReleaseView{Version: parsed[i].rel.Version, Published: parsed[i].rel.PublishedAt, URL: parsed[i].rel.ChangelogURL})
+		rv := ReleaseView{Version: parsed[i].rel.Version, Published: parsed[i].rel.PublishedAt, URL: parsed[i].rel.ChangelogURL, Runs: runs[parsed[i].rel.Version]}
+		if u, ok := upgrades[rv.Version]; ok {
+			rv.Still = stillExploited(u.Exploited, u.Vulns)
+			if n := len(u.Exploited) - len(rv.Still); n > 0 {
+				rv.Fixes = "fixes " + plural(n, "exploited vulnerability", "exploited vulnerabilities") + " running in " + u.Environment.Name
+			}
+		}
+		v.Releases = append(v.Releases, rv)
 	}
 
 	if deploys, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{

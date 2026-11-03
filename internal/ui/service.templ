@@ -231,7 +231,18 @@ templ ServicePage(v ServiceView) {
 								<tbody>
 									for _, r := range v.Releases {
 										<tr>
-											<td class="mono"><strong>{ r.Version }</strong></td>
+											<td class="mono">
+												<strong>{ r.Version }</strong>
+												if len(r.Runs) > 0 {
+													<span class="badge neutral" title="Runs there now">{ "runs in " + joinComma(r.Runs) }</span>
+												}
+												if r.Fixes != "" {
+													<div class="fix release-fix">{ r.Fixes }</div>
+												}
+												if len(r.Still) > 0 {
+													<div class="error-text release-fix">{ "still has " + joinComma(r.Still) }</div>
+												}
+											</td>
 											<td class="muted">
 												if !r.Published.IsZero() {
 													{ r.Published.Format("2006-01-02") }
