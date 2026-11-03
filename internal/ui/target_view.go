@@ -29,6 +29,7 @@ type TargetDetailView struct {
 	LastSnapshot            time.Time
 	Stale                   bool
 	CanAdmin                bool
+	Where                   []WhereItem // where it runs, each a filter of the matrix; its platform is the badge
 
 	Workloads, Services, OK, Drifting, Unmapped int
 	Groups                                      []WorkloadGroup
@@ -107,6 +108,11 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 		LastSnapshot: t.LastSnapshotAt, CanAdmin: p.Can(store.RoleAdmin),
 	}
 	_, v.Stale = o.Stale[t.ID]
+	for _, it := range whereItems(o.Where[t.ID]) {
+		if it.Key != "platform" {
+			v.Where = append(v.Where, it)
+		}
+	}
 	v.Agent = "this server"
 	if t.AgentID != "" {
 		if a, err := s.store.GetAgent(ctx, p.Scope, t.AgentID); err == nil {

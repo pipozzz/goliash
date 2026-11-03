@@ -27,6 +27,15 @@ templ TargetDetailPage(v TargetDetailView) {
 						<span class={ "badge", v.Status }>{ v.Status }</span>
 					}
 				</p>
+				if len(v.Where) > 0 {
+					<p class="where-line">
+						for _, it := range v.Where {
+							<a class="where-chip" href={ templ.URL(whereFilter(it)) } title={ it.Label + ": what runs here, on the matrix" }>
+								<span class="muted">{ it.Label }</span> <span class="mono">{ it.Value }</span>
+							</a>
+						}
+					</p>
+				}
 				if v.Error != "" {
 					<p class="error-text">{ v.Error }</p>
 				}
