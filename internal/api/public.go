@@ -1323,6 +1323,46 @@ func (h *PublicHandler) serverMetrics(ctx context.Context, b *strings.Builder, s
 		for _, st := range []string{"online", "stale", "never", "revoked"} {
 			fmt.Fprintf(b, "goliash_agents{status=%q} %d\n", st, counts[st])
 		}
+		writeWhereInfo(ctx, b, h.store, sc, agents)
+	}
+}
+
+// infoWhere are the where keys the info metrics carry as labels, in order; empty when not known.
+var infoWhere = []string{"cloud", "account", "region", "zone", "instance_type", "os", "arch"}
+
+// writeWhereInfo writes goliash_agent_info and goliash_target_info: one series each, value 1, labelled with where it
+// runs, to join on (… * on(agent) group_left(region) goliash_agent_info) or to list in a table.
+func writeWhereInfo(ctx context.Context, b *strings.Builder, st *store.Store, sc store.Scope, agents []store.Agent) {
+	labels := func(where map[string]string) string {
+		var out strings.Builder
+		for _, k := range infoWhere {
+			fmt.Fprintf(&out, ",%s=%q", k, where[k])
+		}
+		return out.String()
+	}
+	b.WriteString("# HELP goliash_agent_info Each agent, with its version and where it runs (value 1).\n# TYPE goliash_agent_info gauge\n")
+	byID := map[string]store.Agent{}
+	for _, a := range agents {
+		byID[a.ID] = a
+		fmt.Fprintf(b, "goliash_agent_info{agent=%q,version=%q%s} 1\n", a.Name, a.Version, labels(a.Where))
+	}
+	targets, err := st.ListTargets(ctx, sc)
+	if err != nil {
+		return
+	}
+	envs, err := st.ListEnvironments(ctx, sc)
+	if err != nil {
+		return
+	}
+	envName := map[string]string{}
+	for _, e := range envs {
+		envName[e.ID] = e.Name
+	}
+	b.WriteString("# HELP goliash_target_info Each target, with its platform, environment, agent and where it runs (value 1).\n# TYPE goliash_target_info gauge\n")
+	for _, t := range targets {
+		a := byID[t.AgentID]
+		fmt.Fprintf(b, "goliash_target_info{target=%q,platform=%q,environment=%q,agent=%q%s} 1\n",
+			t.Name, t.Platform, envName[t.EnvironmentID], a.Name, labels(versions.TargetWhere(t, a.Where)))
 	}
 }
 

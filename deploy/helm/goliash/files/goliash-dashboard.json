@@ -4030,12 +4030,172 @@
       }
     },
     {
+      "id": 167,
+      "type": "table",
+      "title": "Agents",
+      "description": "Each agent, its version and where it runs: cloud, account, region, zone, instance type, OS.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 124
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "goliash_agent_info",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": true
+            },
+            "indexByName": {
+              "agent": 0,
+              "version": 1,
+              "cloud": 2,
+              "account": 3,
+              "region": 4,
+              "zone": 5,
+              "instance_type": 6,
+              "os": 7,
+              "arch": 8
+            },
+            "renameByName": {
+              "agent": "Agent",
+              "version": "Version",
+              "cloud": "Cloud",
+              "account": "Account",
+              "region": "Region",
+              "zone": "Zone",
+              "instance_type": "Instance type",
+              "os": "OS",
+              "arch": "Arch"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60,
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 168,
+      "type": "table",
+      "title": "Targets",
+      "description": "Each target and where it runs. Targets read through AWS's API (ECS, RDS …) carry only their cloud, account and region.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 124
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "goliash_target_info{environment=~\"$environment\"}",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "Value": true
+            },
+            "indexByName": {
+              "target": 0,
+              "platform": 1,
+              "environment": 2,
+              "agent": 3,
+              "cloud": 4,
+              "account": 5,
+              "region": 6,
+              "zone": 7,
+              "instance_type": 8,
+              "os": 9,
+              "arch": 10
+            },
+            "renameByName": {
+              "target": "Target",
+              "platform": "Platform",
+              "environment": "Environment",
+              "agent": "Agent",
+              "cloud": "Cloud",
+              "account": "Account",
+              "region": "Region",
+              "zone": "Zone",
+              "instance_type": "Instance type",
+              "os": "OS",
+              "arch": "Arch"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "minWidth": 60,
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 124
+        "y": 132
       },
       "id": 162,
       "panels": [],
@@ -4054,7 +4214,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 125
+        "y": 133
       },
       "targets": [
         {
@@ -4108,7 +4268,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 125
+        "y": 133
       },
       "targets": [
         {
@@ -4162,7 +4322,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 133
+        "y": 141
       },
       "targets": [
         {
@@ -4216,7 +4376,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 133
+        "y": 141
       },
       "targets": [
         {
