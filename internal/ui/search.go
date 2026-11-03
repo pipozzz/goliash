@@ -6,6 +6,7 @@ package ui
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -90,10 +91,10 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, p auth.Principal
 			Act: "/updates?q=" + q, ActLabel: "Their upgrades",
 		},
 		"application": {Title: "Applications and teams", More: "/tiles?q=" + q, MoreLabel: "Filter the tiles"},
-		"target":      {Title: "Targets"},
+		"target":      {Title: "Agents and targets"},
 		"page":        {Title: "Pages and views"},
 	}
-	places["team"], places["view"] = places["application"], places["page"]
+	places["team"], places["view"], places["agent"] = places["application"], places["page"], places["target"]
 	for _, e := range entries {
 		sec := places[e.Kind]
 		if sec == nil || !match(append([]string{e.Label, e.Sub}, e.Keys...)...) {
@@ -104,6 +105,9 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request, p auth.Principal
 			for _, k := range e.Keys {
 				if match(k) {
 					h.Sub = "runs " + k
+					if isWhereToken(k) {
+						h.Sub = "in " + k
+					}
 					break
 				}
 			}
@@ -146,4 +150,10 @@ func searchBadge(b string) string {
 		return "upstream"
 	}
 	return "neutral"
+}
+
+// isWhereToken reports whether a palette key says where something runs ("region:eu-central-1"), not what it runs.
+func isWhereToken(k string) bool {
+	key, _, ok := strings.Cut(k, ":")
+	return ok && slices.ContainsFunc(whereKeys, func(w struct{ key, label string }) bool { return w.key == key })
 }

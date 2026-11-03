@@ -36,8 +36,12 @@ func agentView(a store.Agent) AgentView {
 	}
 }
 
-// WhereItem is one thing known of where an agent or target runs: its label, value and filter word.
-type WhereItem struct{ Key, Label, Value string }
+// WhereItem is one thing known of where an agent or target runs: its label and value, and how many services the
+// matrix finds by it (counted on the agent's page only).
+type WhereItem struct {
+	Key, Label, Value string
+	Services          int
+}
 
 // whereKeys are the keys of where something runs, in the order shown, with their labels.
 var whereKeys = []struct{ key, label string }{
@@ -93,9 +97,27 @@ func whereShort(items []WhereItem) string {
 	return strings.Join(parts, " · ")
 }
 
+// whereWord is the matrix filter word for an item: its key and the first word of its value, "os:ubuntu".
+func whereWord(it WhereItem) string {
+	return it.Key + ":" + strings.ToLower(strings.Fields(it.Value + " ")[0])
+}
+
 // whereFilter is the matrix filtered to what runs where an item says.
-func whereFilter(it WhereItem) string {
-	return "/?view=table&q=" + url.QueryEscape(it.Key+":"+strings.ToLower(strings.Fields(it.Value + " ")[0]))
+func whereFilter(it WhereItem) string { return "/?view=table&q=" + url.QueryEscape(whereWord(it)) }
+
+// countWhere counts, for each item, the services of the matrix its filter word finds. What the agent learnt of its
+// own machine (zone, instance, OS …) finds nothing when it watches only through cloud APIs: ECS tasks, RDS
+// databases and the like run elsewhere, and keep only the cloud and account.
+func countWhere(items []WhereItem, rows []MatrixRow) {
+	for i := range items {
+		word, found := whereWord(items[i]), map[string]bool{}
+		for _, r := range rows {
+			if slices.ContainsFunc(r.Where, func(t string) bool { return strings.Contains(t, word) }) {
+				found[r.Service] = true
+			}
+		}
+		items[i].Services = len(found)
+	}
 }
 
 // olderThanServer reports whether an agent runs an older release than the server.
@@ -151,6 +173,13 @@ func (s *Server) showAgent(w http.ResponseWriter, r *http.Request, p auth.Princi
 		}
 	}
 	v.Sources = agentSources(agentRuns(collects), collects, v.Found, a.Notes)
+	if len(v.Agent.Where) > 0 {
+		g, err := s.overview(ctx, p.Scope, "")
+		if err != nil {
+			return err
+		}
+		countWhere(v.Agent.Where, g.Rows)
+	}
 	if v.Agent.Outdated {
 		for _, t := range v.Targets {
 			if v.UpgradeTitle, v.UpgradeCmd = upgradeCommand(t.Platform, s.publicURL, buildinfo.Version); v.UpgradeCmd != "" {

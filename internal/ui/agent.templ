@@ -53,7 +53,14 @@ templ AgentPage(v AgentPageView) {
 					<dd>{ orDash(v.Agent.Platforms) }</dd>
 					for _, it := range v.Agent.Where {
 						<dt>{ it.Label }</dt>
-						<dd class="mono"><a href={ templ.URL(whereFilter(it)) } title="What runs here, on the matrix">{ it.Value }</a></dd>
+						<dd class="mono">
+							if it.Services > 0 {
+								<a href={ templ.URL(whereFilter(it)) } title="What runs here, on the matrix">{ it.Value }</a>
+								<span class="muted">{ plural(it.Services, "service", "services") }</span>
+							} else {
+								<span title="No service on the matrix runs here: what this agent watches through cloud APIs (ECS, EKS, RDS …) runs elsewhere, and keeps only the cloud and account">{ it.Value }</span>
+							}
+						</dd>
 					}
 					<dt>Last seen</dt>
 					<dd>@timeAgo(v.Agent.LastSeen)</dd>
