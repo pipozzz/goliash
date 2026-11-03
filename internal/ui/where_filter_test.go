@@ -4,8 +4,10 @@
 package ui
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
@@ -139,5 +141,47 @@ func TestVulnsChecksAnImage(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("image check misses %q", want)
 		}
+	}
+}
+
+// Many ways in read as one line per kind.
+func TestExposedGroups(t *testing.T) {
+	ways := []string{
+		"load balancer target group bbd-3-psql-ai-admin-tg (internal or not: not known)",
+		"load balancer target group bbd-3-psql-ai-client-tg (internal or not: not known)",
+		"ingress api.example.com",
+		"port 5432/tcp published",
+	}
+	g := exposedGroups(ways)
+	if len(g) != 3 || g[0].Kind != "load balancer target group (internal or not: not known)" || len(g[0].Names) != 2 || g[0].Names[1] != "bbd-3-psql-ai-client-tg" {
+		t.Fatalf("groups %+v", g)
+	}
+	if got := exposedSummary(g); got != "load balancer target group ×2, ingress ×1, other ×1" {
+		t.Fatalf("summary %q", got)
+	}
+}
+
+// A service that runs as several applications on a cluster is a cell each, told apart by its application.
+func TestTilesTellAppsApart(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	sc := e.ws.Scope()
+	tgts, _ := e.st.ListTargets(ctx, sc)
+	svc, _ := e.st.EnsureService(ctx, sc, "proxysql")
+	snap := store.NewID()
+	_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: snap, Scope: sc, TargetID: tgts[0].ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+	var ins []store.Instance
+	for _, app := range []string{"psql-log", "psql-log-admin"} {
+		ins = append(ins, store.Instance{
+			TargetID: tgts[0].ID, EnvironmentID: e.prod.ID, ServiceID: svc.ID, WorkloadID: app, WorkloadKind: "service", WorkloadName: app,
+			ContainerName: "proxysql", Image: "proxysql/proxysql:2.7.2", Tag: "2.7.2", Running: 1, IsMain: true, App: app, AppSource: "label",
+		})
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, SnapshotID: snap, TargetID: tgts[0].ID, At: time.Now(), Upsert: ins}); err != nil {
+		t.Fatal(err)
+	}
+	_, body := get(t, e.as(store.RoleViewer), e.srv.URL+"/tiles?group=target&app="+tgts[0].Name, nil)
+	if !strings.Contains(body, `<span class="board-sub">psql-log</span>`) || !strings.Contains(body, `<span class="board-sub">psql-log-admin</span>`) {
+		t.Fatal("the cells of one service do not say their application")
 	}
 }

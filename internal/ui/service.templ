@@ -567,7 +567,20 @@ templ envNotes(e ServiceEnv) {
 				<a class="badge neutral" href={ templ.SafeURL(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>
 			}
 		</div>
-		if len(e.Exposed) > 0 {
+		if len(e.Exposed) > 2 {
+			{{ groups := exposedGroups(e.Exposed) }}
+			<details class="exposed-more">
+				<summary>{ exposedSummary(groups) }</summary>
+				for _, g := range groups {
+					<p class="exposed-group">
+						if g.Kind != "" {
+							<span class="muted">{ g.Kind + ": " }</span>
+						}
+						{ strings.Join(g.Names, ", ") }
+					</p>
+				}
+			</details>
+		} else if len(e.Exposed) > 0 {
 			<ul class="exposed-ways">
 				for _, w := range e.Exposed {
 					<li>{ w }</li>

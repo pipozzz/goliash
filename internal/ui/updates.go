@@ -584,6 +584,60 @@ func allDue(v UpdatesView) UpdatesView {
 // exposedTitle says how something can be reached from outside.
 func exposedTitle(ways []string) string { return "Reachable from outside: " + strings.Join(ways, "; ") }
 
+// ExposedGroup is one kind of way in from outside, with the names of each: load balancer target group ×14.
+type ExposedGroup struct {
+	Kind  string // "load balancer target group (internal or not: not known)"
+	Names []string
+}
+
+// exposedKinds are the ways in the collectors describe, the longest first: what follows is the name.
+var exposedKinds = []string{
+	"load balancer target group ", "load balancer ", "LoadBalancer service ", "NodePort service ", "HTTPRoute ",
+	"ingress ", "function URL ",
+}
+
+// exposedGroups groups the ways a service is reachable by kind, so fourteen target groups read as one line.
+func exposedGroups(ways []string) []ExposedGroup {
+	var out []ExposedGroup
+	index := map[string]int{}
+	for _, w := range ways {
+		kind, name := "", w
+		for _, k := range exposedKinds {
+			if rest, ok := strings.CutPrefix(w, k); ok {
+				kind, name = strings.TrimSpace(k), rest
+				break
+			}
+		}
+		if i := strings.LastIndex(name, " ("); kind != "" && i > 0 && strings.HasSuffix(name, ")") {
+			kind, name = kind+name[i:], name[:i] // "(internal or not: not known)" is the kind's, not each name's
+		}
+		i, ok := index[kind]
+		if !ok {
+			i = len(out)
+			index[kind] = i
+			out = append(out, ExposedGroup{Kind: kind})
+		}
+		out[i].Names = append(out[i].Names, name)
+	}
+	return out
+}
+
+// exposedSummary is the ways in, in a few words: "load balancer target group ×14, ingress ×2".
+func exposedSummary(groups []ExposedGroup) string {
+	parts := make([]string, 0, len(groups))
+	for _, g := range groups {
+		kind := g.Kind
+		if i := strings.Index(kind, " ("); i > 0 {
+			kind = kind[:i]
+		}
+		if kind == "" {
+			kind = "other"
+		}
+		parts = append(parts, kind+" ×"+itoa(len(g.Names)))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // maintenanceTitle says which patches the platform has waiting.
 func maintenanceTitle(m []string) string { return "Waiting at the platform: " + strings.Join(m, "; ") }
 
