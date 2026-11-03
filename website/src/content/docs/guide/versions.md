@@ -163,6 +163,11 @@ fix](../notifications/#security-releases) the project announced for a release in
 life soon, major, minor, behind the previous environment, patch), production first, then by how long they have been
 open. A *security fix* line says what it fixes (*fixes CVE-2026-…* or *security fix*), and a service under a
 [security watch](../security/#security-watches) carries *watch: php*.
+A service running an exploited vulnerability is on the list even when no newer release of it is known (your own
+image, say): its line says *no newer release known · fix:* and what fixes it — *rebuild on the current
+node:22-alpine* when the current build of its base no longer has it, a base on a newer release of its distribution,
+or the package version that fixes it. Mitigated vulnerabilities, and ones the image's VEX or its distribution says do
+not apply, do not add a line.
 When the release notes on the way (GitHub or GitLab releases, or the project's own notes pages) say something breaks,
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible

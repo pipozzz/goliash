@@ -566,6 +566,8 @@ table.updates tr[data-level="upstream"] td.svc { box-shadow: inset 3px 0 0 var(-
 table.updates tr[data-level="env"] td.svc { box-shadow: inset 3px 0 0 var(--warn); }
 table.updates .upgrade { white-space: nowrap; }
 table.updates .upgrade .arrow { color: var(--faint); margin: 0 6px; }
+/* No newer release known: what fixes its exploited vulnerability instead. */
+table.updates .upgrade .remedy { white-space: normal; font-size: 13px; margin-top: 4px; max-width: 32ch; }
 details.acked > summary { cursor: pointer; list-style: none; }
 details.acked > summary::-webkit-details-marker { display: none; }
 details.acked:not([open]) > summary { border-bottom: 0; }

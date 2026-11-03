@@ -202,6 +202,11 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 		</td>
 		<td data-label="Upgrade" class="upgrade">
 			<span class="tag">{ orDash(it.Running) }</span>
+			if it.Target == "" && it.Remedy != "" {
+				<div class="remedy">
+					<span class="muted">no newer release known · fix:</span> { it.Remedy }
+				</div>
+			}
 			if it.Target != "" {
 				<span class="arrow">→</span>
 				if it.TargetURL != "" {

@@ -44,6 +44,9 @@ type Update struct {
 	Exposed []string
 	// Maintenance is the patches the platform has waiting for it (a managed service's pending maintenance).
 	Maintenance []string
+	// Remedy is what fixes an exploited vulnerability when no newer release is known (Target is empty): a rebuild
+	// on the current build of its base, a newer release of its distribution, or a newer package.
+	Remedy string
 	// ExploitedSince is when the first of Exploited became known to run exploited: the later of the image running
 	// there and CISA listing it.
 	ExploitedSince time.Time
@@ -231,11 +234,25 @@ func WithExposure(us []Update, active []store.Instance) []Update {
 // LoadUpdates lists what to upgrade with the vulnerabilities of the running images; without a vulnerability
 // report (OSV off, or it failed) the list is the same, ranked by drift alone.
 func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time) []Update {
+	return loadUpdates(ctx, st, sc, o, acks, now, false)
+}
+
+// LoadWork is LoadUpdates with what runs an exploited vulnerability and has no upgrade (WithUnpatched): the to-do
+// list, as the Updates page and the API show it. Counts of what is behind a newer release use LoadUpdates.
+func LoadWork(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time) []Update {
+	return loadUpdates(ctx, st, sc, o, acks, now, true)
+}
+
+func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time, unpatched bool) []Update {
 	us := Updates(o, acks, now)
+	r, rerr := LoadVulnReport(ctx, st, sc, "")
+	if rerr == nil && unpatched {
+		us = WithUnpatched(us, o, r, acks, now)
+	}
 	if active, err := st.ListActiveInstances(ctx, sc); err == nil {
 		us = WithExposure(us, active)
 	}
-	if r, err := LoadVulnReport(ctx, st, sc, ""); err == nil {
+	if rerr == nil {
 		us = WithVulnerabilities(us, r)
 		if idx, err := loadVulnIndex(ctx, st, sc, r); err == nil {
 			for i := range us {
@@ -325,4 +342,68 @@ func securityUpTo(o Overview, svc, running, target string) string {
 	}
 	sort.Strings(ids)
 	return strings.Join(slices.Compact(ids), ", ")
+}
+
+// WithUnpatched adds what runs an exploited vulnerability and has no upgrade on the list, its own image say, that no
+// newer release is known of: what runs it in each environment, with what would fix it. Vulnerabilities mitigated
+// there, or that the image's publisher or distribution says do not apply, are left out.
+func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now time.Time) []Update {
+	type key struct{ svc, env string }
+	listed := map[key]bool{}
+	for _, u := range us {
+		listed[key{u.Service.ID, u.Environment.ID}] = true
+	}
+	added := map[key]*Update{}
+	var order []key
+	for _, f := range r.Findings {
+		if f.Exploited == nil {
+			continue
+		}
+		for _, a := range f.Affected {
+			k := key{a.ServiceID, a.EnvironmentID}
+			if a.ServiceID == "" || a.EnvironmentID == "" || listed[k] || a.Mitigation != nil || a.Distro == DistroNotAffected ||
+				a.VEX != nil && (a.VEX.Status == "not_affected" || a.VEX.Status == "fixed") {
+				continue
+			}
+			u := added[k]
+			if u == nil {
+				img := ParseImage(a.Image)
+				u = &Update{Service: o.Services[a.ServiceID], Environment: o.Envs[a.EnvironmentID], Running: img.Tag, Since: a.Since}
+				added[k] = u
+				order = append(order, k)
+			}
+			if !a.Since.IsZero() && (u.Since.IsZero() || a.Since.Before(u.Since)) {
+				u.Since = a.Since
+			}
+			if u.Remedy == "" || a.Rebuild != "" && !strings.HasPrefix(u.Remedy, "rebuild") {
+				u.Remedy = remedy(a)
+			}
+		}
+	}
+	for _, k := range order {
+		u := added[k]
+		if u.Service.ID == "" {
+			continue // a service gone since the report was built
+		}
+		u.Acked = ackedUpdate(*u, acks, now)
+		us = append(us, *u)
+	}
+	return us
+}
+
+// remedy says what fixes a vulnerability where it runs, when no newer release of the service is known.
+func remedy(a Affected) string {
+	switch {
+	case a.Rebuild != "":
+		return "rebuild on the current " + a.Rebuild
+	case a.Newer != nil:
+		name := a.Newer.Distro + " " + a.Newer.Release
+		if a.Newer.Name != "" {
+			name += " (" + a.Newer.Name + ")"
+		}
+		return "a base on " + name
+	case a.Fix != "":
+		return a.Package + " " + a.Fix
+	}
+	return "no fix known yet"
 }

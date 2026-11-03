@@ -75,6 +75,7 @@ type UpdateItem struct {
 	Service, ServiceURL, App, Owner, Env string
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
+	Remedy                               string    // with no Target: what fixes its exploited vulnerability
 	SecurityFix                          string    // what the releases up to Target say they fix
 	Breaking                             []string  // what the releases up to Target say breaks: "2.0.0: Removed …"
 	Due                                  time.Time // the remediation deadline, zero without one
@@ -130,7 +131,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance", "remedy"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
 		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " "), strings.Join(it.Where, " ")) {
@@ -145,7 +146,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "),
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "), it.Remedy,
 		})
 	}
 	cw.Flush()
@@ -242,7 +243,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 	now := time.Now()
 	kinds := serviceKinds(o)
 	whereIdx := o.WhereIndex()
-	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now) {
+	for _, u := range versions.LoadWork(ctx, s.store, p.Scope, o, acks, now) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
 		}
@@ -255,7 +256,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
+			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
 			TicketChannels: trackers,
 		}
@@ -399,7 +400,7 @@ func calendarMonths(items []UpdateItem, more []CalendarItem, now time.Time) []Ca
 
 // updateSearch is what the filter matches a row by: what it shows, its kinds (type:lambda) and what it is.
 func updateSearch(it UpdateItem) string {
-	parts := []string{it.Service, it.App, it.Owner, it.Env, it.On, it.Running, it.Target, it.Jump, it.LevelLabel, it.What, kindTokens(it.Kinds)}
+	parts := []string{it.Service, it.App, it.Owner, it.Env, it.On, it.Running, it.Target, it.Remedy, it.Jump, it.LevelLabel, it.What, kindTokens(it.Kinds)}
 	parts = append(parts, it.Where...)
 	parts = append(parts, it.Exploited...)
 	parts = append(parts, it.Exposed...)
@@ -422,6 +423,9 @@ func updateMarkdown(it UpdateItem) string {
 	}
 	if it.Target != "" {
 		b.WriteString(" → " + it.Target)
+	}
+	if it.Target == "" && it.Remedy != "" {
+		b.WriteString(" (fix: " + it.Remedy + ")")
 	}
 	var why []string
 	if it.EOL != "" {
