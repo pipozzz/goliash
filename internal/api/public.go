@@ -893,6 +893,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Environment  string        `json:"environment"`
 		Running      string        `json:"running"`
 		Target       string        `json:"target,omitempty"`
+		Remedy       string        `json:"remedy,omitempty"` // no target: what fixes its exploited vulnerability
 		ReleaseNotes string        `json:"release_notes,omitempty"`
 		Jump         string        `json:"jump,omitempty"`
 		Behind       string        `json:"behind,omitempty"`
@@ -913,7 +914,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	out := []apiUpdate{}
 	now := time.Now()
-	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, now) {
+	for _, u := range versions.LoadWork(ctx, h.store, p.Scope, o, acks, now) {
 		var due string
 		var left *int
 		if !u.Due.IsZero() {
@@ -922,7 +923,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 		out = append(out, apiUpdate{
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
-			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
+			Running: u.Running, Target: u.Target, Remedy: u.Remedy, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
 			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
 			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left,
