@@ -126,3 +126,20 @@ func WhereMatches(tokens, where []string) bool {
 	}
 	return true
 }
+
+// PlaceOf names the place a target is, for grouping: "AWS 123456789012 · eu-west-1", "GCP acme-prod · europe-west1";
+// "" when its cloud is not known.
+func PlaceOf(where map[string]string) string {
+	cloud := strings.ToUpper(where["cloud"])
+	if cloud == "" {
+		return ""
+	}
+	out := cloud
+	if a := where["account"]; a != "" {
+		out += " " + a
+	}
+	if r := where["region"]; r != "" {
+		out += " · " + r
+	}
+	return out
+}

@@ -114,7 +114,7 @@ func (g MatrixGroup) healthBar(w float64) (ok, warn, bad float64) {
 // matrixGroupModes are the ways to arrange the matrix, application first. Namespaces
 // are left out: one service usually runs in a different one per environment.
 var matrixGroupModes = []struct{ Key, Label string }{
-	{"app", "Application"}, {"team", "Team"}, {"kind", "Kind"}, {"target", "Target"}, {"status", "Status"}, {"none", "None"},
+	{"app", "Application"}, {"team", "Team"}, {"kind", "Kind"}, {"target", "Target"}, {"place", "Place"}, {"status", "Status"}, {"none", "None"},
 }
 
 // matrixGroupBy returns a known grouping, application by default.
@@ -133,8 +133,11 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		return []MatrixGroup{{Rows: rows}}
 	}
 	targets := map[string]TargetTag{}
-	if by == "target" {
+	switch by {
+	case "target":
 		rows, targets = rowsByTarget(rows)
+	case "place":
+		rows = rowsByPlace(rows)
 	}
 	byKey := map[string][]MatrixRow{}
 	sources := map[string]map[string]bool{}
@@ -156,6 +159,11 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 			if key == "" {
 				key = "not running"
 			}
+		case "place":
+			key = r.Target
+			if key == "" {
+				key = "place unknown"
+			}
 		default:
 			key = fams[r.App].Name
 			if key == "" {
@@ -168,7 +176,9 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		}
 		byKey[key] = append(byKey[key], r)
 	}
-	last := func(k string) bool { return k == "other" || k == "no owner" || k == "not running" }
+	last := func(k string) bool {
+		return k == "other" || k == "no owner" || k == "not running" || k == "place unknown"
+	}
 	var keys []string
 	switch by {
 	case "status":
@@ -247,16 +257,30 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 // environment's drifts): the services of a cluster or a cloud account. A row running nowhere is kept once, without
 // a target. It returns the targets by name too.
 func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
-	var out []MatrixRow
 	byName := map[string]TargetTag{}
+	out := splitRows(rows, func(_ MatrixRow, t TargetTag) string {
+		byName[t.Name] = t
+		return t.Name
+	})
+	return out, byName
+}
+
+// rowsByPlace splits each row into one per place its targets are (Places): its versions there, under the place.
+func rowsByPlace(rows []MatrixRow) []MatrixRow {
+	return splitRows(rows, func(r MatrixRow, t TargetTag) string { return r.Places[t.ID] })
+}
+
+// splitRows splits each row into one per key its versions' targets have, with Target set to the key: the
+// versions under that key, and the health they have alone. A row whose versions run nowhere stays as it is.
+func splitRows(rows []MatrixRow, keyOf func(MatrixRow, TargetTag) string) []MatrixRow {
+	var out []MatrixRow
 	for _, r := range rows {
 		var targets []string
 		for _, c := range r.Cells {
 			for _, v := range c.Versions {
 				for _, t := range v.On {
-					if !slices.Contains(targets, t.Name) {
-						targets = append(targets, t.Name)
-						byName[t.Name] = t
+					if k := keyOf(r, t); !slices.Contains(targets, k) {
+						targets = append(targets, k)
 					}
 				}
 			}
@@ -272,7 +296,7 @@ func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
 			for i, c := range r.Cells {
 				var vs []VersionView
 				for _, v := range c.Versions {
-					if slices.ContainsFunc(v.On, func(x TargetTag) bool { return x.Name == t }) {
+					if slices.ContainsFunc(v.On, func(x TargetTag) bool { return keyOf(r, x) == t }) {
 						vs = append(vs, v)
 					}
 				}
@@ -292,7 +316,7 @@ func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
 			out = append(out, cp)
 		}
 	}
-	return out, byName
+	return out
 }
 
 func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
@@ -362,6 +386,7 @@ type MatrixRow struct {
 	Repo      string                  // its image repository
 	Same      string                  // rows of its group with the same image and versions share it, for folding them
 	Where     []string                // where its targets are, as filter words: region:eu-west-1, account:…, os:…
+	Places    map[string]string       // target ID -> the place it is: "AWS 123456789012 · eu-west-1"
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -530,6 +555,12 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 			cell.Versions = append(cell.Versions, vv)
 			for _, id := range v.TargetIDs {
 				r.Where = append(r.Where, versions.WhereTokens(o.Where[id])...)
+				if p := versions.PlaceOf(o.Where[id]); p != "" {
+					if r.Places == nil {
+						r.Places = map[string]string{}
+					}
+					r.Places[id] = p
+				}
 			}
 			for i, id := range v.TargetIDs {
 				if last, ok := o.Stale[id]; ok {
