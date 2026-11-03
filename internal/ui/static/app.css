@@ -960,6 +960,9 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 .promo-vulns { margin-top: 4px; font-size: 12.5px; }
 .promo-vulns summary { cursor: pointer; }
 .promo-vulns .fix { color: var(--ok); }
+/* Upstream releases: what moving to one does to the exploited vulnerabilities running now. */
+.release-fix { font: 12.5px/1.4 var(--sans); margin-top: 2px; }
+.release-fix.fix { color: var(--ok); }
 .vuln-use .muted { font-size: 12.5px; margin-left: 6px; }
 .notice.pending { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
 /* Login right after an installation: the first account, one click away. */

@@ -741,6 +741,11 @@ type ReleaseView struct {
 	Version   string
 	Published time.Time
 	URL       string
+	Runs      []string // the environments running it
+	// Fixes and Still are what upgrading to it does to the exploited vulnerabilities running now, when an open
+	// upgrade moves to it and both images' packages are known: "fixes 2 exploited", and those it leaves.
+	Fixes string
+	Still []string
 }
 
 // PolicyForm holds the version policy as form values.

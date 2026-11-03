@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // Where an agent runs links to the matrix only when that finds something, and search finds by it.
@@ -95,5 +96,23 @@ func TestCheckNow(t *testing.T) {
 	}
 	if _, body, _ := post(t, c, e.srv.URL+serviceURL(name)+"/check", nil); !strings.Contains(body, "asking OSV") && !strings.Contains(body, "being read already") {
 		t.Fatalf("check now: %s", body)
+	}
+}
+
+// The upstream releases say where each runs.
+func TestReleasesSayWhereTheyRun(t *testing.T) {
+	e := newUIEnv(t)
+	svcs, _ := e.st.ListServices(t.Context(), e.ws.Scope())
+	_, _ = e.st.InsertReleases(t.Context(), e.ws.Scope(), svcs[0].ID, []string{"1.27.2", "1.28.0"})
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+serviceURL(svcs[0].Name), nil)
+	if !strings.Contains(page, "runs in prod") {
+		t.Fatal("the running release is not marked")
+	}
+}
+
+func TestStillExploited(t *testing.T) {
+	d := versions.VulnDelta{Known: true, Fixed: []versions.VulnRef{{ID: "CVE-1", Exploited: true}}}
+	if got := stillExploited([]string{"CVE-1", "CVE-2"}, d); len(got) != 1 || got[0] != "CVE-2" {
+		t.Fatalf("still %v", got)
 	}
 }
