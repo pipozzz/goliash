@@ -454,7 +454,8 @@ type VulnsView struct {
 	Base
 	versions.VulnReport
 	Query    string
-	All      bool // every environment, not only the last one
+	Check    *versions.ReleaseCheck // the search is an image: what Goliash knows of it, running or not
+	All      bool                   // every environment, not only the last one
 	EnvName  string
 	Shown    []versions.VulnFinding
 	Hidden   int  // findings not shown (the list is long)
@@ -489,6 +490,19 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	}
 	if v.VulnReport, err = versions.LoadVulnReport(ctx, s.store, p.Scope, envID); err != nil {
 		return err
+	}
+	if versions.LooksLikeImage(v.Query) {
+		rc, err := versions.CheckRelease(ctx, s.store, p.Scope, v.Query)
+		if err != nil {
+			return err
+		}
+		v.Check = &rc
+		// Read it now: the server reads what it can, and OSV is asked once its packages are known; an agent
+		// reads the rest within minutes of its next look at its configuration.
+		if s.checker != nil && rc.State != versions.CheckReady && rc.State != versions.CheckUnreadable && (!rc.ByAgent || rc.State != versions.CheckRequested) {
+			scope := p.Scope
+			s.checker.RefreshSecurity(scope, func() { s.hub.Publish(scope.WorkspaceID) })
+		}
 	}
 	if rem, err := s.store.Remediation(ctx, p.Scope); err == nil {
 		v.ExploitedDays = rem.Exploited

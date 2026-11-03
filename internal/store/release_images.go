@@ -41,3 +41,11 @@ func (s *Store) ListReleaseImages(ctx context.Context, sc Scope) (map[string]Rel
 	}
 	return out, rows.Err()
 }
+
+// RequestReleaseImage asks for the image behind a tag to be read (someone checks it before it runs): a row
+// without a digest until the server or an agent reads it. A tag already read is left as it is.
+func (s *Store) RequestReleaseImage(ctx context.Context, sc Scope, repo, tag string) error {
+	_, err := s.exec(ctx, s.db, `INSERT INTO release_images (org_id, workspace_id, repo, tag, digest, read_at) VALUES (?, ?, ?, ?, '', ?)
+		ON CONFLICT (workspace_id, repo, tag) DO NOTHING`, sc.OrgID, sc.WorkspaceID, repo, tag, s.now())
+	return err
+}

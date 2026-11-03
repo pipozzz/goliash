@@ -54,6 +54,9 @@ templ VulnsPage(v VulnsView) {
 		if !v.Enabled {
 			<div class="notice error">Vulnerability lookups are off on this server (GOLIASH_OSV_URL=off).</div>
 		}
+		if v.Check != nil {
+			@imageCheck(*v.Check, vulnsHref(v, "", ""))
+		}
 		if v.Pending > 0 || v.Unasked > 0 {
 			<div class="notice pending">{ "Still looking up " + plural(v.Pending, "advisory", "advisories") + " and " + plural(v.Unasked, "package", "packages") + " on OSV; until then a vulnerability may be listed under another ID, and an answer may be incomplete." }</div>
 		}
@@ -279,4 +282,81 @@ templ mitigationCell(v VulnsView, f versions.VulnFinding) {
 			</details>
 		}
 	}
+}
+
+// imageCheck is what Goliash knows of an image searched for, running or not, and what moving to it fixes; it looks
+// again every few seconds until it is done.
+templ imageCheck(c versions.ReleaseCheck, self string) {
+	<section
+		class="panel image-check"
+		id="image-check"
+		if c.State != versions.CheckReady && c.State != versions.CheckUnreadable {
+			hx-get={ self }
+			hx-select="#image-check"
+			hx-target="this"
+			hx-swap="outerHTML"
+			hx-trigger="every 10s"
+		}
+	>
+		<div class="panel-head">
+			<h2 class="mono">{ c.Image }</h2>
+			if len(c.Running) > 0 {
+				<span class="badge neutral">{ "runs in " + joinComma(c.Running) }</span>
+			} else {
+				<span class="badge neutral">runs nowhere yet</span>
+			}
+		</div>
+		<div class="panel-body stack">
+			switch c.State {
+				case versions.CheckRequested:
+					if c.ByAgent {
+						<p class="muted">An agent reads this image from its registry within a few minutes (agents from 1.203); this page looks again by itself.</p>
+					} else {
+						<p class="muted">Reading this image from its registry; this page looks again by itself.</p>
+					}
+				case versions.CheckReading:
+					<p class="muted">Its digest is known; reading its packages.</p>
+				case versions.CheckUnreadable:
+					<p class="error-text">{ "Its packages could not be read: " + c.Error }</p>
+				case versions.CheckAsking:
+					<p class="muted">{ "Read " + plural(c.Packages, "package", "packages") + "; asking OSV about them. This page looks again by itself." }</p>
+				case versions.CheckReady:
+					<p>
+						if len(c.Exploited) > 0 {
+							<strong class="error-text">{ plural(len(c.Exploited), "exploited vulnerability", "exploited vulnerabilities") + ": " + vulnIDs(c.Exploited) }</strong>
+						} else {
+							<strong class="fix">No exploited vulnerability</strong>
+						}
+						{ " · " + plural(c.Total, "known vulnerability", "known vulnerabilities") }
+						if c.Critical > 0 {
+							{ ", " + itoa(c.Critical) + " critical" }
+						}
+						{ " in " + plural(c.Packages, "package", "packages") + "." }
+					</p>
+					if len(c.Against) > 0 {
+						<div class="scroll" tabindex="0">
+						<table class="cards">
+							<thead><tr><th>Running now</th><th>Moving to { c.Tag }</th></tr></thead>
+							<tbody>
+								for _, a := range c.Against {
+									<tr>
+										<td><span class="mono">{ a.Version }</span>{ " (" + a.Env + ")" }</td>
+										<td>
+											if len(a.FixedExploited) > 0 {
+												<div class="fix">{ "fixes exploited " + vulnIDs(a.FixedExploited) }</div>
+											}
+											if len(a.Still) > 0 {
+												<div class="error-text">{ "still has exploited " + vulnIDs(a.Still) }</div>
+											}
+											<div class="muted">{ "fixes " + itoa(a.Fixed) + " · brings " + itoa(a.New) + " new" }</div>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+						</div>
+					}
+			}
+		</div>
+	</section>
 }

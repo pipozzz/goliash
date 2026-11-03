@@ -130,3 +130,14 @@ func TestByPackageVersions(t *testing.T) {
 		t.Fatalf("uses %+v", got)
 	}
 }
+
+// Searching the vulnerabilities for an image checks it, running or not, and looks again until it is done.
+func TestVulnsChecksAnImage(t *testing.T) {
+	e := newUIEnv(t)
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/security/vulns?q="+"registry.example.com/acme/api:2.0.0", nil)
+	for _, want := range []string{`id="image-check"`, "runs nowhere yet", `hx-trigger="every 10s"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("image check misses %q", want)
+		}
+	}
+}
