@@ -81,6 +81,7 @@ type UpdateItem struct {
 	DueFor                               string    // for which reason: "exploited vulnerability"
 	DaysLeft                             int       // until Due: negative once past
 	Watched                              []string  // the security watches covering the service
+	Where                                []string  // where it runs there, as filter words: region:eu-west-1 …
 	EOLPassed                            bool
 	On                                   string // the targets running Running, when others run newer versions
 	Since                                time.Time
@@ -132,7 +133,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
-		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " ")) {
+		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " "), strings.Join(it.Where, " ")) {
 			continue
 		}
 		since, due, left := "", "", ""
@@ -240,6 +241,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 	}
 	now := time.Now()
 	kinds := serviceKinds(o)
+	whereIdx := o.WhereIndex()
 	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
@@ -261,6 +263,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			it.DaysLeft = u.DaysLeft(now)
 		}
 		it.Kinds, it.What = kinds[u.Service.ID], rowWhat(o.Refs[u.Service.ID].Repo)
+		it.Where = whereIdx[u.Service.ID+"|"+u.Environment.ID]
 		if repo := o.Refs[u.Service.ID].Repo; repo != "" {
 			it.Same = strings.Join([]string{repo, u.Running, u.Target, u.Environment.Name, strconv.Itoa(u.Urgency)}, "|")
 		}
@@ -397,6 +400,7 @@ func calendarMonths(items []UpdateItem, more []CalendarItem, now time.Time) []Ca
 // updateSearch is what the filter matches a row by: what it shows, its kinds (type:lambda) and what it is.
 func updateSearch(it UpdateItem) string {
 	parts := []string{it.Service, it.App, it.Owner, it.Env, it.On, it.Running, it.Target, it.Jump, it.LevelLabel, it.What, kindTokens(it.Kinds)}
+	parts = append(parts, it.Where...)
 	parts = append(parts, it.Exploited...)
 	parts = append(parts, it.Exposed...)
 	if it.EOL != "" {
