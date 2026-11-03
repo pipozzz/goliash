@@ -41,8 +41,9 @@ func TestSharedBuilds(t *testing.T) {
 	if v, _ := s.get(ctx, "k", "g2", slow); v != 1 {
 		t.Fatalf("stale not served: %d", v)
 	}
+	// Asked at the generation it is now built at: asked at another, the new one is stale too, and built again.
 	for range 50 {
-		if v, _ := s.get(ctx, "k", "g1", slow); v == 2 {
+		if v, _ := s.get(ctx, "k", "g2", slow); v == 2 {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)

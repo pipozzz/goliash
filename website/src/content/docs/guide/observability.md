@@ -117,3 +117,5 @@ On Kubernetes, the Helm chart can create a ServiceMonitor and a PrometheusRule w
 | `goliash_snapshots_pending` | | snapshots received and not processed yet |
 | `goliash_notifications_queued`, `goliash_notifications_failing` | | notifications not sent yet, and those that failed at least once |
 | `goliash_agents` | status | agents online, stale, never connected or revoked |
+| `goliash_agent_info` | agent, version, cloud, account, region, zone, instance_type, os, arch | each agent and where it runs (value 1) |
+| `goliash_target_info` | target, platform, environment, agent, cloud, account, region, zone, instance_type, os, arch | each target and where it runs (value 1) |
