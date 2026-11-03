@@ -137,7 +137,7 @@ The server never sends secrets, only a `credentials_ref` name. The agent resolve
 
 Images from registries other than the public ones are checked by the agents. So are private repositories on public
 registries (GHCR, Docker Hub, Quay, …): when a registry refuses the server's anonymous check, the repository is
-handed to the agents. **Check upstream now** on the service page tries anonymously again, in case it became public.
+handed to the agents. **Check now** on the service page tries anonymously again, in case it became public.
 
 A repository goes to the agents whose targets run it, since those have access to it: an agent in one AWS account is
 not asked about another account's ECR. A repository no agent runs (a service watched only for its releases, or run

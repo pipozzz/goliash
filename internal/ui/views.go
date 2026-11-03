@@ -672,34 +672,33 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
-	Rollouts       []versions.RolloutIssue // its workloads whose replicas are not where they should be
-	GitOps         []GitOpsView            // the Argo CD applications that deploy it
-	TeamNames      []string                // the workspace's teams, to pick one
-	Security       ServiceSecurity
-	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
-	SizeChange     *SizeChange // what the last deploy changed in the image, when its layers are known
-	Name           string
-	Owner          string
-	OwnerSource    string // "" set by people, "label" or "app" when Goliash set it
-	App            string // placed in this application by hand; empty: from its labels
-	Kind           string
-	Upstream       string
-	RefRepo        string
-	KindShown      string // own or third_party, as chosen or worked out from the image
-	KindAuto       string // the kind worked out from the image, offered as the default
-	KindChosen     bool
-	Latest         string
-	LatestAny      string
-	CheckedAt      time.Time
-	CheckError     string
-	Unknown        versions.UnknownService // why the newest release is not known; empty when it is
-	Private        bool                    // the agents check the upstream
-	PublicRegistry bool                    // the server can try it: "check now"
-	Policy         PolicyForm
-	BuiltOn        *versions.BaseStatus // the image the service is built on, when known
-	Envs           []ServiceEnv
-	Releases       []ReleaseView
-	PolicyFrom     string // service, catalog or default
+	Rollouts    []versions.RolloutIssue // its workloads whose replicas are not where they should be
+	GitOps      []GitOpsView            // the Argo CD applications that deploy it
+	TeamNames   []string                // the workspace's teams, to pick one
+	Security    ServiceSecurity
+	Sizes       LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
+	SizeChange  *SizeChange // what the last deploy changed in the image, when its layers are known
+	Name        string
+	Owner       string
+	OwnerSource string // "" set by people, "label" or "app" when Goliash set it
+	App         string // placed in this application by hand; empty: from its labels
+	Kind        string
+	Upstream    string
+	RefRepo     string
+	KindShown   string // own or third_party, as chosen or worked out from the image
+	KindAuto    string // the kind worked out from the image, offered as the default
+	KindChosen  bool
+	Latest      string
+	LatestAny   string
+	CheckedAt   time.Time
+	CheckError  string
+	Unknown     versions.UnknownService // why the newest release is not known; empty when it is
+	Private     bool                    // the agents check the upstream
+	Policy      PolicyForm
+	BuiltOn     *versions.BaseStatus // the image the service is built on, when known
+	Envs        []ServiceEnv
+	Releases    []ReleaseView
+	PolicyFrom  string // service, catalog or default
 	// Where release dates and notes come from: a GitHub owner/repo or a changelog URL,
 	// and why (policy, catalog or image label).
 	NotesGitHub, NotesGitLab, NotesChangelog, NotesFrom string

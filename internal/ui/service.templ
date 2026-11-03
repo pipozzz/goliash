@@ -24,9 +24,9 @@ templ ServicePage(v ServiceView) {
 					<p class="sub">{ v.What }</p>
 				}
 			</div>
-			if v.CanMember && v.PublicRegistry {
+			if v.CanMember {
 				<form method="post" action={ templ.URL("/services/" + v.Name + "/check") } class="inline">
-					<button class="secondary" type="submit">Check upstream now</button>
+					<button class="secondary" type="submit" title="Look for new releases, read its images again and ask OSV about their packages, without waiting for the hourly check">Check now</button>
 				</form>
 			}
 		</div>

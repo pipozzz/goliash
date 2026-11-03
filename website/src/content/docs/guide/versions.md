@@ -15,8 +15,9 @@ containers run. It lists that repository's tags and keeps the newest versions th
   environment: a configured credential, `docker login`, or Kubernetes pull secrets. See
   [Collectors](/reference/collectors/#private-registries).
 
-New services are checked within a minute, then every hour. **Check upstream now** on a service page, or
-`goliash check`, checks at once.
+New services are checked within a minute, then every hour. **Check now** on a service page, or `goliash check`,
+checks at once; the button also reads the workspace's images again and asks OSV about their packages in the
+background, so a patched image just deployed shows what it fixed within minutes rather than at the next hourly run.
 
 ![A service page: its team, upstream and the latest acceptable release; the Argo CD panel with the applications that deploy it, synced or out of sync, with Open PR → 1.7.0; and its versions over time per environment and cluster](../../../assets/service.png)
 

@@ -784,7 +784,6 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	v.KindShown, v.KindChosen = versions.ServiceKind(svc, ref.Repo), svc.KindChosen
 	v.KindAuto = versions.ServiceKind(store.Service{Upstream: svc.Upstream, PrivateUpstream: svc.PrivateUpstream}, ref.Repo)
 	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)
-	v.PublicRegistry = ref.Repo != "" && versions.IsPublicRegistry(ref.Repo)
 	if u, ok := o.Upstreams[svc.ID]; ok {
 		if u.HasLatest {
 			v.Latest = u.Latest.Raw
@@ -1160,14 +1159,25 @@ func (s *Server) checkNow(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil || s.checker == nil {
 		return back(w, r, "/", "error", "Unknown service")
 	}
-	if err := s.checker.CheckService(ctx, p.Scope, svc.ID); errors.Is(err, versions.ErrNeedsCredentials) {
-		s.hub.Publish(p.Scope.WorkspaceID)
-		return back(w, r, path, "notice", "The registry refused it without credentials, so the agents check it with theirs.")
-	} else if err != nil {
-		return back(w, r, path, "error", "Upstream check failed: "+err.Error())
+	// Its images and their vulnerabilities, in the background: reading layers and asking OSV takes a while.
+	scope := p.Scope
+	refresh := " Reading its images and asking OSV about their packages now: vulnerabilities update within minutes."
+	if !s.checker.RefreshSecurity(scope, func() { s.hub.Publish(scope.WorkspaceID) }) {
+		refresh = " Its images and vulnerabilities are being read already."
 	}
+	err = s.checker.CheckService(ctx, p.Scope, svc.ID)
 	s.hub.Publish(p.Scope.WorkspaceID)
-	return back(w, r, path, "notice", "Upstream checked.")
+	switch {
+	case errors.Is(err, versions.ErrNeedsCredentials):
+		return back(w, r, path, "notice", "The registry refused it without credentials, so the agents check it with theirs."+refresh)
+	case err != nil && strings.Contains(err.Error(), "the agent checks it"):
+		return back(w, r, path, "notice", "The agents check its registry, within minutes of a change."+refresh)
+	case errors.Is(err, versions.ErrNoUpstream):
+		return back(w, r, path, "notice", "No upstream to check."+refresh)
+	case err != nil:
+		return back(w, r, path, "error", "Upstream check failed: "+err.Error()+"."+refresh)
+	}
+	return back(w, r, path, "notice", "Upstream checked."+refresh)
 }
 
 // ---- history ----
