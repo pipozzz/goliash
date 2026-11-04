@@ -16,6 +16,7 @@ import (
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/store/storetest"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // checkRegistry is a registry holding one signed image with an SBOM attestation.
@@ -168,5 +169,41 @@ func TestCheckImageViaAgent(t *testing.T) {
 		if f.Rule == RuleUnreadable {
 			t.Fatalf("unreadable after the agent read it: %+v", f)
 		}
+	}
+}
+
+// An image in a repository no service runs yet, on a registry the agents read: asked of them, by tag only.
+func TestCheckNewRepositoryViaAgent(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"}) // runs payments from registry.internal.example, which the agents read
+	const repo = "registry.internal.example/team/ledger"
+
+	res, err := l.checker.CheckImage(ctx, l.sc, ImageCheckRequest{Image: repo + ":0.1.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Pending {
+		t.Fatalf("not asked of an agent: %+v", res)
+	}
+	checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(checks, func(c agentproto.RegistryCheck) bool { return c.Repository == repo })
+	if i < 0 {
+		t.Fatalf("the agents are not asked: %+v", checks)
+	}
+	if c := checks[i]; !slices.Equal(c.ReleaseTags, []string{"0.1.0"}) || c.TagFilter == nil || *c.TagFilter != `^(0\.1\.0)$` {
+		t.Fatalf("check %+v", c)
+	}
+
+	// A repository on a registry no agent reads: no one to ask.
+	res, err = l.checker.CheckImage(ctx, l.sc, ImageCheckRequest{Image: "registry.elsewhere.example/team/ledger:0.1.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Pending {
+		t.Fatalf("waits for no one: %+v", res)
 	}
 }

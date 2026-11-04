@@ -51,11 +51,7 @@ func CheckRelease(ctx context.Context, st *store.Store, sc store.Scope, ref stri
 	if err != nil {
 		return out, err
 	}
-	for id, r := range o.Refs {
-		if r.Repo == out.Repo {
-			out.ByAgent = CheckedByAgent(o.Services[id], r.Repo, o.Registries)
-		}
-	}
+	out.ByAgent = AgentReads(o, out.Repo)
 	active, err := st.ListActiveInstances(ctx, sc)
 	if err != nil {
 		return out, err

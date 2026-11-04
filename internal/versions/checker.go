@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -898,6 +900,38 @@ func CheckedByAgent(svc store.Service, repo string, auth RegistryAuth) bool {
 	return repo != "" && !serverChecks(svc, repo, auth)
 }
 
+// agentHosts are the registry hosts the agents check some service's upstream on, with the repositories each is
+// for. An agent that reads one repository of a private registry reads its others too, as a rule (the same ECR,
+// the same credentials): a repository no service runs yet, an image checked before its first deploy, goes to it.
+func agentHosts(refs map[string]Reference, byID map[string]store.Service, auth RegistryAuth) map[string][]string {
+	out := map[string][]string{}
+	for id, ref := range refs {
+		if ref.Repo == "" || PackageRepo(ref.Repo) || Managed(ref.Repo) || serverChecks(byID[id], ref.Repo, auth) {
+			continue
+		}
+		host, _, _ := strings.Cut(ref.Repo, "/")
+		if !slices.Contains(out[host], ref.Repo) {
+			out[host] = append(out[host], ref.Repo)
+		}
+	}
+	return out
+}
+
+// AgentReads reports whether the agents can be asked to read repo: they check it, or another repository on its
+// registry, which the server cannot read.
+func AgentReads(o Overview, repo string) bool {
+	if repo == "" || libraryRepo(repo) || PackageRepo(repo) || Managed(repo) || o.Registries.Reads(repo) {
+		for id, r := range o.Refs {
+			if r.Repo == repo && CheckedByAgent(o.Services[id], repo, o.Registries) {
+				return true
+			}
+		}
+		return false
+	}
+	host, _, _ := strings.Cut(repo, "/")
+	return len(agentHosts(o.Refs, o.Services, o.Registries)[host]) > 0
+}
+
 // PrivateRepositories lists upstream repositories the server cannot check itself,
 // for agentID to check. credentials_ref is the registry host, so an agent finds
 // credentials for registry.example.com in GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM.
@@ -956,6 +990,22 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope, agent
 			check.TagFilter = &filter
 		}
 		out = append(out, check)
+	}
+	// Images asked to be checked in repositories no service runs yet: to the agents that read others on their registry.
+	hosts := agentHosts(st.refs, st.byID, st.auth)
+	for repo, tags := range releases {
+		host, _, _ := strings.Cut(repo, "/")
+		if seen[repo] || libraryRepo(repo) || st.auth.Reads(repo) || !slices.ContainsFunc(hosts[host], func(r string) bool { return mine[r] }) {
+			continue
+		}
+		seen[repo] = true
+		tags = tags[:min(len(tags), 5)]
+		quoted := make([]string, len(tags))
+		for i, t := range tags {
+			quoted[i] = regexp.QuoteMeta(t)
+		}
+		filter := "^(" + strings.Join(quoted, "|") + ")$" // its other tags are no one's releases
+		out = append(out, agentproto.RegistryCheck{Repository: repo, CredentialsRef: &host, ReleaseTags: tags, TagFilter: &filter})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Repository < out[j].Repository })
 	return out, nil
