@@ -100,7 +100,9 @@ and leaves it by itself:
 - **Where it shows.** Updates and the service page show each open ticket's key with a link.
 
 Which upgrades get a ticket is up to the channel's rules: a rule for *remediation deadlines* and *vulnerabilities*
-in production, filtered by owner, is a good start. Alerts about something with no upgrade to do file nothing.
+in production, filtered by owner, is a good start. An exploited vulnerability in a service with no newer release
+known (an image of your own) files *fix the exploited vulnerability in 6.0.238*, saying what fixes it (a rebuild on
+its base's current build, say); other alerts with nothing to do file nothing.
 **Create ticket** on an Updates row files one by hand (members); with several trackers, pick one there.
 
 Settings. Every tracker takes a default destination and one per team (the services' owner,
@@ -115,6 +117,17 @@ Settings. Every tracker takes a default destination and one per team (the servic
 | Linear | personal API key | team by key or name |
 
 **Send test** signs in and checks every project, team or repository, filing nothing.
+
+From the command line, with the token in the environment rather than in the arguments:
+
+```sh
+GOLIASH_CHANNEL_TOKEN=glpat-… goliash channel create -type gitlab_issues -name backlog \
+  -project acme/infra -teams "team-payments=acme/payments" -url https://gitlab.example.com
+goliash notify create -channel backlog -events deadline,vulnerability -production -mode instant
+```
+
+The other trackers take `-type github_issues -repo owner/name`, `-type jira -url … -email … -project KEY`,
+`-type linear -team ENG` and `-type shortcut -team payments`.
 
 ## The bell
 

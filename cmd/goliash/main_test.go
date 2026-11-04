@@ -392,3 +392,33 @@ func TestInventoryFormats(t *testing.T) {
 		t.Fatal("unknown format accepted")
 	}
 }
+
+// Ticket trackers can be set up from the command line too, the token read from the environment.
+func TestChannelCreateTracker(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GOLIASH_SECRET_KEY", "")
+	t.Setenv("GOLIASH_SECRET_KEY_FILE", "")
+	t.Setenv("GOLIASH_CHANNEL_TOKEN", "glpat-secret")
+	dsn := dir + "/goliash.db"
+	ctx := context.Background()
+	if err := run(ctx, []string{"channel", "create", "-database", dsn, "-type", "gitlab_issues", "-name", "backlog", "-project", "boberdoo/infra"}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(ctx, []string{"channel", "create", "-database", dsn, "-type", "gitlab_issues", "-name", "bad", "-project", "infra"}, io.Discard); err == nil {
+		t.Fatal("a project without its group accepted")
+	}
+	db, ws, err := openDefault(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	ch, err := db.GetChannelByName(ctx, ws.Scope(), "backlog")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg map[string]string
+	_ = json.Unmarshal(ch.Config, &cfg)
+	if ch.Type != "gitlab_issues" || cfg["token"] != "glpat-secret" || cfg["project"] != "boberdoo/infra" || cfg["url"] != "" {
+		t.Fatalf("channel %s %v", ch.Type, cfg)
+	}
+}
