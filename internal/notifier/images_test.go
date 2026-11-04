@@ -214,3 +214,41 @@ func TestUnexpectedSignerAlert(t *testing.T) {
 		t.Errorf("a version arrow: %s", slack.last())
 	}
 }
+
+func TestQuietUpstreamAlert(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventQuietUpstream}, Filter{})
+	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.clock = time.Now()
+	in := store.Instance{
+		TargetID: tgt.ID, EnvironmentID: e.prod.ID, ServiceID: e.svc.ID, WorkloadID: "w", WorkloadName: "api",
+		ContainerName: "api", Image: "ghcr.io/acme/api:1.0.0", Tag: "1.0.0", Digest: "sha256:01", Running: 1, IsMain: true,
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: store.NewID(), TargetID: tgt.ID, At: e.clock, Upsert: []store.Instance{in}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.InsertReleases(ctx, e.sc, e.svc.ID, []string{"1.0.0"}); err != nil {
+		t.Fatal(err)
+	}
+	last := e.clock.AddDate(0, -14, 0)
+	_ = e.st.SetReleaseInfo(ctx, e.sc, e.svc.ID, "1.0.0", last, "")
+	_ = e.st.RecordUpstreamCheck(ctx, e.sc, e.svc.ID, "")
+
+	for range 2 { // once per service and last release
+		if err := e.n.CheckImages(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	if slack.count() != 1 {
+		t.Fatalf("alerts %d", slack.count())
+	}
+	if want := "acme/api has released nothing since " + last.Format("Jan 2006"); !strings.Contains(slack.last(), want) {
+		t.Errorf("alert misses %q: %s", want, slack.last())
+	}
+}

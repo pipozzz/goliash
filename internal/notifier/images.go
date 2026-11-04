@@ -27,10 +27,11 @@ const (
 	EventEvidenceLost     = "evidence_lost"     // a deploy's image lacks a signature, SBOM or provenance the one before had
 	EventUnexpectedSigner = "unexpected_signer" // a deploy's image is not signed by who its service's policy names
 	EventLicense          = "license"           // a deploy's image brings packages under network copyleft or source-available licenses
+	EventQuietUpstream    = "quiet_upstream"    // a running service's public upstream has released nothing for over a year
 )
 
 // imageEvents are the events CheckImages sends.
-var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense, EventUnexpectedSigner}
+var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense, EventUnexpectedSigner, EventQuietUpstream}
 
 // baseLag is how long an image may trail its base's newest build before it is announced.
 const baseLag = 14 * 24 * time.Hour
@@ -70,6 +71,15 @@ func (n *Notifier) CheckImages(ctx context.Context) error {
 		}
 		for _, g := range items {
 			if err := n.enqueue(ctx, sc, rules, g.item, g.item.Type+"|"+g.env+"|"+g.digest); err != nil {
+				return err
+			}
+		}
+		quiet, err := n.quietUpstreams(ctx, sc, now)
+		if err != nil {
+			return err
+		}
+		for _, q := range quiet {
+			if err := n.enqueue(ctx, sc, rules, q.item, q.item.Type+"|"+q.env+"|"+q.digest); err != nil {
 				return err
 			}
 		}
@@ -285,4 +295,51 @@ func signerProblem(ev store.ImageEvidence, want string) string {
 		}
 	}
 	return "signed by " + ev.Signers[0].Identity
+}
+
+// quietUpstreams are the running services whose public upstream has released nothing for over a year: once per
+// service and last release (the dedup key's env holds the service, its digest the last release's date).
+func (n *Notifier) quietUpstreams(ctx context.Context, sc store.Scope, now time.Time) ([]growth, error) {
+	active, err := n.store.ListActiveInstances(ctx, sc)
+	if err != nil || len(active) == 0 {
+		return nil, err
+	}
+	releases, err := n.store.ReleasesByService(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	checks, err := n.store.UpstreamChecks(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	services, err := n.store.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]store.Service{}
+	for _, s := range services {
+		byID[s.ID] = s
+	}
+	seen := map[string]bool{}
+	var out []growth
+	for _, in := range active {
+		repo := versions.ParseImage(in.Image).Repo()
+		if in.ServiceID == "" || seen[in.ServiceID] || versions.Managed(repo) || versions.PackageRepo(repo) || !versions.IsPublicRegistry(repo) {
+			continue
+		}
+		seen[in.ServiceID] = true
+		last, quiet := versions.QuietSince(releases[in.ServiceID], checks[in.ServiceID], now)
+		if !quiet {
+			continue
+		}
+		svc := byID[in.ServiceID]
+		it := Item{
+			Type: EventQuietUpstream, Service: svc.Name, Owner: svc.Owner, At: now, URL: "/hygiene?kind=quiet-upstream",
+			From: versions.ShortImage(repo), Note: last.Format("Jan 2006"),
+		}
+		it.Text = Describe(it)
+		out = append(out, growth{item: it, env: in.ServiceID, digest: last.Format(time.DateOnly)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].item.Service < out[j].item.Service })
+	return out, nil
 }
