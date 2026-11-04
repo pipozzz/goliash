@@ -42,6 +42,8 @@ func kindOf(it Item) kind {
 		return kind{"⚖️", "#e5484d", "License"}
 	case EventUnexpectedSigner:
 		return kind{"✍️", "#e5484d", "Unexpected signer"}
+	case EventQuietUpstream:
+		return kind{"🕸️", "#d9822b", "Quiet upstream"}
 	case "removed":
 		return kind{"🗑️", "#8a93a6", "Removed"}
 	case "new_release":
@@ -210,6 +212,8 @@ func goliQuestion(it Item) string {
 		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
 	case it.Type == EventImageOverBudget:
 		return "Why is the " + it.Service + " image in " + it.Environment + " " + it.From + ", over its " + it.Note + "? What takes the space and how could it shrink?"
+	case it.Type == EventQuietUpstream:
+		return "Is " + it.From + ", which " + it.Service + " runs, still maintained? Its last release came out in " + it.Note + ". Which maintained forks or replacements are there, and what would moving to one take?"
 	case it.Type == EventOutdatedBase:
 		return "The " + it.Service + " image in " + it.Environment + " is built on an older " + it.From + ". What fixes is it missing, and how do we rebuild it on the current base?"
 	case it.Type == EventEvidenceLost:

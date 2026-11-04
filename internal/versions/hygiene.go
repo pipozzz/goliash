@@ -324,6 +324,26 @@ func UnexpectedSigners(active []store.Instance, evidence map[string]store.ImageE
 // quietAfter is how long an upstream may go without a release before Goliash says it may be unmaintained.
 const quietAfter = 365 * 24 * time.Hour
 
+// QuietSince is when a service's upstream last released, and whether that is over a year ago while Goliash kept
+// checking it: its newest publication date when known, else when Goliash first saw a release. An upstream whose
+// last check failed, or ran over a week ago, is not quiet: its silence says nothing.
+func QuietSince(releases []store.Release, check store.UpstreamCheck, now time.Time) (time.Time, bool) {
+	if check.Error != "" || check.At.IsZero() || now.Sub(check.At) > 7*24*time.Hour {
+		return time.Time{}, false
+	}
+	var last time.Time
+	for _, r := range releases {
+		at := r.PublishedAt
+		if at.IsZero() {
+			at = r.DiscoveredAt
+		}
+		if at.After(last) {
+			last = at
+		}
+	}
+	return last, !last.IsZero() && now.Sub(last) >= quietAfter
+}
+
 // QuietUpstreams finds services whose upstream has released nothing for over a year, while Goliash kept checking
 // it: the project may be unmaintained, and the fixes of its next vulnerability may never come. The last release is
 // its publication date when known, else when Goliash first saw it; a service Goliash has not watched for a year,
@@ -348,21 +368,8 @@ func QuietUpstreams(active []store.Instance, releases map[string][]store.Release
 				continue
 			}
 			byService[i.ServiceID] = nil
-			c := checks[i.ServiceID]
-			if c.Error != "" || c.At.IsZero() || now.Sub(c.At) > 7*24*time.Hour {
-				continue // not checked lately: silence says nothing
-			}
-			var last time.Time
-			for _, r := range releases[i.ServiceID] {
-				at := r.PublishedAt
-				if at.IsZero() {
-					at = r.DiscoveredAt
-				}
-				if at.After(last) {
-					last = at
-				}
-			}
-			if last.IsZero() || now.Sub(last) < quietAfter {
+			last, quiet := QuietSince(releases[i.ServiceID], checks[i.ServiceID], now)
+			if !quiet {
 				continue
 			}
 			months := int(now.Sub(last).Hours() / 24 / 30)
