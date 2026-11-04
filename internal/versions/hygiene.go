@@ -18,7 +18,7 @@ import (
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, unpinned
+	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
@@ -167,6 +167,11 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 		return nil, err
 	}
 	out = append(out, QuietUpstreams(running, releases, checks, services, envName, targetName, time.Now())...)
+	sboms, err := st.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, EOLOperatingSystems(ctx, running, sboms, envName, targetName, time.Now())...)
 	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
 	return out, nil

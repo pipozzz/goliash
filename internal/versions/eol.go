@@ -55,7 +55,10 @@ func NewEOL() *EOL {
 }
 
 // SetEOL enables end-of-life drift.
-func (c *Checker) SetEOL(e *EOL) { c.eol = e }
+func (c *Checker) SetEOL(e *EOL) {
+	c.eol = e
+	sharedEOL.Store(e)
+}
 
 // cacheOnlyKey marks a context whose lookups use what is cached and never wait for endoflife.date: a page being
 // answered. What is missing or old is fetched in the background, for the next page.
