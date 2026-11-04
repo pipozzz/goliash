@@ -331,7 +331,10 @@ The exit code is 1 when the image breaks a blocking rule, and 0 when it passes; 
 
 - **Where the packages come from.** `-sbom sbom.cdx.json` hands in the SPDX or CycloneDX JSON the build made (syft,
   docker buildx `--sbom`, Trivy). Without it, the server reads the image's SBOM attestation, or its package
-  database, from the registry with the workspace's registry credentials.
+  database, from the registry with the workspace's registry credentials. A private registry only the agents read
+  (ECR with the agent's IAM role, say) is read by an agent, from 1.203: the server asks one to read the image by
+  its tag, answers `202` with `Retry-After` until it did, and `goliash verify` waits by itself (`-wait`, default
+  10 minutes), usually a minute or two.
 - **Which rules block.** `-fail-on` chooses: `exploited`, `eol`, `signer`, `unsigned`, `critical`, `no-sbom`,
   `unreadable`, or `none`. The default is `exploited,eol,signer,unsigned`.
 - **Policy and output.** `-service` names the service whose policy applies; by default it is the one already
@@ -361,6 +364,9 @@ verify:
     - wget -qO- https://github.com/pipozzz/goliash/releases/download/v$V/goliash_${V}_linux_amd64.tar.gz | tar xz goliash
     - ./goliash verify "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
 ```
+
+`GOLIASH_URL` and `GOLIASH_TOKEN` (a masked variable) come from the project's CI/CD settings. A release built on a
+cached, unpatched base fails here, before anyone deploys it: *BLOCK exploited: … CVE-2026-111497*.
 
 ## When the distribution has no fix
 

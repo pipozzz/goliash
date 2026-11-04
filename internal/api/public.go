@@ -1719,6 +1719,11 @@ func (h *PublicHandler) checkImage(w http.ResponseWriter, r *http.Request, p aut
 		writeProblem(w, http.StatusBadRequest, "Check failed", err.Error())
 		return
 	}
+	if res.Pending { // an agent reads it within minutes: ask again
+		w.Header().Set("Retry-After", "10")
+		writeJSON(w, http.StatusAccepted, res)
+		return
+	}
 	_ = h.store.Audit(r.Context(), store.AuditEntry{
 		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID, Actor: p.Name(), Action: "image.check",
 		Details: map[string]string{"image": in.Image, "passed": strconv.FormatBool(res.Passed)},

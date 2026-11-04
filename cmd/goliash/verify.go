@@ -20,6 +20,9 @@ import (
 // errVerifyFailed makes goliash verify exit 1: the image breaks a blocking rule.
 var errVerifyFailed = errors.New("the image did not pass")
 
+// verifyPoll is how often verify asks again while an agent reads the image.
+var verifyPoll = 10 * time.Second
+
 // verifyCmd checks an image before it is deployed, for CI: the server looks at its packages' vulnerabilities, its
 // signature and its end of life. It exits 1 when a blocking rule is broken, 2 when the check could not run.
 func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
@@ -30,6 +33,7 @@ func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
 	sbomFile := fs.String("sbom", "", "the SPDX or CycloneDX JSON the build made (default: the image's attestation or package database)")
 	failOn := fs.String("fail-on", "", "rules that fail the check, comma-separated: exploited, eol, signer, unsigned, critical, no-sbom, unreadable, or none (default exploited,eol,signer,unsigned)")
 	asJSON := fs.Bool("json", false, "print the server's verdict as JSON")
+	wait := fs.Duration("wait", 10*time.Minute, "how long to wait for an agent to read an image of a registry only the agents read")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -68,24 +72,27 @@ func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	payload, _ := json.Marshal(body)
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(*server, "/")+"/api/v1/check", bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+t)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if resp.StatusCode != http.StatusOK {
-		var p struct{ Title, Detail string }
-		_ = json.Unmarshal(raw, &p)
-		return fmt.Errorf("the server answered %d: %s %s", resp.StatusCode, p.Title, p.Detail)
+	deadline := time.Now().Add(*wait)
+	var raw []byte
+	for {
+		status, answer, err := verifyOnce(ctx, *server, t, payload)
+		if err != nil {
+			return err
+		}
+		if status != http.StatusAccepted {
+			raw = answer
+			break
+		}
+		// The server cannot read the registry; an agent reads the image within minutes.
+		if time.Now().After(deadline) {
+			return fmt.Errorf("no agent read %s within %s: is the agent that reads its registry 1.203 or newer, and running?", fs.Arg(0), *wait)
+		}
+		_, _ = fmt.Fprintln(os.Stderr, "waiting for an agent to read the image …")
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(verifyPoll):
+		}
 	}
 	var v struct {
 		Image, Digest, Service string
@@ -138,4 +145,29 @@ func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
 		return errVerifyFailed
 	}
 	return nil
+}
+
+// verifyOnce asks the server to check the image once: the status and body of its answer, an error for any answer
+// but 200 (checked) and 202 (an agent reads it first).
+func verifyOnce(ctx context.Context, server, token string, payload []byte) (int, []byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(server, "/")+"/api/v1/check", bytes.NewReader(payload))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		var p struct{ Title, Detail string }
+		_ = json.Unmarshal(raw, &p)
+		return 0, nil, fmt.Errorf("the server answered %d: %s %s", resp.StatusCode, p.Title, p.Detail)
+	}
+	return resp.StatusCode, raw, nil
 }

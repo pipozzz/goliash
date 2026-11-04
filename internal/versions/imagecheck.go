@@ -61,6 +61,8 @@ type ImageCheck struct {
 	Exploited  []string       `json:"exploited,omitempty"`
 	Critical   []string       `json:"critical,omitempty"`
 	EOL        string         `json:"eol,omitempty"` // the end of life of its release cycle, when known
+	// Pending: the server cannot read the registry, an agent can, and has not read the image yet; ask again.
+	Pending bool `json:"pending,omitempty"`
 }
 
 // osvPerCheck bounds the packages one check asks osv.dev about, and the vulnerabilities whose details it reads.
@@ -104,13 +106,30 @@ func (c *Checker) CheckImage(ctx context.Context, sc store.Scope, req ImageCheck
 			}
 		}
 	}
+	// A registry the agents read: the image as an agent read it (asked for by tag), its packages and signatures.
+	var viaAgent *agentImage
+	if !readable && len(req.SBOM) == 0 && ref.Tag != "" && ref.Digest == "" {
+		a, err := c.agentImage(ctx, sc, repo, ref.Tag)
+		if err != nil {
+			return out, err
+		}
+		if a.pending {
+			out.Pending = true
+			return out, nil
+		}
+		if a.digest != "" {
+			viaAgent, readable, out.Digest = &a, true, a.digest
+		}
+	}
 	if !readable {
 		find(RuleUnreadable, "the server has no credentials for "+ref.Registry+"; hand in the SBOM, or add registry credentials")
 	}
 
 	// Signature.
 	var ev registry.Evidence
-	if er, ok := c.tags.(EvidenceReader); ok && out.Digest != "" && readable {
+	if viaAgent != nil {
+		ev = viaAgent.evidence
+	} else if er, ok := c.tags.(EvidenceReader); ok && out.Digest != "" && readable {
 		if ev, err = er.ImageEvidence(ctx, repo, out.Digest, creds); err != nil {
 			find(RuleUnreadable, "signatures and attestations: "+err.Error())
 		}
@@ -137,6 +156,10 @@ func (c *Checker) CheckImage(ctx context.Context, sc store.Scope, req ImageCheck
 	switch {
 	case len(req.SBOM) > 0:
 		sbom, out.SBOMSource = registry.ParseSBOM(req.SBOM), "request"
+	case viaAgent != nil:
+		if len(viaAgent.purls) > 0 { // none: the agent could not read them, and the server cannot
+			sbom.Purls, out.SBOMSource = viaAgent.purls, viaAgent.source
+		}
 	case ev.SBOM:
 		if r, ok := c.tags.(SBOMReader); ok {
 			if sbom, err = r.ImageSBOM(ctx, repo, out.Digest, creds); err == nil {
@@ -310,4 +333,79 @@ func first(s []string, n int) []string {
 		return append(s[:n:n], fmt.Sprintf("… %d more", len(s)-n))
 	}
 	return s
+}
+
+// agentImage is an image of a registry only the agents read, as one read it: asked for by tag, read within minutes.
+type agentImage struct {
+	pending  bool // asked for, not read yet
+	digest   string
+	purls    []string
+	source   string // agent: its SBOM attestation, else its package database
+	evidence registry.Evidence
+}
+
+// agentImage looks the image repo:tag up as the agents read it, and asks them to when none did. A repository no
+// agent checks gives nothing: there is no one to ask.
+func (c *Checker) agentImage(ctx context.Context, sc store.Scope, repo, tag string) (agentImage, error) {
+	var out agentImage
+	o, err := LoadOverview(ctx, c.store, sc)
+	if err != nil {
+		return out, err
+	}
+	asked := false
+	for id, r := range o.Refs {
+		if r.Repo == repo && CheckedByAgent(o.Services[id], repo, o.Registries) {
+			asked = true
+		}
+	}
+	if !asked {
+		return out, nil
+	}
+	digest := ""
+	active, err := c.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return out, err
+	}
+	for _, in := range active {
+		if in.Digest != "" && in.Tag == tag && ParseImage(in.Image).Repo() == repo {
+			digest = in.Digest // it runs: the agent read it already
+		}
+	}
+	if digest == "" {
+		have, err := c.store.ListReleaseImages(ctx, sc)
+		if err != nil {
+			return out, err
+		}
+		r, ok := have[repo+":"+tag]
+		switch {
+		case !ok:
+			out.pending = true
+			return out, c.store.RequestReleaseImage(ctx, sc, repo, tag)
+		case r.Digest == "" && c.now().Sub(r.ReadAt) < requestTTL:
+			out.pending = true
+			return out, nil
+		case r.Digest == "":
+			return out, nil // asked for a day: no agent could read it
+		}
+		digest = r.Digest
+	}
+	sboms, err := c.store.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return out, err
+	}
+	b, have := sboms[repo+"@"+digest]
+	if !have {
+		out.pending = true // the digest is known, its packages are on their way
+		return out, nil
+	}
+	out.digest, out.purls, out.source = digest, b.Purls, "agent"
+	if evidence, err := c.store.ListImageEvidence(ctx, sc); err == nil {
+		if ev, ok := evidence[repo+"@"+digest]; ok {
+			out.evidence = registry.Evidence{Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance}
+			for _, s := range ev.Signers {
+				out.evidence.Signers = append(out.evidence.Signers, registry.Signer{Identity: s.Identity, Issuer: s.Issuer})
+			}
+		}
+	}
+	return out, nil
 }
