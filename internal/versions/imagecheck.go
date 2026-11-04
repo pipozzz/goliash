@@ -344,21 +344,15 @@ type agentImage struct {
 	evidence registry.Evidence
 }
 
-// agentImage looks the image repo:tag up as the agents read it, and asks them to when none did. A repository no
-// agent checks gives nothing: there is no one to ask.
+// agentImage looks the image repo:tag up as the agents read it, and asks them to when none did. A repository on a
+// registry no agent checks gives nothing: there is no one to ask.
 func (c *Checker) agentImage(ctx context.Context, sc store.Scope, repo, tag string) (agentImage, error) {
 	var out agentImage
 	o, err := LoadOverview(ctx, c.store, sc)
 	if err != nil {
 		return out, err
 	}
-	asked := false
-	for id, r := range o.Refs {
-		if r.Repo == repo && CheckedByAgent(o.Services[id], repo, o.Registries) {
-			asked = true
-		}
-	}
-	if !asked {
+	if !AgentReads(o, repo) {
 		return out, nil
 	}
 	digest := ""
