@@ -795,6 +795,12 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s brings %s", where, orDash(it.To), it.Note)
 	case EventUnexpectedSigner:
 		return fmt.Sprintf("%s: %s is %s", where, orDash(it.To), it.Note)
+	case EventEOLOS:
+		since := ""
+		if it.Note != "" {
+			since = " since " + it.Note
+		}
+		return fmt.Sprintf("%s: %s is built on %s, past its end of life%s: its packages get no more security fixes", where, orDash(it.To), it.From, since)
 	case EventQuietUpstream:
 		return fmt.Sprintf("%s: %s has released nothing since %s: it may be unmaintained, and fixes may not come; look for a maintained fork or a replacement",
 			where, it.From, it.Note)

@@ -400,6 +400,7 @@ and Goli can explain each):
 | `license` (*AGPL or source-available packages*) | A deploy's image brings an application package under a network copyleft (AGPL, SSPL) or source-available license (BUSL, Elastic) that the image it replaced did not have, as its SBOM declares; see [Licenses](../security/#licenses). |
 | `unexpected_signer` (*not signed by the expected signer*) | A deploy's image is not signed by the **Expected signer** in its service's version policy: unsigned, signed by someone else, or signed with a key that names nobody; see [Who signed it](../security/#who-signed-it). |
 | `quiet_upstream` (*upstreams with no release for a year*) | A running service's public upstream has released nothing for over a year while Goliash kept checking it: it may be unmaintained. Once per service and last release; see [Image hygiene](../matrix/#image-hygiene). |
+| `eol_os` (*images on an operating system past its end of life*) | A running image is built on an operating system release past its end of life on endoflife.date (Debian 11, Alpine 3.18, Amazon Linux 2…): its packages get no more security fixes. Once per service, environment and release; see [Image hygiene](../matrix/#image-hygiene). |
 
 > api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0; biggest new layer 145 MB: RUN apt-get install -y chromium)<br>
 > api @ prod: 2.0.0 image is 240 MB, over its 200 MB budget<br>

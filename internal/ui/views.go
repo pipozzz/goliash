@@ -639,7 +639,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents", "rollout": "stuck rollouts", "goliash_release": "new Goliash releases", "gitops": "Argo CD", "pull_request": "pull requests",
-	"vulnerability": "vulnerabilities", "security_release": "security releases", "deadline": "remediation deadlines", "watch": "security watches", "updates_plan": "upgrade plan", "posture_report": "security posture report", "security_brief": "security brief", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "quiet_upstream": "quiet upstream", "license": "AGPL or source-available packages",
+	"vulnerability": "vulnerabilities", "security_release": "security releases", "deadline": "remediation deadlines", "watch": "security watches", "updates_plan": "upgrade plan", "posture_report": "security posture report", "security_brief": "security brief", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "quiet_upstream": "quiet upstream", "eol_os": "OS past end of life", "license": "AGPL or source-available packages",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
