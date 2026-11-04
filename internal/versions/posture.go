@@ -38,6 +38,8 @@ type Posture struct {
 	// OutdatedBase names the production services whose image is built on an older build of its base than the
 	// base's tag has now: fixes the base shipped since are missing.
 	OutdatedBase []string
+	// EOLOS names the production services whose image is built on an operating system release past its end of life.
+	EOLOS []string
 }
 
 // LoadPosture computes the posture from the overview, the releases and the acknowledgements.
@@ -146,6 +148,10 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 	if err != nil {
 		return err
 	}
+	sboms, err := st.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return err
+	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return err
@@ -154,17 +160,30 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 	for _, s := range services {
 		name[s.ID] = s.Name
 	}
-	seen := map[string]bool{}
+	seen, seenOS := map[string]bool{}, map[string]bool{}
+	now := time.Now()
 	for _, in := range active {
-		if in.EnvironmentID != p.Prod.ID || !in.IsMain || in.Digest == "" || name[in.ServiceID] == "" || seen[in.ServiceID] {
+		if in.EnvironmentID != p.Prod.ID || !in.IsMain || in.Digest == "" || name[in.ServiceID] == "" {
 			continue
 		}
-		if evidence[ParseImage(in.Image).Repo()+"@"+in.Digest].BaseStatus == "outdated" {
+		repo := ParseImage(in.Image).Repo()
+		if !seen[in.ServiceID] && evidence[repo+"@"+in.Digest].BaseStatus == "outdated" {
 			seen[in.ServiceID] = true
 			p.OutdatedBase = append(p.OutdatedBase, name[in.ServiceID])
 		}
+		if seenOS[in.ServiceID] {
+			continue
+		}
+		if o, ok := OSOf(sboms[repo+"@"+in.Digest].Purls); ok {
+			if cy, _, ok := OSCycle(ctx, o); ok && (cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(now)) {
+				seenOS[in.ServiceID] = true
+				o.Version = cy.Name
+				p.EOLOS = append(p.EOLOS, name[in.ServiceID]+" ("+o.String()+")")
+			}
+		}
 	}
 	sort.Strings(p.OutdatedBase)
+	sort.Strings(p.EOLOS)
 	return nil
 }
 

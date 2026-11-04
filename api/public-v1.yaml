@@ -370,6 +370,7 @@ paths:
                         reason: { type: string, example: "It runs the tag \"latest\", which is not a version: there is nothing to compare the releases with." }
                         fix: { type: string }
                   outdated_base: { type: array, items: { type: string }, description: "Production services whose image is built on an older build of its base than the base's tag has now: rebuild with --pull." }
+                  eol_os: { type: array, items: { type: string }, description: "Production services whose image is built on an operating system release past its end of life, with the release: \"api (Debian 11 (bullseye))\"." }
                   history:
                     type: array
                     description: "Production's posture once a week over the last 90 days, oldest first: is patching getting faster?"

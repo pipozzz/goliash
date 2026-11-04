@@ -314,6 +314,13 @@ func PostureItem(pos versions.Posture, supply SupplyChain, prev *store.PostureSa
 		}
 		fmt.Fprintf(&b, " Built on an outdated base (rebuild with --pull): %s.", strings.Join(names, ", "))
 	}
+	if n := len(pos.EOLOS); n > 0 {
+		names := pos.EOLOS
+		if n > postureWorst {
+			names = append(append([]string{}, names[:postureWorst]...), fmt.Sprintf("%d more", n-postureWorst))
+		}
+		fmt.Fprintf(&b, " Built on an operating system past its end of life (no more security fixes): %s.", strings.Join(names, ", "))
+	}
 	if len(worst) > 0 {
 		b.WriteString(" Longest: " + strings.Join(worst, "; ") + ".")
 	}

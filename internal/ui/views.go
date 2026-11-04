@@ -1698,6 +1698,9 @@ type ImageSecurity struct {
 	OldBase                           string // the base it is built on an older build of, when it is
 	Rebuild                           string // the image down its chain of bases to rebuild first, when not itself
 	Chain                             string // its chain of bases: "acme/base:1 (current) → alpine:3.20 (outdated)"
+	OS                                string // the operating system it is built on: "Debian 12 (bookworm)"
+	OSEnd                             string // when that release's end of life passed or comes, when it has or soon does
+	OSPast                            bool   // its end of life passed: its packages get no more security fixes
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
 	Vulns, Exploited                  int    // known vulnerabilities in it, and how many are exploited in the wild
 	RebuildFixes                      int    // of those, how many rebuilding it with --pull on its base's current build fixes
@@ -1903,4 +1906,12 @@ type PullView struct {
 	MergeToRunning      time.Duration // from merging it to the version running there; 0 unknown
 	MergedAt            time.Time     // merged and not deployed: since when
 	Waiting             string        // merged and not deployed: why, when Goliash can tell
+}
+
+// sinceText is " since Aug 2026", or nothing without a date.
+func sinceText(at string) string {
+	if at == "" {
+		return ""
+	}
+	return " since " + at
 }
