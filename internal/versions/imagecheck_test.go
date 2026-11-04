@@ -127,3 +127,46 @@ func TestCheckImage(t *testing.T) {
 		t.Errorf("none: %+v", res)
 	}
 }
+
+// An image of a registry only the agents read is asked of an agent, and checked once one read it: in CI, before
+// it runs anywhere.
+func TestCheckImageViaAgent(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"}) // runs payments from registry.internal.example, which the agents read
+	const repo = "registry.internal.example/team/payments"
+	log4j := "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-jfh8-c2jp-5v3q"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "GHSA-jfh8-c2jp-5v3q", Aliases: []string{"CVE-2021-44228"}, Severity: "CRITICAL", Fixes: map[string][]string{}})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228"}})
+
+	check := func() ImageCheck {
+		t.Helper()
+		res, err := l.checker.CheckImage(ctx, l.sc, ImageCheckRequest{Image: repo + ":1.0.1"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if res := check(); !res.Pending {
+		t.Fatalf("not asked of an agent: %+v", res)
+	}
+	if toRead, _ := l.checker.releasesToRead(ctx, l.sc, nil); !slices.Contains(toRead[repo], "1.0.1") {
+		t.Fatalf("the agents are not asked: %v", toRead)
+	}
+	digest := "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	_ = l.st.SetReleaseImage(ctx, l.sc, store.ReleaseImage{Repo: repo, Tag: "1.0.1", Digest: digest})
+	if res := check(); !res.Pending {
+		t.Fatal("checked before its packages arrived")
+	}
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: repo, Digest: digest, Purls: []string{log4j}, Source: "packages"})
+	res := check()
+	if res.Pending || res.Passed || res.Digest != digest || res.SBOMSource != "agent" || res.Packages != 1 || !slices.Contains(res.Exploited, "CVE-2021-44228") {
+		t.Fatalf("check %+v", res)
+	}
+	for _, f := range res.Findings {
+		if f.Rule == RuleUnreadable {
+			t.Fatalf("unreadable after the agent read it: %+v", f)
+		}
+	}
+}

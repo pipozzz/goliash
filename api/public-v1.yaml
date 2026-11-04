@@ -1037,6 +1037,20 @@ paths:
                   exploited: { type: array, items: { type: string } }
                   critical: { type: array, items: { type: string } }
                   eol: { type: string, description: "The end of life of its release cycle, when known." }
+        "202":
+          description: |
+            The server cannot read the image's registry and an agent can: it asked one to read the image, which
+            takes a few minutes. Ask again after Retry-After seconds; goliash verify waits by itself.
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image, pending]
+                properties:
+                  image: { type: string }
+                  pending: { type: boolean }
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
