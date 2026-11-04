@@ -118,11 +118,12 @@ templ lines(c LineChart, label string) {
 
 // versionChart draws which version ran where and when.
 templ versionChart(t Timeline) {
-	{{ laneH := 30.0 }}
+	{{ laneH := t.LaneH() }}
 	{{ labelW := 150.0 }}
+	{{ left := t.LabelWidth() - labelW }}
 	{{ h := laneH*float64(len(t.Lanes)) + 22 }}
 	<figure class="chart timeline" tabindex="0">
-		<svg viewBox={ "0 0 " + f(chartW+nowW) + " " + f(h) } role="img" aria-label="Versions per environment over time">
+		<svg viewBox={ f(-left) + " 0 " + f(chartW+nowW+left) + " " + f(h) } style={ "max-width:" + f((chartW+nowW+left)*1.35) + "px" } role="img" aria-label="Versions per environment over time">
 			<defs>
 				for _, c := range []string{"c0", "c1", "c2", "c3", "c4", "c5"} {
 					<linearGradient id={ "tl-" + c } x1="0" y1="0" x2="1" y2="0">
@@ -138,14 +139,17 @@ templ versionChart(t Timeline) {
 			}
 			for li, lane := range t.Lanes {
 				{{ y := float64(li) * laneH }}
-				<text class="lane" x="0" y={ f(y + laneH/2 + 4) }>{ lane.Env }</text>
+				<text class="lane" x={ f(-left) } y={ f(y + laneH/2 + 4) }>
+					<title>{ lane.Env }</title>
+					{ laneLabel(lane.Env) }
+				</text>
 				if cx, ct, ok := laneCount(lane, labelW); ok {
 					<text class="seg-label outside count" x={ f(cx) } y={ f(y + laneH/2 + 4) } text-anchor="end">{ ct }</text>
 				}
 				for si, sg := range lane.Segments {
 					{{ x := labelW + sg.Start*(chartW-labelW) }}
 					{{ w := max((sg.End-sg.Start)*(chartW-labelW), 2) }}
-					<rect class={ "seg", sg.Class } fill={ "url(#tl-" + sg.Class + ")" } x={ f(x) } y={ f(y + 5) } width={ f(max(w-2, 2)) } height={ f(laneH - 10) } rx="6">
+					<rect class={ "seg", sg.Class } fill={ "url(#tl-" + sg.Class + ")" } x={ f(x) } y={ f(y + 5) } width={ f(max(w-2, 2)) } height={ f(laneH - 10) } rx={ f(min(6, (laneH-10)/2)) }>
 						<title>{ sg.Title }</title>
 					</rect>
 					{{ lb := segLabel(lane, si, labelW) }}
