@@ -2116,7 +2116,7 @@ func splitList(s string) []string {
 
 func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("channel create")
-	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push or inapp")
+	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push, inapp, or a tracker: gitlab_issues, github_issues, jira, linear, shortcut")
 	name := fs.String("name", "", "channel name")
 	url := fs.String("url", "", "webhook URL (Slack, Teams workflow, Google Chat, Discord, webhook), or an ntfy topic URL")
 	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
@@ -2127,10 +2127,28 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	smtpFrom := fs.String("smtp-from", "", "sender address for -smtp-addr")
 	smtpUser := fs.String("smtp-username", "", "user name for -smtp-addr")
 	smtpTLS := fs.String("smtp-tls", "", "starttls, tls or none (default: tls on port 465, else starttls)")
+	project := fs.String("project", "", "trackers: the default GitLab project (group/name) or Jira project key")
+	repo := fs.String("repo", "", "github_issues: the default repository, owner/name")
+	team := fs.String("team", "", "linear: the default team (key or name); shortcut: the team's mention name")
+	teams := fs.String("teams", "", "trackers: where each team's tickets go, e.g. \"team-payments=acme/payments, team-data=acme/data\"")
+	labels := fs.String("labels", "", "trackers: more labels, comma-separated")
+	email := fs.String("email", "", "jira (Cloud): the account of the API token")
+	issueType := fs.String("issue-type", "", "jira: the issue type (default Task)")
+	storyType := fs.String("story-type", "", "shortcut: chore (default), bug or feature")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *token == "" { // trackers: keep the token out of argv, where ps shows it
+		*token = os.Getenv("GOLIASH_CHANNEL_TOKEN")
+	}
 	cfg := map[string]any{}
+	set := func(kv ...string) {
+		for i := 0; i+1 < len(kv); i += 2 {
+			if v := strings.TrimSpace(kv[i+1]); v != "" {
+				cfg[kv[i]] = v
+			}
+		}
+	}
 	switch *typ {
 	case "slack", "webhook", "discord", "ntfy", "teams", "gchat":
 		if *url == "" {
@@ -2153,6 +2171,32 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("-token and -chat-id are required")
 		}
 		cfg["bot_token"], cfg["chat_id"] = *token, *chatID
+	case "gitlab_issues":
+		if *token == "" || !strings.Contains(*project, "/") {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), a token with the api scope, and -project group/name are required; -url for self-managed GitLab")
+		}
+		set("token", *token, "project", *project, "url", strings.TrimSuffix(*url, "/"), "teams", *teams, "labels", *labels)
+	case "github_issues":
+		if *token == "" || strings.Count(*repo, "/") != 1 {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN) and -repo owner/name are required; -url for GitHub Enterprise's API")
+		}
+		set("token", *token, "repo", *repo, "url", strings.TrimSuffix(*url, "/"), "teams", *teams, "labels", *labels)
+	case "jira":
+		if *token == "" || *url == "" || *project == "" {
+			return errors.New("-url, -token (or GOLIASH_CHANNEL_TOKEN) and -project (a key) are required; -email for Jira Cloud")
+		}
+		set("url", strings.TrimSuffix(*url, "/"), "token", *token, "project", strings.ToUpper(*project), "email", *email,
+			"teams", *teams, "issue_type", *issueType, "labels", *labels)
+	case "linear":
+		if *token == "" || *team == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), a Linear API key, and -team are required")
+		}
+		set("token", *token, "team", *team, "teams", *teams)
+	case "shortcut":
+		if *token == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN) is required")
+		}
+		set("token", *token, "team", *team, "teams", *teams, "story_type", *storyType, "labels", *labels)
 	case "push", "inapp":
 		// Browsers subscribe from the Notifications page; inapp only feeds the bell.
 	case "email":
@@ -2174,7 +2218,7 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			}
 		}
 	default:
-		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push or inapp")
+		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push, inapp, gitlab_issues, github_issues, jira, linear or shortcut")
 	}
 	if *name == "" {
 		return errors.New("-name is required")
