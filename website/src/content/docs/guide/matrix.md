@@ -209,6 +209,7 @@ runs" hard to know or to trust, sidecars included:
 | outdated base | Built on an older build of its `FROM` image than the base's tag has now (a build cache, no `--pull`): the base's fixes are missing. See [Security](/guide/security/#built-on-an-outdated-base). |
 | over budget | Bigger than the **Image size budget** set in the service's version policy. |
 | unexpected signer | Not signed by the **Expected signer** in the service's version policy: unsigned, signed by someone else, or signed with a key that names nobody. See [Security](/guide/security/#who-signed-it). |
+| OS past end of life | Built on an operating system release past its end of life on [endoflife.date](https://endoflife.date) (Debian 11, Alpine 3.18, Amazon Linux 2…): its packages get no more security fixes, and no upgrade of the application fixes them. Read from the image's packages; within 60 days of the date it is info. Rebuild on a supported release (for Debian and Alpine, Goliash names the newest). |
 | quiet upstream | The service's upstream has released nothing for over a year while Goliash kept checking it: the project may be unmaintained, and the fixes of its next vulnerability may never come. Look for a maintained fork or a replacement. The last release is its publication date when known (GitHub releases), else when Goliash first saw it. |
 | unpinned (info) | No digest is known for the image. |
 

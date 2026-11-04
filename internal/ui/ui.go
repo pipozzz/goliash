@@ -1347,6 +1347,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 		{Kind: "outdated-base", Label: "Outdated base", Help: "built on an older build of its FROM image: its fixes are missing", Warn: true},
 		{Kind: "over-budget", Label: "Over size budget", Help: "bigger than its service's image size budget", Warn: true},
 		{Kind: "unexpected-signer", Label: "Unexpected signer", Help: "not signed by who its service's policy names", Warn: true},
+		{Kind: "eol-os", Label: "OS past end of life", Help: "built on an operating system release that gets no more security fixes", Warn: true},
 		{Kind: "quiet-upstream", Label: "Quiet upstream", Help: "no release for over a year: it may be unmaintained", Warn: true},
 		{Kind: "unpinned", Label: "Digest unknown", Help: "a tag pushed again would go unnoticed; often a collector permission"},
 	}
