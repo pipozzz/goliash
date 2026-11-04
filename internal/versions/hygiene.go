@@ -18,7 +18,7 @@ import (
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, unpinned
+	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
@@ -158,6 +158,15 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	}
 	out := append(OutdatedBases(running, evidence, envName, targetName, time.Now()), OverBudget(running, evidence, services, envName, targetName)...)
 	out = append(out, UnexpectedSigners(running, evidence, services, envName, targetName)...)
+	releases, err := st.ReleasesByService(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	checks, err := st.UpstreamChecks(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, QuietUpstreams(running, releases, checks, services, envName, targetName, time.Now())...)
 	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
 	return out, nil
@@ -309,5 +318,80 @@ func UnexpectedSigners(active []store.Instance, evidence map[string]store.ImageE
 		sort.Strings(byImage[k].Where)
 		out = append(out, *byImage[k])
 	}
+	return out
+}
+
+// quietAfter is how long an upstream may go without a release before Goliash says it may be unmaintained.
+const quietAfter = 365 * 24 * time.Hour
+
+// QuietUpstreams finds services whose upstream has released nothing for over a year, while Goliash kept checking
+// it: the project may be unmaintained, and the fixes of its next vulnerability may never come. The last release is
+// its publication date when known, else when Goliash first saw it; a service Goliash has not watched for a year,
+// or whose last check failed, is left out.
+func QuietUpstreams(active []store.Instance, releases map[string][]store.Release, checks map[string]store.UpstreamCheck,
+	services []store.Service, envName, targetName map[string]string, now time.Time,
+) []Finding {
+	name := map[string]string{}
+	for _, s := range services {
+		name[s.ID] = s.Name
+	}
+	byService := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		repo := ParseImage(i.Image).Repo()
+		if i.ServiceID == "" || Managed(repo) || PackageRepo(repo) {
+			continue
+		}
+		f := byService[i.ServiceID]
+		if f == nil {
+			if _, done := byService[i.ServiceID]; done {
+				continue
+			}
+			byService[i.ServiceID] = nil
+			c := checks[i.ServiceID]
+			if c.Error != "" || c.At.IsZero() || now.Sub(c.At) > 7*24*time.Hour {
+				continue // not checked lately: silence says nothing
+			}
+			var last time.Time
+			for _, r := range releases[i.ServiceID] {
+				at := r.PublishedAt
+				if at.IsZero() {
+					at = r.DiscoveredAt
+				}
+				if at.After(last) {
+					last = at
+				}
+			}
+			if last.IsZero() || now.Sub(last) < quietAfter {
+				continue
+			}
+			months := int(now.Sub(last).Hours() / 24 / 30)
+			f = &Finding{
+				Kind: "quiet-upstream", Severity: "warning",
+				Image: strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/library/"), "docker.io/"),
+				Detail: fmt.Sprintf("%s: no new release upstream since %s (%d months): it may be unmaintained, and fixes may not come; "+
+					"look for a maintained fork or a replacement", name[i.ServiceID], last.Format("Jan 2006"), months),
+			}
+			if !IsPublicRegistry(repo) { // most likely built in house: nothing is abandoned, but nothing was rebuilt either
+				f.Severity = "info"
+				f.Detail = fmt.Sprintf("%s: no new image pushed since %s (%d months): its base image and dependencies are as old; "+
+					"a rebuild picks up their fixes", name[i.ServiceID], last.Format("Jan 2006"), months)
+			}
+			byService[i.ServiceID] = f
+			order = append(order, i.ServiceID)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	out := make([]Finding, 0, len(order))
+	for _, id := range order {
+		sort.Strings(byService[id].Where)
+		out = append(out, *byService[id])
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Severity != out[j].Severity {
+			return out[i].Severity == "warning"
+		}
+		return out[i].Image < out[j].Image
+	})
 	return out
 }

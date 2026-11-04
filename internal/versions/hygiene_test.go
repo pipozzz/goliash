@@ -85,3 +85,38 @@ func TestUnexpectedSigners(t *testing.T) {
 		t.Errorf("finding %+v", got[0])
 	}
 }
+
+func TestQuietUpstreams(t *testing.T) {
+	now := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
+	active := []store.Instance{
+		{ServiceID: "s1", Image: "docker.io/acme/legacy:1.2.0", EnvironmentID: "e", TargetID: "t", WorkloadName: "legacy", ContainerName: "app"},
+		{ServiceID: "s2", Image: "docker.io/library/nginx:1.27.2", EnvironmentID: "e", TargetID: "t", WorkloadName: "web", ContainerName: "nginx"},
+		{ServiceID: "s3", Image: "123.dkr.ecr.eu-west-1.amazonaws.com/billing:4.1", EnvironmentID: "e", TargetID: "t", WorkloadName: "billing", ContainerName: "app"},
+		{ServiceID: "s4", Image: "docker.io/acme/broken:1.0", EnvironmentID: "e", TargetID: "t", WorkloadName: "broken", ContainerName: "app"},
+	}
+	old := now.AddDate(-2, 0, 0)
+	releases := map[string][]store.Release{
+		"s1": {{Version: "1.2.0", DiscoveredAt: old, PublishedAt: now.AddDate(0, -14, 0)}},
+		"s2": {{Version: "1.27.2", DiscoveredAt: old}, {Version: "1.27.3", DiscoveredAt: now.AddDate(0, -1, 0)}},
+		"s3": {{Version: "4.1", DiscoveredAt: now.AddDate(0, -13, 0)}},
+		"s4": {{Version: "1.0", DiscoveredAt: old}},
+	}
+	checks := map[string]store.UpstreamCheck{
+		"s1": {At: now.Add(-time.Hour)}, "s2": {At: now.Add(-time.Hour)}, "s3": {At: now.Add(-time.Hour)},
+		"s4": {At: now.Add(-time.Hour), Error: "unauthorized"},
+	}
+	services := []store.Service{{ID: "s1", Name: "legacy"}, {ID: "s2", Name: "nginx"}, {ID: "s3", Name: "billing"}, {ID: "s4", Name: "broken"}}
+	got := QuietUpstreams(active, releases, checks, services, map[string]string{"e": "prod"}, map[string]string{"t": "eks"}, now)
+	if len(got) != 2 {
+		t.Fatalf("findings %+v", got)
+	}
+	if got[0].Image != "acme/legacy" || got[0].Severity != "warning" || !strings.Contains(got[0].Detail, "since Sep 2025 (14 months)") {
+		t.Fatalf("public upstream %+v", got[0])
+	}
+	if got[1].Severity != "info" || !strings.Contains(got[1].Detail, "billing: no new image pushed") {
+		t.Fatalf("in-house image %+v", got[1])
+	}
+	if got[0].Where[0] != "prod / eks / legacy / app" {
+		t.Fatalf("where %v", got[0].Where)
+	}
+}
