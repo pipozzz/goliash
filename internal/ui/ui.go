@@ -3467,6 +3467,10 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	if err != nil {
 		return out, err
 	}
+	sboms, err := s.store.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return out, err
+	}
 	seen := map[string]bool{}
 	base := versions.ShortImage(versions.BaseImage(svc)) // what its images are built on, for the release to move to
 	type row struct {
@@ -3498,6 +3502,24 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		}
 		if len(ev.BaseChain) > 0 {
 			rows[len(rows)-1].Chain = versions.ChainText(ev.BaseChain)
+		}
+		if o, ok := versions.OSOf(sboms[repo+"@"+in.Digest].Purls); ok {
+			r := &rows[len(rows)-1]
+			r.OS = o.String()
+			if cy, _, ok := versions.OSCycle(ctx, o); ok {
+				o.Version = cy.Name
+				r.OS = o.String()
+				now := time.Now()
+				switch {
+				case cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(now):
+					r.OSPast = true
+					if !cy.EOLFrom.IsZero() {
+						r.OSEnd = cy.EOLFrom.Format("Jan 2006")
+					}
+				case !cy.EOLFrom.IsZero() && cy.EOLFrom.Sub(now) <= 90*24*time.Hour:
+					r.OSEnd = cy.EOLFrom.Format("Jan 2, 2006")
+				}
+			}
 		}
 		if base == "" && ev.BaseImage != "" {
 			base = versions.ShortImage(ev.BaseImage)

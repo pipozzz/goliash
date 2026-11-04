@@ -733,6 +733,17 @@ templ serviceSecurity(v ServiceView) {
 								} else if im.OldBase != "" {
 									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=outdated-base" title={ "Built on an older " + im.OldBase + " than its tag has now: rebuild with --pull to get its fixes" }>older base</a>
 								}
+								if im.OSPast {
+									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=eol-os" title={ "Built on " + im.OS + ", past its end of life" + sinceText(im.OSEnd) + ": its packages get no more security fixes; rebuild on a supported release" }>OS end of life</a>
+								}
+								if im.OS != "" {
+									<div class="muted base-chain" title="The operating system its packages come from">
+										{ im.OS }
+										if im.OSEnd != "" && !im.OSPast {
+											{ " · end of life " + im.OSEnd }
+										}
+									</div>
+								}
 								if im.Chain != "" {
 									<div class="muted base-chain" title="The chain of base images, each built on the next: current or outdated against its tag now">{ "on " + im.Chain }</div>
 								}
