@@ -586,6 +586,39 @@ func laneCount(lane Lane, labelW float64) (x float64, text string, ok bool) {
 	return x, text, x-float64(len(text))*6.5 > labelW
 }
 
+// laneLabelMax is the most characters a lane's name is written with; longer ones lose their middle, and say it whole
+// when hovered. ECS clusters and workloads make names of a hundred characters.
+const laneLabelMax = 64
+
+// laneLabel is a lane's name as written beside it.
+func laneLabel(name string) string {
+	r := []rune(name)
+	if len(r) <= laneLabelMax {
+		return name
+	}
+	head := laneLabelMax * 2 / 5
+	tail := laneLabelMax - head - 1
+	return string(r[:head]) + "…" + string(r[len(r)-tail:])
+}
+
+// LabelWidth is how wide the lanes' names are written: at least the 150 the bars start after, at most enough for
+// laneLabelMax characters. The chart grows to the left for it, so the bars keep their width.
+func (t Timeline) LabelWidth() float64 {
+	longest := 0
+	for _, l := range t.Lanes {
+		longest = max(longest, len([]rune(laneLabel(l.Env))))
+	}
+	return max(150, float64(longest)*6.2+14)
+}
+
+// LaneH is the height of a lane: lower when there are many, so a service on a dozen workloads stays one screen.
+func (t Timeline) LaneH() float64 {
+	if len(t.Lanes) > 8 {
+		return 24
+	}
+	return 30
+}
+
 // nowText fits a version into the column after the timeline.
 func nowText(v string) string {
 	if r := []rune(v); len(r) > 10 {

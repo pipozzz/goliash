@@ -230,3 +230,26 @@ func TestHumanBytes(t *testing.T) {
 		t.Errorf("signed: %s %s", signedBytes(24_000_000), signedBytes(-3_000_000))
 	}
 }
+
+func TestTimelineLongLanes(t *testing.T) {
+	long := "production · bbd-3-ecs-fargate-psql-ext-ECSFargateCluster-7xbU4SHMyZqt · bbd-3-psql-ext-qa-admin"
+	if l := laneLabel(long); len([]rune(l)) != laneLabelMax || !strings.HasSuffix(l, "psql-ext-qa-admin") || !strings.HasPrefix(l, "production · bbd") {
+		t.Fatalf("label %q", l)
+	}
+	if laneLabel("production") != "production" {
+		t.Fatal("short names are kept")
+	}
+	tl := Timeline{}
+	for range 10 {
+		tl.Lanes = append(tl.Lanes, Lane{Env: long})
+	}
+	if w := tl.LabelWidth(); w <= 150 || w > 420 {
+		t.Fatalf("label width %v", w)
+	}
+	if tl.LaneH() != 24 {
+		t.Fatal("many lanes are lower")
+	}
+	if (Timeline{Lanes: []Lane{{Env: "prod"}}}).LabelWidth() != 150 {
+		t.Fatal("short names keep the width")
+	}
+}
