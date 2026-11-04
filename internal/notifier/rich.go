@@ -42,6 +42,8 @@ func kindOf(it Item) kind {
 		return kind{"⚖️", "#e5484d", "License"}
 	case EventUnexpectedSigner:
 		return kind{"✍️", "#e5484d", "Unexpected signer"}
+	case EventEOLOS:
+		return kind{"🪦", "#e5484d", "OS end of life"}
 	case EventQuietUpstream:
 		return kind{"🕸️", "#d9822b", "Quiet upstream"}
 	case "removed":
@@ -212,6 +214,8 @@ func goliQuestion(it Item) string {
 		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
 	case it.Type == EventImageOverBudget:
 		return "Why is the " + it.Service + " image in " + it.Environment + " " + it.From + ", over its " + it.Note + "? What takes the space and how could it shrink?"
+	case it.Type == EventEOLOS:
+		return "The " + it.Service + " image in " + it.Environment + " is built on " + it.From + ", past its end of life. What does moving it to a supported release take (base image, packages that changed, build steps), and what risk is it running meanwhile?"
 	case it.Type == EventQuietUpstream:
 		return "Is " + it.From + ", which " + it.Service + " runs, still maintained? Its last release came out in " + it.Note + ". Which maintained forks or replacements are there, and what would moving to one take?"
 	case it.Type == EventOutdatedBase:

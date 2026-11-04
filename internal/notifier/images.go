@@ -28,10 +28,11 @@ const (
 	EventUnexpectedSigner = "unexpected_signer" // a deploy's image is not signed by who its service's policy names
 	EventLicense          = "license"           // a deploy's image brings packages under network copyleft or source-available licenses
 	EventQuietUpstream    = "quiet_upstream"    // a running service's public upstream has released nothing for over a year
+	EventEOLOS            = "eol_os"            // a running image is built on an operating system past its end of life
 )
 
 // imageEvents are the events CheckImages sends.
-var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense, EventUnexpectedSigner, EventQuietUpstream}
+var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense, EventUnexpectedSigner, EventQuietUpstream, EventEOLOS}
 
 // baseLag is how long an image may trail its base's newest build before it is announced.
 const baseLag = 14 * 24 * time.Hour
@@ -78,6 +79,11 @@ func (n *Notifier) CheckImages(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		eolOS, err := n.eolOperatingSystems(ctx, sc, now)
+		if err != nil {
+			return err
+		}
+		quiet = append(quiet, eolOS...)
 		for _, q := range quiet {
 			if err := n.enqueue(ctx, sc, rules, q.item, q.item.Type+"|"+q.env+"|"+q.digest); err != nil {
 				return err
@@ -339,6 +345,71 @@ func (n *Notifier) quietUpstreams(ctx context.Context, sc store.Scope, now time.
 		}
 		it.Text = Describe(it)
 		out = append(out, growth{item: it, env: in.ServiceID, digest: last.Format(time.DateOnly)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].item.Service < out[j].item.Service })
+	return out, nil
+}
+
+// eolOperatingSystems are the running images built on an operating system release past its end of life: once per
+// service, environment and release (the dedup key's digest holds the release).
+func (n *Notifier) eolOperatingSystems(ctx context.Context, sc store.Scope, now time.Time) ([]growth, error) {
+	active, err := n.store.ListActiveInstances(ctx, sc)
+	if err != nil || len(active) == 0 {
+		return nil, err
+	}
+	sboms, err := n.store.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	services, err := n.store.ListServices(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	envs, err := n.store.ListEnvironments(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	byID, envName := map[string]store.Service{}, map[string]string{}
+	for _, s := range services {
+		byID[s.ID] = s
+	}
+	for _, e := range envs {
+		envName[e.ID] = e.Name
+	}
+	seen := map[string]bool{}
+	var out []growth
+	for _, in := range active {
+		if in.ServiceID == "" || in.Digest == "" || !in.IsMain {
+			continue
+		}
+		repo := versions.ParseImage(in.Image).Repo()
+		o, ok := versions.OSOf(sboms[repo+"@"+in.Digest].Purls)
+		if !ok {
+			continue
+		}
+		cy, newest, ok := versions.OSCycle(ctx, o)
+		if !ok || !cy.IsEOL && (cy.EOLFrom.IsZero() || cy.EOLFrom.After(now)) {
+			continue
+		}
+		o.Version = cy.Name
+		key := in.ServiceID + "|" + in.EnvironmentID + "|" + o.String()
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		svc := byID[in.ServiceID]
+		it := Item{
+			Type: EventEOLOS, Service: svc.Name, Owner: svc.Owner, Environment: envName[in.EnvironmentID], At: now,
+			URL: "/hygiene?kind=eol-os", From: o.String(), To: in.Tag,
+		}
+		if !cy.EOLFrom.IsZero() {
+			it.Note = cy.EOLFrom.Format("Jan 2006")
+		}
+		it.Text = Describe(it)
+		if newest != "" && newest != cy.Name {
+			it.Text += "; rebuild on " + versions.ImageOS{Distro: o.Distro, Version: newest}.String()
+		}
+		out = append(out, growth{item: it, env: in.EnvironmentID + "|" + in.ServiceID, digest: o.String()})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].item.Service < out[j].item.Service })
 	return out, nil

@@ -6,11 +6,14 @@ package notifier
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 func TestImageGrowth(t *testing.T) {
@@ -250,5 +253,56 @@ func TestQuietUpstreamAlert(t *testing.T) {
 	}
 	if want := "acme/api has released nothing since " + last.Format("Jan 2006"); !strings.Contains(slack.last(), want) {
 		t.Errorf("alert misses %q: %s", want, slack.last())
+	}
+}
+
+func TestEOLOSAlert(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/products/debian" {
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"13","isEol":false,"eolFrom":"2030-06-30"},{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	eol := versions.NewEOL()
+	eol.BaseURL = srv.URL
+	(&versions.Checker{}).SetEOL(eol)
+	defer (&versions.Checker{}).SetEOL(nil)
+	ctx := context.Background()
+	if _, err := eol.Cycles(ctx, "debian"); err != nil {
+		t.Fatal(err)
+	}
+
+	e := newEnv(t)
+	slack := newSink(t)
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventEOLOS}, Filter{})
+	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.clock = time.Date(2026, 11, 4, 9, 0, 0, 0, time.UTC)
+	in := store.Instance{
+		TargetID: tgt.ID, EnvironmentID: e.prod.ID, ServiceID: e.svc.ID, WorkloadID: "w", WorkloadName: "api",
+		ContainerName: "api", Image: "ghcr.io/acme/api:1.0.0", Tag: "1.0.0", Digest: "sha256:01", Running: 1, IsMain: true,
+	}
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: store.NewID(), TargetID: tgt.ID, At: e.clock, Upsert: []store.Instance{in}}); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.st.SetImageSBOM(ctx, e.sc, store.ImageSBOM{Repo: "ghcr.io/acme/api", Digest: "sha256:01", Purls: []string{"pkg:deb/debian/libc6@2.31?os_version=11"}, Source: "packages"})
+
+	for range 2 { // once per service, environment and release
+		if err := e.n.CheckImages(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_ = e.n.DeliverDue(ctx)
+	}
+	if slack.count() != 1 {
+		t.Fatalf("alerts %d", slack.count())
+	}
+	for _, want := range []string{"1.0.0 is built on Debian 11 (bullseye), past its end of life since Aug 2026", "rebuild on Debian 13 (trixie)"} {
+		if !strings.Contains(slack.last(), want) {
+			t.Errorf("alert misses %q: %s", want, slack.last())
+		}
 	}
 }
