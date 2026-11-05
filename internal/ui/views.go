@@ -426,6 +426,7 @@ type DriftBadge struct {
 	Title   string
 	Since   time.Time
 	Running string // the version the drift is about; empty for drifts of the whole environment
+	Soon    bool   // an end of life still to come, not passed
 }
 
 func serviceURL(name string) string { return "/services/" + url.PathEscape(name) }
@@ -445,7 +446,7 @@ func driftBadge(d store.Drift) DriftBadge {
 		b.Label = "end of life"
 		if det.EOL != "" {
 			if t, err := time.Parse("2006-01-02", det.EOL); err == nil && t.After(time.Now()) {
-				b.Label = "EOL " + det.EOL
+				b.Label, b.Soon = "EOL "+det.EOL, true
 			}
 		}
 		b.Title = fmt.Sprintf("Release cycle %s ends support on %s (endoflife.date); running %s%s", det.Other, orDash(det.EOL), det.Running, onTargets(det.On))
