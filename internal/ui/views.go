@@ -1701,6 +1701,8 @@ type ImageSecurity struct {
 	OS                                string // the operating system it is built on: "Debian 12 (bookworm)"
 	OSEnd                             string // when that release's end of life passed or comes, when it has or soon does
 	OSPast                            bool   // its end of life passed: its packages get no more security fixes
+	Go                                string // the oldest Go its Go programs were built with, when it has any
+	GoPast                            bool   // that Go release is past its end of life
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
 	Vulns, Exploited                  int    // known vulnerabilities in it, and how many are exploited in the wild
 	RebuildFixes                      int    // of those, how many rebuilding it with --pull on its base's current build fixes

@@ -371,6 +371,7 @@ paths:
                         fix: { type: string }
                   outdated_base: { type: array, items: { type: string }, description: "Production services whose image is built on an older build of its base than the base's tag has now: rebuild with --pull." }
                   eol_os: { type: array, items: { type: string }, description: "Production services whose image is built on an operating system release past its end of life, with the release: \"api (Debian 11 (bullseye))\"." }
+                  eol_go: { type: array, items: { type: string }, description: "Production services whose image has Go programs built with a Go release past its end of life: \"exporter (Go 1.25.7)\"." }
                   history:
                     type: array
                     description: "Production's posture once a week over the last 90 days, oldest first: is patching getting faster?"

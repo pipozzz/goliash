@@ -40,6 +40,8 @@ type Posture struct {
 	OutdatedBase []string
 	// EOLOS names the production services whose image is built on an operating system release past its end of life.
 	EOLOS []string
+	// EOLGo names the production services whose image has Go programs built with a Go release past its end of life.
+	EOLGo []string
 }
 
 // LoadPosture computes the posture from the overview, the releases and the acknowledgements.
@@ -160,7 +162,7 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 	for _, s := range services {
 		name[s.ID] = s.Name
 	}
-	seen, seenOS := map[string]bool{}, map[string]bool{}
+	seen, seenOS, seenGo := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	now := time.Now()
 	for _, in := range active {
 		if in.EnvironmentID != p.Prod.ID || !in.IsMain || in.Digest == "" || name[in.ServiceID] == "" {
@@ -170,6 +172,10 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 		if !seen[in.ServiceID] && evidence[repo+"@"+in.Digest].BaseStatus == "outdated" {
 			seen[in.ServiceID] = true
 			p.OutdatedBase = append(p.OutdatedBase, name[in.ServiceID])
+		}
+		if g, ok := GoOf(sboms[repo+"@"+in.Digest].Purls); ok && !seenGo[in.ServiceID] && GoPastEOL(ctx, g) {
+			seenGo[in.ServiceID] = true
+			p.EOLGo = append(p.EOLGo, name[in.ServiceID]+" (Go "+g+")")
 		}
 		if seenOS[in.ServiceID] {
 			continue
@@ -184,6 +190,7 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 	}
 	sort.Strings(p.OutdatedBase)
 	sort.Strings(p.EOLOS)
+	sort.Strings(p.EOLGo)
 	return nil
 }
 

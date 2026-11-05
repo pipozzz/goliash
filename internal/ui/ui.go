@@ -3504,6 +3504,9 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		if len(ev.BaseChain) > 0 {
 			rows[len(rows)-1].Chain = versions.ChainText(ev.BaseChain)
 		}
+		if g, ok := versions.GoOf(sboms[repo+"@"+in.Digest].Purls); ok {
+			rows[len(rows)-1].Go, rows[len(rows)-1].GoPast = g, versions.GoPastEOL(ctx, g)
+		}
 		if o, ok := versions.OSOf(sboms[repo+"@"+in.Digest].Purls); ok {
 			r := &rows[len(rows)-1]
 			r.OS = o.String()

@@ -736,11 +736,20 @@ templ serviceSecurity(v ServiceView) {
 								if im.OSPast {
 									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=eol-os" title={ "Built on " + im.OS + ", past its end of life" + sinceText(im.OSEnd) + ": its packages get no more security fixes; rebuild on a supported release" }>OS end of life</a>
 								}
-								if im.OS != "" {
-									<div class="muted base-chain" title="The operating system its packages come from">
+								if im.GoPast {
+									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=eol-runtime" title={ "Has Go programs built with Go " + im.Go + ", past its end of life: the standard library they carry gets no more security fixes" }>Go end of life</a>
+								}
+								if im.OS != "" || im.Go != "" {
+									<div class="muted base-chain" title="The operating system its packages come from, and the Go its programs were built with">
 										{ im.OS }
 										if im.OSEnd != "" && !im.OSPast {
 											{ " · end of life " + im.OSEnd }
+										}
+										if im.Go != "" {
+											if im.OS != "" {
+												{ " · " }
+											}
+											{ "Go " + im.Go }
 										}
 									</div>
 								}

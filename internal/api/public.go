@@ -838,6 +838,7 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Unknowns   []apiUnknown  `json:"unknown_upstream_why"`
 		OldBase    []string      `json:"outdated_base"`
 		EOLOS      []string      `json:"eol_os"`
+		EOLGo      []string      `json:"eol_go"`
 		Exposures  []apiExposure `json:"exposures"`
 		History    []apiReading  `json:"history"`
 	}{
@@ -846,6 +847,7 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Stale: append([]string{}, pos.Stale...), NoUpstream: append([]string{}, pos.NoUpstream...), Exposures: []apiExposure{},
 		OldBase: append([]string{}, pos.OutdatedBase...),
 		EOLOS:   append([]string{}, pos.EOLOS...),
+		EOLGo:   append([]string{}, pos.EOLGo...),
 		History: []apiReading{}, Unknowns: []apiUnknown{},
 	}
 	for _, u := range pos.Unknowns {
