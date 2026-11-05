@@ -862,7 +862,15 @@ paths:
       summary: Image hygiene findings
       description: |
         Running images with a moving tag (latest, stable …), a tag pushed again (same tag, different digests),
-        a registry outside `GOLIASH_ALLOWED_REGISTRIES`, or no known digest (info).
+        a registry outside `GOLIASH_ALLOWED_REGISTRIES`, an outdated base, a size over budget, an unexpected
+        signer, an operating system or Go release past its end of life, an upstream that released nothing for a
+        year, or no known digest (info).
+      parameters:
+        - name: team
+          in: query
+          required: false
+          description: Only the images of services this team owns.
+          schema: { type: string }
       responses:
         "200":
           description: Findings, warnings first.
@@ -872,14 +880,18 @@ paths:
                 type: array
                 items:
                   type: object
-                  required: [kind, severity, image, detail, where]
+                  required: [kind, severity, image, detail, where, teams]
                   properties:
-                    kind: { type: string, enum: [moving-tag, retagged, untrusted-registry, unpinned] }
+                    kind: { type: string, enum: [moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned] }
                     severity: { type: string, enum: [warning, info] }
                     image: { type: string }
                     detail: { type: string }
                     where:
                       type: array
+                      items: { type: string }
+                    teams:
+                      type: array
+                      description: The owners of the services running the image.
                       items: { type: string }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }

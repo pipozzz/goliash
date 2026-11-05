@@ -1339,7 +1339,24 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	v := HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Total: len(findings)}
+	v := HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Team: r.URL.Query().Get("team")}
+	teams := map[string]bool{}
+	for _, f := range findings {
+		for _, t := range f.Teams {
+			teams[t] = true
+		}
+	}
+	v.Teams = sortedSet(teams)
+	if v.Team != "" {
+		mine := findings[:0:0]
+		for _, f := range findings {
+			if slices.Contains(f.Teams, v.Team) {
+				mine = append(mine, f)
+			}
+		}
+		findings = mine
+	}
+	v.Total = len(findings)
 	v.Kinds = []HygieneKind{
 		{Kind: "moving-tag", Label: "Moving tags", Help: "latest, stable and the like: the version cannot be known", Warn: true},
 		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},

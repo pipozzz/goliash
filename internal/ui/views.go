@@ -1363,6 +1363,8 @@ type HygieneView struct {
 	Findings    []versions.Finding
 	Kinds       []HygieneKind
 	Kind        string // the kind shown; empty for all
+	Team        string // the team whose images are shown; empty for all
+	Teams       []string
 	Total       int
 	DigestHints []DigestHint // targets that report no digest at all, and what to do about it
 }
