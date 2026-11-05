@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -2544,6 +2545,7 @@ func inventoryCmd(ctx context.Context, args []string, out io.Writer) error {
 
 func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("hygiene")
+	team := fs.String("team", "", "only the images of services this team owns")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -2560,6 +2562,9 @@ func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "SEVERITY\tKIND\tIMAGE\tDETAIL\tWHERE")
 	for _, f := range findings {
+		if *team != "" && !slices.Contains(f.Teams, *team) {
+			continue
+		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", f.Severity, f.Kind, f.Image, f.Detail, strings.Join(f.Where, "; "))
 	}
 	return tw.Flush()

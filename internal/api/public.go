@@ -948,10 +948,19 @@ func (h *PublicHandler) hygiene(w http.ResponseWriter, r *http.Request, p auth.P
 		Image    string   `json:"image"`
 		Detail   string   `json:"detail"`
 		Where    []string `json:"where"`
+		Teams    []string `json:"teams"`
 	}
+	team := r.URL.Query().Get("team")
 	out := []apiFinding{}
 	for _, f := range findings {
-		out = append(out, apiFinding{Kind: f.Kind, Severity: f.Severity, Image: f.Image, Detail: f.Detail, Where: f.Where})
+		if team != "" && !slices.Contains(f.Teams, team) {
+			continue
+		}
+		teams := f.Teams
+		if teams == nil {
+			teams = []string{}
+		}
+		out = append(out, apiFinding{Kind: f.Kind, Severity: f.Severity, Image: f.Image, Detail: f.Detail, Where: f.Where, Teams: teams})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

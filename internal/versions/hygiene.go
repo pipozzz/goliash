@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,7 @@ type Finding struct {
 	Image    string // repository:tag
 	Detail   string
 	Where    []string // "env / target / workload / container"
+	Teams    []string // the owners of the services running it
 }
 
 // movingTags are tags that point at different images over time.
@@ -175,7 +177,42 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	out = append(out, EOLRuntimes(ctx, running, sboms, envName, targetName, time.Now())...)
 	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
+	withTeams(out, running, services)
 	return out, nil
+}
+
+// withTeams names, on each finding, the owners of the services running its image: by repository and tag, else (a
+// quiet upstream names the repository alone) by repository.
+func withTeams(findings []Finding, active []store.Instance, services []store.Service) {
+	owner := map[string]string{}
+	for _, s := range services {
+		owner[s.ID] = s.Owner
+	}
+	byImage, byRepo := map[string][]string{}, map[string][]string{}
+	short := func(s string) string {
+		return strings.TrimPrefix(strings.TrimPrefix(s, "docker.io/library/"), "docker.io/")
+	}
+	for _, i := range active {
+		o := owner[i.ServiceID]
+		if o == "" {
+			continue
+		}
+		ref := ParseImage(i.Image)
+		k, r := short(ref.Repo()+":"+ref.Tag), short(ref.Repo())
+		if !slices.Contains(byImage[k], o) {
+			byImage[k] = append(byImage[k], o)
+		}
+		if !slices.Contains(byRepo[r], o) {
+			byRepo[r] = append(byRepo[r], o)
+		}
+	}
+	for i := range findings {
+		teams := byImage[findings[i].Image]
+		if len(teams) == 0 {
+			teams = byRepo[findings[i].Image]
+		}
+		findings[i].Teams = slices.Sorted(slices.Values(teams))
+	}
 }
 
 // OutdatedBases finds images built on an older build of their base than the base's tag has now: a build cache
