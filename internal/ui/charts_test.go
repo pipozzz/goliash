@@ -253,3 +253,11 @@ func TestTimelineLongLanes(t *testing.T) {
 		t.Fatal("short names keep the width")
 	}
 }
+
+func TestFindingLabels(t *testing.T) {
+	for kind, want := range map[string]string{"eol-os": "OS end of life", "eol-runtime": "Go end of life", "unpinned": "digest unknown", "quiet-upstream": "quiet upstream"} {
+		if got := findingLabel(kind); got != want {
+			t.Errorf("%s: %q, want %q", kind, got, want)
+		}
+	}
+}
