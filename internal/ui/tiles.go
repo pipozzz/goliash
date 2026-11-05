@@ -146,12 +146,33 @@ func envState(c MatrixCell, latest string) string {
 		st = stUnknown
 	}
 	for _, d := range c.Drifts {
+		if d.Kind == "eol" && d.Soon && runsLatest(c, latest) {
+			continue // its end of life comes, and there is nothing newer to move to yet: nothing to do now
+		}
 		if d.Kind == "eol" || d.Kind == "inconsistent" || d.Kind == "exploited" || d.Kind == "rollout" || d.Kind == "gitops" {
 			return stAttention
 		}
 		st = stBehind
 	}
 	return st
+}
+
+// runsLatest reports whether a cell runs the newest release known, through a moving tag or not.
+func runsLatest(c MatrixCell, latest string) bool {
+	l, ok := versions.ParseVersion(latest)
+	if !ok || len(c.Versions) == 0 {
+		return false
+	}
+	for _, v := range c.Versions {
+		tag := v.Tag
+		if v.Resolved != "" {
+			tag = v.Resolved
+		}
+		if r, ok := versions.ParseVersion(tag); !ok || r.Compare(l) < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func versionOf(c MatrixCell) string {

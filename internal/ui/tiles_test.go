@@ -25,6 +25,10 @@ func TestEnvState(t *testing.T) {
 		{MatrixCell{Versions: v}, "", stUnknown},
 		{MatrixCell{Versions: v, Drifts: []DriftBadge{{Kind: "upstream"}}}, "1.1.0", stBehind},
 		{MatrixCell{Versions: v, Drifts: []DriftBadge{{Kind: "upstream"}, {Kind: "eol"}}}, "2.0.0", stAttention},
+		// An end of life to come, on the newest release (through a moving tag): nothing to move to yet.
+		{MatrixCell{Versions: []VersionView{{Tag: "v0.65.x", Resolved: "v0.65.3.3"}}, Drifts: []DriftBadge{{Kind: "eol", Soon: true}}}, "v0.65.3.3", stCurrent},
+		{MatrixCell{Versions: v, Drifts: []DriftBadge{{Kind: "eol", Soon: true}}}, "1.1.0", stAttention},
+		{MatrixCell{Versions: v, Drifts: []DriftBadge{{Kind: "eol"}}}, "1.0.0", stAttention}, // passed: a fork or a replacement
 	} {
 		if got := envState(c.cell, c.latest); got != c.want {
 			t.Errorf("%+v: %s, want %s", c.cell, got, c.want)
