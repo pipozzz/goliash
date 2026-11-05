@@ -89,8 +89,17 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - if: matrix.shard == 'rest'
-        run: go mod tidy -diff
+      # The module proxy drops a download now and then (stream error, INTERNAL_ERROR): tried again, while a real
+      # difference fails at once.
+      - name: go.mod is tidy
+        if: matrix.shard == 'rest'
+        run: |
+          for i in 1 2 3; do
+            if diff=$(go mod tidy -diff 2>"$RUNNER_TEMP/tidy.err"); then exit 0; fi
+            if [ -n "$diff" ]; then echo "$diff"; exit 1; fi
+            cat "$RUNNER_TEMP/tidy.err"; echo "::warning::go mod tidy could not read modules (try $i of 3)"; sleep $((i * 15))
+          done
+          exit 1
       - name: Generated code is up to date
         if: matrix.shard == 'rest'
         run: |
