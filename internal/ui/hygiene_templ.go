@@ -55,7 +55,7 @@ func HygienePage(v HygieneView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = aboutText("Images that make \"what runs\" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, images over their size budget, and images without a known digest.").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = aboutText("Images that make \"what runs\" hard to know, to trust or to keep patched: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base or over their size budget, operating systems and Go releases past their end of life, upstreams that stopped releasing, and images without a known digest.").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -434,8 +434,13 @@ func findingClass(f versions.Finding) string {
 
 // findingLabel is a finding's kind as people read it.
 func findingLabel(kind string) string {
-	if kind == "unpinned" {
+	switch kind {
+	case "unpinned":
 		return "digest unknown"
+	case "eol-os":
+		return "OS end of life"
+	case "eol-runtime":
+		return "Go end of life"
 	}
 	return strings.ReplaceAll(kind, "-", " ")
 }
