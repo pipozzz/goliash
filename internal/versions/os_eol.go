@@ -166,3 +166,21 @@ func EOLOperatingSystems(ctx context.Context, active []store.Instance, sboms map
 	}
 	return out
 }
+
+// eolOSOf names the operating system release a package comes from when that release is past its end of life,
+// remembering the answer per release in memo.
+func eolOSOf(ctx context.Context, purl string, memo map[ImageOS]string) string {
+	o, ok := OSOf([]string{purl})
+	if !ok {
+		return ""
+	}
+	if name, done := memo[o]; done {
+		return name
+	}
+	name := ""
+	if cy, _, ok := OSCycle(ctx, o); ok && (cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(time.Now())) {
+		name = ImageOS{Distro: o.Distro, Version: cy.Name}.String()
+	}
+	memo[o] = name
+	return name
+}
