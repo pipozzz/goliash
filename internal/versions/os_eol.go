@@ -271,3 +271,17 @@ func EOLRuntimes(ctx context.Context, active []store.Instance, sboms map[string]
 	}
 	return out
 }
+
+// GoPastEOL reports whether the Go release v ("1.25.7") is past its end of life; false when that is not known yet.
+func GoPastEOL(ctx context.Context, v string) bool {
+	e := sharedEOL.Load()
+	if e == nil {
+		return false
+	}
+	cycles, err := e.Cycles(CacheOnly(ctx), "go")
+	if err != nil {
+		return false
+	}
+	cy, ok := CycleFor(v, cycles)
+	return ok && (cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(time.Now()))
+}

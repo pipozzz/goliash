@@ -1938,12 +1938,12 @@ func TestServiceSecurityPanel(t *testing.T) {
 	if err := e.st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: "ghcr.io/acme/billing", Digest: digest, Signed: true, SBOM: true}); err != nil {
 		t.Fatal(err)
 	}
-	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/billing", Digest: digest, Purls: []string{"pkg:deb/debian/libc6@2.36?os_version=12"}, Source: "packages"})
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/billing", Digest: digest, Purls: []string{"pkg:deb/debian/libc6@2.36?os_version=12", "pkg:golang/stdlib@1.25.7"}, Source: "packages"})
 	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/billing", nil)
 	if !strings.Contains(page, `id="security"`) || !strings.Contains(page, "ghcr.io/acme/billing:1.0.0") || !strings.Contains(page, "no known vulnerabilities in its SBOMs") {
 		t.Fatal("no security panel for the service")
 	}
-	if !strings.Contains(page, "Debian 12 (bookworm)") {
+	if !strings.Contains(page, "Debian 12 (bookworm)") || !strings.Contains(page, "Go 1.25.7") {
 		t.Fatal("the image's operating system is not named")
 	}
 }
