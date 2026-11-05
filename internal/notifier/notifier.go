@@ -795,6 +795,9 @@ func Describe(it Item) string {
 		return fmt.Sprintf("%s: %s brings %s", where, orDash(it.To), it.Note)
 	case EventUnexpectedSigner:
 		return fmt.Sprintf("%s: %s is %s", where, orDash(it.To), it.Note)
+	case EventEOLGo:
+		return fmt.Sprintf("%s: %s has Go programs built with %s, past its end of life: the standard library they carry gets no more security fixes; rebuild with a supported Go, or move to a release built with one",
+			where, orDash(it.To), it.From)
 	case EventEOLOS:
 		since := ""
 		if it.Note != "" {
