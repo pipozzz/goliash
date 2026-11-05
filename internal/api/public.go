@@ -1100,13 +1100,13 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 	}
 	if findings, err := versions.LoadHygiene(r.Context(), h.store, p.Scope); err == nil {
-		byKind := map[string]int{"moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "outdated-base": 0, "over-budget": 0, "unexpected-signer": 0, "quiet-upstream": 0, "eol-os": 0, "unpinned": 0}
+		byKind := map[string]int{"moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "outdated-base": 0, "over-budget": 0, "unexpected-signer": 0, "quiet-upstream": 0, "eol-os": 0, "eol-runtime": 0, "unpinned": 0}
 		for _, f := range findings {
 			byKind[f.Kind]++
 		}
-		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget, an unexpected signer, a quiet upstream, an operating system past its end of life or no digest.\n")
+		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget, an unexpected signer, a quiet upstream, an operating system or Go release past its end of life or no digest.\n")
 		b.WriteString("# TYPE goliash_image_hygiene_findings gauge\n")
-		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unexpected-signer", "quiet-upstream", "eol-os", "unpinned"} {
+		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unexpected-signer", "quiet-upstream", "eol-os", "eol-runtime", "unpinned"} {
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}

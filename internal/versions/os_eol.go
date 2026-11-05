@@ -184,3 +184,90 @@ func eolOSOf(ctx context.Context, purl string, memo map[ImageOS]string) string {
 	memo[o] = name
 	return name
 }
+
+// GoOf is the oldest Go release the Go programs of an image were built with ("1.22.3"), from its package URLs
+// (pkg:golang/stdlib@1.22.3); ok is false when it has none.
+func GoOf(purls []string) (string, bool) {
+	var oldest Version
+	found := ""
+	for _, p := range purls {
+		v, ok := strings.CutPrefix(p, "pkg:golang/stdlib@")
+		if !ok {
+			continue
+		}
+		v, _, _ = strings.Cut(v, "?")
+		pv, ok := ParseVersion(v)
+		if !ok || len(pv.Parts) < 2 {
+			continue
+		}
+		if found == "" || pv.Compare(oldest) < 0 {
+			oldest, found = pv, v
+		}
+	}
+	return found, found != ""
+}
+
+// EOLRuntimes finds running images with Go programs built with a Go release past its end of life: the standard
+// library they carry (net/http, crypto/tls) gets no more security fixes. Go supports its two newest releases.
+func EOLRuntimes(ctx context.Context, active []store.Instance, sboms map[string]store.ImageSBOM, envName, targetName map[string]string, now time.Time) []Finding {
+	e := sharedEOL.Load()
+	if e == nil {
+		return nil
+	}
+	cycles, err := e.Cycles(CacheOnly(ctx), "go")
+	if err != nil {
+		return nil
+	}
+	newest := ""
+	for _, c := range cycles {
+		if !c.IsEOL && (c.EOLFrom.IsZero() || c.EOLFrom.After(now)) {
+			newest = c.Name
+			break
+		}
+	}
+	byImage := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		if i.Digest == "" {
+			continue
+		}
+		ref := ParseImage(i.Image)
+		key := ref.Repo() + ":" + ref.Tag
+		f, seen := byImage[key]
+		if !seen {
+			byImage[key] = nil
+			v, ok := GoOf(sboms[ref.Repo()+"@"+i.Digest].Purls)
+			if !ok {
+				continue
+			}
+			cy, ok := CycleFor(v, cycles)
+			if !ok || !cy.IsEOL && (cy.EOLFrom.IsZero() || cy.EOLFrom.After(now)) {
+				continue
+			}
+			detail := "has Go programs built with Go " + v + ", past its end of life"
+			if !cy.EOLFrom.IsZero() {
+				detail += " since " + cy.EOLFrom.Format("Jan 2006")
+			}
+			detail += ": the standard library they carry gets no more security fixes; "
+			if newest != "" {
+				detail += "rebuild with Go " + newest + ", or move to a release built with a supported Go"
+			} else {
+				detail += "rebuild with a supported Go, or move to a release built with one"
+			}
+			f = &Finding{
+				Kind: "eol-runtime", Severity: "warning", Detail: detail,
+				Image: strings.TrimPrefix(strings.TrimPrefix(key, "docker.io/library/"), "docker.io/"),
+			}
+			byImage[key] = f
+			order = append(order, key)
+		}
+		if f != nil {
+			f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		}
+	}
+	out := make([]Finding, 0, len(order))
+	for _, k := range order {
+		out = append(out, *byImage[k])
+	}
+	return out
+}
