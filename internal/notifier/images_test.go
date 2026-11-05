@@ -262,6 +262,10 @@ func TestEOLOSAlert(t *testing.T) {
 			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"13","isEol":false,"eolFrom":"2030-06-30"},{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
 			return
 		}
+		if r.URL.Path == "/products/go" {
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.27","isEol":false},{"name":"1.25","isEol":true,"eolFrom":"2026-08-19"}]}}`))
+			return
+		}
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()
@@ -270,13 +274,15 @@ func TestEOLOSAlert(t *testing.T) {
 	(&versions.Checker{}).SetEOL(eol)
 	defer (&versions.Checker{}).SetEOL(nil)
 	ctx := context.Background()
-	if _, err := eol.Cycles(ctx, "debian"); err != nil {
-		t.Fatal(err)
+	for _, p := range []string{"debian", "go"} {
+		if _, err := eol.Cycles(ctx, p); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	e := newEnv(t)
 	slack := newSink(t)
-	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventEOLOS}, Filter{})
+	e.rule(e.channel("slack", "ops", map[string]any{"url": slack.srv.URL}), "instant", []string{EventEOLOS, EventEOLGo}, Filter{})
 	tgt, err := e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: e.prod.ID, Platform: "kubernetes", Name: "k8s"})
 	if err != nil {
 		t.Fatal(err)
@@ -289,7 +295,7 @@ func TestEOLOSAlert(t *testing.T) {
 	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: e.sc, SnapshotID: store.NewID(), TargetID: tgt.ID, At: e.clock, Upsert: []store.Instance{in}}); err != nil {
 		t.Fatal(err)
 	}
-	_ = e.st.SetImageSBOM(ctx, e.sc, store.ImageSBOM{Repo: "ghcr.io/acme/api", Digest: "sha256:01", Purls: []string{"pkg:deb/debian/libc6@2.31?os_version=11"}, Source: "packages"})
+	_ = e.st.SetImageSBOM(ctx, e.sc, store.ImageSBOM{Repo: "ghcr.io/acme/api", Digest: "sha256:01", Purls: []string{"pkg:deb/debian/libc6@2.31?os_version=11", "pkg:golang/stdlib@1.25.7"}, Source: "packages"})
 
 	for range 2 { // once per service, environment and release
 		if err := e.n.CheckImages(ctx); err != nil {
@@ -297,12 +303,19 @@ func TestEOLOSAlert(t *testing.T) {
 		}
 		_ = e.n.DeliverDue(ctx)
 	}
-	if slack.count() != 1 {
-		t.Fatalf("alerts %d", slack.count())
+	if slack.count() != 1 { // one message with both
+		t.Fatalf("alerts %d: %v", slack.count(), slack.all())
+	}
+	all := strings.Join(slack.all(), "\n")
+	if strings.Contains(all, "→") {
+		t.Errorf("an image finding reads as a version change: %s", all)
+	}
+	if !strings.Contains(all, "1.0.0 has Go programs built with Go 1.25.7, past its end of life") {
+		t.Errorf("no Go alert: %s", all)
 	}
 	for _, want := range []string{"1.0.0 is built on Debian 11 (bullseye), past its end of life since Aug 2026", "rebuild on Debian 13 (trixie)"} {
-		if !strings.Contains(slack.last(), want) {
-			t.Errorf("alert misses %q: %s", want, slack.last())
+		if !strings.Contains(all, want) {
+			t.Errorf("alert misses %q: %s", want, all)
 		}
 	}
 }

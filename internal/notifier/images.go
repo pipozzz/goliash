@@ -29,10 +29,11 @@ const (
 	EventLicense          = "license"           // a deploy's image brings packages under network copyleft or source-available licenses
 	EventQuietUpstream    = "quiet_upstream"    // a running service's public upstream has released nothing for over a year
 	EventEOLOS            = "eol_os"            // a running image is built on an operating system past its end of life
+	EventEOLGo            = "eol_go"            // a running image has Go programs built with a Go past its end of life
 )
 
 // imageEvents are the events CheckImages sends.
-var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense, EventUnexpectedSigner, EventQuietUpstream, EventEOLOS}
+var imageEvents = []string{EventImageGrew, EventImageOverBudget, EventOutdatedBase, EventEvidenceLost, EventLicense, EventUnexpectedSigner, EventQuietUpstream, EventEOLOS, EventEOLGo}
 
 // baseLag is how long an image may trail its base's newest build before it is announced.
 const baseLag = 14 * 24 * time.Hour
@@ -383,6 +384,22 @@ func (n *Notifier) eolOperatingSystems(ctx context.Context, sc store.Scope, now 
 			continue
 		}
 		repo := versions.ParseImage(in.Image).Repo()
+		if g, ok := versions.GoOf(sboms[repo+"@"+in.Digest].Purls); ok && versions.GoPastEOL(ctx, g) {
+			minor := g
+			if p := strings.Split(g, "."); len(p) >= 2 {
+				minor = p[0] + "." + p[1]
+			}
+			if key := in.ServiceID + "|" + in.EnvironmentID + "|go " + minor; !seen[key] {
+				seen[key] = true
+				svc := byID[in.ServiceID]
+				it := Item{
+					Type: EventEOLGo, Service: svc.Name, Owner: svc.Owner, Environment: envName[in.EnvironmentID], At: now,
+					URL: "/hygiene?kind=eol-runtime", From: "Go " + g, To: in.Tag,
+				}
+				it.Text = Describe(it)
+				out = append(out, growth{item: it, env: in.EnvironmentID + "|" + in.ServiceID, digest: "go " + minor})
+			}
+		}
 		o, ok := versions.OSOf(sboms[repo+"@"+in.Digest].Purls)
 		if !ok {
 			continue

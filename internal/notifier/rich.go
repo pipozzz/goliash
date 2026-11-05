@@ -42,6 +42,8 @@ func kindOf(it Item) kind {
 		return kind{"⚖️", "#e5484d", "License"}
 	case EventUnexpectedSigner:
 		return kind{"✍️", "#e5484d", "Unexpected signer"}
+	case EventEOLGo:
+		return kind{"🐹", "#e5484d", "Go end of life"}
 	case EventEOLOS:
 		return kind{"🪦", "#e5484d", "OS end of life"}
 	case EventQuietUpstream:
@@ -214,6 +216,8 @@ func goliQuestion(it Item) string {
 		return "Explain this drift alert: why " + where + " is in this state, since when, and what to do first: " + it.Text
 	case it.Type == EventImageOverBudget:
 		return "Why is the " + it.Service + " image in " + it.Environment + " " + it.From + ", over its " + it.Note + "? What takes the space and how could it shrink?"
+	case it.Type == EventEOLGo:
+		return "The " + it.Service + " image in " + it.Environment + " has Go programs built with " + it.From + ", past its end of life. Which of its Go vulnerabilities does that leave open, and is there a release of it built with a supported Go?"
 	case it.Type == EventEOLOS:
 		return "The " + it.Service + " image in " + it.Environment + " is built on " + it.From + ", past its end of life. What does moving it to a supported release take (base image, packages that changed, build steps), and what risk is it running meanwhile?"
 	case it.Type == EventQuietUpstream:
@@ -287,7 +291,7 @@ func slackBlocks(msg Message) []map[string]any {
 			head = k.Emoji + " *" + k.Label + "*"
 		}
 		body := head + "\n" + slackEscape(what(it))
-		if it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps || it.Type == "update" {
+		if showsArrow(it) {
 			body += "\n`" + slackEscape(orDash(it.From)) + "` → `" + slackEscape(orDash(it.To)) + "`"
 		}
 		if a := actionURL(msg.Link, it); a != "" && !single { // the single item's goes in its buttons
@@ -419,7 +423,7 @@ func emailHTML(msg Message) (string, error) {
 	for _, it := range msg.Items {
 		data.Rows = append(data.Rows, row{
 			Kind: kindOf(it), Where: where(it), What: what(it), From: it.From, To: it.To,
-			Arrow: it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps || it.Type == "update",
+			Arrow: showsArrow(it),
 			Notes: it.URL, NotesLabel: strings.ToLower(linkLabel(it)), Open: itemLink(msg.Link, it), When: it.At.UTC().Format("2 Jan 15:04 UTC"),
 			Target: it.Target, Team: it.Owner,
 		})
@@ -461,3 +465,15 @@ var emailTemplate = template.Must(template.New("mail").Parse(`<!doctype html>
 </table></td></tr></table>
 </body></html>
 `))
+
+// showsArrow reports whether an item reads as a move from one version to another (From → To). Drifts, Argo CD or
+// Flux states and findings about an image (what it is built on or with: From) use From and To otherwise.
+func showsArrow(it Item) bool {
+	switch it.Type {
+	case "update":
+		return true
+	case "drift_detected", EventGitOps, EventOutdatedBase, EventEOLOS, EventEOLGo, EventQuietUpstream:
+		return false
+	}
+	return it.From != "" && it.To != ""
+}
