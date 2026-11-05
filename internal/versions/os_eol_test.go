@@ -83,3 +83,37 @@ func TestEOLOperatingSystems(t *testing.T) {
 		t.Fatalf("soon %+v", f)
 	}
 }
+
+func TestRemedyOnEOLOS(t *testing.T) {
+	a := Affected{Package: "openssl", EOLOS: "Debian 11 (bullseye)"}
+	if got := remedy(a); got != "a base on a supported release: Debian 11 (bullseye) is past its end of life and gets no fixes" {
+		t.Fatalf("remedy %q", got)
+	}
+	a.Fix = "1.1.1w-0+deb11u2"
+	if got := remedy(a); got != "openssl 1.1.1w-0+deb11u2" {
+		t.Fatalf("a fix comes first: %q", got)
+	}
+}
+
+func TestEOLOSOf(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"12","isEol":false,"eolFrom":"2028-06-30"},{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	(&Checker{}).SetEOL(e)
+	defer sharedEOL.Store(nil)
+	ctx := context.Background()
+	_, _ = e.Cycles(ctx, "debian")
+	memo := map[ImageOS]string{}
+	if got := eolOSOf(ctx, "pkg:deb/debian/openssl@1.1.1n?os_version=11", memo); got != "Debian 11 (bullseye)" {
+		t.Fatalf("eol %q", got)
+	}
+	if got := eolOSOf(ctx, "pkg:deb/debian/openssl@3.0.15?os_version=12", memo); got != "" {
+		t.Fatalf("supported %q", got)
+	}
+	if got := eolOSOf(ctx, "pkg:npm/express@4.19.2", memo); got != "" {
+		t.Fatalf("not an OS package %q", got)
+	}
+}

@@ -334,6 +334,9 @@ type Affected struct {
 	// Rebuild is the base (node:22-alpine) whose current build no longer has it: the image was built on an older
 	// build of its base, and rebuilding it with --pull fixes it, with no change to the Dockerfile.
 	Rebuild string
+	// EOLOS names the image's operating system release when the package comes from it and it is past its end of
+	// life ("Debian 11 (bullseye)"): no fix will come for that release, a base on a supported one is the remedy.
+	EOLOS string
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -597,6 +600,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	findings := map[string]*VulnFinding{}
 	where := affectedIndex{}
 	pending := map[string]bool{}
+	eolMemo := map[ImageOS]string{}
 	for p, k := range pv {
 		for _, id := range k.Vulns {
 			rec, have := records[id]
@@ -641,11 +645,16 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 			ids := append([]string{id}, f.Aliases...)
 			distro := distroStatus(distroStatuses, p, ids)
+			eolOS := ""
+			if fix == "" {
+				eolOS = eolOSOf(ctx, p, eolMemo)
+			}
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
 				a.Distro = distro
 				a.Newer, a.Current = newer, current
+				a.EOLOS = eolOS
 				a.Rebuild = rebuilds[u.key].fixes(p, ids)
 				if i := where.index(f, a); i >= 0 {
 					if f.Affected[i].Rebuild == "" {
@@ -659,6 +668,9 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					}
 					if f.Affected[i].Distro == "" {
 						f.Affected[i].Distro = a.Distro
+					}
+					if f.Affected[i].EOLOS == "" && f.Affected[i].Fix == "" {
+						f.Affected[i].EOLOS = a.EOLOS
 					}
 					if f.Affected[i].Newer == nil && f.Affected[i].Fix == "" {
 						f.Affected[i].Newer, f.Affected[i].Current = a.Newer, a.Current
