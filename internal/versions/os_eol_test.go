@@ -117,3 +117,33 @@ func TestEOLOSOf(t *testing.T) {
 		t.Fatalf("not an OS package %q", got)
 	}
 }
+
+func TestEOLRuntimes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.27","isEol":false},{"name":"1.26","isEol":false},{"name":"1.25","isEol":true,"eolFrom":"2026-08-19"}]}}`))
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	(&Checker{}).SetEOL(e)
+	defer sharedEOL.Store(nil)
+	ctx := context.Background()
+	_, _ = e.Cycles(ctx, "go")
+
+	if v, ok := GoOf([]string{"pkg:golang/stdlib@1.26.2", "pkg:golang/stdlib@1.25.7", "pkg:npm/x@1.0.0"}); !ok || v != "1.25.7" {
+		t.Fatalf("oldest Go %q", v)
+	}
+	active := []store.Instance{
+		{Image: "quay.io/prometheus/node-exporter:v1.8.0", Digest: "sha256:a", EnvironmentID: "e", TargetID: "t", WorkloadName: "ne", ContainerName: "ne"},
+		{Image: "ghcr.io/acme/api:2.0", Digest: "sha256:b", EnvironmentID: "e", TargetID: "t", WorkloadName: "api", ContainerName: "api"},
+	}
+	sboms := map[string]store.ImageSBOM{
+		"quay.io/prometheus/node-exporter@sha256:a": {Purls: []string{"pkg:golang/stdlib@1.25.7"}},
+		"ghcr.io/acme/api@sha256:b":                 {Purls: []string{"pkg:golang/stdlib@1.27.1"}},
+	}
+	got := EOLRuntimes(ctx, active, sboms, map[string]string{"e": "prod"}, map[string]string{"t": "eks"}, time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC))
+	if len(got) != 1 || got[0].Kind != "eol-runtime" || got[0].Image != "quay.io/prometheus/node-exporter:v1.8.0" ||
+		!strings.Contains(got[0].Detail, "built with Go 1.25.7, past its end of life since Aug 2026") || !strings.Contains(got[0].Detail, "rebuild with Go 1.27") {
+		t.Fatalf("findings %+v", got)
+	}
+}
