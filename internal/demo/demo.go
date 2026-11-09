@@ -720,6 +720,14 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 	case "sessions":
 		w.Maintenance = []string{"elasticache-20251001-001 (security-update, important)"}
 	}
+	switch service { // the vCPUs AWS charges Extended Support by: a db.m6g.xlarge, an Aurora cluster of two db.r6g.large
+	case "billing-db":
+		n := 4
+		w.Vcpus = &n
+	case "orders-aurora":
+		n := 4
+		w.Vcpus = &n
+	}
 	switch t.platform { // no GitOps tool here: the jobs and the Compose file name their place in Git
 	case "nomad":
 		w.Labels["goliash.git.repo"], w.Labels["goliash.git.path"] = "https://github.com/acme/infra", "nomad/"+service+".nomad.hcl"

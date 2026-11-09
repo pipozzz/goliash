@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -97,10 +98,16 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 	res := collectors.Result{Complete: true, Workloads: []agentproto.Workload{}}
 	public := map[string][]string{} // cluster -> its publicly accessible instances' endpoints
+	vcpus := map[string]int{}       // cluster -> its instances' vCPUs; -1 when one is not known
 	for _, in := range instances {
 		if cl := aws.ToString(in.DBClusterIdentifier); cl != "" {
 			if aws.ToBool(in.PubliclyAccessible) {
 				public[cl] = append(public[cl], endpoint(in))
+			}
+			if n := ClassVCPUs(aws.ToString(in.DBInstanceClass)); n > 0 && vcpus[cl] >= 0 {
+				vcpus[cl] += n
+			} else {
+				vcpus[cl] = -1
 			}
 			continue
 		}
@@ -118,6 +125,9 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 		}
 		for _, cl := range out.DBClusters {
 			if w, ok := c.cluster(cl, public[aws.ToString(cl.DBClusterIdentifier)]); ok {
+				if n := vcpus[aws.ToString(cl.DBClusterIdentifier)]; n > 0 {
+					w.Vcpus = &n
+				}
 				res.Workloads = append(res.Workloads, w)
 			}
 		}
@@ -180,6 +190,9 @@ func (c *Collector) instance(in types.DBInstance) (agentproto.Workload, bool) {
 	if aws.ToBool(in.PubliclyAccessible) {
 		w.Exposed = []string{"public endpoint " + endpoint(in)}
 	}
+	if n := ClassVCPUs(aws.ToString(in.DBInstanceClass)); n > 0 {
+		w.Vcpus = &n
+	}
 	return w, true
 }
 
@@ -213,6 +226,31 @@ func (c *Collector) workload(id string, kind agentproto.WorkloadKind, name, engi
 		}
 	}
 	return w
+}
+
+// ClassVCPUs is the vCPUs of an RDS instance class (db.r6g.2xlarge is 8), 0 when the class does not say:
+// db.serverless, a .metal size, or a name it cannot read.
+func ClassVCPUs(class string) int {
+	parts := strings.Split(class, ".")
+	if len(parts) < 3 || parts[0] != "db" {
+		return 0
+	}
+	switch size := parts[2]; size {
+	case "micro", "small", "medium", "large":
+		return 2
+	case "xlarge":
+		return 4
+	default:
+		n, ok := strings.CutSuffix(size, "xlarge")
+		if !ok {
+			return 0
+		}
+		k, err := strconv.Atoi(n)
+		if err != nil || k <= 0 {
+			return 0
+		}
+		return 4 * k
+	}
 }
 
 func endpoint(in types.DBInstance) string {

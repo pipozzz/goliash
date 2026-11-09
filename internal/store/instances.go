@@ -42,6 +42,8 @@ type Instance struct {
 	Exposed []string
 	// Maintenance is the patches the platform has waiting for a managed service, as its agent reads them.
 	Maintenance []string
+	// VCPUs is the vCPUs a managed database runs on, 0 when not known: AWS charges its Extended Support per vCPU.
+	VCPUs int
 	// CodeDigest is what a .zip Lambda function version runs, its code and layers; its packages are the SBOM of
 	// LambdaCodeRepo@CodeDigest.
 	CodeDigest string
@@ -183,7 +185,7 @@ func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([
 		)
 		if err := rows.Scan(&i.ID, &i.Scope.OrgID, &i.Scope.WorkspaceID, &i.TargetID, &env, &svc, &i.SuggestedService,
 			&i.WorkloadID, &i.WorkloadKind, &i.Namespace, &i.WorkloadName, &i.ContainerName, &i.Image, &i.Tag, &i.Digest,
-			&i.Running, &i.IsMain, &i.FirstSeenAt, &i.LastSeenAt, &removed, &i.App, &i.AppSource, &i.Team, &desired, &exposed, &maint, &i.CodeDigest); err != nil {
+			&i.Running, &i.IsMain, &i.FirstSeenAt, &i.LastSeenAt, &removed, &i.App, &i.AppSource, &i.Team, &desired, &exposed, &maint, &i.CodeDigest, &i.VCPUs); err != nil {
 			return nil, err
 		}
 		if exposed != "" {
@@ -205,7 +207,7 @@ func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([
 
 const instanceColumns = `id, org_id, workspace_id, target_id, environment_id, service_id, suggested_service,
 	workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running, is_main,
-	first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest`
+	first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest, vcpus`
 
 // touchInstances moves a target's running instances' last sighting.
 const touchInstances = `UPDATE instances SET last_seen_at = ? WHERE org_id = ? AND workspace_id = ? AND target_id = ? AND removed_at IS NULL`
@@ -222,8 +224,8 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 			_, err := s.exec(ctx, tx, `
 				INSERT INTO instances (id, org_id, workspace_id, target_id, environment_id, service_id, suggested_service,
 					workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running,
-					is_main, first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+					is_main, first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest, vcpus)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT (target_id, workload_id, container_name, image, digest) DO UPDATE SET
 					environment_id = excluded.environment_id, service_id = excluded.service_id,
 					suggested_service = excluded.suggested_service, workload_kind = excluded.workload_kind,
@@ -231,10 +233,10 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 					running = excluded.running, is_main = excluded.is_main, last_seen_at = excluded.last_seen_at,
 					removed_at = NULL, app = excluded.app, app_source = excluded.app_source, team = excluded.team,
 					desired = excluded.desired, exposed = excluded.exposed, maintenance = excluded.maintenance,
-					code_digest = excluded.code_digest`,
+					code_digest = excluded.code_digest, vcpus = excluded.vcpus`,
 				i.ID, ch.Scope.OrgID, ch.Scope.WorkspaceID, ch.TargetID, nullString(i.EnvironmentID), nullString(i.ServiceID),
 				i.SuggestedService, i.WorkloadID, i.WorkloadKind, i.Namespace, i.WorkloadName, i.ContainerName, i.Image,
-				i.Tag, i.Digest, i.Running, i.IsMain, at, at, i.App, i.AppSource, i.Team, nullInt(i.Desired), strings.Join(i.Exposed, "\n"), strings.Join(i.Maintenance, "\n"), i.CodeDigest)
+				i.Tag, i.Digest, i.Running, i.IsMain, at, at, i.App, i.AppSource, i.Team, nullInt(i.Desired), strings.Join(i.Exposed, "\n"), strings.Join(i.Maintenance, "\n"), i.CodeDigest, i.VCPUs)
 			if err != nil {
 				return err
 			}

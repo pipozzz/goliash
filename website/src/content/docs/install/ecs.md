@@ -121,7 +121,11 @@ service gets in the matrix, Updates, notifications and reports:
 - **The versions RDS offers** in the region, as its upstream releases. A newer minor or major version shows as
   *upstream* drift and on Updates.
 - **End of standard support** (from endoflife.date), as *end of life*. After that date AWS moves the database to
-  RDS Extended Support and charges for it per vCPU and hour, unless the upgrade happens first.
+  RDS Extended Support and charges for it per vCPU and hour, unless the upgrade happens first. Goliash reads the
+  vCPUs from the instance class (an Aurora or Multi-AZ cluster adds up its instances) and shows the bill on
+  [Updates](/guide/versions/#updates): **Extended Support $292/month** for 4 vCPUs, $0.10 an hour each for two
+  years and $0.20 from the third, at US East list prices. Aurora Serverless, billed per ACU, shows that it is
+  charged, without an amount.
 - **Public accessibility.** A database with `PubliclyAccessible` is *exposed*, with its endpoint, and its upgrades
   come first.
 
@@ -166,7 +170,7 @@ This watches the clusters themselves; the workloads inside a cluster come from a
 - **The versions EKS offers** are its upstream releases, so the next Kubernetes version shows on Updates.
 - **End of standard support** comes from endoflife.date (`amazon-eks`), as *end of life*. After it, AWS keeps the
   cluster in extended support and charges for it per cluster and hour, unless the cluster's upgrade policy says
-  otherwise.
+  otherwise: $0.60 instead of $0.10, which Updates shows as **Extended Support $365/month**.
 - **A public API endpoint** open to `0.0.0.0/0` makes the cluster *exposed*.
 - **Tags:** `goliash.ignore=true` and `goliash.env` on the cluster work as on databases; node groups take the
   cluster's tags, then their own.

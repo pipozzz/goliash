@@ -44,6 +44,9 @@ type Update struct {
 	Exposed []string
 	// Maintenance is the patches the platform has waiting for it (a managed service's pending maintenance).
 	Maintenance []string
+	// ExtendedSupport is what AWS charges for the managed service past the end of standard support (EOL), when it
+	// runs on one AWS keeps running for a fee.
+	ExtendedSupport *ExtendedSupport
 	// Remedy is what fixes an exploited vulnerability when no newer release is known (Target is empty): a rebuild
 	// on the current build of its base, a newer release of its distribution, or a newer package.
 	Remedy string
@@ -215,16 +218,37 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	return us
 }
 
-// WithExposure adds how each update's running version can be reached from outside, and the patches its platform
-// has waiting, from what its workloads in that environment run, and puts exposed ones first within their urgency.
+// WithExposure adds how each update's running version can be reached from outside, the patches its platform has
+// waiting and what AWS charges for running it past the end of standard support, from what its workloads in that
+// environment run, and puts exposed ones first within their urgency.
 func WithExposure(us []Update, active []store.Instance) []Update {
+	return withExposureAt(us, active, time.Now())
+}
+
+func withExposureAt(us []Update, active []store.Instance, now time.Time) []Update {
 	type key struct{ svc, env string }
 	ways, maint := map[key][]string{}, map[key][]string{}
+	type engine struct {
+		repo, version string
+		vcpus         int
+	}
+	engines := map[key]map[string]*engine{} // the managed engines it runs, by repo and version
 	for _, in := range active {
 		if !in.IsMain {
 			continue
 		}
 		k := key{in.ServiceID, in.EnvironmentID}
+		if ref := ParseImage(in.Image); Managed(ref.Repo()) {
+			if engines[k] == nil {
+				engines[k] = map[string]*engine{}
+			}
+			e := engines[k][in.Image]
+			if e == nil {
+				e = &engine{repo: ref.Repo(), version: ref.Tag}
+				engines[k][in.Image] = e
+			}
+			e.vcpus += in.VCPUs
+		}
 		if len(in.Exposed) > 0 {
 			ways[k] = union(ways[k], in.Exposed)
 		}
@@ -235,6 +259,26 @@ func WithExposure(us []Update, active []store.Instance) []Update {
 	for i := range us {
 		k := key{us[i].Service.ID, us[i].Environment.ID}
 		us[i].Exposed, us[i].Maintenance = ways[k], maint[k]
+		if us[i].EOL == "" {
+			continue
+		}
+		var total *ExtendedSupport
+		for _, e := range engines[k] {
+			if e.version != us[i].Running {
+				continue
+			}
+			es, ok := ExtendedSupportCost(e.repo, us[i].EOL, e.vcpus, now)
+			if !ok {
+				continue
+			}
+			if total == nil {
+				total = &es
+			} else { // the same engine and version on more than one target: the bills add up
+				total.Monthly += es.Monthly
+				total.Basis = ""
+			}
+		}
+		us[i].ExtendedSupport = total
 	}
 	sortUpdates(us)
 	return us

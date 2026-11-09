@@ -965,6 +965,14 @@ type Workload struct {
 
 	// Namespace Kubernetes or Nomad namespace, Swarm stack or Compose project.
 	Namespace *string `json:"namespace,omitempty"`
+
+	// Vcpus The vCPUs a managed database runs on: an RDS instance's class, or the sum of an Aurora or Multi-AZ
+	// cluster's instances. AWS charges Extended Support per vCPU, so the server can tell what it costs. Absent
+	// when not known (Aurora Serverless). Older servers ignore it.
+	//
+	//
+	// Example: 4
+	Vcpus *int `json:"vcpus,omitempty"`
 }
 
 // WorkloadKind defines model for WorkloadKind.

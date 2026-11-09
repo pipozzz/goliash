@@ -93,6 +93,10 @@ type UpdateItem struct {
 	Exploited                            []string
 	Exposed                              []string // how the running version can be reached from outside
 	Maintenance                          []string // the patches the platform has waiting for it
+	Extended                             string   // what AWS charges past the end of standard support: "$292/month"
+	ExtendedTitle                        string   // and in full, with when and how
+	ExtendedStarted                      bool     // AWS charges for it already
+	ExtendedUSD                          string   // the monthly amount for the CSV, "" when not known
 	Critical                             int
 	Vulns                                versions.VulnDelta // what the upgrade does to known vulnerabilities, when known
 	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
@@ -131,7 +135,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance", "remedy"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance", "remedy", "extended_support_monthly_usd"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
 		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " "), strings.Join(it.Where, " ")) {
@@ -146,7 +150,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "), it.Remedy,
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "), it.Remedy, it.ExtendedUSD,
 		})
 	}
 	cw.Flush()
@@ -259,6 +263,13 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
 			TicketChannels: trackers,
+		}
+		if es := u.ExtendedSupport; es != nil {
+			it.Extended, it.ExtendedTitle, it.ExtendedStarted = "Extended Support", "AWS Extended Support: "+es.String()+", at US East list prices", es.Started(time.Now())
+			if es.Monthly > 0 {
+				it.Extended += " " + versions.Dollars(es.Monthly) + "/month"
+				it.ExtendedUSD = strconv.FormatFloat(es.Monthly, 'f', 0, 64)
+			}
 		}
 		if !u.Due.IsZero() {
 			it.DaysLeft = u.DaysLeft(now)

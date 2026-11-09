@@ -42,6 +42,16 @@ type Posture struct {
 	EOLOS []string
 	// EOLGo names the production services whose image has Go programs built with a Go release past its end of life.
 	EOLGo []string
+	// Extended is what AWS charges for managed services run past the end of standard support, in every environment:
+	// already (Now) and from a date to come (Soon).
+	Extended ExtendedBill
+}
+
+// ExtendedBill adds up AWS Extended Support across managed services, in US dollars a month at US East list prices.
+type ExtendedBill struct {
+	Now, Soon           float64
+	NowCount, SoonCount int       // the services, including those whose amount is not known
+	SoonFrom            time.Time // the first date a coming charge starts
 }
 
 // LoadPosture computes the posture from the overview, the releases and the acknowledgements.
@@ -109,6 +119,9 @@ func LoadPosture(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 		}
 	}
 	p.ProdMedian, p.ProdP90 = percentile(days, 50), percentile(days, 90)
+	if err := p.addExtended(ctx, st, sc, now); err != nil {
+		return p, err
+	}
 	for _, t := range o.Targets {
 		if _, ok := o.Stale[t.ID]; ok {
 			p.Stale = append(p.Stale, t.Name)
@@ -251,4 +264,38 @@ func (p Posture) Sample(now time.Time) store.PostureSample {
 		P90: p.ProdP90, Behind30: p.Prod30, Behind90: p.Prod90, EOLPassed: p.EOLPassed, EOLSoon: p.EOLSoon,
 		Accepted: p.Accepted,
 	}
+}
+
+// addExtended adds up what AWS charges, or will, for the managed services that run past the end of standard support.
+func (p *Posture) addExtended(ctx context.Context, st *store.Store, sc store.Scope, now time.Time) error {
+	var eol []Update
+	for _, ex := range p.Exposures {
+		if ex.EOL != "" {
+			eol = append(eol, ex.Update)
+		}
+	}
+	if len(eol) == 0 {
+		return nil
+	}
+	active, err := st.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return err
+	}
+	for _, u := range withExposureAt(eol, active, now) {
+		es := u.ExtendedSupport
+		if es == nil {
+			continue
+		}
+		if es.Started(now) {
+			p.Extended.Now += es.Monthly
+			p.Extended.NowCount++
+			continue
+		}
+		p.Extended.Soon += es.Monthly
+		p.Extended.SoonCount++
+		if p.Extended.SoonFrom.IsZero() || es.From.Before(p.Extended.SoonFrom) {
+			p.Extended.SoonFrom = es.From
+		}
+	}
+	return nil
 }
