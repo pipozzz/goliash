@@ -110,7 +110,12 @@ A service's team is its **owner**. Goliash takes it from, in this order:
    rename). It is never overridden;
 2. **the workloads' labels**: `goliash.team`, `team`, `owner` or `app.kubernetes.io/team` (first found). It follows
    label changes within a minute;
-3. **the application's team** (*Set team* on the Applications page), for services in it without either.
+3. **CODEOWNERS**: for a workload deployed by a [GitOps application](/guide/argocd/) (Argo CD, Flux, or
+   [`goliash.git.*` labels](/guide/argocd/#without-argo-cd-or-flux)), the team the deploy repository's `CODEOWNERS`
+   gives the application's path: the first `@org/team` of the last line that covers it, as `team`. Goliash reads it
+   with the [GitOps tokens](/reference/configuration/) (GitHub, GitLab, Gitea or Forgejo), from `.github/`,
+   `.gitlab/`, `.gitea/`, the root or `docs/`, at most once an hour per repository;
+4. **the application's team** (*Set team* on the Applications page), for services without any of these.
 
 Each team's card on **Settings → Teams** is a small scorecard: how many of its services are up to date, and how many
 run a vulnerability exploited in the wild, a release past its end of life, a rollout that does not finish, or a
@@ -122,6 +127,16 @@ and how many upgrades are past their [remediation deadline](/guide/security/#rem
 its deadlines and critical vulnerabilities in production as they happen, and its own week every Monday at 08:00
 UTC (two rules filtered by the team, changed or deleted under Notifications like any). Once a rule tells the team, the
 card says so instead.
+
+```text
+# .github/CODEOWNERS in acme/deploy
+*                    @acme/platform
+/apps/payments/      @acme/team-payments @alice
+/apps/checkout/      @acme/team-shop
+```
+
+Here the services deployed from `apps/payments/prod` belong to `team-payments`, everything else to `platform`. A
+line naming only people (`@alice`) gives no team. `GOLIASH_CODEOWNERS=off` turns this source off.
 
 A service whose workloads name different teams, or whose applications have different teams, is left for people.
 The service page says where its owner came from; changing it there takes over from labels for good.

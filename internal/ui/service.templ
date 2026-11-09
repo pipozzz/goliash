@@ -372,6 +372,8 @@ templ ServicePage(v ServiceView) {
 									switch v.OwnerSource {
 										case "label":
 											<span class="hint">From its workloads' team label; changing it here takes over from the label.</span>
+										case "codeowners":
+											<span class="hint">From the CODEOWNERS of the repository its GitOps application deploys from; changing it here takes over.</span>
 										case "app":
 											<span class="hint">From its application's team; changing it here takes over.</span>
 									}

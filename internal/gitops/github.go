@@ -205,6 +205,43 @@ func (g *GitHub) walk(ctx context.Context, b Bump, visit func(path, sha string, 
 	return gp, nil
 }
 
+// ReadFile reads a file of the repository on a branch, its default branch for "" or HEAD.
+func (g *GitHub) ReadFile(ctx context.Context, repo, branch, file string) ([]byte, error) {
+	owner, name, ok := g.ownerRepo(repo)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a GitHub repository", repo)
+	}
+	return readContents(ctx, g.do, "/repos/"+owner+"/"+name, branch, file)
+}
+
+// readContents reads a file with the contents API GitHub and Gitea share; nil when it is not there.
+func readContents(ctx context.Context, do func(ctx context.Context, method, p string, in, out any) error, repoAPI, branch, file string) ([]byte, error) {
+	p := repoAPI + "/contents/" + escapePath(strings.Trim(file, "/"))
+	if branch != "" && branch != "HEAD" {
+		p += "?ref=" + url.QueryEscape(branch)
+	}
+	var f struct {
+		Type    string `json:"type"`
+		Content string `json:"content"`
+	}
+	if err := do(ctx, http.MethodGet, p, nil, &f); err != nil {
+		if notFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if f.Type != "" && f.Type != "file" {
+		return nil, nil
+	}
+	return base64.StdEncoding.DecodeString(strings.ReplaceAll(f.Content, "\n", ""))
+}
+
+// notFound tells a forge's 404 apart from other errors.
+func notFound(err error) bool {
+	var h *httpError
+	return errors.As(err, &h) && h.status == http.StatusNotFound
+}
+
 // OpenBump changes the tag in every YAML file under the path that pins it, on a new branch, and opens a pull
 // request; it returns the pull request's address. An open pull request from the same branch is returned as is.
 func (g *GitHub) OpenBump(ctx context.Context, b Bump) (string, error) {

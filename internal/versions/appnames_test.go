@@ -123,7 +123,7 @@ func TestFillOwners(t *testing.T) {
 	run(both, "prod-a", "shop-frontend")
 	run(both, "prod-b", "identity")
 	_ = l.st.SetAppTeam(ctx, l.sc, "identity", "platform")
-	named, err := FillOwners(ctx, l.st, l.sc)
+	named, err := FillOwners(ctx, l.st, l.sc, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestFillOwners(t *testing.T) {
 	}
 	// An owner set by hand stays.
 	_, _ = l.st.SetOwners(ctx, l.sc, []string{cart.ID}, "someone", "")
-	_, _ = FillOwners(ctx, l.st, l.sc)
+	_, _ = FillOwners(ctx, l.st, l.sc, nil)
 	if owner(cart) != "someone" {
 		t.Fatal("an owner set by hand was replaced")
 	}
@@ -168,17 +168,17 @@ func TestOwnersFromLabels(t *testing.T) {
 	}
 	_ = l.st.SetAppTeam(ctx, l.sc, "webshop", "team-shop")
 	deploy("")
-	_, _ = FillOwners(ctx, l.st, l.sc)
+	_, _ = FillOwners(ctx, l.st, l.sc, nil)
 	if o, src := owner(); o != "team-shop" || src != "app" {
 		t.Fatalf("from the application: %q %q", o, src)
 	}
 	deploy("payments")
-	_, _ = FillOwners(ctx, l.st, l.sc)
+	_, _ = FillOwners(ctx, l.st, l.sc, nil)
 	if o, src := owner(); o != "payments" || src != "label" {
 		t.Fatalf("from the label: %q %q", o, src)
 	}
 	deploy("checkout")
-	_, _ = FillOwners(ctx, l.st, l.sc)
+	_, _ = FillOwners(ctx, l.st, l.sc, nil)
 	if o, _ := owner(); o != "checkout" {
 		t.Fatalf("label change not followed: %q", o)
 	}
@@ -187,8 +187,62 @@ func TestOwnersFromLabels(t *testing.T) {
 	svc.Owner = "sre"
 	_ = l.st.UpdateService(ctx, svc)
 	deploy("someone-else")
-	_, _ = FillOwners(ctx, l.st, l.sc)
+	_, _ = FillOwners(ctx, l.st, l.sc, nil)
 	if o, src := owner(); o != "sre" || src != "" {
 		t.Fatalf("an owner set by people was replaced: %q %q", o, src)
+	}
+}
+
+// CODEOWNERS of the path a service's GitOps application deploys from beats the
+// application's team, and the workloads' team label beats CODEOWNERS.
+func TestOwnersFromCodeOwners(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	tg := l.targets["prod-a"]
+	deploy := func(team string) {
+		ch := store.SnapshotChanges{Scope: l.sc, TargetID: tg.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+			TargetID: tg.ID, EnvironmentID: tg.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "web",
+			WorkloadKind: "deployment", WorkloadName: "web", ContainerName: "app", Image: "nginx:1.27.2", Tag: "1.27.2",
+			Running: 1, IsMain: true, App: "webshop", AppSource: "app.kubernetes.io/part-of", Team: team,
+		}}}
+		if err := l.st.ApplySnapshot(ctx, ch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deploy("")
+	_ = l.st.SetAppTeam(ctx, l.sc, "webshop", "team-shop")
+	if err := l.st.SetWorkloadGitOps(ctx, l.sc, tg.ID, []store.WorkloadGitOps{{
+		WorkloadID: "web", Tool: "argocd", App: "web-prod", Repo: "git@github.com:acme/deploy.git", Path: "apps/web", TargetRevision: "main",
+	}}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	var asked []string
+	codeOwners := func(_ context.Context, repo, branch, path string) (string, error) {
+		asked = append(asked, repo+"@"+branch+":"+path)
+		return "payments", nil
+	}
+	owner := func() (string, string) {
+		s, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+		return s.Owner, s.OwnerSource
+	}
+	if _, err := FillOwners(ctx, l.st, l.sc, codeOwners); err != nil {
+		t.Fatal(err)
+	}
+	if o, src := owner(); o != "payments" || src != "codeowners" {
+		t.Fatalf("from CODEOWNERS: %q %q", o, src)
+	}
+	if len(asked) != 1 || asked[0] != "https://github.com/acme/deploy@main:apps/web" {
+		t.Fatalf("asked %v", asked)
+	}
+	// Without CODEOWNERS for the path, the application's team takes over again.
+	none := func(context.Context, string, string, string) (string, error) { return "", nil }
+	_, _ = FillOwners(ctx, l.st, l.sc, none)
+	if o, src := owner(); o != "team-shop" || src != "app" {
+		t.Fatalf("back to the application: %q %q", o, src)
+	}
+	deploy("checkout")
+	_, _ = FillOwners(ctx, l.st, l.sc, codeOwners)
+	if o, src := owner(); o != "checkout" || src != "label" {
+		t.Fatalf("the label first: %q %q", o, src)
 	}
 }
