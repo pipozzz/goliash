@@ -116,7 +116,7 @@ const usage = `Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party|auto]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
+  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|pagerduty|opsgenie|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
@@ -2126,7 +2126,7 @@ func splitList(s string) []string {
 
 func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("channel create")
-	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push, inapp, or a tracker: gitlab_issues, github_issues, jira, linear, shortcut")
+	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, pagerduty, opsgenie, webhook, email, push, inapp, or a tracker: gitlab_issues, github_issues, jira, linear, shortcut")
 	name := fs.String("name", "", "channel name")
 	url := fs.String("url", "", "webhook URL (Slack, Teams workflow, Google Chat, Discord, webhook), or an ntfy topic URL")
 	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
@@ -2176,6 +2176,16 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("-url (Grafana) and -token (service account token) are required")
 		}
 		cfg["url"], cfg["token"] = *url, *token
+	case "pagerduty":
+		if *token == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), a PagerDuty service's integration key (Events API v2), is required")
+		}
+		cfg["token"] = *token
+	case "opsgenie":
+		if *token == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), an Opsgenie API integration's key, is required; -url https://api.eu.opsgenie.com for EU accounts")
+		}
+		set("token", *token, "url", strings.TrimSuffix(*url, "/"))
 	case "telegram":
 		if *token == "" || *chatID == "" {
 			return errors.New("-token and -chat-id are required")
@@ -2228,7 +2238,7 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			}
 		}
 	default:
-		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push, inapp, gitlab_issues, github_issues, jira, linear or shortcut")
+		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, pagerduty, opsgenie, webhook, email, push, inapp, gitlab_issues, github_issues, jira, linear or shortcut")
 	}
 	if *name == "" {
 		return errors.New("-name is required")

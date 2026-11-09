@@ -1,6 +1,6 @@
 ---
 title: Notifications
-description: 'Send new releases, drift and stale agents to Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana, webhooks, e-mail or browsers, instantly or as digests.'
+description: 'Send new releases, drift and stale agents to Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana, PagerDuty, Opsgenie, webhooks, e-mail or browsers, instantly or as digests.'
 ---
 
 Notifications have two parts: **channels** (where messages go) and **rules** (which events go there, and how
@@ -19,6 +19,8 @@ often). Both are managed on the Notifications page or with the CLI.
 | Telegram | A bot token from @BotFather and the chat ID the bot posts to. |
 | ntfy | A topic URL on ntfy.sh or your own server, e.g. `https://ntfy.sh/my-goliash`, and an optional access token. |
 | Grafana | Grafana's URL and a service account token with `annotations:write`; every item becomes an annotation. |
+| PagerDuty | A service's integration key (*Events API V2*); alerts open incidents, see [On-call](#on-call-pagerduty-and-opsgenie). |
+| Opsgenie | An API integration's key, and `https://api.eu.opsgenie.com` for EU accounts. |
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients, and optionally the channel's own mail server (see below). |
 | Web push | Nothing: the channel is there already; each person adds their browsers (see below). |
@@ -33,10 +35,40 @@ goliash channel create -type gchat -name sre -url "https://chat.googleapis.com/v
 goliash channel create -type telegram -name team -token 123456:ABC… -chat-id -1001234567890
 goliash channel create -type ntfy -name phone -url https://ntfy.sh/my-goliash
 goliash channel create -type email -name oncall -to oncall@example.com
+GOLIASH_CHANNEL_TOKEN=… goliash channel create -type pagerduty -name pager
 goliash channel test -name ops
 ```
 
 Channel URLs and secrets are encrypted at rest and never shown in full in the UI.
+
+### On-call: PagerDuty and Opsgenie
+
+A PagerDuty or Opsgenie channel turns alerts into incidents, so the things that should wake someone go through the
+on-call schedule and its escalations, not a chat channel. Each alert gets a stable key (the PagerDuty `dedup_key`, the
+Opsgenie `alias`): an alert that comes again joins its open incident instead of opening another, and its all clear
+closes it by itself:
+
+| Opens | Closed by |
+| --- | --- |
+| `agent_stale`: an agent went silent | `agent_back` |
+| `drift_detected` | `drift_resolved` (put it in the rule too) |
+| a vulnerability, a remediation deadline, a stuck rollout, a GitOps application in trouble, … | the person who handles it |
+
+Severity follows the alert: a vulnerability or a deadline in production is *critical* (Opsgenie P1), a silent agent,
+a stuck rollout or a GitOps application in trouble is *error* (P2), drift and releases that fix vulnerabilities are
+*warning* (P3), the rest *info* (P5). Incidents carry the service as the component, the environment as the group,
+and links to Goliash and to the advisory or release notes. Upgrade plans, posture reports and security briefs are
+reports, not pages: a rule that sends them to an on-call channel sends nothing.
+
+Pair it with a rule for what deserves a page, right away:
+
+```sh
+GOLIASH_CHANNEL_TOKEN=… goliash channel create -type opsgenie -name pager -url https://api.eu.opsgenie.com
+goliash notify create -channel pager -events agent_stale,vulnerability,deadline,drift_detected,drift_resolved -envs prod -mode instant
+```
+
+In PagerDuty, add the integration on a service: **Integrations** → **Add an integration** → *Events API V2*, and
+copy its integration key. In Opsgenie, add an **API** integration to the team and copy its API key.
 
 ### E-mail
 

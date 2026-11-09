@@ -89,6 +89,8 @@ templ NotificationsPage(v NotificationsView) {
 											<option value="teams" selected?={ v.Add == "teams" }>Microsoft Teams (Workflows webhook)</option>
 											<option value="gchat" selected?={ v.Add == "gchat" }>Google Chat (space webhook)</option>
 											<option value="telegram" selected?={ v.Add == "telegram" }>Telegram (bot)</option>
+											<option value="pagerduty" selected?={ v.Add == "pagerduty" }>PagerDuty (incidents)</option>
+											<option value="opsgenie" selected?={ v.Add == "opsgenie" }>Opsgenie (alerts)</option>
 											<option value="ntfy" selected?={ v.Add == "ntfy" }>ntfy</option>
 											<option value="grafana" selected?={ v.Add == "grafana" }>Grafana annotations</option>
 											<option value="webhook" selected?={ v.Add == "webhook" }>Webhook</option>
@@ -104,10 +106,12 @@ templ NotificationsPage(v NotificationsView) {
 								</div>
 								<label data-for="slack discord teams gchat webhook ntfy grafana">URL<input name="url" type="url" placeholder="https://hooks.slack.com/services/…"/><span class="hint">The webhook URL (Slack, Discord, a Teams workflow, a Google Chat space), Grafana's address, or an ntfy topic such as https://ntfy.sh/my-goliash.</span></label>
 								<label data-for="webhook">Signing secret<input name="secret" autocomplete="off"/><span class="hint">Webhook only: bodies are signed with HMAC-SHA256.</span></label>
-								<div class="row" data-for="telegram ntfy grafana">
-									<label>Token<input name="token" autocomplete="off"/><span class="hint">Telegram bot token, a Grafana service account token, or an ntfy access token (optional).</span></label>
+								<div class="row" data-for="telegram ntfy grafana pagerduty opsgenie">
+									<label>Token<input name="token" autocomplete="off"/><span class="hint">Telegram bot token, a Grafana service account token, an ntfy access token (optional), a PagerDuty service's integration key (Events API v2) or an Opsgenie API integration's key.</span></label>
 									<label data-for="telegram">Chat ID<input name="chat_id" placeholder="-1001234567890"/><span class="hint">Telegram only.</span></label>
 								</div>
+								<label data-for="opsgenie">Opsgenie API<input name="url" type="url" placeholder="https://api.opsgenie.com"/><span class="hint">Leave empty for US accounts; https://api.eu.opsgenie.com for the EU.</span></label>
+								<p class="hint" data-for="pagerduty opsgenie">Alerts open incidents: repeats join one, and an agent back or a drift resolved closes it. Upgrade plans, posture reports and briefs are not sent here.</p>
 								<label data-for="email">
 									Recipients<input name="to" placeholder="oncall@example.com, ops@example.com"/>
 									<span class="hint">Comma-separated.</span>
