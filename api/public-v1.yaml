@@ -847,6 +847,16 @@ paths:
                       type: array
                       items: { type: string }
                       description: Patches the platform has waiting for a managed service (RDS pending maintenance, ElastiCache service updates, OpenSearch service software).
+                    extended_support:
+                      type: object
+                      description: >-
+                        What AWS charges on top for a managed service it keeps running past the end of standard support
+                        (RDS and Aurora MySQL/PostgreSQL, EKS, ElastiCache for Redis OSS, OpenSearch), at US East list prices.
+                      required: [from]
+                      properties:
+                        from: { type: string, format: date, description: 'The end of standard support, when the charges start.' }
+                        monthly_usd: { type: number, description: 'US dollars a month; absent when Goliash cannot tell (an RDS database whose vCPUs are not known, ElastiCache, OpenSearch).' }
+                        basis: { type: string, example: '4 vCPU × $0.10 an hour' }
                     vulnerabilities:
                       allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
                       description: >-

@@ -244,6 +244,13 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 				if len(it.Maintenance) > 0 {
 					<span class="badge warn" title={ maintenanceTitle(it.Maintenance) }>patch pending</span>
 				}
+				if it.Extended != "" {
+					if it.ExtendedStarted {
+						<span class="badge eol" title={ it.ExtendedTitle }>{ it.Extended }</span>
+					} else {
+						<span class="badge warn" title={ it.ExtendedTitle }>{ it.Extended }</span>
+					}
+				}
 				if len(it.Exposed) > 0 {
 					if len(it.Exploited) > 0 || it.SecurityFix != "" {
 						@exposedBadge(it.Exposed, "eol")

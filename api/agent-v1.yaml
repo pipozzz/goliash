@@ -871,6 +871,14 @@ components:
           items:
             type: string
           example: ["system-update: New Operating System update is available (auto-applied after 2026-11-10)"]
+        vcpus:
+          type: integer
+          minimum: 0
+          description: |
+            The vCPUs a managed database runs on: an RDS instance's class, or the sum of an Aurora or Multi-AZ
+            cluster's instances. AWS charges Extended Support per vCPU, so the server can tell what it costs. Absent
+            when not known (Aurora Serverless). Older servers ignore it.
+          example: 4
         containers:
           type: array
           description: |

@@ -179,6 +179,10 @@ When the release notes on the way (GitHub or GitLab releases, or the project's o
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible
 changes; read the notes themselves before upgrading, as a project may say it otherwise or not at all.
+A managed database or cluster AWS keeps running past the end of standard support for a fee says what it costs:
+**Extended Support $292/month** (red once AWS charges, amber before), with the date and how it is counted in its
+tooltip, at US East list prices; see [RDS and Aurora](/install/ecs/#rds-and-aurora-databases) and
+[EKS](/install/ecs/#eks-clusters). The CSV has it as `extended_support_monthly_usd`, the API as `extended_support`.
 With [remediation deadlines](../security/#remediation-deadlines) set, a line says *due in 3 days* or *overdue 5 days*,
 and a *past deadline* tile shows only those.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the

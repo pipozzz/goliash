@@ -297,7 +297,7 @@ weekly line a security officer follows: how many production services run behind 
 90th percentile of days behind, how many are 30+ and 90+ days behind, end of life passed and near, accepted risk,
 blind spots (with why newest releases are unknown: *2 not a version, 1 checked by agent*), the three longest exposures, the services built on an [outdated base](/guide/security/#built-on-an-outdated-base), the known vulnerabilities of production's images (exploited ones named) and their packages whose [licenses need a look](/guide/security/#licenses), how the week's upgrades went out (the
 pull requests Goliash opened: merged, running, the median from merge to running, and those [merged but not
-deployed](/guide/argocd/#upgrade-with-a-pull-request) with why), and the same numbers a week before. It links to the Security page and, with Goli on, offers **Ask Goli**.
+deployed](/guide/argocd/#upgrade-with-a-pull-request) with why), what AWS charges for [Extended Support](/install/ecs/#rds-and-aurora-databases) of managed services run past the end of standard support (now, and from when on), and the same numbers a week before. It links to the Security page and, with Goli on, offers **Ask Goli**.
 
 ```sh
 goliash notify create -channel ciso -events posture_report -mode weekly

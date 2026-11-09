@@ -93,6 +93,9 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			inst.Team = workloadTeam(w.Labels)
 			inst.Exposed = exposed(w)
 			inst.Maintenance = w.Maintenance
+			if w.Vcpus != nil {
+				inst.VCPUs = *w.Vcpus
+			}
 			if w.CodeDigest != nil {
 				inst.CodeDigest = *w.CodeDigest
 			}
@@ -384,7 +387,7 @@ func sameInstance(a, b store.Instance) bool {
 		a.WorkloadKind == b.WorkloadKind && a.Namespace == b.Namespace && a.WorkloadName == b.WorkloadName && a.Tag == b.Tag &&
 		a.Running == b.Running && a.IsMain == b.IsMain && a.App == b.App && a.AppSource == b.AppSource && a.Team == b.Team &&
 		sameInt(a.Desired, b.Desired) && slices.Equal(a.Exposed, b.Exposed) && slices.Equal(a.Maintenance, b.Maintenance) &&
-		a.CodeDigest == b.CodeDigest
+		a.CodeDigest == b.CodeDigest && a.VCPUs == b.VCPUs
 }
 
 func sameInt(a, b *int) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
