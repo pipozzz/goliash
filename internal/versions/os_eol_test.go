@@ -147,3 +147,28 @@ func TestEOLRuntimes(t *testing.T) {
 		t.Fatalf("findings %+v", got)
 	}
 }
+
+func TestWarmEOL(t *testing.T) {
+	asked := map[string]bool{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked[r.URL.Path] = true
+		_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	SetSharedEOL(e)
+	defer SetSharedEOL(nil)
+	l := newLab(t)
+	ctx := context.Background()
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "ghcr.io/acme/api", Digest: "sha256:a", Purls: []string{"pkg:deb/debian/libc6@2.31?os_version=11", "pkg:golang/stdlib@1.25.7"}})
+	if err := WarmEOL(ctx, l.st, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	if !asked["/products/debian"] || !asked["/products/go"] || len(asked) != 2 {
+		t.Fatalf("asked %v", asked)
+	}
+	if cy, _, ok := OSCycle(ctx, ImageOS{Distro: "debian", Version: "11"}); !ok || !cy.IsEOL {
+		t.Fatal("not cached for the pages")
+	}
+}
