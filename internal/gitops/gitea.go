@@ -63,6 +63,15 @@ type giteaFile struct {
 	raw       []byte
 }
 
+// ReadFile reads a file of the repository on a branch, its default branch for "" or HEAD.
+func (g *Gitea) ReadFile(ctx context.Context, repo, branch, file string) ([]byte, error) {
+	owner, name, ok := g.ownerRepo(repo)
+	if !ok {
+		return nil, fmt.Errorf("%s is not on %s", repo, g.base)
+	}
+	return readContents(ctx, g.do, "/repos/"+url.PathEscape(owner)+"/"+url.PathEscape(name), branch, file)
+}
+
 // walk reads the YAML files under the application's path on its branch (the repository's default branch for
 // none), up to maxFiles, and hands each to visit. It returns the repository's API path and the branch.
 func (g *Gitea) walk(ctx context.Context, b Bump, visit func(f giteaFile)) (string, string, error) {

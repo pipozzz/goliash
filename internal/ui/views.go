@@ -681,7 +681,7 @@ type ServiceView struct {
 	SizeChange  *SizeChange // what the last deploy changed in the image, when its layers are known
 	Name        string
 	Owner       string
-	OwnerSource string // "" set by people, "label" or "app" when Goliash set it
+	OwnerSource string // "" set by people, "label", "codeowners" or "app" when Goliash set it
 	App         string // placed in this application by hand; empty: from its labels
 	Kind        string
 	Upstream    string

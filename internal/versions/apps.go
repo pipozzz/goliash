@@ -168,12 +168,16 @@ func FamilyOf(app string, apps []string) string {
 	return app
 }
 
+// CodeOwnersTeam is the team a repository's CODEOWNERS gives a path on a branch, "" for none.
+type CodeOwnersTeam func(ctx context.Context, repo, branch, path string) (string, error)
+
 // FillOwners gives services the team Goliash can tell for them, without overriding
 // people: a service's owner set by hand stays; otherwise the team its workloads'
-// labels name (goliash.team, team, owner) wins, else its application's team. Owners
-// Goliash set follow later changes of the labels or the application's team. A
-// service whose labels or applications disagree is left alone. It returns what it set.
-func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string, error) {
+// labels name (goliash.team, team, owner) wins, then the team CODEOWNERS gives the
+// path its GitOps application deploys from (with codeOwners), else its application's
+// team. Owners Goliash set follow later changes of these. A service whose sources
+// disagree is left alone. It returns what it set.
+func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, codeOwners CodeOwnersTeam) ([]string, error) {
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return nil, err
@@ -190,6 +194,10 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string,
 			}
 			labelTeams[in.ServiceID][in.Team] = true
 		}
+	}
+	ownedTeams, err := codeOwnerTeams(ctx, st, sc, active, codeOwners)
+	if err != nil {
+		return nil, err
 	}
 	teams, err := st.AppTeams(ctx, sc)
 	if err != nil {
@@ -214,6 +222,12 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string,
 			}
 		case len(lt) > 1:
 			continue // its workloads name different teams: leave it to people
+		case len(ownedTeams[svc.ID]) == 1:
+			for t := range ownedTeams[svc.ID] {
+				team, source = t, "codeowners"
+			}
+		case len(ownedTeams[svc.ID]) > 1:
+			continue
 		default:
 			team, source = agreedTeam(apps[svc.ID], teams), "app"
 		}
@@ -226,6 +240,49 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string,
 		named = append(named, svc.Name+" → "+team+" ("+source+")")
 	}
 	return named, nil
+}
+
+// codeOwnerTeams is, by service, the teams CODEOWNERS gives the paths its workloads' GitOps applications deploy
+// from. A repository that cannot be read is skipped: CODEOWNERS only adds owners, and the next check tries again.
+func codeOwnerTeams(ctx context.Context, st *store.Store, sc store.Scope, active []store.Instance, codeOwners CodeOwnersTeam) (map[string]map[string]bool, error) {
+	if codeOwners == nil {
+		return nil, nil
+	}
+	apps, err := st.ListWorkloadGitOps(ctx, sc)
+	if err != nil || len(apps) == 0 {
+		return nil, err
+	}
+	byWorkload := map[string]store.WorkloadGitOps{}
+	for _, a := range apps {
+		byWorkload[a.TargetID+"|"+a.WorkloadID] = a
+	}
+	out := map[string]map[string]bool{}
+	asked := map[string]string{}
+	for _, in := range active {
+		a, ok := byWorkload[in.TargetID+"|"+in.WorkloadID]
+		repo := RepoWebURL(a.Repo) // "" for a Helm chart repository
+		if in.ServiceID == "" || !ok || repo == "" {
+			continue
+		}
+		key := repo + "@" + a.TargetRevision + ":" + a.Path
+		team, seen := asked[key]
+		if !seen {
+			if team, err = codeOwners(ctx, repo, a.TargetRevision, a.Path); err != nil {
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				team = ""
+			}
+			asked[key] = team
+		}
+		if team != "" {
+			if out[in.ServiceID] == nil {
+				out[in.ServiceID] = map[string]bool{}
+			}
+			out[in.ServiceID][team] = true
+		}
+	}
+	return out, nil
 }
 
 // agreedTeam is the team of a service's applications when they agree on one.

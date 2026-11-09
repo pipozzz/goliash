@@ -20,6 +20,9 @@ type Provider interface {
 	Pinned(ctx context.Context, b Bump) ([]string, error)
 	OpenPulls(ctx context.Context, repo string) ([]Pull, error)
 	PullChecks(ctx context.Context, pullURL string) (string, error)
+	// ReadFile reads a file of the repository on a branch (its default branch for "" or HEAD); a file that is
+	// not there is nil without an error.
+	ReadFile(ctx context.Context, repo, branch, file string) ([]byte, error)
 }
 
 // Router sends each upgrade to the provider of its repository's host: GitHub, GitHub Enterprise, GitLab.
@@ -33,6 +36,16 @@ func (r Router) Supports(repo string) bool {
 		}
 	}
 	return false
+}
+
+// ReadFile reads a file of the repository with its provider; nil when no provider takes it or it is not there.
+func (r Router) ReadFile(ctx context.Context, repo, branch, file string) ([]byte, error) {
+	for _, p := range r {
+		if p.Supports(repo) {
+			return p.ReadFile(ctx, repo, branch, file)
+		}
+	}
+	return nil, nil
 }
 
 // OpenBump opens the upgrade with the repository's provider.

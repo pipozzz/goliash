@@ -515,6 +515,11 @@ func serve(ctx context.Context, args []string) error {
 	checker := versions.NewChecker(db, reg, log, *upstreamEvery)
 	checker.SetGitHub(versions.NewGitHub(os.Getenv("GOLIASH_GITHUB_TOKEN")))
 	checker.SetGitLab(versions.NewGitLab(os.Getenv("GOLIASH_GITLAB_URL"), os.Getenv("GOLIASH_GITLAB_TOKEN")))
+	// Owners from the CODEOWNERS of the repositories GitOps applications deploy from, read with the GitOps
+	// tokens; GOLIASH_CODEOWNERS=off leaves them out.
+	if r := gitOpsRouter(); len(r) > 0 && os.Getenv("GOLIASH_CODEOWNERS") != "off" {
+		checker.SetCodeOwners(gitops.NewCodeOwners(r).Team)
+	}
 	if *eol {
 		checker.SetEOL(versions.NewEOL())
 		// Known vulnerabilities of the packages in running images' SBOMs: osv.dev unless a mirror is named,
@@ -2963,6 +2968,14 @@ func gitOpsPulls(demo bool) ui.PullRequester {
 	if demo { // the demo data's repositories are made up: show what would be opened, open nothing
 		return gitops.Demo{}
 	}
+	if r := gitOpsRouter(); len(r) > 0 {
+		return r
+	}
+	return nil
+}
+
+// gitOpsRouter is a provider for each forge with a GitOps token.
+func gitOpsRouter() gitops.Router {
 	var r gitops.Router
 	if token := os.Getenv("GOLIASH_GITOPS_TOKEN"); token != "" {
 		r = append(r, gitops.NewGitHub(token, os.Getenv("GOLIASH_GITOPS_GITHUB_API")))
@@ -2972,9 +2985,6 @@ func gitOpsPulls(demo bool) ui.PullRequester {
 	}
 	if token, base := os.Getenv("GOLIASH_GITOPS_GITEA_TOKEN"), os.Getenv("GOLIASH_GITEA_URL"); token != "" && base != "" {
 		r = append(r, gitops.NewGitea(token, base))
-	}
-	if len(r) == 0 {
-		return nil
 	}
 	return r
 }

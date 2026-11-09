@@ -85,6 +85,23 @@ func (g *GitLab) Pinned(ctx context.Context, b Bump) ([]string, error) {
 	return tags, err
 }
 
+// ReadFile reads a file of the project on a branch, its default branch for "" or HEAD.
+func (g *GitLab) ReadFile(ctx context.Context, repo, branch, file string) ([]byte, error) {
+	if !g.Supports(repo) {
+		return nil, fmt.Errorf("%s is not on %s", repo, g.base)
+	}
+	u, _ := url.Parse(repo)
+	if branch == "" {
+		branch = "HEAD"
+	}
+	raw, err := g.raw(ctx, "/projects/"+url.PathEscape(strings.Trim(u.Path, "/"))+"/repository/files/"+
+		url.PathEscape(strings.Trim(file, "/"))+"/raw?ref="+url.QueryEscape(branch))
+	if notFound(err) {
+		return nil, nil
+	}
+	return raw, err
+}
+
 // walk reads the YAML files under the application's path on its branch (the project's default branch for none),
 // up to maxFiles, and hands each to visit.
 func (g *GitLab) walk(ctx context.Context, b Bump, visit func(path string, raw []byte)) (string, Plan, error) {
