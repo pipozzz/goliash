@@ -1960,3 +1960,25 @@ func TestStatusPage(t *testing.T) {
 		}
 	}
 }
+
+// The add form sends every channel type's fields, several named url: the one filled in counts, so an Opsgenie
+// channel keeps its EU address.
+func TestOpsgenieChannelFromTheForm(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleOwner)
+	add := url.Values{
+		"name": {"pager"}, "type": {"opsgenie"}, "token": {"genie-key"},
+		"url": {"", "https://api.eu.opsgenie.com", ""},
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", add); !strings.Contains(body, "Channel pager added") {
+		t.Fatalf("add: %s", body)
+	}
+	chans, _ := e.st.ListChannels(ctx, e.ws.Scope())
+	chans = ownChannels(chans)
+	var cfg map[string]any
+	_ = json.Unmarshal(chans[0].Config, &cfg)
+	if chans[0].Type != "opsgenie" || cfg["token"] != "genie-key" || cfg["url"] != "https://api.eu.opsgenie.com" {
+		t.Fatalf("%s %v", chans[0].Type, cfg)
+	}
+}

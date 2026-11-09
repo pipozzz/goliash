@@ -2024,9 +2024,13 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 // stored settings: an empty field keeps its value, so secrets never travel back to
 // the browser. problem is a message for the person when something is missing.
 func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[string]any, problem string) {
+	_ = r.ParseForm()
 	field := func(form, key string) string {
-		if v := strings.TrimSpace(r.FormValue(form)); v != "" {
-			return v
+		// The add form has a field per channel type, some with the same name (url): the one filled in counts.
+		for _, v := range r.Form[form] {
+			if v = strings.TrimSpace(v); v != "" {
+				return v
+			}
 		}
 		if v, ok := old[key].(string); ok {
 			return v
@@ -2061,6 +2065,25 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter Grafana's URL and a service account token."
 		}
 		cfg["url"], cfg["token"] = u, token
+	case "pagerduty":
+		token := field("token", "token")
+		if token == "" {
+			return nil, "Enter the integration key of a PagerDuty service (Events API v2)."
+		}
+		cfg["token"] = token
+	case "opsgenie":
+		token := field("token", "token")
+		if token == "" {
+			return nil, "Enter the API key of an Opsgenie API integration."
+		}
+		cfg["token"] = token
+		if raw := field("url", "url"); raw != "" {
+			u, ok := httpURL(raw)
+			if !ok {
+				return nil, "Enter Opsgenie's API address, such as https://api.eu.opsgenie.com, or leave it empty for the US."
+			}
+			cfg["url"] = strings.TrimSuffix(u, "/")
+		}
 	case "telegram":
 		token, chat := field("token", "bot_token"), field("chat_id", "chat_id")
 		if token == "" || chat == "" {
@@ -3727,8 +3750,15 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 // keepFields copies optional settings from a form: a value sets it, an empty field clears it, and a form without the
 // field keeps what was stored.
 func keepFields(r *http.Request, old, cfg map[string]any, keys ...string) {
+	_ = r.ParseForm()
 	for _, k := range keys {
-		if v := strings.TrimSpace(r.FormValue(k)); v != "" {
+		v := ""
+		for _, x := range r.Form[k] { // the add form repeats names across channel types: the filled one counts
+			if v = strings.TrimSpace(x); v != "" {
+				break
+			}
+		}
+		if v != "" {
 			cfg[k] = v
 		} else if v, ok := old[k].(string); ok && !r.Form.Has(k) {
 			cfg[k] = v
