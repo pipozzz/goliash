@@ -17,7 +17,7 @@ type Service struct {
 	Scope         Scope
 	Name          string
 	Owner         string
-	OwnerSource   string // '' set by people; "label", "codeowners" or "app" when Goliash set it and follows changes
+	OwnerSource   string // '' set by people; "label", "backstage", "codeowners" or "app" when Goliash set it and follows changes
 	App           string // the application it is placed in by hand; empty: from its workloads
 	Kind          string // own or third_party; see KindChosen
 	KindChosen    bool   // a person chose Kind; else it is worked out from the image (versions.ServiceKind)

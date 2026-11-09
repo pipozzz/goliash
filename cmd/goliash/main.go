@@ -520,6 +520,10 @@ func serve(ctx context.Context, args []string) error {
 	if r := gitOpsRouter(); len(r) > 0 && os.Getenv("GOLIASH_CODEOWNERS") != "off" {
 		checker.SetCodeOwners(gitops.NewCodeOwners(r).Team)
 	}
+	// Owners of a Backstage catalog's components (a static token from its external access, if it asks for one).
+	if u := os.Getenv("GOLIASH_BACKSTAGE_URL"); u != "" {
+		checker.SetBackstage(versions.NewBackstage(u, os.Getenv("GOLIASH_BACKSTAGE_TOKEN")))
+	}
 	if *eol {
 		checker.SetEOL(versions.NewEOL())
 		// Known vulnerabilities of the packages in running images' SBOMs: osv.dev unless a mirror is named,

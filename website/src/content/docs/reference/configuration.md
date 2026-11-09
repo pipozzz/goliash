@@ -36,6 +36,8 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITOPS_GITLAB_TOKEN` | | | A GitLab token (`api` scope, Developer on the deploy projects) for merge requests on gitlab.com, or on `GOLIASH_GITLAB_URL` |
 | `GOLIASH_GITOPS_GITEA_TOKEN` | | | A Gitea or Forgejo access token (`write:repository`) for pull requests on `GOLIASH_GITEA_URL` |
 | `GOLIASH_GITEA_URL` | | | The Gitea or Forgejo instance, e.g. `https://git.example.com` or `https://codeberg.org` |
+| `GOLIASH_BACKSTAGE_URL` | | | A Backstage instance (`https://backstage.example.com`): services' [owners](/guide/apps/#teams) from its catalog's components |
+| `GOLIASH_BACKSTAGE_TOKEN` | | | A static token from Backstage's external access, when its catalog asks for one |
 | `GOLIASH_CODEOWNERS` | | on | `off` stops reading services' [owners from CODEOWNERS](/guide/apps/#teams) of the GitOps repositories with the GitOps tokens |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |

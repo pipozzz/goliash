@@ -110,12 +110,16 @@ A service's team is its **owner**. Goliash takes it from, in this order:
    rename). It is never overridden;
 2. **the workloads' labels**: `goliash.team`, `team`, `owner` or `app.kubernetes.io/team` (first found). It follows
    label changes within a minute;
-3. **CODEOWNERS**: for a workload deployed by a [GitOps application](/guide/argocd/) (Argo CD, Flux, or
+3. **Backstage**: with `GOLIASH_BACKSTAGE_URL`, the owner of the service's component in the software catalog
+   (`spec.owner`, a group: `group:default/team-payments` is `team-payments`; a person is no team). A component is
+   the service whose name it has, or the one its `goliash.dev/service` annotation names, or the service of the
+   workload its `backstage.io/kubernetes-id` names. The catalog is read at most once an hour;
+4. **CODEOWNERS**: for a workload deployed by a [GitOps application](/guide/argocd/) (Argo CD, Flux, or
    [`goliash.git.*` labels](/guide/argocd/#without-argo-cd-or-flux)), the team the deploy repository's `CODEOWNERS`
    gives the application's path: the first `@org/team` of the last line that covers it, as `team`. Goliash reads it
    with the [GitOps tokens](/reference/configuration/) (GitHub, GitLab, Gitea or Forgejo), from `.github/`,
    `.gitlab/`, `.gitea/`, the root or `docs/`, at most once an hour per repository;
-4. **the application's team** (*Set team* on the Applications page), for services without any of these.
+5. **the application's team** (*Set team* on the Applications page), for services without any of these.
 
 Each team's card on **Settings → Teams** is a small scorecard: how many of its services are up to date, and how many
 run a vulnerability exploited in the wild, a release past its end of life, a rollout that does not finish, or a
@@ -137,6 +141,23 @@ card says so instead.
 
 Here the services deployed from `apps/payments/prod` belong to `team-payments`, everything else to `platform`. A
 line naming only people (`@alice`) gives no team. `GOLIASH_CODEOWNERS=off` turns this source off.
+
+For Backstage, Goliash reads `/api/catalog/entities/by-query` (components only, their names, annotations and
+owners). If the catalog asks for a token, give Goliash a static one from Backstage's
+[external access](https://backstage.io/docs/auth/service-to-service-auth#static-tokens) as `GOLIASH_BACKSTAGE_TOKEN`:
+
+```yaml
+# app-config.yaml of Backstage
+backend:
+  auth:
+    externalAccess:
+      - type: static
+        options:
+          token: ${GOLIASH_TOKEN}
+          subject: goliash
+        accessRestrictions:
+          - plugin: catalog
+```
 
 A service whose workloads name different teams, or whose applications have different teams, is left for people.
 The service page says where its owner came from; changing it there takes over from labels for good.

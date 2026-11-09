@@ -75,7 +75,7 @@ type Checker struct {
 	github      *GitHub
 	gitlab      *GitLab
 	eol         *EOL
-	codeOwners  CodeOwnersTeam // nil without a token for the GitOps repositories
+	owners      OwnerSources // CODEOWNERS and Backstage, when set up
 	osv         *OSV
 	kev         *KEV
 	// debianTracker is where Debian's security tracker data is read; debianTried, when it was last tried.
@@ -106,7 +106,10 @@ func NewChecker(st *store.Store, tags TagLister, log *slog.Logger, ttl time.Dura
 }
 
 // SetCodeOwners lets owners come from the CODEOWNERS of the repositories GitOps applications deploy from.
-func (c *Checker) SetCodeOwners(fn CodeOwnersTeam) { c.codeOwners = fn }
+func (c *Checker) SetCodeOwners(fn CodeOwnersTeam) { c.owners.CodeOwners = fn }
+
+// SetBackstage lets owners come from the owners of a Backstage catalog's components.
+func (c *Checker) SetBackstage(b *Backstage) { c.owners.Catalog = b.Components }
 
 // OnEvents registers a callback for new_release and drift events.
 func (c *Checker) OnEvents(fn func(store.Scope, []store.Event)) { c.onEvents = fn }
@@ -162,7 +165,7 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		if err := c.checkUpstreams(ctx, ws.Scope(), !upstream); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "upstream check failed", "workspace", ws.Slug, "err", err)
 		}
-		if named, err := FillOwners(ctx, c.store, ws.Scope(), c.codeOwners); err != nil && ctx.Err() == nil {
+		if named, err := FillOwners(ctx, c.store, ws.Scope(), c.owners); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "giving services their application's team failed", "workspace", ws.Slug, "err", err)
 		} else if len(named) > 0 {
 			c.log.InfoContext(ctx, "services got their application's team", "workspace", ws.Slug, "services", named)

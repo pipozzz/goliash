@@ -171,13 +171,19 @@ func FamilyOf(app string, apps []string) string {
 // CodeOwnersTeam is the team a repository's CODEOWNERS gives a path on a branch, "" for none.
 type CodeOwnersTeam func(ctx context.Context, repo, branch, path string) (string, error)
 
+// OwnerSources are where owners come from besides labels and applications; each may be nil.
+type OwnerSources struct {
+	CodeOwners CodeOwnersTeam
+	Catalog    func(ctx context.Context) ([]CatalogComponent, error) // a Backstage catalog
+}
+
 // FillOwners gives services the team Goliash can tell for them, without overriding
 // people: a service's owner set by hand stays; otherwise the team its workloads'
-// labels name (goliash.team, team, owner) wins, then the team CODEOWNERS gives the
-// path its GitOps application deploys from (with codeOwners), else its application's
-// team. Owners Goliash set follow later changes of these. A service whose sources
-// disagree is left alone. It returns what it set.
-func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, codeOwners CodeOwnersTeam) ([]string, error) {
+// labels name (goliash.team, team, owner) wins, then the team of its Backstage
+// component, then the team CODEOWNERS gives the path its GitOps application deploys
+// from, else its application's team. Owners Goliash set follow later changes of these.
+// A service whose sources disagree is left alone. It returns what it set.
+func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, src OwnerSources) ([]string, error) {
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return nil, err
@@ -195,7 +201,11 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, codeOwners
 			labelTeams[in.ServiceID][in.Team] = true
 		}
 	}
-	ownedTeams, err := codeOwnerTeams(ctx, st, sc, active, codeOwners)
+	ownedTeams, err := codeOwnerTeams(ctx, st, sc, active, src.CodeOwners)
+	if err != nil {
+		return nil, err
+	}
+	catalogTeams, err := catalogTeams(ctx, services, active, src.Catalog)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +232,12 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, codeOwners
 			}
 		case len(lt) > 1:
 			continue // its workloads name different teams: leave it to people
+		case len(catalogTeams[svc.ID]) == 1:
+			for t := range catalogTeams[svc.ID] {
+				team, source = t, "backstage"
+			}
+		case len(catalogTeams[svc.ID]) > 1:
+			continue
 		case len(ownedTeams[svc.ID]) == 1:
 			for t := range ownedTeams[svc.ID] {
 				team, source = t, "codeowners"
@@ -240,6 +256,58 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, codeOwners
 		named = append(named, svc.Name+" → "+team+" ("+source+")")
 	}
 	return named, nil
+}
+
+// catalogTeams is, by service, the teams owning the Backstage components that are it: by the goliash.dev/service
+// annotation, else by the component's name, or by backstage.io/kubernetes-id naming one of its workloads. A catalog
+// that cannot be read is skipped until the next check.
+func catalogTeams(ctx context.Context, services []store.Service, active []store.Instance, catalog func(context.Context) ([]CatalogComponent, error)) (map[string]map[string]bool, error) {
+	if catalog == nil {
+		return nil, nil
+	}
+	comps, err := catalog(ctx)
+	if err != nil || len(comps) == 0 {
+		return nil, ctx.Err()
+	}
+	byName, byWorkload := map[string]string{}, map[string]map[string]bool{}
+	for _, s := range services {
+		byName[strings.ToLower(s.Name)] = s.ID
+	}
+	for _, in := range active {
+		if in.ServiceID != "" && in.WorkloadName != "" {
+			w := strings.ToLower(in.WorkloadName)
+			if byWorkload[w] == nil {
+				byWorkload[w] = map[string]bool{}
+			}
+			byWorkload[w][in.ServiceID] = true
+		}
+	}
+	out := map[string]map[string]bool{}
+	add := func(id, team string) {
+		if out[id] == nil {
+			out[id] = map[string]bool{}
+		}
+		out[id][team] = true
+	}
+	for _, c := range comps {
+		if c.Team == "" {
+			continue
+		}
+		name := c.Service
+		if name == "" {
+			name = c.Name
+		}
+		if id, ok := byName[strings.ToLower(name)]; ok {
+			add(id, c.Team)
+			continue
+		}
+		if c.Service == "" && c.KubernetesID != "" {
+			for id := range byWorkload[strings.ToLower(c.KubernetesID)] {
+				add(id, c.Team)
+			}
+		}
+	}
+	return out, nil
 }
 
 // codeOwnerTeams is, by service, the teams CODEOWNERS gives the paths its workloads' GitOps applications deploy

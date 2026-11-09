@@ -123,7 +123,7 @@ func TestFillOwners(t *testing.T) {
 	run(both, "prod-a", "shop-frontend")
 	run(both, "prod-b", "identity")
 	_ = l.st.SetAppTeam(ctx, l.sc, "identity", "platform")
-	named, err := FillOwners(ctx, l.st, l.sc, nil)
+	named, err := FillOwners(ctx, l.st, l.sc, OwnerSources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestFillOwners(t *testing.T) {
 	}
 	// An owner set by hand stays.
 	_, _ = l.st.SetOwners(ctx, l.sc, []string{cart.ID}, "someone", "")
-	_, _ = FillOwners(ctx, l.st, l.sc, nil)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{})
 	if owner(cart) != "someone" {
 		t.Fatal("an owner set by hand was replaced")
 	}
@@ -168,17 +168,17 @@ func TestOwnersFromLabels(t *testing.T) {
 	}
 	_ = l.st.SetAppTeam(ctx, l.sc, "webshop", "team-shop")
 	deploy("")
-	_, _ = FillOwners(ctx, l.st, l.sc, nil)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{})
 	if o, src := owner(); o != "team-shop" || src != "app" {
 		t.Fatalf("from the application: %q %q", o, src)
 	}
 	deploy("payments")
-	_, _ = FillOwners(ctx, l.st, l.sc, nil)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{})
 	if o, src := owner(); o != "payments" || src != "label" {
 		t.Fatalf("from the label: %q %q", o, src)
 	}
 	deploy("checkout")
-	_, _ = FillOwners(ctx, l.st, l.sc, nil)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{})
 	if o, _ := owner(); o != "checkout" {
 		t.Fatalf("label change not followed: %q", o)
 	}
@@ -187,7 +187,7 @@ func TestOwnersFromLabels(t *testing.T) {
 	svc.Owner = "sre"
 	_ = l.st.UpdateService(ctx, svc)
 	deploy("someone-else")
-	_, _ = FillOwners(ctx, l.st, l.sc, nil)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{})
 	if o, src := owner(); o != "sre" || src != "" {
 		t.Fatalf("an owner set by people was replaced: %q %q", o, src)
 	}
@@ -225,7 +225,7 @@ func TestOwnersFromCodeOwners(t *testing.T) {
 		s, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
 		return s.Owner, s.OwnerSource
 	}
-	if _, err := FillOwners(ctx, l.st, l.sc, codeOwners); err != nil {
+	if _, err := FillOwners(ctx, l.st, l.sc, OwnerSources{CodeOwners: codeOwners}); err != nil {
 		t.Fatal(err)
 	}
 	if o, src := owner(); o != "payments" || src != "codeowners" {
@@ -236,12 +236,12 @@ func TestOwnersFromCodeOwners(t *testing.T) {
 	}
 	// Without CODEOWNERS for the path, the application's team takes over again.
 	none := func(context.Context, string, string, string) (string, error) { return "", nil }
-	_, _ = FillOwners(ctx, l.st, l.sc, none)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{CodeOwners: none})
 	if o, src := owner(); o != "team-shop" || src != "app" {
 		t.Fatalf("back to the application: %q %q", o, src)
 	}
 	deploy("checkout")
-	_, _ = FillOwners(ctx, l.st, l.sc, codeOwners)
+	_, _ = FillOwners(ctx, l.st, l.sc, OwnerSources{CodeOwners: codeOwners})
 	if o, src := owner(); o != "checkout" || src != "label" {
 		t.Fatalf("the label first: %q %q", o, src)
 	}
