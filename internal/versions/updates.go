@@ -128,7 +128,16 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		u := byKey[k]
 		if u.Target == "" { // end of life only: point at the newest acceptable release
 			if up, ok := o.Upstreams[k.svc]; ok && up.HasLatest {
-				u.Target = up.Latest.Raw
+				switch {
+				case !runsBelow(o, k.svc, k.app, k.env, up.Latest):
+					// The newest release runs already: an end of life to come has nothing to move to yet, and one
+					// passed needs a fork or a replacement, not this release.
+					if !u.EOLPassed {
+						continue
+					}
+				default:
+					u.Target = up.Latest.Raw
+				}
 			}
 		}
 		if u.Target != "" {
@@ -409,4 +418,35 @@ func remedy(a Affected) string {
 		return "a base on a supported release: " + a.EOLOS + " is past its end of life and gets no fixes"
 	}
 	return "no fix known yet"
+}
+
+// runsBelow reports whether anything a service runs in an environment (within app, when the service is split by
+// application) is older than v, or does not read as a version.
+func runsBelow(o Overview, svc, app, env string, v Version) bool {
+	ei := -1
+	for i, e := range o.Matrix.Environments {
+		if e.ID == env {
+			ei = i
+		}
+	}
+	for _, row := range o.Matrix.Rows {
+		if row.Service.ID != svc || ei < 0 {
+			continue
+		}
+		for _, part := range row.Units() {
+			if part.App != app || ei >= len(part.Cells) {
+				continue
+			}
+			if len(part.Cells[ei].Versions) == 0 {
+				return true
+			}
+			for _, rv := range part.Cells[ei].Versions {
+				if pv, ok := ParseVersion(rv.Version()); !ok || pv.Compare(v) < 0 {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return true
 }
