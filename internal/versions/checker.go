@@ -147,6 +147,9 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 			if err := c.CheckUpstreamFixes(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "upstream fix lookup failed", "workspace", ws.Slug, "err", err)
 			}
+			if err := WarmEOL(ctx, c.store, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.WarnContext(ctx, "end-of-life lookup of operating systems and Go failed", "workspace", ws.Slug, "err", err)
+			}
 			if err := c.AlertVulnerabilities(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "vulnerability alerts failed", "workspace", ws.Slug, "err", err)
 			}

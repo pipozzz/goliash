@@ -2555,6 +2555,10 @@ func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
+	versions.SetSharedEOL(versions.NewEOL())
+	if err := versions.WarmEOL(ctx, db, ws.Scope()); err != nil { // operating systems and Go past their end of life
+		_, _ = fmt.Fprintln(os.Stderr, "goliash: "+err.Error()+"; leaving out what is past its end of life")
+	}
 	findings, err := versions.LoadHygiene(ctx, db, ws.Scope())
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync/atomic"
@@ -284,4 +285,35 @@ func GoPastEOL(ctx context.Context, v string) bool {
 	}
 	cy, ok := CycleFor(v, cycles)
 	return ok && (cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(time.Now()))
+}
+
+// SetSharedEOL sets the endoflife.date client read outside a checker, for a command that has no server.
+func SetSharedEOL(e *EOL) { sharedEOL.Store(e) }
+
+// WarmEOL fetches the release cycles of the operating systems and of Go that a workspace's images are built on,
+// so the pages and alerts that read them from the cache (and never wait for endoflife.date) have them.
+func WarmEOL(ctx context.Context, st *store.Store, sc store.Scope) error {
+	e := sharedEOL.Load()
+	if e == nil {
+		return nil
+	}
+	sboms, err := st.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return err
+	}
+	products := map[string]bool{}
+	for _, b := range sboms {
+		if o, ok := OSOf(b.Purls); ok {
+			products[osProducts[o.Distro]] = true
+		}
+		if _, ok := GoOf(b.Purls); ok {
+			products["go"] = true
+		}
+	}
+	for p := range products {
+		if _, err := e.Cycles(ctx, p); err != nil && ctx.Err() == nil {
+			return fmt.Errorf("end of life of %s: %w", p, err)
+		}
+	}
+	return nil
 }
