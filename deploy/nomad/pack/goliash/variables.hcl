@@ -19,7 +19,7 @@ variable "datacenters" {
 variable "image" {
   description = "The Goliash server image. Pin a tag in production."
   type        = string
-  default     = "ghcr.io/pipozzz/goliash:1.217.2"
+  default     = "ghcr.io/pipozzz/goliash:1.218.0"
 }
 
 variable "port" {
