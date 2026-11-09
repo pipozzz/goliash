@@ -131,3 +131,35 @@ func TestWithUnpatched(t *testing.T) {
 		t.Fatalf("leadqc %+v", lq)
 	}
 }
+
+// An end of life to come, with the newest release running already (through a moving tag): nothing to upgrade to.
+func TestUpdatesEOLOnNewest(t *testing.T) {
+	now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	prod := store.Environment{ID: "prod", Name: "prod", Position: 30}
+	mb := store.Service{ID: "mb", Name: "metabase"}
+	cell := func(tag, resolved string) []Cell {
+		return []Cell{{Versions: []RunningVersion{{Tag: tag, Resolved: resolved}}}}
+	}
+	eol := func(date string) map[string][]store.Drift {
+		b, _ := json.Marshal(DriftDetail{Running: "v0.65.x", Other: "0.65", EOL: date})
+		return map[string][]store.Drift{"mb|prod": {{ServiceID: "mb", EnvironmentID: "prod", Kind: "eol", Detail: b, Since: now}}}
+	}
+	o := Overview{
+		Services: map[string]store.Service{"mb": mb}, Envs: map[string]store.Environment{"prod": prod},
+		Upstreams: map[string]Upstream{"mb": {Latest: mustVersion(t, "v0.65.3.3"), HasLatest: true}},
+		Matrix:    Matrix{Environments: []store.Environment{prod}, Rows: []Row{{Service: mb, Cells: cell("v0.65.x", "v0.65.3.3")}}},
+		Drifts:    eol("2027-01-01"),
+	}
+	if us := Updates(o, nil, now); len(us) != 0 {
+		t.Fatalf("an upgrade to what runs: %+v", us)
+	}
+	o.Drifts = eol("2026-11-01") // passed: still listed, with nothing to move to named
+	if us := Updates(o, nil, now); len(us) != 1 || us[0].Target != "" || !us[0].EOLPassed {
+		t.Fatalf("passed end of life %+v", us)
+	}
+	o.Drifts = eol("2027-01-01")
+	o.Matrix.Rows[0].Cells = cell("v0.65.2", "")
+	if us := Updates(o, nil, now); len(us) != 1 || us[0].Target != "v0.65.3.3" {
+		t.Fatalf("older running %+v", us)
+	}
+}
