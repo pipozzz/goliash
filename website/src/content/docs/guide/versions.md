@@ -155,6 +155,15 @@ marked *declared*.
 
 When the drift ends, a `drift_resolved` event follows.
 
+## Builds tagged with commit hashes
+
+An image tagged with a commit hash (`chat:bca73851`) has no version to compare, so it has no newest *release*.
+For Amazon ECR the agent also reads when each image was pushed (`ecr:DescribeImages`, part of
+`AmazonEC2ContainerRegistryReadOnly`; the policies Goliash ships include it), and the service page shows the
+**newest build** instead: its tag and when it was pushed, leaving out moving tags such as `latest` or `prod`. Under
+each running version it says when that build was pushed, and **newer build** when the registry has one pushed after
+it. Without the permission everything else works, without the times.
+
 ## Updates
 
 **Updates** is a to-do list of upgrades: one line per service (and application) and environment with open end of

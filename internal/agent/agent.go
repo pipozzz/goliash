@@ -64,6 +64,11 @@ type ECRLister interface {
 	ListTags(ctx context.Context, repository, profile string) ([]string, error)
 }
 
+// ECRTimes tells when each tag of an ECR repository was pushed. ecr.Lister implements it.
+type ECRTimes interface {
+	TagTimes(ctx context.Context, repository, profile string) (map[string]time.Time, error)
+}
+
 // ECRAuth gives registry credentials for an ECR repository, so its manifests, signatures and attestations
 // can be read with the Distribution API. ecr.Lister implements it.
 type ECRAuth interface {

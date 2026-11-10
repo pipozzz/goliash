@@ -41,6 +41,17 @@ type fakeECR struct {
 	tokenCalls int
 }
 
+func (f *fakeECR) DescribeImages(_ context.Context, _ *ecr.DescribeImagesInput, _ ...func(*ecr.Options)) (*ecr.DescribeImagesOutput, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	day := func(d int) *time.Time { t := time.Date(2026, 11, d, 9, 0, 0, 0, time.UTC); return &t }
+	return &ecr.DescribeImagesOutput{ImageDetails: []types.ImageDetail{
+		{ImageTags: []string{"bca73851"}, ImagePushedAt: day(3)},
+		{ImageTags: []string{"f00d1e5", "latest"}, ImagePushedAt: day(9)},
+	}}, nil
+}
+
 func (f *fakeECR) GetAuthorizationToken(context.Context, *ecr.GetAuthorizationTokenInput, ...func(*ecr.Options)) (*ecr.GetAuthorizationTokenOutput, error) {
 	f.tokenCalls++
 	expires := time.Date(2026, 10, 9, 22, 0, 0, 0, time.UTC)
@@ -126,5 +137,15 @@ func TestCredentials(t *testing.T) {
 	}
 	if _, err := l.Credentials(context.Background(), "ghcr.io/acme/x", ""); err == nil {
 		t.Error("credentials for a non-ECR repository")
+	}
+}
+
+// Push times come per image, for each of its tags.
+func TestTagTimes(t *testing.T) {
+	f := &fakeECR{}
+	l := &Lister{NewAPI: func(context.Context, string, string) (API, error) { return f, nil }}
+	got, err := l.TagTimes(context.Background(), "240220093055.dkr.ecr.us-west-2.amazonaws.com/chat", "")
+	if err != nil || len(got) != 3 || got["latest"] != got["f00d1e5"] || got["bca73851"].Day() != 3 {
+		t.Fatalf("%v %v", got, err)
 	}
 }

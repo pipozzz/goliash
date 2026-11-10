@@ -143,7 +143,7 @@ Resources:
               - Sid: ReadEcrImages
                 Effect: Allow
                 # Tags, and the manifests, signatures, attestations and SBOMs of running images.
-                Action: ["ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+                Action: ["ecr:ListImages", "ecr:DescribeImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
                 Resource: "*"
               - !If
                 - Lambda

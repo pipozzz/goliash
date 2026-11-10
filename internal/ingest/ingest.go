@@ -292,8 +292,17 @@ func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentp
 	}
 	for _, r := range res.Results {
 		var tags []string
+		pushed := map[string]time.Time{}
 		for _, t := range r.Tags {
 			tags = append(tags, t.Name)
+			if t.CreatedAt != nil {
+				pushed[t.Name] = *t.CreatedAt
+			}
+		}
+		if len(pushed) > 0 { // when each build went out: orders those tagged with commit hashes
+			if err := s.store.SetTagTimes(ctx, a.Scope, r.Repository, pushed); err != nil {
+				return err
+			}
 		}
 		checkErr := ""
 		if r.Error != nil {

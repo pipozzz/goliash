@@ -794,11 +794,18 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			v.LatestAny = u.LatestAny.Raw
 		}
 	}
+	var builds []store.TagTime
+	if _, isVersion := versions.ParseVersion(ref.Tag); !isVersion && ref.Repo != "" && v.Latest == "" {
+		builds, _ = s.store.TagTimes(ctx, p.Scope, ref.Repo)
+		if b, ok := versions.NewestBuildOf(builds, ref.Tag); ok {
+			v.Build = &b
+		}
+	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
 	if v.CheckError == versions.BuiltLocally {
 		v.CheckError = "" // not a failure: the notice below says what it is
 	}
-	if u, ok := versions.WhyUnknown(o, svc.ID); ok {
+	if u, ok := versions.WhyUnknown(o, svc.ID); ok && v.Build == nil { // with push times, Newest build says it
 		v.Unknown = versions.UnknownService{Service: svc.Name, Repo: ref.Repo, Unknown: u}
 	}
 	if issues, err := versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err == nil {
@@ -899,6 +906,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			running = row.Cells[ei].Versions
 			for _, ver := range running {
 				vv := VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")}
+				if b, ok := versions.NewestBuildOf(builds, ver.Tag); ok && !b.RunningPushedAt.IsZero() {
+					vv.PushedAt, vv.Older = b.RunningPushedAt, b.Newer
+				}
 				for i, name := range ver.Targets {
 					if i < len(ver.TargetIDs) {
 						vv.Links = append(vv.Links, TargetLink{Name: name, ID: ver.TargetIDs[i]})

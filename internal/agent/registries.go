@@ -89,9 +89,14 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 		if c.TagFilter != nil {
 			filter, _ = regexp.Compile(*c.TagFilter)
 		}
+		pushed := a.pushTimes(ctx, c)
 		for _, t := range tags {
 			if filter == nil || filter.MatchString(t) {
-				r.Tags = append(r.Tags, agentproto.RegistryTag{Name: t})
+				tag := agentproto.RegistryTag{Name: t}
+				if at, ok := pushed[t]; ok {
+					tag.CreatedAt = &at
+				}
+				r.Tags = append(r.Tags, tag)
 			}
 		}
 		if !managed(c.Repository) {
@@ -102,6 +107,30 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 		out = append(out, r)
 	}
 	return out
+}
+
+// pushTimes is when each tag of an ECR repository was pushed, for ordering builds tagged with commit hashes; none
+// for other registries, or without ecr:DescribeImages (the tags still count, without their times).
+func (a *Agent) pushTimes(ctx context.Context, c agentproto.RegistryCheck) map[string]time.Time {
+	if _, _, _, ok := ecr.Parse(c.Repository); !ok {
+		return nil
+	}
+	t, ok := a.opts.ECR.(ECRTimes)
+	if !ok {
+		return nil
+	}
+	profile := ""
+	if c.CredentialsRef != nil && *c.CredentialsRef != "" {
+		if s, err := collectors.Credential(*c.CredentialsRef); err == nil {
+			profile = strings.TrimSpace(s)
+		}
+	}
+	times, err := t.TagTimes(ctx, c.Repository, profile)
+	if err != nil {
+		a.log.Debug("no push times for an ECR repository", "repository", c.Repository, "err", err)
+		return nil
+	}
+	return times
 }
 
 // keychain gathers the registry credentials the agent finds by itself: Docker's

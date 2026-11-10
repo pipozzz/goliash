@@ -69,9 +69,18 @@ templ ServicePage(v ServiceView) {
 				</div>
 			}
 			<div class="fact">
-				<dt>Latest acceptable</dt>
+				if v.Build != nil {
+					<dt>Newest build</dt>
+				} else {
+					<dt>Latest acceptable</dt>
+				}
 				<dd>
-					<span class="mono">{ orDash(v.Latest) }</span>
+					if v.Build != nil {
+						<span class="mono">{ v.Build.Tag }</span>
+						<div class="targets" title="Its tags are no versions: builds are ordered by when they were pushed to the registry">{ "pushed " + v.Build.PushedAt.Format("2006-01-02") }</div>
+					} else {
+						<span class="mono">{ orDash(v.Latest) }</span>
+					}
 					if v.Goli && v.Latest != "" {
 						<button type="button" class="link ask-goli noprint" data-goli-ask={ "Brief me on upgrading " + v.Name + " to " + v.Latest + " from what runs in each environment: what breaks or needs migrating, what it fixes (security first), and what to check before and after." } title="Goli reads the release notes and briefs you">Brief</button>
 					}
@@ -616,6 +625,14 @@ templ exposedBadge(ways []string, class string) {
 
 templ runningVersion(ver VersionView) {
 	<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
+	if !ver.PushedAt.IsZero() {
+		<div class="targets">
+			{ "pushed " + ver.PushedAt.Format("2006-01-02") }
+			if ver.Older {
+				<span class="badge warn" title="The registry has a build pushed after this one">newer build</span>
+			}
+		</div>
+	}
 	if len(ver.Links) > 0 {
 		<div class="targets">
 			for i, l := range ver.Links {
