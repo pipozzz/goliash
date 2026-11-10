@@ -252,7 +252,10 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 		From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
 	}
 	it.Text = Describe(it)
-	if u.Target == "" && u.Remedy != "" {
+	switch {
+	case u.MaintenanceOnly:
+		it.Text += "; waiting at the platform (" + strings.Join(u.Maintenance, "; ") + "), to do: " + u.Remedy
+	case u.Target == "" && u.Remedy != "":
 		it.Text += "; no newer release known, fix: " + u.Remedy
 	}
 	if len(u.Path) > 1 {

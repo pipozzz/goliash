@@ -200,6 +200,9 @@ stops](https://docs.gitlab.com/update/upgrade_paths/) for `gitlab/gitlab-ce` and
 → 17.8.7-ce.0 → 17.11.6-ce.0*), each stop the newest known release of its line. **Open PR**, the upgrade plan's link and [automatic pull requests](/guide/argocd/#automatic-pull-requests) go
 to the first stop; once it runs, the next one is the line's first. The ticket, the plan and the API (`path`) list them
 all.
+What waits at the platform with no newer version to move to has a line of its own too: a host waiting for a
+reboot (*nothing newer to move to · reboot*), or a managed database, cache or cluster with patches AWS applies in its
+next maintenance window. Type `waiting` in the filter for them all.
 A managed database or cluster AWS keeps running past the end of standard support for a fee says what it costs:
 **Extended Support $292/month** (red once AWS charges, amber before), with the date and how it is counted in its
 tooltip, at US East list prices; see [RDS and Aurora](/install/ecs/#rds-and-aurora-databases) and
