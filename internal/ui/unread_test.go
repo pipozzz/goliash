@@ -98,3 +98,19 @@ func TestUnreadNamesServices(t *testing.T) {
 		t.Fatalf("banner does not name the services:\n%s", b.String())
 	}
 }
+
+// A service running a commit hash has no newest release to know, whoever reads its registry: no banner for it,
+// even before an agent has looked.
+func TestUnreadSkipsNonVersionTag(t *testing.T) {
+	o := versions.Overview{
+		Refs:     map[string]versions.Reference{"chat": {Repo: "240220093055.dkr.ecr.us-west-2.amazonaws.com/chat", Tag: "bca73851"}},
+		Services: map[string]store.Service{"chat": {ID: "chat"}},
+	}
+	if got := unreadRegistries(o); len(got) != 0 {
+		t.Fatalf("unread %+v", got)
+	}
+	o.CheckErrs = map[string]string{"chat": "agent: AccessDeniedException: not authorized to perform: ecr:ListImages"}
+	if got := unreadRegistries(o); len(got) != 1 {
+		t.Fatal("an agent's refusal still shows")
+	}
+}
