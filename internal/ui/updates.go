@@ -93,6 +93,9 @@ type UpdateItem struct {
 	Exploited                            []string
 	Exposed                              []string // how the running version can be reached from outside
 	Maintenance                          []string // the patches the platform has waiting for it
+	Path                                 []string // the versions the upgrade goes through, Target last; nil when direct
+	PathNote                             string   // why: "one minor version at a time"
+	PRTarget                             string   // the version a pull request moves to: the first stop of Path, else Target
 	Extended                             string   // what AWS charges past the end of standard support: "$292/month"
 	ExtendedTitle                        string   // and in full, with when and how
 	ExtendedStarted                      bool     // AWS charges for it already
@@ -262,7 +265,10 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
 			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
-			TicketChannels: trackers,
+			TicketChannels: trackers, Path: u.Path, PathNote: u.PathNote, PRTarget: u.Target,
+		}
+		if len(u.Path) > 0 {
+			it.PRTarget = u.Path[0]
 		}
 		if es := u.ExtendedSupport; es != nil {
 			it.Extended, it.ExtendedTitle, it.ExtendedStarted = "Extended Support", "AWS Extended Support: "+es.String()+", at US East list prices", es.Started(time.Now())
@@ -701,3 +707,6 @@ func stillExploited(exploited []string, d versions.VulnDelta) []string {
 	}
 	return out
 }
+
+// joinArrow writes versions as a path: 1.32 → 1.33.
+func joinArrow(vs []string) string { return strings.Join(vs, " → ") }

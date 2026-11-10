@@ -910,6 +910,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Exposed      []string      `json:"exposed,omitempty"`
 		Maintenance  []string      `json:"maintenance,omitempty"`
 		Extended     *apiExtended  `json:"extended_support,omitempty"`
+		Path         []string      `json:"path,omitempty"`
 		Critical     int           `json:"critical_vulnerabilities,omitempty"`
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 		SecurityFix  string        `json:"security_fix,omitempty"`
@@ -932,7 +933,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			Running: u.Running, Target: u.Target, Remedy: u.Remedy, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
 			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
-			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left, Extended: toAPIExtended(u.ExtendedSupport),
+			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left, Extended: toAPIExtended(u.ExtendedSupport), Path: u.Path,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

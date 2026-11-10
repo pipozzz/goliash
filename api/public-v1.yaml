@@ -847,6 +847,14 @@ paths:
                       type: array
                       items: { type: string }
                       description: Patches the platform has waiting for a managed service (RDS pending maintenance, ElastiCache service updates, OpenSearch service software).
+                    path:
+                      type: array
+                      items: { type: string }
+                      description: >-
+                        The versions the upgrade goes through, the target last, for a product that cannot skip versions
+                        (Kubernetes one minor at a time; Nextcloud and Elasticsearch one major at a time). Absent when it
+                        can go straight to the target.
+                      example: ['1.32', '1.33', '1.34']
                     extended_support:
                       type: object
                       description: >-

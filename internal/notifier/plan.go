@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -128,8 +129,12 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 				continue
 			}
 			it := planItem(u, now, apps)
-			if p := offer(u.Service.ID, u.Environment.Name, u.Running, u.Target); p != "" { // a click from the plan to the fix
-				it.Action, it.ActionPath = "Open PR → "+u.Target, p
+			first := u.Target // a product that cannot skip versions: the pull request goes to its first stop
+			if len(u.Path) > 0 {
+				first = u.Path[0]
+			}
+			if p := offer(u.Service.ID, u.Environment.Name, u.Running, first); p != "" { // a click from the plan to the fix
+				it.Action, it.ActionPath = "Open PR → "+first, p
 			}
 			if !matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
 				continue
@@ -240,6 +245,9 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 	it.Text = Describe(it)
 	if u.Target == "" && u.Remedy != "" {
 		it.Text += "; no newer release known, fix: " + u.Remedy
+	}
+	if len(u.Path) > 1 {
+		it.Text += "; via " + strings.Join(u.Path[:len(u.Path)-1], " → ") + " (" + u.PathNote + ")"
 	}
 	if n := len(u.Vulns.Fixed); n > 0 {
 		it.Text += "; fixes " + plural(n, "known vulnerability", "known vulnerabilities")

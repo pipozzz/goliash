@@ -215,6 +215,9 @@ func (n *Notifier) ticketDraft(u versions.Update, note string) tickets.Draft {
 	if len(u.Maintenance) > 0 {
 		add("Waiting at the platform: %s.", strings.Join(u.Maintenance, "; "))
 	}
+	if len(u.Path) > 1 {
+		add("Upgrade path (%s): %s.", u.PathNote, strings.Join(u.Path, " → "))
+	}
 	if es := u.ExtendedSupport; es != nil {
 		add("AWS Extended Support: %s, at US East list prices; upgrading stops it.", es.String())
 	}

@@ -41,6 +41,8 @@ type Overview struct {
 	ReleaseSecurityAt map[string]time.Time
 	// ReleaseBreaking maps service ID + "|" + version to what that release's notes say breaks.
 	ReleaseBreaking map[string]string
+	// Released lists each service's known releases, by service ID: the stops of an upgrade path.
+	Released map[string][]string
 	// SplitApps lists services whose versions are compared per application.
 	SplitApps map[string]bool
 	// Resolved maps image digests to the exact release behind a moving tag.
@@ -109,6 +111,7 @@ func loadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{}, CheckedAt: map[string]time.Time{}, TagCount: map[string]int{},
 		ReleaseSecurity:   map[string]string{},
 		ReleaseBreaking:   map[string]string{},
+		Released:          map[string][]string{},
 		ReleaseSecurityAt: map[string]time.Time{},
 	}
 	services, err := st.ListServices(ctx, sc)
@@ -244,6 +247,9 @@ func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Over
 		}
 		if o.TagCount != nil {
 			o.TagCount[id] = len(tags)
+		}
+		if o.Released != nil && StepNote(ref.Repo) != "" {
+			o.Released[id] = tags
 		}
 		if len(tags) > 0 {
 			o.Upstreams[id] = Latest(tags, ref.Tag, p)
