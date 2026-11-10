@@ -745,3 +745,14 @@ func riskClass(risk string) string {
 	}
 	return "badge ok"
 }
+
+// maintenanceLabel names what waits at the platform: a reboot (a host whose kernel or libraries were updated) or
+// patches.
+func maintenanceLabel(m []string) string {
+	for _, x := range m {
+		if !strings.HasPrefix(x, "reboot required") {
+			return "patch pending"
+		}
+	}
+	return "reboot pending"
+}

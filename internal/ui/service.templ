@@ -565,7 +565,7 @@ templ envNotes(e ServiceEnv) {
 				<span class="badge eol" title={ exposedTitle(e.Exposed) }>exposed</span>
 			}
 			if len(e.Maintenance) > 0 {
-				<span class="badge warn" title={ maintenanceTitle(e.Maintenance) }>patch pending</span>
+				<span class="badge warn" title={ maintenanceTitle(e.Maintenance) }>{ maintenanceLabel(e.Maintenance) }</span>
 			}
 			for _, t := range e.Tickets {
 				<a class="badge neutral" href={ templ.SafeURL(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>

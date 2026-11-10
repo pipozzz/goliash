@@ -256,7 +256,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 					<a class="badge neutral" href={ templ.SafeURL(it.Ticket.URL) } target="_blank" rel="noopener" title="The ticket filed for this upgrade; Goliash closes it once the upgrade runs">{ it.Ticket.Key }</a>
 				}
 				if len(it.Maintenance) > 0 {
-					<span class="badge warn" title={ maintenanceTitle(it.Maintenance) }>patch pending</span>
+					<span class="badge warn" title={ maintenanceTitle(it.Maintenance) }>{ maintenanceLabel(it.Maintenance) }</span>
 				}
 				if it.Extended != "" {
 					if it.ExtendedStarted {
