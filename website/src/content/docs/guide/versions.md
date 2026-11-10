@@ -179,6 +179,13 @@ When the release notes on the way (GitHub or GitLab releases, or the project's o
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible
 changes; read the notes themselves before upgrading, as a project may say it otherwise or not at all.
+Each upgrade carries its **risk**, *low*, *medium* or *high*, with why in its tooltip: release notes that say
+something breaks, or exploited vulnerabilities the new version brings, make it high; a major version or steps on the
+way make it medium; the version to move to running already in another environment or on another target takes it
+down a level (*3.2.0 runs already elsewhere*). Patches and minor versions are low. It is a hint from what Goliash
+knows, not a test: type `low risk` (or `risk:high`) in the filter for the upgrades to do now and those to plan. The
+CSV, the API (`risk`, `risk_reasons`), tickets and the upgrade plan have it too.
+
 Some software cannot skip versions on the way up, and its line shows the stops: *via 1.32 → 1.33 · one minor
 version at a time* for Kubernetes (EKS, k3s), *via 27.1.11 → 28.0.14 → 29.0.9 · the newest release of each major
 version on the way* for Nextcloud, Elasticsearch, OpenSearch and Kibana, and GitLab's [required upgrade

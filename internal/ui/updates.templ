@@ -215,6 +215,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 					<span class="tag">{ it.Target }</span>
 				}
 			}
+			if it.Risk != "" {
+				<span class={ riskClass(it.Risk) } title={ it.RiskWhy }>{ it.Risk + " risk" }</span>
+			}
 			if len(it.Path) > 1 {
 				<div class="upgrade-path muted" title={ "This upgrade cannot skip versions: " + it.PathNote }>
 					{ "via " + joinArrow(it.Path[:len(it.Path)-1]) + " · " + it.PathNote }
