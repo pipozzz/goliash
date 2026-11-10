@@ -156,6 +156,17 @@ func TestRebootRequired(t *testing.T) {
 		t.Errorf("reboot-required: %v", got)
 	}
 
+	updates := t.TempDir()
+	write(updates, "var/lib/dpkg/status", dpkg("libc6"))
+	write(updates, "var/lib/update-notifier/updates-available", "\n12 updates can be applied immediately.\n5 of these updates are standard security updates.\nTo see these additional updates run: apt list --upgradable\n")
+	if got := maintenance(updates, "6.8.0-1015-aws"); len(got) != 1 || got[0] != "package updates: 12 waiting, 5 of them security" {
+		t.Errorf("updates available: %v", got)
+	}
+	write(updates, "var/lib/update-notifier/updates-available", "\n0 updates can be applied immediately.\n")
+	if got := maintenance(updates, "6.8.0-1015-aws"); len(got) != 0 {
+		t.Errorf("none waiting: %v", got)
+	}
+
 	if compareRelease("5.14.0-503.11.1.el9_5", "5.14.0-427.13.1.el9_4.x86_64") <= 0 || compareRelease("5.14.0-427.13.1.el9_4", "5.14.0-427.13.1.el9_4.x86_64") >= 0 {
 		t.Error("RPM kernel releases out of order")
 	}

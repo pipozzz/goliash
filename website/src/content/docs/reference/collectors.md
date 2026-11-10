@@ -215,6 +215,10 @@ targets list shows such a machine once: its Docker engine, and right under it **
   the operating system shows **reboot pending** on its service page and Updates, with what waits in the tooltip:
   *reboot required: kernel 6.8.0-1015-aws installed, 6.8.0-1012-aws runs*. Until the reboot, the fixes are on
   disk but not running. The API has it under `maintenance`.
+- **Package updates waiting** on Ubuntu: what update-notifier counted after the last `apt update`
+  (`/var/lib/update-notifier/updates-available`), as *package updates: 12 waiting, 5 of them security*, shown as
+  **patch pending**. Unattended upgrades usually install the security ones overnight; a count that stays says they
+  do not.
 - **The operating system** is a workload named after it (`ubuntu`, `debian`, `alpine`, `rocky` …) at its version,
   compared with the distribution's image, so its end of life (Ubuntu 20.04, Debian 11 …) shows up like any other.
 - **Packages**: servers, runtimes and security-relevant libraries Goliash knows (nginx, Apache, HAProxy, PostgreSQL,
