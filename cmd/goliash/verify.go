@@ -31,7 +31,7 @@ func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
 	token := fs.String("token", os.Getenv("GOLIASH_TOKEN"), "API token, glsh_api_… (env GOLIASH_TOKEN; default: goliash login's)")
 	service := fs.String("service", "", "the service whose policy applies (default: the one running the image's repository)")
 	sbomFile := fs.String("sbom", "", "the SPDX or CycloneDX JSON the build made (default: the image's attestation or package database)")
-	failOn := fs.String("fail-on", "", "rules that fail the check, comma-separated: exploited, eol, signer, unsigned, critical, no-sbom, unreadable, or none (default exploited,eol,signer,unsigned)")
+	failOn := fs.String("fail-on", "", "rules that fail the check, comma-separated: exploited, eol, eol-os, eol-go, signer, unsigned, critical, no-sbom, unreadable, or none (default exploited,eol,signer,unsigned)")
 	asJSON := fs.Bool("json", false, "print the server's verdict as JSON")
 	wait := fs.Duration("wait", 10*time.Minute, "how long to wait for an agent to read an image of a registry only the agents read")
 	if err := fs.Parse(args); err != nil {
@@ -105,6 +105,7 @@ func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
 		SBOMSource string `json:"sbom_source"`
 		Signed     bool
 		Signers    []string
+		OS, Go     string
 	}
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return err
@@ -139,7 +140,14 @@ func verifyCmd(ctx context.Context, args []string, out io.Writer) error {
 		if v.Service != "" {
 			svc = "; policy of " + v.Service
 		}
-		_, _ = fmt.Fprintf(out, "  %d packages (SBOM: %s), %s%s\n", v.Packages, v.SBOMSource, signed, svc)
+		built := ""
+		if v.OS != "" {
+			built = " on " + v.OS
+		}
+		if v.Go != "" {
+			built += ", Go " + v.Go
+		}
+		_, _ = fmt.Fprintf(out, "  %d packages%s (SBOM: %s), %s%s\n", v.Packages, built, v.SBOMSource, signed, svc)
 	}
 	if !v.Passed {
 		return errVerifyFailed

@@ -59,6 +59,14 @@ func TestCheckImage(t *testing.T) {
 	ws, _ := st.EnsureDefaultWorkspace(ctx)
 	sc := ws.Scope()
 	eol := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/products/debian":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"12","isEol":false,"eolFrom":"2028-06-10"},{"name":"10","isEol":true,"eolFrom":"2022-09-10"}]}}`))
+			return
+		case "/products/go":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.25","isEol":false},{"name":"1.21","isEol":true,"eolFrom":"2024-08-13"}]}}`))
+			return
+		}
 		if r.URL.Path == "/products/nginx" {
 			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.25","isEol":true,"eolFrom":"2024-05-29"},{"name":"1.27","isEol":false,"eolFrom":"2027-04-01"}]}}`))
 			return
@@ -122,6 +130,17 @@ func TestCheckImage(t *testing.T) {
 	res = check(checkRegistry{}, ImageCheckRequest{Image: "docker.io/library/nginx:1.27.2", Service: "web", FailOn: []string{RuleUnsigned, RuleNoSBOM}})
 	if blocking, _ := rules(res); res.Passed || !slices.Equal(blocking, []string{RuleUnsigned, RuleNoSBOM}) {
 		t.Errorf("unsigned: %v %+v", blocking, res)
+	}
+	// Built on Debian 10 with Go 1.21: warned of by default, blocking when asked.
+	old := []byte(`{"bomFormat":"CycloneDX","components":[{"purl":"pkg:deb/debian/libc6@2.28?distro=debian-10"},{"purl":"pkg:golang/stdlib@1.21.4"}]}`)
+	sign := checkRegistry{signer: "https://github.com/acme/web/.github/workflows/release.yml@refs/heads/main"}
+	res = check(sign, ImageCheckRequest{Image: "docker.io/library/nginx:1.27.2", Service: "web", SBOM: old})
+	if blocking, other := rules(res); !res.Passed || len(blocking) != 0 || !slices.Equal(other, []string{RuleEOLOS, RuleEOLGo}) || res.OS != "Debian 10 (buster)" || res.Go != "1.21.4" {
+		t.Errorf("platform end of life: %v %v %+v", blocking, other, res)
+	}
+	res = check(sign, ImageCheckRequest{Image: "docker.io/library/nginx:1.27.2", Service: "web", SBOM: old, FailOn: []string{RuleEOLOS, RuleEOLGo}})
+	if blocking, _ := rules(res); res.Passed || !slices.Equal(blocking, []string{RuleEOLOS, RuleEOLGo}) {
+		t.Errorf("platform end of life blocking: %v %+v", blocking, res)
 	}
 	// none fails on nothing.
 	if res := check(checkRegistry{}, ImageCheckRequest{Image: "docker.io/library/nginx:1.25.4", Service: "web", FailOn: []string{"none"}}); !res.Passed {

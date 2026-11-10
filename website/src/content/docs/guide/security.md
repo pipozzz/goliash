@@ -336,8 +336,13 @@ The exit code is 1 when the image breaks a blocking rule, and 0 when it passes; 
   its tag, answers `202` with `Retry-After` until it did, and `goliash verify` waits by itself (`-wait`, default
   10 minutes), usually a minute or two. A repository no service runs yet (the first build of a new service) goes to
   the agents that read another repository on the same registry, from 1.207: the same ECR, the same IAM role.
-- **Which rules block.** `-fail-on` chooses: `exploited`, `eol`, `signer`, `unsigned`, `critical`, `no-sbom`,
-  `unreadable`, or `none`. The default is `exploited,eol,signer,unsigned`.
+- **Which rules block.** `-fail-on` chooses: `exploited`, `eol`, `eol-os`, `eol-go`, `signer`, `unsigned`,
+  `critical`, `no-sbom`, `unreadable`, or `none`. The default is `exploited,eol,signer,unsigned`.
+- **Below the application.** From its packages, the check also names the operating system the image is built on and
+  the Go its Go programs were built with, and warns when either is past its end of life (`eol-os`: *built on
+  Debian 10, past its end of life*; `eol-go`: *rebuild with a supported Go*), as [image
+  hygiene](/guide/matrix/#image-hygiene) does for what runs. They warn by default; add them to `-fail-on` to block:
+  `-fail-on exploited,eol,eol-os,eol-go,signer,unsigned`.
 - **Policy and output.** `-service` names the service whose policy applies; by default it is the one already
   running the image's repository. `-json` prints the verdict for other tools.
 - **Token and audit.** The token can be a *viewer* API token. Each check is in the audit log as `image.check`.
