@@ -898,7 +898,13 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if row != nil {
 			running = row.Cells[ei].Versions
 			for _, ver := range running {
-				se.Versions = append(se.Versions, VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")})
+				vv := VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")}
+				for i, name := range ver.Targets {
+					if i < len(ver.TargetIDs) {
+						vv.Links = append(vv.Links, TargetLink{Name: name, ID: ver.TargetIDs[i]})
+					}
+				}
+				se.Versions = append(se.Versions, vv)
 			}
 		}
 		for _, d := range o.DriftsAt(svc.ID, e.ID) {

@@ -410,12 +410,16 @@ type MatrixCell struct {
 	StaleTitle   string // set when some of the data comes from targets that stopped reporting
 }
 
+// TargetLink is a target by name, linking to its page.
+type TargetLink struct{ Name, ID string }
+
 // VersionView is one tag running in a cell.
 type VersionView struct {
 	Tag      string
 	Resolved string // the exact release behind a moving tag
 	Running  int
 	Targets  string
+	Links    []TargetLink // the same targets, each a link to its page; on a service page
 	On       []TargetTag  // the targets it runs on, for grouping by target
 	Drifts   []DriftBadge // the drifts about this version, on a service page
 }

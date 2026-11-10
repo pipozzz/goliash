@@ -52,6 +52,7 @@ type Timeline struct {
 // Lane is one environment of a Timeline.
 type Lane struct {
 	Env      string
+	TargetID string // the target the lane is, when it is one: its name links to it
 	Segments []Segment
 }
 
@@ -210,6 +211,9 @@ func versionTimeline(events []store.Event, envs []store.Environment, targets, pa
 					laneName += " · " + part
 				}
 				if lane, ok := buildLane(byLane[key{env.ID, tid, part}], laneName, from, now, window); ok {
+					if len(ids) > 1 && targets[tid] != "" {
+						lane.TargetID = tid
+					}
 					t.Lanes = append(t.Lanes, lane)
 				}
 			}

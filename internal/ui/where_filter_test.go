@@ -217,3 +217,12 @@ func TestMatrixOpensFiltered(t *testing.T) {
 		t.Fatal("the drift box does not carry ?drift=1")
 	}
 }
+
+// A service page names the targets each version runs on as links to them.
+func TestServicePageLinksTargets(t *testing.T) {
+	e := newUIEnv(t)
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/"+url.PathEscape(e.serviceOf("evil")), nil)
+	if !strings.Contains(page, `class="target-link" href="/targets/`+e.tgt.ID+`"`) {
+		t.Fatal("the service page does not link the target its version runs on")
+	}
+}

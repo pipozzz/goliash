@@ -1550,3 +1550,9 @@ td.svc .row-tick { margin-right: 6px; vertical-align: -1px; }
 .exposed-toggle > summary { list-style: none; cursor: pointer; }
 .exposed-toggle > summary::-webkit-details-marker { display: none; }
 .exposed-toggle[open] { display: block; }
+
+/* A target named on a service page or its chart: a link to where it runs, quiet until pointed at. */
+a.target-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+a.target-link:hover { color: var(--accent); }
+svg a text.lane.link { text-decoration: underline dotted; cursor: pointer; }
+svg a:hover text.lane.link { fill: var(--accent); }

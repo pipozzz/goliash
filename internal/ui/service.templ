@@ -615,7 +615,18 @@ templ exposedBadge(ways []string, class string) {
 
 templ runningVersion(ver VersionView) {
 	<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
-	<div class="targets">{ ver.Targets }</div>
+	if len(ver.Links) > 0 {
+		<div class="targets">
+			for i, l := range ver.Links {
+				if i > 0 {
+					{ ", " }
+				}
+				<a class="target-link" href={ templ.URL("/targets/" + l.ID) } title={ l.Name + ": where it runs, what else runs there" }>{ l.Name }</a>
+			}
+		</div>
+	} else {
+		<div class="targets">{ ver.Targets }</div>
+	}
 }
 
 // driftCell is the drift badges of an environment or a version, and how long the oldest has been open.

@@ -139,10 +139,19 @@ templ versionChart(t Timeline) {
 			}
 			for li, lane := range t.Lanes {
 				{{ y := float64(li) * laneH }}
-				<text class="lane" x={ f(-left) } y={ f(y + laneH/2 + 4) }>
-					<title>{ lane.Env }</title>
-					{ laneLabel(lane.Env) }
-				</text>
+				if lane.TargetID != "" {
+					<a href={ templ.URL("/targets/" + lane.TargetID) }>
+						<text class="lane link" x={ f(-left) } y={ f(y + laneH/2 + 4) }>
+							<title>{ lane.Env + ": where it runs" }</title>
+							{ laneLabel(lane.Env) }
+						</text>
+					</a>
+				} else {
+					<text class="lane" x={ f(-left) } y={ f(y + laneH/2 + 4) }>
+						<title>{ lane.Env }</title>
+						{ laneLabel(lane.Env) }
+					</text>
+				}
 				if cx, ct, ok := laneCount(lane, labelW); ok {
 					<text class="seg-label outside count" x={ f(cx) } y={ f(y + laneH/2 + 4) } text-anchor="end">{ ct }</text>
 				}
