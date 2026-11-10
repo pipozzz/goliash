@@ -71,7 +71,7 @@ func WhyUnknown(o Overview, serviceID string) (Unknown, bool) {
 		}
 		return u, true
 	}
-	if CheckedByAgent(svc, ref.Repo, o.Registries) && o.TagCount[serviceID] == 0 {
+	if CheckedByAgent(svc, ref.Repo, o.Registries) && o.TagCount[serviceID] == 0 && o.CheckedAt[serviceID].IsZero() {
 		return Unknown{
 			Short:  "checked by agent",
 			Reason: ref.Repo + " is private: the agents check it, and none has reported its tags yet.",
@@ -91,7 +91,12 @@ func WhyUnknown(o Overview, serviceID string) (Unknown, bool) {
 		}, true
 	}
 	if o.TagCount[serviceID] == 0 {
-		return Unknown{Short: "no tags", Reason: "The registry lists no tags for " + ref.Repo + "."}, true
+		return Unknown{
+			Short:  "no version tags",
+			Reason: ref.Repo + " has no tag that reads as a version comparable with " + strconvQuote(ref.Tag) + ": its tags are commit or asset hashes, latest and the like, or none.",
+			Fix:    "For your own image built where it runs, there is no newer release to look for: Goliash compares its environments. Tag releases with versions (1.4.2) to have them, or set a tag filter in the version policy.",
+			Where:  "policy",
+		}, true
 	}
 	return Unknown{
 		Short:  "no comparable tag",
@@ -113,3 +118,5 @@ func pinned(p Policy) int {
 	}
 	return *p.PinMajor
 }
+
+func strconvQuote(s string) string { return fmt.Sprintf("%q", s) }
