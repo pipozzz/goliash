@@ -186,6 +186,13 @@ down a level (*3.2.0 runs already elsewhere*). Patches and minor versions are lo
 knows, not a test: type `low risk` (or `risk:high`) in the filter for the upgrades to do now and those to plan. The
 CSV, the API (`risk`, `risk_reasons`), tickets and the upgrade plan have it too.
 
+What happened where a release already ran counts too. A release **rolled back** in the last 90 days (a rolling
+update flapping back and forth within half an hour aside), or **stuck rolling out** or **down** now, makes every
+upgrade to it, or through it, high risk, and its line says so: *⚠ 1.28.0 rolled back in prod (payments) on
+2026-11-09*. It goes by image and version, so one team's rollback warns every other team running the same image
+before it upgrades; [automatic pull requests](/guide/argocd/#automatic-pull-requests) wait for a person, and the
+filter `troubled` lists them. The API has it as `trouble`.
+
 Some software cannot skip versions on the way up, and its line shows the stops: *via 1.32 → 1.33 · one minor
 version at a time* for Kubernetes (EKS, k3s), *via 27.1.11 → 28.0.14 → 29.0.9 · the newest release of each major
 version on the way* for Nextcloud, Elasticsearch, OpenSearch and Kibana, and GitLab's [required upgrade

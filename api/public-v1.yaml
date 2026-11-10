@@ -854,6 +854,12 @@ paths:
                         How much the upgrade may break, as far as Goliash can tell: breaking changes in the release
                         notes, a major version, steps on the way or exploited vulnerabilities it brings raise it; the
                         version to move to running already elsewhere lowers it. Absent without a version to move to.
+                    trouble:
+                      type: string
+                      description: >-
+                        What the version to move to, or a stop on the way, did where it ran in this workspace (any
+                        service of the same image): rolled back within 90 days, or stuck rolling out or down now.
+                      example: 1.28.0 rolled back in prod (payments) on 2026-11-09
                     risk_reasons:
                       type: array
                       items: { type: string }

@@ -144,7 +144,8 @@ a patch. Production stays a decision, a click away. They are signed *auto-pr* in
 one that cannot be opened (no file pins the tag) is tried again the next day.
 
 What may break waits for a person even within the policy: when the release notes on the way say something breaks,
-or the new version brings a vulnerability exploited in the wild, Goliash does not open it by itself, and its line on
+or the new version brings a vulnerability exploited in the wild, or it was rolled back (or is stuck rolling out)
+wherever else it ran, Goliash does not open it by itself, and its line on
 [Updates](/guide/versions/#updates) says **auto PR held**, with why. **Open PR** there opens it once you have read
 the notes. An upgrade that has to go through [stops](/guide/versions/#updates) (Kubernetes one minor at a time) is
 opened to its first stop.
