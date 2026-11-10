@@ -1556,3 +1556,5 @@ a.target-link { color: inherit; text-decoration: underline dotted; text-underlin
 a.target-link:hover { color: var(--accent); }
 svg a text.lane.link { text-decoration: underline dotted; cursor: pointer; }
 svg a:hover text.lane.link { fill: var(--accent); }
+/* Drift about a whole environment (its targets disagree) sits under its name, not beside one of its versions. */
+.env-drift { margin-top: 6px; }
