@@ -185,3 +185,21 @@ func TestTilesTellAppsApart(t *testing.T) {
 		t.Fatal("the cells of one service do not say their application")
 	}
 }
+
+// A Docker engine and its host's operating system, collected by one agent, read as one machine: the host right
+// under the engine, as its part.
+func TestOneMachine(t *testing.T) {
+	ts := oneMachine([]TargetView{
+		{ID: "h", AgentID: "a1", Name: "ip-1-2", Platform: "host"},
+		{ID: "k", AgentID: "a2", Name: "prod", Platform: "kubernetes"},
+		{ID: "d", AgentID: "a1", Name: "ip-1", Platform: "docker"},
+		{ID: "h3", AgentID: "a3", Name: "vm-3", Platform: "host"}, // a host alone
+	})
+	var order []string
+	for _, t := range ts {
+		order = append(order, t.ID+":"+t.Machine)
+	}
+	if strings.Join(order, " ") != "k: d: h:ip-1 h3:" {
+		t.Fatalf("order %v", order)
+	}
+}

@@ -372,5 +372,60 @@ func agentSearch(a AgentView) string {
 
 // targetSearch is what the agents page filter matches a target against.
 func targetSearch(t TargetView) string {
-	return strings.ToLower(strings.Join([]string{t.Name, t.Platform, t.Env, t.Agent, t.Status, whereSearch(t.Where)}, " "))
+	words := []string{t.Name, t.Platform, t.Env, t.Agent, t.Status, whereSearch(t.Where)}
+	if t.Machine != "" {
+		words = append(words, t.Machine)
+	}
+	return strings.ToLower(strings.Join(words, " "))
+}
+
+// oneMachine shows a machine an agent collects twice (its Docker engine, and its operating system and packages as
+// a Linux host) as one: the host right under the engine, as its part. An agent with more than one engine, or more
+// than one host, keeps its targets apart.
+func oneMachine(ts []TargetView) []TargetView {
+	engines, hosts := map[string][]int{}, map[string][]int{}
+	for i, t := range ts {
+		if t.AgentID == "" {
+			continue
+		}
+		switch t.Platform {
+		case "docker":
+			engines[t.AgentID] = append(engines[t.AgentID], i)
+		case "host":
+			hosts[t.AgentID] = append(hosts[t.AgentID], i)
+		}
+	}
+	part := map[int]int{} // host index -> engine index
+	for agent, hs := range hosts {
+		if es := engines[agent]; len(es) == 1 && len(hs) == 1 {
+			part[hs[0]] = es[0]
+			ts[hs[0]].Machine = ts[es[0]].Name
+		}
+	}
+	if len(part) == 0 {
+		return ts
+	}
+	under := map[int]int{}
+	for h, e := range part {
+		under[e] = h
+	}
+	out := make([]TargetView, 0, len(ts))
+	for i, t := range ts {
+		if _, isPart := part[i]; isPart {
+			continue
+		}
+		out = append(out, t)
+		if h, ok := under[i]; ok {
+			out = append(out, ts[h])
+		}
+	}
+	return out
+}
+
+// platformLabel names a platform as the matrix's filter does (Linux host for host), or as it is.
+func platformLabel(p string) string {
+	if k, ok := kindOf(p); ok {
+		return k.Label
+	}
+	return p
 }
