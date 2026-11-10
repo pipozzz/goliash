@@ -218,6 +218,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			if it.Risk != "" {
 				<span class={ riskClass(it.Risk) } title={ it.RiskWhy }>{ it.Risk + " risk" }</span>
 			}
+			if it.AutoHeld != "" {
+				<span class="badge warn" title={ "The version policy would open this pull request by itself, and holds it for a person: " + it.AutoHeld }>auto PR held</span>
+			}
 			if len(it.Path) > 1 {
 				<div class="upgrade-path muted" title={ "This upgrade cannot skip versions: " + it.PathNote }>
 					{ "via " + joinArrow(it.Path[:len(it.Path)-1]) + " · " + it.PathNote }
