@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
@@ -18,6 +19,8 @@ import (
 const (
 	RuleExploited  = "exploited"  // a package carries a vulnerability CISA lists as exploited in the wild
 	RuleEOL        = "eol"        // the release cycle is past its end of life
+	RuleEOLOS      = "eol-os"     // built on an operating system release past its end of life
+	RuleEOLGo      = "eol-go"     // has Go programs built with a Go release past its end of life
 	RuleUnsigned   = "unsigned"   // no signature, while the service's policy expects a signer
 	RuleSigner     = "signer"     // signed, but by someone other than the policy's signer
 	RuleCritical   = "critical"   // a package carries a critical vulnerability
@@ -26,7 +29,7 @@ const (
 )
 
 // CheckRules are every rule, in the order findings are listed.
-var CheckRules = []string{RuleExploited, RuleEOL, RuleSigner, RuleUnsigned, RuleCritical, RuleNoSBOM, RuleUnreadable}
+var CheckRules = []string{RuleExploited, RuleEOL, RuleEOLOS, RuleEOLGo, RuleSigner, RuleUnsigned, RuleCritical, RuleNoSBOM, RuleUnreadable}
 
 // DefaultBlocking are the rules that fail a check unless the request names others.
 var DefaultBlocking = []string{RuleExploited, RuleEOL, RuleSigner, RuleUnsigned}
@@ -61,6 +64,8 @@ type ImageCheck struct {
 	Exploited  []string       `json:"exploited,omitempty"`
 	Critical   []string       `json:"critical,omitempty"`
 	EOL        string         `json:"eol,omitempty"` // the end of life of its release cycle, when known
+	OS         string         `json:"os,omitempty"`  // the operating system it is built on: "Debian 11"
+	Go         string         `json:"go,omitempty"`  // the oldest Go its Go programs were built with
 	// Pending: the server cannot read the registry, an agent can, and has not read the image yet; ask again.
 	Pending bool `json:"pending,omitempty"`
 }
@@ -212,11 +217,49 @@ func (c *Checker) CheckImage(ctx context.Context, sc store.Scope, req ImageCheck
 		}
 	}
 
+	c.checkPlatformEOL(ctx, sbom.Purls, &out, find)
+
 	sort.SliceStable(out.Findings, func(i, j int) bool {
 		return slices.Index(CheckRules, out.Findings[i].Rule) < slices.Index(CheckRules, out.Findings[j].Rule)
 	})
 	out.Passed = !slices.ContainsFunc(out.Findings, func(f CheckFinding) bool { return f.Blocking })
 	return out, nil
+}
+
+// checkPlatformEOL finds, from the image's packages, an operating system release or a Go release past its end of
+// life: the image may be on a supported release of its own, and still get no fixes from below.
+func (c *Checker) checkPlatformEOL(ctx context.Context, purls []string, out *ImageCheck, find func(rule, detail string)) {
+	if c.eol == nil || len(purls) == 0 {
+		return
+	}
+	past := func(cy EOLCycle) (string, bool) {
+		when := "no known date"
+		if !cy.EOLFrom.IsZero() {
+			when = cy.EOLFrom.Format(time.DateOnly)
+		}
+		return when, cy.IsEOL || (!cy.EOLFrom.IsZero() && !cy.EOLFrom.After(c.now()))
+	}
+	if o, ok := OSOf(purls); ok {
+		out.OS = o.String()
+		if cycles, err := c.eol.Cycles(ctx, osProducts[o.Distro]); err == nil {
+			if cy, ok := CycleFor(o.Version, cycles); ok {
+				if when, gone := past(cy); gone {
+					name := ImageOS{Distro: o.Distro, Version: cy.Name}.String()
+					find(RuleEOLOS, fmt.Sprintf("built on %s, past its end of life (%s): its packages get no more security fixes", name, when))
+				}
+			}
+		}
+	}
+	if v, ok := GoOf(purls); ok {
+		out.Go = v
+		if cycles, err := c.eol.Cycles(ctx, "go"); err == nil {
+			if cy, ok := CycleFor(v, cycles); ok {
+				if when, gone := past(cy); gone {
+					find(RuleEOLGo, fmt.Sprintf("Go programs built with Go %s, past its end of life (%s): rebuild with a supported Go", v, when))
+				}
+			}
+		}
+	}
 }
 
 // checkService is the named service, or the one whose running images (or upstream) are repo; zero when none.

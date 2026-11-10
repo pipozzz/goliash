@@ -1030,7 +1030,7 @@ paths:
                 sbom: { type: object, description: The SPDX or CycloneDX JSON document the build made. }
                 fail_on:
                   type: array
-                  items: { type: string, enum: [exploited, eol, signer, unsigned, critical, no-sbom, unreadable, none] }
+                  items: { type: string, enum: [exploited, eol, eol-os, eol-go, signer, unsigned, critical, no-sbom, unreadable, none] }
                   description: The rules that fail the check; default exploited, eol, signer, unsigned. none fails on nothing.
       responses:
         "200":
@@ -1061,6 +1061,8 @@ paths:
                   exploited: { type: array, items: { type: string } }
                   critical: { type: array, items: { type: string } }
                   eol: { type: string, description: "The end of life of its release cycle, when known." }
+                  os: { type: string, description: "The operating system it is built on, from its packages: Debian 12 (bookworm)." }
+                  go: { type: string, description: "The oldest Go its Go programs were built with, from its packages." }
         "202":
           description: |
             The server cannot read the image's registry and an agent can: it asked one to read the image, which
