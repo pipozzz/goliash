@@ -65,6 +65,8 @@ func kindOf(it Item) kind {
 		return kind{"👁️", "#e5484d", "Security watch"}
 	case EventSecurityBrief:
 		return kind{"🛡️", "#1b2a6b", "Security brief"}
+	case EventDeliveryBrief:
+		return kind{"🚚", "#1b2a6b", "Deploys"}
 	case "security_release":
 		return kind{"🔒", "#e5484d", "Security release"}
 	case EventDeadline:
@@ -232,6 +234,8 @@ func goliQuestion(it Item) string {
 		return "Walk me through our security posture: what to fix first to cut production exposure, what is past its end of life, and which accepted risks to review."
 	case it.Type == EventSecurityBrief:
 		return "From today's security brief, what should we do first and why? " + it.Text
+	case it.Type == EventDeliveryBrief:
+		return "From yesterday's deploys, what needs a look today, and which upgrades should go out first? " + it.Text
 	case it.Type == "agent_stale":
 		return "Which data may be stale because of this, and what should I check? " + it.Text
 	}

@@ -65,7 +65,7 @@ func oncallItems(msg Message) []Item {
 	}
 	var out []Item
 	for _, it := range msg.Items {
-		if it.Type == "posture" || it.Type == EventSecurityBrief {
+		if it.Type == "posture" || it.Type == EventSecurityBrief || it.Type == EventDeliveryBrief {
 			continue
 		}
 		out = append(out, it)
