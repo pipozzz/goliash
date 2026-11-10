@@ -5,6 +5,7 @@ package ui
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -201,5 +202,18 @@ func TestOneMachine(t *testing.T) {
 	}
 	if strings.Join(order, " ") != "k: d: h:ip-1 h3:" {
 		t.Fatalf("order %v", order)
+	}
+}
+
+// A link to a filtered matrix (a target's region:… chip) opens it filtered: the filter box carries the words, so
+// hx-boost swapping the page in does not lose them.
+func TestMatrixOpensFiltered(t *testing.T) {
+	e := newUIEnv(t)
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/?view=table&q="+url.QueryEscape("region:eu-central-1")+"&drift=1", nil)
+	if !strings.Contains(page, `id="matrix-q"`) || !strings.Contains(page, `value="region:eu-central-1"`) {
+		t.Fatal("the filter box does not carry ?q=")
+	}
+	if !strings.Contains(page, `id="matrix-drift" checked`) {
+		t.Fatal("the drift box does not carry ?drift=1")
 	}
 }
