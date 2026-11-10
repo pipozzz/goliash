@@ -6,6 +6,8 @@ package versions
 import (
 	"strings"
 	"testing"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -149,5 +151,33 @@ func TestLatestForWordTags(t *testing.T) {
 	}
 	if got := strings.Join(movingCandidates("alpine", strings.Fields("8.2.1 8.2.1-alpine 8.2.0-alpine"), 4), " "); got != "8.2.1-alpine 8.2.0-alpine" {
 		t.Errorf("moving alpine candidates %q", got)
+	}
+}
+
+// A managed engine's offered versions compare with what runs whatever their precision: Valkey 8.1 with 8.0.1, and
+// with a serverless cache's 8 as its line.
+func TestCandidatesAnyPrecision(t *testing.T) {
+	offered := []string{"7.2", "8.0", "8.1"}
+	got := func(running string, anyPrecision bool) []string {
+		var out []string
+		for _, v := range Candidates(offered, running, Policy{AnyPrecision: anyPrecision}) {
+			out = append(out, v.Raw)
+		}
+		return out
+	}
+	if g := got("8.0.1", false); len(g) != 0 {
+		t.Errorf("images keep like with like: %v", g)
+	}
+	if g := got("8.0.1", true); strings.Join(g, " ") != "8.1 8.0 7.2" {
+		t.Errorf("replication group: %v", g)
+	}
+	if g := got("8", true); strings.Join(g, " ") != "8 7" {
+		t.Errorf("serverless line: %v", g)
+	}
+	if p, _, _ := PolicyFor(store.Service{}, "elasticache.amazonaws.com/valkey"); !p.AnyPrecision {
+		t.Error("a managed engine compares any precision")
+	}
+	if p, _, _ := PolicyFor(store.Service{}, "docker.io/library/valkey"); p.AnyPrecision {
+		t.Error("an image does not")
 	}
 }

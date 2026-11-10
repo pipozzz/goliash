@@ -159,6 +159,9 @@ type Policy struct {
 	Track      Jump   `json:"track,omitempty"`      // smallest jump worth an alert; default patch
 	PinMajor   *int   `json:"pin_major,omitempty"`  // newer majors are information, not alerts
 	Prerelease bool   `json:"prerelease,omitempty"` // consider alpha, beta, rc
+	// AnyPrecision compares versions however many parts they have: a managed engine's offered versions (Valkey 8.1)
+	// with what runs (8.0.1, or a serverless cache's 8). Set for managed engines, never stored.
+	AnyPrecision bool `json:"-"`
 	// DriftAlertAfter overrides how long a drift lasts before it is announced, per kind
 	// ("env", "upstream", "inconsistent"), as Go durations like "168h" or "15m".
 	DriftAlertAfter map[string]string `json:"drift_alert_after,omitempty"`
@@ -228,6 +231,12 @@ const (
 // when set, else the catalog's default for that image. Release notes sources come from
 // the catalog unless the service names its own.
 func PolicyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
+	p, src, err := policyFor(svc, repo)
+	p.AnyPrecision = Managed(repo)
+	return p, src, err
+}
+
+func policyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 	own, err := ParsePolicy(svc.VersionPolicy)
 	if err != nil {
 		return own, FromService, err
@@ -368,6 +377,7 @@ func Candidates(tags []string, running string, p Policy) []Version {
 		filter, _ = regexp.Compile(p.TagFilter)
 	}
 	var out []Version
+	seen := map[string]bool{}
 	for _, t := range tags {
 		if filter != nil && !filter.MatchString(t) {
 			continue
@@ -381,8 +391,16 @@ func Candidates(tags []string, running string, p Policy) []Version {
 		}
 		if filter == nil && curOK {
 			// Without a filter, only compare like with like: same flavour, same precision.
-			if v.Variant != cur.Variant || len(v.Parts) != len(cur.Parts) {
+			if v.Variant != cur.Variant || len(v.Parts) != len(cur.Parts) && !p.AnyPrecision {
 				continue
+			}
+			if p.AnyPrecision && len(v.Parts) > len(cur.Parts) {
+				// What runs names a line (a serverless cache's 8): its releases count as that line, 8.1 as 8.
+				v = truncateVersion(v, len(cur.Parts))
+				if seen[v.Raw] {
+					continue
+				}
+				seen[v.Raw] = true
 			}
 		}
 		if filter == nil && !curOK && v.Variant != WordFlavour(running) {
@@ -391,6 +409,16 @@ func Candidates(tags []string, running string, p Policy) []Version {
 		out = append(out, v)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Compare(out[j]) > 0 })
+	return out
+}
+
+// truncateVersion is v at n parts: 8.1.2 at one is 8.
+func truncateVersion(v Version, n int) Version {
+	parts := make([]string, n)
+	for i := range n {
+		parts[i] = strconv.Itoa(v.part(i))
+	}
+	out, _ := ParseVersion(strings.Join(parts, "."))
 	return out
 }
 
