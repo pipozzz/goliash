@@ -96,6 +96,8 @@ type UpdateItem struct {
 	Path                                 []string // the versions the upgrade goes through, Target last; nil when direct
 	PathNote                             string   // why: "one minor version at a time"
 	PRTarget                             string   // the version a pull request moves to: the first stop of Path, else Target
+	Risk                                 string   // low, medium or high: how much the upgrade may break
+	RiskWhy                              string   // why, for its tooltip
 	Extended                             string   // what AWS charges past the end of standard support: "$292/month"
 	ExtendedTitle                        string   // and in full, with when and how
 	ExtendedStarted                      bool     // AWS charges for it already
@@ -138,7 +140,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance", "remedy", "extended_support_monthly_usd"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance", "remedy", "extended_support_monthly_usd", "risk"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
 		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " "), strings.Join(it.Where, " ")) {
@@ -153,7 +155,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "), it.Remedy, it.ExtendedUSD,
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "), it.Remedy, it.ExtendedUSD, it.Risk,
 		})
 	}
 	cw.Flush()
@@ -266,6 +268,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
 			TicketChannels: trackers, Path: u.Path, PathNote: u.PathNote, PRTarget: u.Target,
+			Risk: u.Risk, RiskWhy: riskWhy(u.Risk, u.RiskReasons),
 		}
 		if len(u.Path) > 0 {
 			it.PRTarget = u.Path[0]
@@ -423,6 +426,9 @@ func updateSearch(it UpdateItem) string {
 	parts = append(parts, it.Exposed...)
 	if it.EOL != "" {
 		parts = append(parts, "end of life", it.EOL)
+	}
+	if it.Risk != "" {
+		parts = append(parts, "risk:"+it.Risk, it.Risk+" risk")
 	}
 	return strings.ToLower(strings.Join(parts, " "))
 }
@@ -710,3 +716,22 @@ func stillExploited(exploited []string, d versions.VulnDelta) []string {
 
 // joinArrow writes versions as a path: 1.32 → 1.33.
 func joinArrow(vs []string) string { return strings.Join(vs, " → ") }
+
+// riskWhy says an upgrade's risk and why, for its tooltip: "Medium risk: a major version; 3.2.0 runs already elsewhere".
+func riskWhy(risk string, reasons []string) string {
+	if risk == "" {
+		return ""
+	}
+	return strings.ToUpper(risk[:1]) + risk[1:] + " risk: " + strings.Join(reasons, "; ")
+}
+
+// riskClass is the badge colour of an upgrade's risk.
+func riskClass(risk string) string {
+	switch risk {
+	case versions.RiskHigh:
+		return "badge eol"
+	case versions.RiskMedium:
+		return "badge warn"
+	}
+	return "badge ok"
+}

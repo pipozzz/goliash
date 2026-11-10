@@ -249,6 +249,9 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 	if len(u.Path) > 1 {
 		it.Text += "; via " + strings.Join(u.Path[:len(u.Path)-1], " → ") + " (" + u.PathNote + ")"
 	}
+	if u.Risk == versions.RiskMedium || u.Risk == versions.RiskHigh {
+		it.Text += "; " + u.Risk + " risk"
+	}
 	if n := len(u.Vulns.Fixed); n > 0 {
 		it.Text += "; fixes " + plural(n, "known vulnerability", "known vulnerabilities")
 		if x := versions.Exploited(u.Vulns.Fixed); x > 0 {

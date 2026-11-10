@@ -31,14 +31,17 @@ type Update struct {
 	Breaking []string
 	// Path is the versions the upgrade goes through, Target last, for a product that cannot skip versions
 	// (Kubernetes one minor at a time); nil when it can go straight to Target. PathNote says why.
-	Path      []string
-	PathNote  string
-	EOL       string // the end-of-life date of the running release cycle, if it is near or past
-	EOLPassed bool
-	On        []string  // the targets running Running, when the environment runs other versions too
-	Since     time.Time // when the oldest of its drifts opened
-	Acked     bool      // an acknowledgement quiets it
-	Urgency   int       // 0 most urgent; see urgencyLabels
+	Path     []string
+	PathNote string
+	// Risk is how much the upgrade may break (RiskLow, RiskMedium, RiskHigh), RiskReasons why; empty without Target.
+	Risk        string
+	RiskReasons []string
+	EOL         string // the end-of-life date of the running release cycle, if it is near or past
+	EOLPassed   bool
+	On          []string  // the targets running Running, when the environment runs other versions too
+	Since       time.Time // when the oldest of its drifts opened
+	Acked       bool      // an acknowledgement quiets it
+	Urgency     int       // 0 most urgent; see urgencyLabels
 	// Exploited lists the vulnerabilities in the running image that CISA knows to be exploited in the wild;
 	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
 	Exploited []string
@@ -310,7 +313,8 @@ func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 	if rerr == nil && unpatched {
 		us = WithUnpatched(us, o, r, acks, now)
 	}
-	if active, err := st.ListActiveInstances(ctx, sc); err == nil {
+	active, aerr := st.ListActiveInstances(ctx, sc)
+	if aerr == nil {
 		us = WithExposure(us, active)
 	}
 	if rerr == nil {
@@ -327,6 +331,9 @@ func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 	}
 	if r, err := st.Remediation(ctx, sc); err == nil && r.Any() {
 		us = WithDeadlines(us, r)
+	}
+	if aerr == nil {
+		us = WithRisk(us, active)
 	}
 	return us
 }

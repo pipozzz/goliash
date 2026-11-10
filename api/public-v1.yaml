@@ -847,6 +847,17 @@ paths:
                       type: array
                       items: { type: string }
                       description: Patches the platform has waiting for a managed service (RDS pending maintenance, ElastiCache service updates, OpenSearch service software).
+                    risk:
+                      type: string
+                      enum: [low, medium, high]
+                      description: >-
+                        How much the upgrade may break, as far as Goliash can tell: breaking changes in the release
+                        notes, a major version, steps on the way or exploited vulnerabilities it brings raise it; the
+                        version to move to running already elsewhere lowers it. Absent without a version to move to.
+                    risk_reasons:
+                      type: array
+                      items: { type: string }
+                      example: [a major version, 3.2.0 runs already elsewhere]
                     path:
                       type: array
                       items: { type: string }
