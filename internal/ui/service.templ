@@ -196,6 +196,11 @@ templ ServicePage(v ServiceView) {
 												<td rowspan={ itoa(len(e.Versions)) }>
 													<strong>{ e.Name }</strong>
 													<div class="targets">{ itoa(len(e.Versions)) } versions</div>
+													if len(e.Drifts) > 0 {
+														<div class="env-drift" title="About the environment as a whole: its targets run different versions">
+															@driftCell(e.Drifts)
+														</div>
+													}
 													@envNotes(e)
 												</td>
 											}
@@ -203,12 +208,8 @@ templ ServicePage(v ServiceView) {
 												@runningVersion(ver)
 											</td>
 											<td>
-												if i == 0 {
-													@driftCell(append(append([]DriftBadge{}, e.Drifts...), ver.Drifts...))
-												} else {
-													@versionDrifts(ver.Drifts)
-												}
-												if len(ver.Drifts) == 0 && (i > 0 || len(e.Drifts) == 0) {
+												@versionDrifts(ver.Drifts)
+												if len(ver.Drifts) == 0 {
 													<span class="muted">no drift</span>
 												}
 											</td>
