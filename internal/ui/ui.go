@@ -659,6 +659,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		}
 	}
 	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r), Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04")}
+	v.Q, v.Drift = r.URL.Query().Get("q"), r.URL.Query().Get("drift") == "1"
 	v.Views = s.viewTabs(r.Context(), r, p, "/?view=table")
 	if q := r.URL.Query().Get("at"); q != "" {
 		at, err := api.ParseAt(q)

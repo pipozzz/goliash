@@ -65,6 +65,10 @@ type WorkspacesView struct {
 
 // MatrixView is the home page.
 type MatrixView struct {
+	// Q and Drift are the filter the page opens with (?q=, ?drift=1): written into the filter box, so a link to a
+	// filtered matrix stays filtered when hx-boost swaps the page in.
+	Q     string
+	Drift bool
 	Base
 	Views   ViewTabs
 	Grid    MatrixGrid
