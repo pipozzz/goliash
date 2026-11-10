@@ -17,7 +17,27 @@ const (
 	// stepMajor: the newest release of the running major first, then one major at a time, each at its newest
 	// release (Nextcloud: 27.1.3 → 27.1.11 → 28.0.14 → 29.0.9).
 	stepMajor stepRule = "major"
+	// stepGitLab: GitLab's required upgrade stops (config/upgrade_path.yml), each at its newest patch.
+	stepGitLab stepRule = "gitlab"
 )
+
+// gitlabStops are GitLab's required upgrade stops, as major and minor, from its config/upgrade_path.yml; from 20 on
+// GitLab keeps to x.2, x.5, x.8 and x.11.
+var gitlabStops = [][2]int{
+	{8, 11}, {8, 12}, {8, 17}, {9, 5}, {10, 0}, {10, 8}, {11, 0}, {11, 11}, {12, 0}, {12, 1}, {12, 10}, {13, 0},
+	{13, 1}, {13, 8}, {13, 12}, {14, 0}, {14, 3}, {14, 9}, {14, 10}, {15, 0}, {15, 4}, {15, 11}, {16, 3}, {16, 7},
+	{16, 11}, {17, 1}, {17, 3}, {17, 5}, {17, 8}, {17, 11}, {18, 2}, {18, 5}, {18, 8}, {18, 11}, {19, 2}, {19, 5},
+	{19, 8}, {19, 11},
+}
+
+// gitlabStopsUpTo is gitlabStops with the quarterly stops of the majors after the list, up to major.
+func gitlabStopsUpTo(major int) [][2]int {
+	out := gitlabStops
+	for m := gitlabStops[len(gitlabStops)-1][0] + 1; m <= major; m++ {
+		out = append(out[:len(out):len(out)], [2]int{m, 2}, [2]int{m, 5}, [2]int{m, 8}, [2]int{m, 11})
+	}
+	return out
+}
 
 // stepRules are the products whose upgrades cannot skip versions, by repository.
 var stepRules = map[string]stepRule{
@@ -36,6 +56,8 @@ var stepRules = map[string]stepRule{
 	"docker.elastic.co/kibana/kibana":                   stepMajor,
 	"docker.io/library/kibana":                          stepMajor,
 	"docker.io/opensearchproject/opensearch-dashboards": stepMajor,
+	"docker.io/gitlab/gitlab-ce":                        stepGitLab,
+	"docker.io/gitlab/gitlab-ee":                        stepGitLab,
 }
 
 // StepNote says why an upgrade path has stops, for its repository: "one minor version at a time".
@@ -45,6 +67,8 @@ func StepNote(repo string) string {
 		return "one minor version at a time"
 	case stepMajor:
 		return "the newest release of each major version on the way"
+	case stepGitLab:
+		return "GitLab's required upgrade stops"
 	}
 	return ""
 }
@@ -96,6 +120,23 @@ func UpgradePath(repo, running, target string, released []string) []string {
 		}
 		for m := from.part(0) + 1; m < to.part(0); m++ {
 			path = append(path, stop([2]int{m, -1}, strconv.Itoa(m)))
+		}
+	case stepGitLab:
+		before := func(a, b [2]int) bool { return a[0] < b[0] || a[0] == b[0] && a[1] < b[1] }
+		cur, end := [2]int{from.part(0), from.part(1)}, [2]int{to.part(0), to.part(1)}
+		for _, st := range gitlabStopsUpTo(to.part(0)) {
+			if before(st, cur) || !before(st, end) {
+				continue
+			}
+			v, ok := newest[st]
+			if st == cur && (!ok || v.Compare(from) <= 0) {
+				continue // on this stop's newest patch already
+			}
+			if ok {
+				path = append(path, v.Raw)
+			} else {
+				path = append(path, strconv.Itoa(st[0])+"."+strconv.Itoa(st[1]))
+			}
 		}
 	}
 	if len(path) == 0 {
