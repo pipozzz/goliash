@@ -63,6 +63,9 @@ func EventNote(e store.Event) string {
 // one version ran alone).
 const flapWindow = 30 * time.Minute
 
+// FlapBack reports whether the rollback at evs[i] was a rollout flapping: undone within flapWindow.
+func FlapBack(evs []store.Event, i int) bool { return flapBack(evs, i) }
+
 // flapBack reports whether the rollback at evs[i] was undone within flapWindow, in the same service and environment.
 func flapBack(evs []store.Event, i int) bool {
 	r := evs[i]

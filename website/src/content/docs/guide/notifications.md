@@ -323,6 +323,19 @@ goliash notify create -channel team-data -events posture_report,deadline -owners
 Its other filters do not apply. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
 [metrics](/guide/observability/).
 
+## Deploys brief
+
+The **deploys brief** is the morning look back for whoever runs the deploys. A rule with the event type
+`delivery_brief` (*deploys brief* in the form) sends, daily or on Mondays at the same time as the plan, one short
+message on the day before: how many versions went out and where, what was rolled back (*1 rollback: payments 1.28.0
+→ 1.27.2 in prod*), what is stuck rolling out or down now, how many [low-risk](/guide/versions/#updates) upgrades
+are ready for today, and how many go to a release that gave trouble elsewhere. A quiet day sends nothing. It links
+to the low-risk upgrades on Updates.
+
+```sh
+goliash notify create -channel ops -events delivery_brief -mode daily -timezone Europe/Bratislava
+```
+
 ## Security brief
 
 The posture report is for the week; the **security brief** is for the morning. A rule with the event type

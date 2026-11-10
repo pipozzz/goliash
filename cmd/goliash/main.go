@@ -2284,7 +2284,7 @@ func channelTest(ctx context.Context, args []string, out io.Writer) error {
 func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("notify create")
 	channel := fs.String("channel", "", "channel name")
-	events := fs.String("events", "", "comma-separated event types (empty: all events), e.g. new_release,drift_detected,agent_stale; updates_plan for the upgrade plan, posture_report for the security posture report, security_brief for the security brief")
+	events := fs.String("events", "", "comma-separated event types (empty: all events), e.g. new_release,drift_detected,agent_stale; updates_plan for the upgrade plan, posture_report for the security posture report, security_brief for the security brief, delivery_brief for the deploys brief")
 	mode := fs.String("mode", "instant", "instant, daily or weekly")
 	services := fs.String("services", "", "only these services")
 	owners := fs.String("owners", "", "only services of these owners")

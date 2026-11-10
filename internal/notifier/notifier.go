@@ -67,6 +67,9 @@ func (m Message) Title() string {
 	if len(m.Items) == 1 && m.Items[0].Type == EventSecurityBrief {
 		return "Goliash security brief for " + m.Workspace
 	}
+	if len(m.Items) == 1 && m.Items[0].Type == EventDeliveryBrief {
+		return "Goliash deploys for " + m.Workspace
+	}
 	if len(m.Items) == 1 && !m.Digest {
 		return m.Items[0].Text
 	}

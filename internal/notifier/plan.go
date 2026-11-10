@@ -61,10 +61,11 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var due, reports, briefs []store.Rule
+		var due, reports, briefs, deliveries []store.Rule
 		for _, r := range rules {
 			plan, report, brief := contains(r.EventTypes, EventUpdatesPlan), contains(r.EventTypes, EventPostureReport), contains(r.EventTypes, EventSecurityBrief)
-			if !plan && !report && !brief {
+			delivery := contains(r.EventTypes, EventDeliveryBrief)
+			if !plan && !report && !brief && !delivery {
 				continue
 			}
 			var f Filter
@@ -81,6 +82,9 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 				if brief {
 					briefs = append(briefs, r)
 				}
+				if delivery {
+					deliveries = append(deliveries, r)
+				}
 			}
 		}
 		if len(due) > 0 {
@@ -95,6 +99,11 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 		}
 		if len(briefs) > 0 {
 			if err := n.briefWorkspace(ctx, sc, briefs, now); err != nil {
+				return err
+			}
+		}
+		if len(deliveries) > 0 {
+			if err := n.deliveryWorkspace(ctx, sc, deliveries, now); err != nil {
 				return err
 			}
 		}
