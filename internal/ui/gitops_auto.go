@@ -66,6 +66,7 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 		if err != nil {
 			return opened, err
 		}
+		troubles, _ := versions.Troubles(ctx, s.store, sc, o, time.Now())
 		for _, a := range apps {
 			if a.Blocked(time.Now()) { // Argo CD would not sync it now: the policy waits for the window
 				continue
@@ -112,7 +113,11 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
 			u.licenses, _ = versions.UpgradeLicenses(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
 			// What may break waits for a person: release notes that say so, or exploited vulnerabilities it brings.
-			if hold := autoPRHold(versions.BreakingUpTo(o, a.ServiceID, a.Tag, to), u.vulns); hold != "" {
+			hold := autoPRHold(versions.BreakingUpTo(o, a.ServiceID, a.Tag, to), u.vulns)
+			if t, ok := troubles[o.Refs[a.ServiceID].Repo+"|"+to]; ok && hold == "" {
+				hold = to + " " + t
+			}
+			if hold != "" {
 				s.autoMu.Lock()
 				first := s.autoHeld[key] == ""
 				s.autoHeld[key] = hold

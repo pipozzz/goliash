@@ -36,12 +36,15 @@ type Update struct {
 	// Risk is how much the upgrade may break (RiskLow, RiskMedium, RiskHigh), RiskReasons why; empty without Target.
 	Risk        string
 	RiskReasons []string
-	EOL         string // the end-of-life date of the running release cycle, if it is near or past
-	EOLPassed   bool
-	On          []string  // the targets running Running, when the environment runs other versions too
-	Since       time.Time // when the oldest of its drifts opened
-	Acked       bool      // an acknowledgement quiets it
-	Urgency     int       // 0 most urgent; see urgencyLabels
+	// Trouble is what the version to move to (or a stop on the way) did where it ran: "1.28.0 rolled back in prod
+	// (payments) on 2026-11-09"; empty when nothing is known.
+	Trouble   string
+	EOL       string // the end-of-life date of the running release cycle, if it is near or past
+	EOLPassed bool
+	On        []string  // the targets running Running, when the environment runs other versions too
+	Since     time.Time // when the oldest of its drifts opened
+	Acked     bool      // an acknowledgement quiets it
+	Urgency   int       // 0 most urgent; see urgencyLabels
 	// Exploited lists the vulnerabilities in the running image that CISA knows to be exploited in the wild;
 	// Critical counts its other critical ones. Both come from the image's SBOM, when Goliash could read it.
 	Exploited []string
@@ -334,6 +337,9 @@ func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 	}
 	if aerr == nil {
 		us = WithRisk(us, active)
+	}
+	if troubles, err := Troubles(ctx, st, sc, o, now); err == nil {
+		us = WithTroubles(us, o, troubles)
 	}
 	return us
 }

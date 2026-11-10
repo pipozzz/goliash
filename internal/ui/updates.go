@@ -98,6 +98,7 @@ type UpdateItem struct {
 	PRTarget                             string   // the version a pull request moves to: the first stop of Path, else Target
 	Risk                                 string   // low, medium or high: how much the upgrade may break
 	AutoHeld                             string   // why the version policy's automatic pull request waits for a person
+	Trouble                              string   // what the version to move to did where it ran: "1.28.0 rolled back in prod (payments) …"
 	RiskWhy                              string   // why, for its tooltip
 	Extended                             string   // what AWS charges past the end of standard support: "$292/month"
 	ExtendedTitle                        string   // and in full, with when and how
@@ -269,7 +270,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
 			TicketChannels: trackers, Path: u.Path, PathNote: u.PathNote, PRTarget: u.Target,
-			Risk: u.Risk, RiskWhy: riskWhy(u.Risk, u.RiskReasons),
+			Risk: u.Risk, RiskWhy: riskWhy(u.Risk, u.RiskReasons), Trouble: u.Trouble,
 		}
 		if len(u.Path) > 0 {
 			it.PRTarget = u.Path[0]
@@ -435,6 +436,9 @@ func updateSearch(it UpdateItem) string {
 	}
 	if it.Risk != "" {
 		parts = append(parts, "risk:"+it.Risk, it.Risk+" risk")
+	}
+	if it.Trouble != "" {
+		parts = append(parts, "troubled", it.Trouble)
 	}
 	return strings.ToLower(strings.Join(parts, " "))
 }

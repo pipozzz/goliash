@@ -218,6 +218,9 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			if it.Risk != "" {
 				<span class={ riskClass(it.Risk) } title={ it.RiskWhy }>{ it.Risk + " risk" }</span>
 			}
+			if it.Trouble != "" {
+				<div class="error-text trouble" title="Where it ran, it gave trouble: look before you upgrade">{ "⚠ " + it.Trouble }</div>
+			}
 			if it.AutoHeld != "" {
 				<span class="badge warn" title={ "The version policy would open this pull request by itself, and holds it for a person: " + it.AutoHeld }>auto PR held</span>
 			}
