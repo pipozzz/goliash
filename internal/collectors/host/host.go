@@ -70,7 +70,7 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 	if id != "" && version != "" {
 		w := workload("os/"+id, agentproto.HostOs, id, osImage(id)+":"+version)
-		w.Maintenance = c.rebootRequired(pkgs)
+		w.Maintenance = append(c.rebootRequired(pkgs), c.updatesAvailable()...)
 		res.Workloads = append(res.Workloads, w)
 	}
 	names := make([]string, 0, len(pkgs))
@@ -129,6 +129,38 @@ func (c *Collector) rebootRequired(pkgs map[string]string) []string {
 		return nil
 	}
 	return []string{"reboot required: kernel " + newest + " installed, " + running + " runs"}
+}
+
+// updatesAvailable reads what Ubuntu's update-notifier counted last: "12 updates can be applied immediately. 5 of
+// these updates are standard security updates." It says nothing when the file is not there or counts none.
+func (c *Collector) updatesAvailable() []string {
+	b, err := os.ReadFile(filepath.Join(c.root, "var", "lib", "update-notifier", "updates-available")) //nolint:gosec // a fixed file under the host's root
+	if err != nil {
+		return nil
+	}
+	all, security := 0, 0
+	for _, l := range strings.Split(string(b), "\n") {
+		l = strings.TrimSpace(l)
+		var n int
+		switch {
+		case strings.Contains(l, "can be applied immediately") || strings.Contains(l, "can be installed immediately"):
+			if _, err := fmt.Sscan(l, &n); err == nil {
+				all = n
+			}
+		case strings.Contains(l, "security update"):
+			if _, err := fmt.Sscan(l, &n); err == nil {
+				security = n
+			}
+		}
+	}
+	if all == 0 {
+		return nil
+	}
+	m := fmt.Sprintf("package updates: %d waiting", all)
+	if security > 0 {
+		m += fmt.Sprintf(", %d of them security", security)
+	}
+	return []string{m}
 }
 
 // uniqueLines are a file's non-empty lines, each once, in order.
