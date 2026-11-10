@@ -158,9 +158,9 @@ func TestLatestForWordTags(t *testing.T) {
 // with a serverless cache's 8 as its line.
 func TestCandidatesAnyPrecision(t *testing.T) {
 	offered := []string{"7.2", "8.0", "8.1"}
-	got := func(running string, any bool) []string {
+	got := func(running string, anyPrecision bool) []string {
 		var out []string
-		for _, v := range Candidates(offered, running, Policy{AnyPrecision: any}) {
+		for _, v := range Candidates(offered, running, Policy{AnyPrecision: anyPrecision}) {
 			out = append(out, v.Raw)
 		}
 		return out
