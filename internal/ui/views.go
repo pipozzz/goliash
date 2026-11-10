@@ -420,6 +420,8 @@ type VersionView struct {
 	Running  int
 	Targets  string
 	Links    []TargetLink // the same targets, each a link to its page; on a service page
+	PushedAt time.Time    // when this build was pushed, for a tag that is no version; zero when not known
+	Older    bool         // a newer build is in the registry
 	On       []TargetTag  // the targets it runs on, for grouping by target
 	Drifts   []DriftBadge // the drifts about this version, on a service page
 }
@@ -698,16 +700,19 @@ type ServiceView struct {
 	KindAuto    string // the kind worked out from the image, offered as the default
 	KindChosen  bool
 	Latest      string
-	LatestAny   string
-	CheckedAt   time.Time
-	CheckError  string
-	Unknown     versions.UnknownService // why the newest release is not known; empty when it is
-	Private     bool                    // the agents check the upstream
-	Policy      PolicyForm
-	BuiltOn     *versions.BaseStatus // the image the service is built on, when known
-	Envs        []ServiceEnv
-	Releases    []ReleaseView
-	PolicyFrom  string // service, catalog or default
+	// Build is the newest build in the registry by push time, for a service running a commit hash rather than a
+	// version; nil when its registry gives no push times.
+	Build      *versions.NewestBuild
+	LatestAny  string
+	CheckedAt  time.Time
+	CheckError string
+	Unknown    versions.UnknownService // why the newest release is not known; empty when it is
+	Private    bool                    // the agents check the upstream
+	Policy     PolicyForm
+	BuiltOn    *versions.BaseStatus // the image the service is built on, when known
+	Envs       []ServiceEnv
+	Releases   []ReleaseView
+	PolicyFrom string // service, catalog or default
 	// Where release dates and notes come from: a GitHub owner/repo or a changelog URL,
 	// and why (policy, catalog or image label).
 	NotesGitHub, NotesGitLab, NotesChangelog, NotesFrom string

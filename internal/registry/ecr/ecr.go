@@ -38,6 +38,7 @@ func Parse(repository string) (account, region, name string, ok bool) {
 // API is the part of the ECR client the lister uses.
 type API interface {
 	ListImages(ctx context.Context, in *ecr.ListImagesInput, opts ...func(*ecr.Options)) (*ecr.ListImagesOutput, error)
+	DescribeImages(ctx context.Context, in *ecr.DescribeImagesInput, opts ...func(*ecr.Options)) (*ecr.DescribeImagesOutput, error)
 	GetAuthorizationToken(ctx context.Context, in *ecr.GetAuthorizationTokenInput, opts ...func(*ecr.Options)) (*ecr.GetAuthorizationTokenOutput, error)
 }
 
@@ -112,6 +113,43 @@ func (l *Lister) ListTags(ctx context.Context, repository, profile string) ([]st
 		in.NextToken = out.NextToken
 	}
 	return tags, nil
+}
+
+// TagTimes returns when each tag of an ECR repository was pushed (ecr:DescribeImages, in
+// AmazonEC2ContainerRegistryReadOnly): what orders builds tagged with commit hashes, which no version does.
+func (l *Lister) TagTimes(ctx context.Context, repository, profile string) (map[string]time.Time, error) {
+	account, region, name, ok := Parse(repository)
+	if !ok {
+		return nil, fmt.Errorf("%s is not an ECR repository", repository)
+	}
+	api, err := l.client(ctx, region, profile)
+	if err != nil {
+		return nil, err
+	}
+	in := &ecr.DescribeImagesInput{
+		RegistryId: aws.String(account), RepositoryName: aws.String(name), MaxResults: aws.Int32(1000),
+		Filter: &types.DescribeImagesFilter{TagStatus: types.TagStatusTagged},
+	}
+	out := map[string]time.Time{}
+	for page := 0; page < maxPages; page++ {
+		res, err := api.DescribeImages(ctx, in)
+		if err != nil {
+			return nil, fmt.Errorf("ecr DescribeImages %s: %w", name, err)
+		}
+		for _, d := range res.ImageDetails {
+			if d.ImagePushedAt == nil {
+				continue
+			}
+			for _, t := range d.ImageTags {
+				out[t] = d.ImagePushedAt.UTC()
+			}
+		}
+		if res.NextToken == nil {
+			break
+		}
+		in.NextToken = res.NextToken
+	}
+	return out, nil
 }
 
 func (l *Lister) client(ctx context.Context, region, profile string) (API, error) {
