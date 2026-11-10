@@ -929,6 +929,9 @@ type TargetView struct {
 	Error        string
 	LastSnapshot time.Time
 	Where        []WhereItem // where it runs: its agent's place, or for an API target its own region
+	// Machine is the target this one is a part of, on the same machine: a Linux host's operating system and
+	// packages under the Docker engine its agent also collects; empty for a target of its own.
+	Machine string
 }
 
 // AgentsView is the agents and targets page.

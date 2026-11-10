@@ -1775,6 +1775,7 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 		}
 		v.Targets = append(v.Targets, tv)
 	}
+	v.Targets = oneMachine(v.Targets)
 	codes, err := s.store.ListEnrollmentCodes(ctx, p.Scope)
 	if err != nil {
 		return v, err

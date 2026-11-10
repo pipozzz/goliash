@@ -229,14 +229,18 @@ templ targetsTable(targets []TargetView, moves []AgentOption, canAdmin bool, fro
 			</thead>
 			<tbody>
 				for _, t := range targets {
-					<tr data-search={ targetSearch(t) }>
+					<tr data-search={ targetSearch(t) } class={ templ.KV("machine-part", t.Machine != "") }>
 						<td>
-							<a href={ templ.URL("/targets/" + t.ID) }><strong>{ t.Name }</strong></a>
-							if w := whereShort(t.Where); w != "" {
-								<div class="targets">{ w }</div>
+							if t.Machine != "" {
+								<a href={ templ.URL("/targets/" + t.ID) } title={ "The operating system and packages of " + t.Machine + ", collected as target " + t.Name }>↳ OS and packages</a>
+							} else {
+								<a href={ templ.URL("/targets/" + t.ID) }><strong>{ t.Name }</strong></a>
+								if w := whereShort(t.Where); w != "" {
+									<div class="targets">{ w }</div>
+								}
 							}
 						</td>
-						<td>{ t.Platform }</td>
+						<td>{ platformLabel(t.Platform) }</td>
 						<td>{ t.Env }</td>
 						<td>
 							if canAdmin {
