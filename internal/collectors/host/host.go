@@ -31,11 +31,15 @@ type Collector struct {
 	root  string
 	extra map[string]bool
 	all   bool
+	// osrelease is where the running kernel's release is read: the host's, also from inside the agent's container,
+	// which shares the kernel.
+	osrelease string
+	kernels   []string // the kernel packages' versions, as the package database lists them
 }
 
 // New is the collectors.Factory for host targets.
 func New(_ context.Context, t agentproto.Target) (collectors.Collector, error) {
-	c := &Collector{root: "/", extra: map[string]bool{}}
+	c := &Collector{root: "/", extra: map[string]bool{}, osrelease: "/proc/sys/kernel/osrelease"}
 	if s := t.Host; s != nil {
 		if s.Root != nil && *s.Root != "" {
 			c.root = *s.Root
@@ -59,13 +63,15 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	}
 	res := collectors.Result{Complete: true}
 	id, version := osr["ID"], osr["VERSION_ID"]
-	if id != "" && version != "" {
-		res.Workloads = append(res.Workloads, workload("os/"+id, agentproto.HostOs, id, osImage(id)+":"+version))
-	}
 	pkgs, err := c.packages(ctx)
 	if err != nil {
 		res.Complete = false
 		res.Errors = append(res.Errors, err.Error())
+	}
+	if id != "" && version != "" {
+		w := workload("os/"+id, agentproto.HostOs, id, osImage(id)+":"+version)
+		w.Maintenance = c.rebootRequired(pkgs)
+		res.Workloads = append(res.Workloads, w)
 	}
 	names := make([]string, 0, len(pkgs))
 	for n := range pkgs {
@@ -86,6 +92,96 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 		res.Workloads = append(res.Workloads, workload("pkg/"+name, agentproto.HostPackage, serviceName(name), image+":"+v))
 	}
 	return res, nil
+}
+
+// rebootRequired says what waits for a reboot: Debian's and Ubuntu's /var/run/reboot-required (with the packages
+// that asked for it), or a kernel installed newer than the one running. Nothing when neither is known.
+func (c *Collector) rebootRequired(pkgs map[string]string) []string {
+	if _, err := os.Stat(filepath.Join(c.root, "var", "run", "reboot-required")); err == nil {
+		m := "reboot required"
+		if b, err := os.ReadFile(filepath.Join(c.root, "var", "run", "reboot-required.pkgs")); err == nil { //nolint:gosec // a fixed file under the host's root
+			if names := uniqueLines(string(b)); len(names) > 0 {
+				m += ": " + strings.Join(names, ", ") + " updated"
+			}
+		}
+		return []string{m}
+	}
+	running := ""
+	if b, err := os.ReadFile(c.osrelease); err == nil {
+		running = strings.TrimSpace(string(b))
+	}
+	if running == "" {
+		return nil
+	}
+	kernels := c.kernels
+	for name := range pkgs { // linux-image-6.8.0-1015-aws: the release is in the name
+		if r, ok := strings.CutPrefix(name, "linux-image-"); ok && r != "" && r[0] >= '0' && r[0] <= '9' {
+			kernels = append(kernels, r)
+		}
+	}
+	newest := ""
+	for _, k := range kernels {
+		if newest == "" || compareRelease(k, newest) > 0 {
+			newest = k
+		}
+	}
+	if newest == "" || strings.HasPrefix(running, newest) || compareRelease(newest, running) <= 0 {
+		return nil
+	}
+	return []string{"reboot required: kernel " + newest + " installed, " + running + " runs"}
+}
+
+// uniqueLines are a file's non-empty lines, each once, in order.
+func uniqueLines(s string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, l := range strings.Split(s, "\n") {
+		if l = strings.TrimSpace(l); l != "" && !seen[l] {
+			seen[l] = true
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// compareRelease orders kernel releases by their numbers: 6.8.0-1015-aws after 6.8.0-1012-aws,
+// 5.14.0-503.11.1.el9_5 after 5.14.0-427.13.1.el9_4. Letters between them do not count.
+func compareRelease(a, b string) int {
+	na, nb := releaseNumbers(a), releaseNumbers(b)
+	for i := 0; i < len(na) && i < len(nb); i++ {
+		if na[i] != nb[i] {
+			if na[i] < nb[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	switch {
+	case len(na) < len(nb):
+		return -1
+	case len(na) > len(nb):
+		return 1
+	}
+	return 0
+}
+
+func releaseNumbers(s string) []int {
+	var out []int
+	n, in := 0, false
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			n, in = n*10+int(r-'0'), true
+			continue
+		}
+		if in {
+			out = append(out, n)
+			n, in = 0, false
+		}
+	}
+	if in {
+		out = append(out, n)
+	}
+	return out
 }
 
 func workload(id string, kind agentproto.WorkloadKind, name, image string) agentproto.Workload {
@@ -118,6 +214,9 @@ func (c *Collector) packages(ctx context.Context) (map[string]string, error) {
 		out := make(map[string]string, len(ps))
 		for _, pk := range ps {
 			out[pk.Name] = pk.Version
+			if pk.Name == "kernel" || pk.Name == "kernel-core" || pk.Name == "kernel-default" {
+				c.kernels = append(c.kernels, pk.Version)
+			}
 		}
 		return out, nil
 	}

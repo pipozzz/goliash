@@ -5,6 +5,8 @@ package host
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -94,3 +96,67 @@ func TestUpstreamVersion(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// A newer kernel installed than the one running, or Debian's reboot-required, is a reboot waiting.
+func TestRebootRequired(t *testing.T) {
+	write := func(root, name, body string) {
+		t.Helper()
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dpkg := func(names ...string) string {
+		var b strings.Builder
+		for _, n := range names {
+			b.WriteString("Package: " + n + "\nStatus: install ok installed\nVersion: 1\n\n")
+		}
+		return b.String()
+	}
+	maintenance := func(root, running string) []string {
+		t.Helper()
+		write(root, "etc/os-release", "ID=ubuntu\nVERSION_ID=\"24.04\"\n")
+		c, err := New(context.Background(), agentproto.Target{Host: &agentproto.HostSettings{Root: &root}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		hc := c.(*Collector)
+		hc.osrelease = filepath.Join(root, "osrelease")
+		write(root, "osrelease", running+"\n")
+		res, err := hc.Collect(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range res.Workloads {
+			if w.Kind == agentproto.HostOs {
+				return w.Maintenance
+			}
+		}
+		t.Fatal("no OS workload")
+		return nil
+	}
+
+	newer := t.TempDir()
+	write(newer, "var/lib/dpkg/status", dpkg("linux-image-6.8.0-1012-aws", "linux-image-6.8.0-1015-aws", "linux-image-aws"))
+	if got := maintenance(newer, "6.8.0-1012-aws"); len(got) != 1 || got[0] != "reboot required: kernel 6.8.0-1015-aws installed, 6.8.0-1012-aws runs" {
+		t.Errorf("newer kernel: %v", got)
+	}
+	if got := maintenance(newer, "6.8.0-1015-aws"); len(got) != 0 {
+		t.Errorf("running the newest: %v", got)
+	}
+
+	flagged := t.TempDir()
+	write(flagged, "var/lib/dpkg/status", dpkg("libc6"))
+	write(flagged, "var/run/reboot-required", "*** System restart required ***\n")
+	write(flagged, "var/run/reboot-required.pkgs", "libc6\nlinux-base\nlibc6\n")
+	if got := maintenance(flagged, "6.8.0-1015-aws"); len(got) != 1 || got[0] != "reboot required: libc6, linux-base updated" {
+		t.Errorf("reboot-required: %v", got)
+	}
+
+	if compareRelease("5.14.0-503.11.1.el9_5", "5.14.0-427.13.1.el9_4.x86_64") <= 0 || compareRelease("5.14.0-427.13.1.el9_4", "5.14.0-427.13.1.el9_4.x86_64") >= 0 {
+		t.Error("RPM kernel releases out of order")
+	}
+}

@@ -210,6 +210,11 @@ With `GOLIASH_HOST_ROOT` set, the agent finds the host by itself (named after `/
 Docker** mounts the host's root the same way, so on a Docker host the OS and packages come with the containers. The
 targets list shows such a machine once: its Docker engine, and right under it **↳ OS and packages**.
 
+- **A reboot waiting**: when Debian or Ubuntu wrote `/var/run/reboot-required` (with the packages that asked for it),
+  or a kernel newer than the running one is installed (any distribution: the running kernel is the agent's too),
+  the operating system shows **reboot pending** on its service page and Updates, with what waits in the tooltip:
+  *reboot required: kernel 6.8.0-1015-aws installed, 6.8.0-1012-aws runs*. Until the reboot, the fixes are on
+  disk but not running. The API has it under `maintenance`.
 - **The operating system** is a workload named after it (`ubuntu`, `debian`, `alpine`, `rocky` …) at its version,
   compared with the distribution's image, so its end of life (Ubuntu 20.04, Debian 11 …) shows up like any other.
 - **Packages**: servers, runtimes and security-relevant libraries Goliash knows (nginx, Apache, HAProxy, PostgreSQL,
