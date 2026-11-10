@@ -1088,3 +1088,42 @@ func TestTilesLegendFilters(t *testing.T) {
 		}
 	}
 }
+
+// An automatic pull request whose release notes say something breaks waits for a person, and Updates says so.
+func TestAutoPRHeldWhenBreaking(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	pulls := &fakePulls{}
+	e.ui.pulls = pulls
+	g := store.WorkloadGitOps{
+		WorkloadID: "w1", Tool: "argocd", App: "evil-prod", Repo: "https://github.com/acme/deploy.git",
+		Path: "apps/evil/prod", TargetRevision: "main", Sync: "Synced", Health: "Healthy",
+	}
+	if err := e.st.SetWorkloadGitOps(ctx, sc, e.tgt.ID, []store.WorkloadGitOps{g}, true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	svcName := e.serviceOf("evil")
+	svc, _ := e.st.GetServiceByName(ctx, sc, svcName)
+	if _, err := e.st.InsertReleases(ctx, sc, svc.ID, []string{"1.28.0"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.SetReleaseBreaking(ctx, sc, svc.ID, "1.28.0", "Removed the legacy config format"); err != nil {
+		t.Fatal(err)
+	}
+	svc.VersionPolicy = json.RawMessage(`{"auto_pr":{"prod":"minor"}}`)
+	if err := e.st.UpdateService(ctx, svc); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.ui.AutoPRs(ctx); err != nil || n != 0 || len(pulls.got) != 0 {
+		t.Fatalf("a breaking upgrade opened by itself: %d %v", n, err)
+	}
+	_ = e.ui.checker.EvaluateDrift(ctx, sc)
+	_, page := get(t, e.as(store.RoleMember), e.srv.URL+"/updates", nil)
+	if !strings.Contains(page, "auto PR held") || !strings.Contains(page, "Removed the legacy config format") {
+		t.Fatal("Updates does not say the automatic pull request is held")
+	}
+	if autoPRHold(nil, versions.VulnDelta{New: []versions.VulnRef{{ID: "CVE-1", Exploited: true}}}) == "" || autoPRHold(nil, versions.VulnDelta{}) != "" {
+		t.Fatal("hold for exploited vulnerabilities")
+	}
+}

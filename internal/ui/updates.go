@@ -97,6 +97,7 @@ type UpdateItem struct {
 	PathNote                             string   // why: "one minor version at a time"
 	PRTarget                             string   // the version a pull request moves to: the first stop of Path, else Target
 	Risk                                 string   // low, medium or high: how much the upgrade may break
+	AutoHeld                             string   // why the version policy's automatic pull request waits for a person
 	RiskWhy                              string   // why, for its tooltip
 	Extended                             string   // what AWS charges past the end of standard support: "$292/month"
 	ExtendedTitle                        string   // and in full, with when and how
@@ -289,9 +290,14 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			it.Same = strings.Join([]string{repo, u.Running, u.Target, u.Environment.Name, strconv.Itoa(u.Urgency)}, "|")
 		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
-			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
+			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, it.PRTarget)
 			for _, pr := range it.PRs {
 				v.Bulk = v.Bulk || pr.URL == "" && p.Can(store.RoleMember) && !s.demoPulls()
+				if pr.URL == "" && it.AutoHeld == "" {
+					s.autoMu.Lock()
+					it.AutoHeld = s.autoHeld[p.Scope.WorkspaceID+"|"+pr.TargetID+"|"+pr.WorkloadID+"|"+it.PRTarget]
+					s.autoMu.Unlock()
+				}
 			}
 		}
 		if s.goliOn() && u.Running != "" && u.Target != "" {

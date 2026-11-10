@@ -75,6 +75,7 @@ type Server struct {
 	pulls       PullRequester
 	autoMu      sync.Mutex
 	autoFailed  map[string]time.Time // automatic pull requests that could not be opened, and when
+	autoHeld    map[string]string    // automatic pull requests held for a person, and why
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
@@ -138,7 +139,7 @@ func New(o Options) *Server {
 	goliSeasonSetting = o.GoliSeason
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests, autoFailed: map[string]time.Time{},
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests, autoFailed: map[string]time.Time{}, autoHeld: map[string]string{},
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
 		oauthHTTP: publicOnlyClient(),
 		slack:     o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},

@@ -518,3 +518,8 @@ func FirstStop(o Overview, svc, running, target string) string {
 	}
 	return target
 }
+
+// BreakingUpTo is what the release notes from running up to target say breaks, quoted: "2.0.0: Removed …".
+func BreakingUpTo(o Overview, svc, running, target string) []string {
+	return breakingUpTo(o, svc, running, target)
+}
