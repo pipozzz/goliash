@@ -719,6 +719,8 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 			time.Now().AddDate(0, 0, 12).UTC().Format("2006-01-02") + ")"}
 	case "sessions":
 		w.Maintenance = []string{"elasticache-20251001-001 (security-update, important)"}
+	case "events": // up to date, a patch waiting all the same: a line of its own on Updates
+		w.Maintenance = []string{"MSK broker software patch (security), applied in the next maintenance window"}
 	}
 	switch service { // the vCPUs AWS charges Extended Support by: a db.m6g.xlarge, an Aurora cluster of two db.r6g.large
 	case "billing-db":

@@ -914,6 +914,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Risk         string        `json:"risk,omitempty"`
 		RiskReasons  []string      `json:"risk_reasons,omitempty"`
 		Trouble      string        `json:"trouble,omitempty"`
+		Only         bool          `json:"maintenance_only,omitempty"`
 		Critical     int           `json:"critical_vulnerabilities,omitempty"`
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 		SecurityFix  string        `json:"security_fix,omitempty"`
@@ -936,7 +937,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			Running: u.Running, Target: u.Target, Remedy: u.Remedy, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
 			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
-			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left, Extended: toAPIExtended(u.ExtendedSupport), Path: u.Path, Risk: u.Risk, RiskReasons: u.RiskReasons, Trouble: u.Trouble,
+			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left, Extended: toAPIExtended(u.ExtendedSupport), Path: u.Path, Risk: u.Risk, RiskReasons: u.RiskReasons, Trouble: u.Trouble, Only: u.MaintenanceOnly,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

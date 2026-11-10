@@ -93,6 +93,7 @@ type UpdateItem struct {
 	Exploited                            []string
 	Exposed                              []string // how the running version can be reached from outside
 	Maintenance                          []string // the patches the platform has waiting for it
+	MaintenanceOnly                      bool     // only what waits at the platform: no newer version, Remedy says what to do
 	Path                                 []string // the versions the upgrade goes through, Target last; nil when direct
 	PathNote                             string   // why: "one minor version at a time"
 	PRTarget                             string   // the version a pull request moves to: the first stop of Path, else Target
@@ -267,7 +268,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
+			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, MaintenanceOnly: u.MaintenanceOnly, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
 			TicketChannels: trackers, Path: u.Path, PathNote: u.PathNote, PRTarget: u.Target,
 			Risk: u.Risk, RiskWhy: riskWhy(u.Risk, u.RiskReasons), Trouble: u.Trouble,
@@ -436,6 +437,9 @@ func updateSearch(it UpdateItem) string {
 	}
 	if it.Risk != "" {
 		parts = append(parts, "risk:"+it.Risk, it.Risk+" risk")
+	}
+	if len(it.Maintenance) > 0 {
+		parts = append(parts, "waiting pending", strings.Join(it.Maintenance, " "))
 	}
 	if it.Trouble != "" {
 		parts = append(parts, "troubled", it.Trouble)

@@ -854,6 +854,11 @@ paths:
                         How much the upgrade may break, as far as Goliash can tell: breaking changes in the release
                         notes, a major version, steps on the way or exploited vulnerabilities it brings raise it; the
                         version to move to running already elsewhere lowers it. Absent without a version to move to.
+                    maintenance_only:
+                      type: boolean
+                      description: >-
+                        Only what waits at the platform (a host's reboot, a managed service's pending patches), with no
+                        newer version to move to; remedy says what to do (reboot).
                     trouble:
                       type: string
                       description: >-

@@ -36,6 +36,9 @@ type Update struct {
 	// Risk is how much the upgrade may break (RiskLow, RiskMedium, RiskHigh), RiskReasons why; empty without Target.
 	Risk        string
 	RiskReasons []string
+	// MaintenanceOnly is a line for what waits at the platform alone (a reboot, a managed service's pending
+	// patches), with no newer version to move to: Remedy says what to do.
+	MaintenanceOnly bool
 	// Trouble is what the version to move to (or a stop on the way) did where it ran: "1.28.0 rolled back in prod
 	// (payments) on 2026-11-09"; empty when nothing is known.
 	Trouble   string
@@ -318,6 +321,9 @@ func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 	}
 	active, aerr := st.ListActiveInstances(ctx, sc)
 	if aerr == nil {
+		if unpatched {
+			us = WithMaintenance(us, o, active, acks, now)
+		}
 		us = WithExposure(us, active)
 	}
 	if rerr == nil {
@@ -463,6 +469,53 @@ func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now 
 		u.Acked = ackedUpdate(*u, acks, now)
 		us = append(us, *u)
 	}
+	return us
+}
+
+// WithMaintenance adds a line for each service and environment where the platform has something waiting (a host's
+// reboot, a managed database's pending patches) and the list has nothing else: it is work to do, though no newer
+// version is.
+func WithMaintenance(us []Update, o Overview, active []store.Instance, acks []store.Ack, now time.Time) []Update {
+	type key struct{ svc, env string }
+	listed := map[key]bool{}
+	for _, u := range us {
+		listed[key{u.Service.ID, u.Environment.ID}] = true
+	}
+	added := map[key]*Update{}
+	var order []key
+	for _, in := range active {
+		k := key{in.ServiceID, in.EnvironmentID}
+		if !in.IsMain || len(in.Maintenance) == 0 || in.ServiceID == "" || in.EnvironmentID == "" || listed[k] {
+			continue
+		}
+		u := added[k]
+		if u == nil {
+			u = &Update{
+				Service: o.Services[in.ServiceID], Environment: o.Envs[in.EnvironmentID], Running: ParseImage(in.Image).Tag,
+				Since: now, Urgency: UrgencyPatch, MaintenanceOnly: true,
+			}
+			added[k] = u
+			order = append(order, k)
+		}
+		u.Maintenance = union(u.Maintenance, in.Maintenance)
+	}
+	for _, k := range order {
+		u := added[k]
+		if u.Service.ID == "" {
+			continue
+		}
+		u.Remedy = "apply the patches waiting at the platform"
+		reboot := true
+		for _, m := range u.Maintenance {
+			reboot = reboot && strings.HasPrefix(m, "reboot required")
+		}
+		if reboot {
+			u.Remedy = "reboot"
+		}
+		u.Acked = ackedUpdate(*u, acks, now)
+		us = append(us, *u)
+	}
+	sortUpdates(us)
 	return us
 }
 

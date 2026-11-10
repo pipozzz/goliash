@@ -6,6 +6,7 @@ package versions
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
 )
@@ -43,5 +44,30 @@ func TestUpgradeRisk(t *testing.T) {
 	}
 	if !slices.Contains(got[3].RiskReasons, "3.2.0 runs already elsewhere") {
 		t.Errorf("reasons %v", got[3].RiskReasons)
+	}
+}
+
+// What waits at the platform, with nothing newer to move to, is a line of its own: a reboot, or patches.
+func TestWithMaintenance(t *testing.T) {
+	o := Overview{
+		Services: map[string]store.Service{"vm": {ID: "vm", Name: "ubuntu"}, "db": {ID: "db", Name: "billing-db"}, "api": {ID: "api", Name: "api"}},
+		Envs:     map[string]store.Environment{"prod": {ID: "prod", Name: "prod"}},
+	}
+	active := []store.Instance{
+		{ServiceID: "vm", EnvironmentID: "prod", IsMain: true, Image: "docker.io/library/ubuntu:24.04", Maintenance: []string{"reboot required: kernel 6.8.0-1015-aws installed, 6.8.0-1012-aws runs"}},
+		{ServiceID: "db", EnvironmentID: "prod", IsMain: true, Image: "rds.amazonaws.com/postgres:16.4", Maintenance: []string{"system-update: New Operating System update is available"}},
+		{ServiceID: "api", EnvironmentID: "prod", IsMain: true, Image: "ghcr.io/acme/api:1.0", Maintenance: []string{"reboot required"}},
+	}
+	listed := []Update{{Service: o.Services["api"], Environment: o.Envs["prod"], Running: "1.0", Target: "1.1"}} // has a line already
+	got := WithMaintenance(listed, o, active, nil, time.Now())
+	byName := map[string]Update{}
+	for _, u := range got {
+		byName[u.Service.Name] = u
+	}
+	if len(got) != 3 || !byName["ubuntu"].MaintenanceOnly || byName["ubuntu"].Remedy != "reboot" || byName["ubuntu"].Running != "24.04" {
+		t.Fatalf("host: %+v", got)
+	}
+	if byName["billing-db"].Remedy != "apply the patches waiting at the platform" || byName["api"].MaintenanceOnly {
+		t.Fatalf("others: %+v", got)
 	}
 }
