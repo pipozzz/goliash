@@ -181,8 +181,9 @@ for breaking-change headings and labels, `feat!:` commits, removed support, requ
 changes; read the notes themselves before upgrading, as a project may say it otherwise or not at all.
 Some software cannot skip versions on the way up, and its line shows the stops: *via 1.32 → 1.33 · one minor
 version at a time* for Kubernetes (EKS, k3s), *via 27.1.11 → 28.0.14 → 29.0.9 · the newest release of each major
-version on the way* for Nextcloud, Elasticsearch, OpenSearch and Kibana, each stop the newest known release of its
-line. **Open PR**, the upgrade plan's link and [automatic pull requests](/guide/argocd/#automatic-pull-requests) go
+version on the way* for Nextcloud, Elasticsearch, OpenSearch and Kibana, and GitLab's [required upgrade
+stops](https://docs.gitlab.com/update/upgrade_paths/) for `gitlab/gitlab-ce` and `gitlab/gitlab-ee` (*via 17.5.5-ce.0
+→ 17.8.7-ce.0 → 17.11.6-ce.0*), each stop the newest known release of its line. **Open PR**, the upgrade plan's link and [automatic pull requests](/guide/argocd/#automatic-pull-requests) go
 to the first stop; once it runs, the next one is the line's first. The ticket, the plan and the API (`path`) list them
 all.
 A managed database or cluster AWS keeps running past the end of standard support for a fee says what it costs:
