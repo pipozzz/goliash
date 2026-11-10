@@ -179,6 +179,12 @@ When the release notes on the way (GitHub or GitLab releases, or the project's o
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible
 changes; read the notes themselves before upgrading, as a project may say it otherwise or not at all.
+Some software cannot skip versions on the way up, and its line shows the stops: *via 1.32 → 1.33 · one minor
+version at a time* for Kubernetes (EKS, k3s), *via 27.1.11 → 28.0.14 → 29.0.9 · the newest release of each major
+version on the way* for Nextcloud, Elasticsearch, OpenSearch and Kibana, each stop the newest known release of its
+line. **Open PR**, the upgrade plan's link and [automatic pull requests](/guide/argocd/#automatic-pull-requests) go
+to the first stop; once it runs, the next one is the line's first. The ticket, the plan and the API (`path`) list them
+all.
 A managed database or cluster AWS keeps running past the end of standard support for a fee says what it costs:
 **Extended Support $292/month** (red once AWS charges, amber before), with the date and how it is counted in its
 tooltip, at US East list prices; see [RDS and Aurora](/install/ecs/#rds-and-aurora-databases) and

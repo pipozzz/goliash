@@ -28,7 +28,11 @@ type Update struct {
 	// SecurityFix is what the releases up to Target say they fix: CVE or other identifiers, or "security".
 	SecurityFix string
 	// Breaking is what the releases up to Target say breaks, quoted from their notes: "2.0.0: Removed …".
-	Breaking  []string
+	Breaking []string
+	// Path is the versions the upgrade goes through, Target last, for a product that cannot skip versions
+	// (Kubernetes one minor at a time); nil when it can go straight to Target. PathNote says why.
+	Path      []string
+	PathNote  string
 	EOL       string // the end-of-life date of the running release cycle, if it is near or past
 	EOLPassed bool
 	On        []string  // the targets running Running, when the environment runs other versions too
@@ -148,6 +152,10 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 			u.SecurityFix = securityUpTo(o, k.svc, u.Running, u.Target)
 			u.SecuritySince = securitySince(o, k.svc, u.Running, u.Target)
 			u.Breaking = breakingUpTo(o, k.svc, u.Running, u.Target)
+			repo := o.Refs[k.svc].Repo
+			if u.Path = UpgradePath(repo, u.Running, u.Target, o.Released[k.svc]); u.Path != nil {
+				u.PathNote = StepNote(repo)
+			}
 		}
 		u.Urgency = urgency(*u)
 		u.Acked = ackedUpdate(*u, acks, now)
@@ -493,4 +501,13 @@ func runsBelow(o Overview, svc, app, env string, v Version) bool {
 		}
 	}
 	return true
+}
+
+// FirstStop is the version an upgrade of a service from running to target goes to first: target, or the first
+// stop of its upgrade path.
+func FirstStop(o Overview, svc, running, target string) string {
+	if p := UpgradePath(o.Refs[svc].Repo, running, target, o.Released[svc]); len(p) > 0 {
+		return p[0]
+	}
+	return target
 }

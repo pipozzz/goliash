@@ -79,12 +79,17 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			if !ok || !up.HasLatest {
 				continue
 			}
-			to := s.pullRequestTo(a, up.Latest.Raw)
+			// A product that cannot skip versions goes to its first stop: Kubernetes one minor at a time.
+			to := s.pullRequestTo(a, versions.FirstStop(o, a.ServiceID, a.Tag, up.Latest.Raw))
 			if to == "" {
 				continue
 			}
 			running, ok := versions.ParseVersion(strings.TrimPrefix(a.Tag, "v"))
-			if !ok || !pol.AutoPR[a.Environment].AtLeast(running.JumpTo(up.Latest)) {
+			next, okNext := versions.ParseVersion(strings.TrimPrefix(to, "v"))
+			if !okNext {
+				next = up.Latest
+			}
+			if !ok || !pol.AutoPR[a.Environment].AtLeast(running.JumpTo(next)) {
 				continue // a bigger jump than the policy opens by itself
 			}
 			if _, done := s.pullFor(ctx, sc, a, to); done { // opened once: closed without merging is a no
