@@ -452,6 +452,7 @@ func (a *Agent) inspectOne(ctx context.Context, reader Inspector, repository, di
 			in.Purls = list.Purls[:min(len(list.Purls), maxPurls)]
 			from := agentproto.Packages
 			in.PurlsFrom = &from
+			in.GoLinked = list.GoLinked
 		} else if ctx.Err() == nil {
 			a.log.Debug("packages not readable", "repository", repository, "digest", digest, "err", err)
 		}

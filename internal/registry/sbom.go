@@ -16,6 +16,9 @@ import (
 type SBOM struct {
 	Purls    []string          // sorted
 	Licenses map[string]string // purl -> SPDX license expression, for packages whose license the SBOM names
+	// GoLinked is the Go packages the image's Go executables link, when Goliash read them (not from an SBOM
+	// attestation): an advisory about a package none links does not concern the image. Nil when not known.
+	GoLinked []string
 }
 
 // ImageSBOM returns the package URLs (purls) and licenses the SBOM of digest lists, from the first of: the SPDX or

@@ -443,6 +443,13 @@ monthly report, grouped by reason, with *Goliash* as who said so:
   1.27.1-1~bookworm` matched against Debian's advisory for CVE-2023-44487, which nginx fixed in 1.25.3;
 - what the image's publisher rules out in VEX ([below](#vex-from-the-images-publisher));
 - the kernel's packages in a container image ([below](#kernel-packages));
+- a Go advisory about a package the image's Go programs do not link: OSV lists every advisory of the Go standard
+  library (and of a module) for the version a program was built with, whether or not it uses the vulnerable code.
+  When Goliash reads the image's packages itself (no SBOM attestation), it also reads which Go packages each
+  executable links, from its line table (there in stripped executables too), and an advisory whose vulnerable code
+  is in packages none of them links leaves the finding (*do not link net/http, where the vulnerable code is*).
+  Packages, not functions: the compiler inlines small functions, which then no longer show, but a package rarely
+  disappears whole. An image whose programs could not all be read keeps every finding.
 - what Debian's security tracker says its release never had: OSV copies the tracker, sometimes days late, and may
   still list such a CVE as affected with no fix (*this release never had the vulnerable code*). CVEs Debian has not
   assessed yet stay listed, marked *not assessed by Debian yet* instead of *no fix yet*. An open issue Debian rates

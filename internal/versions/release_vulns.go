@@ -121,7 +121,7 @@ func (c *Checker) readReleases(ctx context.Context, sc store.Scope, active []sto
 				if ctx.Err() != nil {
 					return nil, ctx.Err()
 				}
-				rec := store.ImageSBOM{Repo: repo, Digest: digest, Purls: list.Purls, Source: "packages"}
+				rec := store.ImageSBOM{Repo: repo, Digest: digest, Purls: list.Purls, Source: "packages", GoLinked: list.GoLinked}
 				if err != nil {
 					rec.Error = err.Error()
 				}
