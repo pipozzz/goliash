@@ -397,7 +397,8 @@ func oneMachine(ts []TargetView) []TargetView {
 	}
 	part := map[int]int{} // host index -> engine index
 	for agent, hs := range hosts {
-		if es := engines[agent]; len(es) == 1 && len(hs) == 1 {
+		// The same machine: the agent named both after its hostname (ip-10-0-0-5, and ip-10-0-0-5-2 for the second).
+		if es := engines[agent]; len(es) == 1 && len(hs) == 1 && sameMachine(ts[es[0]].Name, ts[hs[0]].Name) {
 			part[hs[0]] = es[0]
 			ts[hs[0]].Machine = ts[es[0]].Name
 		}
@@ -428,4 +429,17 @@ func platformLabel(p string) string {
 		return k.Label
 	}
 	return p
+}
+
+// sameMachine tells two targets an agent named after one hostname: the same name, or the second one Goliash told
+// apart with a number (ip-10-0-0-5-2), or with -os.
+func sameMachine(engine, host string) bool {
+	if engine == host || host == engine+"-os" {
+		return true
+	}
+	rest, ok := strings.CutPrefix(host, engine+"-")
+	if !ok || rest == "" {
+		return false
+	}
+	return strings.Trim(rest, "0123456789") == ""
 }

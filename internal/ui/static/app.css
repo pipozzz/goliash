@@ -1558,3 +1558,8 @@ svg a text.lane.link { text-decoration: underline dotted; cursor: pointer; }
 svg a:hover text.lane.link { fill: var(--accent); }
 /* Drift about a whole environment (its targets disagree) sits under its name, not beside one of its versions. */
 .env-drift { margin-top: 6px; }
+
+/* A Linux server's packages, under its facts. */
+.server-packages { padding: 0 16px 14px; }
+.server-packages > summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+tr.muted-row td { color: var(--muted); }

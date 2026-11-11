@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"net/url"
 	"strings"
@@ -195,12 +196,14 @@ func TestOneMachine(t *testing.T) {
 		{ID: "k", AgentID: "a2", Name: "prod", Platform: "kubernetes"},
 		{ID: "d", AgentID: "a1", Name: "ip-1", Platform: "docker"},
 		{ID: "h3", AgentID: "a3", Name: "vm-3", Platform: "host"}, // a host alone
+		{ID: "d4", AgentID: "a4", Name: "tools", Platform: "docker"},
+		{ID: "h4", AgentID: "a4", Name: "mail-01", Platform: "host"}, // one agent, two machines
 	})
 	var order []string
 	for _, t := range ts {
 		order = append(order, t.ID+":"+t.Machine)
 	}
-	if strings.Join(order, " ") != "k: d: h:ip-1 h3:" {
+	if strings.Join(order, " ") != "k: d: h:ip-1 h3: d4: h4:" {
 		t.Fatalf("order %v", order)
 	}
 }
@@ -224,5 +227,46 @@ func TestServicePageLinksTargets(t *testing.T) {
 	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/"+url.PathEscape(e.serviceOf("evil")), nil)
 	if !strings.Contains(page, `class="target-link" href="/targets/`+e.tgt.ID+`"`) {
 		t.Fatal("the service page does not link the target its version runs on")
+	}
+}
+
+// A Linux server's page says what it runs, what waits for it and its packages, the vulnerable ones first.
+func TestServerPage(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	host, err := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: e.prod.ID, Platform: "host", Name: "mail-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	osSvc, _ := e.st.EnsureService(ctx, sc, "ubuntu")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: host.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: host.ID, EnvironmentID: e.prod.ID, ServiceID: osSvc.ID, WorkloadID: "os/ubuntu", WorkloadKind: "host_os", WorkloadName: "ubuntu",
+		ContainerName: "ubuntu", Image: "docker.io/library/ubuntu:22.04", Tag: "22.04", Running: 1, IsMain: true, CodeDigest: "sha256:h",
+		Maintenance: []string{"reboot required: kernel 5.15.0-126-generic installed, 5.15.0-119-generic runs", "package updates: 23 waiting, 9 of them security"},
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	ssl := "pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.12?arch=amd64&os_version=22.04&upstream=openssl"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{
+		Repo: store.LambdaCodeRepo, Digest: "sha256:h", Source: "code",
+		Purls: []string{ssl, "pkg:deb/ubuntu/sudo@1.9.9-1ubuntu2.4?arch=amd64&os_version=22.04"},
+	})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{ssl: {"UBUNTU-CVE-2024-5535"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{
+		ID: "UBUNTU-CVE-2024-5535", Aliases: []string{"CVE-2024-5535"}, Severity: "HIGH",
+		Fixes: map[string][]string{"Ubuntu:22.04:LTS|openssl": {"3.0.2-0ubuntu1.17"}},
+	})
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/targets/"+host.ID, nil)
+	for _, want := range []string{
+		">Server<", "Ubuntu 22.04", "reboot pending", "23 waiting, 9 of them security", "1 vulnerability", "in 2 packages",
+		"Packages (2)", ">libssl3<", "3.0.2-0ubuntu1.17", "none known", "operating system",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("server page misses %q", want)
+		}
+	}
+	if strings.Contains(page, ">Application<") {
+		t.Error("a server's page offers grouping by application")
 	}
 }

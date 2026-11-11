@@ -435,3 +435,7 @@ func rpmVerCmp(a, b string) int {
 	}
 	return 1
 }
+
+// CompareDistroVersions orders two package versions of a distribution (dpkg's or rpm's, epoch:version-release), as
+// rpm does: -1, 0 or 1. Close enough for Debian's too, ~ included.
+func CompareDistroVersions(a, b string) int { return rpmCompare(a, b) }
