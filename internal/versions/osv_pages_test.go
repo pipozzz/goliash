@@ -169,13 +169,33 @@ func TestUnusedRecords(t *testing.T) {
 	}
 	records := map[string]store.Vuln{ids[0]: {}, ids[1]: {}, ids[2]: {}, "UBUNTU-CVE-2025-9999": {}}
 	kev := map[string]store.Exploited{"CVE-2026-00002": {}}
-	got := unusedRecords([]string{kernel, ssl}, known, records, kev)
+	got := unusedRecords([]string{kernel, ssl}, nil, known, records, kev)
 	if len(got) != 1 || got[0] != ids[0] {
 		t.Fatalf("dropped %v", got)
 	}
 	// Without the newest version's answer the records are what says which version fixes them: kept.
 	delete(known, NewestKey(kernel))
-	if got := unusedRecords([]string{kernel, ssl}, known, records, kev); len(got) != 0 {
+	if got := unusedRecords([]string{kernel, ssl}, nil, known, records, kev); len(got) != 0 {
+		t.Fatalf("dropped %v", got)
+	}
+}
+
+// A kernel package in an image never affects it: OSV is not asked, and the records only it has are forgotten.
+func TestIgnoredKernelPackages(t *testing.T) {
+	if !neverAffects("linux-libc-dev 6.1.158-1", false) || !neverAffects("linux-headers-6.8.0-1015-aws 6.8.0-1015.16", true) {
+		t.Error("kernel package not ignored")
+	}
+	if neverAffects("linux-image-6.17.0-1010-aws 6.17.0-1010.10", true) || neverAffects("openssl 3.0.15", false) {
+		t.Error("a package that runs ignored")
+	}
+	libc := "pkg:deb/debian/linux-libc-dev@6.1.158-1?os_version=12"
+	ssl := "pkg:deb/debian/libssl3@3.0.15?os_version=12"
+	known := map[string]store.PackageVulns{
+		libc: {Vulns: []string{"DEBIAN-CVE-2025-1", "DEBIAN-CVE-2025-2"}}, ssl: {Vulns: []string{"DEBIAN-CVE-2025-2"}},
+	}
+	records := map[string]store.Vuln{"DEBIAN-CVE-2025-1": {}, "DEBIAN-CVE-2025-2": {}}
+	got := unusedRecords([]string{ssl}, []string{libc}, known, records, nil)
+	if len(got) != 1 || got[0] != "DEBIAN-CVE-2025-1" {
 		t.Fatalf("dropped %v", got)
 	}
 }
