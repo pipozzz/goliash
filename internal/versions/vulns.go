@@ -292,7 +292,8 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 			}
 			asked[id] = true
 			// Kept until it is a week old, or OSV says it changed since (a distribution added a fix).
-			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) {
+			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) &&
+				(r.Fixes[fixesFormat] != nil || !distroRecord(id)) {
 				continue
 			}
 			fetched++
@@ -645,6 +646,9 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 			ids := append([]string{id}, f.Aliases...)
 			distro := distroStatus(distroStatuses, p, ids)
+			if m := minorFor(p, rec.Fixes); m != "" && (distro == "" || distro == DistroUndetermined) {
+				distro = m // the distribution's own record says it plans no update: OSV has it before the tracker
+			}
 			eolOS := ""
 			if fix == "" {
 				eolOS = eolOSOf(ctx, p, eolMemo)

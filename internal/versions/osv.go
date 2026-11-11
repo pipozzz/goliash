@@ -351,11 +351,18 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 		DatabaseSpecific struct {
 			Severity string `json:"severity"`
 		} `json:"database_specific"`
+		Severities []struct {
+			Type  string `json:"type"`
+			Score string `json:"score"`
+		} `json:"severity"`
 		Affected []struct {
 			Package struct {
 				Name      string `json:"name"`
 				Ecosystem string `json:"ecosystem"`
 			} `json:"package"`
+			EcosystemSpecific struct {
+				Urgency string `json:"urgency"` // Debian's: unimportant, low, medium, high
+			} `json:"ecosystem_specific"`
 			Ranges []struct {
 				Events []struct {
 					Fixed string `json:"fixed"`
@@ -371,8 +378,19 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 		return OSVVuln{}, err
 	}
 	v := OSVVuln{ID: rec.ID, Aliases: append(rec.Aliases, rec.Upstream...), Summary: rec.Summary, Severity: strings.ToUpper(rec.DatabaseSpecific.Severity), Fixes: map[string][]string{}}
+	negligible := false // Ubuntu's priority, for all its releases
+	for _, s := range rec.Severities {
+		negligible = negligible || s.Type == "Ubuntu" && strings.EqualFold(s.Score, "negligible")
+	}
+	v.Fixes[fixesFormat] = []string{"2"}
 	for _, a := range rec.Affected {
 		key := a.Package.Ecosystem + "|" + a.Package.Name
+		switch {
+		case strings.HasPrefix(a.Package.Ecosystem, "Debian:") && a.EcosystemSpecific.Urgency == "unimportant":
+			v.Fixes[minorKey+key] = []string{DistroUnimportant}
+		case strings.HasPrefix(a.Package.Ecosystem, "Ubuntu:") && negligible:
+			v.Fixes[minorKey+key] = []string{DistroNegligible}
+		}
 		for _, r := range a.Ranges {
 			for _, e := range r.Events {
 				if e.Fixed != "" && !contains(v.Fixes[key], e.Fixed) {
@@ -418,10 +436,41 @@ func (o *OSV) do(req *http.Request, into any) error {
 }
 
 // fixesFor finds the versions that fix a vulnerability for purl, under whichever name OSV files the package.
+// fixesFormat marks a record's fixes read with the distributions' ratings (minorKey); older ones are read again.
+const fixesFormat = "_format"
+
+// minorKey files, beside a package's fixes, its distribution's rating of a vulnerability it plans no security update
+// for: Debian's unimportant, Ubuntu's negligible.
+const minorKey = "minor|"
+
+// minorFor is the rating purl's distribution gives the vulnerability, when it plans no security update for it.
+func minorFor(purl string, fixes map[string][]string) string {
+	for _, q := range osvQueries(purl) {
+		for _, k := range fixKeys(q) {
+			if m := fixes[minorKey+k]; len(m) > 0 {
+				return m[0]
+			}
+		}
+	}
+	return ""
+}
+
+// fixKeys are the "ecosystem|package" keys a query's fixes may be filed under: Ubuntu files its LTS releases as
+// Ubuntu:24.04:LTS, while an image's packages say 24.04.
+func fixKeys(q osvQuery) []string {
+	k := queryKey(q)
+	if strings.HasPrefix(q.Package.Ecosystem, "Ubuntu:") && !strings.HasSuffix(q.Package.Ecosystem, ":LTS") {
+		return []string{k, q.Package.Ecosystem + ":LTS|" + q.Package.Name}
+	}
+	return []string{k}
+}
+
 func fixesFor(purl string, fixes map[string][]string) []string {
 	for _, q := range osvQueries(purl) {
-		if f := fixes[queryKey(q)]; len(f) > 0 {
-			return f
+		for _, k := range fixKeys(q) {
+			if f := fixes[k]; len(f) > 0 {
+				return f
+			}
 		}
 	}
 	return nil
@@ -445,4 +494,9 @@ func queryKey(q osvQuery) string {
 		name = u
 	}
 	return eco + "|" + name
+}
+
+// distroRecord tells a distribution's record (DEBIAN-CVE-…, UBUNTU-CVE-…), which rates vulnerabilities per release.
+func distroRecord(id string) bool {
+	return strings.HasPrefix(id, "DEBIAN-") || strings.HasPrefix(id, "UBUNTU-")
 }
