@@ -174,10 +174,13 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	auth := c.registryAuth(ctx, sc)
 	read, unpacked := 0, 0
 	packages, _ := c.tags.(PackageReader)
-	keys := map[string]bool{}
+	keys, hostKeys := map[string]bool{}, map[string]bool{}
 	for _, in := range active {
 		if in.CodeDigest != "" { // a .zip Lambda function: its agent sends the packages of its code
 			keys[in.PackagesKey("")] = true
+			if in.WorkloadKind == "host_os" {
+				hostKeys[in.PackagesKey("")] = true
+			}
 			continue
 		}
 		if in.Digest == "" {
@@ -269,16 +272,28 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		return err
 	}
 
-	// OSV, for the packages of running images whose answer is missing or old.
-	var purls []string
+	// OSV, for the packages of running images whose answer is missing or old; not for the kernel packages that never
+	// affect where they are (ignored), whose records only take room.
+	onHost := map[string]bool{}
+	for key := range hostKeys {
+		for _, p := range sboms[key].Purls {
+			onHost[p] = true
+		}
+	}
+	var purls, ignored []string
 	seen := map[string]bool{}
 	for _, set := range []map[string]bool{keys, bases, releases} {
 		for key := range set {
 			for _, p := range sboms[key].Purls {
-				if !seen[p] {
-					seen[p] = true
-					purls = append(purls, p)
+				if seen[p] {
+					continue
 				}
+				seen[p] = true
+				if neverAffects(purlName(p), onHost[p]) {
+					ignored = append(ignored, p)
+					continue
+				}
+				purls = append(purls, p)
 			}
 		}
 	}
@@ -342,6 +357,31 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	}
 	if more, err := c.store.PackageVulnsOf(ctx, newestKeys(purls)); err == nil {
 		maps.Copy(known, more)
+	}
+	// A package with too many vulnerabilities to read their records whose newest version was not asked about yet (its
+	// answer older than the question): asked now, rather than at its next refresh, so its records are not read.
+	var unasked []string
+	for _, p := range purls {
+		if len(known[p].Vulns) >= heavyPackage && known[NewestKey(p)].CheckedAt.IsZero() && newestAsked(p) {
+			unasked = append(unasked, p)
+		}
+	}
+	if len(unasked) > 0 {
+		newest, err := c.osv.QueryNewest(ctx, unasked)
+		if err != nil {
+			return err
+		}
+		answers := map[string][]string{}
+		for _, p := range unasked {
+			answers[NewestKey(p)] = newest[p]
+			known[NewestKey(p)] = store.PackageVulns{Purl: NewestKey(p), Vulns: newest[p], CheckedAt: now}
+		}
+		if err := c.store.SetPackageVulns(ctx, answers); err != nil {
+			return err
+		}
+	}
+	if old, err := c.store.PackageVulnsOf(ctx, ignored); err == nil {
+		maps.Copy(known, old)
 	}
 
 	// The records of the vulnerabilities found, for their CVE aliases, summary and severity.
@@ -413,7 +453,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	}
 	// Records an older Goliash read of such a package (a kernel's thousands) are forgotten: every report reads the
 	// whole table, and on a small server that is the disk read again and again.
-	drop := unusedRecords(purls, known, records, kev)
+	drop := unusedRecords(purls, ignored, known, records, kev)
 	if err := c.store.DeleteVulns(ctx, drop); err != nil {
 		return err
 	}
@@ -439,26 +479,28 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	return nil
 }
 
-// unusedRecords are the records kept of vulnerabilities only packages with too many to read have (a kernel), the
-// newest version's answer standing in for them: none exploited in the wild, none another package has.
-func unusedRecords(purls []string, known map[string]store.PackageVulns, records map[string]store.Vuln, kev map[string]store.Exploited) []string {
+// unusedRecords are the records kept that no package needs: those of vulnerabilities only packages with too many to
+// read have (a kernel), the newest version's answer standing in for them, or ignored packages (kernel packages that
+// never affect where they are). Kept: those exploited in the wild, and those another package has.
+func unusedRecords(purls, ignored []string, known map[string]store.PackageVulns, records map[string]store.Vuln, kev map[string]store.Exploited) []string {
 	heavy := func(p string) bool {
 		return len(known[p].Vulns) >= heavyPackage && !known[NewestKey(p)].CheckedAt.IsZero()
 	}
 	light := map[string]bool{} // what packages whose records are read have
+	var candidates []string
 	for _, p := range purls {
-		if !heavy(p) {
-			for _, id := range known[p].Vulns {
-				light[id] = true
-			}
-		}
-	}
-	var drop []string
-	dropped := map[string]bool{}
-	for _, p := range purls {
-		if !heavy(p) {
+		if heavy(p) {
+			candidates = append(candidates, p)
 			continue
 		}
+		for _, id := range known[p].Vulns {
+			light[id] = true
+		}
+	}
+	candidates = append(candidates, ignored...)
+	var drop []string
+	dropped := map[string]bool{}
+	for _, p := range candidates {
 		for _, id := range known[p].Vulns {
 			_, kept := records[id]
 			_, exploited := kev[CVEOf(id)]

@@ -60,6 +60,16 @@ func kernelBuildPackage(pkg string) bool {
 	return strings.HasPrefix(name, "linux-") && (strings.Contains(name, "-headers-") || strings.Contains(name, "-tools-"))
 }
 
+// neverAffects reports whether a package is one autoNotAffected always leaves out: a kernel package in an image (the
+// container runs on its host's kernel), or the kernel's headers or tools on a server. OSV is not asked about them,
+// nor are their records read: a kernel has thousands of vulnerabilities.
+func neverAffects(pkg string, host bool) bool {
+	if host {
+		return kernelBuildPackage(pkg)
+	}
+	return kernelPackage(pkg)
+}
+
 // autoNotAffected says why Goliash leaves an affected package out of a finding by itself, "" when it does not.
 func autoNotAffected(a Affected) string {
 	switch {
