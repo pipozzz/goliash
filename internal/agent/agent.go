@@ -64,9 +64,11 @@ type ECRLister interface {
 	ListTags(ctx context.Context, repository, profile string) ([]string, error)
 }
 
-// ECRTimes tells when each tag of an ECR repository was pushed. ecr.Lister implements it.
-type ECRTimes interface {
-	TagTimes(ctx context.Context, repository, profile string) (map[string]time.Time, error)
+// ECRImages reads an ECR repository's images (digests, tags, push times) and its lifecycle policy, so builds tagged
+// with commit hashes can be ordered and images the policy will delete told. ecr.Lister implements it.
+type ECRImages interface {
+	Images(ctx context.Context, repository, profile string) ([]ecr.Image, error)
+	LifecyclePolicy(ctx context.Context, repository, profile string) (string, error)
 }
 
 // ECRAuth gives registry credentials for an ECR repository, so its manifests, signatures and attestations

@@ -19,7 +19,7 @@ import (
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned
+	Kind     string // expiring, moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
@@ -175,6 +175,9 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	}
 	out = append(out, EOLOperatingSystems(ctx, running, sboms, envName, targetName, time.Now())...)
 	out = append(out, EOLRuntimes(ctx, running, sboms, envName, targetName, time.Now())...)
+	if expiring, err := st.ExpiringTags(ctx, sc, time.Now().Add(expiringWithin)); err == nil && len(expiring) > 0 {
+		out = append(ExpiringImages(running, expiring, envName, targetName, time.Now()), out...)
+	}
 	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
 	withTeams(out, running, services)
@@ -443,5 +446,55 @@ func QuietUpstreams(active []store.Instance, releases map[string][]store.Release
 		}
 		return out[i].Image < out[j].Image
 	})
+	return out
+}
+
+// expiringWithin is how far ahead a lifecycle policy deleting a running image is told.
+const expiringWithin = 7 * 24 * time.Hour
+
+// ExpiringImages finds running images their repository's lifecycle policy deletes (Amazon ECR, as the agent read the
+// policy): within a day for a count rule, or on the date a sinceImagePushed rule gives. What runs keeps running, but
+// a new task, a scale-out or a rollback to it cannot pull it any more. An image is matched by digest, else by tag.
+func ExpiringImages(active []store.Instance, expiring []store.TagTime, envName, targetName map[string]string, now time.Time) []Finding {
+	byDigest, byTag := map[string]store.TagTime{}, map[string]store.TagTime{}
+	for _, t := range expiring {
+		if t.Digest != "" {
+			byDigest[t.Repo+"@"+t.Digest] = t
+		}
+		byTag[t.Repo+":"+t.Tag] = t
+	}
+	found := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		ref := ParseImage(i.Image)
+		t, ok := byDigest[ref.Repo()+"@"+i.Digest]
+		if !ok || i.Digest == "" {
+			if t, ok = byTag[ref.Repo()+":"+ref.Tag]; !ok {
+				continue
+			}
+		}
+		key := ref.Repo() + ":" + ref.Tag
+		f := found[key]
+		if f == nil {
+			when := "within a day (a rule keeps only the newest images)"
+			if t.ExpiresAt.After(now.Add(24 * time.Hour)) {
+				when = "on " + t.ExpiresAt.Format(time.DateOnly)
+			}
+			f = &Finding{
+				Kind: "expiring", Severity: "warning", Image: key,
+				Detail: "the repository's lifecycle policy deletes this running image " + when +
+					": what runs keeps running, but a new task, a scale-out or a rollback to it cannot pull it. " +
+					"Deploy a newer build, or exclude what runs from the rule (a tag prefix it does not select).",
+			}
+			found[key] = f
+			order = append(order, key)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	out := make([]Finding, 0, len(order))
+	for _, k := range order {
+		sort.Strings(found[k].Where)
+		out = append(out, *found[k])
+	}
 	return out
 }

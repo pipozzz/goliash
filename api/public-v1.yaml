@@ -922,7 +922,7 @@ paths:
                   type: object
                   required: [kind, severity, image, detail, where, teams]
                   properties:
-                    kind: { type: string, enum: [moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned] }
+                    kind: { type: string, enum: [expiring, moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned] }
                     severity: { type: string, enum: [warning, info] }
                     image: { type: string }
                     detail: { type: string }

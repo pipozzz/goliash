@@ -292,15 +292,24 @@ func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentp
 	}
 	for _, r := range res.Results {
 		var tags []string
-		pushed := map[string]time.Time{}
+		var facts []store.TagTime
 		for _, t := range r.Tags {
 			tags = append(tags, t.Name)
-			if t.CreatedAt != nil {
-				pushed[t.Name] = *t.CreatedAt
+			if t.CreatedAt == nil {
+				continue
 			}
+			f := store.TagTime{Tag: t.Name, PushedAt: *t.CreatedAt}
+			if t.Digest != nil {
+				f.Digest = *t.Digest
+			}
+			if t.ExpiresAt != nil {
+				f.ExpiresAt = *t.ExpiresAt
+			}
+			facts = append(facts, f)
 		}
-		if len(pushed) > 0 { // when each build went out: orders those tagged with commit hashes
-			if err := s.store.SetTagTimes(ctx, a.Scope, r.Repository, pushed); err != nil {
+		// When each build went out (it orders those tagged with commit hashes), and when the lifecycle policy deletes it.
+		if len(facts) > 0 && (r.Error == nil || *r.Error == "") {
+			if err := s.store.SetTagFacts(ctx, a.Scope, r.Repository, facts); err != nil {
 				return err
 			}
 		}

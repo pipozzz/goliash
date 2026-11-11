@@ -52,6 +52,10 @@ func (f *fakeECR) DescribeImages(_ context.Context, _ *ecr.DescribeImagesInput, 
 	}}, nil
 }
 
+func (f *fakeECR) GetLifecyclePolicy(context.Context, *ecr.GetLifecyclePolicyInput, ...func(*ecr.Options)) (*ecr.GetLifecyclePolicyOutput, error) {
+	return nil, &types.LifecyclePolicyNotFoundException{}
+}
+
 func (f *fakeECR) GetAuthorizationToken(context.Context, *ecr.GetAuthorizationTokenInput, ...func(*ecr.Options)) (*ecr.GetAuthorizationTokenOutput, error) {
 	f.tokenCalls++
 	expires := time.Date(2026, 10, 9, 22, 0, 0, 0, time.UTC)
@@ -147,5 +151,13 @@ func TestTagTimes(t *testing.T) {
 	got, err := l.TagTimes(context.Background(), "240220093055.dkr.ecr.us-west-2.amazonaws.com/chat", "")
 	if err != nil || len(got) != 3 || got["latest"] != got["f00d1e5"] || got["bca73851"].Day() != 3 {
 		t.Fatalf("%v %v", got, err)
+	}
+}
+
+// A repository without a lifecycle policy has none: no error.
+func TestNoLifecyclePolicy(t *testing.T) {
+	l := &Lister{NewAPI: func(context.Context, string, string) (API, error) { return &fakeECR{}, nil }}
+	if p, err := l.LifecyclePolicy(context.Background(), "240220093055.dkr.ecr.us-west-2.amazonaws.com/chat", ""); p != "" || err != nil {
+		t.Fatalf("%q %v", p, err)
 	}
 }

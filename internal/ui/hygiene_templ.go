@@ -538,6 +538,8 @@ func findingLabel(kind string) string {
 		return "OS end of life"
 	case "eol-runtime":
 		return "Go end of life"
+	case "expiring":
+		return "lifecycle deletes it"
 	}
 	return strings.ReplaceAll(kind, "-", " ")
 }
