@@ -4,9 +4,11 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/versions"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // The target page shows one cluster or host: every workload as a card, coloured by
@@ -34,9 +37,38 @@ type TargetDetailView struct {
 	Workloads, Services, OK, Drifting, Unmapped int
 	Groups                                      []WorkloadGroup
 	GroupBy                                     string // app, namespace, team or status
-	Deploys                                     []int  // per day, oldest first
+	GroupModes                                  []struct{ Key, Label string }
+	Deploys                                     []int // per day, oldest first
 	DeployMax                                   int
 	Changes                                     []EventView
+	// Server is the Linux server a host target is: its OS, what waits for it, its packages' vulnerabilities.
+	Server *ServerView
+}
+
+// ServerView is what a Linux server's page says of it at the top.
+type ServerView struct {
+	OS, OSURL  string // Ubuntu 22.04, and its service page
+	OSEnd      string // the end of its release's support, when known
+	OSPast     bool
+	Reboot     string // what waits for a reboot, "" when nothing
+	Updates    string // package updates waiting, as update-notifier counted them
+	Packages   int    // packages its agent sent for their vulnerabilities; 0 when none yet
+	Vulns      int    // known vulnerabilities in them
+	Exploited  int    // of them, exploited in the wild
+	VulnsURL   string
+	NotChecked string // why its packages are not checked, when they are not
+	// PackageList is every package its agent sent, those with vulnerabilities first.
+	PackageList []ServerPackage
+}
+
+// ServerPackage is one package of a Linux server and its known vulnerabilities.
+type ServerPackage struct {
+	Name, Version string
+	Vulns         int
+	Exploited     int
+	Severity      string // the worst: CRITICAL, HIGH …
+	Fix           string // the newest version that fixes one of them: upgrading to it fixes all those with a fix
+	Search        string
 }
 
 // WorkloadGroup is one column of the target page.
@@ -201,13 +233,23 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 		v.Workloads++
 	}
 	v.Services = len(services)
+	if t.Platform == "host" {
+		v.Server = s.serverView(ctx, p, t, insts, o)
+	}
 	v.GroupBy = s.grouping(w, r, targetGroupCookie)
+	v.GroupModes = groupModes
+	if t.Platform == "host" { // a server's packages have no application or namespace
+		v.GroupModes = groupModes[2:]
+	}
 	known := false
-	for _, m := range groupModes {
+	for _, m := range v.GroupModes {
 		known = known || m.Key == v.GroupBy
 	}
 	if !known {
-		v.GroupBy = "app"
+		v.GroupBy = v.GroupModes[0].Key
+		if t.Platform == "host" {
+			v.GroupBy = "status"
+		}
 	}
 	v.Groups = groupCards(cards, v.GroupBy)
 
@@ -406,4 +448,152 @@ func appSourceLabel(src string) string {
 		return ""
 	}
 	return src + " label"
+}
+
+// osDistros are the distributions of the images a host's operating system is compared with, by repository.
+var osDistros = map[string]string{
+	"docker.io/library/ubuntu": "ubuntu", "docker.io/library/debian": "debian", "docker.io/library/alpine": "alpine",
+	"docker.io/library/rockylinux": "rocky", "docker.io/library/almalinux": "almalinux", "docker.io/library/amazonlinux": "amzn",
+}
+
+// serverView gathers what a Linux server's page says of it: its operating system and its support, a reboot and
+// package updates waiting, and its packages' vulnerabilities.
+func (s *Server) serverView(ctx context.Context, p auth.Principal, t store.Target, insts []store.Instance, o versions.Overview) *ServerView {
+	var osi *store.Instance
+	for i := range insts {
+		if insts[i].RemovedAt.IsZero() && insts[i].IsMain && insts[i].WorkloadKind == string(agentproto.HostOs) {
+			osi = &insts[i]
+		}
+	}
+	if osi == nil {
+		return nil
+	}
+	v := &ServerView{}
+	ref := versions.ParseImage(osi.Image)
+	distro := osDistros[ref.Repo()]
+	if distro == "" {
+		distro = osi.WorkloadName
+	}
+	img := versions.ImageOS{Distro: distro, Version: ref.Tag}
+	v.OS = strings.TrimSpace(img.String())
+	if strings.HasPrefix(v.OS, " ") || v.OS == ref.Tag {
+		v.OS = osi.WorkloadName + " " + ref.Tag
+	}
+	if svc, ok := o.Services[osi.ServiceID]; ok {
+		v.OSURL = serviceURL(svc.Name)
+	}
+	if cy, _, ok := versions.OSCycle(ctx, img); ok && !cy.EOLFrom.IsZero() {
+		v.OSEnd = cy.EOLFrom.Format(time.DateOnly)
+		v.OSPast = cy.IsEOL || !cy.EOLFrom.After(time.Now())
+	}
+	for _, m := range osi.Maintenance {
+		switch {
+		case strings.HasPrefix(m, "reboot required"):
+			v.Reboot = strings.TrimPrefix(strings.TrimPrefix(m, "reboot required"), ": ")
+			if v.Reboot == "" {
+				v.Reboot = "required"
+			}
+		case strings.HasPrefix(m, "package updates: "):
+			v.Updates = strings.TrimPrefix(m, "package updates: ")
+		}
+	}
+	var purls []string
+	if osi.CodeDigest != "" {
+		if sboms, err := s.store.ListImageSBOMs(ctx, p.Scope); err == nil {
+			purls = sboms[osi.PackagesKey("")].Purls
+			v.Packages = len(purls)
+		}
+	}
+	byPackage := map[string]*ServerPackage{} // by "name version", as the report names a package
+	if svc, ok := o.Services[osi.ServiceID]; ok {
+		v.VulnsURL = "/security/vulns?q=" + url.QueryEscape(svc.Name)
+		if rep, err := versions.LoadVulnReport(ctx, s.store, p.Scope, t.EnvironmentID); err == nil {
+			for _, f := range rep.Findings {
+				counted := false
+				for _, a := range f.Affected {
+					if !a.Host || a.ServiceID != osi.ServiceID {
+						continue
+					}
+					if !counted {
+						counted = true
+						v.Vulns++
+						if f.Exploited != nil {
+							v.Exploited++
+						}
+					}
+					sp := byPackage[a.Package]
+					if sp == nil {
+						name, version, _ := strings.Cut(a.Package, " ")
+						sp = &ServerPackage{Name: name, Version: version}
+						byPackage[a.Package] = sp
+					}
+					sp.Vulns++
+					if f.Exploited != nil {
+						sp.Exploited++
+					}
+					if severityOrder(f.Severity) > severityOrder(sp.Severity) {
+						sp.Severity = f.Severity
+					}
+					if a.Fix != "" && (sp.Fix == "" || versions.CompareDistroVersions(a.Fix, sp.Fix) > 0) {
+						sp.Fix = a.Fix // the newest fix: upgrading to it fixes every one with a fix
+					}
+				}
+			}
+			for _, u := range rep.Unsupported {
+				if u.Service == svc.Name {
+					v.NotChecked = u.Why
+				}
+			}
+		}
+	}
+	for _, pu := range purls {
+		name, version, _ := strings.Cut(versions.PackageLabel(pu), " ") // as the report names it: openssl 3.0.2-0ubuntu1.12
+		if _, ok := byPackage[name+" "+version]; !ok {
+			byPackage[name+" "+version] = &ServerPackage{Name: name, Version: version}
+		}
+	}
+	for _, sp := range byPackage {
+		sp.Search = strings.ToLower(sp.Name + " " + sp.Version + " " + sp.Severity)
+		if sp.Exploited > 0 {
+			sp.Search += " exploited"
+		}
+		v.PackageList = append(v.PackageList, *sp)
+	}
+	sort.Slice(v.PackageList, func(i, j int) bool {
+		a, b := v.PackageList[i], v.PackageList[j]
+		if a.Exploited != b.Exploited {
+			return a.Exploited > b.Exploited
+		}
+		if a.Vulns != b.Vulns {
+			return a.Vulns > b.Vulns
+		}
+		return a.Name < b.Name
+	})
+	return v
+}
+
+// severityOrder ranks severities for showing the worst.
+func severityOrder(s string) int {
+	switch strings.ToUpper(s) {
+	case "CRITICAL":
+		return 4
+	case "HIGH":
+		return 3
+	case "MODERATE", "MEDIUM":
+		return 2
+	case "LOW":
+		return 1
+	}
+	return 0
+}
+
+// workloadKindLabel names a workload's kind for people: a server's operating system and packages, others as they are.
+func workloadKindLabel(kind string) string {
+	switch kind {
+	case string(agentproto.HostOs):
+		return "operating system"
+	case string(agentproto.HostPackage):
+		return "package"
+	}
+	return kind
 }

@@ -347,7 +347,9 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 // Affected is one running image a vulnerability is in.
 type Affected struct {
 	// Host is a server's own package, from its package database: its kernel packages are the kernel it runs.
-	Host bool
+	// Server names that server (its target).
+	Host   bool
+	Server string
 	// GoUnlinked names the Go packages with the vulnerable code when none of the image's Go executables links any
 	// of them (net/http, for a program without it): the advisory does not concern the image.
 	GoUnlinked                   string
@@ -565,7 +567,16 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		service, env, image, serviceID, envID, key string
 		since                                      time.Time
 		exposed                                    []string
-		host                                       bool // a server's own packages: its kernel is the one it runs
+		host                                       bool   // a server's own packages: its kernel is the one it runs
+		server                                     string // and its name
+	}
+	serverName := map[string]string{}
+	if ts, err := st.ListTargets(ctx, sc); err == nil {
+		for _, t := range ts {
+			if t.Platform == "host" {
+				serverName[t.ID] = t.Name
+			}
+		}
 	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
@@ -614,7 +625,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed, in.WorkloadKind == "host_os"})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed, in.WorkloadKind == "host_os", serverName[in.TargetID]})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -698,7 +709,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
 				a.GoUnlinked = unlinked(imports, sboms[u.key].GoLinked)
-				a.Host = u.host
+				a.Host, a.Server = u.host, u.server
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
 				a.Distro = distro
 				a.Newer, a.Current = newer, current
@@ -906,6 +917,9 @@ func (b *baseBuild) fixes(p string, ids []string) string {
 	}
 	return b.name
 }
+
+// PackageLabel is how the vulnerability report names a package: its name and version, "openssl 3.0.2-0ubuntu1.12".
+func PackageLabel(p string) string { return purlName(p) }
 
 // purlName is a package URL as people read it: openssl 3.0.11-1~deb12u2.
 func purlName(p string) string {

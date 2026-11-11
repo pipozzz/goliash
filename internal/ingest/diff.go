@@ -127,7 +127,10 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 
 		for _, r := range rows {
 			r.inst.IsMain = r.inst.ContainerName == main
-			if in.AutoMap && r.inst.IsMain && r.inst.ServiceID == "" && validServiceName(r.inst.SuggestedService) {
+			// A Linux server's operating system and packages are what they say (ubuntu, nginx): they map by themselves,
+			// whatever the workspace's setting, each time by name, with no rule that would take containers too.
+			hostItem := r.inst.WorkloadKind == string(agentproto.HostOs) || r.inst.WorkloadKind == string(agentproto.HostPackage)
+			if (in.AutoMap || hostItem) && r.inst.IsMain && r.inst.ServiceID == "" && validServiceName(r.inst.SuggestedService) {
 				id, err := in.ServiceID(r.inst.SuggestedService)
 				if err != nil {
 					return ch, err
@@ -135,7 +138,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 				r.inst.ServiceID = id
 				// No image rule for a shared image (a Lambda runtime, a database engine): it would take every function or
 				// database; they map by name each time instead.
-				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMapped != nil && !mapping.SharedImage(repo) {
+				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMap && in.AutoMapped != nil && !mapping.SharedImage(repo) && !hostItem {
 					in.AutoMapped[repo] = id
 				}
 			}

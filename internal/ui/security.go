@@ -596,6 +596,9 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 			out[i].Rebuild = ""
 		}
 		tag := versions.ParseImage(a.Image).Tag
+		if a.Server != "" { // a server's packages: which server, not the OS version
+			tag = "on " + a.Server
+		}
 		j := slices.IndexFunc(out[i].Where, func(w ServicePlace) bool { return w.Service == a.Service && w.Env == a.Env })
 		switch {
 		case j < 0:

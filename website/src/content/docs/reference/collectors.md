@@ -216,6 +216,13 @@ targets list shows such a machine once: its Docker engine, and right under it **
   the kernel's packages only the running kernel's count, and they do count (in a container image the kernel is the
   host's business; here it is the one that runs); an older kernel left installed, and kernel headers, do not. The
   list is read again only when the package database changes.
+- **Its page** (the target, from *Agents and targets* or a version's target on a service page) is the server at a
+  glance: a **Server** panel with its operating system and its support, a reboot pending (and why), package updates
+  waiting, and how many known vulnerabilities its packages have (exploited ones counted), then every package the
+  agent sent, the vulnerable ones first, each with its count, its worst severity and the newest version that fixes
+  them, filterable (`openssl`, `exploited`, `critical`). Its operating system and packages map to services by
+  themselves (`ubuntu`, `nginx`), whatever the workspace's automatic mapping, and the Vulnerabilities page names the
+  server a package is on (*sudo 1.9.9-1ubuntu2.4 on mail-01*).
 - **A reboot waiting**: when Debian or Ubuntu wrote `/var/run/reboot-required` (with the packages that asked for it),
   or a kernel newer than the running one is installed (any distribution: the running kernel is the agent's too),
   the operating system shows **reboot pending** on its service page and Updates, with what waits in the tooltip:
