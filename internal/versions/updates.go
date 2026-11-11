@@ -442,7 +442,7 @@ func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now 
 		}
 		for _, a := range f.Affected {
 			k := key{a.ServiceID, a.EnvironmentID}
-			if a.ServiceID == "" || a.EnvironmentID == "" || listed[k] || a.Mitigation != nil || a.Distro == DistroNotAffected ||
+			if a.ServiceID == "" || a.EnvironmentID == "" || listed[k] || a.Mitigation != nil || a.Distro == DistroNotAffected || a.Distro == DistroUnimportant ||
 				a.VEX != nil && (a.VEX.Status == "not_affected" || a.VEX.Status == "fixed") {
 				continue
 			}

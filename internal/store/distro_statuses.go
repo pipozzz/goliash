@@ -15,7 +15,7 @@ type DistroStatus struct {
 	Ecosystem string // Debian:12
 	Package   string // the source package
 	CVE       string
-	Status    string // not_affected or undetermined
+	Status    string // not_affected, unimportant or undetermined
 }
 
 // DistroStatusKey is how DistroStatuses keys a status.
