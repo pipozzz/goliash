@@ -165,6 +165,19 @@ labels are never changed. The column caption says where the
 name came from, so a column captioned *namespace, no app label* is a hint to label those workloads. A new label
 key applies from each target's next snapshot.
 
+## The infrastructure map
+
+**Settings → Infrastructure map** (or **Map** on the agents page) draws every target where it runs: cloud, then
+account, then region, with clusters and servers outside a cloud last. Each target is a tile in the colours of its
+target page (red needs attention, amber behind, green up to date, grey nothing mapped), with how many of its services
+are in each state, its environment and platform. A dashed tile has stopped reporting, and a Linux server waiting for
+a reboot says so. Within a region the tiles needing attention come first; an account with any says how many.
+
+Where comes from the agent (the cloud, account and region it reported when it registered) and, for AWS services
+read through the API, from the target's settings (its region, and the account in its cluster ARNs). The filter
+matches names, environments, platforms, regions, accounts and states such as `bad`, `stale` or `reboot`. Click a
+tile to open the target.
+
 ## Looking back, and exporting for audits
 
 ![Time travel above the matrix: 6 October, a track from 12 September to now with a mark for each deployment, Play and step buttons, and the matrix as it was then with upstream and behind-staging badges](../../../assets/timeline.png)

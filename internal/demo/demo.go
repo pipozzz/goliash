@@ -217,12 +217,25 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 	if err != nil {
 		return err
 	}
+	// The cloud agent runs in AWS; the office one on a machine of its own, outside any cloud.
+	if err := st.SetAgentWhere(ctx, sc, agent.ID, map[string]string{"cloud": "aws", "account": demoAccount, "region": "eu-central-1"}); err != nil {
+		return err
+	}
+	_, officeHash := tokens.New(tokens.Agent)
+	office, err := st.CreateAgent(ctx, sc, "office-agent", officeHash)
+	if err != nil {
+		return err
+	}
 	targetIDs := map[string]string{}
 	for _, t := range targets {
+		agentID := agent.ID
+		if demoOffice[t.name] {
+			agentID = office.ID
+		}
 		// Demo data never refreshes; a 30-day poll interval keeps it from looking stale.
 		tg, err := st.CreateTarget(ctx, store.Target{
-			Scope: sc, EnvironmentID: envIDs[t.env], AgentID: agent.ID,
-			Platform: t.platform, Name: t.name, Settings: json.RawMessage(`{}`), PollIntervalSeconds: 30 * 24 * 3600,
+			Scope: sc, EnvironmentID: envIDs[t.env], AgentID: agentID,
+			Platform: t.platform, Name: t.name, Settings: demoSettings(t), PollIntervalSeconds: 30 * 24 * 3600,
 		})
 		if err != nil {
 			return err
@@ -274,7 +287,11 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 				})
 			}
 			raw, _ := json.Marshal(snap)
-			if _, err := svc.Snapshot(ctx, agent, snap, raw); err != nil {
+			by := agent
+			if demoOffice[t.name] {
+				by = office
+			}
+			if _, err := svc.Snapshot(ctx, by, snap, raw); err != nil {
 				return err
 			}
 		}
@@ -283,7 +300,11 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		}
 	}
 	for _, t := range targets {
-		if err := st.ReportCollectorStatus(ctx, sc, agent.ID, targetIDs[t.name], "ok", ""); err != nil {
+		agentID := agent.ID
+		if demoOffice[t.name] {
+			agentID = office.ID
+		}
+		if err := st.ReportCollectorStatus(ctx, sc, agentID, targetIDs[t.name], "ok", ""); err != nil {
 			return err
 		}
 	}
@@ -835,6 +856,36 @@ func demoGitOps(t demoTarget, w agentproto.Workload, day int) *agentproto.GitOps
 		g.SyncBlocked, g.SyncBlockedUntil = &why, &until
 	}
 	return g
+}
+
+// demoAccount and demoUSAccount are the made-up AWS accounts of the demo: production in Europe in one, the US
+// in another.
+const (
+	demoAccount   = "111122223333"
+	demoUSAccount = "444455556666"
+)
+
+// demoOffice lists the demo targets on the office agent: a server and a Docker host outside any cloud, and the
+// development Swarm.
+var demoOffice = map[string]bool{"mail-01": true, "demo-docker-tools": true, "demo-dev": true}
+
+// demoSettings gives the demo's cloud services their region, and the US ones their account, as a real target's
+// settings would: {"ecs": {"region": "us-east-1", "clusters": ["arn:aws:ecs:us-east-1:…"]}}.
+func demoSettings(t demoTarget) json.RawMessage {
+	region, account := "eu-central-1", demoAccount
+	if strings.HasSuffix(t.name, "-us") || t.name == "demo-eks" {
+		region, account = "us-east-1", demoUSAccount
+	}
+	switch t.platform {
+	case "ecs":
+		cluster := "arn:aws:ecs:" + region + ":" + account + ":cluster/" + strings.TrimPrefix(t.name, "demo-")
+		raw, _ := json.Marshal(map[string]any{"ecs": map[string]any{"region": region, "clusters": []string{cluster}}})
+		return raw
+	case "lambda", "rds", "elasticache", "eks", "opensearch", "msk":
+		raw, _ := json.Marshal(map[string]any{t.platform: map[string]any{"region": region}})
+		return raw
+	}
+	return json.RawMessage(`{}`)
 }
 
 // demoDigest is a stable made-up digest for an image reference: the same tag is the same image everywhere.

@@ -14,6 +14,7 @@ templ AgentsPage(v AgentsView) {
 				@pageFilter("main table.agent-list tbody tr, main table.target-list tbody tr", "Filter by name, version, region:…, os:…")
 			}
 			<span class="actions">
+				<a class="button secondary" href="/infrastructure" title="Targets by cloud, account and region">Map</a>
 				if v.CanAdmin {
 					<a class="button secondary" href="/cleanup" title="Agents gone quiet, targets nothing reports for, empty environments, services that run nowhere">Clean up</a>
 				}
