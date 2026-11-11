@@ -42,7 +42,10 @@ import (
 	"syscall"
 	"text/tabwriter"
 	"time"
+
 	_ "time/tzdata" // rules' time zones, also in images without /usr/share/zoneinfo
+
+	"github.com/pipozzz/goliash/internal/memlimit"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/term"
@@ -470,7 +473,7 @@ func serve(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	limitMemory(log)
+	memlimit.Set(log)
 	servePprof(log)
 	slog.SetDefault(log)
 
