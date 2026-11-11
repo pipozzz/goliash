@@ -28,7 +28,8 @@ func TestDebianTracker(t *testing.T) {
    "sid": {"status": "resolved", "fixed_version": "0"}}},
    "TEMP-0000000-1": {"releases": {"bookworm": {"status": "undetermined"}}}},
  "pam": {"CVE-2025-8941": {"releases": {"bookworm": {"status": "undetermined", "urgency": "not yet assigned"}}}},
- "openssl": {"CVE-2024-5535": {"releases": {"bookworm": {"status": "resolved", "fixed_version": "3.0.15-1~deb12u1"}}}}
+ "openssl": {"CVE-2024-5535": {"releases": {"bookworm": {"status": "resolved", "fixed_version": "3.0.15-1~deb12u1"}}}},
+ "openssh": {"CVE-2026-123158": {"releases": {"bookworm": {"status": "open", "urgency": "unimportant"}, "sid": {"status": "resolved", "fixed_version": "1:10.6p2-1"}}}}
 }`)
 	}))
 	defer tracker.Close()
@@ -41,12 +42,13 @@ func TestDebianTracker(t *testing.T) {
 		"pkg:deb/debian/libharfbuzz0b@6.0.0+dfsg-3?arch=amd64&os_version=12&upstream=harfbuzz",
 		"pkg:deb/debian/libpam0g@1.5.2-6+deb12u1?arch=amd64&os_version=12&upstream=pam",
 		"pkg:deb/debian/libssl3@3.0.11-1~deb12u2?arch=amd64&os_version=12&upstream=openssl",
+		"pkg:deb/debian/openssh-server@1:9.2p1-2+deb12u9?arch=amd64&os_version=12&upstream=openssh",
 	}
 	if err := l.checker.refreshDebianTracker(ctx, purls); err != nil {
 		t.Fatal(err)
 	}
 	statuses, fetched, err := l.st.DistroStatuses(ctx, "Debian")
-	if err != nil || fetched.IsZero() || len(statuses) != 2 || statuses["Debian:12|harfbuzz|CVE-2026-113679"] != DistroNotAffected ||
+	if err != nil || fetched.IsZero() || len(statuses) != 3 || statuses["Debian:12|openssh|CVE-2026-123158"] != DistroUnimportant || statuses["Debian:12|harfbuzz|CVE-2026-113679"] != DistroNotAffected ||
 		statuses["Debian:12|pam|CVE-2025-8941"] != DistroUndetermined {
 		t.Fatalf("statuses %v %v", statuses, err)
 	}
@@ -67,6 +69,7 @@ func TestDebianTracker(t *testing.T) {
 	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "example.com/web", Digest: "sha256:abc", Purls: purls, Source: "packages"})
 	_ = l.st.SetPackageVulns(ctx, map[string][]string{
 		purls[0]: {"DEBIAN-CVE-2026-113679"}, purls[1]: {"DEBIAN-CVE-2025-8941"}, purls[2]: {"DEBIAN-CVE-2024-5535"},
+		purls[3]: {"DEBIAN-CVE-2026-123158"},
 	})
 	r, err := LoadVulnReport(ctx, l.st, l.sc, "")
 	if err != nil {
@@ -79,7 +82,19 @@ func TestDebianTracker(t *testing.T) {
 	if _, ok := got["CVE-2026-113679"]; ok || len(got) != 2 || got["CVE-2025-8941"] != DistroUndetermined || got["CVE-2024-5535"] != "" {
 		t.Fatalf("findings %v", got)
 	}
-	if len(r.NotAffected) != 1 || !strings.Contains(r.NotAffected[0].Auto, "never had the vulnerable code (Debian security tracker)") {
+	if _, ok := got["CVE-2026-123158"]; ok {
+		t.Fatal("an issue Debian rates unimportant stays a finding")
+	}
+	if len(r.NotAffected) != 2 || !strings.Contains(notAffectedText(r.NotAffected), "never had the vulnerable code (Debian security tracker)") ||
+		!strings.Contains(notAffectedText(r.NotAffected), "Debian rates it unimportant") {
 		t.Fatalf("not affected %+v", r.NotAffected)
 	}
+}
+
+func notAffectedText(l []NotAffected) string {
+	var b strings.Builder
+	for _, n := range l {
+		b.WriteString(n.Auto + "\n")
+	}
+	return b.String()
 }

@@ -34,6 +34,12 @@ var debianReleases = map[string]string{
 const (
 	DistroNotAffected  = "not_affected"
 	DistroUndetermined = "undetermined"
+	// DistroUnimportant is an open issue Debian rates unimportant for a release: no security update is planned, as
+	// its build is not affected in practice (an OpenSSH flaw only musl builds have, say).
+	DistroUnimportant = "unimportant"
+	// DistroNegligible is a vulnerability Ubuntu rates negligible: a security problem in theory only, which it does
+	// not plan to fix in a stable release.
+	DistroNegligible = "negligible"
 )
 
 // SetDebianTracker sets where the tracker's data is read from; empty means Debian's.
@@ -96,6 +102,7 @@ func fetchDebianTracker(ctx context.Context, url string) ([]store.DistroStatus, 
 	type release struct {
 		Status       string `json:"status"`
 		FixedVersion string `json:"fixed_version"`
+		Urgency      string `json:"urgency"`
 	}
 	var out []store.DistroStatus
 	for dec.More() {
@@ -122,6 +129,8 @@ func fetchDebianTracker(ctx context.Context, url string) ([]store.DistroStatus, 
 				switch {
 				case r.Status == "resolved" && r.FixedVersion == "0":
 					out = append(out, store.DistroStatus{Ecosystem: eco, Package: pkg, CVE: cve, Status: DistroNotAffected})
+				case r.Status == "open" && r.Urgency == "unimportant":
+					out = append(out, store.DistroStatus{Ecosystem: eco, Package: pkg, CVE: cve, Status: DistroUnimportant})
 				case r.Status == "undetermined":
 					out = append(out, store.DistroStatus{Ecosystem: eco, Package: pkg, CVE: cve, Status: DistroUndetermined})
 				}

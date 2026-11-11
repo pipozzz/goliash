@@ -445,7 +445,10 @@ monthly report, grouped by reason, with *Goliash* as who said so:
 - the kernel's packages in a container image ([below](#kernel-packages));
 - what Debian's security tracker says its release never had: OSV copies the tracker, sometimes days late, and may
   still list such a CVE as affected with no fix (*this release never had the vulnerable code*). CVEs Debian has not
-  assessed yet stay listed, marked *not assessed by Debian yet* instead of *no fix yet*. The tracker's data is read
+  assessed yet stay listed, marked *not assessed by Debian yet* instead of *no fix yet*. An open issue Debian rates
+  *unimportant* for the release goes too, with that reason: Debian plans no security update because its build is not
+  affected in practice (CVE-2026-123158 hits OpenSSH built with musl and no PAM, as on Alpine; Debian's is built with
+  glibc and PAM), even when CISA lists it as exploited elsewhere. The tracker's data is read
   once a day while Debian images run; `GOLIASH_DEBIAN_TRACKER_URL` names a mirror or turns it off.
 
 An image on a Debian release past its security support (Debian 11 since its LTS ended) is flagged as undercounted:
