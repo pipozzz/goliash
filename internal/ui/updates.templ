@@ -199,6 +199,17 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			if it.On != "" {
 				<div class="targets">on { it.On }</div>
 			}
+			if len(it.Servers) > 0 {
+				<div class="targets">
+					{ serverWord(len(it.Servers)) }
+					for i, sv := range it.Servers {
+						if i > 0 {
+							{ ", " }
+						}
+						<a class="u" href={ templ.URL("/targets/" + sv.ID) }>{ sv.Name }</a>
+					}
+				</div>
+			}
 		</td>
 		<td data-label="Upgrade" class="upgrade">
 			<span class="tag">{ orDash(it.Running) }</span>
@@ -206,7 +217,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 				<div class="remedy" title={ maintenanceTitle(it.Maintenance) }>
 					<span class="muted">nothing newer to move to · </span>{ it.Remedy }
 				</div>
-			} else if it.Target == "" && it.Remedy != "" {
+			} else if it.Target == "" && it.Remedy != "" && len(it.HostFixes) == 0 {
 				<div class="remedy">
 					<span class="muted">no newer release known · fix:</span> { it.Remedy }
 				</div>
@@ -235,6 +246,18 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 			}
 			if it.Vulns.Known && (len(it.Vulns.Fixed) > 0 || len(it.Vulns.New) > 0) {
 				@promotionVulns(it.Vulns)
+			}
+			if len(it.HostFixes) > 0 {
+				<ul class="host-fixes">
+					for _, h := range it.HostFixes {
+						<li title={ joinComma(h.CVEs) + " exploited in the wild (CISA KEV)" }>
+							if len(it.Servers) > 1 {
+								<span class="muted">{ h.Server + ": " }</span>
+							}
+							<code>{ h.Package }</code> { "· " + h.Remedy }
+						</li>
+					}
+				</ul>
 			}
 			if it.Vulns.Known && len(it.Exploited) > 0 {
 				if still := stillExploited(it.Exploited, it.Vulns); len(still) > 0 {

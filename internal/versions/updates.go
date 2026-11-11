@@ -74,6 +74,29 @@ type Update struct {
 	// Vulns is what upgrading does to known vulnerabilities, when the target version already runs somewhere and
 	// both images have an SBOM: those it fixes and those it brings.
 	Vulns VulnDelta
+	// Servers are the targets whose operating system this is, for a Linux server's OS: the IDs of the servers the
+	// line is about, since every server of an environment shares one line.
+	Servers []string
+	// HostFixes say, for a server's exploited vulnerabilities, which of its packages has each and what fixes it.
+	HostFixes []HostFix
+}
+
+// HostFix is an exploited vulnerability in a package of a server: what to upgrade on which server.
+type HostFix struct {
+	CVE, Server, Package string // Package is the name and version installed
+	Fix                  string // the version that fixes it, empty when unknown
+	FixNewer             bool   // a newer version fixes it, which one not known
+}
+
+// Remedy says what fixes it, in a few words.
+func (h HostFix) Remedy() string {
+	switch {
+	case h.Fix != "":
+		return "upgrade to " + h.Fix
+	case h.FixNewer:
+		return "upgrade to a newer version"
+	}
+	return "no fix known yet"
 }
 
 // Urgency levels, most urgent first.
@@ -202,7 +225,20 @@ func sortUpdates(out []Update) {
 func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	type key struct{ svc, env string }
 	exploited, critical, since := map[key][]string{}, map[key]int{}, map[key]time.Time{}
+	hostFixes := map[key][]HostFix{}
 	for _, f := range r.Findings {
+		if f.Exploited != nil {
+			for _, a := range f.Affected {
+				if !a.Host {
+					continue
+				}
+				k := key{a.ServiceID, a.EnvironmentID}
+				h := HostFix{CVE: f.Key, Server: a.Server, Package: a.Package, Fix: a.Fix, FixNewer: a.FixNewer}
+				if !slices.Contains(hostFixes[k], h) {
+					hostFixes[k] = append(hostFixes[k], h)
+				}
+			}
+		}
 		seen := map[key]bool{}
 		for _, a := range f.Affected {
 			k := key{a.ServiceID, a.EnvironmentID}
@@ -229,6 +265,17 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 		k := key{us[i].Service.ID, us[i].Environment.ID}
 		us[i].Exploited, us[i].Critical, us[i].ExploitedSince = exploited[k], critical[k], since[k]
 		sort.Strings(us[i].Exploited)
+		us[i].HostFixes = hostFixes[k]
+		sort.Slice(us[i].HostFixes, func(a, b int) bool {
+			x, y := us[i].HostFixes[a], us[i].HostFixes[b]
+			if x.Server != y.Server {
+				return x.Server < y.Server
+			}
+			if x.Package != y.Package {
+				return x.Package < y.Package
+			}
+			return x.CVE < y.CVE
+		})
 		us[i].Urgency = urgency(us[i])
 	}
 	sortUpdates(us)
@@ -244,7 +291,7 @@ func WithExposure(us []Update, active []store.Instance) []Update {
 
 func withExposureAt(us []Update, active []store.Instance, now time.Time) []Update {
 	type key struct{ svc, env string }
-	ways, maint := map[key][]string{}, map[key][]string{}
+	ways, maint, servers := map[key][]string{}, map[key][]string{}, map[key][]string{}
 	type engine struct {
 		repo, version string
 		vcpus         int
@@ -255,6 +302,9 @@ func withExposureAt(us []Update, active []store.Instance, now time.Time) []Updat
 			continue
 		}
 		k := key{in.ServiceID, in.EnvironmentID}
+		if in.WorkloadKind == "host_os" && in.RemovedAt.IsZero() && !slices.Contains(servers[k], in.TargetID) {
+			servers[k] = append(servers[k], in.TargetID)
+		}
 		if ref := ParseImage(in.Image); Managed(ref.Repo()) {
 			if engines[k] == nil {
 				engines[k] = map[string]*engine{}
@@ -275,7 +325,7 @@ func withExposureAt(us []Update, active []store.Instance, now time.Time) []Updat
 	}
 	for i := range us {
 		k := key{us[i].Service.ID, us[i].Environment.ID}
-		us[i].Exposed, us[i].Maintenance = ways[k], maint[k]
+		us[i].Exposed, us[i].Maintenance, us[i].Servers = ways[k], maint[k], servers[k]
 		if us[i].EOL == "" {
 			continue
 		}
