@@ -328,6 +328,8 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 
 // Affected is one running image a vulnerability is in.
 type Affected struct {
+	// Host is a server's own package, from its package database: its kernel packages are the kernel it runs.
+	Host bool
 	// GoUnlinked names the Go packages with the vulnerable code when none of the image's Go executables links any
 	// of them (net/http, for a program without it): the advisory does not concern the image.
 	GoUnlinked                   string
@@ -545,6 +547,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		service, env, image, serviceID, envID, key string
 		since                                      time.Time
 		exposed                                    []string
+		host                                       bool // a server's own packages: its kernel is the one it runs
 	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
@@ -579,7 +582,10 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					name = in.WorkloadName
 				}
 				why := blindWhy(b)
-				if in.CodeDigest != "" {
+				switch {
+				case in.WorkloadKind == "host_os":
+					why = hostBlindWhy(b)
+				case in.CodeDigest != "":
 					why = codeBlindWhy(b)
 				}
 				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: why})
@@ -590,7 +596,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed, in.WorkloadKind == "host_os"})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -674,6 +680,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
 				a.GoUnlinked = unlinked(imports, sboms[u.key].GoLinked)
+				a.Host = u.host
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
 				a.Distro = distro
 				a.Newer, a.Current = newer, current
@@ -1157,6 +1164,16 @@ func productName(cpe string) string {
 
 // blindWhy says why an image's packages are unknown.
 // codeBlindWhy says why the packages of a .zip Lambda function's code are not known.
+func hostBlindWhy(b store.ImageSBOM) string {
+	switch {
+	case b.FetchedAt.IsZero():
+		return "the server's packages are not read yet (an agent before 1.236 does not send them)"
+	case b.Error != "":
+		return "its package database could not be read: " + b.Error
+	}
+	return "no packages found in its package database"
+}
+
 func codeBlindWhy(b store.ImageSBOM) string {
 	switch {
 	case b.FetchedAt.IsZero():

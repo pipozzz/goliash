@@ -149,3 +149,16 @@ func TestGoUnlinkedReport(t *testing.T) {
 		t.Fatalf("not affected %+v", r.NotAffected)
 	}
 }
+
+// A kernel package in a container image is the host's business; on a host, it is the kernel that runs.
+func TestKernelOnHost(t *testing.T) {
+	image := Affected{Package: "linux-image-6.8.0-1015-aws 6.8.0-1015.16"}
+	if autoNotAffected(image) == "" {
+		t.Error("an image's kernel package kept")
+	}
+	host := image
+	host.Host = true
+	if why := autoNotAffected(host); why != "" {
+		t.Errorf("a host's running kernel left out: %s", why)
+	}
+}

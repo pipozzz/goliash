@@ -210,6 +210,12 @@ With `GOLIASH_HOST_ROOT` set, the agent finds the host by itself (named after `/
 Docker** mounts the host's root the same way, so on a Docker host the OS and packages come with the containers. The
 targets list shows such a machine once: its Docker engine, and right under it **↳ OS and packages**.
 
+- **Vulnerabilities of all its packages**: the agent sends every package the database lists (from 1.236), named as
+  an image's would be, and the [Vulnerabilities](/guide/security/) page and Updates list the server's like any
+  image's: with the distribution's own fixes, and leaving out what Debian rates unimportant or Ubuntu negligible. Of
+  the kernel's packages only the running kernel's count, and they do count (in a container image the kernel is the
+  host's business; here it is the one that runs); an older kernel left installed, and kernel headers, do not. The
+  list is read again only when the package database changes.
 - **A reboot waiting**: when Debian or Ubuntu wrote `/var/run/reboot-required` (with the packages that asked for it),
   or a kernel newer than the running one is installed (any distribution: the running kernel is the agent's too),
   the operating system shows **reboot pending** on its service page and Updates, with what waits in the tooltip:

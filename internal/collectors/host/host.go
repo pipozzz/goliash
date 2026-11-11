@@ -8,9 +8,12 @@ package host
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,6 +38,10 @@ type Collector struct {
 	// which shares the kernel.
 	osrelease string
 	kernels   []string // the kernel packages' versions, as the package database lists them
+
+	// The host's packages for vulnerabilities, read again only when its package database changes.
+	dbStamp string
+	code    collectors.CodePackages
 }
 
 // New is the collectors.Factory for host targets.
@@ -71,6 +78,11 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 	if id != "" && version != "" {
 		w := workload("os/"+id, agentproto.HostOs, id, osImage(id)+":"+version)
 		w.Maintenance = append(c.rebootRequired(pkgs), c.updatesAvailable()...)
+		if code, ok := c.osPackages(ctx); ok {
+			d := code.Digest
+			w.CodeDigest = &d
+			res.Code = append(res.Code, code)
+		}
 		res.Workloads = append(res.Workloads, w)
 	}
 	names := make([]string, 0, len(pkgs))
@@ -92,6 +104,132 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 		res.Workloads = append(res.Workloads, workload("pkg/"+name, agentproto.HostPackage, serviceName(name), image+":"+v))
 	}
 	return res, nil
+}
+
+// osPackages lists every package the host's database has, as an image's are listed, for its vulnerabilities: by
+// digest, like a Lambda function's code, read again only when the database changes. Of the kernel's packages only
+// the running kernel's are kept: an older kernel left installed does not run, and its fixed vulnerabilities would
+// be reported for nothing.
+func (c *Collector) osPackages(ctx context.Context) (collectors.CodePackages, bool) {
+	files := map[string]string{"dpkg": "var/lib/dpkg/status", "apk": "lib/apk/db/installed"}
+	for _, p := range rpmDBs {
+		files["rpm:"+p] = p
+	}
+	stamp := ""
+	found := map[string][]byte{}
+	for _, k := range sortedKeys(files) {
+		fi, err := os.Stat(filepath.Join(c.root, files[k]))
+		if err != nil {
+			continue
+		}
+		stamp += fmt.Sprintf("%s:%d:%d;", k, fi.Size(), fi.ModTime().UnixNano())
+		found[k] = nil
+	}
+	if stamp == "" {
+		return collectors.CodePackages{}, false
+	}
+	running := ""
+	if b, err := os.ReadFile(c.osrelease); err == nil {
+		running = strings.TrimSpace(string(b))
+	}
+	stamp += "kernel:" + running
+	if stamp == c.dbStamp {
+		return c.code, c.code.Digest != ""
+	}
+	read := func(rel string) []byte {
+		b, err := readLimited(filepath.Join(c.root, rel), maxRPMDB)
+		if err != nil {
+			return nil
+		}
+		return b
+	}
+	osr, _ := os.ReadFile(filepath.Join(c.root, "etc", "os-release")) //nolint:gosec // a fixed file under the host's root
+	var dpkg, apk, rpm []byte
+	if _, ok := found["dpkg"]; ok {
+		dpkg = read(files["dpkg"])
+	}
+	if _, ok := found["apk"]; ok {
+		apk = read(files["apk"])
+	}
+	for _, p := range rpmDBs {
+		if _, ok := found["rpm:"+p]; ok && rpm == nil {
+			rpm = read(p)
+		}
+	}
+	purls, err := registry.OSPurls(ctx, osr, dpkg, nil, apk, rpm)
+	code := collectors.CodePackages{}
+	if err != nil {
+		code.Error = err.Error()
+	}
+	purls = runningKernelOnly(purls, running)
+	if len(purls) == 0 && code.Error == "" {
+		return collectors.CodePackages{}, false
+	}
+	sum := sha256.Sum256([]byte(strings.Join(purls, "\n")))
+	code.Digest, code.Purls = "sha256:"+hex.EncodeToString(sum[:]), purls
+	c.dbStamp, c.code = stamp, code
+	return code, true
+}
+
+// runningKernelOnly leaves out the kernel's packages but the running kernel's (linux-image-6.8.0-1015-aws when it
+// runs, kernel-core 5.14.0-503.11.1.el9_5 for 5.14.0-503.11.1.el9_5.x86_64), and kernel headers, which run nowhere.
+// Without the running kernel known, every kernel package stays.
+func runningKernelOnly(purls []string, running string) []string {
+	if running == "" {
+		return purls
+	}
+	out := purls[:0:0]
+	for _, p := range purls {
+		name, version := purlNameVersion(p)
+		switch {
+		case name == "linux-libc-dev" || strings.HasPrefix(name, "linux-headers") || name == "kernel-headers" || name == "kernel-devel":
+			continue
+		case kernelRelease(name) != "":
+			if kernelRelease(name) != running {
+				continue // another kernel, installed and not running
+			}
+		case name == "kernel" || name == "kernel-core" || name == "kernel-modules" || name == "kernel-default":
+			if v := strings.TrimPrefix(version, "0:"); !strings.HasPrefix(running, v) {
+				continue
+			}
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// kernelRelease is the release a Debian or Ubuntu kernel package is for (linux-image-6.8.0-1015-aws is
+// 6.8.0-1015-aws); "" for other packages, and for meta packages such as linux-image-aws.
+func kernelRelease(name string) string {
+	for _, prefix := range []string{"linux-image-unsigned-", "linux-image-", "linux-modules-extra-", "linux-modules-"} {
+		if r, ok := strings.CutPrefix(name, prefix); ok && r != "" && r[0] >= '0' && r[0] <= '9' {
+			return r
+		}
+	}
+	return ""
+}
+
+// purlNameVersion is a package URL's name and version: pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3?… is openssl and
+// 3.0.13-0ubuntu3.
+func purlNameVersion(p string) (string, string) {
+	p, _, _ = strings.Cut(p, "?")
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		p = p[i+1:]
+	}
+	name, version, _ := strings.Cut(p, "@")
+	if v, err := url.PathUnescape(version); err == nil {
+		version = v
+	}
+	return name, version
+}
+
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // rebootRequired says what waits for a reboot: Debian's and Ubuntu's /var/run/reboot-required (with the packages
