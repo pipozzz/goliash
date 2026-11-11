@@ -65,6 +65,9 @@ func autoNotAffected(a Affected) string {
 	case a.Distro == DistroNotAffected:
 		name, _ := splitPackage(a.Package)
 		return name + ": this release never had the vulnerable code (Debian security tracker)"
+	case a.GoUnlinked != "":
+		name, _ := splitPackage(a.Package)
+		return name + ": the image's Go programs do not link " + a.GoUnlinked + ", where the vulnerable code is (their line tables)"
 	case a.Distro == DistroNegligible:
 		name, _ := splitPackage(a.Package)
 		return name + ": Ubuntu rates it negligible, a problem in theory only; no security update is planned (Ubuntu CVE tracker)"

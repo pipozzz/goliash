@@ -101,7 +101,21 @@ var appPackagesFrom = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 // NeedsAppPackages reports whether an image's packages were read from its package database before the application's
 // packages were read too (or none were found then): it is read again, once.
 func NeedsAppPackages(b store.ImageSBOM) bool {
-	return b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom)
+	if b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom) {
+		return true
+	}
+	// Read before the packages its Go executables link were kept: read again, once, so Go advisories about
+	// packages none links leave its findings.
+	return b.Source == "packages" && !b.GoLinkedRead && b.Error == "" && hasGo(b.Purls)
+}
+
+func hasGo(purls []string) bool {
+	for _, p := range purls {
+		if strings.HasPrefix(p, "pkg:golang/") {
+			return true
+		}
+	}
+	return false
 }
 
 const (
@@ -166,7 +180,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: list.Purls, Source: "packages"}
+			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: list.Purls, Source: "packages", GoLinked: list.GoLinked}
 			if err != nil {
 				rec.Error = err.Error()
 			}
@@ -215,7 +229,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		rec := store.ImageSBOM{Repo: repo, Digest: digest, Purls: list.Purls, Source: "packages"}
+		rec := store.ImageSBOM{Repo: repo, Digest: digest, Purls: list.Purls, Source: "packages", GoLinked: list.GoLinked}
 		if err != nil {
 			rec.Error = err.Error()
 		}
@@ -293,7 +307,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 			asked[id] = true
 			// Kept until it is a week old, or OSV says it changed since (a distribution added a fix).
 			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) &&
-				(r.Fixes[fixesFormat] != nil || !distroRecord(id)) {
+				(slices.Contains(r.Fixes[fixesFormat], fixesFormatNow) || !distroRecord(id)) {
 				continue
 			}
 			fetched++
@@ -314,6 +328,9 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 
 // Affected is one running image a vulnerability is in.
 type Affected struct {
+	// GoUnlinked names the Go packages with the vulnerable code when none of the image's Go executables links any
+	// of them (net/http, for a program without it): the advisory does not concern the image.
+	GoUnlinked                   string
 	Service, Env, Image, Package string
 	Fix                          string // the version of the package that fixes it, when known
 	ServiceID, EnvironmentID     string
@@ -653,8 +670,10 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			if fix == "" {
 				eolOS = eolOSOf(ctx, p, eolMemo)
 			}
+			imports := importsFor(p, rec.Fixes)
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
+				a.GoUnlinked = unlinked(imports, sboms[u.key].GoLinked)
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
 				a.Distro = distro
 				a.Newer, a.Current = newer, current
@@ -669,6 +688,9 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					}
 					if f.Affected[i].VEX == nil {
 						f.Affected[i].VEX = a.VEX
+					}
+					if a.GoUnlinked == "" { // one image that links it keeps the finding
+						f.Affected[i].GoUnlinked = ""
 					}
 					if f.Affected[i].Distro == "" {
 						f.Affected[i].Distro = a.Distro
@@ -1190,4 +1212,18 @@ func union(a, b []string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// unlinked names the packages an advisory's vulnerable code is in, when the image's Go executables link none of them;
+// "" when it does not say, nothing is known of what they link, or one of them is linked.
+func unlinked(imports, linked []string) string {
+	if len(imports) == 0 || linked == nil {
+		return ""
+	}
+	for _, p := range imports {
+		if _, found := slices.BinarySearch(linked, p); found {
+			return ""
+		}
+	}
+	return strings.Join(imports, ", ")
 }

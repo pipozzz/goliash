@@ -20,6 +20,10 @@ type ImageSBOM struct {
 	Licenses     map[string]string // purl -> SPDX license expression, for the packages whose license the SBOM names
 	// LicensesRead is false for an SBOM read before licenses were kept.
 	LicensesRead bool
+	// GoLinked is the Go packages the image's Go executables link, when Goliash read them; nil when not known.
+	// GoLinkedRead is false for an image read before they were kept.
+	GoLinked     []string
+	GoLinkedRead bool
 	Error        string
 	FetchedAt    time.Time
 	// Source is where the packages came from: "sbom", the image's SBOM attestation, or "packages", its operating
@@ -40,17 +44,21 @@ func (s *Store) SetImageSBOM(ctx context.Context, sc Scope, b ImageSBOM) error {
 	if b.Source == "" {
 		b.Source = "sbom"
 	}
-	_, err := s.exec(ctx, s.db, `INSERT INTO image_sboms (org_id, workspace_id, repo, digest, purls, licenses, error, fetched_at, source)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	linked := "null"
+	if b.GoLinked != nil {
+		linked = jsonList(b.GoLinked)
+	}
+	_, err := s.exec(ctx, s.db, `INSERT INTO image_sboms (org_id, workspace_id, repo, digest, purls, licenses, error, fetched_at, source, go_linked)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (workspace_id, repo, digest) DO UPDATE SET purls = excluded.purls, licenses = excluded.licenses,
-			error = excluded.error, fetched_at = excluded.fetched_at, source = excluded.source`,
-		sc.OrgID, sc.WorkspaceID, b.Repo, b.Digest, purls, string(licenses), b.Error, s.now(), b.Source)
+			error = excluded.error, fetched_at = excluded.fetched_at, source = excluded.source, go_linked = excluded.go_linked`,
+		sc.OrgID, sc.WorkspaceID, b.Repo, b.Digest, purls, string(licenses), b.Error, s.now(), b.Source, linked)
 	return err
 }
 
 // ListImageSBOMs returns the workspace's SBOMs keyed by repo + "@" + digest.
 func (s *Store) listImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageSBOM, error) {
-	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, licenses, error, fetched_at, source FROM image_sboms
+	rows, err := s.query(ctx, s.db, `SELECT repo, digest, purls, licenses, error, fetched_at, source, go_linked FROM image_sboms
 		WHERE org_id = ? AND workspace_id = ?`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -60,10 +68,12 @@ func (s *Store) listImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageS
 	for rows.Next() {
 		var b ImageSBOM
 		var purls string
-		var licenses sql.NullString
-		if err := rows.Scan(&b.Repo, &b.Digest, &purls, &licenses, &b.Error, &b.FetchedAt, &b.Source); err != nil {
+		var licenses, linked sql.NullString
+		if err := rows.Scan(&b.Repo, &b.Digest, &purls, &licenses, &b.Error, &b.FetchedAt, &b.Source, &linked); err != nil {
 			return nil, err
 		}
+		b.GoLinkedRead = linked.Valid
+		_ = json.Unmarshal([]byte(linked.String), &b.GoLinked)
 		_ = json.Unmarshal([]byte(purls), &b.Purls)
 		b.Purls = dropMisread(b.Purls)
 		b.LicensesRead = licenses.Valid

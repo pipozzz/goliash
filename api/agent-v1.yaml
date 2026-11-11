@@ -1073,6 +1073,14 @@ components:
           type: string
           enum: [sbom, packages]
           description: Where purls come from; absent means the SBOM (agents before 1.141).
+        go_linked:
+          type: array
+          description: |
+            The Go packages the image's Go executables link, read from their line tables when purls come from the
+            packages: a Go advisory about a package none links does not concern the image. Absent when not known.
+            Older servers ignore it.
+          items:
+            type: string
         components:
           type: string
           maxLength: 2000

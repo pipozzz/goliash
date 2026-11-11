@@ -43,8 +43,10 @@ type Scanner struct {
 	Resolve func(module, revision string) string
 
 	found   map[string]bool
-	modules bool     // node_modules seen: a lock file then only repeats them
-	lock    []string // packages of package-lock.json files, used when there is no node_modules
+	linked  map[string]bool // the packages the Go executables read link, for GoLinked
+	unread  bool            // a Go executable whose line table could not be read: GoLinked says nothing
+	modules bool            // node_modules seen: a lock file then only repeats them
+	lock    []string        // packages of package-lock.json files, used when there is no node_modules
 }
 
 // systemDirs are where a distribution's packages put files.
@@ -140,8 +142,35 @@ func (s *Scanner) add(name string, b []byte, depth int) {
 	case strings.HasSuffix(base, ".deps.json"):
 		put(nugetPackages(b)...)
 	default:
-		put(goPackages(b)...)
+		if ps := goPackages(b); len(ps) > 0 {
+			put(ps...)
+			pkgs := goLinked(b)
+			if len(pkgs) == 0 {
+				s.unread = true
+			}
+			if s.linked == nil {
+				s.linked = map[string]bool{}
+			}
+			for _, p := range pkgs {
+				s.linked[p] = true
+			}
+		}
 	}
+}
+
+// GoLinked is the Go packages the executables read link, all of them together, sorted: an advisory about a
+// package none links does not concern the image. Nil when no Go executable was read, or one's line table could not
+// be, as nothing can then be said of what is not there.
+func (s *Scanner) GoLinked() []string {
+	if s.unread || len(s.linked) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(s.linked))
+	for p := range s.linked {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Purls returns the packages found, sorted.

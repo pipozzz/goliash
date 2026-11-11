@@ -362,6 +362,9 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 			} `json:"package"`
 			EcosystemSpecific struct {
 				Urgency string `json:"urgency"` // Debian's: unimportant, low, medium, high
+				Imports []struct {
+					Path string `json:"path"` // a Go package with the vulnerable code: net/http
+				} `json:"imports"`
 			} `json:"ecosystem_specific"`
 			Ranges []struct {
 				Events []struct {
@@ -382,9 +385,14 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 	for _, s := range rec.Severities {
 		negligible = negligible || s.Type == "Ubuntu" && strings.EqualFold(s.Score, "negligible")
 	}
-	v.Fixes[fixesFormat] = []string{"2"}
+	v.Fixes[fixesFormat] = []string{fixesFormatNow}
 	for _, a := range rec.Affected {
 		key := a.Package.Ecosystem + "|" + a.Package.Name
+		for _, imp := range a.EcosystemSpecific.Imports {
+			if imp.Path != "" && !contains(v.Fixes[importsKey+key], imp.Path) {
+				v.Fixes[importsKey+key] = append(v.Fixes[importsKey+key], imp.Path)
+			}
+		}
 		switch {
 		case strings.HasPrefix(a.Package.Ecosystem, "Debian:") && a.EcosystemSpecific.Urgency == "unimportant":
 			v.Fixes[minorKey+key] = []string{DistroUnimportant}
@@ -436,8 +444,28 @@ func (o *OSV) do(req *http.Request, into any) error {
 }
 
 // fixesFor finds the versions that fix a vulnerability for purl, under whichever name OSV files the package.
-// fixesFormat marks a record's fixes read with the distributions' ratings (minorKey); older ones are read again.
-const fixesFormat = "_format"
+// fixesFormat marks a record's fixes read with the distributions' ratings (minorKey) and Go's packages (importsKey);
+// records of an older format are read again.
+const (
+	fixesFormat    = "_format"
+	fixesFormatNow = "3"
+)
+
+// importsKey files, beside a Go module's fixes, the packages of it that have the vulnerable code (net/http of the
+// standard library): a program that links none of them is not affected.
+const importsKey = "imports|"
+
+// importsFor is the Go packages with the vulnerable code, for a Go purl; nil when the advisory does not say.
+func importsFor(purl string, fixes map[string][]string) []string {
+	for _, q := range osvQueries(purl) {
+		for _, k := range fixKeys(q) {
+			if m := fixes[importsKey+k]; len(m) > 0 {
+				return m
+			}
+		}
+	}
+	return nil
+}
 
 // minorKey files, beside a package's fixes, its distribution's rating of a vulnerability it plans no security update
 // for: Debian's unimportant, Ubuntu's negligible.
@@ -498,5 +526,5 @@ func queryKey(q osvQuery) string {
 
 // distroRecord tells a distribution's record (DEBIAN-CVE-…, UBUNTU-CVE-…), which rates vulnerabilities per release.
 func distroRecord(id string) bool {
-	return strings.HasPrefix(id, "DEBIAN-") || strings.HasPrefix(id, "UBUNTU-")
+	return strings.HasPrefix(id, "DEBIAN-") || strings.HasPrefix(id, "UBUNTU-") || strings.HasPrefix(id, "GO-")
 }

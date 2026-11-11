@@ -236,7 +236,11 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 			if fromPackages && !ev.SBOM {
 				src = "packages"
 			}
-			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses, Source: src}); err != nil {
+			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses, Source: src}
+			if src == "packages" {
+				rec.GoLinked = in.GoLinked
+			}
+			if err := c.store.SetImageSBOM(ctx, sc, rec); err != nil {
 				return err
 			}
 		}

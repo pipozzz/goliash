@@ -564,6 +564,11 @@ type ImageInspection struct {
 	// Found What was found, for people ("cosign signature", "buildkit sbom" …).
 	Found []string `json:"found,omitempty"`
 
+	// GoLinked The Go packages the image's Go executables link, read from their line tables when purls come from the
+	// packages: a Go advisory about a package none links does not concern the image. Absent when not known.
+	// Older servers ignore it.
+	GoLinked []string `json:"go_linked,omitempty"`
+
 	// LayerDetails The same layers with their compressed sizes and the build steps that made them (from the image config's history).
 	LayerDetails []struct {
 		Command *string `json:"command,omitempty"`

@@ -96,7 +96,7 @@ func (c *Client) ImagePackages(ctx context.Context, repository, digest string, c
 		}
 		return SBOM{}, ErrNoPackageDatabase
 	}
-	return SBOM{Purls: purls}, nil
+	return SBOM{Purls: purls, GoLinked: fs.apps.GoLinked()}, nil
 }
 
 // imageFiles are the files ImagePackages looks for, as the newest layer having each holds them.
