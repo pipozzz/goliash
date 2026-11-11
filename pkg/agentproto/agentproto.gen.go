@@ -781,8 +781,14 @@ type RegistryResults struct {
 
 // RegistryTag defines model for RegistryTag.
 type RegistryTag struct {
+	// CreatedAt When the image was pushed (Amazon ECR), for ordering builds tagged with commit hashes.
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	Digest    *string    `json:"digest,omitempty"`
+
+	// ExpiresAt When the repository's lifecycle policy deletes the image (Amazon ECR), as the agent reads the policy: now
+	// or past for an image a count rule leaves out, the push time plus the days of a sinceImagePushed rule.
+	// Absent when no rule removes it. Older servers ignore it.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 
 	// Name Example: 1.5.0
 	Name string `json:"name"`

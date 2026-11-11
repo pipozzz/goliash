@@ -1157,6 +1157,14 @@ components:
         created_at:
           type: string
           format: date-time
+          description: When the image was pushed (Amazon ECR), for ordering builds tagged with commit hashes.
+        expires_at:
+          type: string
+          format: date-time
+          description: |
+            When the repository's lifecycle policy deletes the image (Amazon ECR), as the agent reads the policy: now
+            or past for an image a count rule leaves out, the push time plus the days of a sinceImagePushed rule.
+            Absent when no rule removes it. Older servers ignore it.
 
     Heartbeat:
       type: object

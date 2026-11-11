@@ -1376,6 +1376,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	}
 	v.Total = len(findings)
 	v.Kinds = []HygieneKind{
+		{Kind: "expiring", Label: "Deleted by lifecycle policy", Help: "running images the ECR lifecycle policy deletes: a new task cannot pull them", Warn: true},
 		{Kind: "moving-tag", Label: "Moving tags", Help: "latest, stable and the like: the version cannot be known", Warn: true},
 		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},
 		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},

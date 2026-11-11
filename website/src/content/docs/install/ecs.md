@@ -68,7 +68,7 @@ code, a log group and the service. Parameters:
 ## Terraform
 
 The Terraform module in `deploy/ecs/goliash-agent` runs the agent as a Fargate service. Its task role may only call
-`ecs:List*`, `ecs:Describe*`, `ecr:ListImages`, `elasticloadbalancing:DescribeTargetGroups` and `DescribeLoadBalancers` (which load balancers face the internet), and for signatures and SBOMs of ECR images
+`ecs:List*`, `ecs:Describe*`, `ecr:ListImages`, `ecr:DescribeImages` and `ecr:GetLifecyclePolicy` (when each image was pushed, and what the lifecycle policy deletes), `elasticloadbalancing:DescribeTargetGroups` and `DescribeLoadBalancers` (which load balancers face the internet), and for signatures and SBOMs of ECR images
 `ecr:GetAuthorizationToken`, `ecr:BatchGetImage` and `ecr:GetDownloadUrlForLayer`.
 
 ```hcl

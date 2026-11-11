@@ -89,12 +89,12 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 		if c.TagFilter != nil {
 			filter, _ = regexp.Compile(*c.TagFilter)
 		}
-		pushed := a.pushTimes(ctx, c)
+		facts := a.imageFacts(ctx, c)
 		for _, t := range tags {
 			if filter == nil || filter.MatchString(t) {
 				tag := agentproto.RegistryTag{Name: t}
-				if at, ok := pushed[t]; ok {
-					tag.CreatedAt = &at
+				if f, ok := facts[t]; ok {
+					tag.CreatedAt, tag.Digest, tag.ExpiresAt = f.pushed, f.digest, f.expires
 				}
 				r.Tags = append(r.Tags, tag)
 			}
@@ -109,13 +109,19 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 	return out
 }
 
-// pushTimes is when each tag of an ECR repository was pushed, for ordering builds tagged with commit hashes; none
-// for other registries, or without ecr:DescribeImages (the tags still count, without their times).
-func (a *Agent) pushTimes(ctx context.Context, c agentproto.RegistryCheck) map[string]time.Time {
+// imageFact is what the agent knows of a tagged ECR image beyond its tag.
+type imageFact struct {
+	pushed, expires *time.Time
+	digest          *string
+}
+
+// imageFacts is, by tag, when each image of an ECR repository was pushed, its digest, and when its lifecycle policy
+// deletes it; none for other registries, or without ecr:DescribeImages (the tags still count, without them).
+func (a *Agent) imageFacts(ctx context.Context, c agentproto.RegistryCheck) map[string]imageFact {
 	if _, _, _, ok := ecr.Parse(c.Repository); !ok {
 		return nil
 	}
-	t, ok := a.opts.ECR.(ECRTimes)
+	l, ok := a.opts.ECR.(ECRImages)
 	if !ok {
 		return nil
 	}
@@ -125,12 +131,35 @@ func (a *Agent) pushTimes(ctx context.Context, c agentproto.RegistryCheck) map[s
 			profile = strings.TrimSpace(s)
 		}
 	}
-	times, err := t.TagTimes(ctx, c.Repository, profile)
+	images, err := l.Images(ctx, c.Repository, profile)
 	if err != nil {
 		a.log.Debug("no push times for an ECR repository", "repository", c.Repository, "err", err)
 		return nil
 	}
-	return times
+	policy, err := l.LifecyclePolicy(ctx, c.Repository, profile)
+	if err != nil {
+		a.log.Debug("no lifecycle policy read for an ECR repository", "repository", c.Repository, "err", err)
+	}
+	expires := ecr.Expiries(policy, images, time.Now().UTC())
+	out := map[string]imageFact{}
+	for _, img := range images {
+		var f imageFact
+		if !img.PushedAt.IsZero() {
+			at := img.PushedAt
+			f.pushed = &at
+		}
+		if strings.HasPrefix(img.Digest, "sha256:") {
+			d := img.Digest
+			f.digest = &d
+		}
+		if at, ok := expires[img.Digest]; ok {
+			f.expires = &at
+		}
+		for _, t := range img.Tags {
+			out[t] = f
+		}
+	}
+	return out
 }
 
 // keychain gathers the registry credentials the agent finds by itself: Docker's
