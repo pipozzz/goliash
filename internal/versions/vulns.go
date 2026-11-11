@@ -411,6 +411,12 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 			}
 		}
 	}
+	// Records an older Goliash read of such a package (a kernel's thousands) are forgotten: every report reads the
+	// whole table, and on a small server that is the disk read again and again.
+	drop := unusedRecords(purls, known, records, kev)
+	if err := c.store.DeleteVulns(ctx, drop); err != nil {
+		return err
+	}
 	for i := range wants {
 		wants[i].rank = rank[wants[i].id]
 	}
@@ -431,6 +437,38 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		}
 	}
 	return nil
+}
+
+// unusedRecords are the records kept of vulnerabilities only packages with too many to read have (a kernel), the
+// newest version's answer standing in for them: none exploited in the wild, none another package has.
+func unusedRecords(purls []string, known map[string]store.PackageVulns, records map[string]store.Vuln, kev map[string]store.Exploited) []string {
+	heavy := func(p string) bool {
+		return len(known[p].Vulns) >= heavyPackage && !known[NewestKey(p)].CheckedAt.IsZero()
+	}
+	light := map[string]bool{} // what packages whose records are read have
+	for _, p := range purls {
+		if !heavy(p) {
+			for _, id := range known[p].Vulns {
+				light[id] = true
+			}
+		}
+	}
+	var drop []string
+	dropped := map[string]bool{}
+	for _, p := range purls {
+		if !heavy(p) {
+			continue
+		}
+		for _, id := range known[p].Vulns {
+			_, kept := records[id]
+			_, exploited := kev[CVEOf(id)]
+			if kept && !exploited && !light[id] && !dropped[id] {
+				dropped[id] = true
+				drop = append(drop, id)
+			}
+		}
+	}
+	return drop
 }
 
 // newestKeys are the keys of the newest versions' answers of packages.

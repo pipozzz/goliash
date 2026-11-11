@@ -176,6 +176,21 @@ func (s *Store) SetVuln(ctx context.Context, v Vuln) error {
 	return err
 }
 
+// DeleteVulns forgets vulnerability records, in one transaction.
+func (s *Store) DeleteVulns(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if _, err := s.exec(ctx, tx, `DELETE FROM osv_vulns WHERE id = ?`, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // ListVulns returns every vulnerability record kept, by ID.
 func (s *Store) listVulns(ctx context.Context) (map[string]Vuln, error) {
 	rows, err := s.query(ctx, s.db, `SELECT id, aliases, summary, severity, fixes, fetched_at FROM osv_vulns`)
