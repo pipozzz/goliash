@@ -659,7 +659,7 @@
     {
       "i": "01d02bf7-1461-5ae4-a669-f6900299c593",
       "x": 0,
-      "y": 117,
+      "y": 124,
       "w": 12,
       "h": 1,
       "moved": false,
@@ -668,7 +668,7 @@
     {
       "i": "w-team-1",
       "x": 0,
-      "y": 118,
+      "y": 125,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -677,7 +677,7 @@
     {
       "i": "w-team-2",
       "x": 6,
-      "y": 118,
+      "y": 125,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -686,7 +686,7 @@
     {
       "i": "w-team-3",
       "x": 0,
-      "y": 125,
+      "y": 132,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -695,7 +695,25 @@
     {
       "i": "w-team-4",
       "x": 6,
-      "y": 125,
+      "y": 132,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w-agents",
+      "x": 0,
+      "y": 117,
+      "w": 6,
+      "h": 7,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "w-targets",
+      "x": 6,
+      "y": 117,
       "w": 6,
       "h": 7,
       "moved": false,
@@ -8591,6 +8609,378 @@
       "showPoints": false,
       "spanGaps": true,
       "legendPosition": "bottom"
+    },
+    {
+      "id": "w-agents",
+      "panelTypes": "table",
+      "title": "Agents",
+      "description": "Each agent, its version and where it runs.",
+      "query": {
+        "queryType": "builder",
+        "id": "2a986d58-a773-501f-8c87-339ae1e260b5",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_agent_info",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": ""
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "agent",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "agent--string--tag--false"
+                },
+                {
+                  "key": "version",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "version--string--tag--false"
+                },
+                {
+                  "key": "cloud",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "cloud--string--tag--false"
+                },
+                {
+                  "key": "account",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "account--string--tag--false"
+                },
+                {
+                  "key": "region",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "region--string--tag--false"
+                },
+                {
+                  "key": "zone",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "zone--string--tag--false"
+                },
+                {
+                  "key": "instance_type",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "instance_type--string--tag--false"
+                },
+                {
+                  "key": "os",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "os--string--tag--false"
+                },
+                {
+                  "key": "arch",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "arch--string--tag--false"
+                }
+              ],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
+    },
+    {
+      "id": "w-targets",
+      "panelTypes": "table",
+      "title": "Targets",
+      "description": "Each target and where it runs. Targets read through AWS's API carry only their cloud, account and region.",
+      "query": {
+        "queryType": "builder",
+        "id": "56f2e8fa-0e25-556e-8ef3-5ad566039a10",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "metrics",
+              "disabled": false,
+              "expression": "A",
+              "queryName": "A",
+              "stepInterval": 60,
+              "aggregations": [
+                {
+                  "metricName": "goliash_target_info",
+                  "temporality": "unspecified",
+                  "timeAggregation": "latest",
+                  "spaceAggregation": "max",
+                  "reduceTo": "last"
+                }
+              ],
+              "filter": {
+                "expression": "environment IN $environment"
+              },
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "limit": null,
+              "orderBy": [],
+              "selectColumns": [],
+              "groupBy": [
+                {
+                  "key": "target",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "target--string--tag--false"
+                },
+                {
+                  "key": "platform",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "platform--string--tag--false"
+                },
+                {
+                  "key": "environment",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "environment--string--tag--false"
+                },
+                {
+                  "key": "agent",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "agent--string--tag--false"
+                },
+                {
+                  "key": "cloud",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "cloud--string--tag--false"
+                },
+                {
+                  "key": "account",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "account--string--tag--false"
+                },
+                {
+                  "key": "region",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "region--string--tag--false"
+                },
+                {
+                  "key": "zone",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "zone--string--tag--false"
+                },
+                {
+                  "key": "instance_type",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "instance_type--string--tag--false"
+                },
+                {
+                  "key": "os",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "os--string--tag--false"
+                },
+                {
+                  "key": "arch",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "arch--string--tag--false"
+                }
+              ],
+              "legend": "",
+              "reduceTo": "last"
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "disabled": false,
+            "legend": "",
+            "name": "A",
+            "query": ""
+          }
+        ]
+      },
+      "yAxisUnit": "none",
+      "timePreferance": "GLOBAL_TIME",
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "softMin": 0,
+      "softMax": 0,
+      "thresholds": [],
+      "fillSpans": false,
+      "isStacked": false,
+      "contextLinks": {
+        "linksData": []
+      },
+      "selectedLogFields": [
+        {
+          "fieldContext": "log",
+          "name": "timestamp",
+          "signal": "logs",
+          "type": "log"
+        },
+        {
+          "fieldContext": "log",
+          "name": "body",
+          "signal": "logs",
+          "type": "log"
+        }
+      ],
+      "selectedTracesFields": [
+        {
+          "fieldContext": "resource",
+          "fieldDataType": "string",
+          "name": "service.name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "fieldDataType": "string",
+          "name": "name",
+          "signal": "traces"
+        },
+        {
+          "fieldContext": "span",
+          "name": "duration_nano",
+          "signal": "traces"
+        }
+      ]
     }
   ],
   "panelMap": {
@@ -8949,6 +9339,24 @@
           "h": 3,
           "moved": false,
           "static": false
+        },
+        {
+          "i": "w-agents",
+          "x": 0,
+          "y": 117,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
+        },
+        {
+          "i": "w-targets",
+          "x": 6,
+          "y": 117,
+          "w": 6,
+          "h": 7,
+          "moved": false,
+          "static": false
         }
       ]
     },
@@ -9189,7 +9597,7 @@
         {
           "i": "w-team-1",
           "x": 0,
-          "y": 118,
+          "y": 125,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -9198,7 +9606,7 @@
         {
           "i": "w-team-2",
           "x": 6,
-          "y": 118,
+          "y": 125,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -9207,7 +9615,7 @@
         {
           "i": "w-team-3",
           "x": 0,
-          "y": 125,
+          "y": 132,
           "w": 6,
           "h": 7,
           "moved": false,
@@ -9216,7 +9624,7 @@
         {
           "i": "w-team-4",
           "x": 6,
-          "y": 125,
+          "y": 132,
           "w": 6,
           "h": 7,
           "moved": false,

@@ -13,6 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbtypes "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	"github.com/pipozzz/goliash/pkg/agentproto"
 )
@@ -179,17 +181,75 @@ func TestNewNeedsRegion(t *testing.T) {
 }
 
 func TestExposed(t *testing.T) {
+	tg := func(name string) *string {
+		return aws.String("arn:aws:elasticloadbalancing:eu-west-1:1:targetgroup/" + name + "/73e2d6bc24d8a067")
+	}
 	svc := types.Service{
-		LoadBalancers: []types.LoadBalancer{{TargetGroupArn: aws.String("arn:aws:elasticloadbalancing:eu-west-1:1:targetgroup/payments-api/73e2d6bc24d8a067")}},
+		LoadBalancers: []types.LoadBalancer{{TargetGroupArn: tg("le-certs")}, {TargetGroupArn: tg("le-certs-i")}},
 		NetworkConfiguration: &types.NetworkConfiguration{AwsvpcConfiguration: &types.AwsVpcConfiguration{
 			AssignPublicIp: types.AssignPublicIpEnabled,
 		}},
 	}
-	got := exposed(svc)
-	if len(got) != 2 || got[0] != "load balancer target group payments-api" || got[1] != "public IP" {
+	// Without Elastic Load Balancing: every target group, said to be unsure.
+	c := NewWithAPI(nil, nil)
+	got := c.exposed(context.Background(), svc)
+	if len(got) != 3 || got[0] != "load balancer target group le-certs (internal or not: not known)" || got[2] != "public IP" {
 		t.Errorf("exposed %v", got)
 	}
-	if got := exposed(types.Service{}); len(got) != 0 {
+	// With it: only the internet-facing load balancer, by name and address.
+	elb := &fakeELB{
+		groups: map[string][]string{*tg("le-certs"): {"arn:lb/public"}, *tg("le-certs-i"): {"arn:lb/internal"}},
+		lbs: map[string]elbtypes.LoadBalancer{
+			"arn:lb/public":   {LoadBalancerArn: aws.String("arn:lb/public"), LoadBalancerName: aws.String("le-certs"), DNSName: aws.String("le-certs-1.us-west-2.elb.amazonaws.com"), Scheme: elbtypes.LoadBalancerSchemeEnumInternetFacing},
+			"arn:lb/internal": {LoadBalancerArn: aws.String("arn:lb/internal"), LoadBalancerName: aws.String("le-certs-i"), DNSName: aws.String("internal-le-certs-i"), Scheme: elbtypes.LoadBalancerSchemeEnumInternal},
+		},
+	}
+	c.lbs = &balancers{api: elb}
+	svc.NetworkConfiguration = nil
+	if got := c.exposed(context.Background(), svc); len(got) != 1 || got[0] != "internet-facing load balancer le-certs (le-certs-1.us-west-2.elb.amazonaws.com)" {
+		t.Errorf("exposed %v", got)
+	}
+	internal := types.Service{LoadBalancers: []types.LoadBalancer{{TargetGroupArn: tg("le-certs-i")}}}
+	if got := c.exposed(context.Background(), internal); len(got) != 0 {
+		t.Errorf("an internal load balancer exposes %v", got)
+	}
+	if elb.calls > 2 {
+		t.Errorf("asked %d times: the answers are kept", elb.calls)
+	}
+	// Denied: as without it.
+	c.lbs = &balancers{api: &fakeELB{deny: true}}
+	if got := c.exposed(context.Background(), internal); len(got) != 1 || !strings.Contains(got[0], "not known") {
+		t.Errorf("denied: %v", got)
+	}
+	if got := c.exposed(context.Background(), types.Service{}); len(got) != 0 {
 		t.Errorf("private service exposed %v", got)
 	}
+}
+
+type fakeELB struct {
+	groups map[string][]string
+	lbs    map[string]elbtypes.LoadBalancer
+	deny   bool
+	calls  int
+}
+
+func (f *fakeELB) DescribeTargetGroups(_ context.Context, in *elasticloadbalancingv2.DescribeTargetGroupsInput, _ ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeTargetGroupsOutput, error) {
+	f.calls++
+	if f.deny {
+		return nil, errors.New("AccessDenied")
+	}
+	out := &elasticloadbalancingv2.DescribeTargetGroupsOutput{}
+	for _, a := range in.TargetGroupArns {
+		out.TargetGroups = append(out.TargetGroups, elbtypes.TargetGroup{TargetGroupArn: aws.String(a), LoadBalancerArns: f.groups[a]})
+	}
+	return out, nil
+}
+
+func (f *fakeELB) DescribeLoadBalancers(_ context.Context, in *elasticloadbalancingv2.DescribeLoadBalancersInput, _ ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeLoadBalancersOutput, error) {
+	f.calls++
+	out := &elasticloadbalancingv2.DescribeLoadBalancersOutput{}
+	for _, a := range in.LoadBalancerArns {
+		out.LoadBalancers = append(out.LoadBalancers, f.lbs[a])
+	}
+	return out, nil
 }

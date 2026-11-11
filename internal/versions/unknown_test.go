@@ -34,13 +34,18 @@ func TestWhyUnknown(t *testing.T) {
 		{"private", func(o *Overview) {
 			o.Services["s"] = store.Service{ID: "s", PrivateUpstream: "ghcr.io/acme/api"}
 			o.TagCount["s"] = 0
+			o.CheckedAt["s"] = time.Time{}
 		}, "is private: the agents check it", "registries"},
+		{"private, read by an agent", func(o *Overview) { // its tags are asset hashes: the agent's access is fine
+			o.Services["s"] = store.Service{ID: "s", PrivateUpstream: "ghcr.io/acme/api"}
+			o.TagCount["s"] = 0
+		}, "has no tag that reads as a version", "policy"},
 		{"never checked", func(o *Overview) { o.CheckedAt["s"] = time.Time{} }, "has not looked at ghcr.io/acme/api yet", ""},
 		{"pinned major", func(o *Overview) {
 			o.Upstreams["s"] = Upstream{HasLatestAny: true, LatestAny: Version{Raw: "3.1.0"}}
 			o.Policies["s"] = Policy{PinMajor: &two}
 		}, "pins major 2, and no release of it is in ghcr.io/acme/api (the newest is 3.1.0)", "policy"},
-		{"no tags", func(o *Overview) { o.TagCount["s"] = 0 }, "lists no tags", ""},
+		{"no tags", func(o *Overview) { o.TagCount["s"] = 0 }, "has no tag that reads as a version", "policy"},
 		{"nothing comparable", func(*Overview) {}, `None of the 12 tags of ghcr.io/acme/api is comparable with "1.4.0"`, "policy"},
 	} {
 		o := base()

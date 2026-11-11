@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"embed"
@@ -74,6 +75,7 @@ type Server struct {
 	pulls       PullRequester
 	autoMu      sync.Mutex
 	autoFailed  map[string]time.Time // automatic pull requests that could not be opened, and when
+	autoHeld    map[string]string    // automatic pull requests held for a person, and why
 	snapshots   SnapshotSink
 	goli        *goli.Assistant
 	goliCache   goliCache
@@ -137,7 +139,7 @@ func New(o Options) *Server {
 	goliSeasonSetting = o.GoliSeason
 	return &Server{
 		store: o.Store, auth: o.Auth, checker: o.Checker, notify: o.Notifier, hub: o.Hub, log: o.Log,
-		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests, autoFailed: map[string]time.Time{},
+		publicURL: strings.TrimSuffix(o.PublicURL, "/"), smtp: o.SMTP, pushSubject: o.PushSubject, version: o.Version, updateCheck: o.UpdateCheck, argoCDURL: o.ArgoCDURL, pulls: o.PullRequests, autoFailed: map[string]time.Time{}, autoHeld: map[string]string{},
 		snapshots: o.Snapshots, goli: o.Goli, api: o.API, goliDemo: o.GoliInDemo, goliDocs: o.GoliDocs,
 		oauthHTTP: publicOnlyClient(),
 		slack:     o.Slack, slackHooks: slackHooks, slackHTTP: &http.Client{Timeout: 20 * time.Second},
@@ -159,6 +161,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	s.oauthRoutes(mux)
 	mux.HandleFunc("GET /login", s.login)
 	mux.HandleFunc("GET /login/2fa", s.secondFactorPage)
+	mux.HandleFunc("GET /login/link", s.linkConfirm)
 	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("/", s.notFound)
 
@@ -171,6 +174,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /services/{name}", s.page(v, s.service))
 	mux.Handle("POST /services/{name}/policy", s.page(m, s.savePolicy))
 	mux.Handle("POST /services/{name}/team", s.page(m, s.setServiceTeam))
+	mux.Handle("POST /services/team", s.page(m, s.setServicesTeam))
 	mux.Handle("POST /services/{name}/gitops/pr", s.page(m, s.openGitOpsPR))
 	mux.Handle("POST /updates/prs", s.page(m, s.openBulkPRs))
 	mux.Handle("GET /delivery/promote-app/preview", s.page(v, s.previewAppPromotion))
@@ -226,6 +230,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /security/deadlines", s.page(a, s.setDeadlines))
 	mux.Handle("POST /updates/ticket", s.page(m, s.fileTicket))
 	mux.Handle("POST /security/mitigations", s.page(m, s.createMitigation))
+	mux.Handle("POST /security/exceptions", s.page(a, s.createVulnException))
+	mux.Handle("POST /security/exceptions/{id}/close", s.page(a, s.closeVulnException))
 	mux.Handle("POST /security/mitigations/{id}/close", s.page(m, s.closeMitigation))
 	mux.Handle("GET /agents/{id}/aws", s.page(a, s.addAWS))
 	mux.Handle("GET /agents/{id}/add/{what}", s.page(a, s.addSource))
@@ -245,6 +251,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /connect/status/{id}", s.page(v, s.connectProgress))
 	mux.Handle("GET /connect/code/{id}", s.page(v, s.connectCodeProgress))
 	mux.Handle("POST /enroll-codes/{id}/revoke", s.page(a, s.revokeCode))
+	mux.Handle("GET /cleanup", s.page(a, s.cleanup))
+	mux.Handle("POST /cleanup", s.page(a, s.cleanupDelete))
+	mux.Handle("POST /enroll-codes/{id}/environment", s.page(a, s.setCodeEnv))
 	mux.Handle("POST /agents/{id}/rotate", s.page(a, s.rotateAgent))
 	mux.Handle("POST /agents/{id}/revoke", s.page(a, s.revokeAgent))
 	mux.Handle("POST /agents/{id}/rename", s.page(a, s.renameAgent))
@@ -305,6 +314,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /account/passkeys/{id}/delete", s.page(v, s.deletePasskey))
 	mux.Handle("POST /settings/users/{id}/2fa/delete", s.page(a, s.resetTwoFactor))
 	mux.Handle("POST /settings/require-2fa", s.page(a, s.setRequireTwoFactor))
+	mux.Handle("GET /settings/sso", s.page(a, s.ssoPage))
+	mux.Handle("POST /settings/sso", s.page(a, s.ssoSave))
+	mux.Handle("POST /settings/sso/delete", s.page(a, s.ssoDelete))
 	mux.Handle("POST /settings/app-label", s.page(a, s.setAppLabel))
 	mux.Handle("POST /settings/freezes", s.page(a, s.addFreeze))
 	mux.Handle("POST /settings/freezes/{id}/delete", s.page(a, s.deleteFreeze))
@@ -328,6 +340,9 @@ type handler func(w http.ResponseWriter, r *http.Request, p auth.Principal) erro
 // page authenticates, checks the role and turns handler errors into a page.
 func (s *Server) page(role string, h handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet { // the overview and the vulnerability report, built once a page (an action changes them)
+			r = r.WithContext(versions.WithMemo(r.Context()))
+		}
 		p, ok, err := s.auth.Authenticate(r)
 		if err != nil {
 			s.fail(w, r, err)
@@ -468,7 +483,25 @@ func (s *Server) audit(ctx context.Context, p auth.Principal, action string, kv 
 
 func render(w http.ResponseWriter, r *http.Request, c templ.Component) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return c.Render(r.Context(), w)
+	if r.Method != http.MethodGet || r.Header.Get("HX-Request") != "true" {
+		return c.Render(r.Context(), w)
+	}
+	// A live panel's refresh (the matrix, the tiles, every minute and at every change an agent reports) sends the
+	// version of what it shows: when nothing changed, 204 tells it to keep it, instead of a megabyte of HTML the
+	// browser lays out again.
+	var buf bytes.Buffer
+	if err := c.Render(r.Context(), &buf); err != nil {
+		return err
+	}
+	sum := sha256.Sum256(buf.Bytes())
+	version := hex.EncodeToString(sum[:12])
+	w.Header().Set("X-Content-Version", version)
+	if r.Header.Get("X-Have-Version") == version {
+		w.WriteHeader(http.StatusNoContent)
+		return nil
+	}
+	_, err := w.Write(buf.Bytes())
+	return err
 }
 
 // ---- sign-in ----
@@ -512,7 +545,9 @@ func (s *Server) overview(ctx context.Context, sc store.Scope, groupBy string) (
 		return MatrixGrid{}, err
 	}
 	g := buildGrid(o, len(agents), groupBy)
+	g.targets, g.where = o.Targets, o.Where
 	g.Unread = unreadRegistries(o)
+	g.Watched = watchedOnly(o)
 	if rep, err := versions.LoadVulnReport(ctx, s.store, sc, ""); err == nil {
 		markExploited(&g, rep)
 	}
@@ -624,6 +659,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		}
 	}
 	v := MatrixView{Base: withFlash(s.base(r.Context(), p, "matrix", "Matrix"), r), Yesterday: time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02T15:04")}
+	v.Q, v.Drift = r.URL.Query().Get("q"), r.URL.Query().Get("drift") == "1"
 	v.Views = s.viewTabs(r.Context(), r, p, "/?view=table")
 	if q := r.URL.Query().Get("at"); q != "" {
 		at, err := api.ParseAt(q)
@@ -644,7 +680,7 @@ func (s *Server) matrix(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
-	g.CanAdmin = p.Can(store.RoleAdmin)
+	g.CanAdmin, g.CanBulk = p.Can(store.RoleAdmin), p.Can(store.RoleMember)
 	if p.Can(store.RoleMember) || s.demoPulls() {
 		s.markPRs(r.Context(), p.Scope, &g)
 	}
@@ -681,7 +717,7 @@ func (s *Server) matrixGrid(w http.ResponseWriter, r *http.Request, p auth.Princ
 		return err
 	}
 	g.Explore = p.OrgWide() && !s.auth.Demo()
-	g.CanAdmin = p.Can(store.RoleAdmin)
+	g.CanAdmin, g.CanBulk = p.Can(store.RoleAdmin), p.Can(store.RoleMember)
 	if p.Can(store.RoleMember) || s.demoPulls() {
 		s.markPRs(r.Context(), p.Scope, &g)
 	}
@@ -748,9 +784,8 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 	ref := o.Refs[svc.ID]
 	v.RefRepo = ref.Repo
 	v.KindShown, v.KindChosen = versions.ServiceKind(svc, ref.Repo), svc.KindChosen
-	v.KindAuto = versions.ServiceKind(store.Service{Upstream: svc.Upstream}, ref.Repo)
+	v.KindAuto = versions.ServiceKind(store.Service{Upstream: svc.Upstream, PrivateUpstream: svc.PrivateUpstream}, ref.Repo)
 	v.Private = versions.CheckedByAgent(svc, ref.Repo, o.Registries)
-	v.PublicRegistry = ref.Repo != "" && versions.IsPublicRegistry(ref.Repo)
 	if u, ok := o.Upstreams[svc.ID]; ok {
 		if u.HasLatest {
 			v.Latest = u.Latest.Raw
@@ -759,8 +794,18 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			v.LatestAny = u.LatestAny.Raw
 		}
 	}
+	var builds []store.TagTime
+	if _, isVersion := versions.ParseVersion(ref.Tag); !isVersion && ref.Repo != "" && v.Latest == "" {
+		builds, _ = s.store.TagTimes(ctx, p.Scope, ref.Repo)
+		if b, ok := versions.NewestBuildOf(builds, ref.Tag); ok {
+			v.Build = &b
+		}
+	}
 	v.CheckedAt, v.CheckError, _ = s.store.UpstreamStatus(ctx, p.Scope, svc.ID)
-	if u, ok := versions.WhyUnknown(o, svc.ID); ok {
+	if v.CheckError == versions.BuiltLocally {
+		v.CheckError = "" // not a failure: the notice below says what it is
+	}
+	if u, ok := versions.WhyUnknown(o, svc.ID); ok && v.Build == nil { // with push times, Newest build says it
 		v.Unknown = versions.UnknownService{Service: svc.Name, Repo: ref.Repo, Unknown: u}
 	}
 	if issues, err := versions.RolloutIssues(ctx, s.store, p.Scope, o, time.Now()); err == nil {
@@ -815,7 +860,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		v.Policy.Reviewers, v.Policy.Labels = strings.Join(own.PRReviewers, ", "), strings.Join(own.PRLabels, ", ")
 	}
 	if base := versions.BaseImage(svc); base != "" {
-		st := s.checker.BaseStatus(ctx, base, time.Now())
+		st := s.checker.BaseStatus(versions.CacheOnly(ctx), base, time.Now())
 		v.BuiltOn = &st
 	}
 	if pol.PinMajor != nil {
@@ -860,7 +905,16 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if row != nil {
 			running = row.Cells[ei].Versions
 			for _, ver := range running {
-				se.Versions = append(se.Versions, VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")})
+				vv := VersionView{Tag: ver.Tag, Resolved: ver.Resolved, Running: ver.Running, Targets: strings.Join(ver.Targets, ", ")}
+				if b, ok := versions.NewestBuildOf(builds, ver.Tag); ok && !b.RunningPushedAt.IsZero() {
+					vv.PushedAt, vv.Older = b.RunningPushedAt, b.Newer
+				}
+				for i, name := range ver.Targets {
+					if i < len(ver.TargetIDs) {
+						vv.Links = append(vv.Links, TargetLink{Name: name, ID: ver.TargetIDs[i]})
+					}
+				}
+				se.Versions = append(se.Versions, vv)
 			}
 		}
 		for _, d := range o.DriftsAt(svc.ID, e.ID) {
@@ -894,17 +948,37 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		if len(se.Versions) > 0 {
 			v.Runs = true
 		}
+		region := ""
 		for _, ver := range running {
 			for _, id := range ver.TargetIDs {
 				for _, t := range o.Targets {
-					if t.ID == id && !slices.Contains(v.Platforms, t.Platform) {
+					if t.ID != id {
+						continue
+					}
+					if !slices.Contains(v.Platforms, t.Platform) {
 						v.Platforms = append(v.Platforms, t.Platform)
 					}
+					if region == "" {
+						region = targetRegion(t.Settings)
+					}
+				}
+			}
+		}
+		// A managed service or a .zip function behind: the AWS command that upgrades it there.
+		if up, ok := o.Upstreams[svc.ID]; ok && up.HasLatest {
+			for _, ver := range running {
+				if ver.Version() == up.Latest.Raw {
+					continue
+				}
+				if cmd := awsUpgradeCommand(o.Refs[svc.ID].Repo, svc.Name, region, ver.Version(), up.Latest.Raw); cmd != "" {
+					v.Upgrades = append(v.Upgrades, AWSUpgrade{Env: se.Name, From: ver.Version(), To: up.Latest.Raw, Command: cmd})
 				}
 			}
 		}
 	}
 	v.CanPR = s.pulls != nil
+	v.What = rowWhat(o.Refs[svc.ID].Repo)
+	v.Platforms = sortKinds(v.Platforms)
 
 	releases, err := s.store.ListReleases(ctx, p.Scope, svc.ID)
 	if err != nil {
@@ -921,8 +995,39 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		}
 	}
 	sort.Slice(parsed, func(i, j int) bool { return parsed[i].v.Compare(parsed[j].v) > 0 })
+	runs := map[string][]string{} // version -> the environments running it
+	for _, row := range o.Matrix.Rows {
+		if row.Service.ID != svc.ID {
+			continue
+		}
+		for ei, c := range row.Cells {
+			for _, ver := range c.Versions {
+				if ei < len(o.Matrix.Environments) && !slices.Contains(runs[ver.Tag], o.Matrix.Environments[ei].Name) {
+					runs[ver.Tag] = append(runs[ver.Tag], o.Matrix.Environments[ei].Name)
+				}
+			}
+		}
+	}
+	upgrades := map[string]versions.Update{} // target -> the upgrade to it that leaves the fewest exploited
+	if acks, err := s.store.ListAcks(ctx, p.Scope); err == nil {
+		for _, u := range versions.LoadWork(ctx, s.store, p.Scope, o, acks, time.Now()) {
+			if u.Service.ID != svc.ID || u.Target == "" || !u.Vulns.Known || len(u.Exploited) == 0 {
+				continue
+			}
+			if prev, ok := upgrades[u.Target]; !ok || len(u.Exploited) > len(prev.Exploited) {
+				upgrades[u.Target] = u
+			}
+		}
+	}
 	for i := 0; i < len(parsed) && i < 12; i++ {
-		v.Releases = append(v.Releases, ReleaseView{Version: parsed[i].rel.Version, Published: parsed[i].rel.PublishedAt, URL: parsed[i].rel.ChangelogURL})
+		rv := ReleaseView{Version: parsed[i].rel.Version, Published: parsed[i].rel.PublishedAt, URL: parsed[i].rel.ChangelogURL, Runs: runs[parsed[i].rel.Version]}
+		if u, ok := upgrades[rv.Version]; ok {
+			rv.Still = stillExploited(u.Exploited, u.Vulns)
+			if n := len(u.Exploited) - len(rv.Still); n > 0 {
+				rv.Fixes = "fixes " + plural(n, "exploited vulnerability", "exploited vulnerabilities") + " running in " + u.Environment.Name
+			}
+		}
+		v.Releases = append(v.Releases, rv)
 	}
 
 	if deploys, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{
@@ -1103,14 +1208,25 @@ func (s *Server) checkNow(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if err != nil || s.checker == nil {
 		return back(w, r, "/", "error", "Unknown service")
 	}
-	if err := s.checker.CheckService(ctx, p.Scope, svc.ID); errors.Is(err, versions.ErrNeedsCredentials) {
-		s.hub.Publish(p.Scope.WorkspaceID)
-		return back(w, r, path, "notice", "The registry refused it without credentials, so the agents check it with theirs.")
-	} else if err != nil {
-		return back(w, r, path, "error", "Upstream check failed: "+err.Error())
+	// Its images and their vulnerabilities, in the background: reading layers and asking OSV takes a while.
+	scope := p.Scope
+	refresh := " Reading its images and asking OSV about their packages now: vulnerabilities update within minutes."
+	if !s.checker.RefreshSecurity(scope, func() { s.hub.Publish(scope.WorkspaceID) }) {
+		refresh = " Its images and vulnerabilities are being read already."
 	}
+	err = s.checker.CheckService(ctx, p.Scope, svc.ID)
 	s.hub.Publish(p.Scope.WorkspaceID)
-	return back(w, r, path, "notice", "Upstream checked.")
+	switch {
+	case errors.Is(err, versions.ErrNeedsCredentials):
+		return back(w, r, path, "notice", "The registry refused it without credentials, so the agents check it with theirs."+refresh)
+	case err != nil && strings.Contains(err.Error(), "the agent checks it"):
+		return back(w, r, path, "notice", "The agents check its registry, within minutes of a change."+refresh)
+	case errors.Is(err, versions.ErrNoUpstream):
+		return back(w, r, path, "notice", "No upstream to check."+refresh)
+	case err != nil:
+		return back(w, r, path, "error", "Upstream check failed: "+err.Error()+"."+refresh)
+	}
+	return back(w, r, path, "notice", "Upstream checked."+refresh)
 }
 
 // ---- history ----
@@ -1241,14 +1357,35 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	v := HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Total: len(findings)}
+	v := HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Team: r.URL.Query().Get("team")}
+	teams := map[string]bool{}
+	for _, f := range findings {
+		for _, t := range f.Teams {
+			teams[t] = true
+		}
+	}
+	v.Teams = sortedSet(teams)
+	if v.Team != "" {
+		mine := findings[:0:0]
+		for _, f := range findings {
+			if slices.Contains(f.Teams, v.Team) {
+				mine = append(mine, f)
+			}
+		}
+		findings = mine
+	}
+	v.Total = len(findings)
 	v.Kinds = []HygieneKind{
+		{Kind: "expiring", Label: "Deleted by lifecycle policy", Help: "running images the ECR lifecycle policy deletes: a new task cannot pull them", Warn: true},
 		{Kind: "moving-tag", Label: "Moving tags", Help: "latest, stable and the like: the version cannot be known", Warn: true},
 		{Kind: "retagged", Label: "Tags pushed again", Help: "one tag running as different images", Warn: true},
 		{Kind: "untrusted-registry", Label: "Untrusted registries", Help: "outside GOLIASH_ALLOWED_REGISTRIES", Warn: true},
 		{Kind: "outdated-base", Label: "Outdated base", Help: "built on an older build of its FROM image: its fixes are missing", Warn: true},
 		{Kind: "over-budget", Label: "Over size budget", Help: "bigger than its service's image size budget", Warn: true},
 		{Kind: "unexpected-signer", Label: "Unexpected signer", Help: "not signed by who its service's policy names", Warn: true},
+		{Kind: "eol-os", Label: "OS past end of life", Help: "built on an operating system release that gets no more security fixes", Warn: true},
+		{Kind: "eol-runtime", Label: "Go past end of life", Help: "Go programs built with a Go release whose standard library gets no more fixes", Warn: true},
+		{Kind: "quiet-upstream", Label: "Quiet upstream", Help: "no release for over a year: it may be unmaintained", Warn: true},
 		{Kind: "unpinned", Label: "Digest unknown", Help: "a tag pushed again would go unnoticed; often a collector permission"},
 	}
 	known := false
@@ -1514,7 +1651,8 @@ func (s *Server) inboxMap(w http.ResponseWriter, r *http.Request, p auth.Princip
 		return back(w, r, "/inbox", "error", "Service names use letters, digits, dots, dashes and underscores.")
 	}
 	repo, workloadName, app := r.FormValue("repo"), r.FormValue("workload_name"), r.FormValue("app")
-	onlyWorkload := r.FormValue("only") == "workload"
+	// A shared image (a Lambda runtime, a database engine) names no service: map the one workload by its name.
+	onlyWorkload := r.FormValue("only") == "workload" || mapping.SharedImage(repo)
 	if repo == "" || (onlyWorkload && workloadName == "") {
 		return back(w, r, "/inbox", "error", "Nothing to map.")
 	}
@@ -1619,16 +1757,20 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 	if err != nil {
 		return v, err
 	}
-	perEnv := map[string]int{}
-	for _, t := range targets {
-		perEnv[t.EnvironmentID]++
-	}
-	for _, e := range envs {
-		v.Envs = append(v.Envs, EnvView{ID: e.ID, Name: e.Name, Position: e.Position, Targets: perEnv[e.ID]})
-	}
-	agentStale := map[string]bool{}
+	agentStale, agentWhere := map[string]bool{}, map[string]map[string]string{}
 	for _, a := range agents {
 		agentStale[a.ID] = !a.StaleSince.IsZero()
+		agentWhere[a.ID] = a.Where
+	}
+	perEnv, livePerEnv := map[string]int{}, map[string]int{}
+	for _, t := range targets {
+		perEnv[t.EnvironmentID]++
+		if targetLive(t, agentStale[t.AgentID]) {
+			livePerEnv[t.EnvironmentID]++
+		}
+	}
+	for _, e := range envs {
+		v.Envs = append(v.Envs, EnvView{ID: e.ID, Name: e.Name, Position: e.Position, Targets: perEnv[e.ID], Live: livePerEnv[e.ID]})
 	}
 	for _, t := range targets {
 		by := agentName[t.AgentID]
@@ -1640,20 +1782,31 @@ func (s *Server) agentsView(ctx context.Context, p auth.Principal) (AgentsView, 
 			Name: t.Name, Platform: t.Platform, Env: envName[t.EnvironmentID], Agent: by,
 			Status: t.CollectorStatus, Error: t.CollectorError, LastSnapshot: t.LastSnapshotAt,
 		}
+		for _, it := range whereItems(versions.TargetWhere(t, agentWhere[t.AgentID])) {
+			if it.Key != "platform" {
+				tv.Where = append(tv.Where, it)
+			}
+		}
 		if versions.StaleTarget(t, agentStale[t.AgentID], time.Now()) {
 			tv.Status = "stale"
 			tv.Error = "No recent snapshot; the versions shown may be out of date."
 		}
 		v.Targets = append(v.Targets, tv)
 	}
+	v.Targets = oneMachine(v.Targets)
 	codes, err := s.store.ListEnrollmentCodes(ctx, p.Scope)
 	if err != nil {
 		return v, err
 	}
+	if len(codes) > 0 {
+		if v.EnvList, err = s.store.ListEnvironments(ctx, p.Scope); err != nil {
+			return v, err
+		}
+	}
 	now := time.Now()
 	for _, c := range codes {
 		v.Codes = append(v.Codes, CodeView{
-			ID: c.ID, Env: envName[c.EnvironmentID], Many: !c.Single, Agents: c.Agents, Expires: c.ExpiresAt,
+			ID: c.ID, Env: envName[c.EnvironmentID], EnvID: c.EnvironmentID, Many: !c.Single, Agents: c.Agents, Expires: c.ExpiresAt,
 			Expired: c.Expired(now), LastUsed: c.LastUsedAt, By: c.CreatedBy,
 		})
 	}
@@ -1751,6 +1904,12 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	v := NotificationsView{Base: withFlash(s.base(ctx, p, "notifications", "Notifications"), r), SMTP: s.smtp}
+	if add := r.URL.Query().Get("add"); slices.Contains(store.ChannelTypes, add) && add != "push" {
+		v.Add = add
+	}
+	if err := s.ensurePushChannel(r, p); err != nil {
+		return err
+	}
 	chans, err := s.store.ListChannels(ctx, p.Scope)
 	if err != nil {
 		return err
@@ -1809,6 +1968,9 @@ func (s *Server) notifications(w http.ResponseWriter, r *http.Request, p auth.Pr
 		if f.Production {
 			parts = append(parts, "production only")
 		}
+		if len(f.Where) > 0 {
+			parts = append(parts, "running in "+strings.Join(f.Where, " "))
+		}
 		if f.MinJump != "" {
 			parts = append(parts, "releases from "+string(f.MinJump))
 		}
@@ -1864,6 +2026,9 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 	if name == "" {
 		return back(w, r, "/notifications", "error", "Give the channel a name.")
 	}
+	if typ == "push" {
+		return back(w, r, "/notifications", "error", pushChannelName+" is the one web push channel: press Notify this browser in its row.")
+	}
 	if typ == "email" && !s.smtp && cfg["smtp_addr"] == nil {
 		return back(w, r, "/notifications", "error", "This server has no mail relay: give the channel its own mail server.")
 	}
@@ -1879,9 +2044,13 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 // stored settings: an empty field keeps its value, so secrets never travel back to
 // the browser. problem is a message for the person when something is missing.
 func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[string]any, problem string) {
+	_ = r.ParseForm()
 	field := func(form, key string) string {
-		if v := strings.TrimSpace(r.FormValue(form)); v != "" {
-			return v
+		// The add form has a field per channel type, some with the same name (url): the one filled in counts.
+		for _, v := range r.Form[form] {
+			if v = strings.TrimSpace(v); v != "" {
+				return v
+			}
 		}
 		if v, ok := old[key].(string); ok {
 			return v
@@ -1916,6 +2085,25 @@ func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[str
 			return nil, "Enter Grafana's URL and a service account token."
 		}
 		cfg["url"], cfg["token"] = u, token
+	case "pagerduty":
+		token := field("token", "token")
+		if token == "" {
+			return nil, "Enter the integration key of a PagerDuty service (Events API v2)."
+		}
+		cfg["token"] = token
+	case "opsgenie":
+		token := field("token", "token")
+		if token == "" {
+			return nil, "Enter the API key of an Opsgenie API integration."
+		}
+		cfg["token"] = token
+		if raw := field("url", "url"); raw != "" {
+			u, ok := httpURL(raw)
+			if !ok {
+				return nil, "Enter Opsgenie's API address, such as https://api.eu.opsgenie.com, or leave it empty for the US."
+			}
+			cfg["url"] = strings.TrimSuffix(u, "/")
+		}
 	case "telegram":
 		token, chat := field("token", "bot_token"), field("chat_id", "chat_id")
 		if token == "" || chat == "" {
@@ -2128,6 +2316,11 @@ func (s *Server) ruleFromForm(r *http.Request, p auth.Principal) (rule store.Rul
 		Environments: split(r.FormValue("envs")), MinJump: versions.Jump(r.FormValue("min_jump")), DigestHour: &hour,
 		Apps: split(r.FormValue("apps")), Production: r.FormValue("production") == "1",
 	}
+	where, rest := versions.SplitWhere(r.FormValue("where"))
+	if rest = strings.TrimSpace(rest); rest != "" {
+		return rule, "", "Where it runs takes words like region:eu-central-1 or account:123456789012, not " + rest + "."
+	}
+	f.Where = where
 	if tz := strings.TrimSpace(r.FormValue("timezone")); tz != "" && tz != "UTC" {
 		if _, err := time.LoadLocation(tz); err != nil {
 			return rule, "", "Unknown time zone " + tz + "; use a name such as Europe/Bratislava."
@@ -2209,7 +2402,7 @@ func ruleForm(rule store.Rule) RuleForm {
 	out := RuleForm{
 		Mode: rule.Mode, MinJump: string(f.MinJump), Events: rule.EventTypes, DigestHour: 8,
 		Services: strings.Join(f.Services, ", "), Owners: strings.Join(f.Owners, ", "), Envs: strings.Join(f.Environments, ", "), Production: f.Production,
-		Apps: strings.Join(f.Apps, ", "),
+		Apps: strings.Join(f.Apps, ", "), Where: strings.Join(f.Where, " "),
 	}
 	if f.DigestHour != nil {
 		out.DigestHour = *f.DigestHour
@@ -2245,7 +2438,7 @@ func accessLabel(u store.User, wsRole string) string {
 }
 
 func (s *Server) settingsView(ctx context.Context, p auth.Principal) (SettingsView, error) {
-	v := SettingsView{Base: s.base(ctx, p, "settings", "Workspace settings"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled, GroupRoles: s.auth.GroupRoles()}
+	v := SettingsView{Base: s.base(ctx, p, "settings", "Workspace settings"), CanGrantOwner: p.User.Role == store.RoleOwner, SelfHas2FA: p.User.TOTPEnabled, GroupRoles: s.auth.GroupRoles(), SSOOn: s.auth.OIDCEnabled(), SSOName: s.auth.OIDCName()}
 	if req, err := s.store.RequireTwoFactor(ctx, p.User.OrgID); err == nil {
 		v.Require2FA = req
 	}
@@ -2396,12 +2589,20 @@ func (s *Server) inviteUser(w http.ResponseWriter, r *http.Request, p auth.Princ
 	if !isNew {
 		return back(w, r, "/settings", "notice", u.Email+" now has "+access+" access to "+p.Workspace.Name+".")
 	}
-	link, err := s.auth.LoginLink(ctx, u)
+	link, err := s.auth.InviteLink(ctx, u)
 	if err != nil {
 		return err
 	}
-	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link,
-		u.Email+" invited ("+access+"). They can also sign in with an e-mailed link or single sign-on.")
+	notice := u.Email + " invited (" + access + "). Send them this link: it works once, for " + strconv.Itoa(auth.InviteDays) +
+		" days, and asks them to confirm, so a chat's link preview does not use it up."
+	if s.auth.MailEnabled() {
+		if err := s.auth.MailInvite(ctx, u.Email, p.Name(), p.Workspace.Name, link); err != nil {
+			s.log.ErrorContext(ctx, "sending the invitation failed", "to", u.Email, "err", err)
+		} else {
+			notice = u.Email + " invited (" + access + ") and e-mailed the link below, which works once, for " + strconv.Itoa(auth.InviteDays) + " days."
+		}
+	}
+	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, notice)
 }
 
 // manageable returns a user the principal may manage in the current workspace.
@@ -2428,12 +2629,12 @@ func (s *Server) userLink(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}
-	link, err := s.auth.LoginLink(r.Context(), u)
+	link, err := s.auth.InviteLink(r.Context(), u)
 	if err != nil {
 		return err
 	}
 	s.audit(r.Context(), p, "user.login_link", "user", u.Email)
-	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, "")
+	return s.showSecret(w, r, p, "Sign-in link for "+u.Email+":", link, "It works once, for "+strconv.Itoa(auth.InviteDays)+" days.")
 }
 
 // setRole changes a person's role in this workspace; "none" takes their access away.
@@ -3040,8 +3241,18 @@ func (s *Server) instanceParts(ctx context.Context, sc store.Scope, events []sto
 		if err != nil {
 			continue
 		}
+		// An application the service runs as several workloads on the target (two ECS services) is told apart by
+		// workload: one lane each, not one lane that seems to switch between their versions.
+		workloads := map[[2]string]map[string]bool{}
 		for _, in := range insts {
-			if in.App != "" {
+			k := [2]string{in.ServiceID, in.App}
+			if workloads[k] == nil {
+				workloads[k] = map[string]bool{}
+			}
+			workloads[k][in.WorkloadName] = true
+		}
+		for _, in := range insts {
+			if in.App != "" && len(workloads[[2]string{in.ServiceID, in.App}]) == 1 {
 				parts[in.ID] = in.App
 			} else {
 				parts[in.ID] = in.WorkloadName
@@ -3152,18 +3363,38 @@ func (s *Server) exploreExample(w http.ResponseWriter, r *http.Request, p auth.P
 // unreadRegistries lists private registries whose services have no known release yet: neither the server
 // (no credentials) nor an agent could read them.
 func unreadRegistries(o versions.Overview) []UnreadRegistry {
-	count := map[string]int{}
+	items, lastErr := map[string][]UnreadService{}, map[string]string{}
 	for id, ref := range o.Refs {
 		if u, ok := o.Upstreams[id]; (ok && u.HasLatest) || versions.PackageRepo(ref.Repo) || !versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
 			continue
 		}
-		count[versions.RegistryHost(ref.Repo)]++
+		if _, ok := versions.ParseVersion(ref.Tag); !ok && o.CheckErrs[id] == "" {
+			continue // it runs a commit hash or latest: no newest release to know, whoever reads the registry
+		}
+		if (o.TagCount[id] > 0 || !o.CheckedAt[id].IsZero()) && o.CheckErrs[id] == "" {
+			// An agent read its tags without an error: none is a version (an asset hash, latest) or none compares
+			// with what runs. Its row says why; the registry and the agent's permissions are not the matter.
+			continue
+		}
+		host := versions.RegistryHost(ref.Repo)
+		items[host] = append(items[host], unreadService(o, id, ref))
+		if e := o.CheckErrs[id]; e != "" && (lastErr[host] == "" || e < lastErr[host]) {
+			lastErr[host] = e // one of them, the same on every page load
+		}
 	}
-	out := make([]UnreadRegistry, 0, len(count))
-	for host, n := range count {
-		out = append(out, UnreadRegistry{Host: host, Services: n, ECR: isECR(host)})
+	managed := map[string]bool{}
+	for _, ref := range o.Refs {
+		if versions.Managed(ref.Repo) {
+			managed[versions.RegistryHost(ref.Repo)] = true
+		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
+	out := make([]UnreadRegistry, 0, len(items))
+	for host, l := range items {
+		out = append(out, UnreadRegistry{
+			Host: host, Services: len(l), ECR: isECR(host), Managed: managed[host], Error: lastErr[host], Items: l,
+		})
+	}
+	sortUnread(out)
 	return out
 }
 
@@ -3211,7 +3442,7 @@ func (s *Server) mapImages(ctx context.Context, p auth.Principal, repos, names [
 	}
 	for i, repo := range repos {
 		name := strings.TrimSpace(names[i])
-		if repo == "" || !serviceName.MatchString(name) {
+		if repo == "" || !serviceName.MatchString(name) || mapping.SharedImage(repo) { // a shared image maps workload by workload
 			skipped = append(skipped, repo)
 			continue
 		}
@@ -3302,7 +3533,12 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	if err != nil {
 		return out, err
 	}
+	sboms, err := s.store.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return out, err
+	}
 	seen := map[string]bool{}
+	base := versions.ShortImage(versions.BaseImage(svc)) // what its images are built on, for the release to move to
 	type row struct {
 		ImageSecurity
 		pos int
@@ -3333,6 +3569,30 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		if len(ev.BaseChain) > 0 {
 			rows[len(rows)-1].Chain = versions.ChainText(ev.BaseChain)
 		}
+		if g, ok := versions.GoOf(sboms[repo+"@"+in.Digest].Purls); ok {
+			rows[len(rows)-1].Go, rows[len(rows)-1].GoPast = g, versions.GoPastEOL(ctx, g)
+		}
+		if o, ok := versions.OSOf(sboms[repo+"@"+in.Digest].Purls); ok {
+			r := &rows[len(rows)-1]
+			r.OS = o.String()
+			if cy, _, ok := versions.OSCycle(ctx, o); ok {
+				o.Version = cy.Name
+				r.OS = o.String()
+				now := time.Now()
+				switch {
+				case cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(now):
+					r.OSPast = true
+					if !cy.EOLFrom.IsZero() {
+						r.OSEnd = cy.EOLFrom.Format("Jan 2006")
+					}
+				case !cy.EOLFrom.IsZero() && cy.EOLFrom.Sub(now) <= 90*24*time.Hour:
+					r.OSEnd = cy.EOLFrom.Format("Jan 2, 2006")
+				}
+			}
+		}
+		if base == "" && ev.BaseImage != "" {
+			base = versions.ShortImage(ev.BaseImage)
+		}
 		if ev.SBOM {
 			out.WithSBOM++
 		}
@@ -3353,15 +3613,78 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	if len(out.Images) == 0 {
 		return out, nil
 	}
+	if res, err := versions.Resolutions(ctx, s.store, sc, time.Now().AddDate(0, 0, -resolvedDays)); err == nil {
+		for _, r := range res {
+			if r.ServiceID == svc.ID {
+				out.Resolved = append(out.Resolved, r)
+			}
+		}
+	}
 	rep, err := versions.LoadVulnReport(ctx, s.store, sc, "")
 	if err != nil {
 		return out, nil // the evidence is still worth showing
+	}
+	for _, n := range rep.NotAffected {
+		if n.ServiceID != svc.ID {
+			continue
+		}
+		if n.Auto != "" { // one line per reason: a kernel package can bring hundreds
+			if i := slices.IndexFunc(out.NotAffected, func(v NotAffectedView) bool { return v.ID == "" && v.Why == n.Auto }); i >= 0 {
+				if !slices.Contains(out.NotAffected[i].CVEs, n.Key) {
+					out.NotAffected[i].CVEs = append(out.NotAffected[i].CVEs, n.Key)
+				}
+				continue
+			}
+			out.NotAffected = append(out.NotAffected, NotAffectedView{CVE: n.Key, CVEs: []string{n.Key}, Why: n.Auto, By: "Goliash"})
+			continue
+		}
+		e := n.Exception
+		out.NotAffected = append(out.NotAffected, NotAffectedView{
+			ID: e.ID, CVE: n.Key, Why: notAffectedLabels[e.Justification], Note: e.Note, By: e.CreatedBy, Review: e.ReviewAt.Format("2 Jan 2006"),
+		})
+	}
+	// Per image: what is in each, and which images an environment runs more than one of (then "where" names them).
+	imageAt := map[[2]string]int{}
+	perEnv := map[string]int{}
+	for i, im := range out.Images {
+		imageAt[[2]string{im.Env, im.Image}] = i
+		perEnv[im.Env]++
+	}
+	for _, b := range rep.Blind {
+		if i, ok := imageAt[[2]string{b.Environment, b.Image}]; ok {
+			out.Images[i].Blind = b.Why
+		}
+	}
+	for _, b := range rep.Unsupported {
+		if i, ok := imageAt[[2]string{b.Environment, b.Image}]; ok {
+			out.Images[i].Unsupported = b.Why
+		}
+	}
+	for _, f := range rep.Findings {
+		counted := map[int]bool{}
+		for _, a := range f.Affected {
+			if i, ok := imageAt[[2]string{a.Env, a.Image}]; ok && a.ServiceID == svc.ID && !counted[i] {
+				counted[i] = true
+				out.Images[i].Vulns++
+				if a.Rebuild != "" {
+					out.Images[i].RebuildFixes++
+				}
+				if f.Exploited != nil {
+					out.Images[i].Exploited++
+				}
+			}
+		}
 	}
 	rank := map[string]int{"CRITICAL": 4, "HIGH": 3, "MODERATE": 2, "MEDIUM": 2, "LOW": 1}
 	var all []ServiceFinding
 	for _, f := range rep.Findings {
 		var pkgs, fixes, where []string
 		var whereIDs []string
+		tagsAt := map[string][]string{} // environment ID -> the versions it is in there
+		var upstream *versions.UpstreamFix
+		var newer *versions.NewerRelease
+		unassessed := false
+		current, rebuild := "", ""
 		for _, a := range f.Affected {
 			if a.ServiceID != svc.ID {
 				continue
@@ -3369,11 +3692,24 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 			if !slices.Contains(whereIDs, a.EnvironmentID) {
 				whereIDs = append(whereIDs, a.EnvironmentID)
 			}
+			if tag := versions.ParseImage(a.Image).Tag; tag != "" && !slices.Contains(tagsAt[a.EnvironmentID], tag) {
+				tagsAt[a.EnvironmentID] = append(tagsAt[a.EnvironmentID], tag)
+			}
 			if !slices.Contains(pkgs, a.Package) {
 				pkgs = append(pkgs, a.Package)
 			}
 			if a.Fix != "" && !slices.Contains(fixes, a.Fix) {
 				fixes = append(fixes, a.Fix)
+			}
+			if a.Upstream != nil && upstream == nil {
+				upstream = a.Upstream
+			}
+			if a.Newer != nil && newer == nil {
+				newer, current = a.Newer, a.Current
+			}
+			unassessed = unassessed || a.Distro == versions.DistroUndetermined
+			if rebuild == "" {
+				rebuild = a.Rebuild
 			}
 		}
 		if len(pkgs) == 0 {
@@ -3381,11 +3717,37 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		}
 		sort.Slice(whereIDs, func(i, j int) bool { return envPos[whereIDs[i]] > envPos[whereIDs[j]] })
 		for _, id := range whereIDs {
-			where = append(where, envName[id])
+			w := envName[id]
+			if perEnv[w] > 1 && len(tagsAt[id]) > 0 { // which of the versions running there
+				w += " (" + strings.Join(tagsAt[id], ", ") + ")"
+			}
+			where = append(where, w)
 		}
 		sf := ServiceFinding{
 			Key: f.Key, Summary: f.Summary, Severity: f.Severity, Package: strings.Join(pkgs, ", "),
-			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil,
+			Fix: strings.Join(fixes, ", "), Envs: strings.Join(where, ", "), Exploited: f.Exploited != nil, NoFix: f.NoFix(),
+			Unassessed: unassessed, Rebuild: rebuild,
+		}
+		if upstream != nil {
+			sf.Upstream, sf.UpstreamShort = upstream.Advice(f.Key), upstream.Short()
+		}
+		if newer != nil {
+			sf.Newer, sf.NewerShort = newer.AdviceOn(current, base), "fixed in "+newer.Label()
+		}
+		if sf.NoFix {
+			for _, m := range mitigationsOf(f) {
+				if strings.HasPrefix(m.Where, svc.Name+" (") {
+					sf.Mitigations = append(sf.Mitigations, m)
+				}
+			}
+			for _, a := range f.Unmitigated() {
+				if a.ServiceID == svc.ID {
+					sf.Places = append(sf.Places, MitigationPlace{Value: a.ServiceID + "|" + a.EnvironmentID, Label: a.Service + " (" + a.Env + ")"})
+				}
+			}
+			if rem, err := s.store.Remediation(ctx, sc); err == nil {
+				sf.MitigateBy = f.MitigateBy(rem.Exploited)
+			}
 		}
 		if sf.Exploited {
 			out.Exploited++
@@ -3413,8 +3775,15 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 // keepFields copies optional settings from a form: a value sets it, an empty field clears it, and a form without the
 // field keeps what was stored.
 func keepFields(r *http.Request, old, cfg map[string]any, keys ...string) {
+	_ = r.ParseForm()
 	for _, k := range keys {
-		if v := strings.TrimSpace(r.FormValue(k)); v != "" {
+		v := ""
+		for _, x := range r.Form[k] { // the add form repeats names across channel types: the filled one counts
+			if v = strings.TrimSpace(x); v != "" {
+				break
+			}
+		}
+		if v != "" {
 			cfg[k] = v
 		} else if v, ok := old[k].(string); ok && !r.Form.Has(k) {
 			cfg[k] = v

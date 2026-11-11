@@ -22,7 +22,7 @@
 name: goliash-agent
 services:
   socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.3.0
+    image: tecnativa/docker-socket-proxy:v0.5.0
     environment:
       CONTAINERS: 1
       IMAGES: 1        # registry digests of running images

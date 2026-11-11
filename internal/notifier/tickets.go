@@ -98,7 +98,7 @@ func (n *Notifier) ticketWorld(ctx context.Context, sc store.Scope) (ticketWorld
 	if err != nil {
 		return w, err
 	}
-	w.o, w.updates = o, versions.LoadUpdates(ctx, n.store, sc, o, acks, n.now())
+	w.o, w.updates = o, versions.LoadWork(ctx, n.store, sc, o, acks, n.now())
 	for _, s := range o.Services {
 		w.services[s.Name] = s
 	}
@@ -166,9 +166,12 @@ func (n *Notifier) ticketDraft(u versions.Update, note string) tickets.Draft {
 		where = u.Service.Name + " (" + u.App + ") @ " + u.Environment.Name
 	}
 	d := tickets.Draft{Team: u.Service.Owner, Due: u.Due, Labels: []string{"goliash"}}
-	if u.Target != "" {
+	switch {
+	case u.Target != "":
 		d.Title = fmt.Sprintf("[Goliash] %s: upgrade %s → %s", where, orDash(u.Running), u.Target)
-	} else {
+	case u.Remedy != "":
+		d.Title = fmt.Sprintf("[Goliash] %s: fix the exploited vulnerability in %s", where, orDash(u.Running))
+	default:
 		d.Title = fmt.Sprintf("[Goliash] %s: %s reaches its end of life", where, orDash(u.Running))
 	}
 	var b []string
@@ -180,6 +183,9 @@ func (n *Notifier) ticketDraft(u versions.Update, note string) tickets.Draft {
 			line += " Release notes: " + u.TargetURL
 		}
 		add("%s", line)
+	}
+	if u.Target == "" && u.Remedy != "" {
+		add("No newer release of it is known. What fixes it: %s.", u.Remedy)
 	}
 	if len(u.Exploited) > 0 {
 		add("Exploited in the wild (CISA KEV), in the running image: %s.", strings.Join(u.Exploited, ", "))
@@ -208,6 +214,18 @@ func (n *Notifier) ticketDraft(u versions.Update, note string) tickets.Draft {
 	}
 	if len(u.Maintenance) > 0 {
 		add("Waiting at the platform: %s.", strings.Join(u.Maintenance, "; "))
+	}
+	if u.Risk != "" {
+		add("Risk: %s (%s).", u.Risk, strings.Join(u.RiskReasons, "; "))
+	}
+	if u.Trouble != "" {
+		add("Gave trouble elsewhere: %s.", u.Trouble)
+	}
+	if len(u.Path) > 1 {
+		add("Upgrade path (%s): %s.", u.PathNote, strings.Join(u.Path, " → "))
+	}
+	if es := u.ExtendedSupport; es != nil {
+		add("AWS Extended Support: %s, at US East list prices; upgrading stops it.", es.String())
 	}
 	for _, br := range u.Breaking {
 		add("Breaking: %s", br)

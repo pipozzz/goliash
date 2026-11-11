@@ -9,15 +9,27 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   runs `goliash user password -email you@example.com`. Forgot it? Sign in with a link and set a new one: for 15
   minutes after a link or single sign-on, the current password is not asked for.
 - **Magic links.** `goliash login-link -email you@example.com` prints a one-time link. The first person becomes the
-  owner. With SMTP configured, people request links by e-mail on the sign-in page.
+  owner. With SMTP configured, people request links by e-mail on the sign-in page. A link opens a page that signs
+  in with a button, so a chat's link preview or a mail scanner, which opens links but presses no buttons, does not
+  use it up.
+- **Invitations.** **Settings → People → Invite** gives an e-mail address a role and shows a sign-in link for it,
+  which works once, for 7 days; with SMTP configured Goliash e-mails it too. Signing in with it, someone without a
+  password yet lands on their account page and is asked to set one, or add a passkey (not with single sign-on). **Sign-in link** beside a person makes
+  a new one (an expired invitation, a lost password).
 - **Passkeys.** On the account page, **Add a passkey** saves one in the device (Touch ID, Face ID, Windows Hello, a
   phone or a security key). Then **Sign in with a passkey** on the sign-in page, or pick it from the browser's
   suggestions in the e-mail field: no password, no code. A passkey only works on this server's address, so it cannot
   be phished. Passkeys need `GOLIASH_PUBLIC_URL` with a domain name over HTTPS (or `http://localhost`).
-- **OIDC.** Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …). Set
-  `GOLIASH_OIDC_ISSUER`, `GOLIASH_OIDC_CLIENT_ID` and `GOLIASH_OIDC_CLIENT_SECRET`, and register the redirect URI
-  `<public URL>/auth/oidc/callback`. People from the e-mail domains in `GOLIASH_OIDC_DOMAINS` get an account as
-  viewers on first sign-in; others need an invitation.
+- **Single sign-on (OIDC).** Step by step in [Single sign-on](/guide/sso/). Any OpenID Connect provider (Google, Microsoft Entra ID, Okta, Keycloak, Authentik, …),
+  one for the whole organization. An owner sets it up under **Settings → Single sign-on**: the page shows the redirect
+  URI to register with the provider (`<public URL>/auth/oidc/callback`), takes the issuer, client ID and secret
+  (encrypted with the server's secret key), and maps the provider's groups to roles in a table: a group to admin of
+  the organization, or to member or viewer in every workspace or one. With groups, the provider decides at every
+  sign-in who gets in and with which role; without, people need an invitation or an allowed e-mail domain. Saving
+  checks that the provider answers, and **Test a sign-in** shows what an account would get (its e-mail, its groups,
+  the roles) without signing anyone in. The same can be set in the environment instead (`GOLIASH_OIDC_*`,
+  `GOLIASH_GROUP_ROLES`, see [Configuration](/reference/configuration/#oidc-sign-in)); it then takes precedence and
+  the page shows it read-only.
 
 ## Apps with access
 

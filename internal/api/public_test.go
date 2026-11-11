@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -93,7 +94,8 @@ func newPublicEnv(t *testing.T) *publicEnv {
 	_ = st.SetMembership(ctx, viewer.ID, ws.ID, store.RoleViewer)
 	link, _ := a.LoginLink(ctx, viewer)
 	jarClient := &http.Client{Jar: newJar()}
-	resp, err := jarClient.Get(link) //nolint:noctx // test
+	lu, _ := url.Parse(link)
+	resp, err := jarClient.PostForm(lu.Scheme+"://"+lu.Host+"/auth/magic/use", url.Values{"token": {lu.Query().Get("token")}}) //nolint:noctx // test
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,6 +210,7 @@ func TestMetrics(t *testing.T) {
 		`goliash_snapshots_pending 0`,
 		`goliash_notifications_queued 0`,
 		`goliash_agents{status="revoked"} 0`,
+		`goliash_target_info{target="k8s-prod",platform="kubernetes",environment="prod",agent="",cloud="",account="",region="",zone="",instance_type="",os="",arch=""} 1`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %s\n%s", want, body)
@@ -467,6 +470,26 @@ func TestGitOpsMetrics(t *testing.T) {
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %s\n%s", want, body)
+		}
+	}
+}
+
+// The info metrics say where each agent and target runs; a target read through AWS's API keeps only the cloud and
+// account of its agent.
+func TestWhereInfoMetrics(t *testing.T) {
+	e := newPublicEnv(t)
+	ctx := t.Context()
+	a, _ := e.st.CreateAgent(ctx, e.sc, "eu", "eu-hash")
+	_ = e.st.SetAgentWhere(ctx, e.sc, a.ID, map[string]string{"cloud": "aws", "account": "098225058563", "region": "eu-central-1", "os": "Ubuntu 26.04 LTS"})
+	envs, _ := e.st.ListEnvironments(ctx, e.sc)
+	_, _ = e.st.CreateTarget(ctx, store.Target{Scope: e.sc, EnvironmentID: envs[0].ID, AgentID: a.ID, Platform: "ecs", Name: "ecs-eu"})
+	_, body := e.call(nil, "GET", "/metrics", e.token, "")
+	for _, want := range []string{
+		`goliash_agent_info{agent="eu",version="",cloud="aws",account="098225058563",region="eu-central-1",zone="",instance_type="",os="Ubuntu 26.04 LTS",arch=""} 1`,
+		`goliash_target_info{target="ecs-eu",platform="ecs",environment="` + envs[0].Name + `",agent="eu",cloud="aws",account="098225058563",region="",zone="",instance_type="",os="",arch=""} 1`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s", want)
 		}
 	}
 }

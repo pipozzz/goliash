@@ -50,6 +50,14 @@ func WhyUnknown(o Overview, serviceID string) (Unknown, bool) {
 			Fix:    "Deploy a version tag. A moving tag is resolved when the registry also lists the same image under a version tag.",
 		}, true
 	}
+	if o.CheckErrs[serviceID] == BuiltLocally {
+		return Unknown{
+			Short:  "built locally",
+			Reason: fmt.Sprintf("%s is no image on Docker Hub: no official image has that name, so it was built where it runs, not pulled from a registry.", strings.TrimPrefix(ref.Repo, "docker.io/library/")),
+			Fix:    "If its releases are published to a registry, set that repository as the service's upstream; otherwise there is no newer release to compare with.",
+			Where:  "upstream",
+		}, true
+	}
 	if msg := o.CheckErrs[serviceID]; msg != "" {
 		u := Unknown{Short: "check failed", Reason: "The last look at " + ref.Repo + " failed: " + msg + "."}
 		low := strings.ToLower(msg)
@@ -63,7 +71,7 @@ func WhyUnknown(o Overview, serviceID string) (Unknown, bool) {
 		}
 		return u, true
 	}
-	if CheckedByAgent(svc, ref.Repo, o.Registries) && o.TagCount[serviceID] == 0 {
+	if CheckedByAgent(svc, ref.Repo, o.Registries) && o.TagCount[serviceID] == 0 && o.CheckedAt[serviceID].IsZero() {
 		return Unknown{
 			Short:  "checked by agent",
 			Reason: ref.Repo + " is private: the agents check it, and none has reported its tags yet.",
@@ -83,7 +91,12 @@ func WhyUnknown(o Overview, serviceID string) (Unknown, bool) {
 		}, true
 	}
 	if o.TagCount[serviceID] == 0 {
-		return Unknown{Short: "no tags", Reason: "The registry lists no tags for " + ref.Repo + "."}, true
+		return Unknown{
+			Short:  "no version tags",
+			Reason: ref.Repo + " has no tag that reads as a version comparable with " + strconvQuote(ref.Tag) + ": its tags are commit or asset hashes, latest and the like, or none.",
+			Fix:    "For your own image built where it runs, there is no newer release to look for: Goliash compares its environments. Tag releases with versions (1.4.2) to have them, or set a tag filter in the version policy.",
+			Where:  "policy",
+		}, true
 	}
 	return Unknown{
 		Short:  "no comparable tag",
@@ -105,3 +118,5 @@ func pinned(p Policy) int {
 	}
 	return *p.PinMajor
 }
+
+func strconvQuote(s string) string { return fmt.Sprintf("%q", s) }

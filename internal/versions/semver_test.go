@@ -6,6 +6,8 @@ package versions
 import (
 	"strings"
 	"testing"
+
+	"github.com/pipozzz/goliash/internal/store"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -18,6 +20,8 @@ func TestParseVersion(t *testing.T) {
 		"1.27.2-bookworm":  {Parts: []int{1, 27, 2}, Variant: "bookworm"},
 		"7":                {Parts: []int{7}},
 		"1.2.3.4":          {Parts: []int{1, 2, 3, 4}},
+		"v0.63.x":          {Parts: []int{0, 63}}, // a release line, as Metabase tags it
+		"2.x-alpine":       {Parts: []int{2}, Variant: "alpine"},
 	}
 	for in, want := range cases {
 		got, ok := ParseVersion(in)
@@ -31,7 +35,13 @@ func TestParseVersion(t *testing.T) {
 			}
 		}
 	}
-	for _, bad := range []string{"latest", "stable", "sha-1a2b3c", "main", "20240101", "sha256-abc.sig", ""} {
+	if !IsMoving("v0.63.x") || !IsMoving("v0.63.22.x") || IsMoving("v0.63.22.3") {
+		t.Error("a .x tag is a moving one")
+	}
+	if got := movingCandidates("v0.63.x", []string{"v0.64.x", "v0.63.x", "v0.63.22.x", "v0.63.22.3", "v0.63.22.2", "v0.62.9"}, 8); strings.Join(got, " ") != "v0.63.22.3 v0.63.22.2" {
+		t.Errorf("candidates for v0.63.x: %v", got)
+	}
+	for _, bad := range []string{"latest", "stable", "sha-1a2b3c", "main", "20240101", "sha256-abc.sig", "", "x", "1.y"} {
 		if _, ok := ParseVersion(bad); ok {
 			t.Errorf("%q parsed as a version", bad)
 		}
@@ -141,5 +151,33 @@ func TestLatestForWordTags(t *testing.T) {
 	}
 	if got := strings.Join(movingCandidates("alpine", strings.Fields("8.2.1 8.2.1-alpine 8.2.0-alpine"), 4), " "); got != "8.2.1-alpine 8.2.0-alpine" {
 		t.Errorf("moving alpine candidates %q", got)
+	}
+}
+
+// A managed engine's offered versions compare with what runs whatever their precision: Valkey 8.1 with 8.0.1, and
+// with a serverless cache's 8 as its line.
+func TestCandidatesAnyPrecision(t *testing.T) {
+	offered := []string{"7.2", "8.0", "8.1"}
+	got := func(running string, anyPrecision bool) []string {
+		var out []string
+		for _, v := range Candidates(offered, running, Policy{AnyPrecision: anyPrecision}) {
+			out = append(out, v.Raw)
+		}
+		return out
+	}
+	if g := got("8.0.1", false); len(g) != 0 {
+		t.Errorf("images keep like with like: %v", g)
+	}
+	if g := got("8.0.1", true); strings.Join(g, " ") != "8.1 8.0 7.2" {
+		t.Errorf("replication group: %v", g)
+	}
+	if g := got("8", true); strings.Join(g, " ") != "8 7" {
+		t.Errorf("serverless line: %v", g)
+	}
+	if p, _, _ := PolicyFor(store.Service{}, "elasticache.amazonaws.com/valkey"); !p.AnyPrecision {
+		t.Error("a managed engine compares any precision")
+	}
+	if p, _, _ := PolicyFor(store.Service{}, "docker.io/library/valkey"); p.AnyPrecision {
+		t.Error("an image does not")
 	}
 }

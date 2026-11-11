@@ -5,10 +5,12 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -54,6 +56,13 @@ func (a *Agent) registryLoop(ctx context.Context) {
 
 		if len(checks) > 0 {
 			res := agentproto.RegistryResults{CheckedAt: time.Now().UTC(), Results: a.checkRegistries(ctx, checks)}
+			// A refused or failed check is tried again sooner: a permission given meanwhile shows within minutes.
+			for _, r := range res.Results {
+				if r.Error != nil && *r.Error != "" {
+					interval = min(interval, 10*time.Minute)
+					break
+				}
+			}
 			if err := a.client.registryResults(ctx, res); err != nil && ctx.Err() == nil {
 				a.log.Warn("sending registry results failed", "err", err)
 				interval = time.Minute
@@ -80,9 +89,14 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 		if c.TagFilter != nil {
 			filter, _ = regexp.Compile(*c.TagFilter)
 		}
+		facts := a.imageFacts(ctx, c)
 		for _, t := range tags {
 			if filter == nil || filter.MatchString(t) {
-				r.Tags = append(r.Tags, agentproto.RegistryTag{Name: t})
+				tag := agentproto.RegistryTag{Name: t}
+				if f, ok := facts[t]; ok {
+					tag.CreatedAt, tag.Digest, tag.ExpiresAt = f.pushed, f.digest, f.expires
+				}
+				r.Tags = append(r.Tags, tag)
 			}
 		}
 		if !managed(c.Repository) {
@@ -91,6 +105,59 @@ func (a *Agent) checkRegistries(ctx context.Context, checks []agentproto.Registr
 			r.Inspected = a.inspectDigests(ctx, c, creds)
 		}
 		out = append(out, r)
+	}
+	return out
+}
+
+// imageFact is what the agent knows of a tagged ECR image beyond its tag.
+type imageFact struct {
+	pushed, expires *time.Time
+	digest          *string
+}
+
+// imageFacts is, by tag, when each image of an ECR repository was pushed, its digest, and when its lifecycle policy
+// deletes it; none for other registries, or without ecr:DescribeImages (the tags still count, without them).
+func (a *Agent) imageFacts(ctx context.Context, c agentproto.RegistryCheck) map[string]imageFact {
+	if _, _, _, ok := ecr.Parse(c.Repository); !ok {
+		return nil
+	}
+	l, ok := a.opts.ECR.(ECRImages)
+	if !ok {
+		return nil
+	}
+	profile := ""
+	if c.CredentialsRef != nil && *c.CredentialsRef != "" {
+		if s, err := collectors.Credential(*c.CredentialsRef); err == nil {
+			profile = strings.TrimSpace(s)
+		}
+	}
+	images, err := l.Images(ctx, c.Repository, profile)
+	if err != nil {
+		a.log.Debug("no push times for an ECR repository", "repository", c.Repository, "err", err)
+		return nil
+	}
+	policy, err := l.LifecyclePolicy(ctx, c.Repository, profile)
+	if err != nil {
+		a.log.Debug("no lifecycle policy read for an ECR repository", "repository", c.Repository, "err", err)
+	}
+	expires := ecr.Expiries(policy, images, time.Now().UTC())
+	out := map[string]imageFact{}
+	for _, img := range images {
+		var f imageFact
+		if !img.PushedAt.IsZero() {
+			at := img.PushedAt
+			f.pushed = &at
+		}
+		if strings.HasPrefix(img.Digest, "sha256:") {
+			d := img.Digest
+			f.digest = &d
+		}
+		if at, ok := expires[img.Digest]; ok {
+			f.expires = &at
+		}
+		for _, t := range img.Tags {
+			out[t] = f
+		}
 	}
 	return out
 }
@@ -140,7 +207,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if strings.HasPrefix(c.Repository, rds.Host+"/") {
 		// An RDS engine: the versions RDS offers in the agent's region.
-		api, err := rds.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := rds.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -149,7 +216,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if strings.HasPrefix(c.Repository, opensearch.Host+"/") {
 		// OpenSearch Service: the versions it offers of the engine.
-		api, err := opensearch.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := opensearch.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -158,7 +225,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if c.Repository == msk.Image {
 		// Kafka on MSK: the versions MSK offers.
-		api, err := msk.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := msk.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -167,7 +234,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if c.Repository == eks.Image {
 		// Kubernetes on EKS: the versions EKS offers.
-		api, err := eks.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := eks.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -176,7 +243,7 @@ func (a *Agent) listTags(ctx context.Context, c agentproto.RegistryCheck, keys r
 	}
 	if strings.HasPrefix(c.Repository, elasticache.Host+"/") {
 		// An ElastiCache engine: the versions ElastiCache offers in the agent's region.
-		api, err := elasticache.Client(ctx, "", strings.TrimSpace(secret))
+		api, err := elasticache.Client(ctx, a.awsRegion(), strings.TrimSpace(secret))
 		if err != nil {
 			return nil, none, err
 		}
@@ -290,88 +357,135 @@ type PackageReader interface {
 	ImagePackages(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
+// VEXReader reads the OpenVEX statements attached to an image. registry.Client implements it.
+type VEXReader interface {
+	ImageVEX(ctx context.Context, repository, digest string, creds registry.Credentials) ([]registry.VEXStatement, error)
+}
+
 // maxPurls bounds the packages reported for one image.
 const maxPurls = 20000
 
 // inspectDigests answers the server's inspections: what the registry holds beside each running digest, and
-// the packages of its SBOM, read with the agent's own credentials.
+// the packages of its SBOM, read with the agent's own credentials; and the same of the releases it asks about
+// by tag, which run nowhere yet.
 func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, creds registry.Credentials) []agentproto.ImageInspection {
 	reader, ok := a.registry.(Inspector)
-	if !ok || len(c.Inspect) == 0 {
+	if !ok || len(c.Inspect)+len(c.ReleaseTags) == 0 {
 		return nil
 	}
 	if _, _, _, isECR := ecr.Parse(c.Repository); isECR && creds.Password == "" {
 		return nil // no ECR token
 	}
-	out := make([]agentproto.ImageInspection, 0, len(c.Inspect))
+	out := make([]agentproto.ImageInspection, 0, len(c.Inspect)+len(c.ReleaseTags))
 	for _, digest := range c.Inspect {
-		in := agentproto.ImageInspection{Digest: digest}
-		ev, err := reader.ImageEvidence(ctx, c.Repository, digest, creds)
+		in := a.inspectOne(ctx, reader, c.Repository, digest, creds)
+		if ctx.Err() != nil {
+			return out
+		}
+		out = append(out, in)
+	}
+	digests, _ := a.registry.(interface {
+		TagDigest(ctx context.Context, repository, reference string, creds registry.Credentials) (string, error)
+	})
+	for _, tag := range c.ReleaseTags {
+		if digests == nil {
+			break
+		}
+		digest, err := digests.TagDigest(ctx, c.Repository, tag, creds)
 		if ctx.Err() != nil {
 			return out
 		}
 		if err != nil {
-			msg := err.Error()
-			in.Error = &msg
-			out = append(out, in)
-			continue
+			a.log.Debug("release tag not readable", "repository", c.Repository, "tag", tag, "err", err)
+			continue // asked again on a later check
 		}
-		in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
-		for _, s := range ev.Signers {
-			signer := struct {
-				Identity string  `json:"identity"`
-				Issuer   *string `json:"issuer,omitempty"`
-			}{Identity: s.Identity}
-			if s.Issuer != "" {
-				issuer := s.Issuer
-				signer.Issuer = &issuer
-			}
-			in.Signers = append(in.Signers, signer)
+		in := a.inspectOne(ctx, reader, c.Repository, digest, creds)
+		if ctx.Err() != nil {
+			return out
 		}
-		if ev.Size > 0 {
-			in.Size = &ev.Size
-		}
-		in.Layers = ev.Layers[:min(len(ev.Layers), 512)]
-		for _, l := range ev.LayerDetails[:min(len(ev.LayerDetails), 512)] {
-			d := l
-			in.LayerDetails = append(in.LayerDetails, struct {
-				Command *string `json:"command,omitempty"`
-				Digest  string  `json:"digest"`
-				Size    int64   `json:"size"`
-			}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
-		}
-		if ev.Components != "" {
-			comp := ev.Components[:min(len(ev.Components), 2000)]
-			in.Components = &comp
-		}
-		if pr, ok := a.registry.(PackageReader); ok && !ev.SBOM {
-			// No SBOM: the image's own package database, so its system packages are not a blind spot.
-			if list, err := pr.ImagePackages(ctx, c.Repository, digest, creds); err == nil {
-				in.Purls = list.Purls[:min(len(list.Purls), maxPurls)]
-				from := agentproto.Packages
-				in.PurlsFrom = &from
-			} else if ctx.Err() == nil {
-				a.log.Debug("packages not readable", "repository", c.Repository, "digest", digest, "err", err)
-			}
-		}
-		if ev.SBOM {
-			sbom, err := reader.ImageSBOM(ctx, c.Repository, digest, creds)
-			if err != nil {
-				a.log.Warn("sbom not readable", "repository", c.Repository, "digest", digest, "err", err)
-			}
-			in.Purls = sbom.Purls[:min(len(sbom.Purls), maxPurls)]
-			for _, p := range in.Purls {
-				if l := sbom.Licenses[p]; l != "" {
-					if in.Licenses == nil {
-						in.Licenses = map[string]string{}
-					}
-					in.Licenses[p] = l
-				}
-			}
-		}
+		in.Tag = &tag
 		out = append(out, in)
 	}
 	return out
+}
+
+// inspectOne reads what the registry holds of one image: its signatures and attestations, and its packages.
+func (a *Agent) inspectOne(ctx context.Context, reader Inspector, repository, digest string, creds registry.Credentials) agentproto.ImageInspection {
+	in := agentproto.ImageInspection{Digest: digest}
+	ev, err := reader.ImageEvidence(ctx, repository, digest, creds)
+	if err != nil {
+		msg := err.Error()
+		in.Error = &msg
+		return in
+	}
+	in.Signed, in.Sbom, in.Provenance, in.Found = &ev.Signed, &ev.SBOM, &ev.Provenance, ev.Found
+	for _, s := range ev.Signers {
+		signer := struct {
+			Identity string  `json:"identity"`
+			Issuer   *string `json:"issuer,omitempty"`
+		}{Identity: s.Identity}
+		if s.Issuer != "" {
+			issuer := s.Issuer
+			signer.Issuer = &issuer
+		}
+		in.Signers = append(in.Signers, signer)
+	}
+	if ev.Size > 0 {
+		in.Size = &ev.Size
+	}
+	in.Layers = ev.Layers[:min(len(ev.Layers), 512)]
+	for _, l := range ev.LayerDetails[:min(len(ev.LayerDetails), 512)] {
+		d := l
+		in.LayerDetails = append(in.LayerDetails, struct {
+			Command *string `json:"command,omitempty"`
+			Digest  string  `json:"digest"`
+			Size    int64   `json:"size"`
+		}{Digest: d.Digest, Size: d.Size, Command: &d.Command})
+	}
+	if ev.Components != "" {
+		comp := ev.Components[:min(len(ev.Components), 2000)]
+		in.Components = &comp
+	}
+	if pr, ok := a.registry.(PackageReader); ok && !ev.SBOM {
+		// No SBOM: the image's own package database, so its system packages are not a blind spot.
+		if list, err := pr.ImagePackages(ctx, repository, digest, creds); err == nil {
+			in.Purls = list.Purls[:min(len(list.Purls), maxPurls)]
+			from := agentproto.Packages
+			in.PurlsFrom = &from
+			in.GoLinked = list.GoLinked
+		} else if ctx.Err() == nil {
+			a.log.Debug("packages not readable", "repository", repository, "digest", digest, "err", err)
+		}
+	}
+	if ev.SBOM {
+		sbom, err := reader.ImageSBOM(ctx, repository, digest, creds)
+		if err != nil {
+			a.log.Warn("sbom not readable", "repository", repository, "digest", digest, "err", err)
+		}
+		in.Purls = sbom.Purls[:min(len(sbom.Purls), maxPurls)]
+		for _, p := range in.Purls {
+			if l := sbom.Licenses[p]; l != "" {
+				if in.Licenses == nil {
+					in.Licenses = map[string]string{}
+				}
+				in.Licenses[p] = l
+			}
+		}
+	}
+	if vr, ok := a.registry.(VEXReader); ok && ev.VEX {
+		list, err := vr.ImageVEX(ctx, repository, digest, creds)
+		if err != nil && ctx.Err() == nil {
+			a.log.Warn("vex not readable", "repository", repository, "digest", digest, "err", err)
+		}
+		in.Vex = make([]agentproto.VEXStatement, 0, len(list))
+		for _, s := range list[:min(len(list), 5000)] {
+			in.Vex = append(in.Vex, agentproto.VEXStatement{
+				Vulnerability: s.Vulnerability, Status: s.Status, Packages: s.Packages,
+				Justification: optional(s.Justification), Impact: optional(s.Impact), Author: optional(s.Author),
+			})
+		}
+	}
+	return in
 }
 
 // managed reports whether repo is the engine of a managed AWS service, which the agent answers with the versions
@@ -379,4 +493,48 @@ func (a *Agent) inspectDigests(ctx context.Context, c agentproto.RegistryCheck, 
 func managed(repo string) bool {
 	return strings.HasPrefix(repo, rds.Host+"/") || strings.HasPrefix(repo, elasticache.Host+"/") ||
 		strings.HasPrefix(repo, opensearch.Host+"/") || repo == eks.Image || repo == msk.Image
+}
+
+// awsRegion is the region of the agent's AWS targets, for asking AWS which engine versions it offers. An agent
+// that found its region in EC2's instance metadata has no AWS_REGION, so the AWS SDK alone would know none; empty
+// leaves it to the SDK (AWS_REGION, the profile).
+func (a *Agent) awsRegion() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	ids := make([]string, 0, len(a.runners))
+	for id := range a.runners {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		var t agentproto.Target
+		if json.Unmarshal(a.runners[id].spec, &t) != nil {
+			continue
+		}
+		switch {
+		case t.Rds != nil && t.Rds.Region != "":
+			return t.Rds.Region
+		case t.Elasticache != nil && t.Elasticache.Region != "":
+			return t.Elasticache.Region
+		case t.Eks != nil && t.Eks.Region != "":
+			return t.Eks.Region
+		case t.Opensearch != nil && t.Opensearch.Region != "":
+			return t.Opensearch.Region
+		case t.Msk != nil && t.Msk.Region != "":
+			return t.Msk.Region
+		case t.Lambda != nil && t.Lambda.Region != "":
+			return t.Lambda.Region
+		case t.Ecs != nil && t.Ecs.Region != "":
+			return t.Ecs.Region
+		}
+	}
+	return ""
+}
+
+// optional is s for an optional field: nil when empty.
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

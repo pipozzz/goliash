@@ -15,6 +15,7 @@ import (
 
 	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
+	"github.com/pipozzz/goliash/internal/versions"
 )
 
 // Charts are drawn on the server as SVG: no script (the Content-Security-Policy
@@ -51,6 +52,7 @@ type Timeline struct {
 // Lane is one environment of a Timeline.
 type Lane struct {
 	Env      string
+	TargetID string // the target the lane is, when it is one: its name links to it
 	Segments []Segment
 }
 
@@ -209,16 +211,55 @@ func versionTimeline(events []store.Event, envs []store.Environment, targets, pa
 					laneName += " · " + part
 				}
 				if lane, ok := buildLane(byLane[key{env.ID, tid, part}], laneName, from, now, window); ok {
+					if len(ids) > 1 && targets[tid] != "" {
+						lane.TargetID = tid
+					}
 					t.Lanes = append(t.Lanes, lane)
 				}
 			}
 		}
 	}
+	colourVersions(t.Lanes)
 	for i := 0; i <= 4; i++ {
 		at := from.Add(window * time.Duration(i) / 4)
 		t.Ticks = append(t.Ticks, Tick{At: float64(i) / 4, Label: at.UTC().Format("Jan 2")})
 	}
 	return t
+}
+
+// colourVersions gives the chart's versions colours in version order, so two versions never share one (up to
+// six) and the same version has the same colour in every lane. A hash of the name could give two the same.
+func colourVersions(lanes []Lane) {
+	var names []string
+	seen := map[string]bool{}
+	for _, l := range lanes {
+		for _, s := range l.Segments {
+			if !seen[s.Version] {
+				seen[s.Version] = true
+				names = append(names, s.Version)
+			}
+		}
+	}
+	sort.Slice(names, func(i, j int) bool {
+		a, okA := versions.ParseVersion(names[i])
+		b, okB := versions.ParseVersion(names[j])
+		switch {
+		case okA && okB && a.Compare(b) != 0:
+			return a.Compare(b) < 0
+		case okA != okB:
+			return okA
+		}
+		return names[i] < names[j]
+	})
+	class := map[string]string{}
+	for i, n := range names {
+		class[n] = colour(i)
+	}
+	for li := range lanes {
+		for si := range lanes[li].Segments {
+			lanes[li].Segments[si].Class = class[lanes[li].Segments[si].Version]
+		}
+	}
 }
 
 func sortedKeys(m map[string]bool, less func(a, b string) bool) []string {
@@ -547,6 +588,39 @@ func laneCount(lane Lane, labelW float64) (x float64, text string, ok bool) {
 	text = fmt.Sprintf("%d versions", len(lane.Segments))
 	x = labelW + lane.Segments[0].Start*(chartW-labelW) - 6
 	return x, text, x-float64(len(text))*6.5 > labelW
+}
+
+// laneLabelMax is the most characters a lane's name is written with; longer ones lose their middle, and say it whole
+// when hovered. ECS clusters and workloads make names of a hundred characters.
+const laneLabelMax = 64
+
+// laneLabel is a lane's name as written beside it.
+func laneLabel(name string) string {
+	r := []rune(name)
+	if len(r) <= laneLabelMax {
+		return name
+	}
+	head := laneLabelMax * 2 / 5
+	tail := laneLabelMax - head - 1
+	return string(r[:head]) + "…" + string(r[len(r)-tail:])
+}
+
+// LabelWidth is how wide the lanes' names are written: at least the 150 the bars start after, at most enough for
+// laneLabelMax characters. The chart grows to the left for it, so the bars keep their width.
+func (t Timeline) LabelWidth() float64 {
+	longest := 0
+	for _, l := range t.Lanes {
+		longest = max(longest, len([]rune(laneLabel(l.Env))))
+	}
+	return max(150, float64(longest)*6.2+14)
+}
+
+// LaneH is the height of a lane: lower when there are many, so a service on a dozen workloads stays one screen.
+func (t Timeline) LaneH() float64 {
+	if len(t.Lanes) > 8 {
+		return 24
+	}
+	return 30
 }
 
 // nowText fits a version into the column after the timeline.

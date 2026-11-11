@@ -17,7 +17,7 @@ type Service struct {
 	Scope         Scope
 	Name          string
 	Owner         string
-	OwnerSource   string // '' set by people; "label" or "app" when Goliash set it and follows changes
+	OwnerSource   string // '' set by people; "label", "backstage", "codeowners" or "app" when Goliash set it and follows changes
 	App           string // the application it is placed in by hand; empty: from its workloads
 	Kind          string // own or third_party; see KindChosen
 	KindChosen    bool   // a person chose Kind; else it is worked out from the image (versions.ServiceKind)
@@ -69,7 +69,7 @@ func (s *Store) GetService(ctx context.Context, sc Scope, id string) (Service, e
 }
 
 // ListServices returns the workspace's services by name.
-func (s *Store) ListServices(ctx context.Context, sc Scope) ([]Service, error) {
+func (s *Store) listServices(ctx context.Context, sc Scope) ([]Service, error) {
 	rows, err := s.query(ctx, s.db, `SELECT `+serviceColumns+` FROM services
 		WHERE org_id = ? AND workspace_id = ? ORDER BY name`, sc.OrgID, sc.WorkspaceID)
 	if err != nil {

@@ -1,0 +1,57 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ CleanupPage(v CleanupView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<p class="sub"><a href="/agents">Agents and targets</a> /</p>
+				<h1>Clean up</h1>
+				<p class="sub">What this workspace keeps for nothing: agents gone quiet for a week, targets nothing reports for, environments without targets, services that run nowhere, and mapping rules that match nothing. Tick what should go.</p>
+			</div>
+		</div>
+		if v.Total() == 0 {
+			<section class="panel"><div class="empty">Nothing to clean up.</div></section>
+		}
+		@cleanupSection("agents", "Agents gone quiet", "with the targets they found themselves", v.Agents)
+		@cleanupSection("targets", "Targets nothing reports for", "their history stays", v.Targets)
+		@cleanupSection("envs", "Environments without targets", "", v.Envs)
+		@cleanupSection("services", "Services that run nowhere", "their releases, policy and acknowledgements go too; history stays", v.Services)
+		@cleanupSection("rules", "Mapping rules that match nothing", "", v.Rules)
+	}
+}
+
+templ cleanupSection(what, title, note string, items []CleanupItem) {
+	if len(items) > 0 {
+		<section class="panel">
+			<div class="panel-head">
+				<h2>{ title } <span class="count-pill">{ itoa(len(items)) }</span></h2>
+				if note != "" {
+					<span class="muted">{ note }</span>
+				}
+			</div>
+			<form method="post" action="/cleanup" hx-confirm={ "Delete the ticked " + title + "?" }>
+				<input type="hidden" name="what" value={ what }/>
+				<div class="scroll" tabindex="0">
+					<table>
+						<tbody>
+							for _, it := range items {
+								<tr>
+									<td class="tick"><input type="checkbox" name="id" value={ it.ID } aria-label={ "Delete " + it.Name }/></td>
+									<td class="mono">{ it.Name }</td>
+									<td class="muted">{ it.Why }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<div class="panel-body actions">
+					<button type="button" class="link" data-tick-all>Tick all</button>
+					<button type="submit" class="danger">Delete the ticked</button>
+				</div>
+			</form>
+		</section>
+	}
+}

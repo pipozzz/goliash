@@ -6,6 +6,7 @@ package ui
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pipozzz/goliash/internal/versions"
 )
@@ -15,11 +16,17 @@ templ ServicePage(v ServiceView) {
 		<div class="head">
 			<div>
 				<p class="muted"><a href="/">Matrix</a> / service</p>
-				<h1>{ v.Name }</h1>
+				<h1>
+					@kindIcons(v.Platforms)
+					<span>{ v.Name }</span>
+				</h1>
+				if v.What != "" {
+					<p class="sub">{ v.What }</p>
+				}
 			</div>
-			if v.CanMember && v.PublicRegistry {
+			if v.CanMember {
 				<form method="post" action={ templ.URL("/services/" + v.Name + "/check") } class="inline">
-					<button class="secondary" type="submit">Check upstream now</button>
+					<button class="secondary" type="submit" title="Look for new releases, read its images again and ask OSV about their packages, without waiting for the hourly check">Check now</button>
 				</form>
 			}
 		</div>
@@ -42,7 +49,11 @@ templ ServicePage(v ServiceView) {
 					}
 				</dd>
 			</div>
-			<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.KindShown) }</dd></div>
+			if v.What != "" {
+				<div class="fact"><dt>Kind</dt><dd>{ awsRunKind(v.RefRepo) }</dd></div>
+			} else {
+				<div class="fact"><dt>Kind</dt><dd>{ kindLabel(v.KindShown) }</dd></div>
+			}
 			<div class="fact"><dt>Upstream</dt><dd class="mono">{ orDash(v.RefRepo) }</dd></div>
 			if v.BuiltOn != nil {
 				<div class="fact">
@@ -58,9 +69,18 @@ templ ServicePage(v ServiceView) {
 				</div>
 			}
 			<div class="fact">
-				<dt>Latest acceptable</dt>
+				if v.Build != nil {
+					<dt>Newest build</dt>
+				} else {
+					<dt>Latest acceptable</dt>
+				}
 				<dd>
-					<span class="mono">{ orDash(v.Latest) }</span>
+					if v.Build != nil {
+						<span class="mono">{ v.Build.Tag }</span>
+						<div class="targets" title="Its tags are no versions: builds are ordered by when they were pushed to the registry">{ "pushed " + v.Build.PushedAt.Format("2006-01-02") }</div>
+					} else {
+						<span class="mono">{ orDash(v.Latest) }</span>
+					}
 					if v.Goli && v.Latest != "" {
 						<button type="button" class="link ask-goli noprint" data-goli-ask={ "Brief me on upgrading " + v.Name + " to " + v.Latest + " from what runs in each environment: what breaks or needs migrating, what it fixes (security first), and what to check before and after." } title="Goli reads the release notes and briefs you">Brief</button>
 					}
@@ -83,7 +103,16 @@ templ ServicePage(v ServiceView) {
 		if v.CheckError != "" {
 			<div class="notice error">
 				Upstream check failed: { v.CheckError }
-				if v.Private && strings.Contains(v.CheckError, "denied") {
+				if role, account, cmd, ok := ecrCrossAccount(v.CheckError, v.RefRepo); ok {
+					<p class="hint">
+						{ "The repository is in AWS account " + account + ", the agent's role (" + role + ") in another one. Its IAM policy is not enough across accounts: the repository's own policy has to let the role read. In account " + account + ":" }
+					</p>
+					<pre tabindex="0" class="mono install-cmd" id="ecr-cross">{ cmd }</pre>
+					<div class="actions"><button type="button" class="secondary" data-copy="ecr-cross">Copy</button></div>
+					<p class="hint">This replaces the repository's policy: add the statement to it if it has one. The agent tries again within 10 minutes.</p>
+				} else if v.Private && isECR(versions.RegistryHost(v.RefRepo)) && strings.Contains(v.CheckError, "denied") {
+					<p class="hint">Give the agent's IAM role <code>ecr:ListImages</code>, <code>ecr:BatchGetImage</code> and <code>ecr:GetDownloadUrlForLayer</code> (or AmazonEC2ContainerRegistryReadOnly); the agent's page, Add AWS, has the policy. The agent tries again within 10 minutes.</p>
+				} else if v.Private && strings.Contains(v.CheckError, "denied") {
 					<p class="hint">
 						The agents check this registry with their own credentials: a <code>GOLIASH_CREDENTIAL_…</code> variable named after the registry host, a <code>docker login</code> on the host, or the cluster's image pull secrets. Or give the server read access under Settings → Private registries.
 						<a href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How to give agents credentials</a>
@@ -134,6 +163,19 @@ templ ServicePage(v ServiceView) {
 			</section>
 		}
 		<div class="grid-2">
+			if len(v.Upgrades) > 0 {
+				<section class="panel">
+					<div class="panel-head"><h2>How to upgrade</h2>@panelInfo("AWS runs it; the engine or runtime version is yours to move")</div>
+					<div class="panel-body stack">
+						for i, u := range v.Upgrades {
+							<p><strong>{ u.Env }</strong>{ ": " + u.From + " → " + u.To }</p>
+							<pre tabindex="0" class="mono install-cmd" id={ "aws-up-" + itoa(i) }>{ u.Command }</pre>
+							<div class="actions"><button type="button" class="secondary" data-copy={ "aws-up-" + itoa(i) }>Copy</button></div>
+						}
+						<p class="hint">The command names the resource after the service; change it if the resource is named otherwise. Read the release notes first: a major version can change behaviour, and AWS restarts the resource for most upgrades.</p>
+					</div>
+				</section>
+			}
 			<section class="panel">
 				<div class="panel-head"><h2>Running</h2></div>
 				<div class="scroll" tabindex="0">
@@ -163,6 +205,11 @@ templ ServicePage(v ServiceView) {
 												<td rowspan={ itoa(len(e.Versions)) }>
 													<strong>{ e.Name }</strong>
 													<div class="targets">{ itoa(len(e.Versions)) } versions</div>
+													if len(e.Drifts) > 0 {
+														<div class="env-drift" title="About the environment as a whole: its targets run different versions">
+															@driftCell(e.Drifts)
+														</div>
+													}
 													@envNotes(e)
 												</td>
 											}
@@ -170,12 +217,8 @@ templ ServicePage(v ServiceView) {
 												@runningVersion(ver)
 											</td>
 											<td>
-												if i == 0 {
-													@driftCell(append(append([]DriftBadge{}, e.Drifts...), ver.Drifts...))
-												} else {
-													@versionDrifts(ver.Drifts)
-												}
-												if len(ver.Drifts) == 0 && (i > 0 || len(e.Drifts) == 0) {
+												@versionDrifts(ver.Drifts)
+												if len(ver.Drifts) == 0 {
 													<span class="muted">no drift</span>
 												}
 											</td>
@@ -198,7 +241,18 @@ templ ServicePage(v ServiceView) {
 								<tbody>
 									for _, r := range v.Releases {
 										<tr>
-											<td class="mono"><strong>{ r.Version }</strong></td>
+											<td class="mono">
+												<strong>{ r.Version }</strong>
+												if len(r.Runs) > 0 {
+													<span class="badge neutral" title="Runs there now">{ "runs in " + joinComma(r.Runs) }</span>
+												}
+												if r.Fixes != "" {
+													<div class="fix release-fix">{ r.Fixes }</div>
+												}
+												if len(r.Still) > 0 {
+													<div class="error-text release-fix">{ "still has " + joinComma(r.Still) }</div>
+												}
+											</td>
 											<td class="muted">
 												if !r.Published.IsZero() {
 													{ r.Published.Format("2006-01-02") }
@@ -328,6 +382,10 @@ templ ServicePage(v ServiceView) {
 									switch v.OwnerSource {
 										case "label":
 											<span class="hint">From its workloads' team label; changing it here takes over from the label.</span>
+										case "backstage":
+											<span class="hint">From the owner of its component in Backstage; changing it here takes over.</span>
+										case "codeowners":
+											<span class="hint">From the CODEOWNERS of the repository its GitOps application deploys from; changing it here takes over.</span>
 										case "app":
 											<span class="hint">From its application's team; changing it here takes over.</span>
 									}
@@ -517,18 +575,76 @@ templ envNotes(e ServiceEnv) {
 				<span class="badge eol" title={ exposedTitle(e.Exposed) }>exposed</span>
 			}
 			if len(e.Maintenance) > 0 {
-				<span class="badge warn" title={ maintenanceTitle(e.Maintenance) }>patch pending</span>
+				<span class="badge warn" title={ maintenanceTitle(e.Maintenance) }>{ maintenanceLabel(e.Maintenance) }</span>
 			}
 			for _, t := range e.Tickets {
 				<a class="badge neutral" href={ templ.SafeURL(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>
 			}
 		</div>
+		if len(e.Exposed) > 2 {
+			{{ groups := exposedGroups(e.Exposed) }}
+			<details class="exposed-more">
+				<summary>{ exposedSummary(groups) }</summary>
+				for _, g := range groups {
+					<p class="exposed-group">
+						if g.Kind != "" {
+							<span class="muted">{ g.Kind + ": " }</span>
+						}
+						{ strings.Join(g.Names, ", ") }
+					</p>
+				}
+			</details>
+		} else if len(e.Exposed) > 0 {
+			<ul class="exposed-ways">
+				for _, w := range e.Exposed {
+					<li>{ w }</li>
+				}
+			</ul>
+		}
+		if len(e.Maintenance) > 0 {
+			<ul class="exposed-ways">
+				for _, m := range e.Maintenance {
+					<li>{ m }</li>
+				}
+			</ul>
+		}
 	}
+}
+
+// exposedBadge is the exposed badge of a list: it opens to say how the service can be reached from outside.
+templ exposedBadge(ways []string, class string) {
+	<details class="exposed-toggle">
+		<summary class={ "badge", class } title={ exposedTitle(ways) }>exposed</summary>
+		<ul class="exposed-ways">
+			for _, w := range ways {
+				<li>{ w }</li>
+			}
+		</ul>
+	</details>
 }
 
 templ runningVersion(ver VersionView) {
 	<div class="ver"><span class="tag">{ ver.Tag }</span>@resolvedTag(ver.Tag, ver.Resolved)<span class="reps">× { itoa(ver.Running) }</span></div>
-	<div class="targets">{ ver.Targets }</div>
+	if !ver.PushedAt.IsZero() {
+		<div class="targets">
+			{ "pushed " + ver.PushedAt.Format("2006-01-02") }
+			if ver.Older {
+				<span class="badge warn" title="The registry has a build pushed after this one">newer build</span>
+			}
+		</div>
+	}
+	if len(ver.Links) > 0 {
+		<div class="targets">
+			for i, l := range ver.Links {
+				if i > 0 {
+					{ ", " }
+				}
+				<a class="target-link" href={ templ.URL("/targets/" + l.ID) } title={ l.Name + ": where it runs, what else runs there" }>{ l.Name }</a>
+			}
+		</div>
+	} else {
+		<div class="targets">{ ver.Targets }</div>
+	}
 }
 
 // driftCell is the drift badges of an environment or a version, and how long the oldest has been open.
@@ -638,7 +754,7 @@ templ serviceSecurity(v ServiceView) {
 		</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">
-				<thead><tr><th>Environment</th><th>Image</th><th class="num">Size</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
+				<thead><tr><th>Environment</th><th>Image</th><th>Vulnerabilities</th><th class="num">Size</th><th>Signed</th><th>SBOM</th><th>Provenance</th></tr></thead>
 				<tbody>
 					for _, im := range sec.Images {
 						<tr>
@@ -650,8 +766,50 @@ templ serviceSecurity(v ServiceView) {
 								} else if im.OldBase != "" {
 									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=outdated-base" title={ "Built on an older " + im.OldBase + " than its tag has now: rebuild with --pull to get its fixes" }>older base</a>
 								}
+								if im.OSPast {
+									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=eol-os" title={ "Built on " + im.OS + ", past its end of life" + sinceText(im.OSEnd) + ": its packages get no more security fixes; rebuild on a supported release" }>OS end of life</a>
+								}
+								if im.GoPast {
+									<a class="badge outdated" style="margin-left:6px" href="/hygiene?kind=eol-runtime" title={ "Has Go programs built with Go " + im.Go + ", past its end of life: the standard library they carry gets no more security fixes" }>Go end of life</a>
+								}
+								if im.OS != "" || im.Go != "" {
+									<div class="muted base-chain" title="The operating system its packages come from, and the Go its programs were built with">
+										{ im.OS }
+										if im.OSEnd != "" && !im.OSPast {
+											{ " · end of life " + im.OSEnd }
+										}
+										if im.Go != "" {
+											if im.OS != "" {
+												{ " · " }
+											}
+											{ "Go " + im.Go }
+										}
+									</div>
+								}
 								if im.Chain != "" {
 									<div class="muted base-chain" title="The chain of base images, each built on the next: current or outdated against its tag now">{ "on " + im.Chain }</div>
+								}
+							</td>
+							<td data-label="Vulnerabilities">
+								if im.Vulns > 0 {
+									<a href={ templ.URL("/security/vulns?env=all&q=" + url.QueryEscape(im.Image)) } title={ "The known vulnerabilities of " + im.Image }>
+										if im.Exploited > 0 {
+											<span class="badge exploited">{ itoa(im.Exploited) + " exploited" }</span>
+										}
+										{ " " + itoa(im.Vulns) }
+									</a>
+									if im.RebuildFixes > 0 {
+										<div class="targets" title={ "Built on an older " + im.OldBase + " than its tag has now; its current build no longer has these. No change to the Dockerfile is needed." }>{ itoa(im.RebuildFixes) + " fixed by a rebuild with --pull" }</div>
+									}
+								} else if im.Blind != "" {
+									<span class="muted" title={ im.Blind }>packages unknown</span>
+								} else if im.Checked {
+									<span class="muted">none known</span>
+								} else {
+									<span class="muted">—</span>
+								}
+								if im.Unsupported != "" {
+									<div class="targets" title={ im.Unsupported }>undercounted: no advisories for its OS</div>
 								}
 							</td>
 							<td class="num" data-label="Size">
@@ -689,9 +847,40 @@ templ serviceSecurity(v ServiceView) {
 						for _, f := range sec.Findings {
 							<tr>
 								<td>
-									<a href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }><strong>{ f.Key }</strong></a>
+									<a id={ "vuln-" + f.Key } href={ templ.URL("/security/vulns?env=all&q=" + f.Key) }><strong>{ f.Key }</strong></a>
 									if f.Summary != "" {
 										<div class="targets">{ f.Summary }</div>
+									}
+									if f.Exploited {
+										<div class="what-to-do">
+											<strong>What to do:</strong>
+											if f.Rebuild != "" {
+												{ " rebuild the image with --pull: the current build of " + f.Rebuild + " no longer has it, so no change to the Dockerfile is needed." }
+											} else if f.Fix != "" {
+												{ " Running " + f.Package + "; " + f.Fix + " fixes it. " + fixAdvice(v.KindShown) }
+											} else if f.Newer != "" {
+												{ " " + f.Newer }
+											} else if f.Upstream != "" && !f.NoFix {
+												{ " " + f.Upstream }
+											} else {
+												{ " no fixed version yet. Keep it from being used (a WAF or proxy rule, the affected feature turned off, the service cut off from the network) and record what you did, so the deadline is met and it is reviewed." }
+												if f.Upstream != "" {
+													<div>{ f.Upstream }</div>
+												}
+												if !f.MitigateBy.IsZero() && len(f.Places) > 0 {
+													<div class={ templ.KV("error-text", time.Now().After(f.MitigateBy)) }>{ "Mitigate by " + f.MitigateBy.Format("2 Jan 2006") + ": " + mitigationPlaces(f.Places) }</div>
+												}
+												for _, m := range f.Mitigations {
+													<div><span class="badge ok">mitigated</span>{ " " + m.Where + ": " + m.Measure + " (" + m.Kind + ", review " + m.Review + ")" }</div>
+												}
+												if v.CanMember && len(f.Places) > 0 {
+													@serviceMitigationForm(v.Name, f)
+												}
+											}
+										</div>
+									}
+									if v.CanAdmin {
+										@notAffectedForm(v.Name, f.Key)
 									}
 								</td>
 								<td data-label="Severity">
@@ -703,9 +892,25 @@ templ serviceSecurity(v ServiceView) {
 									}
 								</td>
 								<td data-label="Package">
-									<code>{ f.Package }</code>
-									if f.Fix != "" {
+									if pk := strings.Split(f.Package, ", "); len(pk) > 2 {
+										<code>{ strings.Join(pk[:2], ", ") }</code>
+										<details class="more-packages">
+											<summary>{ "and " + itoa(len(pk)-2) + " more" }</summary>
+											<code>{ strings.Join(pk[2:], ", ") }</code>
+										</details>
+									} else {
+										<code>{ f.Package }</code>
+									}
+									if f.Rebuild != "" {
+										<div class="targets" title={ "The current build of " + f.Rebuild + " no longer has it: rebuild the image with --pull" }>{ "fixed by a rebuild on " + f.Rebuild }</div>
+									} else if f.Fix != "" {
 										<div class="targets">{ "fixed in " + f.Fix }</div>
+									} else if f.NewerShort != "" {
+										<div class="targets" title={ f.Newer }>{ f.NewerShort }</div>
+									} else if f.UpstreamShort != "" {
+										<div class="targets" title={ f.Upstream }>{ f.UpstreamShort }</div>
+									} else if f.Unassessed {
+										<div class="targets" title="Debian's security tracker has not assessed whether its release is affected">not assessed by Debian yet</div>
 									} else {
 										<div class="targets">no fix yet</div>
 									}
@@ -719,6 +924,41 @@ templ serviceSecurity(v ServiceView) {
 			if sec.More > 0 {
 				<div class="panel-body"><a href={ templ.URL("/security/vulns?env=all&q=" + v.Name) }>{ plural(sec.More, "more", "more") } →</a></div>
 			}
+		}
+		if len(sec.Resolved) > 0 {
+			@resolvedPanel(sec.Resolved)
+		}
+		if len(sec.NotAffected) > 0 {
+			<div class="panel-body" style="border-top:1px solid var(--line)">
+				<h3>Not affected</h3>
+				<p class="muted">Left out of alerts, deadlines and open findings: marked by people until they are reviewed, or by Goliash where upstream's version ranges (NVD) show the version that runs is past the fix. The monthly report lists them with the reason.</p>
+				<ul class="not-affected">
+					for _, n := range sec.NotAffected {
+						<li>
+							if len(n.CVEs) > 1 {
+								<strong>{ plural(len(n.CVEs), "vulnerability", "vulnerabilities") }</strong>{ ": " + n.Why + ". " }
+								<details class="more-packages">
+									<summary>which</summary>
+									<code>{ strings.Join(n.CVEs, ", ") }</code>
+								</details>
+							} else {
+								<strong>{ n.CVE }</strong>{ ": " + n.Why + ". " + n.Note }
+							}
+							if n.Review != "" {
+								<span class="muted">{ " (" + n.By + ", review " + n.Review + ")" }</span>
+							} else {
+								<span class="muted">{ " (" + n.By + ")" }</span>
+							}
+							if v.CanAdmin && n.ID != "" {
+								<form class="inline" method="post" action={ templ.SafeURL("/security/exceptions/" + n.ID + "/close") }>
+									<input type="hidden" name="return" value={ "/services/" + v.Name + "#security" }/>
+									<button type="submit" class="link">Withdraw</button>
+								</form>
+							}
+						</li>
+					}
+				</ul>
+			</div>
 		}
 	</section>
 }
@@ -785,7 +1025,11 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 						if all {
 							<th>Service</th>
 						}
-						<th>Application</th><th>Where</th><th>From</th><th>Synced</th><th>State</th>
+						<th>Application</th>
+						<th>Where</th>
+						<th>From</th>
+						<th>Synced</th>
+						<th>State</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -809,7 +1053,8 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 								} else {
 									<span class="mono">{ orDash(a.Repo) }</span>
 								}
-								<div class="targets">{ a.Path }
+								<div class="targets">
+									{ a.Path }
 									if a.TargetRevision != "" {
 										{ " @ " + a.TargetRevision }
 									}
@@ -865,4 +1110,151 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 			</table>
 		</div>
 	</section>
+}
+
+// serviceMitigationForm records a mitigation of an exploited vulnerability with no fix, from the service's page.
+templ serviceMitigationForm(service string, f ServiceFinding) {
+	<details class="mitigate" open>
+		<summary>Record a mitigation</summary>
+		<form class="stack" method="post" action="/security/mitigations">
+			<input type="hidden" name="cve" value={ f.Key }/>
+			<input type="hidden" name="return" value={ "/services/" + service + "#vuln-" + f.Key }/>
+			<div class="row">
+				<label>
+					Where
+					<select name="place">
+						for _, p := range f.Places {
+							<option value={ p.Value }>{ p.Label }</option>
+						}
+					</select>
+				</label>
+				<label>
+					What
+					<select name="kind">
+						<option value="waf">WAF or proxy rule</option>
+						<option value="config">feature or setting turned off</option>
+						<option value="isolation">cut off from the network</option>
+						<option value="other">other</option>
+					</select>
+				</label>
+				<label>
+					Review in
+					<select name="review">
+						<option value="14">2 weeks</option>
+						<option value="30" selected>30 days</option>
+						<option value="90">90 days</option>
+					</select>
+				</label>
+			</div>
+			<label>What was done<input name="measure" required maxlength="500" placeholder="WAF rule blocks the payload; the endpoint is not reachable from outside"/></label>
+			<div><button type="submit">Record</button></div>
+		</form>
+	</details>
+}
+
+// notAffectedForm records that a vulnerability does not affect the service (VEX "not affected"), with why.
+templ notAffectedForm(service, cve string) {
+	<details class="mitigate">
+		<summary>Not affected?</summary>
+		<form class="stack" method="post" action="/security/exceptions">
+			<input type="hidden" name="cve" value={ cve }/>
+			<input type="hidden" name="service" value={ service }/>
+			<div class="row">
+				<label>
+					Why
+					<select name="justification">
+						<option value="fixed">already fixed in the version that runs</option>
+						<option value="not_present">the component is not in the image</option>
+						<option value="not_reachable">the code is never run or reached</option>
+						<option value="mitigated_upstream">the software prevents it another way</option>
+						<option value="other">other</option>
+					</select>
+				</label>
+				<label>
+					Review in
+					<select name="review">
+						<option value="30">30 days</option>
+						<option value="90" selected>90 days</option>
+						<option value="180">6 months</option>
+					</select>
+				</label>
+			</div>
+			<label>How you know<input name="note" required maxlength="1000" placeholder="nginx 1.25.3 fixed it upstream (nginx.org/en/security_advisories.html); this runs 1.27.1"/></label>
+			<div><button type="submit">Mark not affected</button></div>
+		</form>
+	</details>
+}
+
+// resolvedPanel says what the last deploy of the service in each environment closed: fixed (its package at a
+// version without it), removed (with its package) or only no longer seen (the new image's packages not known yet).
+templ resolvedPanel(rs []versions.Resolution) {
+	<div class="panel-body resolved" style="border-top:1px solid var(--line)">
+		<h3>Closed by deploys</h3>
+		for _, r := range rs {
+			<div class="resolved-deploy">
+				<p>
+					<strong>{ r.Env }</strong>
+					<span class="muted">{ " · " + r.From + " → " + r.To + " · " }</span>
+					@timeAgo(r.At)
+				</p>
+				<p class="resolved-counts">
+					if len(r.Fixed) > 0 {
+						<span class="badge ok" title="Its package is at a version without it">{ itoa(len(r.Fixed)) + " fixed" }</span>
+					}
+					if len(r.Removed) > 0 {
+						<span class="badge ok" title="Its package is no longer in the image">{ itoa(len(r.Removed)) + " removed" }</span>
+					}
+					if len(r.Unverified) > 0 {
+						<span class="badge warn" title="Not seen in the new image, whose packages (or OSV's answers for them) are not known yet: no longer detected, not verified">{ itoa(len(r.Unverified)) + " not verified" }</span>
+					}
+					if r.Still > 0 {
+						<span class="muted">{ itoa(r.Still) + " still there" }</span>
+					}
+				</p>
+				<details>
+					<summary>Which</summary>
+					<div class="scroll" tabindex="0">
+						<table class="cards">
+							<thead><tr><th>Vulnerability</th><th>Package</th><th>Before</th><th>Now</th></tr></thead>
+							<tbody>
+								for _, v := range r.Fixed {
+									@resolvedRow(v, "fixed")
+								}
+								for _, v := range r.Removed {
+									@resolvedRow(v, "removed")
+								}
+								for _, v := range r.Unverified {
+									@resolvedRow(v, "not verified")
+								}
+							</tbody>
+						</table>
+					</div>
+				</details>
+			</div>
+		}
+	</div>
+}
+
+templ resolvedRow(v versions.ResolvedVuln, how string) {
+	<tr>
+		<td>
+			<strong>{ v.CVE }</strong>
+			if v.Exploited {
+				<span class="badge exploited">exploited</span>
+			}
+			if v.Severity != "" {
+				<span class="muted">{ strings.ToLower(v.Severity) }</span>
+			}
+		</td>
+		<td data-label="Package"><code>{ v.Package }</code></td>
+		<td data-label="Before"><code>{ v.From }</code></td>
+		<td data-label="Now">
+			if v.To != "" {
+				<code>{ v.To }</code>
+			} else {
+				<span class="muted">gone</span>
+			}
+			<div class="targets">{ how }</div>
+		</td>
+	</tr>
 }

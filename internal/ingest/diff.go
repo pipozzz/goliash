@@ -5,6 +5,7 @@ package ingest
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -17,11 +18,14 @@ import (
 
 // diffInput is everything needed to turn one snapshot into changes.
 type diffInput struct {
-	Target    store.Target
-	Snapshot  agentproto.Snapshot
-	Existing  []store.Instance // every instance ever seen on the target
-	Mapper    *mapping.Mapper
-	EnvByName map[string]string // environment name -> ID
+	Target   store.Target
+	Snapshot agentproto.Snapshot
+	Existing []store.Instance // every instance ever seen on the target
+	// LastVersions is, by instance, the version the history last said it changed to: where a rollout that ran
+	// two versions side by side came from.
+	LastVersions map[string]store.VersionMark
+	Mapper       *mapping.Mapper
+	EnvByName    map[string]string // environment name -> ID
 	// ServiceID resolves a service name from a label, creating the service if needed.
 	ServiceID func(name string) (string, error)
 	// AppLabel is the workspace's own label key for applications, tried first.
@@ -49,6 +53,7 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 	}
 
 	observed := map[string]bool{}
+	var seen []store.Instance // every instance the snapshot shows, written or not
 	observedWorkloads := map[string]bool{}
 	for _, w := range in.Snapshot.Workloads {
 		observedWorkloads[w.ID] = true
@@ -88,6 +93,12 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 			inst.Team = workloadTeam(w.Labels)
 			inst.Exposed = exposed(w)
 			inst.Maintenance = w.Maintenance
+			if w.Vcpus != nil {
+				inst.VCPUs = *w.Vcpus
+			}
+			if w.CodeDigest != nil {
+				inst.CodeDigest = *w.CodeDigest
+			}
 			if d.EnvName != "" {
 				if id, ok := in.EnvByName[d.EnvName]; ok {
 					inst.EnvironmentID = id
@@ -116,23 +127,34 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 
 		for _, r := range rows {
 			r.inst.IsMain = r.inst.ContainerName == main
-			if in.AutoMap && r.inst.IsMain && r.inst.ServiceID == "" && validServiceName(r.inst.SuggestedService) {
+			// A Linux server's operating system and packages are what they say (ubuntu, nginx): they map by themselves,
+			// whatever the workspace's setting, each time by name, with no rule that would take containers too.
+			hostItem := r.inst.WorkloadKind == string(agentproto.HostOs) || r.inst.WorkloadKind == string(agentproto.HostPackage)
+			if (in.AutoMap || hostItem) && r.inst.IsMain && r.inst.ServiceID == "" && validServiceName(r.inst.SuggestedService) {
 				id, err := in.ServiceID(r.inst.SuggestedService)
 				if err != nil {
 					return ch, err
 				}
 				r.inst.ServiceID = id
-				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMapped != nil {
+				// No image rule for a shared image (a Lambda runtime, a database engine): it would take every function or
+				// database; they map by name each time instead.
+				if repo := versions.ParseImage(r.inst.Image).Repo(); repo != "" && in.AutoMap && in.AutoMapped != nil && !mapping.SharedImage(repo) && !hostItem {
 					in.AutoMapped[repo] = id
 				}
 			}
-			if prev, ok := existing[r.inst.Key()]; ok {
+			prev, had := existing[r.inst.Key()]
+			if had {
 				r.inst.ID = prev.ID
 			} else {
 				r.inst.ID = store.NewID()
 			}
 			observed[r.inst.Key()] = true
-			ch.Upsert = append(ch.Upsert, r.inst)
+			seen = append(seen, r.inst)
+			// An instance as it was is not written again (only its last sighting, for the whole target at once):
+			// most of an agent's snapshots change nothing, and rewriting every row each time kept the database busy.
+			if !had || !prev.Active() || !sameInstance(prev, r.inst) {
+				ch.Upsert = append(ch.Upsert, r.inst)
+			}
 		}
 	}
 
@@ -148,13 +170,13 @@ func diff(in diffInput) (store.SnapshotChanges, error) {
 	}
 
 	if !in.Baseline {
-		ch.Events = events(in.Existing, ch.Upsert, ch.Remove, in.Snapshot.CollectedAt)
+		ch.Events = events(in.Existing, seen, ch.Remove, in.LastVersions, in.Snapshot.CollectedAt)
 	}
 	return ch, nil
 }
 
 // events compares, per main container slot, the dominant version before and after.
-func events(existing, upsert []store.Instance, removed []string, at time.Time) []store.Event {
+func events(existing, upsert []store.Instance, removed []string, last map[string]store.VersionMark, at time.Time) []store.Event {
 	removedSet := map[string]bool{}
 	for _, id := range removed {
 		removedSet[id] = true
@@ -215,9 +237,48 @@ func events(existing, upsert []store.Instance, removed []string, at time.Time) [
 		return ordered[i].container < ordered[j].container
 	})
 
+	// When each instance of a slot was first seen: rows of the snapshot carry no date, new ones arrive now.
+	firstSeen := map[string]time.Time{}
+	for _, i := range existing {
+		firstSeen[i.ID] = i.FirstSeenAt
+	}
+	for _, i := range upsert {
+		if _, ok := firstSeen[i.ID]; !ok {
+			firstSeen[i.ID] = at
+		}
+	}
 	var out []store.Event
 	for _, s := range ordered {
 		old, cur := dominant(before[s], nil), dominant(after[s], isNew)
+		if old != nil && cur != nil {
+			// While two versions run side by side (a rolling update, a canary), which one has more replicas
+			// flips as containers start and restart. A change forward is said when the new version takes over; a
+			// change back only once the older version runs alone, so a restarting new container is not a rollback.
+			if mixed(before[s]) {
+				from := settled(existing, s, last)
+				if from == "" { // no history yet: the version that ran there first
+					from = earliest(before[s]).Tag
+				}
+				o := store.Instance{Tag: from} // no digest: a change of version, not a retag
+				for _, i := range before[s] {
+					if i.Tag == from {
+						o = i
+					}
+				}
+				old = &o
+			}
+			if mixed(after[s]) && old.Tag != cur.Tag {
+				for _, i := range after[s] {
+					if i.Tag == old.Tag && !firstSeen[cur.ID].After(firstSeen[i.ID]) {
+						cur = nil // the older version is winning again, but the newer still runs: wait
+						break
+					}
+				}
+				if cur == nil {
+					continue
+				}
+			}
+		}
 		switch {
 		case old == nil && cur != nil:
 			out = append(out, event("deployed", *cur, "", cur.Tag, "", at))
@@ -235,6 +296,41 @@ func events(existing, upsert []store.Instance, removed []string, at time.Time) [
 		}
 	}
 	return out
+}
+
+// settled is the version the history last said a slot changed to, "" when it says nothing.
+func settled(existing []store.Instance, s slot, last map[string]store.VersionMark) string {
+	var latest store.VersionMark
+	for _, i := range existing {
+		if i.WorkloadID != s.workload || i.ContainerName != s.container {
+			continue
+		}
+		if m, ok := last[i.ID]; ok && (latest.Version == "" || m.At.After(latest.At)) {
+			latest = m
+		}
+	}
+	return latest.Version
+}
+
+// earliest is the instance first seen.
+func earliest(rows []store.Instance) store.Instance {
+	best := rows[0]
+	for _, r := range rows[1:] {
+		if r.FirstSeenAt.Before(best.FirstSeenAt) {
+			best = r
+		}
+	}
+	return best
+}
+
+// mixed reports whether more than one version is present in a slot, running or (re)starting.
+func mixed(rows []store.Instance) bool {
+	for _, r := range rows {
+		if r.Tag != rows[0].Tag {
+			return true
+		}
+	}
+	return false
 }
 
 // dominant is the instance with the most running replicas; ties go to the newer one,
@@ -287,3 +383,14 @@ func exposed(w agentproto.Workload) []string {
 	}
 	return w.Exposed
 }
+
+// sameInstance reports whether an instance is as it was: nothing to write but its last sighting.
+func sameInstance(a, b store.Instance) bool {
+	return a.EnvironmentID == b.EnvironmentID && a.ServiceID == b.ServiceID && a.SuggestedService == b.SuggestedService &&
+		a.WorkloadKind == b.WorkloadKind && a.Namespace == b.Namespace && a.WorkloadName == b.WorkloadName && a.Tag == b.Tag &&
+		a.Running == b.Running && a.IsMain == b.IsMain && a.App == b.App && a.AppSource == b.AppSource && a.Team == b.Team &&
+		sameInt(a.Desired, b.Desired) && slices.Equal(a.Exposed, b.Exposed) && slices.Equal(a.Maintenance, b.Maintenance) &&
+		a.CodeDigest == b.CodeDigest && a.VCPUs == b.VCPUs
+}
+
+func sameInt(a, b *int) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }

@@ -32,12 +32,19 @@ templ ChannelPage(v ChannelEditView) {
 						</label>
 					}
 					switch v.Type {
-						case "ntfy", "grafana", "telegram":
+						case "ntfy", "grafana", "telegram", "pagerduty", "opsgenie":
 							<label>
 								Token
 								<input name="token" placeholder={ setHint(v.HasToken) }/>
 								<span class="hint">Leave empty to keep it.</span>
 							</label>
+					}
+					if v.Type == "opsgenie" {
+						<label>
+							Opsgenie API
+							<input name="url" type="url" value={ v.Cfg["url"] } placeholder="https://api.opsgenie.com"/>
+							<span class="hint">Empty for US accounts; https://api.eu.opsgenie.com for the EU.</span>
+						</label>
 					}
 					if v.Type == "telegram" {
 						<label>Chat ID<input name="chat_id" value={ v.ChatID } required/></label>

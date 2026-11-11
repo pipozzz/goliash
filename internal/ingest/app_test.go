@@ -26,6 +26,11 @@ func TestWorkloadApp(t *testing.T) {
 		{map[string]string{"goliash.app": "forge"}, "", "default", "forge", "goliash.app", "nomad_job", "gitea"},
 		{nil, "", "velin-lawrio-ysp9bd", "velin-lawrio", "compose project", "compose_service", "db"},
 		{nil, "", "shop", "shop", "compose project", "swarm_service", "api"},
+		// AWS: the stack, not the region.
+		{map[string]string{"aws:cloudformation:stack-name": "firefish-api-dev-adam"}, "", "eu-central-1", "firefish-api-dev-adam", "CloudFormation stack", "lambda_function", "f"},
+		{map[string]string{"aws:cloudformation:stack-name": "shop-api-ApiStack-1A2B3C4D5E6F"}, "", "eu-central-1", "shop-api", "CloudFormation stack", "lambda_function", "f"},
+		{map[string]string{"aws:cloudformation:stack-name": "billing", "goliash.app": "payments"}, "", "eu-central-1", "payments", "goliash.app", "lambda_function", "f"},
+		{map[string]string{"copilot-application": "shop", "aws:cloudformation:stack-name": "shop-prod-api"}, "", "prod-cluster", "shop", "copilot-application", "ecs_service", "api"},
 	} {
 		app, from := workloadApp(c.labels, c.custom, c.ns, c.kind, c.name)
 		if app != c.wantApp || from != c.wantFrom {

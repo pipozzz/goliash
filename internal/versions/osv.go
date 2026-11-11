@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,6 +23,16 @@ import (
 type OSV struct {
 	HTTP    *http.Client
 	BaseURL string // https://api.osv.dev/v1
+
+	mu       sync.Mutex
+	modified map[string]time.Time // when OSV last changed each record, as its batch answers say
+}
+
+// Modified is when OSV last changed a record, as a batch query since the server started said; zero when unknown.
+func (o *OSV) Modified(id string) time.Time {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.modified[id]
 }
 
 // NewOSV returns a client for baseURL; empty means osv.dev.
@@ -61,11 +73,46 @@ func osvQueryFor(purl string) (osvQuery, bool) {
 // origin without its release line (openssl for openssl-4.0) is not tried: advisories of another release line,
 // often open-ended, would match every version of this one.
 func osvQueries(purl string) []osvQuery {
+	if v, ok := queriesMemo.Load(purl); ok {
+		return v.([]osvQuery)
+	}
+	q := parseQueries(purl)
+	if queriesMemoN.Add(1) > memoMax { // a bound, not an eviction policy: start again
+		queriesMemo.Clear()
+		queriesMemoN.Store(0)
+	}
+	queriesMemo.Store(purl, q)
+	return q
+}
+
+// queriesMemo keeps what a package URL is asked as: the vulnerability report asks it for every advisory of every
+// package, many thousand times a page.
+var (
+	queriesMemo  sync.Map
+	queriesMemoN atomic.Int64
+)
+
+const memoMax = 200000
+
+func parseQueries(purl string) []osvQuery {
 	q, ok := osvPrimary(purl)
 	if !ok {
 		return nil
 	}
 	out := []osvQuery{q}
+	if base, ok := strings.CutSuffix(q.Package.Ecosystem, "::baseos"); ok { // a Red Hat package from AppStream
+		alt := q
+		alt.Package.Ecosystem = base + "::appstream"
+		return append(out, alt)
+	}
+	if strings.HasPrefix(q.Package.Ecosystem, "Rocky Linux:") { // filed under the package itself, sometimes
+		if name, _, _ := strings.Cut(purlName(purl), " "); name != q.Package.Name {
+			alt := q
+			alt.Package.Name = name
+			out = append(out, alt)
+		}
+		return out
+	}
 	if q.Package.Ecosystem != "Wolfi" && q.Package.Ecosystem != "Chainguard" {
 		return out
 	}
@@ -151,10 +198,74 @@ func osvPrimary(purl string) (osvQuery, bool) {
 				break
 			}
 		}
+	case "rpm":
+		return rpmQuery(strings.ToLower(strings.SplitN(rest, "/", 2)[0]), name, version, qs)
 	default:
 		q.Package.Purl = strings.SplitN(purl, "?", 2)[0]
 	}
 	return q, true
+}
+
+// rpmEcosystems are OSV's ecosystems of the RPM distributions it has advisories for, by the package URL's
+// namespace, and whether they are filed under the source package (Rocky: openssl, not openssl-libs). Red Hat's
+// are filed by binary package, under the repository each comes from ("::baseos", else "::appstream"). Others
+// (Fedora, Amazon Linux, CentOS Stream, Oracle Linux) are not asked: OSV has nothing of theirs, and asking by
+// package URL alone would match the advisories of every Red Hat release.
+var rpmEcosystems = map[string]struct {
+	prefix string
+	source bool
+}{
+	"redhat": {"Red Hat:enterprise_linux:", false}, "rhel": {"Red Hat:enterprise_linux:", false},
+	"rocky": {"Rocky Linux:", true}, "almalinux": {"AlmaLinux:", false},
+}
+
+// rpmQuery is the query for an RPM package: the version with its epoch (1:3.0.7-27.el9), as RPM compares them.
+// The release's major version comes from os_version (Goliash's own reading) or distro (rhel-9.4, as SBOM tools
+// write it).
+func rpmQuery(namespace, name, version string, qs url.Values) (osvQuery, bool) {
+	var q osvQuery
+	eco, ok := rpmEcosystems[namespace]
+	if !ok {
+		return q, false
+	}
+	release := qs.Get("os_version")
+	if release == "" {
+		d := qs.Get("distro")
+		release = d[strings.LastIndex(d, "-")+1:]
+	}
+	major, _, _ := strings.Cut(release, ".")
+	if major == "" || strings.Trim(major, "0123456789") != "" {
+		return q, false
+	}
+	q.Package.Ecosystem = eco.prefix + major
+	if strings.HasPrefix(eco.prefix, "Red Hat") {
+		q.Package.Ecosystem += "::baseos"
+	}
+	q.Package.Name, q.Version = name, version
+	if e := qs.Get("epoch"); e != "" && e != "0" {
+		q.Version = e + ":" + version
+	}
+	if src := rpmSource(qs.Get("upstream")); eco.source && src != "" {
+		q.Package.Name = src
+	}
+	return q, true
+}
+
+// rpmSource is a source package's name from an upstream qualifier: Goliash writes the name (openssl), SBOM tools
+// the file (openssl-3.0.7-27.el9.src.rpm).
+func rpmSource(upstream string) string {
+	if !strings.HasSuffix(upstream, ".rpm") {
+		return upstream
+	}
+	s := strings.TrimSuffix(strings.TrimSuffix(upstream, ".src.rpm"), ".nosrc.rpm")
+	for range 2 {
+		i := strings.LastIndexByte(s, '-')
+		if i <= 0 {
+			return ""
+		}
+		s = s[:i]
+	}
+	return s
 }
 
 // QueryBatch returns the IDs of the vulnerabilities affecting each package URL; packages OSV cannot be asked
@@ -190,7 +301,8 @@ func (o *OSV) queryBatch(ctx context.Context, queries []osvQuery, asked []string
 		var res struct {
 			Results []struct {
 				Vulns []struct {
-					ID string `json:"id"`
+					ID       string    `json:"id"`
+					Modified time.Time `json:"modified"`
 				} `json:"vulns"`
 			} `json:"results"`
 		}
@@ -202,9 +314,17 @@ func (o *OSV) queryBatch(ctx context.Context, queries []osvQuery, asked []string
 				break
 			}
 			ids := []string{}
+			o.mu.Lock()
+			if o.modified == nil {
+				o.modified = map[string]time.Time{}
+			}
 			for _, v := range r.Vulns {
 				ids = append(ids, v.ID)
+				if v.Modified.After(o.modified[v.ID]) {
+					o.modified[v.ID] = v.Modified
+				}
 			}
+			o.mu.Unlock()
 			out[asked[start+i]] = ids
 		}
 	}
@@ -231,11 +351,21 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 		DatabaseSpecific struct {
 			Severity string `json:"severity"`
 		} `json:"database_specific"`
+		Severities []struct {
+			Type  string `json:"type"`
+			Score string `json:"score"`
+		} `json:"severity"`
 		Affected []struct {
 			Package struct {
 				Name      string `json:"name"`
 				Ecosystem string `json:"ecosystem"`
 			} `json:"package"`
+			EcosystemSpecific struct {
+				Urgency string `json:"urgency"` // Debian's: unimportant, low, medium, high
+				Imports []struct {
+					Path string `json:"path"` // a Go package with the vulnerable code: net/http
+				} `json:"imports"`
+			} `json:"ecosystem_specific"`
 			Ranges []struct {
 				Events []struct {
 					Fixed string `json:"fixed"`
@@ -251,8 +381,24 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 		return OSVVuln{}, err
 	}
 	v := OSVVuln{ID: rec.ID, Aliases: append(rec.Aliases, rec.Upstream...), Summary: rec.Summary, Severity: strings.ToUpper(rec.DatabaseSpecific.Severity), Fixes: map[string][]string{}}
+	negligible := false // Ubuntu's priority, for all its releases
+	for _, s := range rec.Severities {
+		negligible = negligible || s.Type == "Ubuntu" && strings.EqualFold(s.Score, "negligible")
+	}
+	v.Fixes[fixesFormat] = []string{fixesFormatNow}
 	for _, a := range rec.Affected {
 		key := a.Package.Ecosystem + "|" + a.Package.Name
+		for _, imp := range a.EcosystemSpecific.Imports {
+			if imp.Path != "" && !contains(v.Fixes[importsKey+key], imp.Path) {
+				v.Fixes[importsKey+key] = append(v.Fixes[importsKey+key], imp.Path)
+			}
+		}
+		switch {
+		case strings.HasPrefix(a.Package.Ecosystem, "Debian:") && a.EcosystemSpecific.Urgency == "unimportant":
+			v.Fixes[minorKey+key] = []string{DistroUnimportant}
+		case strings.HasPrefix(a.Package.Ecosystem, "Ubuntu:") && negligible:
+			v.Fixes[minorKey+key] = []string{DistroNegligible}
+		}
 		for _, r := range a.Ranges {
 			for _, e := range r.Events {
 				if e.Fixed != "" && !contains(v.Fixes[key], e.Fixed) {
@@ -298,10 +444,64 @@ func (o *OSV) do(req *http.Request, into any) error {
 }
 
 // fixesFor finds the versions that fix a vulnerability for purl, under whichever name OSV files the package.
-func fixesFor(purl string, fixes map[string][]string) []string {
+// fixesFormat marks a record's fixes read with the distributions' ratings (minorKey) and Go's packages (importsKey);
+// records of an older format are read again.
+const (
+	fixesFormat    = "_format"
+	fixesFormatNow = "3"
+)
+
+// importsKey files, beside a Go module's fixes, the packages of it that have the vulnerable code (net/http of the
+// standard library): a program that links none of them is not affected.
+const importsKey = "imports|"
+
+// importsFor is the Go packages with the vulnerable code, for a Go purl; nil when the advisory does not say.
+func importsFor(purl string, fixes map[string][]string) []string {
 	for _, q := range osvQueries(purl) {
-		if f := fixes[queryKey(q)]; len(f) > 0 {
-			return f
+		for _, k := range fixKeys(q) {
+			if m := fixes[importsKey+k]; len(m) > 0 {
+				return m
+			}
+		}
+	}
+	return nil
+}
+
+// minorKey files, beside a package's fixes, its distribution's rating of a vulnerability it plans no security update
+// for: Debian's unimportant, Ubuntu's negligible.
+const minorKey = "minor|"
+
+// minorFor is the rating purl's distribution gives the vulnerability, when it plans no security update for it.
+func minorFor(purl string, fixes map[string][]string) string {
+	for _, q := range osvQueries(purl) {
+		for _, k := range fixKeys(q) {
+			if m := fixes[minorKey+k]; len(m) > 0 {
+				return m[0]
+			}
+		}
+	}
+	return ""
+}
+
+// fixKeys are the "ecosystem|package" keys a query's fixes may be filed under: Ubuntu files its LTS releases as
+// Ubuntu:24.04:LTS, while an image's packages say 24.04.
+func fixKeys(q osvQuery) []string {
+	k := queryKey(q)
+	if strings.HasPrefix(q.Package.Ecosystem, "Ubuntu:") && !strings.HasSuffix(q.Package.Ecosystem, ":LTS") {
+		return []string{k, q.Package.Ecosystem + ":LTS|" + q.Package.Name}
+	}
+	return []string{k}
+}
+
+func fixesFor(purl string, fixes map[string][]string) []string {
+	if k, ok := alasKey(purl); ok { // Amazon Linux: its advisories, not OSV's
+		return fixes[k]
+	}
+	for _, q := range osvQueries(purl) {
+		for _, k := range fixKeys(q) {
+			if f := fixes[k]; len(f) > 0 {
+				return f
+			}
 		}
 	}
 	return nil
@@ -325,4 +525,9 @@ func queryKey(q osvQuery) string {
 		name = u
 	}
 	return eco + "|" + name
+}
+
+// distroRecord tells a distribution's record (DEBIAN-CVE-…, UBUNTU-CVE-…), which rates vulnerabilities per release.
+func distroRecord(id string) bool {
+	return strings.HasPrefix(id, "DEBIAN-") || strings.HasPrefix(id, "UBUNTU-") || strings.HasPrefix(id, "GO-")
 }

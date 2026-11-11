@@ -370,6 +370,8 @@ paths:
                         reason: { type: string, example: "It runs the tag \"latest\", which is not a version: there is nothing to compare the releases with." }
                         fix: { type: string }
                   outdated_base: { type: array, items: { type: string }, description: "Production services whose image is built on an older build of its base than the base's tag has now: rebuild with --pull." }
+                  eol_os: { type: array, items: { type: string }, description: "Production services whose image is built on an operating system release past its end of life, with the release: \"api (Debian 11 (bullseye))\"." }
+                  eol_go: { type: array, items: { type: string }, description: "Production services whose image has Go programs built with a Go release past its end of life: \"exporter (Go 1.25.7)\"." }
                   history:
                     type: array
                     description: "Production's posture once a week over the last 90 days, oldest first: is patching getting faster?"
@@ -845,6 +847,46 @@ paths:
                       type: array
                       items: { type: string }
                       description: Patches the platform has waiting for a managed service (RDS pending maintenance, ElastiCache service updates, OpenSearch service software).
+                    risk:
+                      type: string
+                      enum: [low, medium, high]
+                      description: >-
+                        How much the upgrade may break, as far as Goliash can tell: breaking changes in the release
+                        notes, a major version, steps on the way or exploited vulnerabilities it brings raise it; the
+                        version to move to running already elsewhere lowers it. Absent without a version to move to.
+                    maintenance_only:
+                      type: boolean
+                      description: >-
+                        Only what waits at the platform (a host's reboot, a managed service's pending patches), with no
+                        newer version to move to; remedy says what to do (reboot).
+                    trouble:
+                      type: string
+                      description: >-
+                        What the version to move to, or a stop on the way, did where it ran in this workspace (any
+                        service of the same image): rolled back within 90 days, or stuck rolling out or down now.
+                      example: 1.28.0 rolled back in prod (payments) on 2026-11-09
+                    risk_reasons:
+                      type: array
+                      items: { type: string }
+                      example: [a major version, 3.2.0 runs already elsewhere]
+                    path:
+                      type: array
+                      items: { type: string }
+                      description: >-
+                        The versions the upgrade goes through, the target last, for a product that cannot skip versions
+                        (Kubernetes one minor at a time; Nextcloud and Elasticsearch one major at a time). Absent when it
+                        can go straight to the target.
+                      example: ['1.32', '1.33', '1.34']
+                    extended_support:
+                      type: object
+                      description: >-
+                        What AWS charges on top for a managed service it keeps running past the end of standard support
+                        (RDS and Aurora MySQL/PostgreSQL, EKS, ElastiCache for Redis OSS, OpenSearch), at US East list prices.
+                      required: [from]
+                      properties:
+                        from: { type: string, format: date, description: 'The end of standard support, when the charges start.' }
+                        monthly_usd: { type: number, description: 'US dollars a month; absent when Goliash cannot tell (an RDS database whose vCPUs are not known, ElastiCache, OpenSearch).' }
+                        basis: { type: string, example: '4 vCPU × $0.10 an hour' }
                     vulnerabilities:
                       allOf: [{ $ref: '#/components/schemas/VulnDelta' }]
                       description: >-
@@ -860,7 +902,15 @@ paths:
       summary: Image hygiene findings
       description: |
         Running images with a moving tag (latest, stable …), a tag pushed again (same tag, different digests),
-        a registry outside `GOLIASH_ALLOWED_REGISTRIES`, or no known digest (info).
+        a registry outside `GOLIASH_ALLOWED_REGISTRIES`, an outdated base, a size over budget, an unexpected
+        signer, an operating system or Go release past its end of life, an upstream that released nothing for a
+        year, or no known digest (info).
+      parameters:
+        - name: team
+          in: query
+          required: false
+          description: Only the images of services this team owns.
+          schema: { type: string }
       responses:
         "200":
           description: Findings, warnings first.
@@ -870,14 +920,18 @@ paths:
                 type: array
                 items:
                   type: object
-                  required: [kind, severity, image, detail, where]
+                  required: [kind, severity, image, detail, where, teams]
                   properties:
-                    kind: { type: string, enum: [moving-tag, retagged, untrusted-registry, unpinned] }
+                    kind: { type: string, enum: [expiring, moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned] }
                     severity: { type: string, enum: [warning, info] }
                     image: { type: string }
                     detail: { type: string }
                     where:
                       type: array
+                      items: { type: string }
+                    teams:
+                      type: array
+                      description: The owners of the services running the image.
                       items: { type: string }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }
@@ -1006,7 +1060,7 @@ paths:
                 sbom: { type: object, description: The SPDX or CycloneDX JSON document the build made. }
                 fail_on:
                   type: array
-                  items: { type: string, enum: [exploited, eol, signer, unsigned, critical, no-sbom, unreadable, none] }
+                  items: { type: string, enum: [exploited, eol, eol-os, eol-go, signer, unsigned, critical, no-sbom, unreadable, none] }
                   description: The rules that fail the check; default exploited, eol, signer, unsigned. none fails on nothing.
       responses:
         "200":
@@ -1037,6 +1091,22 @@ paths:
                   exploited: { type: array, items: { type: string } }
                   critical: { type: array, items: { type: string } }
                   eol: { type: string, description: "The end of life of its release cycle, when known." }
+                  os: { type: string, description: "The operating system it is built on, from its packages: Debian 12 (bookworm)." }
+                  go: { type: string, description: "The oldest Go its Go programs were built with, from its packages." }
+        "202":
+          description: |
+            The server cannot read the image's registry and an agent can: it asked one to read the image, which
+            takes a few minutes. Ask again after Retry-After seconds; goliash verify waits by itself.
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [image, pending]
+                properties:
+                  image: { type: string }
+                  pending: { type: boolean }
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
         "403": { $ref: '#/components/responses/Forbidden' }

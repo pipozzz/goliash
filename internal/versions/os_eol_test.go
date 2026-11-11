@@ -1,0 +1,174 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package versions
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/pipozzz/goliash/internal/store"
+)
+
+func TestOSOf(t *testing.T) {
+	for _, c := range []struct {
+		purls []string
+		want  ImageOS
+		ok    bool
+	}{
+		{[]string{"pkg:npm/express@4.19.2", "pkg:deb/debian/libc6@2.31-13?arch=amd64&os_version=11"}, ImageOS{"debian", "11"}, true},
+		{[]string{"pkg:deb/debian/libc6@2.36?distro=debian-12.7"}, ImageOS{"debian", "12"}, true},
+		{[]string{"pkg:apk/alpine/musl@1.2.4?os_version=3.18.6"}, ImageOS{"alpine", "3.18.6"}, true},
+		{[]string{"pkg:rpm/redhat/openssl-libs@3.0.7?distro=rhel-9.4"}, ImageOS{"redhat", "9.4"}, true},
+		{[]string{"pkg:apk/wolfi/glibc@2.40"}, ImageOS{}, false},
+		{[]string{"pkg:golang/golang.org/x/net@v0.30.0"}, ImageOS{}, false},
+	} {
+		got, ok := OSOf(c.purls)
+		if got != c.want || ok != c.ok {
+			t.Errorf("OSOf(%v) = %v %v, want %v %v", c.purls, got, ok, c.want, c.ok)
+		}
+	}
+	if s := (ImageOS{"debian", "11"}).String(); s != "Debian 11 (bullseye)" {
+		t.Errorf("name %q", s)
+	}
+}
+
+func TestEOLOperatingSystems(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/products/debian":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"13","isEol":false,"eolFrom":"2030-06-30"},{"name":"12","isEol":false,"eolFrom":"2028-06-30"},{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
+		case "/products/alpine-linux":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"3.24","isEol":false,"eolFrom":"2028-06-01"},{"name":"3.21","isEol":false,"eolFrom":"2026-12-01"}]}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	(&Checker{}).SetEOL(e)
+	defer sharedEOL.Store(nil)
+	ctx := context.Background()
+	for _, p := range []string{"debian", "alpine-linux"} { // as the background refresh would
+		if _, err := e.Cycles(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	now := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
+	active := []store.Instance{
+		{Image: "ghcr.io/acme/api:1.0", Digest: "sha256:a", EnvironmentID: "e", TargetID: "t", WorkloadName: "api", ContainerName: "api"},
+		{Image: "ghcr.io/acme/web:2.0", Digest: "sha256:b", EnvironmentID: "e", TargetID: "t", WorkloadName: "web", ContainerName: "web"},
+		{Image: "ghcr.io/acme/new:3.0", Digest: "sha256:c", EnvironmentID: "e", TargetID: "t", WorkloadName: "new", ContainerName: "new"},
+	}
+	sboms := map[string]store.ImageSBOM{
+		"ghcr.io/acme/api@sha256:a": {Purls: []string{"pkg:deb/debian/libc6@2.31?os_version=11"}},
+		"ghcr.io/acme/web@sha256:b": {Purls: []string{"pkg:apk/alpine/musl@1.2.5?os_version=3.21.2"}},
+		"ghcr.io/acme/new@sha256:c": {Purls: []string{"pkg:deb/debian/libc6@2.41?os_version=13"}},
+	}
+	got := EOLOperatingSystems(ctx, active, sboms, map[string]string{"e": "prod"}, map[string]string{"t": "eks"}, now)
+	if len(got) != 2 {
+		t.Fatalf("findings %+v", got)
+	}
+	if f := got[0]; f.Image != "ghcr.io/acme/api:1.0" || f.Severity != "warning" ||
+		f.Detail != "built on Debian 11 (bullseye), past its end of life since Aug 2026: its packages get no more security fixes; rebuild on Debian 13 (trixie)" {
+		t.Fatalf("past %+v", f)
+	}
+	if f := got[1]; f.Severity != "info" || !strings.Contains(f.Detail, "Alpine 3.21, whose end of life is Dec 1, 2026") || !strings.HasSuffix(f.Detail, "rebuild on Alpine 3.24") {
+		t.Fatalf("soon %+v", f)
+	}
+}
+
+func TestRemedyOnEOLOS(t *testing.T) {
+	a := Affected{Package: "openssl", EOLOS: "Debian 11 (bullseye)"}
+	if got := remedy(a); got != "a base on a supported release: Debian 11 (bullseye) is past its end of life and gets no fixes" {
+		t.Fatalf("remedy %q", got)
+	}
+	a.Fix = "1.1.1w-0+deb11u2"
+	if got := remedy(a); got != "openssl 1.1.1w-0+deb11u2" {
+		t.Fatalf("a fix comes first: %q", got)
+	}
+}
+
+func TestEOLOSOf(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"12","isEol":false,"eolFrom":"2028-06-30"},{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	(&Checker{}).SetEOL(e)
+	defer sharedEOL.Store(nil)
+	ctx := context.Background()
+	_, _ = e.Cycles(ctx, "debian")
+	memo := map[ImageOS]string{}
+	if got := eolOSOf(ctx, "pkg:deb/debian/openssl@1.1.1n?os_version=11", memo); got != "Debian 11 (bullseye)" {
+		t.Fatalf("eol %q", got)
+	}
+	if got := eolOSOf(ctx, "pkg:deb/debian/openssl@3.0.15?os_version=12", memo); got != "" {
+		t.Fatalf("supported %q", got)
+	}
+	if got := eolOSOf(ctx, "pkg:npm/express@4.19.2", memo); got != "" {
+		t.Fatalf("not an OS package %q", got)
+	}
+}
+
+func TestEOLRuntimes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.27","isEol":false},{"name":"1.26","isEol":false},{"name":"1.25","isEol":true,"eolFrom":"2026-08-19"}]}}`))
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	(&Checker{}).SetEOL(e)
+	defer sharedEOL.Store(nil)
+	ctx := context.Background()
+	_, _ = e.Cycles(ctx, "go")
+
+	if v, ok := GoOf([]string{"pkg:golang/stdlib@1.26.2", "pkg:golang/stdlib@1.25.7", "pkg:npm/x@1.0.0"}); !ok || v != "1.25.7" {
+		t.Fatalf("oldest Go %q", v)
+	}
+	active := []store.Instance{
+		{Image: "quay.io/prometheus/node-exporter:v1.8.0", Digest: "sha256:a", EnvironmentID: "e", TargetID: "t", WorkloadName: "ne", ContainerName: "ne"},
+		{Image: "ghcr.io/acme/api:2.0", Digest: "sha256:b", EnvironmentID: "e", TargetID: "t", WorkloadName: "api", ContainerName: "api"},
+	}
+	sboms := map[string]store.ImageSBOM{
+		"quay.io/prometheus/node-exporter@sha256:a": {Purls: []string{"pkg:golang/stdlib@1.25.7"}},
+		"ghcr.io/acme/api@sha256:b":                 {Purls: []string{"pkg:golang/stdlib@1.27.1"}},
+	}
+	got := EOLRuntimes(ctx, active, sboms, map[string]string{"e": "prod"}, map[string]string{"t": "eks"}, time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC))
+	if len(got) != 1 || got[0].Kind != "eol-runtime" || got[0].Image != "quay.io/prometheus/node-exporter:v1.8.0" ||
+		!strings.Contains(got[0].Detail, "built with Go 1.25.7, past its end of life since Aug 2026") || !strings.Contains(got[0].Detail, "rebuild with Go 1.27") {
+		t.Fatalf("findings %+v", got)
+	}
+}
+
+func TestWarmEOL(t *testing.T) {
+	asked := map[string]bool{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked[r.URL.Path] = true
+		_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"11","isEol":true,"eolFrom":"2026-08-31"}]}}`))
+	}))
+	defer srv.Close()
+	e := NewEOL()
+	e.BaseURL = srv.URL
+	SetSharedEOL(e)
+	defer SetSharedEOL(nil)
+	l := newLab(t)
+	ctx := context.Background()
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "ghcr.io/acme/api", Digest: "sha256:a", Purls: []string{"pkg:deb/debian/libc6@2.31?os_version=11", "pkg:golang/stdlib@1.25.7"}})
+	if err := WarmEOL(ctx, l.st, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	if !asked["/products/debian"] || !asked["/products/go"] || len(asked) != 2 {
+		t.Fatalf("asked %v", asked)
+	}
+	if cy, _, ok := OSCycle(ctx, ImageOS{Distro: "debian", Version: "11"}); !ok || !cy.IsEOL {
+		t.Fatal("not cached for the pages")
+	}
+}

@@ -121,6 +121,10 @@ th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--lin
 th { font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+/* A machine's operating system and packages, right under its Docker engine: one machine, two parts. */
+tr:has(+ tr.machine-part) td { border-bottom-color: transparent; }
+tr.machine-part td { padding-top: 0; }
+tr.machine-part td:first-child { padding-left: 28px; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Matrix */
@@ -341,6 +345,7 @@ pre.codes { columns: 2; margin: 0; padding: 14px 16px; background: var(--surface
    colours from the st-c* classes. app.js adds the crosshair and the tooltip. */
 .chart { margin: 0; padding: 16px 18px 14px; overflow-x: auto; position: relative; }
 .chart svg { width: 100%; min-width: 520px; max-height: 270px; height: auto; display: block; overflow: visible; }
+.chart.timeline svg { max-height: none; margin: 0 auto; }
 .chart .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; opacity: 0.9; }
 .chart .baseline { stroke: var(--line); stroke-width: 1.2; }
 .chart .axis { fill: var(--faint); font: 500 10.5px var(--sans); font-variant-numeric: tabular-nums; }
@@ -511,7 +516,7 @@ table.matrix tr.group-head th {
 table.matrix tbody.mgroup.named:first-of-type tr.group-head th { border-top: 0; }
 .group-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; left: 16px; width: max-content; max-width: calc(100vw - 64px); }
 .group-name { font-weight: 700; font-size: 15px; }
-.group-line small { color: var(--faint); font-weight: 400; font-size: 12px; }
+.group-line small { color: var(--faint); font-weight: 400; font-size: 12px; white-space: normal; min-width: 0; }
 .app-avatar {
   width: 26px; height: 26px; border-radius: 8px; display: inline-grid; place-items: center; flex: none;
   color: #fff; font: 700 13px var(--sans); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
@@ -566,6 +571,8 @@ table.updates tr[data-level="upstream"] td.svc { box-shadow: inset 3px 0 0 var(-
 table.updates tr[data-level="env"] td.svc { box-shadow: inset 3px 0 0 var(--warn); }
 table.updates .upgrade { white-space: nowrap; }
 table.updates .upgrade .arrow { color: var(--faint); margin: 0 6px; }
+/* No newer release known: what fixes its exploited vulnerability instead. */
+table.updates .upgrade .remedy { white-space: normal; font-size: 13px; margin-top: 4px; max-width: 32ch; }
 details.acked > summary { cursor: pointer; list-style: none; }
 details.acked > summary::-webkit-details-marker { display: none; }
 details.acked:not([open]) > summary { border-bottom: 0; }
@@ -619,11 +626,14 @@ table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: ri
 .tile-filter { display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px; margin: -3px -8px; border: 0; border-radius: 8px; background: none; font: inherit; color: inherit; cursor: pointer; }
 .tile-filter:hover { background: var(--surface-2, rgb(0 0 0 / 0.04)); }
 .tile-filter[aria-pressed="true"] { background: var(--accent-soft, rgb(49 87 213 / 0.12)); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
-/* A legend item picked: the cells in other states step back. */
+/* A legend item picked: only the cells in its state show. */
 body[data-tile-only="current"] .logo-board .board-cell:not(.s-current),
 body[data-tile-only="behind"] .logo-board .board-cell:not(.s-behind),
 body[data-tile-only="attention"] .logo-board .board-cell:not(.s-attention),
-body[data-tile-only="unknown"] .logo-board .board-cell:not(.s-unknown) { opacity: 0.18; filter: saturate(0.3); }
+body[data-tile-only="unknown"] .logo-board .board-cell:not(.s-unknown),
+body[data-tile-only="problem"] .logo-board .board-cell.s-current { display: none; }
+.stack-legend { padding: 4px 0 12px; }
+.legend-problem .tile-filter { font-weight: 600; color: var(--ink); }
 /* The panel opens on :target, no script needed; the backdrop and × link back to "#". */
 .tile-panel { display: none; position: fixed; inset: 0; z-index: 50; }
 .tile-panel:target { display: block; }
@@ -724,6 +734,13 @@ body.kiosk .logo-board:not(.compact) { max-width: min(100%, calc((100vh - 150px)
 body:not(.kiosk) .board-fit > .logo-board:not(.compact) {
   max-width: min(calc(var(--cols) * 190px + 120px), max(420px, calc((100vh - 290px) * var(--cols) / var(--rows, 3))));
 }
+/* A wide screen: a board of many cells takes the width (and scrolls), rather than shrinking to the screen's height
+   until names and statuses no longer fit its cells. */
+@media (min-width: 900px) {
+  body:not(.kiosk) .board-fit > .logo-board:not(.compact) {
+    max-width: min(calc(var(--cols) * 230px + 120px), max(min(100%, calc(var(--cols) * 150px + 120px)), calc((100vh - 290px) * var(--cols) / var(--rows, 3))));
+  }
+}
 .tiles-toolbar #tiles-legend .tile-legend { justify-content: flex-end; }
 .tiles-head-end { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
 .tiles-head-end .view-tabs { margin: 0; }
@@ -814,6 +831,7 @@ body.kiosk .tiles-live > .tile-legend { justify-content: center; font-size: 15px
 .palette-item.on { background: var(--accent-soft); }
 .palette-mark { width: 14px; height: 14px; border-radius: 4px; flex: none; }
 .palette-mark.kind-target { background: var(--faint); border-radius: 50%; }
+.palette-mark.kind-agent { background: transparent; box-shadow: inset 0 0 0 2px var(--faint); border-radius: 50%; }
 .palette-mark.kind-page { background: transparent; box-shadow: inset 0 0 0 2px var(--faint); }
 .palette-mark.kind-team { background: var(--faint); border-radius: 4px 50% 50% 4px; }
 .palette-mark.kind-search { background: transparent; box-shadow: inset 0 0 0 2px var(--accent); border-radius: 50%; }
@@ -947,6 +965,9 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 .promo-vulns { margin-top: 4px; font-size: 12.5px; }
 .promo-vulns summary { cursor: pointer; }
 .promo-vulns .fix { color: var(--ok); }
+/* Upstream releases: what moving to one does to the exploited vulnerabilities running now. */
+.release-fix { font: 12.5px/1.4 var(--sans); margin-top: 2px; }
+.release-fix.fix { color: var(--ok); }
 .vuln-use .muted { font-size: 12.5px; margin-left: 6px; }
 .notice.pending { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
 /* Login right after an installation: the first account, one click away. */
@@ -962,6 +983,19 @@ details.unsigned > summary { padding: 12px 16px; cursor: pointer; font-weight: 6
 /* Matrix: private registries nobody reads yet, one step from credentials. */
 .unread-hint { padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--warn-soft, var(--accent-soft)); }
 .unread-hint p { margin: 2px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+/* Where a target runs: cloud, account, region … each a filter of the matrix. */
+.where-line { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.where-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 2px 8px; border: 1px solid var(--line);
+  border-radius: 999px; font-size: 12px; text-decoration: none; color: inherit; }
+.where-chip:hover { border-color: var(--accent); }
+/* The services behind an unread registry, on a line of their own. */
+.unread-services { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.unread-service { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
+.unread-service code { font-size: 12px; overflow-wrap: anywhere; }
+.unread-services details { flex-basis: 100%; }
+.unread-services details[open] { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.unread-services summary { cursor: pointer; color: var(--muted); }
+.watched-only { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 /* Connect: watching releases needs no agent. */
 .watch-only { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   margin-top: 16px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: var(--radius); }
@@ -1466,3 +1500,66 @@ main section[id] { scroll-margin-top: 72px; }
   #teams table.cards td { grid-template-columns: minmax(0, 1fr); }
   #teams table.cards td > * { grid-column: 1; }
 }
+
+/* Where a service runs: small icons by its name, and buttons that filter by them. */
+.kind-icons { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: -2px; color: var(--muted); }
+.kind-icon { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.board-foot .kind-icons { display: flex; margin: 0 0 4px; color: inherit; opacity: 0.75; }
+.kind-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.kind-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; }
+.kind-chip .kind-icon { color: var(--muted); }
+.kind-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.kind-chip[aria-pressed="true"] .kind-icon { color: var(--accent); }
+/* Single sign-on: the groups and the roles they give. */
+table.sso-groups { width: 100%; border-collapse: collapse; }
+table.sso-groups td { padding: 4px 8px 4px 0; }
+table.sso-groups input, table.sso-groups select { width: 100%; }
+/* An enrollment code's environment, changed in place. */
+.code-env-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 0; color: var(--muted); }
+.code-env select { width: auto; }
+
+/* What a managed service or a .zip function is, under its name. */
+td.svc .what { display: block; color: var(--muted); font-size: 12px; }
+
+/* The bell's footer: notifications on this device. */
+.bell-device { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+.bell-device .push-note { flex-basis: 100%; }
+/* "+12 more like this": the same upgrade in many rows, folded into one. */
+.same-more { display: block; margin-top: 4px; font-size: 12px; }
+table.updates td.svc .what { display: block; color: var(--muted); font-size: 12px; }
+/* Channels: add one, or connect a ticket tracker, from the panel's head. */
+.channel-adds { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; }
+
+/* Ticking services on the matrix to set their team at once. */
+td.svc .row-tick { margin-right: 6px; vertical-align: -1px; }
+.matrix-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--accent); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+
+/* Under an exploited vulnerability: what to do about it. */
+.what-to-do { margin-top: 6px; padding: 6px 10px; border-left: 3px solid var(--danger, #c0392b); background: color-mix(in srgb, var(--danger, #c0392b) 6%, var(--surface)); font-size: 13px; }
+
+.more-packages summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.not-affected form.inline { display: inline; margin-left: 6px; }
+.not-affected li { margin-bottom: 6px; }
+.exposed-ways { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+.exposed-ways li { overflow-wrap: anywhere; }
+/* Many ways in (a load balancer target group per database): one line, opened for the names. */
+.exposed-more { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.exposed-more > summary { cursor: pointer; }
+.exposed-group { margin: 4px 0 0; overflow-wrap: anywhere; }
+.exposed-toggle { display: inline-block; vertical-align: middle; }
+.exposed-toggle > summary { list-style: none; cursor: pointer; }
+.exposed-toggle > summary::-webkit-details-marker { display: none; }
+.exposed-toggle[open] { display: block; }
+
+/* A target named on a service page or its chart: a link to where it runs, quiet until pointed at. */
+a.target-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+a.target-link:hover { color: var(--accent); }
+svg a text.lane.link { text-decoration: underline dotted; cursor: pointer; }
+svg a:hover text.lane.link { fill: var(--accent); }
+/* Drift about a whole environment (its targets disagree) sits under its name, not beside one of its versions. */
+.env-drift { margin-top: 6px; }
+
+/* A Linux server's packages, under its facts. */
+.server-packages { padding: 0 16px 14px; }
+.server-packages > summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+tr.muted-row td { color: var(--muted); }

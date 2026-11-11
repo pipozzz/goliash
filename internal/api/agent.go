@@ -70,6 +70,8 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.Handle("POST /agent/v1/snapshot", h.authed(maxSnapshotBody, h.snapshot))
 	// Registry results carry the package lists of private images' SBOMs: as large as snapshots.
 	mux.Handle("POST /agent/v1/registry-results", h.authed(maxSnapshotBody, h.registryResults))
+	// The packages of .zip Lambda functions' code: up to 100 functions' lists at a time.
+	mux.Handle("POST /agent/v1/code-packages", h.authed(maxSnapshotBody, h.codePackages))
 	mux.Handle("POST /agent/v1/heartbeat", h.authed(maxSmallRequestBody, h.heartbeat))
 	mux.HandleFunc("/agent/", func(w http.ResponseWriter, _ *http.Request) {
 		writeProblem(w, http.StatusNotFound, "Not found", "unknown agent protocol endpoint")
@@ -276,6 +278,18 @@ func (h *AgentHandler) registryResults(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	if err := h.ingest.RegistryResults(r.Context(), a, res); err != nil {
+		h.internalError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *AgentHandler) codePackages(w http.ResponseWriter, r *http.Request, a store.Agent, body []byte) {
+	var list agentproto.CodePackagesList
+	if !decode(w, body, &list) {
+		return
+	}
+	if err := h.ingest.CodePackages(r.Context(), a, list); err != nil {
 		h.internalError(w, r, err)
 		return
 	}

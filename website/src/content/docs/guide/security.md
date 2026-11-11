@@ -128,7 +128,10 @@ evidence, Goliash also reads the base's tag (for the same platform, once per che
 Outdated ones show as **Outdated base** on [Image hygiene](/guide/matrix/#image-hygiene), with when the base's current build was
 made (*built on an older node:22-alpine than the one its tag has now (built Oct 2, 14 days ago): rebuild with
 `--pull`*), in the Security page's supply chain, as an **older base** badge on the service's images, and in
-`goliash_image_hygiene_findings{kind="outdated-base"}`. Bases pinned to a digest (`node@sha256:…`) are pinned on
+`goliash_image_hygiene_findings{kind="outdated-base"}`. Goliash also reads the packages of the base's current build and says, for
+each vulnerability, whether it is gone there: *fixed by a rebuild on debian:bookworm-slim* on the vulnerability,
+and *132 fixed by a rebuild with --pull* on the service's image. A rebuild fixes those with no change to the
+Dockerfile, usually the cheapest fix there is. Bases pinned to a digest (`node@sha256:…`) are pinned on
 purpose and left alone. Agents send the layers of private images (agent 1.61); the base itself must be readable by
 the server, as public bases are.
 
@@ -212,7 +215,8 @@ vulnerability of the running images:
 
 1. For images whose registry holds an SBOM (a BuildKit or cosign attestation, or an OCI referrer, see
    [SBOM of what runs](../sbom/#where-the-packages-come-from)), Goliash reads its package list once: package URLs
-   such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`.
+   such as `pkg:deb/debian/openssl@3.0.11-1~deb12u2` or `pkg:npm/lodash@4.17.15`. Images without one are read from
+   their package database ([Images without an SBOM](#images-without-an-sbom)).
 2. It asks [OSV](https://osv.dev) which known vulnerabilities affect those packages, again every day, and reads
    each advisory once for its CVE aliases, summary and severity. Debian, Ubuntu and Alpine packages are asked about
    in their distribution release, Wolfi and Chainguard packages under their source package (Chainguard's own
@@ -223,8 +227,11 @@ vulnerability of the running images:
 **What to patch first.** Vulnerabilities in CISA's catalog of
 [known exploited vulnerabilities](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) (KEV) come first,
 marked *exploited* with CISA's due date and *ransomware* when CISA knows of ransomware using them; *Only exploited
-in the wild* shows just those. Each affected package says the version that fixes it (the lowest above the running
-one, from OSV), or *no fix yet*. The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
+in the wild* shows just those. Each affected package says what fixes it: the version (the lowest above the running
+one, from OSV); else a newer release of its distribution
+([Fixed in a newer release](#fixed-in-a-newer-release-of-the-distribution)); else the version upstream fixed it in,
+with the newest release to run ([Upstream fixes](#upstream-fixes)); and only when none of these, *no fix yet*.
+What does not apply is left out, with its reason ([Not affected](#not-affected)). The catalog is read once a day; `GOLIASH_KEV_URL` names a mirror or turns it off.
 
 **How long it has run.** Each vulnerability says how long it has been running (*running for 23 days*: since the
 first affected image started), and an exploited one still running after the date CISA set for fixing it
@@ -243,12 +250,20 @@ A cell of the matrix whose running image has a vulnerability exploited in the wi
 A notification rule with the `vulnerability` event announces each exploited or critical vulnerability as it starts
 running ([Notifications](../notifications/#vulnerabilities)).
 
+**Check an image before it runs.** Type an image with its tag in the vulnerabilities page's search
+(`123456789012.dkr.ecr.eu-central-1.amazonaws.com/api:6.0.241`): Goliash reads it from its registry even when it
+runs nowhere (the server for registries it reads, an agent from 1.203 for the private ones it checks), asks OSV about
+its packages and says which exploited vulnerabilities it has, and, against each version of the repository that
+runs, which it fixes and which it keeps. The panel looks again by itself until the answer is there, usually within a
+few minutes.
+
 **Export CSV** on the vulnerabilities page downloads what it shows (all of it, not only the first 300), one row per
 vulnerability and affected image, with CISA's exploited flag and due date, whether it is past due, the fix and since
 when it runs there: for an audit, or to import into a ticket system. `GET /api/v1/vulnerabilities?format=csv` gives
 the same. Cells that start like a formula are quoted, so a package name cannot run in a spreadsheet.
 
-The answer covers only images with an SBOM Goliash could read, and the page says how many those are. While
+The answer covers only images whose packages Goliash could read (an SBOM or a package database), and the page says
+how many those are. While
 advisories are still being looked up it says so, and does not answer "not running".
 
 Only package names and versions are sent to OSV, never image, service or host names. `GOLIASH_OSV_URL` points the
@@ -280,7 +295,9 @@ host, a LoadBalancer or NodePort service, an ECS load balancer or public IP, a L
 authentication, a Docker port published on every interface (details and permissions in
 [Collectors](../../reference/collectors/#exposure)).
 
-- **Updates** marks such an upgrade **exposed** (hover for the ways in) and puts it first within its urgency: an
+- **The service page** lists the ways in under each environment marked **exposed** in Running; its Security panel
+  below has the vulnerabilities of those images.
+- **Updates** marks such an upgrade **exposed** (click the badge for the ways in) and puts it first within its urgency: an
   exploited vulnerability behind an ingress before one in an internal service, then production first as before.
 - **Vulnerabilities** puts findings in exposed images right after those exploited in the wild, marks them, and
   **Only exposed** narrows the list (`?exposed=1`; the CSV and `GET /api/v1/vulnerabilities?exposed=true` too).
@@ -314,9 +331,18 @@ The exit code is 1 when the image breaks a blocking rule, and 0 when it passes; 
 
 - **Where the packages come from.** `-sbom sbom.cdx.json` hands in the SPDX or CycloneDX JSON the build made (syft,
   docker buildx `--sbom`, Trivy). Without it, the server reads the image's SBOM attestation, or its package
-  database, from the registry with the workspace's registry credentials.
-- **Which rules block.** `-fail-on` chooses: `exploited`, `eol`, `signer`, `unsigned`, `critical`, `no-sbom`,
-  `unreadable`, or `none`. The default is `exploited,eol,signer,unsigned`.
+  database, from the registry with the workspace's registry credentials. A private registry only the agents read
+  (ECR with the agent's IAM role, say) is read by an agent, from 1.203: the server asks one to read the image by
+  its tag, answers `202` with `Retry-After` until it did, and `goliash verify` waits by itself (`-wait`, default
+  10 minutes), usually a minute or two. A repository no service runs yet (the first build of a new service) goes to
+  the agents that read another repository on the same registry, from 1.207: the same ECR, the same IAM role.
+- **Which rules block.** `-fail-on` chooses: `exploited`, `eol`, `eol-os`, `eol-go`, `signer`, `unsigned`,
+  `critical`, `no-sbom`, `unreadable`, or `none`. The default is `exploited,eol,signer,unsigned`.
+- **Below the application.** From its packages, the check also names the operating system the image is built on and
+  the Go its Go programs were built with, and warns when either is past its end of life (`eol-os`: *built on
+  Debian 10, past its end of life*; `eol-go`: *rebuild with a supported Go*), as [image
+  hygiene](/guide/matrix/#image-hygiene) does for what runs. They warn by default; add them to `-fail-on` to block:
+  `-fail-on exploited,eol,eol-os,eol-go,signer,unsigned`.
 - **Policy and output.** `-service` names the service whose policy applies; by default it is the one already
   running the image's repository. `-json` prints the verdict for other tools.
 - **Token and audit.** The token can be a *viewer* API token. Each check is in the audit log as `image.check`.
@@ -345,10 +371,53 @@ verify:
     - ./goliash verify "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
 ```
 
+`GOLIASH_URL` and `GOLIASH_TOKEN` (a masked variable) come from the project's CI/CD settings. A release built on a
+cached, unpatched base fails here, before anyone deploys it: *BLOCK exploited: … CVE-2026-111497*.
+
+## When the distribution has no fix
+
+*No fix yet* in a distribution's advisory is about that distribution's package in that release. Before Goliash
+says it, it looks further: a newer release of the distribution, or the upstream project, may have fixed it.
+
+### Fixed in a newer release of the distribution
+
+A distribution often fixes a vulnerability in its next release before (or instead of) the one an image is built on:
+Debian 13 has a fixed nginx for CVE-2023-44487, Debian 12 none. When the image's own release has no fix and a newer
+one has, Goliash says so instead of *no fix yet*: *fixed in Debian 13 (trixie)*, and "What to do" says to rebuild on
+a trixie base. Only releases to move a production image to count: a stable Debian (not testing, such as forky
+before it is released), an Ubuntu LTS. When it knows what the image is built on (its `org.opencontainers.image.base.name` label, its
+provenance, or the service's [base image](#base-images)), it names the image to build on instead: *rebuild on
+python:3.15-trixie instead of python:3.15-bookworm*; `node:22-alpine3.20` becomes `node:22-alpine3.21`,
+`ubuntu:jammy` `ubuntu:noble`. A slim variant also leaves out the build tools and `-dev` libraries a runtime image
+does not need, and with them most of a full image's findings. Debian, Ubuntu (not Pro)
+and Alpine releases count; the finding counts as fixable, so an exploited one asks for the rebuild, not a
+mitigation.
+
+### Upstream fixes
+
+An image often installs the product from upstream rather than from its distribution (the official nginx image has
+nginx.org's `nginx 1.27.1-1~bookworm`), and upstream may have fixed a vulnerability long before the distribution.
+When a distribution's advisory has no fix for a package whose upstream product Goliash knows (nginx, OpenSSL, curl, PostgreSQL, Redis and others), it asks NVD for the versions
+the CVE affects upstream (exploited and serious ones first; `GOLIASH_NVD_API_KEY` makes it faster) and reads the
+version that runs without the distribution's revision (`1.27.1-1~bookworm` is nginx 1.27.1):
+
+- **Past upstream's fix:** the package leaves the findings, and the service's page lists it under **Not affected**
+  with the ranges and *(NVD)*, as does the monthly report. Where NVD only says the last affected
+  version (*up to 1.25.2*) rather than the fixed one, this needs a later release line (1.27 is, 1.25.4 is not):
+  NVD may have closed such a range at the newest release of its time, before there was a fix.
+- **Still in upstream's range:** instead of *no fix yet* it says which version fixes it (*upstream nginx fixed it
+  in 1.25.3*), and "What to do" says to run that version or newer, from upstream's own packages or image when the
+  distribution has none. An exploited vulnerability with an upstream fix asks for the upgrade, not a mitigation.
+- **Which version to run.** Beside a fix it names the product's newest release (*· latest 1.31.8*) and, when the
+  release cycle that runs is still supported, the newest of that cycle too (*on 1.30, 1.30.4*), only when they fix
+  it. Releases come from [endoflife.date](https://endoflife.date) for most products, else from the project's GitHub
+  releases (curl, zlib), refreshed daily.
+
 ## Exploited, no fix yet
 
 Sometimes CISA lists a vulnerability as exploited in the wild before any fixed version exists, so there is no
-upgrade to make. Until there is, a **mitigation** keeps it from being used: a WAF or proxy rule, a feature or
+upgrade to make. (Goliash first looks for one: a newer release of the image's distribution, or an upstream fix,
+counts as a fix and asks for the upgrade instead.) Until there is, a **mitigation** keeps it from being used: a WAF or proxy rule, a feature or
 setting turned off, the service cut off from the network.
 
 - **Where it shows.** The Security page's **Exploited, no fix yet** panel and the vulnerabilities list (*no fix*)
@@ -364,6 +433,73 @@ setting turned off, the service cut off from the network.
   then on the upgrade is on Updates with its deadline, like any other. A mitigation also closes when the
   vulnerable image no longer runs, and a member can withdraw one.
 
+## Not affected
+
+A scanner matches packages against advisories, and sometimes the advisory does not fit what runs. Goliash leaves out
+by itself what it can tell does not apply, and lists each under **Not affected** on the service's page and in the
+monthly report, grouped by reason, with *Goliash* as who said so:
+
+- a package past the version upstream fixed it in ([Upstream fixes](#upstream-fixes)): nginx.org's `nginx
+  1.27.1-1~bookworm` matched against Debian's advisory for CVE-2023-44487, which nginx fixed in 1.25.3;
+- what the image's publisher rules out in VEX ([below](#vex-from-the-images-publisher));
+- the kernel's packages in a container image ([below](#kernel-packages));
+- a Go advisory about a package the image's Go programs do not link: OSV lists every advisory of the Go standard
+  library (and of a module) for the version a program was built with, whether or not it uses the vulnerable code.
+  When Goliash reads the image's packages itself (no SBOM attestation), it also reads which Go packages each
+  executable links, from its line table (there in stripped executables too), and an advisory whose vulnerable code
+  is in packages none of them links leaves the finding (*do not link net/http, where the vulnerable code is*).
+  Packages, not functions: the compiler inlines small functions, which then no longer show, but a package rarely
+  disappears whole. An image whose programs could not all be read keeps every finding.
+- what Debian's security tracker says its release never had: OSV copies the tracker, sometimes days late, and may
+  still list such a CVE as affected with no fix (*this release never had the vulnerable code*). CVEs Debian has not
+  assessed yet stay listed, marked *not assessed by Debian yet* instead of *no fix yet*. An open issue Debian rates
+  *unimportant* for the release goes too, with that reason: Debian plans no security update because its build is not
+  affected in practice (CVE-2026-123158 hits OpenSSH built with musl and no PAM, as on Alpine; Debian's is built with
+  glibc and PAM), even when CISA lists it as exploited elsewhere. The tracker's data is read
+  once a day while Debian images run; `GOLIASH_DEBIAN_TRACKER_URL` names a mirror or turns it off.
+
+An image on a Debian release past its security support (Debian 11 since its LTS ended) is flagged as undercounted:
+advisories for it stopped, so a vulnerability found since is not listed for it, however serious. Move it to a
+supported release.
+
+For the rest, when you know a vulnerability does not affect a service, say so instead of leaving it open:
+
+- **Marking one.** On the service's page, **Not affected?** under the vulnerability (admins) takes the reason (after
+  VEX's justifications: already fixed in the version that runs, the component is not in the image, the vulnerable
+  code is never reached, the software prevents it another way, or other), a sentence on how you know, and when to
+  review it (90 days by default).
+- **What it changes.** The vulnerability leaves that service's findings everywhere: the vulnerabilities page,
+  alerts, remediation deadlines, Security and the API. Other services that have it still count it. The service's
+  page lists it under **Not affected**, with the reason, and the monthly report has a **Not affected** section for
+  auditors.
+- **Withdraw** (admins) puts it back.
+
+### VEX from the image's publisher
+
+An image can carry an [OpenVEX](https://openvex.dev) document in which its publisher says which vulnerabilities its
+packages match but do not affect it: Docker Hardened Images and Chainguard ship them, and your own builds can too:
+
+```sh
+# with the build
+docker buildx build --attest type=vex,filename=app.vex.json --push -t ghcr.io/acme/app:1.4.0 .
+# for an image already pushed
+cosign attest --type openvex --predicate app.vex.json ghcr.io/acme/app@sha256:…
+```
+
+Goliash reads it beside the SBOM (BuildKit attestations, cosign's `.att` tag, OCI referrers; agents read it for
+private registries) and refreshes it daily. A statement that a vulnerability is `not_affected` or `fixed`, for the
+whole image or for the package it matched, leaves that package out of the findings and lists it under **Not
+affected** with its justification and author (*the vulnerable code is never run, says Acme Security (VEX)*).
+Supply-chain evidence shows *vex* among what was found.
+
+### Kernel packages
+
+An image often carries the kernel's packages without running them: `linux-libc-dev` comes with build-essential,
+`kernel-headers` with gcc on Red Hat-like images. Every kernel CVE matches them, but a container runs on its host's
+kernel, so Goliash leaves them out of the image's findings and lists them, grouped, under **Not affected** (*a kernel
+package in the image*). The host's kernel is patched with the nodes; dropping those packages from the final stage of
+the build makes the SBOM smaller too.
+
 ## Images without an SBOM
 
 Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:
@@ -373,16 +509,40 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    packages and the application's own dependencies (npm, Composer, Maven, Go modules…);
 2. **the image's package database**, when it has no SBOM: Goliash reads the layers, newest first, for
    `/var/lib/dpkg/status` (Debian and Ubuntu; distroless images' `/var/lib/dpkg/status.d`) or
-   `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard), and `/etc/os-release`. An image built `FROM ubuntu:22.04`
+   `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard) or the RPM database `rpmdb.sqlite` (Red Hat UBI 9, Rocky
+   and AlmaLinux 9, Fedora, Amazon Linux 2023), and `/etc/os-release`. Red Hat, Rocky and AlmaLinux packages are
+   checked against their distribution's advisories in OSV, by the full version with its epoch (`1:3.0.7-27.el9`);
+   for Red Hat only advisories with a fix, not the CVEs Red Hat lists as unfixed. Amazon Linux 2023 (and Amazon
+   Linux 2, in an SBOM) is checked against Amazon's own advisories (ALAS), which OSV does not have: Goliash reads
+   them once a day from the release's `updateinfo.xml` and compares versions as `rpm` does, with the CVEs each
+   fixes. OSV has nothing for Fedora, CentOS or Oracle Linux: their images (and hosts) are flagged as undercounted,
+   not shown as clean. Older RPM releases (RHEL 8, Amazon Linux 2) keep a
+   Berkeley DB, which is not read. An image built `FROM ubuntu:22.04`
    with `apt-get install nginx php8.1-fpm` is checked against Ubuntu's own advisories, which know Ubuntu's patched
-   builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. This covers the system packages only,
-   not the application's dependencies. Images up to 1 GB of layers (gzip or plain), two per check, are read once
+   builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. The application's own dependencies come
+   from their manifests in the same layers: `node_modules/*/package.json` (else `package-lock.json`), Python
+   `*.dist-info/METADATA`, `pom.properties` in jars, the build information of Go executables (a `scratch` image
+   with one Go binary is no longer blind), gemspecs and .NET `*.deps.json`. Directories the distribution owns
+   (`usr/lib`, `usr/share`, `bin` …) are left out: a Debian `python3-urllib3` is known as Debian's package, with its
+   patches, not matched again against PyPI's advisories. Go executables there are still read: a vendor's own
+   package (`cloudflared` in `/usr/bin`) carries the modules it was built from, which the distribution knows nothing
+   of; one the distribution built itself has no module list and is left out. A Go program built from its release's
+   git checkout (Traefik) records its own version only as the commit: Goliash asks the Go module proxy which version
+   is tagged there, for modules the Go vulnerability database lists only, so a company's own module names and
+   commits are never sent (`GOLIASH_GOPROXY` names another proxy, or `off`). Files a later layer deleted (`npm prune`, `rm -rf`) do not
+   count. Images up to 1 GB of layers (gzip or plain), two per check, are read once
    per digest; private images are read with the workspace's
    [registry credentials](/reference/collectors/#credentials-on-the-server), or by the agents (1.141 and later)
-   for registries only they reach.
+   for registries only they reach (agents from 1.177 read the application's packages too). Images read before
+   1.177 are read again once, for their application packages, and those read before 1.193 once more, for the Go
+   executables in `/usr/bin`; those with a Go executable, read before 1.194, once more for the program's own version.
 
-What neither covers, Goliash does not know by itself: software built from source or copied into the image, RPM-based
-images (Red Hat, Rocky, Amazon Linux), scratch images. **Declare** what you built into the image with a label, and
+**.zip Lambda functions** have no image: their agent reads the packages of their code and layers instead
+(npm, PyPI, Maven, Go, RubyGems, NuGet; see [Collectors](/reference/collectors/)), and their vulnerabilities show
+under the function like an image's.
+
+What neither covers, Goliash does not know by itself: software built from source or copied into the image, images
+of RPM releases older than 9, scratch images. **Declare** what you built into the image with a label, and
 Goliash looks up its CVEs in NVD by version, like [the products of known images](#is-it-running):
 
 ```dockerfile
@@ -449,6 +609,20 @@ goliash licenses -environment prod -fail-on network-copyleft,source-available
 `licenses` tool for AI assistants and Goli, the metric `goliash_license_packages{class,kind}`, and licenses per
 package in the [CycloneDX inventory](../sbom/). Goliash reads licenses as the SBOMs declare them: it is a map, not
 legal advice.
+
+## Closed by deploys
+
+A vulnerability that no longer shows after a deploy is not always fixed: the new image may not be read yet. On the
+service's page, **Closed by deploys** compares, for the last deploy in each environment in the last 90 days, the
+packages of the image it replaced with those of the new one:
+
+- **fixed**: its package is in the new image at a version without it (`libbrotli1 1.0.9-2+b6 → 1.0.9-2+deb12u1`);
+- **removed**: its package is no longer in the image;
+- **not verified**: it is not seen in the new image, whose packages (or OSV's answer for their versions) are not
+  known yet: no longer detected, but not confirmed;
+- **still there**: counted, and listed with the service's vulnerabilities as before.
+
+Exploited ones come first.
 
 ## Time to patch, and patching by team
 

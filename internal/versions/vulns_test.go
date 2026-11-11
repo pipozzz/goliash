@@ -46,6 +46,11 @@ func TestOSVQuery(t *testing.T) {
 		// As Goliash reads them from an image's package database: Ubuntu by its source package, Alpine by its origin.
 		"pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.15?arch=amd64&os_version=22.04&upstream=openssl": "Ubuntu:22.04 openssl 3.0.2-0ubuntu1.15",
 		"pkg:apk/alpine/php82-fpm@8.2.20-r0?arch=x86_64&origin=php82&os_version=3.19.1":         "Alpine:v3.19 php82 8.2.20-r0",
+		// RPM: the version with its epoch; Rocky by its source package, Red Hat by the package, in BaseOS first.
+		"pkg:rpm/rocky/openssl-libs@3.0.7-24.el9?arch=x86_64&epoch=1&os_version=9.3&upstream=openssl":                        "Rocky Linux:9 openssl 1:3.0.7-24.el9",
+		"pkg:rpm/redhat/openssl-libs@3.0.7-24.el9?arch=x86_64&distro=rhel-9.4&epoch=1&upstream=openssl-3.0.7-24.el9.src.rpm": "Red Hat:enterprise_linux:9::baseos openssl-libs 1:3.0.7-24.el9",
+		"pkg:rpm/almalinux/curl-minimal@7.76.1-26.el9?arch=x86_64&distro=almalinux-9.3&upstream=curl":                        "AlmaLinux:9 curl-minimal 7.76.1-26.el9",
+		"pkg:rpm/rocky/bash@5.1.8-9.el9?distro=rocky-9.3&upstream=bash-5.1.8-9.el9.src.rpm":                                  "Rocky Linux:9 bash 5.1.8-9.el9",
 	} {
 		q, ok := osvQueryFor(purl)
 		got := q.Package.Ecosystem + " " + q.Package.Name + " " + q.Version
@@ -58,6 +63,35 @@ func TestOSVQuery(t *testing.T) {
 	}
 	if _, ok := osvQueryFor("pkg:deb/debian/x@1"); ok {
 		t.Error("a deb package without a distribution version")
+	}
+	// Distributions OSV has nothing of are not asked: by package URL alone, every Red Hat release would match.
+	for _, p := range []string{"pkg:rpm/amzn/openssl-libs@3.0.8-1.amzn2023?epoch=1&os_version=2023", "pkg:rpm/redhat/openssl@3.0.7-24.el9", "pkg:rpm/fedora/curl@8.9.1-4.fc41?os_version=41"} {
+		if q, ok := osvQueryFor(p); ok {
+			t.Errorf("%s asked as %+v", p, q)
+		}
+	}
+	var ecos []string
+	for _, q := range osvQueries("pkg:rpm/redhat/python3@3.9.18-1.el9?os_version=9.4") {
+		ecos = append(ecos, q.Package.Ecosystem)
+	}
+	if strings.Join(ecos, " ") != "Red Hat:enterprise_linux:9::baseos Red Hat:enterprise_linux:9::appstream" {
+		t.Errorf("Red Hat queries %v", ecos)
+	}
+	var rocky []string
+	for _, q := range osvQueries("pkg:rpm/rocky/openssl-libs@3.0.7-24.el9?epoch=1&os_version=9.3&upstream=openssl") {
+		rocky = append(rocky, q.Package.Name)
+	}
+	if strings.Join(rocky, " ") != "openssl openssl-libs" {
+		t.Errorf("Rocky queries %v", rocky)
+	}
+	if got := undercounted([]string{"pkg:rpm/fedora/curl@8.21.0-5.fc42?os_version=42"}); !strings.Contains(got, "Fedora") {
+		t.Errorf("Fedora: %q", got)
+	}
+	if got := undercounted([]string{"pkg:rpm/amzn/curl@8.21.0-5.amzn2023?os_version=2023"}); got != "" {
+		t.Errorf("Amazon Linux 2023 has its own advisories: %q", got)
+	}
+	if got := undercounted([]string{"pkg:rpm/rocky/curl@7.76.1-26.el9?os_version=9.3", "pkg:npm/x@1"}); got != "" {
+		t.Errorf("Rocky: %q", got)
 	}
 	// Wolfi files advisories under the source package, some under the package itself.
 	var names []string

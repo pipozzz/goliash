@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pipozzz/goliash/internal/store"
@@ -60,10 +61,11 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var due, reports, briefs []store.Rule
+		var due, reports, briefs, deliveries []store.Rule
 		for _, r := range rules {
 			plan, report, brief := contains(r.EventTypes, EventUpdatesPlan), contains(r.EventTypes, EventPostureReport), contains(r.EventTypes, EventSecurityBrief)
-			if !plan && !report && !brief {
+			delivery := contains(r.EventTypes, EventDeliveryBrief)
+			if !plan && !report && !brief && !delivery {
 				continue
 			}
 			var f Filter
@@ -79,6 +81,9 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 				}
 				if brief {
 					briefs = append(briefs, r)
+				}
+				if delivery {
+					deliveries = append(deliveries, r)
 				}
 			}
 		}
@@ -97,6 +102,11 @@ func (n *Notifier) PlanUpdates(ctx context.Context) error {
 				return err
 			}
 		}
+		if len(deliveries) > 0 {
+			if err := n.deliveryWorkspace(ctx, sc, deliveries, now); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -110,7 +120,7 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 	if err != nil {
 		return err
 	}
-	updates := versions.LoadUpdates(ctx, n.store, sc, o, acks, now)
+	updates := versions.LoadWork(ctx, n.store, sc, o, acks, now)
 	apps, err := versions.ServiceApps(ctx, n.store, sc)
 	if err != nil {
 		return err
@@ -128,8 +138,12 @@ func (n *Notifier) planWorkspace(ctx context.Context, sc store.Scope, rules []st
 				continue
 			}
 			it := planItem(u, now, apps)
-			if p := offer(u.Service.ID, u.Environment.Name, u.Running, u.Target); p != "" { // a click from the plan to the fix
-				it.Action, it.ActionPath = "Open PR → "+u.Target, p
+			first := u.Target // a product that cannot skip versions: the pull request goes to its first stop
+			if len(u.Path) > 0 {
+				first = u.Path[0]
+			}
+			if p := offer(u.Service.ID, u.Environment.Name, u.Running, first); p != "" { // a click from the plan to the fix
+				it.Action, it.ActionPath = "Open PR → "+first, p
 			}
 			if !matches(store.Rule{EventTypes: []string{"update"}}, f, it) {
 				continue
@@ -183,7 +197,7 @@ func (n *Notifier) SendPlanNow(ctx context.Context, sc store.Scope, ruleID strin
 		return 0, err
 	}
 	msg := Message{Workspace: rt.workspace, Digest: true, Link: n.link}
-	for _, u := range versions.LoadUpdates(ctx, n.store, sc, o, acks, now) {
+	for _, u := range versions.LoadWork(ctx, n.store, sc, o, acks, now) {
 		if u.Acked {
 			continue
 		}
@@ -238,6 +252,21 @@ func planItem(u versions.Update, now time.Time, apps map[string][]string) Item {
 		From: u.Running, To: u.Target, Note: versions.UrgencyLabels[u.Urgency], URL: u.TargetURL, At: now,
 	}
 	it.Text = Describe(it)
+	switch {
+	case u.MaintenanceOnly:
+		it.Text += "; waiting at the platform (" + strings.Join(u.Maintenance, "; ") + "), to do: " + u.Remedy
+	case u.Target == "" && u.Remedy != "":
+		it.Text += "; no newer release known, fix: " + u.Remedy
+	}
+	if len(u.Path) > 1 {
+		it.Text += "; via " + strings.Join(u.Path[:len(u.Path)-1], " → ") + " (" + u.PathNote + ")"
+	}
+	if u.Risk == versions.RiskMedium || u.Risk == versions.RiskHigh {
+		it.Text += "; " + u.Risk + " risk"
+	}
+	if u.Trouble != "" {
+		it.Text += " (" + u.Trouble + ")"
+	}
 	if n := len(u.Vulns.Fixed); n > 0 {
 		it.Text += "; fixes " + plural(n, "known vulnerability", "known vulnerabilities")
 		if x := versions.Exploited(u.Vulns.Fixed); x > 0 {

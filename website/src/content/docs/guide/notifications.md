@@ -1,6 +1,6 @@
 ---
 title: Notifications
-description: 'Send new releases, drift and stale agents to Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana, webhooks, e-mail or browsers, instantly or as digests.'
+description: 'Send new releases, drift and stale agents to Slack, Microsoft Teams, Google Chat, Discord, Telegram, ntfy, Grafana, PagerDuty, Opsgenie, webhooks, e-mail or browsers, instantly or as digests.'
 ---
 
 Notifications have two parts: **channels** (where messages go) and **rules** (which events go there, and how
@@ -19,9 +19,11 @@ often). Both are managed on the Notifications page or with the CLI.
 | Telegram | A bot token from @BotFather and the chat ID the bot posts to. |
 | ntfy | A topic URL on ntfy.sh or your own server, e.g. `https://ntfy.sh/my-goliash`, and an optional access token. |
 | Grafana | Grafana's URL and a service account token with `annotations:write`; every item becomes an annotation. |
+| PagerDuty | A service's integration key (*Events API V2*); alerts open incidents, see [On-call](#on-call-pagerduty-and-opsgenie). |
+| Opsgenie | An API integration's key, and `https://api.eu.opsgenie.com` for EU accounts. |
 | Webhook | A URL and an optional signing secret. |
 | E-mail | Recipients, and optionally the channel's own mail server (see below). |
-| Web push | Nothing: each person adds their browsers from the Notifications page (see below). |
+| Web push | Nothing: the channel is there already; each person adds their browsers (see below). |
 | In Goliash | Nothing: messages only show under the bell (see below). |
 
 ```sh
@@ -33,10 +35,40 @@ goliash channel create -type gchat -name sre -url "https://chat.googleapis.com/v
 goliash channel create -type telegram -name team -token 123456:ABC… -chat-id -1001234567890
 goliash channel create -type ntfy -name phone -url https://ntfy.sh/my-goliash
 goliash channel create -type email -name oncall -to oncall@example.com
+GOLIASH_CHANNEL_TOKEN=… goliash channel create -type pagerduty -name pager
 goliash channel test -name ops
 ```
 
 Channel URLs and secrets are encrypted at rest and never shown in full in the UI.
+
+### On-call: PagerDuty and Opsgenie
+
+A PagerDuty or Opsgenie channel turns alerts into incidents, so the things that should wake someone go through the
+on-call schedule and its escalations, not a chat channel. Each alert gets a stable key (the PagerDuty `dedup_key`, the
+Opsgenie `alias`): an alert that comes again joins its open incident instead of opening another, and its all clear
+closes it by itself:
+
+| Opens | Closed by |
+| --- | --- |
+| `agent_stale`: an agent went silent | `agent_back` |
+| `drift_detected` | `drift_resolved` (put it in the rule too) |
+| a vulnerability, a remediation deadline, a stuck rollout, a GitOps application in trouble, … | the person who handles it |
+
+Severity follows the alert: a vulnerability or a deadline in production is *critical* (Opsgenie P1), a silent agent,
+a stuck rollout or a GitOps application in trouble is *error* (P2), drift and releases that fix vulnerabilities are
+*warning* (P3), the rest *info* (P5). Incidents carry the service as the component, the environment as the group,
+and links to Goliash and to the advisory or release notes. Upgrade plans, posture reports and security briefs are
+reports, not pages: a rule that sends them to an on-call channel sends nothing.
+
+Pair it with a rule for what deserves a page, right away:
+
+```sh
+GOLIASH_CHANNEL_TOKEN=… goliash channel create -type opsgenie -name pager -url https://api.eu.opsgenie.com
+goliash notify create -channel pager -events agent_stale,vulnerability,deadline,drift_detected,drift_resolved -envs prod -mode instant
+```
+
+In PagerDuty, add the integration on a service: **Integrations** → **Add an integration** → *Events API V2*, and
+copy its integration key. In Opsgenie, add an **API** integration to the team and copy its API key.
 
 ### E-mail
 
@@ -54,11 +86,12 @@ GOLIASH_CHANNEL_SMTP_PASSWORD=… goliash channel create -type email -name oncal
 
 ### Web push
 
-A **Web push** channel sends to browsers: desktop notifications in Chrome, Edge, Firefox and Safari, and on phones.
-Add the channel, then press **Notify this browser** next to it in every browser that should get its notifications
-(the browser asks for permission once); **Stop on this browser** takes it off again. Anyone with access to the
-workspace can add their own browsers; the channel shows how many are on it. Rules pick the events as for any other
-channel, so a channel for releases and another for end-of-life drift each go only where they were added.
+Every workspace has one web push channel, **Browser notifications**, made by itself: desktop notifications in
+Chrome, Edge, Firefox and Safari, and on phones. Press **Notify this browser** next to it in every browser that should
+get them (the browser asks for permission once); **Stop on this browser** takes it off again. Anyone with access to
+the workspace can add their own browsers; the channel shows how many are on it. It comes with a rule that sends right
+away what someone should look at now: exploited or critical vulnerabilities, remediation deadlines, stuck rollouts
+and services down, rollbacks and stale agents. Change that rule, or add more, as for any other channel.
 
 A notification shows the item's kind, service and change, and opens Goliash on that service when clicked; digests
 show the first lines. Browsers that unsubscribed or expired are forgotten at the next message.
@@ -99,7 +132,9 @@ and leaves it by itself:
 - **Where it shows.** Updates and the service page show each open ticket's key with a link.
 
 Which upgrades get a ticket is up to the channel's rules: a rule for *remediation deadlines* and *vulnerabilities*
-in production, filtered by owner, is a good start. Alerts about something with no upgrade to do file nothing.
+in production, filtered by owner, is a good start. An exploited vulnerability in a service with no newer release
+known (an image of your own) files *fix the exploited vulnerability in 6.0.238*, saying what fixes it (a rebuild on
+its base's current build, say); other alerts with nothing to do file nothing.
 **Create ticket** on an Updates row files one by hand (members); with several trackers, pick one there.
 
 Settings. Every tracker takes a default destination and one per team (the services' owner,
@@ -114,6 +149,17 @@ Settings. Every tracker takes a default destination and one per team (the servic
 | Linear | personal API key | team by key or name |
 
 **Send test** signs in and checks every project, team or repository, filing nothing.
+
+From the command line, with the token in the environment rather than in the arguments:
+
+```sh
+GOLIASH_CHANNEL_TOKEN=glpat-… goliash channel create -type gitlab_issues -name backlog \
+  -project acme/infra -teams "team-payments=acme/payments" -url https://gitlab.example.com
+goliash notify create -channel backlog -events deadline,vulnerability -production -mode instant
+```
+
+The other trackers take `-type github_issues -repo owner/name`, `-type jira -url … -email … -project KEY`,
+`-type linear -team ENG` and `-type shortcut -team payments`.
 
 ## The bell
 
@@ -157,6 +203,11 @@ environments (**Production only** is the last environment, whatever it is called
 or only for releases of at least a given size. Applications are matched by the names the matrix shows
 (after renames and merges, see [Applications and teams](/guide/apps/)): a rule for `webshop` gets every service
 running in it, and a drift only when it is in that application.
+
+**Where it runs** narrows a rule to a place, with the words the matrix filters by: `account:123456789012`,
+`region:eu-central-1`, `os:ubuntu`; every word must match, and `region:eu` matches `eu-central-1` and `eu-west-1`.
+A change in an environment counts where the service runs in it; a new release, where it runs anywhere. Agents gone
+quiet and Goliash's own news are tied to no place and always pass.
 
 A deploy back to an older version (2.4.1 → 2.3.9) is a **rollback**: ⏪ *payments-api @ prod: rolled back from
 2.4.1 to 2.3.9*. Rules for deploys get rollbacks too, and the event type `rollback` (*rollbacks* in the form) sends
@@ -246,7 +297,7 @@ weekly line a security officer follows: how many production services run behind 
 90th percentile of days behind, how many are 30+ and 90+ days behind, end of life passed and near, accepted risk,
 blind spots (with why newest releases are unknown: *2 not a version, 1 checked by agent*), the three longest exposures, the services built on an [outdated base](/guide/security/#built-on-an-outdated-base), the known vulnerabilities of production's images (exploited ones named) and their packages whose [licenses need a look](/guide/security/#licenses), how the week's upgrades went out (the
 pull requests Goliash opened: merged, running, the median from merge to running, and those [merged but not
-deployed](/guide/argocd/#upgrade-with-a-pull-request) with why), and the same numbers a week before. It links to the Security page and, with Goli on, offers **Ask Goli**.
+deployed](/guide/argocd/#upgrade-with-a-pull-request) with why), what AWS charges for [Extended Support](/install/ecs/#rds-and-aurora-databases) of managed services run past the end of standard support (now, and from when on), and the same numbers a week before. It links to the Security page and, with Goli on, offers **Ask Goli**.
 
 ```sh
 goliash notify create -channel ciso -events posture_report -mode weekly
@@ -271,6 +322,19 @@ goliash notify create -channel team-data -events posture_report,deadline -owners
 
 Its other filters do not apply. **Send report now** on the rule sends it at once. For trends over time, the same numbers are
 [metrics](/guide/observability/).
+
+## Deploys brief
+
+The **deploys brief** is the morning look back for whoever runs the deploys. A rule with the event type
+`delivery_brief` (*deploys brief* in the form) sends, daily or on Mondays at the same time as the plan, one short
+message on the day before: how many versions went out and where, what was rolled back (*1 rollback: payments 1.28.0
+→ 1.27.2 in prod*), what is stuck rolling out or down now, how many [low-risk](/guide/versions/#updates) upgrades
+are ready for today, and how many go to a release that gave trouble elsewhere. A quiet day sends nothing. It links
+to the low-risk upgrades on Updates.
+
+```sh
+goliash notify create -channel ops -events delivery_brief -mode daily -timezone Europe/Bratislava
+```
 
 ## Security brief
 
@@ -380,6 +444,9 @@ and Goli can explain each):
 | `evidence_lost` | A deploy's image has no signature, SBOM or provenance though the one it replaced had: the build or its CI changed. |
 | `license` (*AGPL or source-available packages*) | A deploy's image brings an application package under a network copyleft (AGPL, SSPL) or source-available license (BUSL, Elastic) that the image it replaced did not have, as its SBOM declares; see [Licenses](../security/#licenses). |
 | `unexpected_signer` (*not signed by the expected signer*) | A deploy's image is not signed by the **Expected signer** in its service's version policy: unsigned, signed by someone else, or signed with a key that names nobody; see [Who signed it](../security/#who-signed-it). |
+| `quiet_upstream` (*upstreams with no release for a year*) | A running service's public upstream has released nothing for over a year while Goliash kept checking it: it may be unmaintained. Once per service and last release; see [Image hygiene](../matrix/#image-hygiene). |
+| `eol_os` (*images on an operating system past its end of life*) | A running image is built on an operating system release past its end of life on endoflife.date (Debian 11, Alpine 3.18, Amazon Linux 2…): its packages get no more security fixes. Once per service, environment and release; see [Image hygiene](../matrix/#image-hygiene). |
+| `eol_go` (*images with programs built with a Go past its end of life*) | A running image has Go programs built with a Go release past its end of life: the standard library they carry gets no more security fixes. Once per service, environment and Go release; see [Image hygiene](../matrix/#image-hygiene). |
 
 > api @ prod: image grew from 90 MB to 240 MB (+150 MB, +166% with 2.0.0; biggest new layer 145 MB: RUN apt-get install -y chromium)<br>
 > api @ prod: 2.0.0 image is 240 MB, over its 200 MB budget<br>
@@ -473,6 +540,8 @@ If you alert from Prometheus, scrape `GET /metrics` with an API token instead:
 | `goliash_snapshots_pending` | | snapshots received and not processed yet |
 | `goliash_notifications_queued`, `goliash_notifications_failing` | | notifications not sent yet, and those that failed at least once |
 | `goliash_agents` | status | agents online, stale, never connected or revoked |
+| `goliash_agent_info` | agent, version, cloud, account, region, zone, instance_type, os, arch | each agent and where it runs (value 1) |
+| `goliash_target_info` | target, platform, environment, agent, cloud, account, region, zone, instance_type, os, arch | each target and where it runs (value 1) |
 
 Alerts worth having on Goliash itself: `goliash_agents{status="stale"} > 0`, `goliash_snapshots_pending > 20` for
 ten minutes, `goliash_notifications_failing > 0`, and `sum(goliash_leader) != 1` across servers.
@@ -487,3 +556,8 @@ scrape_configs:
 
 Ready-made dashboards and deploy markers on your graphs are on [Grafana dashboard](../grafana/) and
 [SigNoz dashboard](../signoz/); more alerts are in [Metrics and alerts](../observability/#alerts).
+
+## On your desk
+
+[Goli desk bot](/guide/goli-bot/) is a 3D-printable robot of the Goliash mascot that rings a bell when Goliash sends
+a notification.

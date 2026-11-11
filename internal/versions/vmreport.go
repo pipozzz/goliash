@@ -5,6 +5,8 @@ package versions
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"time"
 
@@ -33,6 +35,16 @@ type VMReport struct {
 	Accepted  []VMAccepted
 	// Mitigations of exploited vulnerabilities with no fix: in force, or closed during or after the month.
 	Mitigations []VMMitigation
+	// NotAffected are vulnerabilities said not to affect a service: in force, or withdrawn during or after the month.
+	NotAffected []VMNotAffected
+}
+
+// VMNotAffected is a "not affected" exception, with the service's name.
+type VMNotAffected struct {
+	store.VulnException
+	Service string
+	Auto    string   // why Goliash left it out itself; empty for an exception people recorded
+	CVEs    []string // what it left out for that reason, in that service
 }
 
 // VMMitigation is a mitigation, with the names it applies to.
@@ -106,6 +118,7 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 	if err != nil {
 		return r, err
 	}
+	o.ReleaseSecurity = maps.Clone(o.ReleaseSecurity) // the overview is shared: added to in a copy
 	for id, rels := range all {
 		for _, rel := range rels {
 			if rel.Security != "" {
@@ -162,6 +175,18 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 				r.Exploited = append(r.Exploited, f)
 			}
 		}
+		for _, n := range vulns.NotAffected {
+			if n.Auto == "" {
+				continue
+			}
+			if i := slices.IndexFunc(r.NotAffected, func(x VMNotAffected) bool { return x.Auto == n.Auto && x.Service == n.Service }); i >= 0 {
+				if !slices.Contains(r.NotAffected[i].CVEs, n.Key) {
+					r.NotAffected[i].CVEs = append(r.NotAffected[i].CVEs, n.Key)
+				}
+				continue
+			}
+			r.NotAffected = append(r.NotAffected, VMNotAffected{VulnException: store.VulnException{CVE: n.Key}, Service: n.Service, Auto: n.Auto, CVEs: []string{n.Key}})
+		}
 	}
 	acks, err := st.ListAcks(ctx, sc)
 	if err != nil {
@@ -175,6 +200,11 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 	if ms, err := st.ListMitigationsSince(ctx, sc, from); err == nil {
 		for _, m := range ms {
 			r.Mitigations = append(r.Mitigations, VMMitigation{Mitigation: m, Service: o.Services[m.ServiceID].Name, Environment: o.Envs[m.EnvironmentID].Name})
+		}
+	}
+	if es, err := st.ListVulnExceptionsSince(ctx, sc, from); err == nil {
+		for _, e := range es {
+			r.NotAffected = append(r.NotAffected, VMNotAffected{VulnException: e, Service: o.Services[e.ServiceID].Name})
 		}
 	}
 	for _, a := range acks {

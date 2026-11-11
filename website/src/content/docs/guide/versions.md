@@ -9,14 +9,15 @@ For each service, Goliash picks an **upstream repository**: the one set on the s
 containers run. It lists that repository's tags and keeps the newest versions the policy accepts as releases.
 
 - **Public registries** are checked by the server: Docker Hub, GHCR, Quay, registry.k8s.io, gcr.io,
-  public.ecr.aws, mcr.microsoft.com, registry.gitlab.com and docker.elastic.co.
+  public.ecr.aws, mcr.microsoft.com, registry.gitlab.com, docker.elastic.co, registry.access.redhat.com and cgr.dev.
 - **Private registries**, and private repositories on the public ones, are checked by the server when an admin
   gives it read access under **Settings → Private registries**, else by the agents with credentials from their own
   environment: a configured credential, `docker login`, or Kubernetes pull secrets. See
   [Collectors](/reference/collectors/#private-registries).
 
-New services are checked within a minute, then every hour. **Check upstream now** on a service page, or
-`goliash check`, checks at once.
+New services are checked within a minute, then every hour. **Check now** on a service page, or `goliash check`,
+checks at once; the button also reads the workspace's images again and asks OSV about their packages in the
+background, so a patched image just deployed shows what it fixed within minutes rather than at the next hourly run.
 
 ![A service page: its team, upstream and the latest acceptable release; the Argo CD panel with the applications that deploy it, synced or out of sync, with Open PR → 1.7.0; and its versions over time per environment and cluster](../../../assets/service.png)
 
@@ -154,6 +155,15 @@ marked *declared*.
 
 When the drift ends, a `drift_resolved` event follows.
 
+## Builds tagged with commit hashes
+
+An image tagged with a commit hash (`chat:bca73851`) has no version to compare, so it has no newest *release*.
+For Amazon ECR the agent also reads when each image was pushed (`ecr:DescribeImages`, part of
+`AmazonEC2ContainerRegistryReadOnly`; the policies Goliash ships include it), and the service page shows the
+**newest build** instead: its tag and when it was pushed, leaving out moving tags such as `latest` or `prod`. Under
+each running version it says when that build was pushed, and **newer build** when the registry has one pushed after
+it. Without the permission everything else works, without the times.
+
 ## Updates
 
 **Updates** is a to-do list of upgrades: one line per service (and application) and environment with open end of
@@ -163,10 +173,49 @@ fix](../notifications/#security-releases) the project announced for a release in
 life soon, major, minor, behind the previous environment, patch), production first, then by how long they have been
 open. A *security fix* line says what it fixes (*fixes CVE-2026-…* or *security fix*), and a service under a
 [security watch](../security/#security-watches) carries *watch: php*.
+A service running an exploited vulnerability is on the list even when no newer release of it is known (your own
+image, say): its line says *no newer release known · fix:* and what fixes it — *rebuild on the current
+node:22-alpine* when the current build of its base no longer has it, a base on a newer release of its distribution,
+or the package version that fixes it. Mitigated vulnerabilities, and ones the image's VEX or its distribution says do
+not apply, do not add a line.
+
+A line also says what the upgrade does to known vulnerabilities: *fixes 206 vulnerabilities (2 exploited) · brings
+110 new ones*, and *v3.0.11 still has CVE-…* when it leaves an exploited one. When the version to move to runs
+nowhere yet, Goliash reads its image in the registry before anyone deploys it (the server for registries it reads, the
+agent for the private ones it checks, from 1.202) and asks OSV about its packages, so the answer is there within the
+hour a release appears.
 When the release notes on the way (GitHub or GitLab releases, or the project's own notes pages) say something breaks,
 the line carries *breaking in 2.0.0* (or *in 3 releases*) and quotes them: *2.0.0: Removed the v1 API*. Goliash looks
 for breaking-change headings and labels, `feat!:` commits, removed support, required migrations and incompatible
 changes; read the notes themselves before upgrading, as a project may say it otherwise or not at all.
+Each upgrade carries its **risk**, *low*, *medium* or *high*, with why in its tooltip: release notes that say
+something breaks, or exploited vulnerabilities the new version brings, make it high; a major version or steps on the
+way make it medium; the version to move to running already in another environment or on another target takes it
+down a level (*3.2.0 runs already elsewhere*). Patches and minor versions are low. It is a hint from what Goliash
+knows, not a test: type `low risk` (or `risk:high`) in the filter for the upgrades to do now and those to plan. The
+CSV, the API (`risk`, `risk_reasons`), tickets and the upgrade plan have it too.
+
+What happened where a release already ran counts too. A release **rolled back** in the last 90 days (a rolling
+update flapping back and forth within half an hour aside), or **stuck rolling out** or **down** now, makes every
+upgrade to it, or through it, high risk, and its line says so: *⚠ 1.28.0 rolled back in prod (payments) on
+2026-11-09*. It goes by image and version, so one team's rollback warns every other team running the same image
+before it upgrades; [automatic pull requests](/guide/argocd/#automatic-pull-requests) wait for a person, and the
+filter `troubled` lists them. The API has it as `trouble`.
+
+Some software cannot skip versions on the way up, and its line shows the stops: *via 1.32 → 1.33 · one minor
+version at a time* for Kubernetes (EKS, k3s), *via 27.1.11 → 28.0.14 → 29.0.9 · the newest release of each major
+version on the way* for Nextcloud, Elasticsearch, OpenSearch and Kibana, and GitLab's [required upgrade
+stops](https://docs.gitlab.com/update/upgrade_paths/) for `gitlab/gitlab-ce` and `gitlab/gitlab-ee` (*via 17.5.5-ce.0
+→ 17.8.7-ce.0 → 17.11.6-ce.0*), each stop the newest known release of its line. **Open PR**, the upgrade plan's link and [automatic pull requests](/guide/argocd/#automatic-pull-requests) go
+to the first stop; once it runs, the next one is the line's first. The ticket, the plan and the API (`path`) list them
+all.
+What waits at the platform with no newer version to move to has a line of its own too: a host waiting for a
+reboot (*nothing newer to move to · reboot*), or a managed database, cache or cluster with patches AWS applies in its
+next maintenance window. Type `waiting` in the filter for them all.
+A managed database or cluster AWS keeps running past the end of standard support for a fee says what it costs:
+**Extended Support $292/month** (red once AWS charges, amber before), with the date and how it is counted in its
+tooltip, at US East list prices; see [RDS and Aurora](/install/ecs/#rds-and-aurora-databases) and
+[EKS](/install/ecs/#eks-clusters). The CSV has it as `extended_support_monthly_usd`, the API as `extended_support`.
 With [remediation deadlines](../security/#remediation-deadlines) set, a line says *due in 3 days* or *overdue 5 days*,
 and a *past deadline* tile shows only those.
 Where the running image's [SBOM](../sbom/) is known, a line names the vulnerabilities CISA lists as exploited in the

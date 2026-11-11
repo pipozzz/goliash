@@ -48,6 +48,7 @@ func worse(a, b string) string {
 // TilesView is the tiles page.
 type TilesView struct {
 	Base
+	Kinds   []kind // where the services run, for the filter's buttons
 	Views   ViewTabs
 	GroupBy string
 	Env     string // "" for every environment, an environment's name, or "side" for one board per environment
@@ -114,7 +115,8 @@ type BoardItem struct {
 	Current                  bool   // the application drilled into, on the board behind
 	VT                       string // its view-transition name, so the cell grows into its card
 	VTFront                  string
-	Search                   string // what the page's filter matches: its name, and an application's services
+	Search                   string   // what the page's filter matches: its name, and an application's services
+	Kinds                    []string // where its services run (kubernetes, lambda …), as icons
 }
 
 // TileEnv is a cell's state in one environment.
@@ -144,12 +146,33 @@ func envState(c MatrixCell, latest string) string {
 		st = stUnknown
 	}
 	for _, d := range c.Drifts {
+		if d.Kind == "eol" && d.Soon && runsLatest(c, latest) {
+			continue // its end of life comes, and there is nothing newer to move to yet: nothing to do now
+		}
 		if d.Kind == "eol" || d.Kind == "inconsistent" || d.Kind == "exploited" || d.Kind == "rollout" || d.Kind == "gitops" {
 			return stAttention
 		}
 		st = stBehind
 	}
 	return st
+}
+
+// runsLatest reports whether a cell runs the newest release known, through a moving tag or not.
+func runsLatest(c MatrixCell, latest string) bool {
+	l, ok := versions.ParseVersion(latest)
+	if !ok || len(c.Versions) == 0 {
+		return false
+	}
+	for _, v := range c.Versions {
+		tag := v.Tag
+		if v.Resolved != "" {
+			tag = v.Resolved
+		}
+		if r, ok := versions.ParseVersion(tag); !ok || r.Compare(l) < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func versionOf(c MatrixCell) string {
@@ -255,6 +278,7 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		env = ""
 	}
 	groups := groupRows(g.Rows, v.GroupBy)
+	v.Kinds = kindOptions(g.Rows)
 	if v.App != "" {
 		var rows []MatrixRow
 		for _, grp := range groups {
@@ -292,12 +316,21 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 		} else {
 			v.AppGrid.Groups = []MatrixGroup{{Rows: rows}}
 		}
+		// A service that runs as several applications here (proxysql for four databases) is one cell each: their
+		// application tells them apart.
+		times := map[string]int{}
+		for _, row := range rows {
+			times[row.Service]++
+		}
 		for _, row := range rows {
 			c, running, runEnv := service(row, g.Envs, env)
 			if c.State == stNone {
 				continue
 			}
-			it := BoardItem{Key: c.Key, Name: c.Service, Caption: c.Owner, Href: "#" + c.Key, State: c.State, Envs: c.Envs, Total: 1, Span: 1}
+			it := BoardItem{Key: c.Key, Name: c.Service, Caption: c.Owner, Href: "#" + c.Key, State: c.State, Envs: c.Envs, Total: 1, Span: 1, Kinds: row.Kinds}
+			if times[row.Service] > 1 && row.App != "" {
+				it.Caption = strings.TrimSuffix(row.App+" · "+c.Owner, " · ")
+			}
 			if c.State == stCurrent {
 				it.OK = 1
 			}
@@ -310,6 +343,7 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request, p auth.Principal)
 					it.Headline = runEnv + " " + it.Headline
 				}
 			}
+			it.Search = strings.ToLower(strings.Join([]string{it.Name, it.Caption, it.Headline, kindTokens(it.Kinds)}, " "))
 			v.Counts.add(c.State)
 			v.Items = append(v.Items, it)
 			v.Panels = append(v.Panels, c)
@@ -771,7 +805,12 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 			if c.State == stNone {
 				continue
 			}
-			search = append(search, row.Service, row.Owner, running)
+			search = append(search, row.Service, row.Owner, running, kindTokens(row.Kinds))
+			for _, k := range row.Kinds {
+				if !slices.Contains(it.Kinds, k) {
+					it.Kinds = append(it.Kinds, k)
+				}
+			}
 			it.Total++
 			if c.State == stCurrent {
 				it.OK++
@@ -787,6 +826,7 @@ func appItems(v TilesView, groups []MatrixGroup, envs []EnvHeader, env string) (
 			continue
 		}
 		it.Search = strings.ToLower(strings.Join(search, " "))
+		it.Kinds = sortKinds(it.Kinds)
 		sort.Slice(it.Dots, func(a, b int) bool { return stateRank[it.Dots[a]] < stateRank[it.Dots[b]] })
 		for i, st := range envStates {
 			it.Envs = append(it.Envs, TileEnv{Env: envs[i].Name, State: st, Title: envs[i].Name + ": " + tileLabel(st)})

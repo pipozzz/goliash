@@ -93,12 +93,12 @@ func TestTwoFactorSignIn(t *testing.T) {
 	// A sign-in link also asks for the code; a recovery link does not.
 	link, _ := h.auth.LoginLink(ctx, u)
 	c4 := browser()
-	if code, _ := get(t, c4, link); code != http.StatusSeeOther || signedIn(c4) {
+	if code, _ := useLink(t, c4, link); code != http.StatusSeeOther || signedIn(c4) {
 		t.Fatalf("link skipped the second factor: %d", code)
 	}
 	rec, _ := h.auth.RecoveryLink(ctx, u)
 	c5 := browser()
-	get(t, c5, rec)
+	useLink(t, c5, rec)
 	if !signedIn(c5) {
 		t.Fatal("recovery link did not sign in")
 	}

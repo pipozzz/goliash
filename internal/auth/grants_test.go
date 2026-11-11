@@ -113,7 +113,7 @@ func TestDisabledSignIn(t *testing.T) {
 	_ = h.st.SetMembership(ctx, u.ID, h.ws.ID, store.RoleViewer)
 	c := h.client()
 	link, _ := h.auth.LoginLink(ctx, u)
-	get(t, c, link)
+	useLink(t, c, link)
 	if _, who := get(t, c, h.srv.URL+"/whoami"); who == "" {
 		t.Fatal("not signed in before")
 	}
@@ -125,7 +125,7 @@ func TestDisabledSignIn(t *testing.T) {
 	}
 	link, _ = h.auth.LoginLink(ctx, u)
 	c = h.client()
-	get(t, c, link)
+	useLink(t, c, link)
 	if _, who := get(t, c, h.srv.URL+"/whoami"); who != "" {
 		t.Errorf("a deactivated person signed in with a link: %q", who)
 	}

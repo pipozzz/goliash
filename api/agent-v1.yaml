@@ -188,6 +188,30 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
 
+  /agent/v1/code-packages:
+    post:
+      operationId: postCodePackages
+      summary: Send the packages read from workloads' code
+      description: |
+        The package URLs in the code of .zip Lambda functions (node_modules, Python dist-info, jars, Go build
+        information, gemspecs, deps.json), by the code digest the snapshot names. Sent once per digest; the code
+        itself never leaves the agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodePackagesList'
+      responses:
+        '202':
+          description: Packages accepted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
   /agent/v1/heartbeat:
     post:
       operationId: postHeartbeat
@@ -289,6 +313,14 @@ components:
           description: "What the agent found but could not use, and why: rds eu-west-1, AccessDenied …"
           items:
             type: string
+        where:
+          type: object
+          description: |
+            Where the agent runs, as far as it can tell, for Goliash to show and filter by: cloud (aws), account,
+            region, zone, instance, instance_type, cluster, platform, os, kernel, arch. Older servers ignore it.
+          additionalProperties:
+            type: string
+          example: {cloud: aws, account: "123456789012", region: eu-west-1, instance: i-0f13cfa9b0e9b58a2}
 
     EnrollRequest:
       type: object
@@ -732,6 +764,16 @@ components:
           items:
             type: string
             pattern: '^sha256:[a-f0-9]{64}$'
+        release_tags:
+          type: array
+          maxItems: 5
+          description: |
+            Tags of releases that run nowhere yet (the version an upgrade would move to): the agent reads the digest
+            each tag points at and inspects it as it does `inspect`, answering with `tag` set, so Goliash can tell
+            which vulnerabilities upgrading fixes before anyone deploys. Older agents ignore it.
+          items:
+            type: string
+            maxLength: 128
 
     DigestLookup:
       type: object
@@ -815,6 +857,12 @@ components:
           items:
             type: string
           example: ["ingress shop.example.com", "LoadBalancer service payments/api"]
+        code_digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+          description: |
+            What a .zip Lambda function version runs, its code and layer versions, as one digest. Its packages are
+            sent once to /agent/v1/code-packages.
         maintenance:
           type: array
           description: |
@@ -823,6 +871,14 @@ components:
           items:
             type: string
           example: ["system-update: New Operating System update is available (auto-applied after 2026-11-10)"]
+        vcpus:
+          type: integer
+          minimum: 0
+          description: |
+            The vCPUs a managed database runs on: an RDS instance's class, or the sum of an Aurora or Multi-AZ
+            cluster's instances. AWS charges Extended Support per vCPU, so the server can tell what it costs. Absent
+            when not known (Aurora Serverless). Older servers ignore it.
+          example: 4
         containers:
           type: array
           description: |
@@ -960,6 +1016,10 @@ components:
         digest:
           type: string
           pattern: '^sha256:[a-f0-9]{64}$'
+        tag:
+          type: string
+          maxLength: 128
+          description: The release tag asked for in `release_tags` whose digest this is; absent for `inspect`.
         signed:
           type: boolean
         sbom:
@@ -1013,6 +1073,14 @@ components:
           type: string
           enum: [sbom, packages]
           description: Where purls come from; absent means the SBOM (agents before 1.141).
+        go_linked:
+          type: array
+          description: |
+            The Go packages the image's Go executables link, read from their line tables when purls come from the
+            packages: a Go advisory about a package none links does not concern the image. Absent when not known.
+            Older servers ignore it.
+          items:
+            type: string
         components:
           type: string
           maxLength: 2000
@@ -1024,8 +1092,55 @@ components:
           additionalProperties:
             type: string
             maxLength: 200
+        vex:
+          type: array
+          maxItems: 5000
+          description: The OpenVEX statements attached to the image (attestations or referrers), later ones about the same vulnerability in place of earlier; absent when the image has no VEX document.
+          items:
+            $ref: "#/components/schemas/VEXStatement"
         error:
           type: string
+
+    CodePackagesList:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CodePackages'
+
+    CodePackages:
+      type: object
+      required: [digest, purls]
+      properties:
+        digest:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+        purls:
+          type: array
+          maxItems: 20000
+          items: { type: string, maxLength: 500 }
+        error:
+          type: string
+          maxLength: 2000
+          description: What could not be read (a layer without lambda:GetLayerVersion, a download that failed).
+
+    VEXStatement:
+      type: object
+      required: [vulnerability, status]
+      properties:
+        vulnerability: { type: string, maxLength: 100 }
+        status: { type: string, maxLength: 40, description: "not_affected, fixed, affected or under_investigation" }
+        justification: { type: string, maxLength: 100 }
+        impact: { type: string, maxLength: 400 }
+        packages:
+          type: array
+          maxItems: 100
+          description: The package URLs the statement is about; empty for the whole image.
+          items: { type: string, maxLength: 500 }
+        author: { type: string, maxLength: 200 }
 
     DigestMatch:
       type: object
@@ -1050,6 +1165,14 @@ components:
         created_at:
           type: string
           format: date-time
+          description: When the image was pushed (Amazon ECR), for ordering builds tagged with commit hashes.
+        expires_at:
+          type: string
+          format: date-time
+          description: |
+            When the repository's lifecycle policy deletes the image (Amazon ECR), as the agent reads the policy: now
+            or past for an image a count rule leaves out, the push time plus the days of a sinceImagePushed rule.
+            Absent when no rule removes it. Older servers ignore it.
 
     Heartbeat:
       type: object

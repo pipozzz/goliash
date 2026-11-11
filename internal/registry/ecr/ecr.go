@@ -8,6 +8,7 @@ package ecr
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -38,6 +39,8 @@ func Parse(repository string) (account, region, name string, ok bool) {
 // API is the part of the ECR client the lister uses.
 type API interface {
 	ListImages(ctx context.Context, in *ecr.ListImagesInput, opts ...func(*ecr.Options)) (*ecr.ListImagesOutput, error)
+	DescribeImages(ctx context.Context, in *ecr.DescribeImagesInput, opts ...func(*ecr.Options)) (*ecr.DescribeImagesOutput, error)
+	GetLifecyclePolicy(ctx context.Context, in *ecr.GetLifecyclePolicyInput, opts ...func(*ecr.Options)) (*ecr.GetLifecyclePolicyOutput, error)
 	GetAuthorizationToken(ctx context.Context, in *ecr.GetAuthorizationTokenInput, opts ...func(*ecr.Options)) (*ecr.GetAuthorizationTokenOutput, error)
 }
 
@@ -112,6 +115,87 @@ func (l *Lister) ListTags(ctx context.Context, repository, profile string) ([]st
 		in.NextToken = out.NextToken
 	}
 	return tags, nil
+}
+
+// Image is an image of an ECR repository: its digest, its tags (none for an untagged one) and when it was pushed.
+type Image struct {
+	Digest   string
+	Tags     []string
+	PushedAt time.Time
+}
+
+// Images lists every image of an ECR repository, tagged or not (ecr:DescribeImages, in
+// AmazonEC2ContainerRegistryReadOnly).
+func (l *Lister) Images(ctx context.Context, repository, profile string) ([]Image, error) {
+	account, region, name, ok := Parse(repository)
+	if !ok {
+		return nil, fmt.Errorf("%s is not an ECR repository", repository)
+	}
+	api, err := l.client(ctx, region, profile)
+	if err != nil {
+		return nil, err
+	}
+	in := &ecr.DescribeImagesInput{RegistryId: aws.String(account), RepositoryName: aws.String(name), MaxResults: aws.Int32(1000)}
+	var out []Image
+	for page := 0; page < maxPages; page++ {
+		res, err := api.DescribeImages(ctx, in)
+		if err != nil {
+			return nil, fmt.Errorf("ecr DescribeImages %s: %w", name, err)
+		}
+		for _, d := range res.ImageDetails {
+			img := Image{Digest: aws.ToString(d.ImageDigest), Tags: d.ImageTags}
+			if d.ImagePushedAt != nil {
+				img.PushedAt = d.ImagePushedAt.UTC()
+			}
+			out = append(out, img)
+		}
+		if res.NextToken == nil {
+			break
+		}
+		in.NextToken = res.NextToken
+	}
+	return out, nil
+}
+
+// TagTimes returns when each tag of an ECR repository was pushed: what orders builds tagged with commit hashes,
+// which no version does.
+func (l *Lister) TagTimes(ctx context.Context, repository, profile string) (map[string]time.Time, error) {
+	images, err := l.Images(ctx, repository, profile)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]time.Time{}
+	for _, img := range images {
+		if img.PushedAt.IsZero() {
+			continue
+		}
+		for _, t := range img.Tags {
+			out[t] = img.PushedAt
+		}
+	}
+	return out, nil
+}
+
+// LifecyclePolicy returns an ECR repository's lifecycle policy text (ecr:GetLifecyclePolicy, in
+// AmazonEC2ContainerRegistryReadOnly); "" when it has none.
+func (l *Lister) LifecyclePolicy(ctx context.Context, repository, profile string) (string, error) {
+	account, region, name, ok := Parse(repository)
+	if !ok {
+		return "", fmt.Errorf("%s is not an ECR repository", repository)
+	}
+	api, err := l.client(ctx, region, profile)
+	if err != nil {
+		return "", err
+	}
+	out, err := api.GetLifecyclePolicy(ctx, &ecr.GetLifecyclePolicyInput{RegistryId: aws.String(account), RepositoryName: aws.String(name)})
+	var none *types.LifecyclePolicyNotFoundException
+	if errors.As(err, &none) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("ecr GetLifecyclePolicy %s: %w", name, err)
+	}
+	return aws.ToString(out.LifecyclePolicyText), nil
 }
 
 func (l *Lister) client(ctx context.Context, region, profile string) (API, error) {

@@ -44,7 +44,7 @@ type Service struct {
 // Upstreams is the version checker as seen by ingest: which private repositories
 // agents should check, and where their results go.
 type Upstreams interface {
-	PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error)
+	PrivateRepositories(ctx context.Context, sc store.Scope, agentID string) ([]agentproto.RegistryCheck, error)
 	RecordPrivateTags(ctx context.Context, sc store.Scope, repo string, tags []string, checkErr string) error
 	RecordDigestMatches(ctx context.Context, sc store.Scope, repo string, matches map[string]string) error
 	RecordInspections(ctx context.Context, sc store.Scope, repo string, found []agentproto.ImageInspection) error
@@ -135,6 +135,11 @@ func (s *Service) Register(ctx context.Context, a store.Agent, req agentproto.Re
 	if err := s.store.RegisterAgent(ctx, a.Scope, a.ID, req.Version, req.Hostname, platforms); err != nil {
 		return agentproto.RegisterResponse{}, err
 	}
+	if req.Where != nil { // agents before 1.198 do not say: keep what is known
+		if err := s.store.SetAgentWhere(ctx, a.Scope, a.ID, req.Where); err != nil {
+			return agentproto.RegisterResponse{}, err
+		}
+	}
 	if req.Discovered != nil || req.Notes != nil { // agents before 1.152 send neither: keep what is known
 		if err := s.store.SetAgentDiscovery(ctx, a.Scope, a.ID, req.Discovered, req.Notes); err != nil {
 			return agentproto.RegisterResponse{}, err
@@ -160,7 +165,7 @@ func (s *Service) Config(ctx context.Context, a store.Agent) (agentproto.AgentCo
 		Targets:                  make([]agentproto.Target, 0, len(targets)),
 	}
 	if s.upstreams != nil {
-		if cfg.Registries, err = s.upstreams.PrivateRepositories(ctx, a.Scope); err != nil {
+		if cfg.Registries, err = s.upstreams.PrivateRepositories(ctx, a.Scope, a.ID); err != nil {
 			return agentproto.AgentConfig{}, "", err
 		}
 		interval := int(RegistryCheckInterval / time.Second)
@@ -264,6 +269,21 @@ func (s *Service) Heartbeat(ctx context.Context, a store.Agent, hb agentproto.He
 	return agentproto.HeartbeatResponse{ConfigEtag: etag}, nil
 }
 
+// CodePackages keeps the packages an agent read from the code of .zip Lambda functions, as an SBOM of the code
+// digest (Source "code"): the vulnerability report reads it for the instances that run that code.
+func (s *Service) CodePackages(ctx context.Context, a store.Agent, list agentproto.CodePackagesList) error {
+	for _, c := range list.Code {
+		rec := store.ImageSBOM{Repo: store.LambdaCodeRepo, Digest: c.Digest, Purls: c.Purls, Source: "code"}
+		if c.Error != nil {
+			rec.Error = *c.Error
+		}
+		if err := s.store.SetImageSBOM(ctx, a.Scope, rec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RegistryResults records tags an agent found in private registries as releases.
 func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentproto.RegistryResults) error {
 	s.log.DebugContext(ctx, "registry results received", "agent_id", a.ID, "repositories", len(res.Results))
@@ -272,8 +292,26 @@ func (s *Service) RegistryResults(ctx context.Context, a store.Agent, res agentp
 	}
 	for _, r := range res.Results {
 		var tags []string
+		var facts []store.TagTime
 		for _, t := range r.Tags {
 			tags = append(tags, t.Name)
+			if t.CreatedAt == nil {
+				continue
+			}
+			f := store.TagTime{Tag: t.Name, PushedAt: *t.CreatedAt}
+			if t.Digest != nil {
+				f.Digest = *t.Digest
+			}
+			if t.ExpiresAt != nil {
+				f.ExpiresAt = *t.ExpiresAt
+			}
+			facts = append(facts, f)
+		}
+		// When each build went out (it orders those tagged with commit hashes), and when the lifecycle policy deletes it.
+		if len(facts) > 0 && (r.Error == nil || *r.Error == "") {
+			if err := s.store.SetTagFacts(ctx, a.Scope, r.Repository, facts); err != nil {
+				return err
+			}
 		}
 		checkErr := ""
 		if r.Error != nil {

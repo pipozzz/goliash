@@ -9,10 +9,14 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 // layer is a gzip tar of files: path -> content ("" with a .wh. name is a whiteout).
@@ -126,5 +130,75 @@ func TestImagePackagesNone(t *testing.T) {
 	host := strings.TrimPrefix(srv.URL, "http://")
 	if _, err := client().ImagePackages(context.Background(), host+"/acme/app", "sha256:img", Credentials{}); !errors.Is(err, ErrNoPackageDatabase) {
 		t.Errorf("scratch image: %v", err)
+	}
+}
+
+func TestImagePackagesApplication(t *testing.T) {
+	self, err := os.ReadFile(os.Args[0]) //nolint:gosec // the test binary: a Go executable with build information
+	if err != nil {
+		t.Fatal(err)
+	}
+	exe := func() []byte { // a layer with a Go executable, as a scratch image has it
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(gz)
+		_ = tw.WriteHeader(&tar.Header{Name: "usr/local/bin/server", Mode: 0o755, Size: int64(len(self)), Typeflag: tar.TypeReg})
+		_, _ = tw.Write(self)
+		_ = tw.Close()
+		_ = gz.Close()
+		return buf.Bytes()
+	}()
+	srv := packagesServer(t,
+		layer(t, map[string]string{
+			"etc/os-release": "ID=debian\nVERSION_ID=\"12\"\n", "var/lib/dpkg/status": "Package: python3-urllib3\nStatus: install ok installed\nVersion: 1.26.12-1+deb12u1\n",
+			// The distribution's own Python package: known as a deb, not matched again as PyPI's.
+			"usr/lib/python3/dist-packages/urllib3-1.26.12.dist-info/METADATA": "Name: urllib3\nVersion: 1.26.12\n",
+		}),
+		layer(t, map[string]string{
+			"usr/local/lib/python3.12/site-packages/requests-2.31.0.dist-info/METADATA": "Name: requests\nVersion: 2.31.0\n",
+			"app/node_modules/express/package.json":                                     `{"name":"express","version":"4.18.2"}`,
+			"app/node_modules/left-pad/package.json":                                    `{"name":"left-pad","version":"1.0.0"}`,
+		}),
+		// npm prune in a later layer removed left-pad.
+		layer(t, map[string]string{"app/node_modules/.wh.left-pad": ""}),
+		exe,
+	)
+	defer srv.Close()
+	host := strings.TrimPrefix(srv.URL, "http://")
+	sbom, err := client().ImagePackages(context.Background(), host+"/acme/app", "sha256:img", Credentials{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(sbom.Purls, " ")
+	for _, want := range []string{"pkg:deb/debian/python3-urllib3@1.26.12-1+deb12u1", "pkg:pypi/requests@2.31.0", "pkg:npm/express@4.18.2", "pkg:golang/stdlib@"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	for _, not := range []string{"pkg:pypi/urllib3", "left-pad"} {
+		if strings.Contains(got, not) {
+			t.Errorf("read %s: %s", not, got)
+		}
+	}
+}
+
+// A layer compressed with zstd (docker buildx --output compression=zstd) is read as a gzip one.
+func TestImagePackagesZstd(t *testing.T) {
+	gz := layer(t, map[string]string{"etc/os-release": "ID=alpine\nVERSION_ID=3.20.3\n", "lib/apk/db/installed": "P:musl\nV:1.2.5-r0\nA:x86_64\n\n"})
+	zr, err := gzip.NewReader(bytes.NewReader(gz))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw, _ := zstd.NewWriter(&buf)
+	if _, err := io.Copy(zw, zr); err != nil { //nolint:gosec // the test's own small layer
+		t.Fatal(err)
+	}
+	_ = zw.Close()
+	srv := packagesServer(t, buf.Bytes())
+	defer srv.Close()
+	sbom, err := client().ImagePackages(context.Background(), strings.TrimPrefix(srv.URL, "http://")+"/acme/app", "sha256:img", Credentials{})
+	if err != nil || strings.Join(sbom.Purls, " ") != "pkg:apk/alpine/musl@1.2.5-r0?arch=x86_64&os_version=3.20.3" {
+		t.Fatalf("%v %v", sbom.Purls, err)
 	}
 }

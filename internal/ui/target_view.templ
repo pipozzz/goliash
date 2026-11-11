@@ -3,6 +3,11 @@
 
 package ui
 
+import (
+	"net/url"
+	"strings"
+)
+
 templ TargetDetailPage(v TargetDetailView) {
 	@Layout(v.Base) {
 		<div class="head">
@@ -27,6 +32,15 @@ templ TargetDetailPage(v TargetDetailView) {
 						<span class={ "badge", v.Status }>{ v.Status }</span>
 					}
 				</p>
+				if len(v.Where) > 0 {
+					<p class="where-line">
+						for _, it := range v.Where {
+							<a class="where-chip" href={ templ.URL(whereFilter(it)) } title={ it.Label + ": what runs here, on the matrix" }>
+								<span class="muted">{ it.Label }</span> <span class="mono">{ it.Value }</span>
+							</a>
+						}
+					</p>
+				}
 				if v.Error != "" {
 					<p class="error-text">{ v.Error }</p>
 				}
@@ -83,13 +97,16 @@ templ TargetDetailPage(v TargetDetailView) {
 				</svg>
 			</div>
 		</section>
+		if v.Server != nil {
+			@serverPanel(*v.Server)
+		}
 		if v.Workloads == 0 {
 			<section class="panel"><div class="empty">Nothing reported yet. The first report usually arrives within a minute of the collector starting.</div></section>
 		} else {
 			<div class="toolbar">
 				<nav class="segmented" aria-label="Group by">
 					<span class="muted">Group by</span>
-					for _, m := range groupModes {
+					for _, m := range v.GroupModes {
 						if v.GroupBy == m.Key {
 							<a href={ templ.URL("/targets/" + v.ID + "?group=" + m.Key) } class="on" aria-current="page">{ m.Label }</a>
 						} else {
@@ -146,7 +163,7 @@ templ workloadCard(c WorkloadCard) {
 				if c.ShowNamespace {
 					{ c.Namespace + " · " }
 				}
-				{ c.Kind }
+				{ workloadKindLabel(c.Kind) }
 			</span>
 		</header>
 		<div class="wl-version">
@@ -191,4 +208,120 @@ templ workloadCard(c WorkloadCard) {
 			}
 		</footer>
 	</article>
+}
+
+// serverPanel is a Linux server at a glance: what it runs, what waits for it, and how its packages stand.
+templ serverPanel(sv ServerView) {
+	<section class="panel server-panel">
+		<div class="panel-head"><h2>Server</h2></div>
+		<dl class="facts">
+			<div class="fact">
+				<dt>Operating system</dt>
+				<dd>
+					if sv.OSURL != "" {
+						<a href={ templ.URL(sv.OSURL) }>{ sv.OS }</a>
+					} else {
+						{ sv.OS }
+					}
+					if sv.OSEnd != "" {
+						if sv.OSPast {
+							<div><span class="badge eol" title="Its release gets no more security fixes">{ "end of life " + sv.OSEnd }</span></div>
+						} else {
+							<div class="targets">{ "supported until " + sv.OSEnd }</div>
+						}
+					}
+				</dd>
+			</div>
+			<div class="fact">
+				<dt>Reboot</dt>
+				<dd>
+					if sv.Reboot != "" {
+						<span class="badge warn" title={ sv.Reboot }>reboot pending</span>
+						<div class="targets">{ sv.Reboot }</div>
+					} else {
+						<span class="muted">none pending</span>
+					}
+				</dd>
+			</div>
+			<div class="fact">
+				<dt>Package updates</dt>
+				<dd>
+					if sv.Updates != "" {
+						{ sv.Updates }
+					} else {
+						<span class="muted">none counted</span>
+					}
+				</dd>
+			</div>
+			<div class="fact">
+				<dt>Vulnerabilities</dt>
+				<dd>
+					switch {
+						case sv.NotChecked != "":
+							<span class="badge neutral" title={ sv.NotChecked }>not checked</span>
+							<div class="targets">{ sv.NotChecked }</div>
+						case sv.Packages == 0:
+							<span class="muted">packages not read yet</span>
+							<div class="targets">Its agent sends them from 1.236.</div>
+						case sv.Vulns == 0:
+							<span class="badge ok">none known</span>
+							<div class="targets">{ "in " + itoa(sv.Packages) + " packages" }</div>
+						default:
+							<a href={ templ.URL(sv.VulnsURL) }>{ plural(sv.Vulns, "vulnerability", "vulnerabilities") }</a>
+							if sv.Exploited > 0 {
+								<span class="badge eol">{ itoa(sv.Exploited) + " exploited" }</span>
+							}
+							<div class="targets">{ "in " + itoa(sv.Packages) + " packages" }</div>
+					}
+				</dd>
+			</div>
+		</dl>
+		if len(sv.PackageList) > 0 {
+			<details class="server-packages" open?={ sv.Vulns > 0 }>
+				<summary>{ "Packages (" + itoa(len(sv.PackageList)) + ")" }</summary>
+				<div class="toolbar">
+					<input type="search" class="search" data-filter=".server-packages tbody tr" placeholder="Filter packages: openssl, exploited, critical" aria-label="Filter packages" autocomplete="off"/>
+				</div>
+				<div class="scroll" tabindex="0">
+					<table class="cards">
+						<thead><tr><th>Package</th><th>Version</th><th>Vulnerabilities</th><th>Fixed in</th></tr></thead>
+						<tbody>
+							for _, pk := range sv.PackageList {
+								<tr data-search={ pk.Search } class={ templ.KV("muted-row", pk.Vulns == 0) }>
+									<td data-label="Package">
+										if pk.Vulns > 0 {
+											<a href={ templ.URL("/security/vulns?q=" + url.QueryEscape(pk.Name)) }>{ pk.Name }</a>
+										} else {
+											{ pk.Name }
+										}
+									</td>
+									<td data-label="Version" class="mono">{ pk.Version }</td>
+									<td data-label="Vulnerabilities">
+										if pk.Vulns == 0 {
+											<span class="muted">none known</span>
+										} else {
+											{ itoa(pk.Vulns) }
+											if pk.Exploited > 0 {
+												<span class="badge eol">{ itoa(pk.Exploited) + " exploited" }</span>
+											}
+											if pk.Severity != "" {
+												<span class="badge neutral">{ strings.ToLower(pk.Severity) }</span>
+											}
+										}
+									</td>
+									<td data-label="Fixed in" class="mono">
+										if pk.Vulns > 0 && pk.Fix == "" {
+											<span class="muted">no fix yet</span>
+										} else {
+											{ pk.Fix }
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</details>
+		}
+	</section>
 }

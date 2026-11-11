@@ -42,6 +42,26 @@ type Instance struct {
 	Exposed []string
 	// Maintenance is the patches the platform has waiting for a managed service, as its agent reads them.
 	Maintenance []string
+	// VCPUs is the vCPUs a managed database runs on, 0 when not known: AWS charges its Extended Support per vCPU.
+	VCPUs int
+	// CodeDigest is what a .zip Lambda function version runs, its code and layers; its packages are the SBOM of
+	// LambdaCodeRepo@CodeDigest.
+	CodeDigest string
+}
+
+// LambdaCodeRepo is the repository the packages of .zip Lambda functions' code are kept under, by code digest.
+const LambdaCodeRepo = "lambda-code"
+
+// PackagesKey is where an instance's packages are kept (repo@digest of its image, or of its code); "" when nothing
+// identifies them.
+func (i Instance) PackagesKey(repo string) string {
+	switch {
+	case i.CodeDigest != "":
+		return LambdaCodeRepo + "@" + i.CodeDigest
+	case i.Digest != "":
+		return repo + "@" + i.Digest
+	}
+	return ""
 }
 
 // Active reports whether the instance was present in the latest snapshot.
@@ -87,8 +107,14 @@ func (s *Store) ListTargetInstances(ctx context.Context, sc Scope, targetID stri
 		sc.OrgID, sc.WorkspaceID, targetID)
 }
 
+// ListRemovedInstances returns the instances of services removed since since: what deploys replaced.
+func (s *Store) ListRemovedInstances(ctx context.Context, sc Scope, since time.Time) ([]Instance, error) {
+	return s.listInstances(ctx, `WHERE org_id = ? AND workspace_id = ? AND removed_at IS NOT NULL AND removed_at >= ? AND service_id IS NOT NULL
+		ORDER BY removed_at`, sc.OrgID, sc.WorkspaceID, since.UTC())
+}
+
 // ListActiveInstances returns the instances present in each target's latest snapshot.
-func (s *Store) ListActiveInstances(ctx context.Context, sc Scope) ([]Instance, error) {
+func (s *Store) listActiveInstances(ctx context.Context, sc Scope) ([]Instance, error) {
 	return s.listInstances(ctx, `WHERE org_id = ? AND workspace_id = ? AND removed_at IS NULL ORDER BY workload_name, container_name`,
 		sc.OrgID, sc.WorkspaceID)
 }
@@ -159,7 +185,7 @@ func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([
 		)
 		if err := rows.Scan(&i.ID, &i.Scope.OrgID, &i.Scope.WorkspaceID, &i.TargetID, &env, &svc, &i.SuggestedService,
 			&i.WorkloadID, &i.WorkloadKind, &i.Namespace, &i.WorkloadName, &i.ContainerName, &i.Image, &i.Tag, &i.Digest,
-			&i.Running, &i.IsMain, &i.FirstSeenAt, &i.LastSeenAt, &removed, &i.App, &i.AppSource, &i.Team, &desired, &exposed, &maint); err != nil {
+			&i.Running, &i.IsMain, &i.FirstSeenAt, &i.LastSeenAt, &removed, &i.App, &i.AppSource, &i.Team, &desired, &exposed, &maint, &i.CodeDigest, &i.VCPUs); err != nil {
 			return nil, err
 		}
 		if exposed != "" {
@@ -181,7 +207,10 @@ func (s *Store) listInstances(ctx context.Context, where string, args ...any) ([
 
 const instanceColumns = `id, org_id, workspace_id, target_id, environment_id, service_id, suggested_service,
 	workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running, is_main,
-	first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance`
+	first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest, vcpus`
+
+// touchInstances moves a target's running instances' last sighting.
+const touchInstances = `UPDATE instances SET last_seen_at = ? WHERE org_id = ? AND workspace_id = ? AND target_id = ? AND removed_at IS NULL`
 
 // ApplySnapshot writes the instances, removals and events derived from a snapshot
 // and marks the snapshot processed, in one transaction.
@@ -195,18 +224,19 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 			_, err := s.exec(ctx, tx, `
 				INSERT INTO instances (id, org_id, workspace_id, target_id, environment_id, service_id, suggested_service,
 					workload_id, workload_kind, namespace, workload_name, container_name, image, tag, digest, running,
-					is_main, first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+					is_main, first_seen_at, last_seen_at, removed_at, app, app_source, team, desired, exposed, maintenance, code_digest, vcpus)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT (target_id, workload_id, container_name, image, digest) DO UPDATE SET
 					environment_id = excluded.environment_id, service_id = excluded.service_id,
 					suggested_service = excluded.suggested_service, workload_kind = excluded.workload_kind,
 					namespace = excluded.namespace, workload_name = excluded.workload_name, tag = excluded.tag,
 					running = excluded.running, is_main = excluded.is_main, last_seen_at = excluded.last_seen_at,
 					removed_at = NULL, app = excluded.app, app_source = excluded.app_source, team = excluded.team,
-					desired = excluded.desired, exposed = excluded.exposed, maintenance = excluded.maintenance`,
+					desired = excluded.desired, exposed = excluded.exposed, maintenance = excluded.maintenance,
+					code_digest = excluded.code_digest, vcpus = excluded.vcpus`,
 				i.ID, ch.Scope.OrgID, ch.Scope.WorkspaceID, ch.TargetID, nullString(i.EnvironmentID), nullString(i.ServiceID),
 				i.SuggestedService, i.WorkloadID, i.WorkloadKind, i.Namespace, i.WorkloadName, i.ContainerName, i.Image,
-				i.Tag, i.Digest, i.Running, i.IsMain, at, at, i.App, i.AppSource, i.Team, nullInt(i.Desired), strings.Join(i.Exposed, "\n"), strings.Join(i.Maintenance, "\n"))
+				i.Tag, i.Digest, i.Running, i.IsMain, at, at, i.App, i.AppSource, i.Team, nullInt(i.Desired), strings.Join(i.Exposed, "\n"), strings.Join(i.Maintenance, "\n"), i.CodeDigest, i.VCPUs)
 			if err != nil {
 				return err
 			}
@@ -219,6 +249,11 @@ func (s *Store) ApplySnapshot(ctx context.Context, ch SnapshotChanges) error {
 				NewID(), at, ch.TargetID, i.WorkloadID, i.ContainerName, i.Image, i.Digest); err != nil {
 				return err
 			}
+		}
+		// Every instance the target still runs was seen now, written above or not: one statement for all. It does
+		// not count as a change for what is kept of the instances, whose last sightings may lag by cacheTTL.
+		if _, err := tx.ExecContext(ctx, s.rebind(touchInstances), at, ch.Scope.OrgID, ch.Scope.WorkspaceID, ch.TargetID); err != nil { //nolint:gosec // a constant statement
+			return err
 		}
 		for _, id := range ch.Remove {
 			if _, err := s.exec(ctx, tx, `UPDATE instances SET removed_at = ?, running = 0
@@ -385,6 +420,34 @@ func (s *Store) imagePeriods(ctx context.Context, sc Scope, serviceID string, si
 			p.Until = time.Time{}
 		}
 		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// VersionMark is the version an event said an instance changed to, and when.
+type VersionMark struct {
+	Version string
+	At      time.Time
+}
+
+// LastVersions returns, per instance of a target, the version its latest deployed or version_changed event went to:
+// what the history last said ran there.
+func (s *Store) LastVersions(ctx context.Context, sc Scope, targetID string) (map[string]VersionMark, error) {
+	rows, err := s.query(ctx, s.db, `SELECT instance_id, to_version, at FROM events
+		WHERE workspace_id = ? AND target_id = ? AND type IN ('deployed', 'version_changed') AND instance_id IS NOT NULL
+		ORDER BY at, id`, sc.WorkspaceID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]VersionMark{}
+	for rows.Next() {
+		var id string
+		var m VersionMark
+		if err := rows.Scan(&id, &m.Version, &m.At); err != nil {
+			return nil, err
+		}
+		out[id] = m // later events overwrite earlier ones
 	}
 	return out, rows.Err()
 }

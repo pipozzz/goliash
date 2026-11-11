@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -115,7 +116,7 @@ const usage = `Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party|auto]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
+  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|pagerduty|opsgenie|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
                          [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
   goliash channel test -name NAME
@@ -469,6 +470,8 @@ func serve(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	limitMemory(log)
+	servePprof(log)
 	slog.SetDefault(log)
 
 	db, ws, err := openDefault(ctx, *dsn)
@@ -505,9 +508,22 @@ func serve(ctx context.Context, args []string) error {
 	}
 
 	svc := ingest.New(db, log)
-	checker := versions.NewChecker(db, registry.New(), log, *upstreamEvery)
+	reg := registry.New()
+	// A Go module proxy, for the version of a Go program built from a release's checkout: asked only about
+	// modules the Go vulnerability database lists, never a company's own. "off" leaves those programs out.
+	reg.GoProxy = registry.GoProxySetting(os.Getenv("GOLIASH_GOPROXY"))
+	checker := versions.NewChecker(db, reg, log, *upstreamEvery)
 	checker.SetGitHub(versions.NewGitHub(os.Getenv("GOLIASH_GITHUB_TOKEN")))
 	checker.SetGitLab(versions.NewGitLab(os.Getenv("GOLIASH_GITLAB_URL"), os.Getenv("GOLIASH_GITLAB_TOKEN")))
+	// Owners from the CODEOWNERS of the repositories GitOps applications deploy from, read with the GitOps
+	// tokens; GOLIASH_CODEOWNERS=off leaves them out.
+	if r := gitOpsRouter(); len(r) > 0 && os.Getenv("GOLIASH_CODEOWNERS") != "off" {
+		checker.SetCodeOwners(gitops.NewCodeOwners(r).Team)
+	}
+	// Owners of a Backstage catalog's components (a static token from its external access, if it asks for one).
+	if u := os.Getenv("GOLIASH_BACKSTAGE_URL"); u != "" {
+		checker.SetBackstage(versions.NewBackstage(u, os.Getenv("GOLIASH_BACKSTAGE_TOKEN")))
+	}
 	if *eol {
 		checker.SetEOL(versions.NewEOL())
 		// Known vulnerabilities of the packages in running images' SBOMs: osv.dev unless a mirror is named,
@@ -518,6 +534,10 @@ func serve(ctx context.Context, args []string) error {
 		// CISA's catalog of vulnerabilities exploited in the wild, to put those first.
 		if kevURL := os.Getenv("GOLIASH_KEV_URL"); kevURL != "off" {
 			checker.SetKEV(versions.NewKEV(kevURL))
+		}
+		// Debian's security tracker, for what OSV's copy of it lags behind on: no data about the images leaves.
+		if u := os.Getenv("GOLIASH_DEBIAN_TRACKER_URL"); u != "off" {
+			checker.SetDebianTracker(u)
 		}
 		// NVD's CVEs for the version of products built into their images (PostgreSQL, nginx, Keycloak…), named by
 		// the catalog's CPE: only the product and version leave the server.
@@ -639,12 +659,19 @@ func serve(ctx context.Context, args []string) error {
 		if len(tok) < 32 {
 			return errors.New("GOLIASH_SCIM_TOKEN: use at least 32 random characters, e.g. openssl rand -hex 32")
 		}
-		roles, err := auth.ParseGroupRoles(os.Getenv("GOLIASH_GROUP_ROLES"))
+		envRoles, err := auth.ParseGroupRoles(os.Getenv("GOLIASH_GROUP_ROLES"))
 		if err != nil {
 			return err
 		}
+		// The environment's group roles, or those of the single sign-on set up in Goliash.
+		roles := func() auth.GroupRoles {
+			if len(envRoles) > 0 {
+				return envRoles
+			}
+			return authn.CurrentGroupRoles()
+		}
 		mux.Handle("/scim/v2/", scim.New(db, tok, roles, *publicURL, log))
-		log.Info("scim provisioning enabled", "url", strings.TrimSuffix(*publicURL, "/")+"/scim/v2", "group_roles", len(roles))
+		log.Info("scim provisioning enabled", "url", strings.TrimSuffix(*publicURL, "/")+"/scim/v2", "group_roles", len(roles()))
 	}
 	notify.SetGitPins(uiServer.GitPinsNow)
 	notify.SetRollback(uiServer.RollbackOffer)
@@ -732,7 +759,7 @@ func serve(ctx context.Context, args []string) error {
 		Addr: *listen,
 		// Browsers may not send state-changing requests from other origins (CSRF);
 		// agents and API clients send no Origin and are unaffected.
-		Handler: ui.SecurityHeaders(ui.Compress(ui.LimitBodies(guard(csrf.Handler(mux)), 1<<20, "/agent/")),
+		Handler: ui.SecurityHeaders(ui.Compress(ui.Timing(ui.LimitBodies(guard(csrf.Handler(mux)), 1<<20, "/agent/"), log)),
 			strings.HasPrefix(*publicURL, "https://")),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       2 * time.Minute,
@@ -1446,7 +1473,22 @@ func newAuth(ctx context.Context, db *store.Store, log *slog.Logger, publicURL s
 			return nil, err
 		}
 		a.SetOIDC(o)
+		a.SetOIDCFromEnv(true)
 		log.Info("oidc sign-in enabled", "issuer", issuer, "group_roles", len(groups))
+		return a, nil
+	}
+	// Single sign-on set up in Goliash (Settings → Single sign-on). A provider that does not answer leaves the other
+	// ways of signing in working; an admin sees why on the settings page.
+	if ws, err := db.ListWorkspaces(ctx); err == nil && len(ws) > 0 {
+		if v, err := db.GetSSO(ctx, ws[0].OrgID); err == nil {
+			if err := a.ApplySSO(ctx, v); err != nil {
+				log.Error("single sign-on not enabled", "issuer", v.Issuer, "err", err)
+			} else {
+				log.Info("oidc sign-in enabled", "issuer", v.Issuer, "from", "settings")
+			}
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return nil, err
+		}
 	}
 	return a, nil
 }
@@ -2084,7 +2126,7 @@ func splitList(s string) []string {
 
 func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("channel create")
-	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push or inapp")
+	typ := fs.String("type", "", "slack, teams, gchat, discord, telegram, ntfy, grafana, pagerduty, opsgenie, webhook, email, push, inapp, or a tracker: gitlab_issues, github_issues, jira, linear, shortcut")
 	name := fs.String("name", "", "channel name")
 	url := fs.String("url", "", "webhook URL (Slack, Teams workflow, Google Chat, Discord, webhook), or an ntfy topic URL")
 	secret := fs.String("secret", "", "webhook signing secret (HMAC-SHA256)")
@@ -2095,10 +2137,28 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 	smtpFrom := fs.String("smtp-from", "", "sender address for -smtp-addr")
 	smtpUser := fs.String("smtp-username", "", "user name for -smtp-addr")
 	smtpTLS := fs.String("smtp-tls", "", "starttls, tls or none (default: tls on port 465, else starttls)")
+	project := fs.String("project", "", "trackers: the default GitLab project (group/name) or Jira project key")
+	repo := fs.String("repo", "", "github_issues: the default repository, owner/name")
+	team := fs.String("team", "", "linear: the default team (key or name); shortcut: the team's mention name")
+	teams := fs.String("teams", "", "trackers: where each team's tickets go, e.g. \"team-payments=acme/payments, team-data=acme/data\"")
+	labels := fs.String("labels", "", "trackers: more labels, comma-separated")
+	email := fs.String("email", "", "jira (Cloud): the account of the API token")
+	issueType := fs.String("issue-type", "", "jira: the issue type (default Task)")
+	storyType := fs.String("story-type", "", "shortcut: chore (default), bug or feature")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *token == "" { // trackers: keep the token out of argv, where ps shows it
+		*token = os.Getenv("GOLIASH_CHANNEL_TOKEN")
+	}
 	cfg := map[string]any{}
+	set := func(kv ...string) {
+		for i := 0; i+1 < len(kv); i += 2 {
+			if v := strings.TrimSpace(kv[i+1]); v != "" {
+				cfg[kv[i]] = v
+			}
+		}
+	}
 	switch *typ {
 	case "slack", "webhook", "discord", "ntfy", "teams", "gchat":
 		if *url == "" {
@@ -2116,11 +2176,47 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			return errors.New("-url (Grafana) and -token (service account token) are required")
 		}
 		cfg["url"], cfg["token"] = *url, *token
+	case "pagerduty":
+		if *token == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), a PagerDuty service's integration key (Events API v2), is required")
+		}
+		cfg["token"] = *token
+	case "opsgenie":
+		if *token == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), an Opsgenie API integration's key, is required; -url https://api.eu.opsgenie.com for EU accounts")
+		}
+		set("token", *token, "url", strings.TrimSuffix(*url, "/"))
 	case "telegram":
 		if *token == "" || *chatID == "" {
 			return errors.New("-token and -chat-id are required")
 		}
 		cfg["bot_token"], cfg["chat_id"] = *token, *chatID
+	case "gitlab_issues":
+		if *token == "" || !strings.Contains(*project, "/") {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), a token with the api scope, and -project group/name are required; -url for self-managed GitLab")
+		}
+		set("token", *token, "project", *project, "url", strings.TrimSuffix(*url, "/"), "teams", *teams, "labels", *labels)
+	case "github_issues":
+		if *token == "" || strings.Count(*repo, "/") != 1 {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN) and -repo owner/name are required; -url for GitHub Enterprise's API")
+		}
+		set("token", *token, "repo", *repo, "url", strings.TrimSuffix(*url, "/"), "teams", *teams, "labels", *labels)
+	case "jira":
+		if *token == "" || *url == "" || *project == "" {
+			return errors.New("-url, -token (or GOLIASH_CHANNEL_TOKEN) and -project (a key) are required; -email for Jira Cloud")
+		}
+		set("url", strings.TrimSuffix(*url, "/"), "token", *token, "project", strings.ToUpper(*project), "email", *email,
+			"teams", *teams, "issue_type", *issueType, "labels", *labels)
+	case "linear":
+		if *token == "" || *team == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN), a Linear API key, and -team are required")
+		}
+		set("token", *token, "team", *team, "teams", *teams)
+	case "shortcut":
+		if *token == "" {
+			return errors.New("-token (or GOLIASH_CHANNEL_TOKEN) is required")
+		}
+		set("token", *token, "team", *team, "teams", *teams, "story_type", *storyType, "labels", *labels)
 	case "push", "inapp":
 		// Browsers subscribe from the Notifications page; inapp only feeds the bell.
 	case "email":
@@ -2142,7 +2238,7 @@ func channelCreate(ctx context.Context, args []string, out io.Writer) error {
 			}
 		}
 	default:
-		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, webhook, email, push or inapp")
+		return errors.New("-type must be slack, teams, gchat, discord, telegram, ntfy, grafana, pagerduty, opsgenie, webhook, email, push, inapp, gitlab_issues, github_issues, jira, linear or shortcut")
 	}
 	if *name == "" {
 		return errors.New("-name is required")
@@ -2188,13 +2284,14 @@ func channelTest(ctx context.Context, args []string, out io.Writer) error {
 func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("notify create")
 	channel := fs.String("channel", "", "channel name")
-	events := fs.String("events", "", "comma-separated event types (empty: all events), e.g. new_release,drift_detected,agent_stale; updates_plan for the upgrade plan, posture_report for the security posture report, security_brief for the security brief")
+	events := fs.String("events", "", "comma-separated event types (empty: all events), e.g. new_release,drift_detected,agent_stale; updates_plan for the upgrade plan, posture_report for the security posture report, security_brief for the security brief, delivery_brief for the deploys brief")
 	mode := fs.String("mode", "instant", "instant, daily or weekly")
 	services := fs.String("services", "", "only these services")
 	owners := fs.String("owners", "", "only services of these owners")
 	apps := fs.String("apps", "", "only services in these applications")
 	envs := fs.String("envs", "", "only these environments")
 	production := fs.Bool("production", false, "only the last environment (production), whatever it is called")
+	where := fs.String("where", "", "only what runs there, e.g. \"region:eu-central-1 account:123456789012\"")
 	minJump := fs.String("min-jump", "", "new releases: smallest jump to report (patch, minor, major)")
 	digestHour := fs.Int("digest-hour", 8, "hour digests go out, in -timezone")
 	timezone := fs.String("timezone", "", "IANA time zone for -digest-hour and -quiet, e.g. Europe/Bratislava (default UTC)")
@@ -2218,6 +2315,11 @@ func notifyCreate(ctx context.Context, args []string, out io.Writer) error {
 		Services: splitList(*services), Owners: splitList(*owners), Environments: splitList(*envs), Production: *production,
 		Apps: splitList(*apps), MinJump: versions.Jump(*minJump), DigestHour: digestHour, Timezone: *timezone,
 	}
+	w, rest := versions.SplitWhere(*where)
+	if rest = strings.TrimSpace(rest); rest != "" {
+		return fmt.Errorf("-where takes words like region:eu-central-1, not %q", rest)
+	}
+	f.Where = w
 	if *timezone != "" {
 		if _, err := time.LoadLocation(*timezone); err != nil {
 			return fmt.Errorf("-timezone: %w", err)
@@ -2462,6 +2564,7 @@ func inventoryCmd(ctx context.Context, args []string, out io.Writer) error {
 
 func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("hygiene")
+	team := fs.String("team", "", "only the images of services this team owns")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -2471,6 +2574,10 @@ func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
+	versions.SetSharedEOL(versions.NewEOL())
+	if err := versions.WarmEOL(ctx, db, ws.Scope()); err != nil { // operating systems and Go past their end of life
+		_, _ = fmt.Fprintln(os.Stderr, "goliash: "+err.Error()+"; leaving out what is past its end of life")
+	}
 	findings, err := versions.LoadHygiene(ctx, db, ws.Scope())
 	if err != nil {
 		return err
@@ -2478,6 +2585,9 @@ func hygieneCmd(ctx context.Context, args []string, out io.Writer) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "SEVERITY\tKIND\tIMAGE\tDETAIL\tWHERE")
 	for _, f := range findings {
+		if *team != "" && !slices.Contains(f.Teams, *team) {
+			continue
+		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", f.Severity, f.Kind, f.Image, f.Detail, strings.Join(f.Where, "; "))
 	}
 	return tw.Flush()
@@ -2872,6 +2982,14 @@ func gitOpsPulls(demo bool) ui.PullRequester {
 	if demo { // the demo data's repositories are made up: show what would be opened, open nothing
 		return gitops.Demo{}
 	}
+	if r := gitOpsRouter(); len(r) > 0 {
+		return r
+	}
+	return nil
+}
+
+// gitOpsRouter is a provider for each forge with a GitOps token.
+func gitOpsRouter() gitops.Router {
 	var r gitops.Router
 	if token := os.Getenv("GOLIASH_GITOPS_TOKEN"); token != "" {
 		r = append(r, gitops.NewGitHub(token, os.Getenv("GOLIASH_GITOPS_GITHUB_API")))
@@ -2881,9 +2999,6 @@ func gitOpsPulls(demo bool) ui.PullRequester {
 	}
 	if token, base := os.Getenv("GOLIASH_GITOPS_GITEA_TOKEN"), os.Getenv("GOLIASH_GITEA_URL"); token != "" && base != "" {
 		r = append(r, gitops.NewGitea(token, base))
-	}
-	if len(r) == 0 {
-		return nil
 	}
 	return r
 }

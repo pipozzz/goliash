@@ -66,6 +66,7 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 		if err != nil {
 			return opened, err
 		}
+		troubles, _ := versions.Troubles(ctx, s.store, sc, o, time.Now())
 		for _, a := range apps {
 			if a.Blocked(time.Now()) { // Argo CD would not sync it now: the policy waits for the window
 				continue
@@ -79,12 +80,17 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			if !ok || !up.HasLatest {
 				continue
 			}
-			to := s.pullRequestTo(a, up.Latest.Raw)
+			// A product that cannot skip versions goes to its first stop: Kubernetes one minor at a time.
+			to := s.pullRequestTo(a, versions.FirstStop(o, a.ServiceID, a.Tag, up.Latest.Raw))
 			if to == "" {
 				continue
 			}
 			running, ok := versions.ParseVersion(strings.TrimPrefix(a.Tag, "v"))
-			if !ok || !pol.AutoPR[a.Environment].AtLeast(running.JumpTo(up.Latest)) {
+			next, okNext := versions.ParseVersion(strings.TrimPrefix(to, "v"))
+			if !okNext {
+				next = up.Latest
+			}
+			if !ok || !pol.AutoPR[a.Environment].AtLeast(running.JumpTo(next)) {
 				continue // a bigger jump than the policy opens by itself
 			}
 			if _, done := s.pullFor(ctx, sc, a, to); done { // opened once: closed without merging is a no
@@ -106,6 +112,21 @@ func (s *Server) AutoPRs(ctx context.Context) (int, error) {
 			}
 			u.vulns, _ = versions.UpgradeVulns(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
 			u.licenses, _ = versions.UpgradeLicenses(ctx, s.store, sc, a.ServiceID, envID(o, a.Environment), a.Tag, to)
+			// What may break waits for a person: release notes that say so, or exploited vulnerabilities it brings.
+			hold := autoPRHold(versions.BreakingUpTo(o, a.ServiceID, a.Tag, to), u.vulns)
+			if t, ok := troubles[o.Refs[a.ServiceID].Repo+"|"+to]; ok && hold == "" {
+				hold = to + " " + t
+			}
+			if hold != "" {
+				s.autoMu.Lock()
+				first := s.autoHeld[key] == ""
+				s.autoHeld[key] = hold
+				s.autoMu.Unlock()
+				if first {
+					s.log.InfoContext(ctx, "automatic pull request held for a person", "service", svc.Name, "environment", a.Environment, "to", to, "reason", hold)
+				}
+				continue
+			}
 			u.reviewers, u.labels = pol.PRReviewers, pol.PRLabels
 			if _, msg := s.bump(ctx, sc, autoPRActor, u); msg != "" {
 				s.log.WarnContext(ctx, "automatic pull request not opened", "service", svc.Name, "environment", a.Environment, "to", to, "reason", msg)
@@ -153,4 +174,16 @@ func formatAutoPR(m map[string]versions.Jump) string {
 		parts[i] = env + "=" + string(m[env])
 	}
 	return strings.Join(parts, ", ")
+}
+
+// autoPRHold is why an automatic pull request waits for a person, "" when it need not: its release notes say
+// something breaks, or it brings vulnerabilities exploited in the wild.
+func autoPRHold(breaking []string, vulns versions.VulnDelta) string {
+	if len(breaking) > 0 {
+		return "its release notes say something breaks: " + breaking[0]
+	}
+	if n := versions.Exploited(vulns.New); n > 0 {
+		return fmt.Sprintf("it brings %d vulnerabilities exploited in the wild", n)
+	}
+	return ""
 }

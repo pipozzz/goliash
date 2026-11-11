@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -33,6 +34,32 @@ type UnreadRegistry struct {
 	Host     string
 	Services int
 	ECR      bool // Amazon ECR: read by an agent with its IAM role, never with stored credentials
+	// Managed: an AWS managed engine (RDS, ElastiCache …), whose versions the agent asks AWS for; no registry.
+	Managed bool
+	// Error is what an agent last got from the registry, when it got an error.
+	Error string
+	// Items are those services, by name, with the repository each runs from.
+	Items []UnreadService
+}
+
+// UnreadService is a service on an unread registry and the repository its image comes from, without the host.
+type UnreadService struct{ Name, Repo string }
+
+// unreadService names the service with ID id and the repository of ref on its registry.
+func unreadService(o versions.Overview, id string, ref versions.Reference) UnreadService {
+	name := o.Services[id].Name
+	if name == "" {
+		name = id
+	}
+	return UnreadService{Name: name, Repo: strings.TrimPrefix(ref.Repo, versions.RegistryHost(ref.Repo)+"/")}
+}
+
+// sortUnread orders each registry's services by name.
+func sortUnread(l []UnreadRegistry) {
+	sort.Slice(l, func(i, j int) bool { return l[i].Host < l[j].Host })
+	for _, u := range l {
+		sort.Slice(u.Items, func(i, j int) bool { return u.Items[i].Name < u.Items[j].Name })
+	}
 }
 
 // isECR reports whether host is an Amazon ECR registry.
@@ -52,15 +79,15 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 	if err != nil {
 		return nil, nil, err
 	}
-	uses, unread := map[string]int{}, map[string]int{}
+	uses, unread := map[string]int{}, map[string][]UnreadService{}
 	for id, ref := range o.Refs {
 		if ref.Repo == "" || versions.PackageRepo(ref.Repo) {
 			continue
 		}
 		host := versions.RegistryHost(ref.Repo)
 		uses[host]++
-		if versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) {
-			unread[host]++
+		if versions.CheckedByAgent(o.Services[id], ref.Repo, o.Registries) && !versions.Managed(ref.Repo) {
+			unread[host] = append(unread[host], unreadService(o, id, ref))
 		}
 	}
 	var out []RegistryView
@@ -71,10 +98,10 @@ func (s *Server) registriesView(ctx context.Context, sc store.Scope) ([]Registry
 		})
 	}
 	var missing []UnreadRegistry
-	for host, n := range unread {
-		missing = append(missing, UnreadRegistry{Host: host, Services: n, ECR: isECR(host)})
+	for host, items := range unread {
+		missing = append(missing, UnreadRegistry{Host: host, Services: len(items), ECR: isECR(host), Items: items})
 	}
-	sort.Slice(missing, func(i, j int) bool { return missing[i].Host < missing[j].Host })
+	sortUnread(missing)
 	return out, missing, nil
 }
 
@@ -160,4 +187,30 @@ func (s *Server) deleteRegistry(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	s.audit(r.Context(), p, "registry.credentials.delete", "host", host)
 	return back(w, r, "/settings#registries", "notice", "Removed the credentials for "+host+". Agents with their own credentials still read it.")
+}
+
+// shortError is an agent's error as the banner shows it: without the "agent: " prefix, at most a line or two.
+func shortError(e string) string {
+	return truncateRunes(strings.TrimPrefix(e, "agent: "), 220)
+}
+
+var ecrDeniedRole = regexp.MustCompile(`arn:aws:sts::(\d{12}):assumed-role/([^/\s]+)/`)
+
+// ecrCrossAccount reads an ECR refusal that names no resource-based policy: the agent's role is in another account
+// than the repository, and only the repository's own policy can let it read. It returns that role, the repository's
+// account, and the command to run there.
+func ecrCrossAccount(checkErr, repo string) (role, account, command string, ok bool) {
+	if !strings.Contains(checkErr, "no resource-based policy") {
+		return "", "", "", false
+	}
+	m := ecrDeniedRole.FindStringSubmatch(checkErr)
+	acct, region, name, isECR := ecr.Parse(repo)
+	if m == nil || !isECR {
+		return "", "", "", false
+	}
+	role = "arn:aws:iam::" + m[1] + ":role/" + m[2]
+	command = "aws ecr set-repository-policy --region " + region + " --repository-name " + name + " --policy-text '" +
+		`{"Version":"2012-10-17","Statement":[{"Sid":"GoliashRead","Effect":"Allow","Principal":{"AWS":"` + role +
+		`"},"Action":["ecr:ListImages","ecr:DescribeImages","ecr:BatchGetImage","ecr:GetDownloadUrlForLayer"]}]}'`
+	return role, acct, command, true
 }

@@ -146,6 +146,7 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request, p auth.Princip
 	if v.Vulns, err = versions.LoadVulnReport(r.Context(), s.store, p.Scope, v.Prod.ID); err != nil {
 		return err
 	}
+	v.Vulns.Blind = slices.Clone(v.Vulns.Blind) // the report is shared: sorted in a copy
 	sort.Slice(v.Vulns.Blind, func(i, j int) bool {
 		return v.Vulns.Blind[i].Service+v.Vulns.Blind[i].Image < v.Vulns.Blind[j].Service+v.Vulns.Blind[j].Image
 	})
@@ -302,7 +303,7 @@ type BaseRow struct {
 
 // baseRows lists the running services built on a base image past or near its end of life.
 func (s *Server) baseRows(r *http.Request, p auth.Principal) ([]BaseRow, error) {
-	ctx := r.Context()
+	ctx := versions.CacheOnly(r.Context()) // end-of-life dates as known: a page does not wait for endoflife.date
 	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
 	if err != nil {
 		return nil, err
@@ -453,7 +454,8 @@ type VulnsView struct {
 	Base
 	versions.VulnReport
 	Query    string
-	All      bool // every environment, not only the last one
+	Check    *versions.ReleaseCheck // the search is an image: what Goliash knows of it, running or not
+	All      bool                   // every environment, not only the last one
 	EnvName  string
 	Shown    []versions.VulnFinding
 	Hidden   int  // findings not shown (the list is long)
@@ -489,14 +491,49 @@ func (s *Server) vulns(w http.ResponseWriter, r *http.Request, p auth.Principal)
 	if v.VulnReport, err = versions.LoadVulnReport(ctx, s.store, p.Scope, envID); err != nil {
 		return err
 	}
+	if versions.LooksLikeImage(v.Query) {
+		rc, err := versions.CheckRelease(ctx, s.store, p.Scope, v.Query)
+		if err != nil {
+			return err
+		}
+		v.Check = &rc
+		// Read it now: the server reads what it can, and OSV is asked once its packages are known; an agent
+		// reads the rest within minutes of its next look at its configuration.
+		if s.checker != nil && rc.State != versions.CheckReady && rc.State != versions.CheckUnreadable && (!rc.ByAgent || rc.State != versions.CheckRequested) {
+			scope := p.Scope
+			s.checker.RefreshSecurity(scope, func() { s.hub.Publish(scope.WorkspaceID) })
+		}
+	}
 	if rem, err := s.store.Remediation(ctx, p.Scope); err == nil {
 		v.ExploitedDays = rem.Exploited
 	}
-	q := strings.ToUpper(v.Query)
+	// Words about where (region:eu-west-1, account:…) keep the places that match; the rest matches as before.
+	where, rest := versions.SplitWhere(v.Query)
+	var whereIdx map[string][]string
+	if len(where) > 0 {
+		o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+		if err != nil {
+			return err
+		}
+		whereIdx = o.WhereIndex()
+	}
+	q := strings.ToUpper(strings.TrimSpace(rest))
 	v.LooksCVE = versions.CVEOf(q) != "" || strings.HasPrefix(q, "GHSA-")
 	for _, f := range v.Findings {
 		if (q != "" && !versions.FindingMatches(f, q)) || (v.OnlyKEV && f.Exploited == nil) || (v.Exposed && !f.IsExposed()) {
 			continue
+		}
+		if len(where) > 0 {
+			var there []versions.Affected
+			for _, a := range f.Affected {
+				if versions.WhereMatches(whereIdx[a.ServiceID+"|"+a.EnvironmentID], where) {
+					there = append(there, a)
+				}
+			}
+			if len(there) == 0 {
+				continue
+			}
+			f.Affected = there // a copy of the finding: the report is shared
 		}
 		if len(v.Shown) >= 300 {
 			v.Hidden++
@@ -521,10 +558,29 @@ func vulnURL(id string) string { return "https://osv.dev/vulnerability/" + id }
 
 // PackageUse is one package of a finding and where it runs.
 type PackageUse struct {
-	Package string
-	Fix     string
-	Where   []string // "service (env)"
+	Package  string
+	Fix      string
+	Where    []ServicePlace
+	Upstream *versions.UpstreamFix
+	Newer    *versions.NewerRelease
+	Current  string
+	Distro   string
+	Rebuild  string // the base whose current build fixes it, when every image with it was built on an older one
 }
+
+// ServicePlace is a service in one environment, with the versions it runs there that have the package.
+type ServicePlace struct{ Service, Env, Versions string }
+
+// Label is what follows the service's name: the versions with the package, and the environment: " 6.0.240 (prod)".
+func (p ServicePlace) Label() string {
+	if p.Versions == "" {
+		return " (" + p.Env + ")"
+	}
+	return " " + p.Versions + " (" + p.Env + ")"
+}
+
+// URL is the service's page at its security panel.
+func (p ServicePlace) URL() string { return "/services/" + url.PathEscape(p.Service) + "#security" }
 
 // byPackage groups a finding's running images by package, each service once.
 func byPackage(f versions.VulnFinding) []PackageUse {
@@ -535,17 +591,32 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		if !ok {
 			i = len(out)
 			index[a.Package] = i
-			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix})
+			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current, Distro: a.Distro, Rebuild: a.Rebuild})
+		} else if out[i].Rebuild != a.Rebuild {
+			out[i].Rebuild = ""
 		}
-		w := a.Service + " (" + a.Env + ")"
-		if !slices.Contains(out[i].Where, w) {
-			out[i].Where = append(out[i].Where, w)
+		tag := versions.ParseImage(a.Image).Tag
+		if a.Server != "" { // a server's packages: which server, not the OS version
+			tag = "on " + a.Server
+		}
+		j := slices.IndexFunc(out[i].Where, func(w ServicePlace) bool { return w.Service == a.Service && w.Env == a.Env })
+		switch {
+		case j < 0:
+			out[i].Where = append(out[i].Where, ServicePlace{a.Service, a.Env, tag})
+		case tag != "" && !slices.Contains(strings.Split(out[i].Where[j].Versions, ", "), tag):
+			out[i].Where[j].Versions += ", " + tag
 		}
 	}
 	return out
 }
 
 // vulnsHref links the vulnerability list with its filters.
+// vulnsUnfiltered is the page without its exploited and exposed filters.
+func vulnsUnfiltered(v VulnsView) string {
+	v.OnlyKEV, v.Exposed = false, false
+	return vulnsHref(v, "", "")
+}
+
 func vulnsHref(v VulnsView, key, value string) string {
 	q := url.Values{}
 	if v.Query != "" {
@@ -1066,8 +1137,8 @@ func placesText(as []versions.Affected) string {
 }
 
 func (s *Server) createMitigation(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	ret := r.FormValue("return")
-	if ret != "/security/vulns" && !strings.HasPrefix(ret, "/security/vulns?") {
+	ret := r.FormValue("return") // the vulnerabilities page, or the service page it was recorded on
+	if ret != "/security/vulns" && !strings.HasPrefix(ret, "/security/vulns?") && (!strings.HasPrefix(ret, "/services/") || strings.Contains(ret, "//")) {
 		ret = "/security/vulns"
 	}
 	svcID, envID, ok := strings.Cut(r.FormValue("place"), "|")

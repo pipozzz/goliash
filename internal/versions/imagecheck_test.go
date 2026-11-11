@@ -16,6 +16,7 @@ import (
 	"github.com/pipozzz/goliash/internal/registry"
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/store/storetest"
+	"github.com/pipozzz/goliash/pkg/agentproto"
 )
 
 // checkRegistry is a registry holding one signed image with an SBOM attestation.
@@ -58,6 +59,14 @@ func TestCheckImage(t *testing.T) {
 	ws, _ := st.EnsureDefaultWorkspace(ctx)
 	sc := ws.Scope()
 	eol := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/products/debian":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"12","isEol":false,"eolFrom":"2028-06-10"},{"name":"10","isEol":true,"eolFrom":"2022-09-10"}]}}`))
+			return
+		case "/products/go":
+			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.25","isEol":false},{"name":"1.21","isEol":true,"eolFrom":"2024-08-13"}]}}`))
+			return
+		}
 		if r.URL.Path == "/products/nginx" {
 			_, _ = w.Write([]byte(`{"result":{"releases":[{"name":"1.25","isEol":true,"eolFrom":"2024-05-29"},{"name":"1.27","isEol":false,"eolFrom":"2027-04-01"}]}}`))
 			return
@@ -122,8 +131,98 @@ func TestCheckImage(t *testing.T) {
 	if blocking, _ := rules(res); res.Passed || !slices.Equal(blocking, []string{RuleUnsigned, RuleNoSBOM}) {
 		t.Errorf("unsigned: %v %+v", blocking, res)
 	}
+	// Built on Debian 10 with Go 1.21: warned of by default, blocking when asked.
+	old := []byte(`{"bomFormat":"CycloneDX","components":[{"purl":"pkg:deb/debian/libc6@2.28?distro=debian-10"},{"purl":"pkg:golang/stdlib@1.21.4"}]}`)
+	sign := checkRegistry{signer: "https://github.com/acme/web/.github/workflows/release.yml@refs/heads/main"}
+	res = check(sign, ImageCheckRequest{Image: "docker.io/library/nginx:1.27.2", Service: "web", SBOM: old})
+	if blocking, other := rules(res); !res.Passed || len(blocking) != 0 || !slices.Equal(other, []string{RuleEOLOS, RuleEOLGo}) || res.OS != "Debian 10 (buster)" || res.Go != "1.21.4" {
+		t.Errorf("platform end of life: %v %v %+v", blocking, other, res)
+	}
+	res = check(sign, ImageCheckRequest{Image: "docker.io/library/nginx:1.27.2", Service: "web", SBOM: old, FailOn: []string{RuleEOLOS, RuleEOLGo}})
+	if blocking, _ := rules(res); res.Passed || !slices.Equal(blocking, []string{RuleEOLOS, RuleEOLGo}) {
+		t.Errorf("platform end of life blocking: %v %+v", blocking, res)
+	}
 	// none fails on nothing.
 	if res := check(checkRegistry{}, ImageCheckRequest{Image: "docker.io/library/nginx:1.25.4", Service: "web", FailOn: []string{"none"}}); !res.Passed {
 		t.Errorf("none: %+v", res)
+	}
+}
+
+// An image of a registry only the agents read is asked of an agent, and checked once one read it: in CI, before
+// it runs anywhere.
+func TestCheckImageViaAgent(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"}) // runs payments from registry.internal.example, which the agents read
+	const repo = "registry.internal.example/team/payments"
+	log4j := "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1"
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{log4j: {"GHSA-jfh8-c2jp-5v3q"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "GHSA-jfh8-c2jp-5v3q", Aliases: []string{"CVE-2021-44228"}, Severity: "CRITICAL", Fixes: map[string][]string{}})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2021-44228"}})
+
+	check := func() ImageCheck {
+		t.Helper()
+		res, err := l.checker.CheckImage(ctx, l.sc, ImageCheckRequest{Image: repo + ":1.0.1"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if res := check(); !res.Pending {
+		t.Fatalf("not asked of an agent: %+v", res)
+	}
+	if toRead, _ := l.checker.releasesToRead(ctx, l.sc, nil); !slices.Contains(toRead[repo], "1.0.1") {
+		t.Fatalf("the agents are not asked: %v", toRead)
+	}
+	digest := "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	_ = l.st.SetReleaseImage(ctx, l.sc, store.ReleaseImage{Repo: repo, Tag: "1.0.1", Digest: digest})
+	if res := check(); !res.Pending {
+		t.Fatal("checked before its packages arrived")
+	}
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: repo, Digest: digest, Purls: []string{log4j}, Source: "packages"})
+	res := check()
+	if res.Pending || res.Passed || res.Digest != digest || res.SBOMSource != "agent" || res.Packages != 1 || !slices.Contains(res.Exploited, "CVE-2021-44228") {
+		t.Fatalf("check %+v", res)
+	}
+	for _, f := range res.Findings {
+		if f.Rule == RuleUnreadable {
+			t.Fatalf("unreadable after the agent read it: %+v", f)
+		}
+	}
+}
+
+// An image in a repository no service runs yet, on a registry the agents read: asked of them, by tag only.
+func TestCheckNewRepositoryViaAgent(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"}) // runs payments from registry.internal.example, which the agents read
+	const repo = "registry.internal.example/team/ledger"
+
+	res, err := l.checker.CheckImage(ctx, l.sc, ImageCheckRequest{Image: repo + ":0.1.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Pending {
+		t.Fatalf("not asked of an agent: %+v", res)
+	}
+	checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(checks, func(c agentproto.RegistryCheck) bool { return c.Repository == repo })
+	if i < 0 {
+		t.Fatalf("the agents are not asked: %+v", checks)
+	}
+	if c := checks[i]; !slices.Equal(c.ReleaseTags, []string{"0.1.0"}) || c.TagFilter == nil || *c.TagFilter != `^(0\.1\.0)$` {
+		t.Fatalf("check %+v", c)
+	}
+
+	// A repository on a registry no agent reads: no one to ask.
+	res, err = l.checker.CheckImage(ctx, l.sc, ImageCheckRequest{Image: "registry.elsewhere.example/team/ledger:0.1.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Pending {
+		t.Fatalf("waits for no one: %+v", res)
 	}
 }

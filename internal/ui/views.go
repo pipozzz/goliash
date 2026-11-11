@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,6 +65,10 @@ type WorkspacesView struct {
 
 // MatrixView is the home page.
 type MatrixView struct {
+	// Q and Drift are the filter the page opens with (?q=, ?drift=1): written into the filter box, so a link to a
+	// filtered matrix stays filtered when hx-boost swaps the page in.
+	Q     string
+	Drift bool
 	Base
 	Views   ViewTabs
 	Grid    MatrixGrid
@@ -86,9 +91,13 @@ type MatrixGrid struct {
 	Steps    []Step           // first-run checklist, while the matrix is empty
 	Explore  bool             // the viewer may open an Example workspace with example data
 	Unread   []UnreadRegistry // private registries whose services have no known release
+	Watched  []string         // services watched for their releases only, running nowhere Goliash knows
 	Past     bool             // the matrix as of a moment in the past
 	CanAdmin bool
-	gitops   []versions.GitOpsApp // the GitOps applications the grid was built with, for markPRs
+	CanBulk  bool                         // members tick services to set their team at once
+	gitops   []versions.GitOpsApp         // the GitOps applications the grid was built with, for markPRs
+	targets  []store.Target               // the workspace's targets, for the palette
+	where    map[string]map[string]string // where each target runs, by ID
 }
 
 // MatrixGroup is a run of matrix rows under one heading.
@@ -111,7 +120,7 @@ func (g MatrixGroup) healthBar(w float64) (ok, warn, bad float64) {
 // matrixGroupModes are the ways to arrange the matrix, application first. Namespaces
 // are left out: one service usually runs in a different one per environment.
 var matrixGroupModes = []struct{ Key, Label string }{
-	{"app", "Application"}, {"team", "Team"}, {"target", "Target"}, {"status", "Status"}, {"none", "None"},
+	{"app", "Application"}, {"team", "Team"}, {"kind", "Kind"}, {"target", "Target"}, {"place", "Place"}, {"status", "Status"}, {"none", "None"},
 }
 
 // matrixGroupBy returns a known grouping, application by default.
@@ -130,8 +139,11 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		return []MatrixGroup{{Rows: rows}}
 	}
 	targets := map[string]TargetTag{}
-	if by == "target" {
+	switch by {
+	case "target":
 		rows, targets = rowsByTarget(rows)
+	case "place":
+		rows = rowsByPlace(rows)
 	}
 	byKey := map[string][]MatrixRow{}
 	sources := map[string]map[string]bool{}
@@ -146,10 +158,17 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 			}
 		case "status":
 			key = r.Health
+		case "kind":
+			key = kindGroup(r)
 		case "target":
 			key = r.Target
 			if key == "" {
 				key = "not running"
+			}
+		case "place":
+			key = r.Target
+			if key == "" {
+				key = "place unknown"
 			}
 		default:
 			key = fams[r.App].Name
@@ -163,15 +182,24 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 		}
 		byKey[key] = append(byKey[key], r)
 	}
-	last := func(k string) bool { return k == "other" || k == "no owner" || k == "not running" }
+	last := func(k string) bool {
+		return k == "other" || k == "no owner" || k == "not running" || k == "place unknown"
+	}
 	var keys []string
-	if by == "status" {
+	switch by {
+	case "status":
 		for _, sc := range statusColumns {
 			if len(byKey[sc.key]) > 0 {
 				keys = append(keys, sc.key)
 			}
 		}
-	} else {
+	case "kind":
+		for _, g := range append(kindGroupOrder, "not running") {
+			if len(byKey[g]) > 0 {
+				keys = append(keys, g)
+			}
+		}
+	default:
 		for k := range byKey {
 			keys = append(keys, k)
 		}
@@ -199,7 +227,7 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 	}
 	out := make([]MatrixGroup, 0, len(keys))
 	for _, k := range keys {
-		g := MatrixGroup{Name: k, Rows: byKey[k]}
+		g := MatrixGroup{Name: k, Rows: foldKeys(k, byKey[k])}
 		for _, r := range g.Rows {
 			switch r.Health {
 			case "ok":
@@ -235,16 +263,30 @@ func groupRows(rows []MatrixRow, by string) []MatrixGroup {
 // environment's drifts): the services of a cluster or a cloud account. A row running nowhere is kept once, without
 // a target. It returns the targets by name too.
 func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
-	var out []MatrixRow
 	byName := map[string]TargetTag{}
+	out := splitRows(rows, func(_ MatrixRow, t TargetTag) string {
+		byName[t.Name] = t
+		return t.Name
+	})
+	return out, byName
+}
+
+// rowsByPlace splits each row into one per place its targets are (Places): its versions there, under the place.
+func rowsByPlace(rows []MatrixRow) []MatrixRow {
+	return splitRows(rows, func(r MatrixRow, t TargetTag) string { return r.Places[t.ID] })
+}
+
+// splitRows splits each row into one per key its versions' targets have, with Target set to the key: the
+// versions under that key, and the health they have alone. A row whose versions run nowhere stays as it is.
+func splitRows(rows []MatrixRow, keyOf func(MatrixRow, TargetTag) string) []MatrixRow {
+	var out []MatrixRow
 	for _, r := range rows {
 		var targets []string
 		for _, c := range r.Cells {
 			for _, v := range c.Versions {
 				for _, t := range v.On {
-					if !slices.Contains(targets, t.Name) {
-						targets = append(targets, t.Name)
-						byName[t.Name] = t
+					if k := keyOf(r, t); !slices.Contains(targets, k) {
+						targets = append(targets, k)
 					}
 				}
 			}
@@ -260,7 +302,7 @@ func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
 			for i, c := range r.Cells {
 				var vs []VersionView
 				for _, v := range c.Versions {
-					if slices.ContainsFunc(v.On, func(x TargetTag) bool { return x.Name == t }) {
+					if slices.ContainsFunc(v.On, func(x TargetTag) bool { return keyOf(r, x) == t }) {
 						vs = append(vs, v)
 					}
 				}
@@ -280,7 +322,7 @@ func rowsByTarget(rows []MatrixRow) ([]MatrixRow, map[string]TargetTag) {
 			out = append(out, cp)
 		}
 	}
-	return out, byName
+	return out
 }
 
 func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
@@ -296,6 +338,11 @@ func rowFamilies(rows []MatrixRow) map[string]versions.AppFamily {
 func familyCaption(fams map[string]versions.AppFamily, name string, sources map[string]bool) string {
 	for _, f := range fams {
 		if f.Name == name && len(f.Members) > 1 {
+			// A few names say what was merged; dozens of preview environments would only push the table wide.
+			const shown = 4
+			if len(f.Members) > shown+1 {
+				return strings.Join(f.Members[:shown], " · ") + " and " + strconv.Itoa(len(f.Members)-shown) + " more"
+			}
 			return strings.Join(f.Members, " · ")
 		}
 	}
@@ -340,6 +387,12 @@ type MatrixRow struct {
 	NoteTitle string
 	Target    string                  // grouped by target: the one target this row shows
 	Unknown   versions.UnknownService // why the newest release is not known; empty when it is
+	Kinds     []string                // the platforms it runs on (kubernetes, lambda, rds …), for icons and the filter
+	What      string                  // what it is when its name does not say: "PostgreSQL · RDS", "Node.js runtime"
+	Repo      string                  // its image repository
+	Same      string                  // rows of its group with the same image and versions share it, for folding them
+	Where     []string                // where its targets are, as filter words: region:eu-west-1, account:…, os:…
+	Places    map[string]string       // target ID -> the place it is: "AWS 123456789012 · eu-west-1"
 }
 
 // CellPR is a pull request a matrix cell offers or links: to preview, or opened already.
@@ -357,12 +410,18 @@ type MatrixCell struct {
 	StaleTitle   string // set when some of the data comes from targets that stopped reporting
 }
 
+// TargetLink is a target by name, linking to its page.
+type TargetLink struct{ Name, ID string }
+
 // VersionView is one tag running in a cell.
 type VersionView struct {
 	Tag      string
 	Resolved string // the exact release behind a moving tag
 	Running  int
 	Targets  string
+	Links    []TargetLink // the same targets, each a link to its page; on a service page
+	PushedAt time.Time    // when this build was pushed, for a tag that is no version; zero when not known
+	Older    bool         // a newer build is in the registry
 	On       []TargetTag  // the targets it runs on, for grouping by target
 	Drifts   []DriftBadge // the drifts about this version, on a service page
 }
@@ -377,6 +436,7 @@ type DriftBadge struct {
 	Title   string
 	Since   time.Time
 	Running string // the version the drift is about; empty for drifts of the whole environment
+	Soon    bool   // an end of life still to come, not passed
 }
 
 func serviceURL(name string) string { return "/services/" + url.PathEscape(name) }
@@ -396,7 +456,7 @@ func driftBadge(d store.Drift) DriftBadge {
 		b.Label = "end of life"
 		if det.EOL != "" {
 			if t, err := time.Parse("2006-01-02", det.EOL); err == nil && t.After(time.Now()) {
-				b.Label = "EOL " + det.EOL
+				b.Label, b.Soon = "EOL "+det.EOL, true
 			}
 		}
 		b.Title = fmt.Sprintf("Release cycle %s ends support on %s (endoflife.date); running %s%s", det.Other, orDash(det.EOL), det.Running, onTargets(det.On))
@@ -446,6 +506,37 @@ func targetCaption(o versions.Overview, id, env string) string {
 	return env
 }
 
+// foldKeys marks the rows of a group that run the same image at the same versions everywhere (the preview and
+// per-developer copies of one service), so the page folds them under the first: "+12 more like this".
+func foldKeys(group string, rows []MatrixRow) []MatrixRow {
+	key := func(r MatrixRow) string {
+		if r.Repo == "" {
+			return ""
+		}
+		parts := []string{group, r.Repo, r.Health}
+		for _, c := range r.Cells {
+			var tags []string
+			for _, v := range c.Versions {
+				tags = append(tags, v.Tag)
+			}
+			parts = append(parts, strings.Join(tags, ","))
+		}
+		return strings.Join(parts, "|")
+	}
+	count := map[string]int{}
+	for _, r := range rows {
+		count[key(r)]++
+	}
+	out := make([]MatrixRow, len(rows))
+	for i, r := range rows {
+		if k := key(r); k != "" && count[k] > 1 {
+			r.Same = k
+		}
+		out[i] = r
+	}
+	return out
+}
+
 // matrixRow is one matrix line: a service, or its part in one application when its
 // versions are compared per application.
 func matrixRow(o versions.Overview, row versions.Row, part versions.Part) MatrixRow {
@@ -475,6 +566,15 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 				vv.On = append(vv.On, tag)
 			}
 			cell.Versions = append(cell.Versions, vv)
+			for _, id := range v.TargetIDs {
+				r.Where = append(r.Where, versions.WhereTokens(o.Where[id])...)
+				if p := versions.PlaceOf(o.Where[id]); p != "" {
+					if r.Places == nil {
+						r.Places = map[string]string{}
+					}
+					r.Places[id] = p
+				}
+			}
 			for i, id := range v.TargetIDs {
 				if last, ok := o.Stale[id]; ok {
 					stale = append(stale, v.Targets[i]+" last reported "+last.UTC().Format("2006-01-02 15:04 UTC"))
@@ -490,6 +590,8 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		drifts = append(drifts, cell.Drifts...)
 		r.Cells = append(r.Cells, cell)
 	}
+	slices.Sort(r.Where)
+	r.Where = slices.Compact(r.Where)
 	ref := o.Refs[row.Service.ID]
 	if u, ok := o.Upstreams[row.Service.ID]; ok && u.HasLatest {
 		r.Latest = u.Latest.Raw
@@ -501,6 +603,15 @@ func matrixRow(o versions.Overview, row versions.Row, part versions.Part) Matrix
 		r.Note, r.NoteTitle = u.Short, strings.TrimSpace(u.Reason+" "+u.Fix)
 		r.Unknown = versions.UnknownService{Service: row.Service.Name, Repo: ref.Repo, Unknown: u}
 	}
+	var ids []string
+	for _, c := range part.Cells {
+		for _, v := range c.Versions {
+			ids = append(ids, v.TargetIDs...)
+		}
+	}
+	r.Kinds = rowKinds(o, ids)
+	r.What = rowWhat(o.Refs[row.Service.ID].Repo)
+	r.Repo = o.Refs[row.Service.ID].Repo
 	r.Health = healthOf(drifts, true)
 	return r
 }
@@ -539,7 +650,7 @@ var eventLabels = map[string]string{
 var ruleEventLabels = map[string]string{
 	"new_release": "new releases", "drift_detected": "drift", "drift_resolved": "drift resolved",
 	"version_changed": "deploys", "rollback": "rollbacks", "deployed": "first deploys", "removed": "removals", "agent_stale": "stale agents", "rollout": "stuck rollouts", "goliash_release": "new Goliash releases", "gitops": "Argo CD", "pull_request": "pull requests",
-	"vulnerability": "vulnerabilities", "security_release": "security releases", "deadline": "remediation deadlines", "watch": "security watches", "updates_plan": "upgrade plan", "posture_report": "security posture report", "security_brief": "security brief", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "license": "AGPL or source-available packages",
+	"vulnerability": "vulnerabilities", "security_release": "security releases", "deadline": "remediation deadlines", "watch": "security watches", "updates_plan": "upgrade plan", "posture_report": "security posture report", "security_brief": "security brief", "delivery_brief": "deploys brief", "image_grew": "image growth", "image_over_budget": "image over budget", "outdated_base": "outdated base", "evidence_lost": "signature or SBOM lost", "unexpected_signer": "unexpected signer", "quiet_upstream": "quiet upstream", "eol_os": "OS past end of life", "eol_go": "Go past end of life", "license": "AGPL or source-available packages",
 }
 
 func eventViews(evs []store.Event, o versions.Overview) []EventView {
@@ -572,34 +683,36 @@ func eventViews(evs []store.Event, o versions.Overview) []EventView {
 // ServiceView is a service page.
 type ServiceView struct {
 	Base
-	Rollouts       []versions.RolloutIssue // its workloads whose replicas are not where they should be
-	GitOps         []GitOpsView            // the Argo CD applications that deploy it
-	TeamNames      []string                // the workspace's teams, to pick one
-	Security       ServiceSecurity
-	Sizes          LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
-	SizeChange     *SizeChange // what the last deploy changed in the image, when its layers are known
-	Name           string
-	Owner          string
-	OwnerSource    string // "" set by people, "label" or "app" when Goliash set it
-	App            string // placed in this application by hand; empty: from its labels
-	Kind           string
-	Upstream       string
-	RefRepo        string
-	KindShown      string // own or third_party, as chosen or worked out from the image
-	KindAuto       string // the kind worked out from the image, offered as the default
-	KindChosen     bool
-	Latest         string
-	LatestAny      string
-	CheckedAt      time.Time
-	CheckError     string
-	Unknown        versions.UnknownService // why the newest release is not known; empty when it is
-	Private        bool                    // the agents check the upstream
-	PublicRegistry bool                    // the server can try it: "check now"
-	Policy         PolicyForm
-	BuiltOn        *versions.BaseStatus // the image the service is built on, when known
-	Envs           []ServiceEnv
-	Releases       []ReleaseView
-	PolicyFrom     string // service, catalog or default
+	Rollouts    []versions.RolloutIssue // its workloads whose replicas are not where they should be
+	GitOps      []GitOpsView            // the Argo CD applications that deploy it
+	TeamNames   []string                // the workspace's teams, to pick one
+	Security    ServiceSecurity
+	Sizes       LineChart   // the image's size per environment over the last 90 days, in MB; empty when unknown
+	SizeChange  *SizeChange // what the last deploy changed in the image, when its layers are known
+	Name        string
+	Owner       string
+	OwnerSource string // "" set by people, "label", "backstage", "codeowners" or "app" when Goliash set it
+	App         string // placed in this application by hand; empty: from its labels
+	Kind        string
+	Upstream    string
+	RefRepo     string
+	KindShown   string // own or third_party, as chosen or worked out from the image
+	KindAuto    string // the kind worked out from the image, offered as the default
+	KindChosen  bool
+	Latest      string
+	// Build is the newest build in the registry by push time, for a service running a commit hash rather than a
+	// version; nil when its registry gives no push times.
+	Build      *versions.NewestBuild
+	LatestAny  string
+	CheckedAt  time.Time
+	CheckError string
+	Unknown    versions.UnknownService // why the newest release is not known; empty when it is
+	Private    bool                    // the agents check the upstream
+	Policy     PolicyForm
+	BuiltOn    *versions.BaseStatus // the image the service is built on, when known
+	Envs       []ServiceEnv
+	Releases   []ReleaseView
+	PolicyFrom string // service, catalog or default
 	// Where release dates and notes come from: a GitHub owner/repo or a changelog URL,
 	// and why (policy, catalog or image label).
 	NotesGitHub, NotesGitLab, NotesChangelog, NotesFrom string
@@ -619,6 +732,8 @@ type ServiceView struct {
 	// GitOps panel, the page says how to name the service's place in Git.
 	Platforms []string
 	CanPR     bool
+	What      string       // what it is when its name does not say: "PostgreSQL · RDS"
+	Upgrades  []AWSUpgrade // how to upgrade a managed service or a .zip function, per environment behind
 }
 
 // SplitApp is one application of a service that runs in several.
@@ -640,6 +755,11 @@ type ReleaseView struct {
 	Version   string
 	Published time.Time
 	URL       string
+	Runs      []string // the environments running it
+	// Fixes and Still are what upgrading to it does to the exploited vulnerabilities running now, when an open
+	// upgrade moves to it and both images' packages are known: "fixes 2 exploited", and those it leaves.
+	Fixes string
+	Still []string
 }
 
 // PolicyForm holds the version policy as form values.
@@ -802,6 +922,7 @@ type AgentView struct {
 	Version   string
 	Hostname  string
 	Platforms string
+	Where     []WhereItem // where it runs, as it reported: cloud, account, region …
 	LastSeen  time.Time
 	Enrolled  bool     // registers itself with an enrollment code
 	Notes     []string // what it could not use when it last registered
@@ -820,6 +941,10 @@ type TargetView struct {
 	Status       string
 	Error        string
 	LastSnapshot time.Time
+	Where        []WhereItem // where it runs: its agent's place, or for an API target its own region
+	// Machine is the target this one is a part of, on the same machine: a Linux host's operating system and
+	// packages under the Docker engine its agent also collects; empty for a target of its own.
+	Machine string
 }
 
 // AgentsView is the agents and targets page.
@@ -833,12 +958,14 @@ type AgentsView struct {
 	Moves      []AgentOption
 	Envs       []EnvView
 	Codes      []CodeView
+	EnvList    []store.Environment // for moving an enrollment code
 }
 
 // CodeView is an enrollment code on the agents page.
 type CodeView struct {
 	ID       string
 	Env      string
+	EnvID    string
 	Many     bool
 	Agents   int
 	Expires  time.Time // zero: never
@@ -853,6 +980,7 @@ type EnvView struct {
 	Name     string
 	Position int
 	Targets  int
+	Live     int // targets that report: an environment without any can go, with its targets
 }
 
 // TargetEditView is the page that edits one target.
@@ -940,6 +1068,7 @@ type RuleForm struct {
 	Envs       string
 	Production bool // only the last environment
 	Apps       string
+	Where      string // region:eu-central-1 account:…
 	DigestHour int
 	Timezone   string // empty: UTC
 	QuietFrom  int    // -1: no quiet hours
@@ -962,6 +1091,7 @@ type RuleEditView struct {
 // NotificationsView is the notifications page.
 type NotificationsView struct {
 	Base
+	Add      string // ?add=: the channel type the add form opens with
 	Channels []ChannelView
 	Rules    []RuleView
 	SMTP     bool
@@ -1022,6 +1152,8 @@ type AuditView struct {
 
 // SettingsView is the users and tokens page.
 type SettingsView struct {
+	SSOOn   bool   // single sign-on works now
+	SSOName string // its button label
 	Base
 	GroupRoles    bool // roles come from the identity provider's groups
 	Freezes       []FreezeView
@@ -1068,7 +1200,7 @@ func itoa(n int) string { return fmt.Sprint(n) }
 
 // rowSearch is what the matrix filter matches a row against: service, owner, versions and targets.
 func rowSearch(r MatrixRow) string {
-	parts := []string{r.Service, r.Owner, r.Latest, r.App}
+	parts := append([]string{r.Service, r.Owner, r.Latest, r.App, kindTokens(r.Kinds), r.What}, r.Where...)
 	for _, c := range r.Cells {
 		for _, v := range c.Versions {
 			parts = append(parts, v.Tag, v.Resolved, v.Targets)
@@ -1248,6 +1380,8 @@ type HygieneView struct {
 	Findings    []versions.Finding
 	Kinds       []HygieneKind
 	Kind        string // the kind shown; empty for all
+	Team        string // the team whose images are shown; empty for all
+	Teams       []string
 	Total       int
 	DigestHints []DigestHint // targets that report no digest at all, and what to do about it
 }
@@ -1305,6 +1439,9 @@ func eventTitle(kind string) string {
 	}
 	if kind == "posture_report" {
 		return "The Security page in one message for production: exposure days, end of life, accepted risk, the longest exposures; at the digest time, daily or on Mondays"
+	}
+	if kind == "delivery_brief" {
+		return "How the last day's deploys went: what went out where, rollbacks, stuck rollouts, low-risk upgrades ready; daily or on Mondays, nothing on a quiet day"
 	}
 	if kind == "security_brief" {
 		return "What to look at today: new security releases of what runs, watches, exploited vulnerabilities, security upgrades waiting, fixes not deployed; daily or on Mondays, nothing when there is nothing"
@@ -1560,6 +1697,17 @@ type ServiceSecurity struct {
 	Findings         []ServiceFinding
 	Total, Exploited int
 	WithSBOM, More   int
+	NotAffected      []NotAffectedView     // vulnerabilities people said do not affect it
+	Resolved         []versions.Resolution // what its last deploy in each environment closed, in the last 90 days
+}
+
+// resolvedDays is how far back the service page looks for what deploys closed.
+const resolvedDays = 90
+
+// NotAffectedView is a vulnerability left out for a service, and why.
+type NotAffectedView struct {
+	ID, CVE, Why, Note, By, Review string
+	CVEs                           []string // more than one when Goliash left out several for one reason
 }
 
 // ImageSecurity is one running image of the service in one environment.
@@ -1572,13 +1720,42 @@ type ImageSecurity struct {
 	OldBase                           string // the base it is built on an older build of, when it is
 	Rebuild                           string // the image down its chain of bases to rebuild first, when not itself
 	Chain                             string // its chain of bases: "acme/base:1 (current) → alpine:3.20 (outdated)"
+	OS                                string // the operating system it is built on: "Debian 12 (bookworm)"
+	OSEnd                             string // when that release's end of life passed or comes, when it has or soon does
+	OSPast                            bool   // its end of life passed: its packages get no more security fixes
+	Go                                string // the oldest Go its Go programs were built with, when it has any
+	GoPast                            bool   // that Go release is past its end of life
 	Signer, SignerFull                string // who signed it, short and as the certificate names it
+	Vulns, Exploited                  int    // known vulnerabilities in it, and how many are exploited in the wild
+	RebuildFixes                      int    // of those, how many rebuilding it with --pull on its base's current build fixes
+	Blind                             string // why its packages are not known, when they are not
+	Unsupported                       string // why its vulnerabilities are undercounted, when they are
 }
 
 // ServiceFinding is one vulnerability in the service's images.
 type ServiceFinding struct {
 	Key, Summary, Severity, Package, Fix, Envs string
 	Exploited                                  bool
+	// Upstream says what upstream's versions mean when the distribution has no fix: Advice in a sentence, Short in
+	// a few words.
+	Upstream, UpstreamShort string
+	// Newer says which newer release of the image's distribution fixes it, when its own has no fix.
+	Newer, NewerShort string
+	// Unassessed: no fix because the distribution has not assessed it yet.
+	Unassessed bool
+	// Rebuild is the base (node:22-alpine) whose current build fixes it: rebuild the image with --pull.
+	Rebuild string
+	// NoFix: exploited and no fixed version: it is mitigated instead. Mitigations are those in force for this service,
+	// Places where it still runs without one, and MitigateBy the remediation deadline for that.
+	NoFix       bool
+	Mitigations []MitigationView
+	Places      []MitigationPlace
+	MitigateBy  time.Time
+}
+
+// MitigationPlace is an environment of a service a mitigation can be recorded for.
+type MitigationPlace struct {
+	Value, Label string // "<service ID>|<environment ID>", "aws-logs (production)"
 }
 
 // exploitedNote counts the exploited vulnerabilities among some: " (1 exploited)", or nothing.
@@ -1753,4 +1930,12 @@ type PullView struct {
 	MergeToRunning      time.Duration // from merging it to the version running there; 0 unknown
 	MergedAt            time.Time     // merged and not deployed: since when
 	Waiting             string        // merged and not deployed: why, when Goliash can tell
+}
+
+// sinceText is " since Aug 2026", or nothing without a date.
+func sinceText(at string) string {
+	if at == "" {
+		return ""
+	}
+	return " since " + at
 }

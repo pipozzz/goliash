@@ -5,6 +5,7 @@ package versions
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"slices"
 	"sort"
@@ -20,6 +21,68 @@ type SBOMReader interface {
 	ImageSBOM(ctx context.Context, repository, digest string, creds registry.Credentials) (registry.SBOM, error)
 }
 
+// VEXReader reads the OpenVEX statements attached to an image. registry.Client implements it.
+type VEXReader interface {
+	ImageVEX(ctx context.Context, repository, digest string, creds registry.Credentials) ([]registry.VEXStatement, error)
+}
+
+const (
+	vexPerRun  = 20             // images whose VEX documents are read per run
+	vexRefresh = 24 * time.Hour // publishers add statements as they look into new vulnerabilities
+)
+
+// hasVEX reports whether a registry lookup found a VEX document for the image.
+func hasVEX(ev store.ImageEvidence) bool {
+	for _, f := range ev.Found {
+		if strings.HasSuffix(f, " vex") || f == "vex artifact" {
+			return true
+		}
+	}
+	return false
+}
+
+// readVEX reads the VEX documents of running images that have one, a few per run.
+func (c *Checker) readVEX(ctx context.Context, sc store.Scope, keys map[string]bool, evidence map[string]store.ImageEvidence, auth RegistryAuth) error {
+	reader, ok := c.tags.(VEXReader)
+	if !ok {
+		return nil
+	}
+	known, err := c.store.ListImageVEX(ctx, sc)
+	if err != nil {
+		return err
+	}
+	now, read := c.now(), 0
+	for key := range keys {
+		repo, digest, _ := strings.Cut(key, "@")
+		if v, ok := known[key]; !hasVEX(evidence[key]) || !auth.Reads(repo) || (ok && now.Sub(v.FetchedAt) < vexRefresh) || read >= vexPerRun {
+			continue
+		}
+		read++
+		creds, _ := auth.For(repo)
+		list, err := reader.ImageVEX(ctx, repo, digest, creds)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		rec := store.ImageVEX{Repo: repo, Digest: digest, Statements: VEXStatements(list)}
+		if err != nil {
+			rec.Error = err.Error()
+		}
+		if err := c.store.SetImageVEX(ctx, sc, rec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// VEXStatements converts a registry's statements for the store.
+func VEXStatements(list []registry.VEXStatement) []store.VEXStatement {
+	out := make([]store.VEXStatement, 0, len(list))
+	for _, s := range list {
+		out = append(out, store.VEXStatement(s))
+	}
+	return out
+}
+
 // PackageReader reads the operating system packages installed in an image, for an image without an SBOM.
 // registry.Client implements it.
 type PackageReader interface {
@@ -29,6 +92,30 @@ type PackageReader interface {
 // NeedsLicenses reports whether an SBOM was read before licenses were kept, and so is read once more for them.
 func NeedsLicenses(b store.ImageSBOM) bool {
 	return b.Error == "" && len(b.Purls) > 0 && !b.LicensesRead
+}
+
+// appPackagesFrom is when reading an image without an SBOM started to include the application's packages, not
+// only the operating system's. Migrations that make every such image be read again set its read time before it.
+var appPackagesFrom = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+
+// NeedsAppPackages reports whether an image's packages were read from its package database before the application's
+// packages were read too (or none were found then): it is read again, once.
+func NeedsAppPackages(b store.ImageSBOM) bool {
+	if b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom) {
+		return true
+	}
+	// Read before the packages its Go executables link were kept: read again, once, so Go advisories about
+	// packages none links leave its findings.
+	return b.Source == "packages" && !b.GoLinkedRead && b.Error == "" && hasGo(b.Purls)
+}
+
+func hasGo(purls []string) bool {
+	for _, p := range purls {
+		if strings.HasPrefix(p, "pkg:golang/") {
+			return true
+		}
+	}
+	return false
 }
 
 const (
@@ -69,6 +156,10 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	packages, _ := c.tags.(PackageReader)
 	keys := map[string]bool{}
 	for _, in := range active {
+		if in.CodeDigest != "" { // a .zip Lambda function: its agent sends the packages of its code
+			keys[in.PackagesKey("")] = true
+			continue
+		}
 		if in.Digest == "" {
 			continue
 		}
@@ -81,15 +172,15 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		b, have := sboms[key]
 		ev, checked := evidence[key]
 		if auth.Reads(repo) && checked && !ev.CheckedAt.IsZero() && ev.Error == "" && !ev.SBOM && packages != nil && unpacked < packagesPerRun &&
-			(!have || (b.Source == "packages" && b.Error != "" && now.Sub(b.FetchedAt) >= sbomRetry)) {
-			// No SBOM: read the image's own package database, so its system packages are not a blind spot.
+			(!have || (b.Source == "packages" && b.Error != "" && now.Sub(b.FetchedAt) >= sbomRetry) || NeedsAppPackages(b)) {
+			// No SBOM: read the image's own package database and application manifests, so it is not a blind spot.
 			unpacked++
 			creds, _ := auth.For(repo)
 			list, err := packages.ImagePackages(ctx, repo, in.Digest, creds)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: list.Purls, Source: "packages"}
+			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: list.Purls, Source: "packages", GoLinked: list.GoLinked}
 			if err != nil {
 				rec.Error = err.Error()
 			}
@@ -118,26 +209,86 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		sboms[key] = rec
 	}
 
+	// The packages of the bases' current builds that images were built on older builds of: which of an image's
+	// vulnerabilities a rebuild on its base fixes. Read from the layers, as for an image without an SBOM.
+	bases := map[string]bool{}
+	for key := range keys {
+		base, ok := RebuildBase(evidence[key])
+		if !ok || bases[base] {
+			continue
+		}
+		bases[base] = true
+		repo, digest, _ := strings.Cut(base, "@")
+		if b, have := sboms[base]; packages == nil || !auth.Reads(repo) || unpacked >= packagesPerRun ||
+			(have && (b.Error == "" || now.Sub(b.FetchedAt) < sbomRetry)) {
+			continue
+		}
+		unpacked++
+		creds, _ := auth.For(repo)
+		list, err := packages.ImagePackages(ctx, repo, digest, creds)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		rec := store.ImageSBOM{Repo: repo, Digest: digest, Purls: list.Purls, Source: "packages", GoLinked: list.GoLinked}
+		if err != nil {
+			rec.Error = err.Error()
+		}
+		if err := c.store.SetImageSBOM(ctx, sc, rec); err != nil {
+			return err
+		}
+		sboms[base] = rec
+	}
+
+	if err := c.readVEX(ctx, sc, keys, evidence, auth); err != nil {
+		return err
+	}
+
+	// The images of the versions open upgrades move to, that run nowhere yet: what upgrading fixes.
+	releases, err := c.readReleases(ctx, sc, active, auth, sboms)
+	if err != nil {
+		return err
+	}
+
 	// OSV, for the packages of running images whose answer is missing or old.
 	var purls []string
 	seen := map[string]bool{}
-	for key := range keys {
-		for _, p := range sboms[key].Purls {
-			if !seen[p] {
-				seen[p] = true
-				purls = append(purls, p)
+	for _, set := range []map[string]bool{keys, bases, releases} {
+		for key := range set {
+			for _, p := range sboms[key].Purls {
+				if !seen[p] {
+					seen[p] = true
+					purls = append(purls, p)
+				}
 			}
 		}
 	}
 	sort.Strings(purls)
+	if err := c.refreshDebianTracker(ctx, purls); err != nil && ctx.Err() == nil {
+		c.log.WarnContext(ctx, "debian security tracker not read", "err", err)
+	}
 	known, err := c.store.PackageVulnsOf(ctx, purls)
 	if err != nil {
 		return err
 	}
-	var stale []string
+	var stale, amazon []string
 	for _, p := range purls {
 		if k, ok := known[p]; !ok || now.Sub(k.CheckedAt) >= osvTTL {
+			if _, _, _, isAmazon := amazonPurl(p); isAmazon {
+				amazon = append(amazon, p) // Amazon Linux's own advisories: OSV has none
+				continue
+			}
 			stale = append(stale, p)
+		}
+	}
+	if len(amazon) > 0 {
+		answers, err := c.amazonLinuxVulns(ctx, amazon)
+		if err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "amazon linux advisories not read", "err", err)
+		}
+		if len(answers) > 0 {
+			if err := c.store.SetPackageVulns(ctx, answers); err != nil {
+				return err
+			}
 		}
 	}
 	if len(stale) > osvPerRun {
@@ -169,7 +320,12 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 				continue
 			}
 			asked[id] = true
-			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh {
+			if strings.HasPrefix(id, "ALAS") { // Amazon Linux's advisories come with their packages, not from OSV
+				continue
+			}
+			// Kept until it is a week old, or OSV says it changed since (a distribution added a fix).
+			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) &&
+				(slices.Contains(r.Fixes[fixesFormat], fixesFormatNow) || !distroRecord(id)) {
 				continue
 			}
 			fetched++
@@ -190,6 +346,13 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 
 // Affected is one running image a vulnerability is in.
 type Affected struct {
+	// Host is a server's own package, from its package database: its kernel packages are the kernel it runs.
+	// Server names that server (its target).
+	Host   bool
+	Server string
+	// GoUnlinked names the Go packages with the vulnerable code when none of the image's Go executables links any
+	// of them (net/http, for a program without it): the advisory does not concern the image.
+	GoUnlinked                   string
 	Service, Env, Image, Package string
 	Fix                          string // the version of the package that fixes it, when known
 	ServiceID, EnvironmentID     string
@@ -197,6 +360,23 @@ type Affected struct {
 	Exposed                      []string  // how it can be reached from outside its cluster or host, if it can
 	// Mitigation is what was done there instead of an upgrade, for an exploited vulnerability with no fix.
 	Mitigation *store.Mitigation
+	// Upstream is what NVD says of the product upstream, when the distribution's advisory has no fix.
+	Upstream *UpstreamFix
+	// VEX is what the image's publisher says of it, when its VEX document has a statement.
+	VEX *store.VEXStatement
+	// Distro is what the distribution's security tracker says when OSV may lag behind it: DistroNotAffected
+	// (the release never had the vulnerable code) or DistroUndetermined (not assessed yet).
+	Distro string
+	// Newer is a newer release of the image's distribution that fixes it, when its own has no fix; Current names
+	// the image's own release (Debian 12 (bookworm)).
+	Newer   *NewerRelease
+	Current string
+	// Rebuild is the base (node:22-alpine) whose current build no longer has it: the image was built on an older
+	// build of its base, and rebuilding it with --pull fixes it, with no change to the Dockerfile.
+	Rebuild string
+	// EOLOS names the image's operating system release when the package comes from it and it is past its end of
+	// life ("Debian 11 (bullseye)"): no fix will come for that release, a base on a supported one is the remedy.
+	EOLOS string
 }
 
 // VulnFinding is one vulnerability (its CVE when it has one) and the running images it is in.
@@ -294,13 +474,27 @@ type VulnReport struct {
 	// FromPackages counts the images without an SBOM whose system packages Goliash read from the image itself.
 	FromPackages int
 	// Blind are the running images whose packages are not known at all: their vulnerabilities are not either.
-	Blind     []BlindImage
-	Packages  int // distinct packages in those SBOMs
-	Unasked   int // packages OSV has not answered for yet
-	Pending   int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
-	Exploited int // findings CISA lists as exploited in the wild
-	Fixable   int // findings with a fixed version for an affected package
-	PastDue   int // exploited findings still running after CISA's due date
+	Blind []BlindImage
+	// Unsupported are the running images on a distribution release past its security support, or on one OSV has no
+	// advisories for (Amazon Linux, Fedora): OSV's data for it
+	// stops with that support, so its count is too low.
+	Unsupported []BlindImage
+	Packages    int // distinct packages in those SBOMs
+	Unasked     int // packages OSV has not answered for yet
+	Pending     int // advisories whose record (and so their CVE) is not read yet: an answer may be incomplete
+	Exploited   int // findings CISA lists as exploited in the wild
+	Fixable     int // findings with a fixed version for an affected package
+	PastDue     int // exploited findings still running after CISA's due date
+	// NotAffected are the vulnerabilities left out of Findings for a service: people said they do not affect it,
+	// or upstream's version ranges show the version that runs is past the fix.
+	NotAffected []NotAffected
+}
+
+// NotAffected is a vulnerability left out for a service, and why: an exception people recorded, or Goliash's Auto.
+type NotAffected struct {
+	Key, Service, ServiceID, Package string
+	Exception                        store.VulnException // zero when Goliash left it out itself
+	Auto                             string              // why Goliash left it out: upstream fixed it, or a kernel package
 }
 
 // BlindImage is a running image whose packages Goliash does not know, and why.
@@ -312,6 +506,27 @@ type BlindImage struct {
 
 // LoadVulnReport builds the report for the running images, envID limiting it to one environment ("" for all).
 func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
+	return memoized(ctx, "vulns "+sc.WorkspaceID+" "+envID, func() (VulnReport, error) { return sharedVulnReport(ctx, st, sc, envID) })
+}
+
+// vulnTables are the tables the vulnerability report is read from: a kept report is stale once one is written.
+var vulnTables = []string{
+	"instances", "services", "environments", "image_sboms", "osv_packages", "osv_vulns", "known_exploited", "mitigations",
+	"vuln_exceptions", "upstream_cves", "product_releases", "image_vex", "product_vulns", "image_evidence", "tag_resolutions", "distro_statuses",
+}
+
+// vulnCache keeps the reports (see sharedBuilds).
+var vulnCache = sharedBuilds[VulnReport]{ttl: time.Minute, cheap: 250 * time.Millisecond, stale: 5 * time.Minute, rebuild: 15 * time.Second}
+
+// sharedVulnReport is the report reused across requests while its tables are unchanged: every page marks
+// exploited vulnerabilities, and building it goes through every package of every image. It is shared: callers
+// must not change it in place.
+func sharedVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
+	return vulnCache.get(ctx, fmt.Sprintf("%p|%s|%s", st, sc.WorkspaceID, envID), st.Generations(vulnTables...),
+		func(ctx context.Context) (VulnReport, error) { return loadVulnReport(ctx, st, sc, envID) })
+}
+
+func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID string) (VulnReport, error) {
 	var r VulnReport
 	active, err := st.ListActiveInstances(ctx, sc)
 	if err != nil {
@@ -336,18 +551,40 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	for _, e := range envs {
 		envName[e.ID] = e.Name
 	}
+	vex, err := st.ListImageVEX(ctx, sc)
+	if err != nil {
+		return r, err
+	}
+	evidence, err := st.ListImageEvidence(ctx, sc)
+	if err != nil {
+		return r, err
+	}
+	distroStatuses, _, err := st.DistroStatuses(ctx, "Debian")
+	if err != nil {
+		return r, err
+	}
 	type use struct {
-		service, env, image, serviceID, envID string
-		since                                 time.Time
-		exposed                               []string
+		service, env, image, serviceID, envID, key string
+		since                                      time.Time
+		exposed                                    []string
+		host                                       bool   // a server's own packages: its kernel is the one it runs
+		server                                     string // and its name
+	}
+	serverName := map[string]string{}
+	if ts, err := st.ListTargets(ctx, sc); err == nil {
+		for _, t := range ts {
+			if t.Platform == "host" {
+				serverName[t.ID] = t.Name
+			}
+		}
 	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
 	for _, in := range active {
-		if in.Digest == "" || (envID != "" && in.EnvironmentID != envID) {
+		key := in.PackagesKey(ParseImage(in.Image).Repo())
+		if key == "" || (envID != "" && in.EnvironmentID != envID) {
 			continue
 		}
-		key := ParseImage(in.Image).Repo() + "@" + in.Digest
 		if !images[key] {
 			images[key] = true
 			r.Images++
@@ -358,12 +595,29 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				if b.Source == "packages" {
 					r.FromPackages++
 				}
+				if why := undercounted(b.Purls); why != "" {
+					name := svcName[in.ServiceID]
+					if name == "" {
+						name = in.WorkloadName
+					}
+					r.Unsupported = append(r.Unsupported, BlindImage{
+						Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID],
+						Why: why,
+					})
+				}
 			default:
 				name := svcName[in.ServiceID]
 				if name == "" {
 					name = in.WorkloadName
 				}
-				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: blindWhy(b)})
+				why := blindWhy(b)
+				switch {
+				case in.WorkloadKind == "host_os":
+					why = hostBlindWhy(b)
+				case in.CodeDigest != "":
+					why = codeBlindWhy(b)
+				}
+				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: why})
 			}
 		}
 		name := svcName[in.ServiceID]
@@ -371,7 +625,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, in.FirstSeenAt, in.Exposed})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed, in.WorkloadKind == "host_os", serverName[in.TargetID]})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -392,8 +646,14 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	if err != nil {
 		return r, err
 	}
+	rebuilds, err := rebuildBases(ctx, st, images, evidence, sboms, records)
+	if err != nil {
+		return r, err
+	}
 	findings := map[string]*VulnFinding{}
+	where := affectedIndex{}
 	pending := map[string]bool{}
+	eolMemo := map[ImageOS]string{}
 	for p, k := range pv {
 		for _, id := range k.Vulns {
 			rec, have := records[id]
@@ -429,18 +689,60 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				f.Severity = rec.Severity
 			}
 			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
+			var newer *NewerRelease // once a package and advisory, not once an image that has them
+			current := ""
+			if fix == "" {
+				if n, cur, ok := newerReleaseFix(p, rec.Fixes); ok {
+					newer, current = &n, cur
+				}
+			}
+			ids := append([]string{id}, f.Aliases...)
+			distro := distroStatus(distroStatuses, p, ids)
+			if m := minorFor(p, rec.Fixes); m != "" && (distro == "" || distro == DistroUndetermined) {
+				distro = m // the distribution's own record says it plans no update: OSV has it before the tracker
+			}
+			eolOS := ""
+			if fix == "" {
+				eolOS = eolOSOf(ctx, p, eolMemo)
+			}
+			imports := importsFor(p, rec.Fixes)
 			for _, u := range byPurl[p] {
 				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
-				if i := indexAffected(f.Affected, a); i >= 0 {
+				a.GoUnlinked = unlinked(imports, sboms[u.key].GoLinked)
+				a.Host, a.Server = u.host, u.server
+				a.VEX = vexFor(vex[u.key].Statements, ids, p)
+				a.Distro = distro
+				a.Newer, a.Current = newer, current
+				a.EOLOS = eolOS
+				a.Rebuild = rebuilds[u.key].fixes(p, ids)
+				if i := where.index(f, a); i >= 0 {
+					if f.Affected[i].Rebuild == "" {
+						f.Affected[i].Rebuild = a.Rebuild
+					}
 					if f.Affected[i].Fix == "" {
 						f.Affected[i].Fix = fix
+					}
+					if f.Affected[i].VEX == nil {
+						f.Affected[i].VEX = a.VEX
+					}
+					if a.GoUnlinked == "" { // one image that links it keeps the finding
+						f.Affected[i].GoUnlinked = ""
+					}
+					if f.Affected[i].Distro == "" {
+						f.Affected[i].Distro = a.Distro
+					}
+					if f.Affected[i].EOLOS == "" && f.Affected[i].Fix == "" {
+						f.Affected[i].EOLOS = a.EOLOS
+					}
+					if f.Affected[i].Newer == nil && f.Affected[i].Fix == "" {
+						f.Affected[i].Newer, f.Affected[i].Current = a.Newer, a.Current
 					}
 					f.Affected[i].Exposed = union(f.Affected[i].Exposed, u.exposed)
 					if !u.since.IsZero() && (f.Affected[i].Since.IsZero() || u.since.Before(f.Affected[i].Since)) {
 						f.Affected[i].Since = u.since
 					}
 				} else {
-					f.Affected = append(f.Affected, a)
+					where.add(f, a)
 				}
 			}
 		}
@@ -452,6 +754,44 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	mitigations, err := st.ListOpenMitigations(ctx, sc)
 	if err != nil {
 		return r, err
+	}
+	exceptions, err := st.ListOpenVulnExceptions(ctx, sc)
+	if err != nil {
+		return r, err
+	}
+	if upstream, err := st.ListUpstreamCVEs(ctx); err == nil {
+		releases, _ := st.ListProductReleases(ctx)
+		addUpstreamFixes(upstream, releases, findings)
+	}
+	// What people said does not affect a service goes, what upstream fixed before the version that runs, and the
+	// kernel's packages: from the finding, and the finding when nothing is left.
+	listed := map[string]bool{} // not affected entries already listed: a set, not a search through the list
+	for key, f := range findings {
+		kept := f.Affected[:0]
+		for _, a := range f.Affected {
+			if why := autoNotAffected(a); why != "" {
+				if k := f.Key + "|" + a.ServiceID + "|" + a.Package; !listed[k] {
+					listed[k] = true
+					r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Auto: why})
+				}
+				continue
+			}
+			i := slices.IndexFunc(exceptions, func(e store.VulnException) bool {
+				return e.ServiceID == a.ServiceID && (e.CVE == f.Key || slices.Contains(f.Aliases, e.CVE))
+			})
+			if i < 0 {
+				kept = append(kept, a)
+				continue
+			}
+			if k := f.Key + "|exception|" + exceptions[i].ID; !listed[k] {
+				listed[k] = true
+				r.NotAffected = append(r.NotAffected, NotAffected{Key: f.Key, Service: a.Service, ServiceID: a.ServiceID, Package: a.Package, Exception: exceptions[i]})
+			}
+		}
+		f.Affected = kept
+		if len(f.Affected) == 0 {
+			delete(findings, key)
+		}
 	}
 	for _, f := range findings {
 		sort.Strings(f.IDs)
@@ -470,7 +810,7 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					a.Mitigation = m
 				}
 			}
-			f.Fixable = f.Fixable || a.Fix != ""
+			f.Fixable = f.Fixable || a.Fix != "" || a.Newer != nil || a.Rebuild != "" || (a.Upstream != nil && a.Upstream.Affected)
 			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
 				f.Since = a.Since
 			}
@@ -505,6 +845,82 @@ func LoadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	return r, nil
 }
 
+// baseBuild is the current build of an image's base, as a rebuild with --pull would use it: its packages by name,
+// and what OSV says of them.
+type baseBuild struct {
+	name    string            // node:22-alpine
+	purls   map[string]string // package name -> its package URL in the base
+	vulns   map[string]store.PackageVulns
+	records map[string]store.Vuln // for the CVEs an advisory names
+}
+
+// rebuildBases finds, for each running image built on an older build of its base, the base's current build, when
+// its packages are read and asked about.
+func rebuildBases(ctx context.Context, st *store.Store, images map[string]bool, evidence map[string]store.ImageEvidence, sboms map[string]store.ImageSBOM,
+	records map[string]store.Vuln,
+) (map[string]*baseBuild, error) {
+	out := map[string]*baseBuild{}
+	builds := map[string]*baseBuild{}
+	var purls []string
+	for key := range images {
+		base, ok := RebuildBase(evidence[key])
+		if !ok || len(sboms[base].Purls) == 0 {
+			continue
+		}
+		b := builds[base]
+		if b == nil {
+			b = &baseBuild{name: ShortImage(evidence[key].BaseImage), purls: map[string]string{}}
+			for _, p := range sboms[base].Purls {
+				name, _, _ := strings.Cut(purlName(p), " ")
+				b.purls[name] = p
+				purls = append(purls, p)
+			}
+			builds[base] = b
+		}
+		out[key] = b
+	}
+	if len(purls) == 0 {
+		return out, nil
+	}
+	vulns, err := st.PackageVulnsOf(ctx, purls)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range builds {
+		b.vulns, b.records = vulns, records
+	}
+	return out, nil
+}
+
+// fixes names the base when its current build has package p at another version without the vulnerability ids
+// (an advisory and the CVEs it names) name: "" when the image has no such base, the package is not the base's (the image added it), or OSV has not
+// answered for the base's version yet.
+func (b *baseBuild) fixes(p string, ids []string) string {
+	if b == nil {
+		return ""
+	}
+	name, _, _ := strings.Cut(purlName(p), " ")
+	bp, ok := b.purls[name]
+	if !ok || purlVersion(bp) == purlVersion(p) {
+		return ""
+	}
+	k, asked := b.vulns[bp]
+	if !asked {
+		return ""
+	}
+	for _, id := range k.Vulns { // the same vulnerability, under this advisory or another naming its CVE
+		for _, a := range append([]string{id}, b.records[id].Aliases...) {
+			if slices.Contains(ids, a) || (CVEOf(a) != "" && slices.Contains(ids, CVEOf(a))) {
+				return ""
+			}
+		}
+	}
+	return b.name
+}
+
+// PackageLabel is how the vulnerability report names a package: its name and version, "openssl 3.0.2-0ubuntu1.12".
+func PackageLabel(p string) string { return purlName(p) }
+
 // purlName is a package URL as people read it: openssl 3.0.11-1~deb12u2.
 func purlName(p string) string {
 	p = strings.SplitN(p, "?", 2)[0]
@@ -516,6 +932,29 @@ func purlName(p string) string {
 
 func severityRank(s string) int {
 	return map[string]int{"LOW": 1, "MODERATE": 2, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}[strings.ToUpper(s)]
+}
+
+// affectedIndex finds an affected image in a finding by service, environment, image and package without searching
+// its list: a vulnerability in a package every image has is in hundreds of them.
+type affectedIndex map[*VulnFinding]map[string]int
+
+func affectedKey(a Affected) string {
+	return a.Service + "\x00" + a.Env + "\x00" + a.Image + "\x00" + a.Package
+}
+
+func (x affectedIndex) index(f *VulnFinding, a Affected) int {
+	if i, ok := x[f][affectedKey(a)]; ok {
+		return i
+	}
+	return -1
+}
+
+func (x affectedIndex) add(f *VulnFinding, a Affected) {
+	if x[f] == nil {
+		x[f] = map[string]int{}
+	}
+	x[f][affectedKey(a)] = len(f.Affected)
+	f.Affected = append(f.Affected, a)
 }
 
 // indexAffected finds the same service, environment, image and package in list, fix aside.
@@ -674,7 +1113,7 @@ func FindingMatches(f VulnFinding, q string) bool {
 		}
 	}
 	for _, a := range f.Affected {
-		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) {
+		if strings.Contains(strings.ToUpper(a.Package), q) || strings.Contains(strings.ToUpper(a.Service), q) || strings.ToUpper(a.Image) == q {
 			return true
 		}
 	}
@@ -756,10 +1195,33 @@ func productName(cpe string) string {
 }
 
 // blindWhy says why an image's packages are unknown.
+// codeBlindWhy says why the packages of a .zip Lambda function's code are not known.
+func hostBlindWhy(b store.ImageSBOM) string {
+	switch {
+	case b.FetchedAt.IsZero():
+		return "the server's packages are not read yet (an agent before 1.236 does not send them)"
+	case b.Error != "":
+		return "its package database could not be read: " + b.Error
+	}
+	return "no packages found in its package database"
+}
+
+func codeBlindWhy(b store.ImageSBOM) string {
+	switch {
+	case b.FetchedAt.IsZero():
+		return "the code of this .zip function is not read yet (its agent reads a few functions per round)"
+	case b.Error != "":
+		return "its code could not be read: " + b.Error
+	}
+	return "no packages found in its code (no node_modules, Python packages, jars, Go build information, gems or deps.json)"
+}
+
 func blindWhy(b store.ImageSBOM) string {
 	switch {
-	case b.Source == "packages" && strings.Contains(b.Error, "no dpkg or apk package database"):
-		return "no SBOM, and no dpkg or apk package database (scratch, distroless, RPM-based or built from source)"
+	case b.Source == "packages" && strings.Contains(b.Error, "Berkeley DB"):
+		return "no SBOM, and its RPM database is a Berkeley DB (RHEL 8, Amazon Linux 2 and older), which Goliash does not read"
+	case b.Source == "packages" && (strings.Contains(b.Error, "no dpkg or apk package database") || strings.Contains(b.Error, "no dpkg, apk or RPM package database")):
+		return "no SBOM, no dpkg, apk or RPM package database and no application manifests (scratch, distroless or built from source)"
 	case b.Error != "":
 		return "no SBOM; " + readFailure(b.Error)
 	case b.FetchedAt.IsZero():
@@ -799,4 +1261,18 @@ func union(a, b []string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// unlinked names the packages an advisory's vulnerable code is in, when the image's Go executables link none of them;
+// "" when it does not say, nothing is known of what they link, or one of them is linked.
+func unlinked(imports, linked []string) string {
+	if len(imports) == 0 || linked == nil {
+		return ""
+	}
+	for _, p := range imports {
+		if _, found := slices.BinarySearch(linked, p); found {
+			return ""
+		}
+	}
+	return strings.Join(imports, ", ")
 }

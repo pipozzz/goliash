@@ -1,0 +1,31 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+// kindIcons shows where a service runs, one small icon per kind.
+templ kindIcons(keys []string) {
+	if len(keys) > 0 {
+		<span class="kind-icons">
+			for _, key := range keys {
+				if k, ok := kindOf(key); ok {
+					<svg class="kind-icon" viewBox="0 0 16 16" width="14" height="14" role="img" aria-label={ k.Label }><title>{ k.Label }</title><path d={ k.Icon }></path></svg>
+				}
+			}
+		</span>
+	}
+}
+
+// kindFilter offers the kinds present as buttons that add type:<kind> to the filter box named by input.
+templ kindFilter(options []kind, input string) {
+	if len(options) > 0 {
+		<div class="kind-filter" role="group" aria-label="Filter by where it runs">
+			for _, k := range options {
+				<button type="button" class="kind-chip" data-kind-token={ "type:" + k.Key } data-kind-input={ input } aria-pressed="false">
+					<svg class="kind-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d={ k.Icon }></path></svg>
+					{ k.Label }
+				</button>
+			}
+		</div>
+	}
+}

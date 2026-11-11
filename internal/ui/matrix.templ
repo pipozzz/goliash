@@ -49,9 +49,24 @@ templ MatrixPage(v MatrixView) {
 					</nav>
 				}
 				if v.At == "" && len(v.Grid.Rows) > 0 {
-					<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off"/>
-					<label class="check"><input type="checkbox" id="matrix-drift"/> Only with drift</label>
+					<input type="search" id="matrix-q" class="search" placeholder="Filter services, owners, versions, region:…" title="Words match services, owners and versions; region:eu-west-1, account:…, os:ubuntu, instance:… match where they run" aria-label="Filter services" aria-keyshortcuts="/" autocomplete="off" value={ v.Q }/>
+					<label class="check"><input type="checkbox" id="matrix-drift" checked?={ v.Drift }/> Only with drift</label>
+					@kindFilter(kindOptions(v.Grid.Rows), "matrix-q")
 					<span class="muted" id="matrix-count" aria-live="polite"></span>
+					if v.CanMember {
+						<form id="matrix-bulk" method="post" action="/services/team" class="inline matrix-bulk" data-bulk-bar hidden>
+							<input type="hidden" name="return" value="/?" data-bulk-return/>
+							<span data-bulk-count></span>
+							<button type="button" class="link" data-tick-shown="matrix-bulk">Tick all shown</button>
+							<input name="team" list="matrix-teams" placeholder="team, empty for none" aria-label="Team" size="16"/>
+							<datalist id="matrix-teams">
+								for _, t := range matrixTeams(v.Grid.Rows) {
+									<option value={ t }></option>
+								}
+							</datalist>
+							<button type="submit" class="secondary">Set team</button>
+						</form>
+					}
 				}
 				<span class="spacer"></span>
 				if v.Hygiene > 0 {
@@ -95,8 +110,17 @@ templ MatrixGridView(g MatrixGrid) {
 			for _, u := range g.Unread {
 				<p>
 					<strong>{ plural(u.Services, "service", "services") } on <code>{ u.Host }</code></strong>
-					<span class="muted">show no newest release: no agent could read this private registry yet.</span>
-					if u.ECR {
+					if u.Managed {
+						<span class="muted">show no newest release yet: the agent that watches them asks AWS which versions it offers. Update that agent, and let its role call the Describe…EngineVersions actions (the policy on the agent's <strong>Add AWS</strong> page has them).</span>
+					} else {
+						<span class="muted">show no newest release: no agent could read this private registry yet.</span>
+					}
+					if u.Error != "" {
+						<span class="muted unread-error" title={ u.Error }>{ "The agent's last answer: " + shortError(u.Error) }</span>
+					}
+					@unreadServices(u.Items)
+					if u.Managed {
+					} else if u.ECR {
 						<span class="muted">Give the agent's IAM role <code>ecr:ListImages</code> (or AmazonEC2ContainerRegistryReadOnly).</span>
 						<a class="link" href="https://goliash.dev/reference/collectors/#private-registries" target="_blank" rel="noopener">How</a>
 					} else if g.CanAdmin {
@@ -107,6 +131,19 @@ templ MatrixGridView(g MatrixGrid) {
 				</p>
 			}
 		</div>
+	}
+	if len(g.Watched) > 0 && !g.Past {
+		<p class="watched-only muted">
+			{ "Watched for their releases only, running nowhere Goliash knows: " }
+			for i, name := range g.Watched {
+				if i > 0 {
+					{ ", " }
+				}
+				<a href={ templ.URL(serviceURL(name)) }>{ name }</a>
+			}
+			<span>·</span>
+			<a href="/updates#watching">their newest releases</a>
+		</p>
 	}
 	if len(g.Rows) == 0 && g.Past {
 		<p class="empty-past muted">Nothing Goliash knows of ran then: no target had reported yet, or nothing ran.</p>
@@ -135,6 +172,8 @@ templ MatrixGridView(g MatrixGrid) {
 									<div class="group-line">
 										if g.GroupBy == "app" || g.GroupBy == "team" {
 											<span class={ "app-avatar", versionColour(grp.Name) } aria-hidden="true">{ initial(grp.Name) }</span>
+										} else if g.GroupBy == "kind" {
+											@kindIcons([]string{kindGroupIcon(grp.Name)})
 										}
 										if grp.URL != "" {
 											<a class="group-name" href={ templ.URL(grp.URL) } title={ "The target page of " + grp.Name }>{ grp.Name }</a>
@@ -153,14 +192,31 @@ templ MatrixGridView(g MatrixGrid) {
 							</tr>
 						}
 						for _, r := range grp.Rows {
-							<tr data-search={ rowSearch(r) } data-drift={ rowDrift(r) } data-health={ r.Health }>
+							<tr
+								data-search={ rowSearch(r) }
+								data-drift={ rowDrift(r) }
+								data-health={ r.Health }
+								if r.Same != "" {
+									data-same={ r.Same }
+								}
+							>
 								<td class="svc">
+									if g.CanBulk && !g.Past {
+										<input type="checkbox" class="row-tick" name="service" value={ r.Service } form="matrix-bulk" aria-label={ "Tick " + r.Service }/>
+									}
+									@kindIcons(r.Kinds)
 									<a href={ templ.URL(r.URL) }>{ r.Service }</a>
 									if r.Split && g.GroupBy != "app" {
 										<span class="part" title="Used by several applications: versions are compared within each">{ "in " + orOther(r.App) }</span>
 									}
+									if r.What != "" {
+										<span class="what">{ r.What }</span>
+									}
 									if r.Owner != "" {
 										<span class="owner">{ r.Owner }</span>
+									}
+									if r.Same != "" {
+										<button type="button" class="link same-more" data-same-more hidden></button>
 									}
 								</td>
 								for i, c := range r.Cells {
@@ -348,4 +404,37 @@ templ timeTravel(t TimeTravel) {
 			</form>
 		</div>
 	</section>
+}
+
+// unreadServicesShown is how many services of an unread registry are named before the rest fold away.
+const unreadServicesShown = 6
+
+// unreadServices names the services of an unread registry, each linked, with the repository it runs from.
+templ unreadServices(items []UnreadService) {
+	if len(items) > 0 {
+		<span class="unread-services">
+			for i, it := range items {
+				if i < unreadServicesShown {
+					@unreadServiceLink(it)
+				}
+			}
+			if len(items) > unreadServicesShown {
+				<details>
+					<summary>{ "+" + itoa(len(items)-unreadServicesShown) + " more" }</summary>
+					for _, it := range items[unreadServicesShown:] {
+						@unreadServiceLink(it)
+					}
+				</details>
+			}
+		</span>
+	}
+}
+
+templ unreadServiceLink(it UnreadService) {
+	<span class="unread-service">
+		<a href={ templ.URL(serviceURL(it.Name)) }>{ it.Name }</a>
+		if it.Repo != "" && it.Repo != it.Name {
+			<code class="muted">{ it.Repo }</code>
+		}
+	</span>
 }

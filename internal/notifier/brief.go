@@ -136,7 +136,7 @@ func LoadBrief(ctx context.Context, st *store.Store, sc store.Scope, now time.Ti
 
 	// Security upgrades waiting, those past their deadline, and merged fixes not deployed.
 	acks, _ := st.ListAcks(ctx, sc)
-	us := versions.LoadUpdates(ctx, st, sc, o, acks, now)
+	us := versions.LoadWork(ctx, st, sc, o, acks, now)
 	for _, u := range us {
 		if u.Acked {
 			continue

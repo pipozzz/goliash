@@ -96,10 +96,21 @@ func (e *uiEnv) as(role string) *http.Client {
 	link, _ := e.auth.LoginLink(context.Background(), u)
 	jar, _ := cookiejar.New(nil)
 	c := &http.Client{Jar: jar}
-	if code, _ := get(e.t, c, link, nil); code != 200 {
+	if code := signIn(e.t, c, link); code != 200 {
 		e.t.Fatalf("sign-in as %s failed: %d", role, code)
 	}
 	return c
+}
+
+// signIn signs in with a sign-in link as its confirm page does: the token posted, not the link opened.
+func signIn(t *testing.T, c *http.Client, link string) int {
+	t.Helper()
+	u, err := url.Parse(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _, _ := post(t, c, u.Scheme+"://"+u.Host+"/auth/magic/use", url.Values{"token": {u.Query().Get("token")}})
+	return code
 }
 
 func get(t *testing.T, c *http.Client, u string, header map[string]string) (int, string) {
@@ -261,7 +272,7 @@ func TestAdminAgentsUsersAndTokens(t *testing.T) {
 	}
 
 	_, body, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {"dev@example.com"}, "role": {"member"}})
-	if !strings.Contains(body, "/auth/magic?token=") || !strings.Contains(body, "dev@example.com invited (member)") {
+	if !strings.Contains(body, "/auth/magic?token=") || !strings.Contains(body, "dev@example.com invited (member)") || !strings.Contains(body, "works once, for 7 days") {
 		t.Fatal("invite link not shown")
 	}
 	if _, body, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {"boss@example.com"}, "role": {"owner"}}); !strings.Contains(body, "allowed to give") {
@@ -418,10 +429,27 @@ func TestWorkspaceIsolationForClients(t *testing.T) {
 	link := regexp.MustCompile(`http://[^"<\s]+/auth/magic\?token=[A-Za-z0-9_-]+`).FindString(body)
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Jar: jar}
-	get(t, client, link, nil)
+	// A link preview opens it first: that signs nobody in and leaves the link working.
+	preview := &http.Client{}
+	if _, page := get(t, preview, link, nil); !strings.Contains(page, "Continue to Goliash") || !strings.Contains(page, "as ops@client-a.example") {
+		t.Fatalf("the link does not ask to confirm: %s", page[:min(len(page), 300)])
+	}
+	_, page := get(t, client, link, nil)
+	token := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
+	if token == nil {
+		t.Fatalf("no confirm form: %s", page[:min(len(page), 300)])
+	}
+	// New, with no password yet: asked to set one first.
+	if _, welcome, _ := post(t, client, e.srv.URL+"/auth/magic/use", url.Values{"token": {token[1]}}); !strings.Contains(welcome, "Set a password below") {
+		t.Error("a new person is not asked to set a password")
+	}
+	// Used: the link does not work again.
+	if _, again := get(t, preview, link, nil); !strings.Contains(again, "error") && strings.Contains(again, "Continue to Goliash") {
+		t.Error("the link works twice")
+	}
 
 	// The client works in Client A: no services from the MSP's own workspace.
-	_, page := get(t, client, e.srv.URL+"/", nil)
+	_, page = get(t, client, e.srv.URL+"/", nil)
 	if strings.Contains(page, "k8s-prod") || strings.Contains(page, "onerror") || !strings.Contains(page, "Client A") {
 		t.Fatal("client sees another workspace's data")
 	}
@@ -712,6 +740,12 @@ func TestAgentPage(t *testing.T) {
 		t.Fatalf("rotate: %s", body)
 	}
 
+	// Where it runs, as it reported: on its page; nothing runs on its targets yet, so no link to an empty matrix.
+	_ = e.st.SetAgentWhere(ctx, e.ws.Scope(), a.ID, map[string]string{"cloud": "aws", "account": "098225058563", "region": "eu-central-1", "instance": "i-0f13"})
+	if _, b := get(t, c, page, nil); !strings.Contains(b, "098225058563") || strings.Contains(b, `q=instance%3Ai-0f13`) {
+		t.Fatal("where it runs not on its page")
+	}
+
 	// Viewers see the page without actions.
 	viewer := e.as(store.RoleViewer)
 	if _, b := get(t, viewer, page, nil); !strings.Contains(b, "swarm-eu") || strings.Contains(b, "Rotate token") {
@@ -926,6 +960,7 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 		t.Fatalf("save: %s", body)
 	}
 	chans, _ := e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	var cfg map[string]string
 	_ = json.Unmarshal(chans[0].Config, &cfg)
 	if chans[0].Name != "ops-2" || cfg["url"] != hook || cfg["secret"] != "s3cr3t" {
@@ -933,6 +968,7 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 	}
 	_, _, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+ch.ID, url.Values{"name": {"ops-2"}, "url": {"https://example.com/hook"}, "secret": {"new"}})
 	chans, _ = e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	_ = json.Unmarshal(chans[0].Config, &cfg)
 	if cfg["url"] != "https://example.com/hook" || cfg["secret"] != "new" {
 		t.Fatalf("replaced %v", cfg)
@@ -954,9 +990,19 @@ func TestEditChannelServiceAndWorkspace(t *testing.T) {
 		t.Fatalf("delete: %s", body)
 	}
 
-	// Workspaces are renamed; the slug stays.
-	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"Acme Production"}}); !strings.Contains(body, "Workspace renamed to Acme Production.") {
+	// Workspaces are renamed, slug too; a bad or taken slug is refused.
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"Acme Production"}, "slug": {"acme-prod"}}); !strings.Contains(body, "Workspace saved as Acme Production (acme-prod)") {
 		t.Fatalf("rename: %s", body)
+	}
+	if wss, _ := e.st.ListOrgWorkspaces(context.Background(), e.ws.OrgID); len(wss) == 0 || wss[0].Slug != "acme-prod" {
+		t.Errorf("slug %+v", wss)
+	}
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"x"}, "slug": {"Not A Slug"}}); !strings.Contains(body, "lowercase letters") {
+		t.Fatal("a bad slug was accepted")
+	}
+	other, _ := e.st.CreateWorkspace(context.Background(), e.ws.OrgID, "Other", "other")
+	if _, body, _ = post(t, admin, e.srv.URL+"/workspaces/"+other.ID+"/rename", url.Values{"name": {"Other"}, "slug": {"acme-prod"}}); !strings.Contains(body, "Another workspace has the slug") {
+		t.Fatal("a taken slug was accepted")
 	}
 	if code, _, _ := post(t, e.as(store.RoleMember), e.srv.URL+"/workspaces/"+e.ws.ID+"/rename", url.Values{"name": {"x"}}); code != http.StatusForbidden {
 		t.Fatal("member renamed a workspace")
@@ -1462,6 +1508,7 @@ func TestEmailChannelOwnServer(t *testing.T) {
 		t.Fatalf("add: %s", body)
 	}
 	chans, _ := e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	_, body := get(t, admin, e.srv.URL+"/notifications/channels/"+chans[0].ID, nil)
 	if strings.Contains(body, "hunter2pass") || !strings.Contains(body, "smtp.example.com:465") || !strings.Contains(body, "set; leave empty to keep") {
 		t.Fatal("edit page leaks the password or misses the server")
@@ -1470,6 +1517,7 @@ func TestEmailChannelOwnServer(t *testing.T) {
 	edit := url.Values{"name": {"oncall"}, "to": {"oncall@example.com"}, "smtp_addr": {"smtp.example.com:465"}, "smtp_from": {"goliash@example.com"}, "smtp_username": {"mailer"}, "smtp_tls": {"tls"}}
 	_, _, _ = post(t, admin, e.srv.URL+"/notifications/channels/"+chans[0].ID, edit)
 	chans, _ = e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	var cfg map[string]any
 	_ = json.Unmarshal(chans[0].Config, &cfg)
 	if cfg["smtp_password"] != "hunter2pass" || cfg["smtp_tls"] != "tls" {
@@ -1890,9 +1938,13 @@ func TestServiceSecurityPanel(t *testing.T) {
 	if err := e.st.SetImageEvidence(ctx, sc, store.ImageEvidence{Repo: "ghcr.io/acme/billing", Digest: digest, Signed: true, SBOM: true}); err != nil {
 		t.Fatal(err)
 	}
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: "ghcr.io/acme/billing", Digest: digest, Purls: []string{"pkg:deb/debian/libc6@2.36?os_version=12", "pkg:golang/stdlib@1.25.7"}, Source: "packages"})
 	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/billing", nil)
 	if !strings.Contains(page, `id="security"`) || !strings.Contains(page, "ghcr.io/acme/billing:1.0.0") || !strings.Contains(page, "no known vulnerabilities in its SBOMs") {
 		t.Fatal("no security panel for the service")
+	}
+	if !strings.Contains(page, "Debian 12 (bookworm)") || !strings.Contains(page, "Go 1.25.7") {
+		t.Fatal("the image's operating system is not named")
 	}
 }
 
@@ -1906,5 +1958,27 @@ func TestStatusPage(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("status page misses %q", want)
 		}
+	}
+}
+
+// The add form sends every channel type's fields, several named url: the one filled in counts, so an Opsgenie
+// channel keeps its EU address.
+func TestOpsgenieChannelFromTheForm(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	admin := e.as(store.RoleOwner)
+	add := url.Values{
+		"name": {"pager"}, "type": {"opsgenie"}, "token": {"genie-key"},
+		"url": {"", "https://api.eu.opsgenie.com", ""},
+	}
+	if _, body, _ := post(t, admin, e.srv.URL+"/notifications/channels", add); !strings.Contains(body, "Channel pager added") {
+		t.Fatalf("add: %s", body)
+	}
+	chans, _ := e.st.ListChannels(ctx, e.ws.Scope())
+	chans = ownChannels(chans)
+	var cfg map[string]any
+	_ = json.Unmarshal(chans[0].Config, &cfg)
+	if chans[0].Type != "opsgenie" || cfg["token"] != "genie-key" || cfg["url"] != "https://api.eu.opsgenie.com" {
+		t.Fatalf("%s %v", chans[0].Type, cfg)
 	}
 }

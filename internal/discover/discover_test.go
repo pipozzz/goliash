@@ -22,7 +22,47 @@ func opts(env map[string]string) Options {
 		Exists:   func(string) bool { return false },
 		Hostname: func() (string, error) { return "box", nil },
 		AWS:      &fakeAWS{},
-		IMDS:     "http://127.0.0.1:1", // nothing listens: not EC2
+		IMDS:     "http://127.0.0.1:1", // nothing listens: not EC2, not Azure
+		GCP:      "http://127.0.0.1:1", // nor Google Cloud
+	}
+}
+
+// Off AWS, Google Cloud's and Azure's metadata say where the agent runs.
+func TestOtherClouds(t *testing.T) {
+	gcp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Metadata-Flavor") != "Google" {
+			http.Error(w, "", http.StatusForbidden)
+			return
+		}
+		_, _ = w.Write([]byte(map[string]string{
+			"/computeMetadata/v1/project/project-id":    "acme-prod",
+			"/computeMetadata/v1/instance/zone":         "projects/123/zones/europe-west1-b",
+			"/computeMetadata/v1/instance/name":         "gke-node-1",
+			"/computeMetadata/v1/instance/machine-type": "projects/123/machineTypes/e2-standard-4",
+		}[r.URL.Path]))
+	}))
+	defer gcp.Close()
+	o := opts(nil)
+	o.GCP = gcp.URL
+	r, _ := Run(context.Background(), o)
+	if w := r.Where; w["cloud"] != "gcp" || w["account"] != "acme-prod" || w["zone"] != "europe-west1-b" || w["region"] != "europe-west1" ||
+		w["instance"] != "gke-node-1" || w["instance_type"] != "e2-standard-4" {
+		t.Fatalf("gcp: %v", w)
+	}
+
+	azure := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Metadata") != "true" || r.URL.Path != "/metadata/instance" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"compute":{"subscriptionId":"sub-1","location":"westeurope","zone":"2","name":"vm-1","vmSize":"Standard_D2s_v5"}}`))
+	}))
+	defer azure.Close()
+	o = opts(nil)
+	o.Azure = azure.URL
+	r, _ = Run(context.Background(), o)
+	if w := r.Where; w["cloud"] != "azure" || w["account"] != "sub-1" || w["region"] != "westeurope" || w["zone"] != "westeurope-2" || w["instance_type"] != "Standard_D2s_v5" {
+		t.Fatalf("azure: %v", w)
 	}
 }
 
@@ -263,6 +303,10 @@ func TestEC2(t *testing.T) {
 			_, _ = w.Write([]byte("i-0abc"))
 		case "placement/region":
 			_, _ = w.Write([]byte("eu-central-1"))
+		case "placement/availability-zone":
+			_, _ = w.Write([]byte("eu-central-1b"))
+		case "instance-type":
+			_, _ = w.Write([]byte("t3.medium"))
 		case "iam/security-credentials/":
 			if role == "" {
 				http.NotFound(w, r)
@@ -281,6 +325,10 @@ func TestEC2(t *testing.T) {
 	if err != nil || r.Identity != "aws:123456789012/eu-central-1" || !strings.Contains(names(r.Targets), "rds rds-eu-central-1") ||
 		!slices.Contains(r.Notes, "aws ec2: instance i-0abc in eu-central-1, role dev-vpn-gw") {
 		t.Fatalf("ec2: %+v %v", r, err)
+	}
+	if w := r.Where; w["cloud"] != "aws" || w["account"] != "123456789012" || w["region"] != "eu-central-1" || w["zone"] != "eu-central-1b" ||
+		w["instance"] != "i-0abc" || w["instance_type"] != "t3.medium" || w["arch"] == "" {
+		t.Fatalf("where: %v", w)
 	}
 
 	// No role: nothing to ask AWS with.
@@ -306,7 +354,10 @@ func TestEC2(t *testing.T) {
 
 func TestHost(t *testing.T) {
 	o := opts(map[string]string{"GOLIASH_HOST_ROOT": "/host"})
-	files := map[string]string{"/host/etc/hostname": "db-vm-1\n", "/host/etc/machine-id": "abc123\n"}
+	files := map[string]string{
+		"/host/etc/hostname": "db-vm-1\n", "/host/etc/machine-id": "abc123\n",
+		"/host/etc/os-release": "ID=rocky\nVERSION_ID=\"9.3\"\nPRETTY_NAME=\"Rocky Linux 9.3 (Blue Onyx)\"\n",
+	}
 	o.Exists = func(p string) bool { return p == "/host/etc/os-release" }
 	o.ReadFile = func(p string) ([]byte, error) {
 		if b, ok := files[p]; ok {
@@ -318,7 +369,7 @@ func TestHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Identity != "host:abc123" || r.Name != "db-vm-1" || len(r.Targets) != 1 {
+	if r.Identity != "host:abc123" || r.Name != "db-vm-1" || len(r.Targets) != 1 || r.Where["os"] != "Rocky Linux 9.3 (Blue Onyx)" {
 		t.Fatalf("result %+v", r)
 	}
 	if tg := r.Targets[0]; tg.Platform != agentproto.Host || tg.Host == nil || *tg.Host.Root != "/host" {

@@ -34,6 +34,9 @@ type Agent struct {
 	// CodeID is the enrollment code the agent registered with; empty for agents
 	// created with a token.
 	CodeID string
+	// Where is where the agent runs, as it reported when it last registered: cloud, account, region, zone,
+	// instance, instance_type, cluster, platform, os, kernel, arch. Empty for agents before 1.198.
+	Where map[string]string
 	// Discovered is what an agent with a token found it could collect when it last started.
 	Discovered []agentproto.DeclaredTarget
 }
@@ -50,6 +53,20 @@ func (s *Store) SetAgentDiscovery(ctx context.Context, sc Scope, id string, foun
 	}
 	res, err := s.exec(ctx, s.db, `UPDATE agents SET discovered = ?, notes = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
 		string(raw), strings.Join(notes, "\n"), sc.OrgID, sc.WorkspaceID, id)
+	return expectOne(res, err)
+}
+
+// SetAgentWhere records where an agent runs, as it reported when it registered.
+func (s *Store) SetAgentWhere(ctx context.Context, sc Scope, id string, where map[string]string) error {
+	if where == nil {
+		where = map[string]string{}
+	}
+	raw, err := json.Marshal(where)
+	if err != nil {
+		return err
+	}
+	res, err := s.exec(ctx, s.db, `UPDATE agents SET location = ? WHERE org_id = ? AND workspace_id = ? AND id = ?`,
+		string(raw), sc.OrgID, sc.WorkspaceID, id)
 	return expectOne(res, err)
 }
 
@@ -150,6 +167,10 @@ func (s *Store) TouchAgent(ctx context.Context, sc Scope, id string) (staleSince
 		if since.Valid {
 			staleSince = since.Time.UTC()
 		}
+		if staleSince.IsZero() { // only its last contact
+			_, err := s.touch(ctx, tx, `UPDATE agents SET last_seen_at = ? WHERE id = ?`, s.now(), id)
+			return err
+		}
 		_, err := s.exec(ctx, tx, `UPDATE agents SET last_seen_at = ?, stale_since = NULL WHERE id = ?`, s.now(), id)
 		return err
 	})
@@ -202,7 +223,7 @@ func (s *Store) RevokeAgentTokens(ctx context.Context, sc Scope, agentID string)
 }
 
 const agentColumns = `a.id, a.org_id, a.workspace_id, a.name, a.version, a.hostname, a.platforms,
-	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity, a.notes, a.enrollment_code_id, a.discovered,
+	a.registered_at, a.last_seen_at, a.stale_since, a.created_at, a.identity, a.notes, a.enrollment_code_id, a.discovered, a.location,
 	(SELECT COUNT(*) FROM tokens k WHERE k.agent_id = a.id AND k.kind = 'agent' AND k.revoked_at IS NULL)`
 
 func (s *Store) scanAgent(row scanner) (Agent, string, error) {
@@ -211,11 +232,11 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		platforms, extra                 string
 		registered, lastSeen, staleSince sql.NullTime
 		identity                         sql.NullString
-		notes, discovered                string
+		notes, discovered, location      string
 		codeID                           sql.NullString
 	)
 	err := row.Scan(&a.ID, &a.Scope.OrgID, &a.Scope.WorkspaceID, &a.Name, &a.Version, &a.Hostname,
-		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &notes, &codeID, &discovered, &a.ActiveTokens, &extra)
+		&platforms, &registered, &lastSeen, &staleSince, &a.CreatedAt, &identity, &notes, &codeID, &discovered, &location, &a.ActiveTokens, &extra)
 	if err != nil {
 		return Agent{}, "", notFound(err)
 	}
@@ -228,6 +249,7 @@ func (s *Store) scanAgent(row scanner) (Agent, string, error) {
 		a.Notes = strings.Split(notes, "\n")
 	}
 	_ = json.Unmarshal([]byte(discovered), &a.Discovered)
+	_ = json.Unmarshal([]byte(location), &a.Where)
 	return a, extra, nil
 }
 

@@ -68,6 +68,7 @@ var tagsBefore = map[string][]string{
 	"eks.amazonaws.com/kubernetes":                  {"1.31", "1.32", "1.33", "1.34"},
 	"opensearch.amazonaws.com/opensearch":           {"2.11", "2.13", "2.15", "2.17", "2.19"},
 	"kafka.amazonaws.com/kafka":                     {"3.6.0", "3.7", "3.8", "3.9"},
+	"docker.io/library/ubuntu":                      {"20.04", "22.04", "24.04"},
 }
 
 var tagsAfter = map[string][]string{
@@ -100,6 +101,7 @@ var images = map[string]string{
 	"vault":         "hashicorp/vault",
 	"fluent-bit":    "fluent/fluent-bit",
 	"nginx":         "nginx",
+	"ubuntu":        "ubuntu", // a Linux server's operating system
 	"billing-db":    "rds.amazonaws.com/postgres",
 	"orders-aurora": "rds.amazonaws.com/aurora-mysql",
 	"sessions":      "elasticache.amazonaws.com/redis",
@@ -172,6 +174,10 @@ var targets = []demoTarget{
 	{name: "demo-nomad", env: "prod", platform: "nomad", steps: []step{
 		{0, map[string]string{"vault": "1.16.3", "fluent-bit": "3.0.7"}},
 		{14, map[string]string{"vault": "1.17.2", "fluent-bit": "3.0.7"}},
+	}},
+	// A Linux server, its root mounted into the agent: Ubuntu 22.04 and the nginx it serves mail's webmail with.
+	{name: "mail-01", env: "prod", platform: "host", steps: []step{
+		{0, map[string]string{"ubuntu": "22.04", "nginx": "1.18.0"}},
 	}},
 	{name: "demo-docker-tools", env: "prod", platform: "docker", steps: []step{
 		{0, map[string]string{"gitea": "1.21.11", "nginx": "1.26.1"}},
@@ -290,7 +296,7 @@ func Seed(ctx context.Context, st *store.Store, ws store.Workspace, log *slog.Lo
 		"webhook-relay": "team-integrations", "image-resizer": "team-media", "invoice-pdf": "team-orders",
 		"gitea": "devex", "vault": "security", "fluent-bit": "observability", "nginx": "devex",
 		"billing-db": "team-payments", "orders-aurora": "team-orders", "sessions": "team-shop", "shop-eks": "platform",
-		"logs-search": "observability", "events": "team-orders",
+		"logs-search": "observability", "events": "team-orders", "ubuntu": "platform",
 	} {
 		s, err := st.GetServiceByName(ctx, sc, name)
 		if err != nil {
@@ -515,6 +521,10 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 			}
 		}
 	}
+	// The Linux server's packages, as its agent sends them for their vulnerabilities.
+	if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: store.LambdaCodeRepo, Digest: demoHostDigest, Purls: demoHostPackages, Source: "code"}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -640,7 +650,44 @@ func stateOn(t demoTarget, day int) map[string]string {
 	return cur
 }
 
+// demoHostDigest names the packages of the demo's Linux server, as its agent sends them.
+const demoHostDigest = "sha256:d3f0a1e2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e"
+
+// demoHostPackages are some of the server's Ubuntu 22.04 packages at versions from early 2024: OSV answers with
+// their real vulnerabilities, fixed since.
+var demoHostPackages = []string{
+	"pkg:deb/ubuntu/openssl@3.0.2-0ubuntu1.12?arch=amd64&os_version=22.04",
+	"pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.12?arch=amd64&os_version=22.04&upstream=openssl",
+	"pkg:deb/ubuntu/openssh-server@1:8.9p1-3ubuntu0.6?arch=amd64&os_version=22.04&upstream=openssh",
+	"pkg:deb/ubuntu/sudo@1.9.9-1ubuntu2.4?arch=amd64&os_version=22.04",
+	"pkg:deb/ubuntu/curl@7.81.0-1ubuntu1.15?arch=amd64&os_version=22.04",
+	"pkg:deb/ubuntu/libc6@2.35-0ubuntu3.6?arch=amd64&os_version=22.04&upstream=glibc",
+	"pkg:deb/ubuntu/nginx-core@1.18.0-6ubuntu14.4?arch=amd64&os_version=22.04&upstream=nginx",
+}
+
+// demoHostWorkload is a workload of the demo's Linux server: its operating system, or a package it runs.
+func demoHostWorkload(service, tag string) agentproto.Workload {
+	one := 1
+	w := agentproto.Workload{
+		ID: "pkg/" + service, Kind: agentproto.HostPackage, Name: service, DesiredReplicas: &one,
+		Containers: []agentproto.Container{{Name: service, Image: images[service] + ":" + tag, Running: 1}},
+	}
+	if service == "ubuntu" {
+		w.ID, w.Kind = "os/ubuntu", agentproto.HostOs
+		w.Maintenance = []string{
+			"reboot required: kernel 5.15.0-126-generic installed, 5.15.0-119-generic runs",
+			"package updates: 23 waiting, 9 of them security",
+		}
+		d := demoHostDigest
+		w.CodeDigest = &d
+	}
+	return w
+}
+
 func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
+	if t.platform == "host" {
+		return demoHostWorkload(service, tag)
+	}
 	ns := map[string]string{
 		"payments-api": "payments", "checkout": "shop", "postgres": "data", "redis": "data",
 		"keycloak": "auth", "traefik": "ingress", "grafana": "observability", "shop-db": "shop",
@@ -719,6 +766,16 @@ func demoWorkload(t demoTarget, service, tag string) agentproto.Workload {
 			time.Now().AddDate(0, 0, 12).UTC().Format("2006-01-02") + ")"}
 	case "sessions":
 		w.Maintenance = []string{"elasticache-20251001-001 (security-update, important)"}
+	case "events": // up to date, a patch waiting all the same: a line of its own on Updates
+		w.Maintenance = []string{"MSK broker software patch (security), applied in the next maintenance window"}
+	}
+	switch service { // the vCPUs AWS charges Extended Support by: a db.m6g.xlarge, an Aurora cluster of two db.r6g.large
+	case "billing-db":
+		n := 4
+		w.Vcpus = &n
+	case "orders-aurora":
+		n := 4
+		w.Vcpus = &n
 	}
 	switch t.platform { // no GitOps tool here: the jobs and the Compose file name their place in Git
 	case "nomad":

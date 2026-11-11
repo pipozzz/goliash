@@ -31,6 +31,8 @@ type Overview struct {
 	// Stale lists targets whose data may be out of date (agent silent, or no recent
 	// snapshot), with their last snapshot time.
 	Stale map[string]time.Time
+	// Where is where each target is (TargetWhere), by target ID.
+	Where map[string]map[string]string
 	// ReleaseURL maps service ID + "|" + version to its release notes link.
 	ReleaseURL map[string]string
 	// ReleaseSecurity maps service ID + "|" + version to the security fixes that release names.
@@ -39,6 +41,8 @@ type Overview struct {
 	ReleaseSecurityAt map[string]time.Time
 	// ReleaseBreaking maps service ID + "|" + version to what that release's notes say breaks.
 	ReleaseBreaking map[string]string
+	// Released lists each service's known releases, by service ID: the stops of an upgrade path.
+	Released map[string][]string
 	// SplitApps lists services whose versions are compared per application.
 	SplitApps map[string]bool
 	// Resolved maps image digests to the exact release behind a moving tag.
@@ -79,12 +83,35 @@ func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
 
 // LoadOverview reads the matrix, upstream state and open drifts of a workspace.
 func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
+	return memoized(ctx, "overview "+sc.WorkspaceID, func() (Overview, error) { return sharedOverview(ctx, st, sc) })
+}
+
+// overviewTables are the tables the overview is read from: a kept overview is stale once one is written.
+var overviewTables = []string{
+	"services", "registry_credentials", "environments", "targets", "agents", "instances", "app_names", "tag_resolutions",
+	"releases", "drifts",
+}
+
+// overviewCache keeps the overviews (see sharedBuilds); its stale targets depend on the time, so it is kept
+// shorter.
+var overviewCache = sharedBuilds[Overview]{ttl: 20 * time.Second, cheap: 250 * time.Millisecond, stale: time.Minute, rebuild: 10 * time.Second}
+
+// sharedOverview is the overview reused across requests while its tables are unchanged: the matrix, the tiles,
+// the favicon and the badges all start from it, and building it (the newest release of every service from all its
+// tags) is the heaviest read of a page. It is shared: callers must not change it in place.
+func sharedOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
+	return overviewCache.get(ctx, fmt.Sprintf("%p|%s", st, sc.WorkspaceID), st.Generations(overviewTables...)+fmt.Sprint(st.ReleasesGeneration()),
+		func(ctx context.Context) (Overview, error) { return loadOverview(ctx, st, sc) })
+}
+
+func loadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overview, error) {
 	o := Overview{
 		Upstreams: map[string]Upstream{}, Drifts: map[string][]store.Drift{}, AppDrifts: map[string][]store.Drift{}, Policies: map[string]Policy{},
 		Services: map[string]store.Service{}, Envs: map[string]store.Environment{}, CheckErrs: map[string]string{},
 		Stale: map[string]time.Time{}, ReleaseURL: map[string]string{}, CheckedAt: map[string]time.Time{}, TagCount: map[string]int{},
 		ReleaseSecurity:   map[string]string{},
 		ReleaseBreaking:   map[string]string{},
+		Released:          map[string][]string{},
 		ReleaseSecurityAt: map[string]time.Time{},
 	}
 	services, err := st.ListServices(ctx, sc)
@@ -111,11 +138,15 @@ func LoadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 		return o, err
 	}
 	agentStale := map[string]bool{}
+	agentWhere := map[string]map[string]string{}
 	for _, a := range agents {
 		agentStale[a.ID] = !a.StaleSince.IsZero()
+		agentWhere[a.ID] = a.Where
 	}
 	now := time.Now()
+	o.Where = make(map[string]map[string]string, len(o.Targets))
 	for _, t := range o.Targets {
+		o.Where[t.ID] = TargetWhere(t, agentWhere[t.AgentID])
 		if StaleTarget(t, agentStale[t.AgentID], now) {
 			o.Stale[t.ID] = t.LastSnapshotAt
 		}
@@ -216,6 +247,9 @@ func loadUpstreams(ctx context.Context, st *store.Store, sc store.Scope, o *Over
 		}
 		if o.TagCount != nil {
 			o.TagCount[id] = len(tags)
+		}
+		if o.Released != nil && StepNote(ref.Repo) != "" {
+			o.Released[id] = tags
 		}
 		if len(tags) > 0 {
 			o.Upstreams[id] = Latest(tags, ref.Tag, p)

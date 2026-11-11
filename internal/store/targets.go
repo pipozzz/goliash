@@ -129,7 +129,7 @@ func scanTarget(row scanner) (Target, error) {
 
 // ReportCollectorStatus stores the collector health an agent reported for one of its targets.
 func (s *Store) ReportCollectorStatus(ctx context.Context, sc Scope, agentID, targetID, status, lastError string) error {
-	res, err := s.exec(ctx, s.db, `
+	res, err := s.touch(ctx, s.db, `
 		UPDATE targets SET collector_status = ?, collector_error = ?, collector_reported_at = ?
 		WHERE org_id = ? AND workspace_id = ? AND id = ? AND agent_id = ?`,
 		status, lastError, s.now(), sc.OrgID, sc.WorkspaceID, targetID, agentID)
@@ -159,7 +159,7 @@ func (s *Store) ListServerTargets(ctx context.Context) ([]Target, error) {
 
 // ReportServerCollectorStatus stores the health of a collector the server runs.
 func (s *Store) ReportServerCollectorStatus(ctx context.Context, sc Scope, targetID, status, lastError string) error {
-	res, err := s.exec(ctx, s.db, `
+	res, err := s.touch(ctx, s.db, `
 		UPDATE targets SET collector_status = ?, collector_error = ?, collector_reported_at = ?
 		WHERE org_id = ? AND workspace_id = ? AND id = ? AND agent_id IS NULL`,
 		status, lastError, s.now(), sc.OrgID, sc.WorkspaceID, targetID)

@@ -91,7 +91,7 @@ func TestPrivateInspections(t *testing.T) {
 	}
 	inspectOf := func() []string {
 		t.Helper()
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}

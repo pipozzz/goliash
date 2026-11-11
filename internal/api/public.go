@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"slices"
 	"sort"
@@ -837,6 +838,8 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		NoUpstream []string      `json:"no_known_upstream"`
 		Unknowns   []apiUnknown  `json:"unknown_upstream_why"`
 		OldBase    []string      `json:"outdated_base"`
+		EOLOS      []string      `json:"eol_os"`
+		EOLGo      []string      `json:"eol_go"`
 		Exposures  []apiExposure `json:"exposures"`
 		History    []apiReading  `json:"history"`
 	}{
@@ -844,6 +847,8 @@ func (h *PublicHandler) posture(w http.ResponseWriter, r *http.Request, p auth.P
 		Behind30: pos.Prod30, Behind90: pos.Prod90, EOLPassed: pos.EOLPassed, EOLSoon: pos.EOLSoon, Accepted: pos.Accepted,
 		Stale: append([]string{}, pos.Stale...), NoUpstream: append([]string{}, pos.NoUpstream...), Exposures: []apiExposure{},
 		OldBase: append([]string{}, pos.OutdatedBase...),
+		EOLOS:   append([]string{}, pos.EOLOS...),
+		EOLGo:   append([]string{}, pos.EOLGo...),
 		History: []apiReading{}, Unknowns: []apiUnknown{},
 	}
 	for _, u := range pos.Unknowns {
@@ -893,6 +898,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Environment  string        `json:"environment"`
 		Running      string        `json:"running"`
 		Target       string        `json:"target,omitempty"`
+		Remedy       string        `json:"remedy,omitempty"` // no target: what fixes its exploited vulnerability
 		ReleaseNotes string        `json:"release_notes,omitempty"`
 		Jump         string        `json:"jump,omitempty"`
 		Behind       string        `json:"behind,omitempty"`
@@ -903,6 +909,12 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Exploited    []string      `json:"exploited,omitempty"`
 		Exposed      []string      `json:"exposed,omitempty"`
 		Maintenance  []string      `json:"maintenance,omitempty"`
+		Extended     *apiExtended  `json:"extended_support,omitempty"`
+		Path         []string      `json:"path,omitempty"`
+		Risk         string        `json:"risk,omitempty"`
+		RiskReasons  []string      `json:"risk_reasons,omitempty"`
+		Trouble      string        `json:"trouble,omitempty"`
+		Only         bool          `json:"maintenance_only,omitempty"`
 		Critical     int           `json:"critical_vulnerabilities,omitempty"`
 		Vulns        *apiVulnDelta `json:"vulnerabilities,omitempty"`
 		SecurityFix  string        `json:"security_fix,omitempty"`
@@ -913,7 +925,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 	}
 	out := []apiUpdate{}
 	now := time.Now()
-	for _, u := range versions.LoadUpdates(ctx, h.store, p.Scope, o, acks, now) {
+	for _, u := range versions.LoadWork(ctx, h.store, p.Scope, o, acks, now) {
 		var due string
 		var left *int
 		if !u.Due.IsZero() {
@@ -922,10 +934,10 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 		out = append(out, apiUpdate{
 			Service: u.Service.Name, Owner: u.Service.Owner, App: u.App, Environment: u.Environment.Name,
-			Running: u.Running, Target: u.Target, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
+			Running: u.Running, Target: u.Target, Remedy: u.Remedy, ReleaseNotes: u.TargetURL, Jump: string(u.Jump), Behind: u.Behind,
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
 			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
-			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left,
+			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left, Extended: toAPIExtended(u.ExtendedSupport), Path: u.Path, Risk: u.Risk, RiskReasons: u.RiskReasons, Trouble: u.Trouble, Only: u.MaintenanceOnly,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -943,10 +955,19 @@ func (h *PublicHandler) hygiene(w http.ResponseWriter, r *http.Request, p auth.P
 		Image    string   `json:"image"`
 		Detail   string   `json:"detail"`
 		Where    []string `json:"where"`
+		Teams    []string `json:"teams"`
 	}
+	team := r.URL.Query().Get("team")
 	out := []apiFinding{}
 	for _, f := range findings {
-		out = append(out, apiFinding{Kind: f.Kind, Severity: f.Severity, Image: f.Image, Detail: f.Detail, Where: f.Where})
+		if team != "" && !slices.Contains(f.Teams, team) {
+			continue
+		}
+		teams := f.Teams
+		if teams == nil {
+			teams = []string{}
+		}
+		out = append(out, apiFinding{Kind: f.Kind, Severity: f.Severity, Image: f.Image, Detail: f.Detail, Where: f.Where, Teams: teams})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -1097,13 +1118,13 @@ func (h *PublicHandler) metrics(w http.ResponseWriter, r *http.Request, p auth.P
 		}
 	}
 	if findings, err := versions.LoadHygiene(r.Context(), h.store, p.Scope); err == nil {
-		byKind := map[string]int{"moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "outdated-base": 0, "over-budget": 0, "unexpected-signer": 0, "unpinned": 0}
+		byKind := map[string]int{"expiring": 0, "moving-tag": 0, "retagged": 0, "untrusted-registry": 0, "outdated-base": 0, "over-budget": 0, "unexpected-signer": 0, "quiet-upstream": 0, "eol-os": 0, "eol-runtime": 0, "unpinned": 0}
 		for _, f := range findings {
 			byKind[f.Kind]++
 		}
-		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget, an unexpected signer or no digest.\n")
+		b.WriteString("# HELP goliash_image_hygiene_findings Images with a moving tag, a tag pushed again, an untrusted registry, an outdated base, a size over budget, an unexpected signer, a quiet upstream, an operating system or Go release past its end of life or no digest.\n")
 		b.WriteString("# TYPE goliash_image_hygiene_findings gauge\n")
-		for _, k := range []string{"moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unexpected-signer", "unpinned"} {
+		for _, k := range []string{"expiring", "moving-tag", "retagged", "untrusted-registry", "outdated-base", "over-budget", "unexpected-signer", "quiet-upstream", "eol-os", "eol-runtime", "unpinned"} {
 			fmt.Fprintf(&b, "goliash_image_hygiene_findings{kind=%q} %d\n", k, byKind[k])
 		}
 	}
@@ -1323,6 +1344,46 @@ func (h *PublicHandler) serverMetrics(ctx context.Context, b *strings.Builder, s
 		for _, st := range []string{"online", "stale", "never", "revoked"} {
 			fmt.Fprintf(b, "goliash_agents{status=%q} %d\n", st, counts[st])
 		}
+		writeWhereInfo(ctx, b, h.store, sc, agents)
+	}
+}
+
+// infoWhere are the where keys the info metrics carry as labels, in order; empty when not known.
+var infoWhere = []string{"cloud", "account", "region", "zone", "instance_type", "os", "arch"}
+
+// writeWhereInfo writes goliash_agent_info and goliash_target_info: one series each, value 1, labelled with where it
+// runs, to join on (… * on(agent) group_left(region) goliash_agent_info) or to list in a table.
+func writeWhereInfo(ctx context.Context, b *strings.Builder, st *store.Store, sc store.Scope, agents []store.Agent) {
+	labels := func(where map[string]string) string {
+		var out strings.Builder
+		for _, k := range infoWhere {
+			fmt.Fprintf(&out, ",%s=%q", k, where[k])
+		}
+		return out.String()
+	}
+	b.WriteString("# HELP goliash_agent_info Each agent, with its version and where it runs (value 1).\n# TYPE goliash_agent_info gauge\n")
+	byID := map[string]store.Agent{}
+	for _, a := range agents {
+		byID[a.ID] = a
+		fmt.Fprintf(b, "goliash_agent_info{agent=%q,version=%q%s} 1\n", a.Name, a.Version, labels(a.Where))
+	}
+	targets, err := st.ListTargets(ctx, sc)
+	if err != nil {
+		return
+	}
+	envs, err := st.ListEnvironments(ctx, sc)
+	if err != nil {
+		return
+	}
+	envName := map[string]string{}
+	for _, e := range envs {
+		envName[e.ID] = e.Name
+	}
+	b.WriteString("# HELP goliash_target_info Each target, with its platform, environment, agent and where it runs (value 1).\n# TYPE goliash_target_info gauge\n")
+	for _, t := range targets {
+		a := byID[t.AgentID]
+		fmt.Fprintf(b, "goliash_target_info{target=%q,platform=%q,environment=%q,agent=%q%s} 1\n",
+			t.Name, t.Platform, envName[t.EnvironmentID], a.Name, labels(versions.TargetWhere(t, a.Where)))
 	}
 }
 
@@ -1678,9 +1739,33 @@ func (h *PublicHandler) checkImage(w http.ResponseWriter, r *http.Request, p aut
 		writeProblem(w, http.StatusBadRequest, "Check failed", err.Error())
 		return
 	}
+	if res.Pending { // an agent reads it within minutes: ask again
+		w.Header().Set("Retry-After", "10")
+		writeJSON(w, http.StatusAccepted, res)
+		return
+	}
 	_ = h.store.Audit(r.Context(), store.AuditEntry{
 		OrgID: p.Scope.OrgID, WorkspaceID: p.Scope.WorkspaceID, Actor: p.Name(), Action: "image.check",
 		Details: map[string]string{"image": in.Image, "passed": strconv.FormatBool(res.Passed)},
 	})
 	writeJSON(w, http.StatusOK, res)
+}
+
+// apiExtended is what AWS charges for a managed service past the end of standard support.
+type apiExtended struct {
+	From       string   `json:"from"`
+	MonthlyUSD *float64 `json:"monthly_usd,omitempty"` // at US East list prices; absent when not known
+	Basis      string   `json:"basis,omitempty"`
+}
+
+func toAPIExtended(e *versions.ExtendedSupport) *apiExtended {
+	if e == nil {
+		return nil
+	}
+	out := &apiExtended{From: e.From.Format(time.DateOnly), Basis: e.Basis}
+	if e.Monthly > 0 {
+		m := math.Round(e.Monthly)
+		out.MonthlyUSD = &m
+	}
+	return out
 }

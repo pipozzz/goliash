@@ -127,3 +127,14 @@ func TestEngineVersions(t *testing.T) {
 		t.Error("an engine left out was listed")
 	}
 }
+
+func TestClassVCPUs(t *testing.T) {
+	for class, want := range map[string]int{
+		"db.t4g.micro": 2, "db.t3.medium": 2, "db.m6g.large": 2, "db.r6g.xlarge": 4, "db.r6g.2xlarge": 8,
+		"db.m5.24xlarge": 96, "db.serverless": 0, "db.m6i.metal": 0, "cache.r6g.large": 0, "": 0,
+	} {
+		if got := ClassVCPUs(class); got != want {
+			t.Errorf("%s: %d, want %d", class, got, want)
+		}
+	}
+}

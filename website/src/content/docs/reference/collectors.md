@@ -8,8 +8,8 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Platform | Reads | Needs | Credentials |
 | --- | --- | --- | --- |
 | Kubernetes | Deployments, StatefulSets, DaemonSets, CronJobs and their running pods (watch) | ClusterRole with `get`, `list`, `watch` | in-cluster service account, else kubeconfig (`kubeconfig_context`) |
-| Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*` | default AWS chain; `credentials_ref` names an AWS profile |
-| AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
+| Amazon ECS | clusters, services, running tasks, task definitions | IAM `ecs:List*`, `ecs:Describe*`; `elasticloadbalancing:DescribeTargetGroups` and `elasticloadbalancing:DescribeLoadBalancers` for exposure | default AWS chain; `credentials_ref` names an AWS profile |
+| AWS Lambda | functions of a region and their aliases: container image and digest, or the runtime of .zip functions and the packages in their code; tags | IAM `lambda:ListFunctions`, `lambda:GetFunction`, `lambda:ListAliases`; `lambda:ListFunctionUrlConfigs` for exposure; `lambda:GetLayerVersion` for the packages of layers | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon RDS | PostgreSQL, MySQL, MariaDB and Aurora databases of a region: engine version, the versions RDS offers, pending maintenance, public accessibility; tags | IAM `rds:DescribeDBInstances`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions`, `rds:DescribePendingMaintenanceActions` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon ElastiCache | Redis OSS, Valkey and Memcached caches of a region (replication groups, clusters, serverless): engine version, the versions ElastiCache offers, service updates waiting; tags | IAM `elasticache:Describe*`, `elasticache:ListTagsForResource` | default AWS chain; `credentials_ref` names an AWS profile |
 | Amazon EKS | clusters of a region: the Kubernetes version of the control plane and managed node groups, the versions EKS offers, a public API endpoint; tags | IAM `eks:ListClusters`, `eks:DescribeCluster`, `eks:ListNodegroups`, `eks:DescribeNodegroup`, `eks:DescribeClusterVersions` | default AWS chain; `credentials_ref` names an AWS profile |
@@ -21,6 +21,25 @@ Collectors only read. They run in the agent, or in the server for targets withou
 | Compose files | services and images declared in Compose files | an HTTP(S) URL, or for an agent a file in `GOLIASH_COMPOSE_DIRS` | `credentials_ref` → bearer token for the URL |
 | Linux server | the operating system (`/etc/os-release`) and installed packages that matter (dpkg, apk) | read access to the host's files: the root mounted at `/host` read-only, or the agent on the host | none |
 | Manual | versions people enter on a service page (**Add by hand**), for software Goliash does not collect | nothing: never collected, never stale | none |
+
+## Where an agent runs
+
+When it starts, an agent says where it runs, as far as it can tell without extra permissions: the cloud, AWS
+account (from its credentials or its ECS cluster's ARN), region and availability zone, the EC2 instance and its
+type (from the instance metadata), its ECS cluster, and the host's operating system, kernel and architecture (from
+the Docker engine or the host's `/etc/os-release`). On Google Cloud the metadata server gives the project (as the
+account), zone, region, instance and machine type; on Azure the instance metadata gives the subscription, location,
+zone, VM name and size. `GOLIASH_CLOUD_METADATA=off` leaves Google Cloud and Azure out. The agent's page lists them, each with the
+number of services it finds and a link to the matrix filtered to them; the palette and Search find services, targets
+and agents by them too.
+
+Its targets are where it is: a Docker host, a Kubernetes cluster or a server. A target read through AWS's API (ECS,
+RDS, Lambda …) shares only the agent's cloud and account, and has its own region (and the account of its ARNs). On
+the matrix, filter by them like by any word: `region:eu-central-1`, `account:123456789012`,
+`instance:i-0f13cfa9b0e9b58a2`, `os:ubuntu`, `zone:eu-central-1b`, `platform:ecs`. The same words filter
+**Updates** (and its CSV) and **Vulnerabilities**, which then lists each vulnerability only where it runs there:
+`region:eu-central-1 openssl`. Agents before 1.198 report nothing of this. **Group by → Place** on the matrix lists services under each cloud account and region
+they run in (*AWS 123456789012 · eu-central-1*), a service in two accounts under both.
 
 ## Target settings
 
@@ -57,7 +76,7 @@ Vulnerabilities put those first (see [Exposed to the outside](../../guide/securi
 | Platform | Exposed when |
 | --- | --- |
 | Kubernetes | a LoadBalancer service (not marked internal by its cloud's annotation), a NodePort service, an Ingress or a Gateway API HTTPRoute sends to its pods. Needs `list` on `services`, `ingresses.networking.k8s.io` and `httproutes.gateway.networking.k8s.io` (the Helm charts grant it); without it, nothing is exposed. |
-| Amazon ECS | the service registers with a load balancer (which may be internal), or its tasks get a public IP. |
+| Amazon ECS | the service registers with an internet-facing load balancer (named with its DNS name; internal ones do not count), or its tasks get a public IP. Without `elasticloadbalancing:DescribeTargetGroups` and `DescribeLoadBalancers` every target group counts, marked *internal or not: not known*. |
 | AWS Lambda | a function URL anyone may call (auth type `NONE`); needs `lambda:ListFunctionUrlConfigs`. |
 | Docker, Compose | a port published on every interface of the host (not on `127.0.0.1`). |
 | Amazon RDS | the database (or one of an Aurora cluster's instances) is publicly accessible. |
@@ -86,6 +105,16 @@ and `nodejs20.x` as `public.ecr.aws/lambda/nodejs:20`: Goliash then tells when a
 endoflife.date, when AWS deprecates the one in use. The inbox suggests the function's name as its service, so
 functions on the same runtime stay apart.
 
+**The packages in a .zip function's code.** AWS patches the runtime; what can be vulnerable is the code's own
+dependencies. Once per function version (its code and layer versions), the agent downloads the code and its layers
+from the presigned S3 URL `lambda:GetFunction` and `lambda:GetLayerVersion` give, reads the package manifests in
+it (`node_modules/*/package.json`, else `package-lock.json`; Python `*.dist-info/METADATA`; `pom.properties` in
+jars, nested ones too; the build information of Go executables such as `bootstrap`; gemspecs; .NET `*.deps.json`)
+and sends only the package URLs. Nothing is unpacked to disk or run, the code never leaves the agent, downloads
+come only from `*.amazonaws.com` and stop at 300 MB, and a few functions are read per round. Their vulnerabilities
+then show like an image's, under the function. Without `lambda:GetLayerVersion` the layers are left out, and the
+service page says so; `GOLIASH_LAMBDA_CODE=off` on the agent turns it off. Agents from 1.176 send it.
+
 A function with **aliases** shows once per alias, with the version the alias points to, in the environment named
 like the alias: `dev`, `staging` and `prod` aliases fill three columns of the matrix, so a version waiting to be
 promoted shows as drift like anywhere else. `alias_environments` maps aliases named otherwise (`live` to `prod`),
@@ -108,7 +137,11 @@ The server never sends secrets, only a `credentials_ref` name. The agent resolve
 
 Images from registries other than the public ones are checked by the agents. So are private repositories on public
 registries (GHCR, Docker Hub, Quay, …): when a registry refuses the server's anonymous check, the repository is
-handed to the agents. **Check upstream now** on the service page tries anonymously again, in case it became public.
+handed to the agents. **Check now** on the service page tries anonymously again, in case it became public.
+
+A repository goes to the agents whose targets run it, since those have access to it: an agent in one AWS account is
+not asked about another account's ECR. A repository no agent runs (a service watched only for its releases, or run
+where the server collects) goes to every agent.
 
 ### Credentials on the server
 
@@ -161,8 +194,9 @@ Credentials never leave the agent.
 ## Linux servers
 
 A server or virtual machine outside containers: the agent reads its operating system from `/etc/os-release` and
-its packages from the dpkg (Debian, Ubuntu) or apk (Alpine) database. It only reads files and runs nothing on the
-host. RPM-based systems report the operating system only, for now.
+its packages from the dpkg (Debian, Ubuntu), apk (Alpine) or RPM database (`rpmdb.sqlite`: RHEL, Rocky and
+AlmaLinux 9, Fedora, Amazon Linux 2023). It only reads files and runs nothing on the host. Older RPM releases (RHEL 8,
+Amazon Linux 2) keep a Berkeley DB and report the operating system only.
 
 ```sh
 docker run -d --name goliash-agent --restart unless-stopped \
@@ -172,8 +206,32 @@ docker run -d --name goliash-agent --restart unless-stopped \
 ```
 
 With `GOLIASH_HOST_ROOT` set, the agent finds the host by itself (named after `/etc/hostname`, identified by
-`/etc/machine-id`). **Connect → Linux server** gives the same command.
+`/etc/machine-id`). **Connect → More ways → Linux server** gives the same command. The Docker agent from **Connect →
+Docker** mounts the host's root the same way, so on a Docker host the OS and packages come with the containers. The
+targets list shows such a machine once: its Docker engine, and right under it **↳ OS and packages**.
 
+- **Vulnerabilities of all its packages**: the agent sends every package the database lists (from 1.236), named as
+  an image's would be, and the [Vulnerabilities](/guide/security/) page and Updates list the server's like any
+  image's: with the distribution's own fixes, and leaving out what Debian rates unimportant or Ubuntu negligible. Of
+  the kernel's packages only the running kernel's count, and they do count (in a container image the kernel is the
+  host's business; here it is the one that runs); an older kernel left installed, and kernel headers, do not. The
+  list is read again only when the package database changes.
+- **Its page** (the target, from *Agents and targets* or a version's target on a service page) is the server at a
+  glance: a **Server** panel with its operating system and its support, a reboot pending (and why), package updates
+  waiting, and how many known vulnerabilities its packages have (exploited ones counted), then every package the
+  agent sent, the vulnerable ones first, each with its count, its worst severity and the newest version that fixes
+  them, filterable (`openssl`, `exploited`, `critical`). Its operating system and packages map to services by
+  themselves (`ubuntu`, `nginx`), whatever the workspace's automatic mapping, and the Vulnerabilities page names the
+  server a package is on (*sudo 1.9.9-1ubuntu2.4 on mail-01*).
+- **A reboot waiting**: when Debian or Ubuntu wrote `/var/run/reboot-required` (with the packages that asked for it),
+  or a kernel newer than the running one is installed (any distribution: the running kernel is the agent's too),
+  the operating system shows **reboot pending** on its service page and Updates, with what waits in the tooltip:
+  *reboot required: kernel 6.8.0-1015-aws installed, 6.8.0-1012-aws runs*. Until the reboot, the fixes are on
+  disk but not running. The API has it under `maintenance`.
+- **Package updates waiting** on Ubuntu: what update-notifier counted after the last `apt update`
+  (`/var/lib/update-notifier/updates-available`), as *package updates: 12 waiting, 5 of them security*, shown as
+  **patch pending**. Unattended upgrades usually install the security ones overnight; a count that stays says they
+  do not.
 - **The operating system** is a workload named after it (`ubuntu`, `debian`, `alpine`, `rocky` …) at its version,
   compared with the distribution's image, so its end of life (Ubuntu 20.04, Debian 11 …) shows up like any other.
 - **Packages**: servers, runtimes and security-relevant libraries Goliash knows (nginx, Apache, HAProxy, PostgreSQL,

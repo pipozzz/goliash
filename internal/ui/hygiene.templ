@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/pipozzz/goliash/internal/versions"
@@ -14,20 +15,39 @@ templ HygienePage(v HygieneView) {
 		<div class="head">
 			<div>
 				<h1>Image hygiene</h1>
-				@aboutText("Images that make \"what runs\" hard to know or to trust: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base, images over their size budget, and images without a known digest.")
+				@aboutText("Images that make \"what runs\" hard to know, to trust or to keep patched: moving tags, tags pushed again, registries outside the allowed list, images built on an outdated base or over their size budget, operating systems and Go releases past their end of life, upstreams that stopped releasing, and images without a known digest.")
 			</div>
-			if v.Total > 0 {
-				@pageFilter("main table tbody tr", "Filter images, services, targets")
+			if v.Total > 0 || v.Team != "" {
+				<div class="actions">
+					if len(v.Teams) > 0 {
+						<form method="get" action="/hygiene" class="inline">
+							if v.Kind != "" {
+								<input type="hidden" name="kind" value={ v.Kind }/>
+							}
+							<label>
+								Team
+								<select name="team" data-autosubmit>
+									<option value="">all</option>
+									for _, t := range v.Teams {
+										<option value={ t } selected?={ t == v.Team }>{ t }</option>
+									}
+								</select>
+							</label>
+							<noscript><button type="submit" class="secondary">Filter</button></noscript>
+						</form>
+					}
+					@pageFilter("main table tbody tr", "Filter images, services, targets")
+				</div>
 			}
 		</div>
 		if v.Total > 0 {
 			<nav class="tiles" aria-label="Kinds of findings">
-				<a href="/hygiene" class={ "tile", templ.KV("current", v.Kind == "") }>
+				<a href={ templ.URL(hygieneURL("", v.Team)) } class={ "tile", templ.KV("current", v.Kind == "") }>
 					<strong>{ itoa(v.Total) }</strong>
 					<span>All findings</span>
 				</a>
 				for _, k := range v.Kinds {
-					<a href={ templ.URL("/hygiene?kind=" + k.Kind) } class={ "tile", templ.KV("current", v.Kind == k.Kind), templ.KV("warn", k.Warn && k.Count > 0), templ.KV("zero", k.Count == 0) }>
+					<a href={ templ.URL(hygieneURL(k.Kind, v.Team)) } class={ "tile", templ.KV("current", v.Kind == k.Kind), templ.KV("warn", k.Warn && k.Count > 0), templ.KV("zero", k.Count == 0) }>
 						<strong>{ itoa(k.Count) }</strong>
 						<span>{ k.Label }</span>
 						<small>{ k.Help }</small>
@@ -98,8 +118,15 @@ func findingClass(f versions.Finding) string {
 
 // findingLabel is a finding's kind as people read it.
 func findingLabel(kind string) string {
-	if kind == "unpinned" {
+	switch kind {
+	case "unpinned":
 		return "digest unknown"
+	case "eol-os":
+		return "OS end of life"
+	case "eol-runtime":
+		return "Go end of life"
+	case "expiring":
+		return "lifecycle deletes it"
 	}
 	return strings.ReplaceAll(kind, "-", " ")
 }
@@ -116,4 +143,19 @@ func explainFinding(f versions.Finding) string {
 	}
 	return "Explain this image hygiene finding: " + f.Image + " is flagged " + findingLabel(f.Kind) + " (" + f.Detail + ")." + where +
 		" Why is it a risk, and how do we fix it in the deployment, step by step?"
+}
+
+// hygieneURL is the Image hygiene page showing kind (all when empty) for team (all when empty).
+func hygieneURL(kind, team string) string {
+	q := url.Values{}
+	if kind != "" {
+		q.Set("kind", kind)
+	}
+	if team != "" {
+		q.Set("team", team)
+	}
+	if len(q) == 0 {
+		return "/hygiene"
+	}
+	return "/hygiene?" + q.Encode()
 }

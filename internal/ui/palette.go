@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -69,10 +70,25 @@ func (s *Server) paletteEntries(ctx context.Context, p auth.Principal) ([]Palett
 		if row.Split && row.App != "" {
 			sub = "in " + row.App + " · " + sub
 		}
-		out = append(out, PaletteEntry{Kind: "service", Label: row.Service, Sub: sub, URL: row.URL, State: c.State, Keys: keys[row.Service]})
+		out = append(out, PaletteEntry{
+			Kind: "service", Label: row.Service, Sub: sub, URL: row.URL, State: c.State,
+			Keys: append(slices.Clip(keys[row.Service]), row.Where...),
+		})
 	}
 	// Services split by application appear once per application; keep one entry.
 	out = dedupeEntries(out)
+	// Services only watched for their releases have no row: found by name and by the image they are watched in.
+	if services, err := s.store.ListServices(ctx, p.Scope); err == nil {
+		listed := map[string]bool{}
+		for _, e := range out {
+			listed[e.Label] = true
+		}
+		for _, svc := range services {
+			if svc.Upstream != "" && !listed[svc.Name] {
+				out = append(out, PaletteEntry{Kind: "service", Label: svc.Name, Sub: "watched for its releases, runs nowhere Goliash knows", URL: serviceURL(svc.Name), Keys: []string{svc.Upstream}})
+			}
+		}
+	}
 	v := TilesView{GroupBy: "app"}
 	apps, _ := appItems(v, groupRows(g.Rows, "app"), g.Envs, "")
 	for _, a := range apps {
@@ -81,12 +97,26 @@ func (s *Server) paletteEntries(ctx context.Context, p auth.Principal) ([]Palett
 	for team, n := range teams {
 		out = append(out, PaletteEntry{Kind: "team", Label: team, Sub: plural(n, "service", "services"), URL: "/tiles?group=team&app=" + url.QueryEscape(team)})
 	}
-	targets, err := s.store.ListTargets(ctx, p.Scope)
+	// Targets and agents are found by where they run too: "eu-central-1", "account:1234…", "ubuntu".
+	for _, t := range g.targets {
+		out = append(out, PaletteEntry{
+			Kind: "target", Label: t.Name, Sub: t.Platform, URL: "/targets/" + t.ID, Keys: versions.WhereTokens(g.where[t.ID]),
+		})
+	}
+	agents, err := s.store.ListAgents(ctx, p.Scope)
 	if err != nil {
 		return nil, err
 	}
-	for _, t := range targets {
-		out = append(out, PaletteEntry{Kind: "target", Label: t.Name, Sub: t.Platform, URL: "/targets/" + t.ID})
+	for _, a := range agents {
+		sub := "agent"
+		if w := whereShort(whereItems(a.Where)); w != "" {
+			sub += " · " + w
+		}
+		keys := versions.WhereTokens(a.Where)
+		if a.Hostname != "" {
+			keys = append(keys, strings.ToLower(a.Hostname))
+		}
+		out = append(out, PaletteEntry{Kind: "agent", Label: a.Name, Sub: sub, URL: "/agents/" + a.ID, Keys: keys})
 	}
 	for _, sv := range s.visibleViews(ctx, p) {
 		sub := "your view"
@@ -136,7 +166,7 @@ func (s *Server) paletteEntries(ctx context.Context, p auth.Principal) ([]Palett
 	return out, nil
 }
 
-var kindOrder = map[string]int{"view": 0, "application": 1, "service": 2, "team": 3, "target": 4, "page": 5}
+var kindOrder = map[string]int{"view": 0, "application": 1, "service": 2, "team": 3, "target": 4, "agent": 5, "page": 6}
 
 // paletteKeys are the words besides its name that find each service: the images and versions it runs, its
 // workloads, and the GitOps applications that deploy it.

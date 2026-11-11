@@ -87,6 +87,10 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	if err != nil {
 		return err
 	}
+	lastVersions, err := s.store.LastVersions(ctx, sc, target.ID)
+	if err != nil {
+		return err
+	}
 
 	serviceIDs := map[string]string{}
 	appLabel, err := s.store.WorkspaceAppLabel(ctx, sc.WorkspaceID)
@@ -99,7 +103,7 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	}
 	autoMapped := map[string]string{}
 	changes, err := diff(diffInput{
-		Target: target, Snapshot: payload, Existing: existing, Mapper: mapper, EnvByName: envByName,
+		Target: target, Snapshot: payload, Existing: existing, LastVersions: lastVersions, Mapper: mapper, EnvByName: envByName,
 		Baseline: !hasBase, AppLabel: appLabel, AutoMap: autoMap, AutoMapped: autoMapped,
 		ServiceID: func(name string) (string, error) {
 			if id, ok := serviceIDs[name]; ok {

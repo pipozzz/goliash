@@ -314,6 +314,21 @@ func PostureItem(pos versions.Posture, supply SupplyChain, prev *store.PostureSa
 		}
 		fmt.Fprintf(&b, " Built on an outdated base (rebuild with --pull): %s.", strings.Join(names, ", "))
 	}
+	if n := len(pos.EOLOS); n > 0 {
+		names := pos.EOLOS
+		if n > postureWorst {
+			names = append(append([]string{}, names[:postureWorst]...), fmt.Sprintf("%d more", n-postureWorst))
+		}
+		fmt.Fprintf(&b, " Built on an operating system past its end of life (no more security fixes): %s.", strings.Join(names, ", "))
+	}
+	if n := len(pos.EOLGo); n > 0 {
+		names := pos.EOLGo
+		if n > postureWorst {
+			names = append(append([]string{}, names[:postureWorst]...), fmt.Sprintf("%d more", n-postureWorst))
+		}
+		fmt.Fprintf(&b, " Built with a Go past its end of life (its standard library gets no more fixes): %s.", strings.Join(names, ", "))
+	}
+	b.WriteString(extendedText(pos.Extended))
 	if len(worst) > 0 {
 		b.WriteString(" Longest: " + strings.Join(worst, "; ") + ".")
 	}
@@ -390,4 +405,27 @@ func unknownReasons(us []versions.UnknownService) string {
 		parts[i] = fmt.Sprintf("%d %s", count[s], s)
 	}
 	return " (" + strings.Join(parts, ", ") + ")"
+}
+
+// extendedText says what AWS Extended Support costs: " AWS Extended Support: $584/month on 2 managed services now;
+// $365/month more on 1 from 2027-03-01."
+func extendedText(e versions.ExtendedBill) string {
+	if e.NowCount == 0 && e.SoonCount == 0 {
+		return ""
+	}
+	amount := func(v float64, n int) string {
+		s := "on " + plural(n, "managed service", "managed services")
+		if v > 0 {
+			s = versions.Dollars(v) + "/month " + s
+		}
+		return s
+	}
+	var parts []string
+	if e.NowCount > 0 {
+		parts = append(parts, amount(e.Now, e.NowCount)+" now")
+	}
+	if e.SoonCount > 0 {
+		parts = append(parts, amount(e.Soon, e.SoonCount)+" from "+e.SoonFrom.Format(time.DateOnly))
+	}
+	return " AWS Extended Support (upgrade to stop it): " + strings.Join(parts, "; ") + "."
 }

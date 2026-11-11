@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestVerify(t *testing.T) {
@@ -51,5 +52,29 @@ func TestVerify(t *testing.T) {
 	}
 	if err := verifyCmd(context.Background(), []string{"-server", srv.URL, "-token", "wrong", "x:1"}, &out); err == nil || errors.Is(err, errVerifyFailed) {
 		t.Errorf("a refused token: %v", err)
+	}
+}
+
+// An image only an agent can read: verify waits while the server answers 202, and gives up after -wait.
+func TestVerifyWaitsForTheAgent(t *testing.T) {
+	verifyPoll = time.Millisecond
+	asks := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		asks++
+		if asks < 3 {
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"image":"x","pending":true}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"image":"acme.dkr.ecr.eu-west-1.amazonaws.com/app:6.0.241","passed":true,"findings":[],"packages":9,"sbom_source":"agent"}`))
+	}))
+	defer srv.Close()
+	var out bytes.Buffer
+	if err := verifyCmd(context.Background(), []string{"-server", srv.URL, "-token", "glsh_api_x", "acme.dkr.ecr.eu-west-1.amazonaws.com/app:6.0.241"}, &out); err != nil || asks != 3 || !strings.Contains(out.String(), "passed") {
+		t.Fatalf("after %d asks: %v %s", asks, err, out.String())
+	}
+	asks = -1000
+	if err := verifyCmd(context.Background(), []string{"-server", srv.URL, "-token", "glsh_api_x", "-wait", "5ms", "x/app:1"}, &out); err == nil || !strings.Contains(err.Error(), "no agent read") {
+		t.Fatalf("waited for ever: %v", err)
 	}
 }

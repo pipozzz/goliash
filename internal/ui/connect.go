@@ -91,7 +91,8 @@ func platformInfo(key string) (PlatformInfo, bool) {
 type ConnectView struct {
 	Base
 	Primary, More []PlatformInfo
-	DefaultEnv    string // where a one-click agent lands
+	DefaultEnv    string // where a one-click agent lands unless another is picked
+	Envs          []store.Environment
 }
 
 // primaryPlatforms are where an agent runs: everything else it finds by itself, or is added from its page.
@@ -163,7 +164,7 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	v.DefaultEnv = defaultEnvName
+	v.DefaultEnv, v.Envs = defaultEnvName, envs
 	if e, ok := quickEnv(envs); ok {
 		v.DefaultEnv = e.Name
 	}
@@ -458,6 +459,8 @@ type ConnectCodeView struct {
 	Base
 	Platform  PlatformInfo
 	Env       string
+	EnvID     string
+	Envs      []store.Environment // for changing it
 	Code      string
 	Many      bool
 	Expires   time.Time // zero: never
@@ -543,8 +546,11 @@ func (s *Server) connectCode(w http.ResponseWriter, r *http.Request, p auth.Prin
 	}
 	s.audit(ctx, p, "enroll.create", "environment", env.Name, "platform", info.Key, "code", c.ID)
 	v := ConnectCodeView{
-		Base: s.base(ctx, p, "agents", "Connect "+info.Title), Platform: info, Env: env.Name, Code: code, Many: many,
+		Base: s.base(ctx, p, "agents", "Connect "+info.Title), Platform: info, Env: env.Name, EnvID: env.ID, Code: code, Many: many,
 		Expires: until, ServerURL: s.publicURL,
+	}
+	if v.Envs, err = s.store.ListEnvironments(ctx, p.Scope); err != nil {
+		return err
 	}
 	v.Title, v.Command = installCommand(info.Key, s.publicURL, code, nil, s.version)
 	if name != "" && info.Key == "kubernetes" {
@@ -577,9 +583,12 @@ func (s *Server) quickDefaults(r *http.Request, p auth.Principal, f url.Values) 
 	if err != nil {
 		return err
 	}
-	if e, ok := quickEnv(envs); ok {
+	switch e, ok := quickEnv(envs); {
+	case strings.TrimSpace(f.Get("new_env")) != "" || f.Get("env") != "":
+		// picked on the Connect page
+	case ok:
 		f.Set("env", e.ID)
-	} else {
+	default:
 		f.Set("new_env", defaultEnvName)
 	}
 	if svcs, err := s.store.ListServices(r.Context(), p.Scope); err == nil && len(svcs) == 0 {

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -27,6 +29,7 @@ const maxReleases = 30
 var publicRegistries = map[string]bool{
 	"docker.io": true, "ghcr.io": true, "quay.io": true, "registry.k8s.io": true, "gcr.io": true,
 	"public.ecr.aws": true, "mcr.microsoft.com": true, "registry.gitlab.com": true, "docker.elastic.co": true,
+	"registry.access.redhat.com": true, "cgr.dev": true,
 }
 
 // PackageRepo reports whether repo stands for an operating system package without an image
@@ -36,6 +39,9 @@ func PackageRepo(repo string) bool { return strings.HasPrefix(repo, "pkg.goliash
 // IsPublicRegistry reports whether the server checks repo itself.
 func IsPublicRegistry(repo string) bool {
 	host, _, _ := strings.Cut(repo, "/")
+	if public, ok := registry.Alias(host); ok {
+		host = public
+	}
 	return publicRegistries[host]
 }
 
@@ -61,18 +67,25 @@ type Checker struct {
 	ttl      time.Duration
 	onEvents func(store.Scope, []store.Event)
 
-	mu     sync.Mutex
-	cache  map[string]cachedTags
-	now    func() time.Time
-	github *GitHub
-	gitlab *GitLab
-	eol    *EOL
-	osv    *OSV
-	kev    *KEV
-	nvd    *NVD
-	php    *phpFeed   // which PHP releases fix vulnerabilities
-	text   *textFeeds // Go's release history, release notes pages
+	mu    sync.Mutex
+	cache map[string]cachedTags
+	// aliasProbed is when each registry host was last asked whether it redirects to a public registry.
+	aliasProbed map[string]time.Time
+	now         func() time.Time
+	github      *GitHub
+	gitlab      *GitLab
+	eol         *EOL
+	owners      OwnerSources // CODEOWNERS and Backstage, when set up
+	osv         *OSV
+	kev         *KEV
+	// debianTracker is where Debian's security tracker data is read; debianTried, when it was last tried.
+	debianTracker string
+	debianTried   time.Time
+	nvd           *NVD
+	php           *phpFeed   // which PHP releases fix vulnerabilities
+	text          *textFeeds // Go's release history, release notes pages
 
+	refreshing sync.Map   // workspace ID -> a security refresh runs (RefreshSecurity)
 	driftMu    sync.Mutex // one drift evaluation at a time
 	upstreamMu sync.Mutex // one upstream check at a time, so a release is announced once
 }
@@ -91,6 +104,12 @@ func NewChecker(st *store.Store, tags TagLister, log *slog.Logger, ttl time.Dura
 		now: func() time.Time { return time.Now().UTC() }, php: newPHPFeed(), text: newTextFeeds(),
 	}
 }
+
+// SetCodeOwners lets owners come from the CODEOWNERS of the repositories GitOps applications deploy from.
+func (c *Checker) SetCodeOwners(fn CodeOwnersTeam) { c.owners.CodeOwners = fn }
+
+// SetBackstage lets owners come from the owners of a Backstage catalog's components.
+func (c *Checker) SetBackstage(b *Backstage) { c.owners.Catalog = b.Components }
 
 // OnEvents registers a callback for new_release and drift events.
 func (c *Checker) OnEvents(fn func(store.Scope, []store.Event)) { c.onEvents = fn }
@@ -132,6 +151,12 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 			if err := c.CheckProductVulns(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "product vulnerability lookup failed", "workspace", ws.Slug, "err", err)
 			}
+			if err := c.CheckUpstreamFixes(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.ErrorContext(ctx, "upstream fix lookup failed", "workspace", ws.Slug, "err", err)
+			}
+			if err := WarmEOL(ctx, c.store, ws.Scope()); err != nil && ctx.Err() == nil {
+				c.log.WarnContext(ctx, "end-of-life lookup of operating systems and Go failed", "workspace", ws.Slug, "err", err)
+			}
 			if err := c.AlertVulnerabilities(ctx, ws.Scope()); err != nil && ctx.Err() == nil {
 				c.log.ErrorContext(ctx, "vulnerability alerts failed", "workspace", ws.Slug, "err", err)
 			}
@@ -140,7 +165,7 @@ func (c *Checker) runOnce(ctx context.Context, upstream bool) {
 		if err := c.checkUpstreams(ctx, ws.Scope(), !upstream); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "upstream check failed", "workspace", ws.Slug, "err", err)
 		}
-		if named, err := FillOwners(ctx, c.store, ws.Scope()); err != nil && ctx.Err() == nil {
+		if named, err := FillOwners(ctx, c.store, ws.Scope(), c.owners); err != nil && ctx.Err() == nil {
 			c.log.ErrorContext(ctx, "giving services their application's team failed", "workspace", ws.Slug, "err", err)
 		} else if len(named) > 0 {
 			c.log.InfoContext(ctx, "services got their application's team", "workspace", ws.Slug, "services", named)
@@ -158,7 +183,8 @@ type workspaceState struct {
 	matrix    Matrix
 	refs      map[string]Reference
 	instances []store.Instance
-	auth      RegistryAuth // the workspace's credentials for private registries
+	auth      RegistryAuth      // the workspace's credentials for private registries
+	agentOf   map[string]string // target ID -> the agent collecting it ("" for the server)
 }
 
 // Reference is what a service's upstream is compared against: its image repository
@@ -181,6 +207,10 @@ func (c *Checker) load(ctx context.Context, sc store.Scope) (workspaceState, err
 	targets, err := c.store.ListTargets(ctx, sc)
 	if err != nil {
 		return st, err
+	}
+	st.agentOf = make(map[string]string, len(targets))
+	for _, t := range targets {
+		st.agentOf[t.ID] = t.AgentID
 	}
 	if st.instances, err = c.store.ListActiveInstances(ctx, sc); err != nil {
 		return st, err
@@ -263,6 +293,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 	sort.Strings(ids)
 	for _, id := range ids {
 		ref := st.refs[id]
+		c.probeAlias(ctx, ref.Repo, st.auth)
 		if ref.Repo == "" || !serverChecks(st.byID[id], ref.Repo, st.auth) {
 			continue
 		}
@@ -273,7 +304,7 @@ func (c *Checker) checkUpstreams(ctx context.Context, sc store.Scope, onlyNew bo
 		}
 		tags, err := c.listTags(ctx, sc, ref.Repo, st.auth)
 		if err != nil {
-			if c.handOver(ctx, sc, st.byID[id], ref.Repo, st.auth, err) {
+			if c.builtLocally(ctx, sc, st.byID[id], ref.Repo, err) || c.handOver(ctx, sc, st.byID[id], ref.Repo, st.auth, err) {
 				continue
 			}
 			c.log.WarnContext(ctx, "upstream check failed", "service", st.byID[id].Name, "repo", ref.Repo, "err", err)
@@ -769,6 +800,9 @@ func (c *Checker) CheckService(ctx context.Context, sc store.Scope, serviceID st
 	svc := st.byID[serviceID]
 	tags, err := c.listTags(ctx, sc, ref.Repo, st.auth)
 	if err != nil {
+		if c.builtLocally(ctx, sc, svc, ref.Repo, err) {
+			return errors.New(BuiltLocally)
+		}
 		if c.handOver(ctx, sc, svc, ref.Repo, st.auth, err) {
 			return fmt.Errorf("%s: %w", ref.Repo, ErrNeedsCredentials)
 		}
@@ -798,7 +832,58 @@ func serverChecks(svc store.Service, repo string, auth RegistryAuth) bool {
 	if _, ok := auth.For(repo); ok {
 		return true
 	}
-	return IsPublicRegistry(repo) && svc.PrivateUpstream != repo
+	// Docker Hub's library is official images only, all public: one handed to the agents before is the server's again.
+	return IsPublicRegistry(repo) && (svc.PrivateUpstream != repo || libraryRepo(repo))
+}
+
+// BuiltLocally is the upstream error of an image named like an official Docker Hub image that Docker Hub does not
+// have: built where it runs (docker build, docker compose build), never pulled from a registry.
+const BuiltLocally = "no official image on Docker Hub has this name: built where it runs, not pulled from a registry"
+
+// libraryRepo reports whether repo is in Docker Hub's library of official images: a short name, "nginx".
+func libraryRepo(repo string) bool { return strings.HasPrefix(repo, "docker.io/library/") }
+
+// builtLocally records a library repository Docker Hub refused anonymously as built where it runs, rather than
+// handing it to the agents as private: the library has no private images, so there is nothing to read anywhere.
+func (c *Checker) builtLocally(ctx context.Context, sc store.Scope, svc store.Service, repo string, err error) bool {
+	if !libraryRepo(repo) || !errors.Is(err, registry.ErrUnauthorized) && !errors.Is(err, registry.ErrNotFound) {
+		return false
+	}
+	if svc.PrivateUpstream == repo {
+		if err := c.store.SetPrivateUpstream(ctx, sc, svc.ID, ""); err != nil {
+			c.log.WarnContext(ctx, "clear private upstream", "service", svc.Name, "err", err)
+		}
+	}
+	_ = c.store.RecordUpstreamCheck(ctx, sc, svc.ID, BuiltLocally)
+	return true
+}
+
+// aliasProbeTTL is how long the answer to whether a registry host is an alias holds.
+const aliasProbeTTL = 24 * time.Hour
+
+// probeAlias asks a registry host the server does not check, and has no credentials for, whether it only redirects
+// to a public registry (registry.ProbeAlias), at most once a day per host.
+func (c *Checker) probeAlias(ctx context.Context, repo string, auth RegistryAuth) {
+	host, _, ok := strings.Cut(repo, "/")
+	if !ok || publicRegistries[host] || PackageRepo(repo) || Managed(repo) || LambdaRuntime(repo) != "" {
+		return
+	}
+	if _, credentialed := auth.For(repo); credentialed {
+		return
+	}
+	c.mu.Lock()
+	if at, done := c.aliasProbed[host]; done && time.Since(at) < aliasProbeTTL {
+		c.mu.Unlock()
+		return
+	}
+	if c.aliasProbed == nil {
+		c.aliasProbed = map[string]time.Time{}
+	}
+	c.aliasProbed[host] = time.Now()
+	c.mu.Unlock()
+	if public, ok := registry.ProbeAlias(ctx, host); ok {
+		c.log.InfoContext(ctx, "registry host redirects to a public registry; the server reads it", "host", host, "registry", public)
+	}
 }
 
 // handOver leaves repo to the agents when a public registry refused it anonymously
@@ -825,10 +910,48 @@ func CheckedByAgent(svc store.Service, repo string, auth RegistryAuth) bool {
 	return repo != "" && !serverChecks(svc, repo, auth)
 }
 
+// agentHosts are the registry hosts the agents check some service's upstream on, with the repositories each is
+// for. An agent that reads one repository of a private registry reads its others too, as a rule (the same ECR,
+// the same credentials): a repository no service runs yet, an image checked before its first deploy, goes to it.
+func agentHosts(refs map[string]Reference, byID map[string]store.Service, auth RegistryAuth) map[string][]string {
+	out := map[string][]string{}
+	for id, ref := range refs {
+		if ref.Repo == "" || PackageRepo(ref.Repo) || Managed(ref.Repo) || serverChecks(byID[id], ref.Repo, auth) {
+			continue
+		}
+		host, _, _ := strings.Cut(ref.Repo, "/")
+		if !slices.Contains(out[host], ref.Repo) {
+			out[host] = append(out[host], ref.Repo)
+		}
+	}
+	return out
+}
+
+// AgentReads reports whether the agents can be asked to read repo: they check it, or another repository on its
+// registry, which the server cannot read.
+func AgentReads(o Overview, repo string) bool {
+	if repo == "" || libraryRepo(repo) || PackageRepo(repo) || Managed(repo) || o.Registries.Reads(repo) {
+		for id, r := range o.Refs {
+			if r.Repo == repo && CheckedByAgent(o.Services[id], repo, o.Registries) {
+				return true
+			}
+		}
+		return false
+	}
+	host, _, _ := strings.Cut(repo, "/")
+	return len(agentHosts(o.Refs, o.Services, o.Registries)[host]) > 0
+}
+
 // PrivateRepositories lists upstream repositories the server cannot check itself,
-// for the agent to check. credentials_ref is the registry host, so an agent finds
+// for agentID to check. credentials_ref is the registry host, so an agent finds
 // credentials for registry.example.com in GOLIASH_CREDENTIAL_REGISTRY_EXAMPLE_COM.
-func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]agentproto.RegistryCheck, error) {
+//
+// A repository goes to the agents whose targets run the service: they are the ones
+// with access to it (an agent in one AWS account has none to another account's ECR,
+// and its refusal would overwrite the tags the right agent found). One no agent runs
+// (a service watched for its releases only, or run where the server collects) goes to
+// every agent.
+func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope, agentID string) ([]agentproto.RegistryCheck, error) {
 	st, err := c.load(ctx, sc)
 	if err != nil {
 		return nil, err
@@ -841,20 +964,58 @@ func (c *Checker) PrivateRepositories(ctx context.Context, sc store.Scope) ([]ag
 	if err != nil {
 		return nil, err
 	}
+	releases, err := c.releasesToRead(ctx, sc, st.instances)
+	if err != nil {
+		return nil, err
+	}
+	runBy := map[string]map[string]bool{} // service ID -> the agents running it
+	for _, in := range st.instances {
+		if a := st.agentOf[in.TargetID]; a != "" && in.ServiceID != "" {
+			if runBy[in.ServiceID] == nil {
+				runBy[in.ServiceID] = map[string]bool{}
+			}
+			runBy[in.ServiceID][a] = true
+		}
+	}
+	mine := map[string]bool{} // repositories agentID runs, and those no agent runs
+	for id, ref := range st.refs {
+		if agents := runBy[id]; len(agents) == 0 || agents[agentID] {
+			mine[ref.Repo] = true
+		}
+	}
 	seen := map[string]bool{}
 	var out []agentproto.RegistryCheck
 	for id, ref := range st.refs {
-		if ref.Repo == "" || serverChecks(st.byID[id], ref.Repo, st.auth) || seen[ref.Repo] || PackageRepo(ref.Repo) {
+		if ref.Repo == "" || !mine[ref.Repo] || serverChecks(st.byID[id], ref.Repo, st.auth) || seen[ref.Repo] || PackageRepo(ref.Repo) {
 			continue
 		}
 		seen[ref.Repo] = true
 		host, _, _ := strings.Cut(ref.Repo, "/")
 		check := agentproto.RegistryCheck{Repository: ref.Repo, CredentialsRef: &host, Resolve: pending[ref.Repo], Inspect: inspect[ref.Repo]}
+		if tags := releases[ref.Repo]; len(tags) > 0 {
+			check.ReleaseTags = tags[:min(len(tags), 5)]
+		}
 		if p, _, err := PolicyFor(st.byID[id], ref.Repo); err == nil && p.TagFilter != "" {
 			filter := p.TagFilter
 			check.TagFilter = &filter
 		}
 		out = append(out, check)
+	}
+	// Images asked to be checked in repositories no service runs yet: to the agents that read others on their registry.
+	hosts := agentHosts(st.refs, st.byID, st.auth)
+	for repo, tags := range releases {
+		host, _, _ := strings.Cut(repo, "/")
+		if seen[repo] || libraryRepo(repo) || st.auth.Reads(repo) || !slices.ContainsFunc(hosts[host], func(r string) bool { return mine[r] }) {
+			continue
+		}
+		seen[repo] = true
+		tags = tags[:min(len(tags), 5)]
+		quoted := make([]string, len(tags))
+		for i, t := range tags {
+			quoted[i] = regexp.QuoteMeta(t)
+		}
+		filter := "^(" + strings.Join(quoted, "|") + ")$" // its other tags are no one's releases
+		out = append(out, agentproto.RegistryCheck{Repository: repo, CredentialsRef: &host, ReleaseTags: tags, TagFilter: &filter})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Repository < out[j].Repository })
 	return out, nil
@@ -885,4 +1046,31 @@ func (c *Checker) RecordPrivateTags(ctx context.Context, sc store.Scope, repo st
 		c.emit(sc, evs)
 	}
 	return nil
+}
+
+// RefreshSecurity reads the workspace's images and asks OSV about their packages now, in the background, rather
+// than at the next hourly run, then calls done; it reports false, and does nothing, when one already runs.
+func (c *Checker) RefreshSecurity(sc store.Scope, done func()) bool {
+	if _, running := c.refreshing.LoadOrStore(sc.WorkspaceID, true); running {
+		return false
+	}
+	go func() {
+		defer c.refreshing.Delete(sc.WorkspaceID)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := c.CheckEvidence(ctx, sc); err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "evidence lookup on request failed", "err", err)
+		}
+		if err := c.CheckVulnerabilities(ctx, sc); err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "vulnerability lookup on request failed", "err", err)
+		}
+		if err := c.CheckUpstreamFixes(ctx, sc); err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "upstream fix lookup on request failed", "err", err)
+		}
+		_ = c.EvaluateDrift(ctx, sc)
+		if done != nil {
+			done()
+		}
+	}()
+	return true
 }

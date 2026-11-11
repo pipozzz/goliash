@@ -1093,10 +1093,10 @@ func TestChannelServiceWorkspaceEdits(t *testing.T) {
 			t.Fatal("service not deleted")
 		}
 
-		if err := s.RenameWorkspace(ctx, ws.OrgID, ws.ID, "Renamed"); err != nil {
+		if err := s.RenameWorkspace(ctx, ws.OrgID, ws.ID, "Renamed", ws.Slug); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.RenameWorkspace(ctx, "other-org", ws.ID, "x"); !errors.Is(err, ErrNotFound) {
+		if err := s.RenameWorkspace(ctx, "other-org", ws.ID, "x", "x"); !errors.Is(err, ErrNotFound) {
 			t.Fatal("renamed a workspace of another organization")
 		}
 	})

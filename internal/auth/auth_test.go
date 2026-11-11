@@ -95,6 +95,28 @@ func get(t *testing.T, c *http.Client, u string) (int, string) {
 	return resp.StatusCode, string(b)
 }
 
+// useLink signs in with a link as its confirm page does: opening it uses nothing up; the token is posted.
+func useLink(t *testing.T, c *http.Client, link string) (int, string) {
+	t.Helper()
+	u, err := url.Parse(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := get(t, &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, link); code != http.StatusSeeOther {
+		t.Fatalf("opening the link: %d", code)
+	}
+	form := url.Values{"token": {u.Query().Get("token")}}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, u.Scheme+"://"+u.Host+"/auth/magic/use", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
+}
+
 func post(t *testing.T, c *http.Client, u string, form url.Values) string {
 	t.Helper()
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, u, strings.NewReader(form.Encode()))
@@ -136,7 +158,7 @@ func TestMagicLinkSessionAndLogout(t *testing.T) {
 	if code, body := get(t, c, h.srv.URL+"/whoami"); code != http.StatusUnauthorized {
 		t.Fatalf("signed in before using the link: %d %s", code, body)
 	}
-	if _, body := get(t, c, link); body != "home" {
+	if _, body := useLink(t, c, link); body != "home" {
 		t.Fatalf("link did not sign in: %s", body)
 	}
 	if _, body := get(t, c, h.srv.URL+"/whoami"); body != "ana@example.com member session" {
@@ -318,7 +340,7 @@ func TestWorkspaceSelection(t *testing.T) {
 
 	link, _ := h.auth.LoginLink(ctx, u)
 	c := h.client()
-	get(t, c, link)
+	useLink(t, c, link)
 
 	whoami := func(cookie string) Principal {
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
@@ -347,7 +369,7 @@ func TestWorkspaceSelection(t *testing.T) {
 	admin, _ := h.st.CreateUser(ctx, h.ws.OrgID, "admin@msp.example", "", store.RoleAdmin)
 	link, _ = h.auth.LoginLink(ctx, admin)
 	c = h.client()
-	get(t, c, link)
+	useLink(t, c, link)
 	if p := whoami(secret.ID); p.Scope.WorkspaceID != secret.ID || p.Role != store.RoleAdmin || len(p.Workspaces) != 3 || !p.OrgWide() {
 		t.Fatalf("admin %+v", p)
 	}

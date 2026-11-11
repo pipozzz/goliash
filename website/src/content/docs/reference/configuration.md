@@ -19,8 +19,12 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITLAB_TOKEN` | | | Token for the self-hosted GitLab (else for gitlab.com) |
 | `GOLIASH_OSV_URL` | | `https://api.osv.dev/v1` | Where the packages of running images' SBOMs are looked up for known vulnerabilities: an OSV API mirror, or `off`. Only package names and versions are sent |
 | `GOLIASH_KEV_URL` | | CISA's feed | Where the catalog of known exploited vulnerabilities is read from (a mirror of CISA's JSON), or `off` |
-| `GOLIASH_NVD` | | on | `off` stops asking [NVD](https://nvd.nist.gov) for the CVEs of running product versions (PostgreSQL 16.2, nginx 1.25.3…). Only the product and version are sent |
-| `GOLIASH_NVD_API_KEY` | | | An [NVD API key](https://nvd.nist.gov/developers/request-an-api-key): 50 requests in 30 seconds instead of 5, so new versions are looked up sooner |
+| `GOLIASH_DEBIAN_TRACKER_URL` | | Debian's tracker | Where [Debian's security tracker](https://security-tracker.debian.org) data is read from, to correct OSV where it lags (a release that never had the vulnerable code, a CVE not assessed yet), or `off`. Nothing about the images is sent |
+| `GOLIASH_GOPROXY` | | `https://proxy.golang.org` | The Go module proxy asked which version is tagged at the commit a Go program in an image was built from (Traefik and most vendors build from their release's checkout), or `off`. Asked only about modules the Go vulnerability database lists, never a company's own. Read by the server and the agents |
+| `GOLIASH_NVD` | | on | `off` stops asking [NVD](https://nvd.nist.gov) for the CVEs of running product versions (PostgreSQL 16.2, nginx 1.25.3…), and for the versions a CVE affects upstream when a distribution has no fix ([Upstream fixes](/guide/security/#upstream-fixes)). Only products, versions and CVE IDs are sent |
+| `GOMEMLIMIT` | | ⅔ of the container's memory limit, else of the machine's | Go's soft memory limit: near it the garbage collector works harder instead of letting the heap grow into swap. Set it to choose another, e.g. `300MiB` |
+| `GOLIASH_PPROF` | | | An address such as `127.0.0.1:6060` to serve Go's profiles (`/debug/pprof/`) on, for finding what is slow or large on a running server. Keep it on localhost |
+| `GOLIASH_NVD_API_KEY` | | | An [NVD API key](https://nvd.nist.gov/developers/request-an-api-key): 50 requests in 30 seconds instead of 5, so new versions and upstream fixes are looked up sooner |
 | `GOLIASH_AI_API_KEY` | | | The model provider's API key that turns on [Goli](/guide/goli/), the assistant; also `GOLIASH_AI_PROVIDER` (`anthropic` or `openai`), `GOLIASH_AI_API_KEY_FILE`, `GOLIASH_AI_MODEL` (`claude-opus-5-5`), `GOLIASH_AI_EFFORT`, `GOLIASH_AI_BASE_URL`, `GOLIASH_AI_PER_HOUR`, `GOLIASH_AI_PER_DAY`, `GOLIASH_AI_PLAN_SUMMARY` and `GOLIASH_AI_DIGEST_SUMMARY` |
 | `GOLIASH_GOLI_SEASON` | | | What Goli, the mascot, wears: by default it follows the calendar (a pumpkin around Halloween, a Santa hat in December, a scarf in January and February, sunglasses in July and August); `off` never, or `halloween`, `christmas`, `winter`, `summer` always |
 | `GOLIASH_SLACK_SIGNING_SECRET` | | | With `GOLIASH_SLACK_GOLI_TOKEN`, turns on Goli's `/goli` command for a Slack app; see [Goli in Slack](/guide/goli/#goli-in-slack). `GOLIASH_SLACK_IN_CHANNEL=true` answers in the channel |
@@ -32,6 +36,9 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_GITOPS_GITLAB_TOKEN` | | | A GitLab token (`api` scope, Developer on the deploy projects) for merge requests on gitlab.com, or on `GOLIASH_GITLAB_URL` |
 | `GOLIASH_GITOPS_GITEA_TOKEN` | | | A Gitea or Forgejo access token (`write:repository`) for pull requests on `GOLIASH_GITEA_URL` |
 | `GOLIASH_GITEA_URL` | | | The Gitea or Forgejo instance, e.g. `https://git.example.com` or `https://codeberg.org` |
+| `GOLIASH_BACKSTAGE_URL` | | | A Backstage instance (`https://backstage.example.com`): services' [owners](/guide/apps/#teams) from its catalog's components |
+| `GOLIASH_BACKSTAGE_TOKEN` | | | A static token from Backstage's external access, when its catalog asks for one |
+| `GOLIASH_CODEOWNERS` | | on | `off` stops reading services' [owners from CODEOWNERS](/guide/apps/#teams) of the GitOps repositories with the GitOps tokens |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
@@ -111,6 +118,8 @@ address, or 30 from one client, pause sign-in for 15 minutes.
 
 ### OIDC sign-in
 
+Owners can set this up in **Settings → Single sign-on** instead; the variables below take precedence when set.
+
 | Variable | Meaning |
 | --- | --- |
 | `GOLIASH_OIDC_ISSUER` | Issuer URL, e.g. `https://accounts.google.com` |
@@ -188,6 +197,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_ECS_EXCLUDE` | | | ECS clusters, by name, an enrolling agent leaves out (the CloudFormation template sets its own cluster) |
 | `GOLIASH_LAMBDA_ALIASES` | | | Lambda aliases named otherwise than environments, e.g. `live=prod,canary=-` (`-` leaves one out) |
 | `GOLIASH_LAMBDA` | | on | `off` stops an enrolling agent from adding its AWS region's Lambda functions |
+| `GOLIASH_LAMBDA_CODE` | | on | `off` stops the agent from downloading .zip Lambda functions' code and layers to read the packages in them ([Collectors](/reference/collectors/)) |
 | `GOLIASH_TARGETS` | | | Targets an enrolling agent declares, as a JSON array of [agent protocol targets](/reference/agent-protocol/) without `id` |
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |

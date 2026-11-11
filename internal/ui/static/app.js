@@ -79,6 +79,59 @@
   // Matrix filter: words must all appear in a row (service, owner, versions, targets);
   // "Only with drift" hides rows without drift. The state lives in the URL (?q=, ?drift=1),
   // so a filtered matrix can be shared, and it survives the live refreshes.
+  // matchWords: every word must appear in hay, except kinds (type:lambda), of which one is enough:
+  // "type:ecs type:docker" is what runs on ECS or Docker.
+  // A word starting with a dash leaves out what has it: "-pr-" hides the preview copies.
+  function matchWords(words, hay) {
+    const kinds = words.filter(function (w) { return w.indexOf("type:") === 0; });
+    return words.every(function (w) {
+      if (w.indexOf("type:") === 0) return true;
+      if (w.length > 1 && w[0] === "-") return hay.indexOf(w.slice(1)) < 0;
+      return hay.indexOf(w) >= 0;
+    }) && (kinds.length === 0 || kinds.some(function (k) { return hay.indexOf(k) >= 0; }));
+  }
+
+  // Rows with the same data-same (one upgrade of one image in one environment, say every Node.js function
+  // 22 -> 24) fold into the first one shown, with "+N more like this" to unfold them.
+  const sameOpen = new Set();
+  function foldSame() {
+    document.querySelectorAll("[data-same][data-same-hid]").forEach(function (el) { el.hidden = false; el.removeAttribute("data-same-hid"); });
+    const groups = {};
+    document.querySelectorAll("[data-same]").forEach(function (el) {
+      if (el.hidden || el.classList.contains("filtered")) return;
+      const k = el.getAttribute("data-same");
+      (groups[k] = groups[k] || []).push(el);
+    });
+    document.querySelectorAll("[data-same-more]").forEach(function (b) { b.hidden = true; });
+    Object.keys(groups).forEach(function (k) {
+      const rows = groups[k];
+      const more = rows[0].querySelector("[data-same-more]");
+      if (rows.length < 2 || !more) return;
+      more.hidden = false;
+      more.setAttribute("data-same-key", k);
+      if (sameOpen.has(k)) { more.textContent = "fold the " + (rows.length - 1) + " like this"; return; }
+      more.textContent = "+" + (rows.length - 1) + " more like this";
+      rows.slice(1).forEach(function (el) { el.hidden = true; el.setAttribute("data-same-hid", ""); });
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("[data-same-more]");
+    if (!b) return;
+    const k = b.getAttribute("data-same-key");
+    if (sameOpen.has(k)) sameOpen.delete(k); else sameOpen.add(k);
+    foldSame();
+  });
+  document.body.addEventListener("htmx:afterSwap", foldSame);
+
+  // "Tick all": ticks every box of its form, or unticks them when all are.
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest && e.target.closest("[data-tick-all]");
+    if (!b || !b.form) return;
+    const boxes = Array.from(b.form.querySelectorAll('input[type="checkbox"][name="id"]'));
+    const all = boxes.length > 0 && boxes.every(function (c) { return c.checked; });
+    boxes.forEach(function (c) { c.checked = !all; });
+  });
+
   function filterMatrix() {
     const q = document.getElementById("matrix-q");
     const drift = document.getElementById("matrix-drift");
@@ -88,13 +141,14 @@
     let shown = 0;
     rows.forEach(function (tr) {
       const hay = tr.getAttribute("data-search");
-      const ok = words.every(function (w) { return hay.indexOf(w) >= 0; }) && (!drift.checked || tr.getAttribute("data-drift") === "1");
+      const ok = matchWords(words, hay) && (!drift.checked || tr.getAttribute("data-drift") === "1");
       tr.classList.toggle("filtered", !ok);
       if (ok) shown++;
     });
     document.querySelectorAll("table.matrix tbody.mgroup").forEach(function (g) {
       g.classList.toggle("filtered", !g.querySelector("tr[data-search]:not(.filtered)"));
     });
+    foldSame();
     const tbody = document.querySelector("table.matrix tbody:last-of-type");
     let none = tbody && tbody.querySelector("tr.no-match");
     if (tbody && shown === 0 && rows.length > 0) {
@@ -116,7 +170,29 @@
     if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
   }
 
-  document.body.addEventListener("htmx:afterSwap", function (e) { refreshTimes(e.target); filterMatrix(); });
+  // Kind buttons (Kubernetes, Lambda, RDS …) add or remove type:<kind> in their filter box, so the kind
+  // filter is part of the words: shared in ?q= like them, and combined with them.
+  function syncKindChips() {
+    document.querySelectorAll("[data-kind-token]").forEach(function (b) {
+      const input = document.getElementById(b.getAttribute("data-kind-input"));
+      const words = input ? input.value.toLowerCase().split(/\s+/) : [];
+      b.setAttribute("aria-pressed", words.indexOf(b.getAttribute("data-kind-token")) >= 0 ? "true" : "false");
+    });
+  }
+  document.addEventListener("click", function (e) {
+    const b = e.target.closest("[data-kind-token]");
+    if (!b) return;
+    const input = document.getElementById(b.getAttribute("data-kind-input"));
+    if (!input) return;
+    const token = b.getAttribute("data-kind-token");
+    let words = input.value.split(/\s+/).filter(Boolean);
+    words = words.indexOf(token) >= 0 ? words.filter(function (w) { return w !== token; }) : words.concat(token);
+    input.value = words.join(" ");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  document.addEventListener("input", syncKindChips);
+
+  document.body.addEventListener("htmx:afterSwap", function (e) { refreshTimes(e.target); filterMatrix(); syncKindChips(); });
   document.addEventListener("input", function (e) {
     if (e.target.id === "matrix-q") filterMatrix();
     if (e.target.matches("input[data-filter]")) filterCards(e.target);
@@ -133,11 +209,13 @@
     let shown = 0, total = 0;
     document.querySelectorAll(input.getAttribute("data-filter")).forEach(function (el) {
       const hay = (el.getAttribute("data-search") || el.textContent).toLowerCase();
-      const ok = words.every(function (w) { return hay.indexOf(w) >= 0; });
+      const ok = matchWords(words, hay);
       total++;
       if (ok) shown++;
+      el.removeAttribute("data-same-hid");
       if (dim) el.classList.toggle("filter-out", !ok); else el.hidden = !ok;
     });
+    foldSame();
     document.querySelectorAll("[data-group]").forEach(function (g) {
       g.hidden = !g.querySelector("[data-search]:not([hidden])");
     });
@@ -186,18 +264,45 @@
   function cellsReach() {
     const only = document.body.dataset.tileOnly;
     document.querySelectorAll(".logo-board .board-cell").forEach(function (c) {
-      c.inert = c.classList.contains("filter-out") || Boolean(only && !c.classList.contains("s-" + only));
+      const out = only === "problem" ? c.classList.contains("s-current") : Boolean(only && !c.classList.contains("s-" + only));
+      c.inert = c.classList.contains("filter-out") || out;
     });
   }
   // Bulk pull requests (Updates): "Tick all shown" ticks the upgrades the filter shows (again: unticks them), the
   // button counts what goes, and ticked rows a filter hides stay out of the form.
   function bulkShown(form) {
-    return Array.from(document.querySelectorAll('input[form="' + form + '"][name="pr"]')).filter(function (c) {
+    return Array.from(document.querySelectorAll('input[type="checkbox"][form="' + form + '"]')).filter(function (c) {
       const row = c.closest("tr");
-      return !row || !row.hidden;
+      return !row || shownRow(row);
     });
   }
+  // shownRow: a row the filter keeps; one folded under "+N more like this" counts, it is only out of sight.
+  function shownRow(r) { return (!r.hidden && !r.classList.contains("filtered")) || r.hasAttribute("data-same-hid"); }
+  // The matrix's ticks: kept by service across live refreshes, which redraw the rows; the bar shows while any is ticked.
+  const matrixTicks = new Set();
+  function matrixBulk() {
+    const bar = document.getElementById("matrix-bulk");
+    if (!bar) return;
+    document.querySelectorAll('input.row-tick[form="matrix-bulk"]').forEach(function (c) { c.checked = matrixTicks.has(c.value); });
+    bar.hidden = matrixTicks.size === 0;
+    bar.querySelector("[data-bulk-count]").textContent = matrixTicks.size + " ticked";
+    bar.querySelector("[data-bulk-return]").value = "/" + window.location.search;
+  }
+  document.addEventListener("change", function (e) {
+    if (!e.target.matches || !e.target.matches('input.row-tick[form="matrix-bulk"]')) return;
+    if (e.target.checked) matrixTicks.add(e.target.value); else matrixTicks.delete(e.target.value);
+    matrixBulk();
+  });
+  document.body.addEventListener("htmx:afterSwap", matrixBulk);
+  // Sent: the ticks have done their job (the page that comes back starts with none).
+  document.addEventListener("submit", function (e) { if (e.target.id === "matrix-bulk") setTimeout(function () { matrixTicks.clear(); matrixBulk(); }, 0); });
+
   function bulkCount() {
+    if (document.getElementById("matrix-bulk")) {
+      matrixTicks.clear();
+      document.querySelectorAll('input.row-tick[form="matrix-bulk"]:checked').forEach(function (c) { matrixTicks.add(c.value); });
+      matrixBulk();
+    }
     const form = document.getElementById("bulk-prs");
     if (!form) return;
     const n = bulkShown("bulk-prs").filter(function (c) { return c.checked; }).length;
@@ -219,7 +324,7 @@
     if (e.target.id !== "bulk-prs") return;
     document.querySelectorAll('input[form="bulk-prs"][name="pr"]:checked').forEach(function (c) {
       const row = c.closest("tr");
-      if (row && row.hidden) c.checked = false; // not shown: not opened
+      if (row && !shownRow(row)) c.checked = false; // not shown: not opened
     });
   }, true);
   // Filters with words in them apply again to what a live refresh brought.
@@ -314,7 +419,7 @@
     const el = document.getElementById(btn.getAttribute("data-copy"));
     // data-copy-rows: the lines of the rows shown (a filter may hide some), else the element's text.
     const rows = btn.getAttribute("data-copy-rows");
-    const text = rows ? Array.from(document.querySelectorAll(rows)).filter(function (r) { return !r.hidden; })
+    const text = rows ? Array.from(document.querySelectorAll(rows)).filter(shownRow)
       .map(function (r) { return r.getAttribute("data-md"); }).join("") : el.textContent;
     navigator.clipboard.writeText(text).then(
       function () { btn.textContent = "Copied"; },
@@ -532,6 +637,10 @@
     } else if (raw.length >= 3) {
       out.push({ label: "Vulnerabilities matching “" + raw + "”", sub: "CVE, package or service", kind: "search", url: "/security/vulns?q=" + encodeURIComponent(raw) });
       out.push({ label: "Packages named “" + raw + "”", sub: "in running images, with their licenses", kind: "search", url: "/security/licenses?q=" + encodeURIComponent(raw) });
+    }
+    // Where things run (region:eu-central-1, account:…, os:ubuntu) is a matrix filter.
+    if (/^(cloud|account|region|zone|cluster|instance|instance_type|platform|os|kernel|arch):\S+$/i.test(raw)) {
+      out.push({ label: "What runs in " + raw, sub: "the matrix, filtered", kind: "search", url: "/?view=table&q=" + encodeURIComponent(raw), top: true });
     }
     if (raw.length >= 2) {
       out.push({ label: "Search everywhere for “" + raw + "”", sub: "services, vulnerabilities, packages, pull requests, history, notifications", kind: "search", url: "/search?q=" + encodeURIComponent(raw) });
@@ -1034,8 +1143,8 @@
     if (btn) btn.focus();
   }
   // A question ready to ask, e.g. the Brief button of an upgrade.
-  // Tiles: a legend item picks out the cells in its state; again, or Escape, shows all. The choice is kept on the
-  // body, so the board's live refresh keeps it.
+  // Tiles: a legend item shows only the cells in its state ("problem": all but the current ones); again, or Escape,
+  // shows all. The choice is kept on the body, so the board's live refresh keeps it.
   function tileOnly(state) {
     if (state) document.body.dataset.tileOnly = state; else delete document.body.dataset.tileOnly;
     document.querySelectorAll("[data-tile-only]").forEach(function (b) {
@@ -1170,6 +1279,28 @@
     if (window.htmx) htmx.process(bellPanel);
     fetch("/ui/notifications", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : { items: [] }; }).then(function (d) {
       list.replaceChildren();
+      // This device: notifications pushed to it, turned on (or off) here rather than in the settings.
+      if (d.push && pushSupported()) {
+        const foot = el("div", "bell-device");
+        foot.setAttribute("data-push-scope", "");
+        const on = el("button", "link", "Notify me on this device");
+        on.type = "button";
+        on.setAttribute("data-push", "subscribe");
+        on.setAttribute("data-channel", d.push.channel);
+        on.hidden = true;
+        const off = el("button", "link", "Stop on this device");
+        off.type = "button";
+        off.setAttribute("data-push", "unsubscribe");
+        off.setAttribute("data-channel", d.push.channel);
+        off.hidden = true;
+        const state = el("span", "muted bell-device-state");
+        const note = el("div", "push-note");
+        note.setAttribute("data-push-key", d.push.key);
+        note.hidden = true;
+        foot.append(state, on, off, note);
+        bellPanel.appendChild(foot);
+        pushSetup();
+      }
       if (!d.items.length) {
         const empty = el("li", "bell-empty");
         empty.appendChild(el("p", null, "Nothing yet."));
@@ -1310,8 +1441,8 @@
 
   // Web push: "Notify this browser" next to a push channel. The browser holds one push
   // subscription (with the server's key), added to each push channel the person picks.
-  function pushNote(text, bad) {
-    const note = document.querySelector("[data-push-key]");
+  function pushNote(text, bad, scope) {
+    const note = (scope && scope.querySelector("[data-push-key]")) || document.querySelector("[data-push-key]");
     if (!note) return;
     note.textContent = text;
     note.className = "push-note " + (bad ? "bad" : "good");
@@ -1348,12 +1479,18 @@
       const subscribed = on.indexOf(b.getAttribute("data-channel")) >= 0;
       b.hidden = (b.getAttribute("data-push") === "subscribe") === subscribed;
     });
+    document.querySelectorAll(".bell-device").forEach(function (f) {
+      const off = f.querySelector('[data-push="unsubscribe"]');
+      f.querySelector(".bell-device-state").textContent = off && !off.hidden ? "On on this device." : "";
+    });
   }
   async function pushToggle(b) {
     const channel = b.getAttribute("data-channel");
-    const key = document.querySelector("[data-push-key]").getAttribute("data-push-key");
+    const scope = b.closest("[data-push-scope]");
+    const key = ((scope && scope.querySelector("[data-push-key]")) || document.querySelector("[data-push-key]")).getAttribute("data-push-key");
+    const note = function (text, bad) { pushNote(text, bad, scope); };
     b.disabled = true;
-    pushNote("Asking this browser…", false);
+    note("Asking this browser…", false);
     try {
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
@@ -1364,12 +1501,12 @@
         const have = sub && sub.options.applicationServerKey && new Uint8Array(sub.options.applicationServerKey);
         if (sub && (!have || have.length !== want.length || have.some(function (x, i) { return x !== want[i]; }))) { await sub.unsubscribe(); sub = null; }
         if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want });
-        pushNote((await pushPost("/notifications/channels/" + channel + "/push", sub.toJSON())).notice, false);
+        note((await pushPost("/notifications/channels/" + channel + "/push", sub.toJSON())).notice, false);
       } else if (sub) {
-        pushNote((await pushPost("/notifications/channels/" + channel + "/push/delete", { endpoint: sub.endpoint })).notice, false);
+        note((await pushPost("/notifications/channels/" + channel + "/push/delete", { endpoint: sub.endpoint })).notice, false);
       }
     } catch (err) {
-      pushNote("This browser could not subscribe: " + (err.message || String(err)), true);
+      note("This browser could not subscribe: " + (err.message || String(err)), true);
     } finally {
       b.disabled = false;
       pushSetup();
@@ -1398,7 +1535,10 @@
 
   // The page loader: only for navigations and forms (boosted requests), and only when they take a moment, so a
   // fast page does not flash it; live refreshes never show it.
-  let loaderTimer = null;
+  // It never stays: a request that is cancelled (another click replaced it), a page restored from history, or a
+  // response that is a download ends no request the usual way, so the loader goes on those too, and after 15 s at
+  // the latest.
+  let loaderTimer = null, loaderLimit = null;
   function loaderOn() {
     if (loaderTimer) return;
     loaderTimer = setTimeout(function () {
@@ -1406,10 +1546,13 @@
       if (!l) return;
       l.hidden = false;
       requestAnimationFrame(function () { l.classList.add("on"); });
+      clearTimeout(loaderLimit);
+      loaderLimit = setTimeout(loaderOff, 15000);
     }, 250);
   }
   function loaderOff() {
     clearTimeout(loaderTimer);
+    clearTimeout(loaderLimit);
     loaderTimer = null;
     const l = document.querySelector("[data-loader]");
     if (l) { l.classList.remove("on"); l.hidden = true; }
@@ -1430,7 +1573,11 @@
   ["htmx:afterSettle", "htmx:responseError", "htmx:sendError", "htmx:timeout", "htmx:afterRequest"].forEach(function (ev) {
     document.addEventListener(ev, function (e) { if (ev === "htmx:afterSettle" || e.detail.boosted || !e.detail.successful) loaderOff(); });
   });
+  ["htmx:abort", "htmx:xhr:abort", "htmx:historyRestore", "htmx:swapError", "htmx:onLoadError"].forEach(function (ev) {
+    document.addEventListener(ev, loaderOff);
+  });
   window.addEventListener("pageshow", loaderOff);
+  window.addEventListener("popstate", loaderOff);
 
   document.addEventListener("htmx:beforeRequest", function (e) {
     // The live refresh shows now; while the timeline shows the past it waits.
@@ -1785,6 +1932,8 @@
       drift.checked = params.get("drift") === "1";
       filterMatrix();
     }
+    syncKindChips();
+    foldSame();
   }
   // A combobox for names (data-combo names the datalist of existing ones): as you type it lists the existing names
   // that match and, for a name not among them, offers to create it (data-combo-new: "Create team"). Arrow keys
@@ -1888,4 +2037,20 @@
 
   window.goliash = { init: init };
   init();
+})();
+
+// Live panels (hx-trigger "… every 60s"): each refresh says which version of the panel the page shows, and an
+// unchanged panel comes back as 204, kept as it is, instead of being sent and laid out again.
+(function () {
+  function live(elt) { return elt && /\bevery\b/.test(elt.getAttribute("hx-trigger") || ""); }
+  document.body.addEventListener("htmx:configRequest", function (e) {
+    const elt = e.detail.elt;
+    if (live(elt) && elt.dataset.contentVersion) e.detail.headers["X-Have-Version"] = elt.dataset.contentVersion;
+  });
+  document.body.addEventListener("htmx:afterRequest", function (e) {
+    const elt = e.detail.elt, xhr = e.detail.xhr;
+    if (!live(elt) || !xhr || xhr.status !== 200) return;
+    const v = xhr.getResponseHeader("X-Content-Version");
+    if (v) elt.dataset.contentVersion = v; else delete elt.dataset.contentVersion;
+  });
 })();

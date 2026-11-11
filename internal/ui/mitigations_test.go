@@ -43,12 +43,20 @@ func TestMitigationFlow(t *testing.T) {
 	if _, page := get(t, viewer, e.srv.URL+"/security/vulns?kev=1", nil); strings.Contains(page, "Record a mitigation") {
 		t.Error("a viewer can record mitigations")
 	}
+	// The service's page has it too, with the form, where the alert leads.
+	if _, page := get(t, member, e.srv.URL+"/services/shop-api", nil); !strings.Contains(page, `id="vuln-CVE-2026-1234"`) ||
+		!strings.Contains(page, "What to do:") || !strings.Contains(page, `name="return" value="/services/shop-api#vuln-CVE-2026-1234"`) {
+		t.Fatal("the service page has no mitigation form")
+	}
 	_, body, _ := post(t, member, e.srv.URL+"/security/mitigations", url.Values{
 		"cve": {"CVE-2026-1234"}, "place": {svc.ID + "|" + prod.ID}, "kind": {"waf"}, "measure": {"WAF rule drops the payload"},
-		"review": {"30"}, "return": {"/security/vulns?kev=1"},
+		"review": {"30"}, "return": {"/services/shop-api#vuln-CVE-2026-1234"},
 	})
 	if !strings.Contains(body, "Mitigation recorded") {
 		t.Fatalf("record: %s", body[:min(len(body), 300)])
+	}
+	if _, page := get(t, viewer, e.srv.URL+"/services/shop-api", nil); !strings.Contains(page, "WAF rule drops the payload") || strings.Contains(page, "Record a mitigation") {
+		t.Error("the service page does not show the mitigation")
 	}
 	_, page = get(t, viewer, e.srv.URL+"/security/vulns?kev=1", nil)
 	if !strings.Contains(page, ">mitigated<") || !strings.Contains(page, "WAF rule drops the payload") || strings.Contains(page, "Record a mitigation") {

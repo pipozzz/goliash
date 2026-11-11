@@ -93,3 +93,73 @@ func TestUpdatesWithVulnerabilities(t *testing.T) {
 		t.Fatal("labels out of step with the levels")
 	}
 }
+
+// What runs an exploited vulnerability with no upgrade on the list is on it anyway, with what fixes it; a service
+// already on it, a mitigated one, and one whose vulnerability is only critical are not added.
+func TestWithUnpatched(t *testing.T) {
+	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+	prod := store.Environment{ID: "prod", Name: "production"}
+	o := Overview{
+		Services: map[string]store.Service{"lq": {ID: "lq", Name: "leadqc"}, "px": {ID: "px", Name: "proxysql"}, "mt": {ID: "mt", Name: "mitigated"}},
+		Envs:     map[string]store.Environment{"prod": prod},
+	}
+	us := []Update{{Service: o.Services["px"], Environment: prod, Running: "2.7.2", Target: "3.0.5"}}
+	kev := &store.Exploited{DateAdded: "2026-01-02"}
+	r := VulnReport{Findings: []VulnFinding{
+		{Key: "CVE-2025-1", Exploited: kev, Affected: []Affected{
+			{ServiceID: "lq", EnvironmentID: "prod", Image: "1.dkr.ecr.eu-central-1.amazonaws.com/leadqc:4.2.0", Package: "openssl", Fix: "3.0.15", Since: now.AddDate(0, 0, -9)},
+			{ServiceID: "px", EnvironmentID: "prod", Image: "proxysql/proxysql:2.7.2"},
+			{ServiceID: "mt", EnvironmentID: "prod", Image: "acme/mt:1", Mitigation: &store.Mitigation{}},
+		}},
+		{Key: "CVE-2025-2", Exploited: kev, Affected: []Affected{
+			{ServiceID: "lq", EnvironmentID: "prod", Image: "1.dkr.ecr.eu-central-1.amazonaws.com/leadqc:4.2.0", Package: "zlib", Rebuild: "node:22-alpine"},
+		}},
+		{Key: "CVE-2025-3", Severity: "CRITICAL", Affected: []Affected{{ServiceID: "mt", EnvironmentID: "prod", Image: "acme/mt:1"}}},
+	}}
+	got := WithVulnerabilities(WithUnpatched(us, o, r, nil, now), r)
+	if len(got) != 2 {
+		t.Fatalf("updates %+v", got)
+	}
+	var lq Update
+	for _, u := range got {
+		if u.Service.ID == "lq" {
+			lq = u
+		}
+	}
+	if lq.Running != "4.2.0" || lq.Target != "" || lq.Remedy != "rebuild on the current node:22-alpine" ||
+		lq.Urgency != UrgencyExploited || len(lq.Exploited) != 2 || !lq.Since.Equal(now.AddDate(0, 0, -9)) {
+		t.Fatalf("leadqc %+v", lq)
+	}
+}
+
+// An end of life to come, with the newest release running already (through a moving tag): nothing to upgrade to.
+func TestUpdatesEOLOnNewest(t *testing.T) {
+	now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	prod := store.Environment{ID: "prod", Name: "prod", Position: 30}
+	mb := store.Service{ID: "mb", Name: "metabase"}
+	cell := func(tag, resolved string) []Cell {
+		return []Cell{{Versions: []RunningVersion{{Tag: tag, Resolved: resolved}}}}
+	}
+	eol := func(date string) map[string][]store.Drift {
+		b, _ := json.Marshal(DriftDetail{Running: "v0.65.x", Other: "0.65", EOL: date})
+		return map[string][]store.Drift{"mb|prod": {{ServiceID: "mb", EnvironmentID: "prod", Kind: "eol", Detail: b, Since: now}}}
+	}
+	o := Overview{
+		Services: map[string]store.Service{"mb": mb}, Envs: map[string]store.Environment{"prod": prod},
+		Upstreams: map[string]Upstream{"mb": {Latest: mustVersion(t, "v0.65.3.3"), HasLatest: true}},
+		Matrix:    Matrix{Environments: []store.Environment{prod}, Rows: []Row{{Service: mb, Cells: cell("v0.65.x", "v0.65.3.3")}}},
+		Drifts:    eol("2027-01-01"),
+	}
+	if us := Updates(o, nil, now); len(us) != 0 {
+		t.Fatalf("an upgrade to what runs: %+v", us)
+	}
+	o.Drifts = eol("2026-11-01") // passed: still listed, with nothing to move to named
+	if us := Updates(o, nil, now); len(us) != 1 || us[0].Target != "" || !us[0].EOLPassed {
+		t.Fatalf("passed end of life %+v", us)
+	}
+	o.Drifts = eol("2027-01-01")
+	o.Matrix.Rows[0].Cells = cell("v0.65.2", "")
+	if us := Updates(o, nil, now); len(us) != 1 || us[0].Target != "v0.65.3.3" {
+		t.Fatalf("older running %+v", us)
+	}
+}

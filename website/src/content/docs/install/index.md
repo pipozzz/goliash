@@ -60,7 +60,7 @@ goliash enroll create -env prod -many        # one code for a fleet, e.g. every 
 | On ECS, on EC2 with an instance role, or with AWS credentials and `AWS_REGION` | every ECS cluster of its region, each a target of its own | its cluster, else `aws-<region>` | `ecs:ListClusters` (else only its own cluster) |
 | In Nomad | the region, through the Nomad agent of its node | `nomad-<region>` | `NOMAD_ADDR` (set by the job file) |
 | With a Docker socket | the host, or the swarm on a manager | the host name | `INFO=1` on the socket proxy |
-| The same | the region's Lambda functions, as `lambda-<region>` | | `lambda:ListFunctions`, `lambda:GetFunction` |
+| The same | the region's Lambda functions, as `lambda-<region>` | | `lambda:ListFunctions`, `lambda:GetFunction` (`lambda:GetLayerVersion` for layers' packages) |
 
 On EC2 the agent asks the instance metadata for its region and role, so an agent in Docker on an EC2 instance
 needs no AWS settings: give the instance's role the read-only policy (**Add AWS** on the agent's page has the one
@@ -193,3 +193,11 @@ cookies depend on it; with `https://`, cookies are marked Secure. Put the server
 that terminates TLS.
 
 All settings are listed in [Configuration](/reference/configuration/).
+
+## Clean up
+
+**Agents and targets → Clean up** lists what a workspace keeps for nothing, to delete in bulk: agents not heard from
+for a week (with the targets they found themselves), targets nothing has reported for in a week, environments
+without targets, services that run nowhere, and mapping rules that match nothing (their service is gone, or they
+name a Lambda runtime or a database engine, which maps by name). Only what the page still offers when you press
+delete goes: an agent that came back meanwhile stays.

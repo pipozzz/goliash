@@ -21,8 +21,10 @@ type VulnRef struct {
 // fixes (in the running version, not in the promoted one) and those it brings.
 type VulnDelta struct {
 	Known bool // both versions' images have an SBOM Goliash read
-	Fixed []VulnRef
-	New   []VulnRef
+	// Unreleased: the newer version runs nowhere yet; its packages were read from its image in the registry.
+	Unreleased bool
+	Fixed      []VulnRef
+	New        []VulnRef
 }
 
 // vulnSide is a service's main image of a version, in one environment or (env "") wherever it runs.

@@ -50,7 +50,7 @@ type Options struct {
 	Cloud CloudCredentials
 	// Discover finds what the agent could collect, and what it could not use and why, for the server to offer.
 	// Nil: nothing is offered.
-	Discover func(ctx context.Context) ([]agentproto.DeclaredTarget, []string)
+	Discover func(ctx context.Context) ([]agentproto.DeclaredTarget, []string, map[string]string)
 }
 
 // CloudCredentials gives credentials for a registry host from a cloud identity; ok is
@@ -62,6 +62,13 @@ type CloudCredentials interface {
 // ECRLister lists tags of an ECR repository; profile is an AWS shared config profile.
 type ECRLister interface {
 	ListTags(ctx context.Context, repository, profile string) ([]string, error)
+}
+
+// ECRImages reads an ECR repository's images (digests, tags, push times) and its lifecycle policy, so builds tagged
+// with commit hashes can be ordered and images the policy will delete told. ecr.Lister implements it.
+type ECRImages interface {
+	Images(ctx context.Context, repository, profile string) ([]ecr.Image, error)
+	LifecyclePolicy(ctx context.Context, repository, profile string) (string, error)
 }
 
 // ECRAuth gives registry credentials for an ECR repository, so its manifests, signatures and attestations
@@ -87,6 +94,9 @@ type Agent struct {
 	refresh           chan struct{}
 	registriesChanged chan struct{}
 	registry          TagLister
+
+	codeMu   sync.Mutex
+	codeSent map[string]bool // code digests whose packages the server has
 }
 
 // TagLister lists image tags; registry.Client in production.
@@ -127,7 +137,9 @@ func New(opts Options) (*Agent, error) {
 		return nil, err
 	}
 	if opts.Registry == nil {
-		opts.Registry = registry.New()
+		reg := registry.New()
+		reg.GoProxy = registry.GoProxySetting(os.Getenv("GOLIASH_GOPROXY"))
+		opts.Registry = reg
 	}
 	if opts.ECR == nil {
 		opts.ECR = ecr.New()
@@ -209,8 +221,7 @@ func (a *Agent) register(ctx context.Context) error {
 	started := a.started.UTC()
 	req := agentproto.RegisterRequest{Version: buildinfo.Version, Hostname: host, Platforms: platforms, StartedAt: &started}
 	if a.opts.Discover != nil {
-		found, notes := a.opts.Discover(ctx)
-		req.Discovered, req.Notes = found, notes
+		req.Discovered, req.Notes, req.Where = a.opts.Discover(ctx)
 	}
 	resp, err := a.client.register(ctx, req)
 	if err != nil {
@@ -323,6 +334,9 @@ func (a *Agent) emit(t agentproto.Target, res collectors.Result) (string, error)
 	}
 	if err := zw.Close(); err != nil {
 		return "", err
+	}
+	if len(res.Code) > 0 {
+		go a.sendCode(res.Code)
 	}
 	dropped, err := a.outbox.put(snap.SnapshotID, buf.Bytes())
 	if dropped > 0 {
@@ -486,4 +500,47 @@ func mustJSON(v any) []byte {
 		panic(err)
 	}
 	return b
+}
+
+// sendCode sends the packages of code the server does not have yet, once per digest. A server too old to take
+// them answers 404: they count as sent, and go again after the agent restarts.
+func (a *Agent) sendCode(list []collectors.CodePackages) {
+	a.codeMu.Lock()
+	if a.codeSent == nil {
+		a.codeSent = map[string]bool{}
+	}
+	var todo []agentproto.CodePackages
+	for _, c := range list {
+		if a.codeSent[c.Digest] {
+			continue
+		}
+		a.codeSent[c.Digest] = true // claimed: a failed send gives it back
+		p := agentproto.CodePackages{Digest: c.Digest, Purls: c.Purls}
+		if p.Purls == nil {
+			p.Purls = []string{}
+		}
+		if c.Error != "" {
+			e := c.Error[:min(len(c.Error), 2000)]
+			p.Error = &e
+		}
+		todo = append(todo, p)
+	}
+	a.codeMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	for len(todo) > 0 {
+		batch := todo[:min(len(todo), 100)]
+		todo = todo[len(batch):]
+		err := a.client.codePackages(ctx, agentproto.CodePackagesList{Code: batch})
+		if err == nil || statusCode(err) == http.StatusNotFound {
+			continue
+		}
+		a.log.Warn("code packages not sent; trying again next round", "err", err)
+		a.codeMu.Lock()
+		for _, p := range append(batch, todo...) {
+			delete(a.codeSent, p.Digest)
+		}
+		a.codeMu.Unlock()
+		return
+	}
 }

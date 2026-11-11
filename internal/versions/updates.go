@@ -28,7 +28,20 @@ type Update struct {
 	// SecurityFix is what the releases up to Target say they fix: CVE or other identifiers, or "security".
 	SecurityFix string
 	// Breaking is what the releases up to Target say breaks, quoted from their notes: "2.0.0: Removed …".
-	Breaking  []string
+	Breaking []string
+	// Path is the versions the upgrade goes through, Target last, for a product that cannot skip versions
+	// (Kubernetes one minor at a time); nil when it can go straight to Target. PathNote says why.
+	Path     []string
+	PathNote string
+	// Risk is how much the upgrade may break (RiskLow, RiskMedium, RiskHigh), RiskReasons why; empty without Target.
+	Risk        string
+	RiskReasons []string
+	// MaintenanceOnly is a line for what waits at the platform alone (a reboot, a managed service's pending
+	// patches), with no newer version to move to: Remedy says what to do.
+	MaintenanceOnly bool
+	// Trouble is what the version to move to (or a stop on the way) did where it ran: "1.28.0 rolled back in prod
+	// (payments) on 2026-11-09"; empty when nothing is known.
+	Trouble   string
 	EOL       string // the end-of-life date of the running release cycle, if it is near or past
 	EOLPassed bool
 	On        []string  // the targets running Running, when the environment runs other versions too
@@ -44,6 +57,12 @@ type Update struct {
 	Exposed []string
 	// Maintenance is the patches the platform has waiting for it (a managed service's pending maintenance).
 	Maintenance []string
+	// ExtendedSupport is what AWS charges for the managed service past the end of standard support (EOL), when it
+	// runs on one AWS keeps running for a fee.
+	ExtendedSupport *ExtendedSupport
+	// Remedy is what fixes an exploited vulnerability when no newer release is known (Target is empty): a rebuild
+	// on the current build of its base, a newer release of its distribution, or a newer package.
+	Remedy string
 	// ExploitedSince is when the first of Exploited became known to run exploited: the later of the image running
 	// there and CISA listing it.
 	ExploitedSince time.Time
@@ -125,7 +144,16 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 		u := byKey[k]
 		if u.Target == "" { // end of life only: point at the newest acceptable release
 			if up, ok := o.Upstreams[k.svc]; ok && up.HasLatest {
-				u.Target = up.Latest.Raw
+				switch {
+				case !runsBelow(o, k.svc, k.app, k.env, up.Latest):
+					// The newest release runs already: an end of life to come has nothing to move to yet, and one
+					// passed needs a fork or a replacement, not this release.
+					if !u.EOLPassed {
+						continue
+					}
+				default:
+					u.Target = up.Latest.Raw
+				}
 			}
 		}
 		if u.Target != "" {
@@ -133,6 +161,10 @@ func Updates(o Overview, acks []store.Ack, now time.Time) []Update {
 			u.SecurityFix = securityUpTo(o, k.svc, u.Running, u.Target)
 			u.SecuritySince = securitySince(o, k.svc, u.Running, u.Target)
 			u.Breaking = breakingUpTo(o, k.svc, u.Running, u.Target)
+			repo := o.Refs[k.svc].Repo
+			if u.Path = UpgradePath(repo, u.Running, u.Target, o.Released[k.svc]); u.Path != nil {
+				u.PathNote = StepNote(repo)
+			}
 		}
 		u.Urgency = urgency(*u)
 		u.Acked = ackedUpdate(*u, acks, now)
@@ -203,16 +235,37 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 	return us
 }
 
-// WithExposure adds how each update's running version can be reached from outside, and the patches its platform
-// has waiting, from what its workloads in that environment run, and puts exposed ones first within their urgency.
+// WithExposure adds how each update's running version can be reached from outside, the patches its platform has
+// waiting and what AWS charges for running it past the end of standard support, from what its workloads in that
+// environment run, and puts exposed ones first within their urgency.
 func WithExposure(us []Update, active []store.Instance) []Update {
+	return withExposureAt(us, active, time.Now())
+}
+
+func withExposureAt(us []Update, active []store.Instance, now time.Time) []Update {
 	type key struct{ svc, env string }
 	ways, maint := map[key][]string{}, map[key][]string{}
+	type engine struct {
+		repo, version string
+		vcpus         int
+	}
+	engines := map[key]map[string]*engine{} // the managed engines it runs, by repo and version
 	for _, in := range active {
 		if !in.IsMain {
 			continue
 		}
 		k := key{in.ServiceID, in.EnvironmentID}
+		if ref := ParseImage(in.Image); Managed(ref.Repo()) {
+			if engines[k] == nil {
+				engines[k] = map[string]*engine{}
+			}
+			e := engines[k][in.Image]
+			if e == nil {
+				e = &engine{repo: ref.Repo(), version: ref.Tag}
+				engines[k][in.Image] = e
+			}
+			e.vcpus += in.VCPUs
+		}
 		if len(in.Exposed) > 0 {
 			ways[k] = union(ways[k], in.Exposed)
 		}
@@ -223,6 +276,26 @@ func WithExposure(us []Update, active []store.Instance) []Update {
 	for i := range us {
 		k := key{us[i].Service.ID, us[i].Environment.ID}
 		us[i].Exposed, us[i].Maintenance = ways[k], maint[k]
+		if us[i].EOL == "" {
+			continue
+		}
+		var total *ExtendedSupport
+		for _, e := range engines[k] {
+			if e.version != us[i].Running {
+				continue
+			}
+			es, ok := ExtendedSupportCost(e.repo, us[i].EOL, e.vcpus, now)
+			if !ok {
+				continue
+			}
+			if total == nil {
+				total = &es
+			} else { // the same engine and version on more than one target: the bills add up
+				total.Monthly += es.Monthly
+				total.Basis = ""
+			}
+		}
+		us[i].ExtendedSupport = total
 	}
 	sortUpdates(us)
 	return us
@@ -231,11 +304,29 @@ func WithExposure(us []Update, active []store.Instance) []Update {
 // LoadUpdates lists what to upgrade with the vulnerabilities of the running images; without a vulnerability
 // report (OSV off, or it failed) the list is the same, ranked by drift alone.
 func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time) []Update {
+	return loadUpdates(ctx, st, sc, o, acks, now, false)
+}
+
+// LoadWork is LoadUpdates with what runs an exploited vulnerability and has no upgrade (WithUnpatched): the to-do
+// list, as the Updates page and the API show it. Counts of what is behind a newer release use LoadUpdates.
+func LoadWork(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time) []Update {
+	return loadUpdates(ctx, st, sc, o, acks, now, true)
+}
+
+func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overview, acks []store.Ack, now time.Time, unpatched bool) []Update {
 	us := Updates(o, acks, now)
-	if active, err := st.ListActiveInstances(ctx, sc); err == nil {
+	r, rerr := LoadVulnReport(ctx, st, sc, "")
+	if rerr == nil && unpatched {
+		us = WithUnpatched(us, o, r, acks, now)
+	}
+	active, aerr := st.ListActiveInstances(ctx, sc)
+	if aerr == nil {
+		if unpatched {
+			us = WithMaintenance(us, o, active, acks, now)
+		}
 		us = WithExposure(us, active)
 	}
-	if r, err := LoadVulnReport(ctx, st, sc, ""); err == nil {
+	if rerr == nil {
 		us = WithVulnerabilities(us, r)
 		if idx, err := loadVulnIndex(ctx, st, sc, r); err == nil {
 			for i := range us {
@@ -245,9 +336,16 @@ func LoadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 				}
 			}
 		}
+		_ = releaseDeltas(ctx, st, sc, o, us) // the versions that run nowhere yet, from their release images
 	}
 	if r, err := st.Remediation(ctx, sc); err == nil && r.Any() {
 		us = WithDeadlines(us, r)
+	}
+	if aerr == nil {
+		us = WithRisk(us, active)
+	}
+	if troubles, err := Troubles(ctx, st, sc, o, now); err == nil {
+		us = WithTroubles(us, o, troubles)
 	}
 	return us
 }
@@ -325,4 +423,162 @@ func securityUpTo(o Overview, svc, running, target string) string {
 	}
 	sort.Strings(ids)
 	return strings.Join(slices.Compact(ids), ", ")
+}
+
+// WithUnpatched adds what runs an exploited vulnerability and has no upgrade on the list, its own image say, that no
+// newer release is known of: what runs it in each environment, with what would fix it. Vulnerabilities mitigated
+// there, or that the image's publisher or distribution says do not apply, are left out.
+func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now time.Time) []Update {
+	type key struct{ svc, env string }
+	listed := map[key]bool{}
+	for _, u := range us {
+		listed[key{u.Service.ID, u.Environment.ID}] = true
+	}
+	added := map[key]*Update{}
+	var order []key
+	for _, f := range r.Findings {
+		if f.Exploited == nil {
+			continue
+		}
+		for _, a := range f.Affected {
+			k := key{a.ServiceID, a.EnvironmentID}
+			if a.ServiceID == "" || a.EnvironmentID == "" || listed[k] || a.Mitigation != nil || a.Distro == DistroNotAffected || a.Distro == DistroUnimportant || a.Distro == DistroNegligible ||
+				a.VEX != nil && (a.VEX.Status == "not_affected" || a.VEX.Status == "fixed") {
+				continue
+			}
+			u := added[k]
+			if u == nil {
+				img := ParseImage(a.Image)
+				u = &Update{Service: o.Services[a.ServiceID], Environment: o.Envs[a.EnvironmentID], Running: img.Tag, Since: a.Since}
+				added[k] = u
+				order = append(order, k)
+			}
+			if !a.Since.IsZero() && (u.Since.IsZero() || a.Since.Before(u.Since)) {
+				u.Since = a.Since
+			}
+			if u.Remedy == "" || a.Rebuild != "" && !strings.HasPrefix(u.Remedy, "rebuild") {
+				u.Remedy = remedy(a)
+			}
+		}
+	}
+	for _, k := range order {
+		u := added[k]
+		if u.Service.ID == "" {
+			continue // a service gone since the report was built
+		}
+		u.Acked = ackedUpdate(*u, acks, now)
+		us = append(us, *u)
+	}
+	return us
+}
+
+// WithMaintenance adds a line for each service and environment where the platform has something waiting (a host's
+// reboot, a managed database's pending patches) and the list has nothing else: it is work to do, though no newer
+// version is.
+func WithMaintenance(us []Update, o Overview, active []store.Instance, acks []store.Ack, now time.Time) []Update {
+	type key struct{ svc, env string }
+	listed := map[key]bool{}
+	for _, u := range us {
+		listed[key{u.Service.ID, u.Environment.ID}] = true
+	}
+	added := map[key]*Update{}
+	var order []key
+	for _, in := range active {
+		k := key{in.ServiceID, in.EnvironmentID}
+		if !in.IsMain || len(in.Maintenance) == 0 || in.ServiceID == "" || in.EnvironmentID == "" || listed[k] {
+			continue
+		}
+		u := added[k]
+		if u == nil {
+			u = &Update{
+				Service: o.Services[in.ServiceID], Environment: o.Envs[in.EnvironmentID], Running: ParseImage(in.Image).Tag,
+				Since: now, Urgency: UrgencyPatch, MaintenanceOnly: true,
+			}
+			added[k] = u
+			order = append(order, k)
+		}
+		u.Maintenance = union(u.Maintenance, in.Maintenance)
+	}
+	for _, k := range order {
+		u := added[k]
+		if u.Service.ID == "" {
+			continue
+		}
+		u.Remedy = "apply the patches waiting at the platform"
+		reboot := true
+		for _, m := range u.Maintenance {
+			reboot = reboot && strings.HasPrefix(m, "reboot required")
+		}
+		if reboot {
+			u.Remedy = "reboot"
+		}
+		u.Acked = ackedUpdate(*u, acks, now)
+		us = append(us, *u)
+	}
+	sortUpdates(us)
+	return us
+}
+
+// remedy says what fixes a vulnerability where it runs, when no newer release of the service is known.
+func remedy(a Affected) string {
+	switch {
+	case a.Rebuild != "":
+		return "rebuild on the current " + a.Rebuild
+	case a.Newer != nil:
+		name := a.Newer.Distro + " " + a.Newer.Release
+		if a.Newer.Name != "" {
+			name += " (" + a.Newer.Name + ")"
+		}
+		return "a base on " + name
+	case a.Fix != "":
+		return a.Package + " " + a.Fix
+	case a.EOLOS != "":
+		return "a base on a supported release: " + a.EOLOS + " is past its end of life and gets no fixes"
+	}
+	return "no fix known yet"
+}
+
+// runsBelow reports whether anything a service runs in an environment (within app, when the service is split by
+// application) is older than v, or does not read as a version.
+func runsBelow(o Overview, svc, app, env string, v Version) bool {
+	ei := -1
+	for i, e := range o.Matrix.Environments {
+		if e.ID == env {
+			ei = i
+		}
+	}
+	for _, row := range o.Matrix.Rows {
+		if row.Service.ID != svc || ei < 0 {
+			continue
+		}
+		for _, part := range row.Units() {
+			if part.App != app || ei >= len(part.Cells) {
+				continue
+			}
+			if len(part.Cells[ei].Versions) == 0 {
+				return true
+			}
+			for _, rv := range part.Cells[ei].Versions {
+				if pv, ok := ParseVersion(rv.Version()); !ok || pv.Compare(v) < 0 {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return true
+}
+
+// FirstStop is the version an upgrade of a service from running to target goes to first: target, or the first
+// stop of its upgrade path.
+func FirstStop(o Overview, svc, running, target string) string {
+	if p := UpgradePath(o.Refs[svc].Repo, running, target, o.Released[svc]); len(p) > 0 {
+		return p[0]
+	}
+	return target
+}
+
+// BreakingUpTo is what the release notes from running up to target say breaks, quoted: "2.0.0: Removed …".
+func BreakingUpTo(o Overview, svc, running, target string) []string {
+	return breakingUpTo(o, svc, running, target)
 }

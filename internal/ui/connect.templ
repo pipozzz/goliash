@@ -17,20 +17,41 @@ templ ConnectPage(v ConnectView) {
 				<p class="sub">Where will the agent run? Click it and copy one command. The agent finds what it can read there by itself and keeps looking.</p>
 			</div>
 		</div>
-		<div class="platforms">
-			for _, pl := range v.Primary {
-				<form method="post" action={ templ.URL("/connect/" + pl.Key) }>
-					<input type="hidden" name="mode" value="code"/>
-					<input type="hidden" name="quick" value="1"/>
-					<button type="submit" class="platform">
+		<form method="post" class="stack connect-quick">
+			<input type="hidden" name="mode" value="code"/>
+			<input type="hidden" name="quick" value="1"/>
+			<div class="row">
+				if len(v.Envs) > 0 {
+					<label>
+						Environment
+						<select name="env">
+							for _, e := range v.Envs {
+								<option value={ e.ID } selected?={ e.Name == v.DefaultEnv }>{ e.Name }</option>
+							}
+						</select>
+					</label>
+					<label>
+						Or a new environment
+						<input name="new_env" maxlength="60" placeholder="staging"/>
+					</label>
+				} else {
+					<label>
+						Environment
+						<input name="new_env" maxlength="60" value={ v.DefaultEnv } required/>
+					</label>
+				}
+			</div>
+			<div class="platforms">
+				for _, pl := range v.Primary {
+					<button type="submit" class="platform" formaction={ templ.URL("/connect/" + pl.Key) }>
 						<strong>{ pl.Title }</strong>
 						<span>{ pl.Finds }</span>
 					</button>
-				</form>
-			}
-		</div>
+				}
+			</div>
+		</form>
 		<p class="hint quick-options">
-			New agents land in <strong>{ v.DefaultEnv }</strong>; move what they find later. Another environment, a code for many hosts, a name:
+			What the agent finds can move to another environment later. A code for many hosts, a name, or set up by hand:
 			for _, pl := range v.Primary {
 				<a href={ templ.URL("/connect/" + pl.Key) }>{ pl.Title }</a>
 			}
@@ -279,7 +300,7 @@ templ connectManualForm(v ConnectFormView) {
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
 								<label>Clusters<input name="clusters" value={ formVal(v.Form, "clusters", "") } placeholder="every cluster in the region"/></label>
 							</div>
-							<p class="hint">The agent's task role needs only ecs:List*, ecs:Describe* and ecr:ListImages; the Terraform module sets that up.</p>
+							<p class="hint">The agent's task role needs only ecs:List*, ecs:Describe*, ecr:ListImages and elasticloadbalancing:DescribeTargetGroups and DescribeLoadBalancers (which load balancers face the internet); the Terraform module sets that up.</p>
 						case "lambda":
 							<div class="row">
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
@@ -290,7 +311,7 @@ templ connectManualForm(v ConnectFormView) {
 								<input name="aliases" value={ formVal(v.Form, "aliases", "") } placeholder="live=prod, canary=-"/>
 								<span class="hint">A function with aliases shows once per alias, in the environment named like the alias. Map the others here; - leaves an alias out.</span>
 							</label>
-							<p class="hint">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases and lambda:ListFunctionUrlConfigs.</p>
+							<p class="hint">Whoever collects it needs only lambda:ListFunctions, lambda:GetFunction, lambda:ListAliases, lambda:ListFunctionUrlConfigs and lambda:GetLayerVersion.</p>
 						case "rds":
 							<div class="row">
 								<label>Region<input name="region" required value={ formVal(v.Form, "region", "") } placeholder="eu-west-1"/></label>
@@ -442,7 +463,12 @@ templ ConnectCodePage(v ConnectCodeView) {
 		<div class="head">
 			<div>
 				<p class="sub"><a href="/connect">Connect</a> /</p>
-				<h1>{ v.Platform.Title } <span class="badge neutral">{ v.Env }</span></h1>
+				<h1>{ v.Platform.Title }</h1>
+				<p class="code-env-line">
+					Environment
+					@codeEnvPicker(CodeEnvView{CodeID: v.Status.CodeID, Env: v.EnvID, Envs: v.Envs}, true)
+					<span class="hint">Change it now or later on the Agents page: what the agent already added moves along.</span>
+				</p>
 				<p class="sub">
 					if v.Many {
 						Run the command on every { codeMany(v.Platform) }; each registers as its own agent.

@@ -1,0 +1,199 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package pkgscan
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"io"
+	"path"
+	"runtime/debug"
+	"strings"
+)
+
+// A Go binary (Go 1.18 and later) keeps its build information inline after a 32-byte header that starts with
+// goMagic: the Go version and the module list, each a varint length and its bytes. goStream finds it while the
+// file streams by, holding a small window of it, not the whole executable (tens of megabytes each, on a host
+// with little memory).
+
+const (
+	goHeader   = 32
+	goMaxInfo  = 1 << 20 // the module list of the largest binaries is far smaller
+	goChunk    = 64 << 10
+	goFlagLine = 0x2 // inline strings, the format since Go 1.18
+)
+
+// goStream reads a Go executable's modules and Go version from r, as package URLs; nil when r is not one, or when
+// moduleOnly and it was built without modules. A program
+// that reads build information itself (a scanner, a debugger) holds the magic as data too: a match counts only when
+// a Go version follows it.
+func goStream(r io.Reader, moduleOnly bool) []string {
+	br := bufio.NewReaderSize(r, goChunk)
+	window := make([]byte, 0, 2*goChunk)
+	buf := make([]byte, goChunk)
+	var done bool
+	for {
+		if !done {
+			n, err := br.Read(buf)
+			window = append(window, buf[:n]...)
+			done = err != nil
+		}
+		from := 0
+		for {
+			i := bytes.Index(window[from:], goMagic)
+			if i < 0 {
+				break
+			}
+			i += from
+			if len(window)-i < goPeek && !done {
+				from = -1 // read more before judging it
+				break
+			}
+			if goVersionAt(window[i:]) {
+				return goInfo(io.MultiReader(bytes.NewReader(window[i:]), br), moduleOnly)
+			}
+			from = i + 1
+		}
+		if from < 0 {
+			continue
+		}
+		if done {
+			return nil
+		}
+		// Keep the end that may hold the first bytes of the magic.
+		if keep := len(goMagic) - 1; len(window) > keep {
+			window = append(window[:0], window[len(window)-keep:]...)
+		}
+	}
+}
+
+// goPeek is enough of the build information to see its Go version.
+const goPeek = goHeader + 1 + 64
+
+// goVersionAt reports whether b starts with build information whose Go version reads like one.
+func goVersionAt(b []byte) bool {
+	if len(b) < goHeader+1 || b[15]&goFlagLine == 0 {
+		return false
+	}
+	n, k := binary.Uvarint(b[goHeader:])
+	if k <= 0 || n < 3 || n > 64 || len(b) < goHeader+k+int(n) {
+		return false
+	}
+	v := string(b[goHeader+k : goHeader+k+int(n)])
+	return strings.HasPrefix(v, "go1.") || strings.HasPrefix(v, "devel ")
+}
+
+// goInfo reads the build information that follows the magic.
+func goInfo(r io.Reader, moduleOnly bool) []string {
+	br := bufio.NewReader(r)
+	head := make([]byte, goHeader)
+	if _, err := io.ReadFull(br, head); err != nil || head[15]&goFlagLine == 0 {
+		return nil // an older, pointer-based layout: not read
+	}
+	vers, err := goString(br)
+	if err != nil {
+		return nil
+	}
+	mod, err := goString(br)
+	if err != nil {
+		return nil
+	}
+	if len(mod) >= 33 && mod[len(mod)-17] == '\n' { // the module list sits between two 16-byte markers
+		mod = mod[16 : len(mod)-16]
+	}
+	info, err := debug.ParseBuildInfo(mod)
+	if err != nil {
+		info = &debug.BuildInfo{}
+	}
+	if moduleOnly && info.Main.Path == "" {
+		return nil
+	}
+	info.GoVersion = vers
+	return goModules(info)
+}
+
+// goRevision marks, among what a scan found, a Go program's own module built from a checkout: its version is
+// "(devel)", and only the commit it was built from is known (go-revision:github.com/traefik/traefik/v3@4b4eaa49…).
+// Purls asks Resolve for the version tagged at that commit.
+const goRevision = "go-revision:"
+
+// goModules lists a Go binary's modules and the Go standard library it was built with, as package URLs. The
+// program's own module is among them when it was installed at a version (go install …@v1.2.3), or built from a
+// clean git checkout, a release usually is: the commit it was built from is kept to be resolved.
+func goModules(info *debug.BuildInfo) []string {
+	var out []string
+	if v := strings.TrimPrefix(info.GoVersion, "go"); v != "" {
+		out = append(out, "pkg:golang/stdlib@"+strings.SplitN(v, " ", 2)[0])
+	}
+	if m := info.Main; m.Path != "" && m.Replace == nil {
+		if m.Version != "" && m.Version != "(devel)" {
+			out = append(out, "pkg:golang/"+m.Path+"@"+m.Version)
+		} else if rev := goCommit(info.Settings); rev != "" {
+			out = append(out, goRevision+m.Path+"@"+rev)
+		}
+	}
+	for _, d := range info.Deps {
+		m := d
+		if d.Replace != nil {
+			m = d.Replace
+		}
+		if m.Version != "" && m.Version != "(devel)" {
+			out = append(out, "pkg:golang/"+m.Path+"@"+m.Version)
+		}
+	}
+	return out
+}
+
+// goCommit is the git commit a binary was built from, when its checkout had no changes of its own.
+func goCommit(settings []debug.BuildSetting) string {
+	var vcs, rev, modified string
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs":
+			vcs = s.Value
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value
+		}
+	}
+	if vcs != "git" || modified == "true" || len(rev) != 40 {
+		return ""
+	}
+	return rev
+}
+
+func goString(br *bufio.Reader) (string, error) {
+	n, err := binary.ReadUvarint(br)
+	if err != nil {
+		return "", err
+	}
+	if n > goMaxInfo {
+		return "", errors.New("too long")
+	}
+	b := make([]byte, n)
+	if _, err := io.ReadFull(br, b); err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// IsExecutable reports whether Wants takes a file for the build information of a Go executable: then AddStream
+// reads it as it streams by.
+func (s *Scanner) IsExecutable(name string, executable bool) bool {
+	return executable && !strings.Contains(baseName(name), ".") && s.Wants(name, 0, true) > 0
+}
+
+// AddStream reads the Go build information of executable name while it streams by.
+func (s *Scanner) AddStream(name string, r io.Reader) {
+	if s.found == nil {
+		s.found = map[string]bool{}
+	}
+	name = strings.TrimPrefix(path.Clean("/"+name), "/")
+	for _, p := range goStream(r, s.System && systemFile(name)) {
+		s.found[p] = true
+	}
+}

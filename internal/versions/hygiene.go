@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,11 +19,12 @@ import (
 // Finding is one image hygiene problem: something that makes "what runs" hard to know
 // or to trust.
 type Finding struct {
-	Kind     string // moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, unpinned
+	Kind     string // expiring, moving-tag, retagged, untrusted-registry, outdated-base, over-budget, unexpected-signer, quiet-upstream, eol-os, eol-runtime, unpinned
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
 	Where    []string // "env / target / workload / container"
+	Teams    []string // the owners of the services running it
 }
 
 // movingTags are tags that point at different images over time.
@@ -158,9 +160,62 @@ func LoadHygiene(ctx context.Context, st *store.Store, sc store.Scope) ([]Findin
 	}
 	out := append(OutdatedBases(running, evidence, envName, targetName, time.Now()), OverBudget(running, evidence, services, envName, targetName)...)
 	out = append(out, UnexpectedSigners(running, evidence, services, envName, targetName)...)
+	releases, err := st.ReleasesByService(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	checks, err := st.UpstreamChecks(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, QuietUpstreams(running, releases, checks, services, envName, targetName, time.Now())...)
+	sboms, err := st.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, EOLOperatingSystems(ctx, running, sboms, envName, targetName, time.Now())...)
+	out = append(out, EOLRuntimes(ctx, running, sboms, envName, targetName, time.Now())...)
+	if expiring, err := st.ExpiringTags(ctx, sc, time.Now().Add(expiringWithin)); err == nil && len(expiring) > 0 {
+		out = append(ExpiringImages(running, expiring, envName, targetName, time.Now()), out...)
+	}
 	out = append(out, findings...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Severity == "warning" && out[j].Severity != "warning" })
+	withTeams(out, running, services)
 	return out, nil
+}
+
+// withTeams names, on each finding, the owners of the services running its image: by repository and tag, else (a
+// quiet upstream names the repository alone) by repository.
+func withTeams(findings []Finding, active []store.Instance, services []store.Service) {
+	owner := map[string]string{}
+	for _, s := range services {
+		owner[s.ID] = s.Owner
+	}
+	byImage, byRepo := map[string][]string{}, map[string][]string{}
+	short := func(s string) string {
+		return strings.TrimPrefix(strings.TrimPrefix(s, "docker.io/library/"), "docker.io/")
+	}
+	for _, i := range active {
+		o := owner[i.ServiceID]
+		if o == "" {
+			continue
+		}
+		ref := ParseImage(i.Image)
+		k, r := short(ref.Repo()+":"+ref.Tag), short(ref.Repo())
+		if !slices.Contains(byImage[k], o) {
+			byImage[k] = append(byImage[k], o)
+		}
+		if !slices.Contains(byRepo[r], o) {
+			byRepo[r] = append(byRepo[r], o)
+		}
+	}
+	for i := range findings {
+		teams := byImage[findings[i].Image]
+		if len(teams) == 0 {
+			teams = byRepo[findings[i].Image]
+		}
+		findings[i].Teams = slices.Sorted(slices.Values(teams))
+	}
 }
 
 // OutdatedBases finds images built on an older build of their base than the base's tag has now: a build cache
@@ -308,6 +363,138 @@ func UnexpectedSigners(active []store.Instance, evidence map[string]store.ImageE
 	for _, k := range order {
 		sort.Strings(byImage[k].Where)
 		out = append(out, *byImage[k])
+	}
+	return out
+}
+
+// quietAfter is how long an upstream may go without a release before Goliash says it may be unmaintained.
+const quietAfter = 365 * 24 * time.Hour
+
+// QuietSince is when a service's upstream last released, and whether that is over a year ago while Goliash kept
+// checking it: its newest publication date when known, else when Goliash first saw a release. An upstream whose
+// last check failed, or ran over a week ago, is not quiet: its silence says nothing.
+func QuietSince(releases []store.Release, check store.UpstreamCheck, now time.Time) (time.Time, bool) {
+	if check.Error != "" || check.At.IsZero() || now.Sub(check.At) > 7*24*time.Hour {
+		return time.Time{}, false
+	}
+	var last time.Time
+	for _, r := range releases {
+		at := r.PublishedAt
+		if at.IsZero() {
+			at = r.DiscoveredAt
+		}
+		if at.After(last) {
+			last = at
+		}
+	}
+	return last, !last.IsZero() && now.Sub(last) >= quietAfter
+}
+
+// QuietUpstreams finds services whose upstream has released nothing for over a year, while Goliash kept checking
+// it: the project may be unmaintained, and the fixes of its next vulnerability may never come. The last release is
+// its publication date when known, else when Goliash first saw it; a service Goliash has not watched for a year,
+// or whose last check failed, is left out.
+func QuietUpstreams(active []store.Instance, releases map[string][]store.Release, checks map[string]store.UpstreamCheck,
+	services []store.Service, envName, targetName map[string]string, now time.Time,
+) []Finding {
+	name := map[string]string{}
+	for _, s := range services {
+		name[s.ID] = s.Name
+	}
+	byService := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		repo := ParseImage(i.Image).Repo()
+		if i.ServiceID == "" || Managed(repo) || PackageRepo(repo) {
+			continue
+		}
+		f := byService[i.ServiceID]
+		if f == nil {
+			if _, done := byService[i.ServiceID]; done {
+				continue
+			}
+			byService[i.ServiceID] = nil
+			last, quiet := QuietSince(releases[i.ServiceID], checks[i.ServiceID], now)
+			if !quiet {
+				continue
+			}
+			months := int(now.Sub(last).Hours() / 24 / 30)
+			f = &Finding{
+				Kind: "quiet-upstream", Severity: "warning",
+				Image: strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/library/"), "docker.io/"),
+				Detail: fmt.Sprintf("%s: no new release upstream since %s (%d months): it may be unmaintained, and fixes may not come; "+
+					"look for a maintained fork or a replacement", name[i.ServiceID], last.Format("Jan 2006"), months),
+			}
+			if !IsPublicRegistry(repo) { // most likely built in house: nothing is abandoned, but nothing was rebuilt either
+				f.Severity = "info"
+				f.Detail = fmt.Sprintf("%s: no new image pushed since %s (%d months): its base image and dependencies are as old; "+
+					"a rebuild picks up their fixes", name[i.ServiceID], last.Format("Jan 2006"), months)
+			}
+			byService[i.ServiceID] = f
+			order = append(order, i.ServiceID)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	out := make([]Finding, 0, len(order))
+	for _, id := range order {
+		sort.Strings(byService[id].Where)
+		out = append(out, *byService[id])
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Severity != out[j].Severity {
+			return out[i].Severity == "warning"
+		}
+		return out[i].Image < out[j].Image
+	})
+	return out
+}
+
+// expiringWithin is how far ahead a lifecycle policy deleting a running image is told.
+const expiringWithin = 7 * 24 * time.Hour
+
+// ExpiringImages finds running images their repository's lifecycle policy deletes (Amazon ECR, as the agent read the
+// policy): within a day for a count rule, or on the date a sinceImagePushed rule gives. What runs keeps running, but
+// a new task, a scale-out or a rollback to it cannot pull it any more. An image is matched by digest, else by tag.
+func ExpiringImages(active []store.Instance, expiring []store.TagTime, envName, targetName map[string]string, now time.Time) []Finding {
+	byDigest, byTag := map[string]store.TagTime{}, map[string]store.TagTime{}
+	for _, t := range expiring {
+		if t.Digest != "" {
+			byDigest[t.Repo+"@"+t.Digest] = t
+		}
+		byTag[t.Repo+":"+t.Tag] = t
+	}
+	found := map[string]*Finding{}
+	var order []string
+	for _, i := range active {
+		ref := ParseImage(i.Image)
+		t, ok := byDigest[ref.Repo()+"@"+i.Digest]
+		if !ok || i.Digest == "" {
+			if t, ok = byTag[ref.Repo()+":"+ref.Tag]; !ok {
+				continue
+			}
+		}
+		key := ref.Repo() + ":" + ref.Tag
+		f := found[key]
+		if f == nil {
+			when := "within a day (a rule keeps only the newest images)"
+			if t.ExpiresAt.After(now.Add(24 * time.Hour)) {
+				when = "on " + t.ExpiresAt.Format(time.DateOnly)
+			}
+			f = &Finding{
+				Kind: "expiring", Severity: "warning", Image: key,
+				Detail: "the repository's lifecycle policy deletes this running image " + when +
+					": what runs keeps running, but a new task, a scale-out or a rollback to it cannot pull it. " +
+					"Deploy a newer build, or exclude what runs from the rule (a tag prefix it does not select).",
+			}
+			found[key] = f
+			order = append(order, key)
+		}
+		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+	}
+	out := make([]Finding, 0, len(order))
+	for _, k := range order {
+		sort.Strings(found[k].Where)
+		out = append(out, *found[k])
 	}
 	return out
 }

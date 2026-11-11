@@ -27,6 +27,7 @@ func TestBell(t *testing.T) {
 		t.Fatalf("creating an In Goliash channel: %d", code)
 	}
 	chans, _ := e.st.ListChannels(ctx, sc)
+	chans = ownChannels(chans)
 	if len(chans) != 1 || chans[0].Type != "inapp" {
 		t.Fatalf("channels %+v", chans)
 	}

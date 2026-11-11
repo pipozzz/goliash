@@ -38,6 +38,20 @@ type Posture struct {
 	// OutdatedBase names the production services whose image is built on an older build of its base than the
 	// base's tag has now: fixes the base shipped since are missing.
 	OutdatedBase []string
+	// EOLOS names the production services whose image is built on an operating system release past its end of life.
+	EOLOS []string
+	// EOLGo names the production services whose image has Go programs built with a Go release past its end of life.
+	EOLGo []string
+	// Extended is what AWS charges for managed services run past the end of standard support, in every environment:
+	// already (Now) and from a date to come (Soon).
+	Extended ExtendedBill
+}
+
+// ExtendedBill adds up AWS Extended Support across managed services, in US dollars a month at US East list prices.
+type ExtendedBill struct {
+	Now, Soon           float64
+	NowCount, SoonCount int       // the services, including those whose amount is not known
+	SoonFrom            time.Time // the first date a coming charge starts
 }
 
 // LoadPosture computes the posture from the overview, the releases and the acknowledgements.
@@ -105,6 +119,9 @@ func LoadPosture(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 		}
 	}
 	p.ProdMedian, p.ProdP90 = percentile(days, 50), percentile(days, 90)
+	if err := p.addExtended(ctx, st, sc, now); err != nil {
+		return p, err
+	}
 	for _, t := range o.Targets {
 		if _, ok := o.Stale[t.ID]; ok {
 			p.Stale = append(p.Stale, t.Name)
@@ -146,6 +163,10 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 	if err != nil {
 		return err
 	}
+	sboms, err := st.ListImageSBOMs(ctx, sc)
+	if err != nil {
+		return err
+	}
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return err
@@ -154,17 +175,35 @@ func (p *Posture) findOutdatedBases(ctx context.Context, st *store.Store, sc sto
 	for _, s := range services {
 		name[s.ID] = s.Name
 	}
-	seen := map[string]bool{}
+	seen, seenOS, seenGo := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	now := time.Now()
 	for _, in := range active {
-		if in.EnvironmentID != p.Prod.ID || !in.IsMain || in.Digest == "" || name[in.ServiceID] == "" || seen[in.ServiceID] {
+		if in.EnvironmentID != p.Prod.ID || !in.IsMain || in.Digest == "" || name[in.ServiceID] == "" {
 			continue
 		}
-		if evidence[ParseImage(in.Image).Repo()+"@"+in.Digest].BaseStatus == "outdated" {
+		repo := ParseImage(in.Image).Repo()
+		if !seen[in.ServiceID] && evidence[repo+"@"+in.Digest].BaseStatus == "outdated" {
 			seen[in.ServiceID] = true
 			p.OutdatedBase = append(p.OutdatedBase, name[in.ServiceID])
 		}
+		if g, ok := GoOf(sboms[repo+"@"+in.Digest].Purls); ok && !seenGo[in.ServiceID] && GoPastEOL(ctx, g) {
+			seenGo[in.ServiceID] = true
+			p.EOLGo = append(p.EOLGo, name[in.ServiceID]+" (Go "+g+")")
+		}
+		if seenOS[in.ServiceID] {
+			continue
+		}
+		if o, ok := OSOf(sboms[repo+"@"+in.Digest].Purls); ok {
+			if cy, _, ok := OSCycle(ctx, o); ok && (cy.IsEOL || !cy.EOLFrom.IsZero() && !cy.EOLFrom.After(now)) {
+				seenOS[in.ServiceID] = true
+				o.Version = cy.Name
+				p.EOLOS = append(p.EOLOS, name[in.ServiceID]+" ("+o.String()+")")
+			}
+		}
 	}
 	sort.Strings(p.OutdatedBase)
+	sort.Strings(p.EOLOS)
+	sort.Strings(p.EOLGo)
 	return nil
 }
 
@@ -225,4 +264,38 @@ func (p Posture) Sample(now time.Time) store.PostureSample {
 		P90: p.ProdP90, Behind30: p.Prod30, Behind90: p.Prod90, EOLPassed: p.EOLPassed, EOLSoon: p.EOLSoon,
 		Accepted: p.Accepted,
 	}
+}
+
+// addExtended adds up what AWS charges, or will, for the managed services that run past the end of standard support.
+func (p *Posture) addExtended(ctx context.Context, st *store.Store, sc store.Scope, now time.Time) error {
+	var eol []Update
+	for _, ex := range p.Exposures {
+		if ex.EOL != "" {
+			eol = append(eol, ex.Update)
+		}
+	}
+	if len(eol) == 0 {
+		return nil
+	}
+	active, err := st.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return err
+	}
+	for _, u := range withExposureAt(eol, active, now) {
+		es := u.ExtendedSupport
+		if es == nil {
+			continue
+		}
+		if es.Started(now) {
+			p.Extended.Now += es.Monthly
+			p.Extended.NowCount++
+			continue
+		}
+		p.Extended.Soon += es.Monthly
+		p.Extended.SoonCount++
+		if p.Extended.SoonFrom.IsZero() || es.From.Before(p.Extended.SoonFrom) {
+			p.Extended.SoonFrom = es.From
+		}
+	}
+	return nil
 }

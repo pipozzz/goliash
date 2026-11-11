@@ -4,6 +4,7 @@
 package ingest
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/pipozzz/goliash/internal/mapping"
@@ -41,6 +42,14 @@ func workloadApp(labels map[string]string, custom, namespace, kind, name string)
 			return v, k
 		}
 	}
+	// AWS: the CloudFormation stack (SAM, Serverless, CDK and Copilot deploy through it) or Copilot's application
+	// groups a region's functions and services, where the namespace is only the region or the cluster.
+	if v := strings.TrimSpace(labels["copilot-application"]); v != "" {
+		return v, "copilot-application"
+	}
+	if v := strings.TrimSpace(labels[cfnStackTag]); v != "" {
+		return nestedStackSuffix.ReplaceAllString(v, ""), "CloudFormation stack"
+	}
 	if kind == "nomad_job" && name != "" {
 		return withoutGeneratedSuffix(name), "nomad job"
 	}
@@ -54,6 +63,12 @@ func workloadApp(labels map[string]string, custom, namespace, kind, name string)
 	}
 	return "", ""
 }
+
+// cfnStackTag is the tag CloudFormation puts on what a stack creates.
+const cfnStackTag = "aws:cloudformation:stack-name"
+
+// nestedStackSuffix is what CloudFormation adds to a nested stack's name: shop-api-ApiStack-1A2B3C4D5E6F.
+var nestedStackSuffix = regexp.MustCompile(`-[A-Za-z0-9]+Stack-[A-Z0-9]{8,14}$|-[A-Z0-9]{12,14}$`)
 
 // withoutGeneratedSuffix drops the random suffix platforms add to the names they
 // generate (see mapping.StableName).

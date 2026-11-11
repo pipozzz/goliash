@@ -365,6 +365,9 @@ templ SecurityPage(v SecurityView) {
 							@postureRow("Tags pushed again", "one tag running as different images", v.Hygiene["retagged"], "/hygiene?kind=retagged", true)
 							@postureRow("Untrusted registries", "outside GOLIASH_ALLOWED_REGISTRIES", v.Hygiene["untrusted-registry"], "/hygiene?kind=untrusted-registry", true)
 							@postureRow("Outdated base", "built on an older build of its FROM image", v.Hygiene["outdated-base"], "/hygiene?kind=outdated-base", true)
+							@postureRow("OS past end of life", "its packages get no more security fixes", v.Hygiene["eol-os"], "/hygiene?kind=eol-os", true)
+							@postureRow("Go past end of life", "built with a Go release that gets no more fixes", v.Hygiene["eol-runtime"], "/hygiene?kind=eol-runtime", true)
+							@postureRow("Quiet upstream", "no release for over a year: may be unmaintained", v.Hygiene["quiet-upstream"], "/hygiene?kind=quiet-upstream", true)
 							@postureRow("Digest unknown", "a tag pushed again would go unnoticed", v.Hygiene["unpinned"], "/hygiene?kind=unpinned", false)
 						</tbody>
 					</table>
@@ -399,6 +402,14 @@ templ SecurityPage(v SecurityView) {
 								}
 							</ul>
 						}
+					}
+					if len(v.Vulns.Unsupported) > 0 {
+						<p><strong>{ plural(len(v.Vulns.Unsupported), "image runs", "images run") }</strong> on an operating system without advisories (a release past its security support, or a distribution OSV does not cover), so their vulnerabilities are undercounted:</p>
+						<ul class="unknowns">
+							for _, u := range v.Vulns.Unsupported {
+								<li><a class="u" href={ templ.URL("/services/" + url.PathEscape(u.Service) + "#security") }><strong>{ u.Service }</strong></a>{ " (" + u.Image + "): " + u.Why }</li>
+							}
+						</ul>
 					}
 					if !v.DigestOK {
 						<p><strong>{ plural(v.NoDigest, "target", "targets") }</strong> report no image digests, so a tag pushed again would go unnoticed there; <a href="/hygiene?kind=unpinned">see why</a>.</p>
@@ -661,7 +672,7 @@ templ sbomHelper(blind []versions.BlindImage) {
 	<section class="panel" id="sbom">
 		<div class="panel-head">
 			<h2>{ plural(len(blind), "image without an SBOM", "images without an SBOM") }</h2>
-			@panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg or apk package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.")
+			@panelInfo("Their vulnerabilities are unknown: Goliash reads a vulnerability list from an image's SBOM, or else from its dpkg, apk or RPM package database. Add an SBOM to the build and Goliash reads it from the registry at the next deploy.")
 		</div>
 		<div class="scroll" tabindex="0">
 			<table class="cards">

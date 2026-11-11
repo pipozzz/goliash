@@ -236,6 +236,15 @@ func TestManualService(t *testing.T) {
 	if _, page := get(t, member, e.srv.URL+"/updates", nil); !strings.Contains(page, "Watching") || !strings.Contains(page, "docker.io/hashicorp/terraform") {
 		t.Error("watched service not on the updates page")
 	}
+	// It has no row in the matrix: the matrix names it, and search finds it by name and by image.
+	if _, page := get(t, member, e.srv.URL+"/?view=table", nil); !strings.Contains(page, "Watched for their releases only") || !strings.Contains(page, `href="/services/terraform"`) {
+		t.Error("watched service not named on the matrix")
+	}
+	for _, q := range []string{"terraform", "hashicorp"} {
+		if _, page := get(t, member, e.srv.URL+"/search?q="+q, nil); !strings.Contains(page, `href="/services/terraform"`) {
+			t.Errorf("search %q does not find the watched service", q)
+		}
+	}
 	if code, _, _ := post(t, e.as(store.RoleViewer), e.srv.URL+"/services/new", url.Values{"name": {"x"}, "upstream": {"x"}}); code != http.StatusForbidden {
 		t.Errorf("viewer added a service: %d", code)
 	}
@@ -268,5 +277,42 @@ func TestCLIInstall(t *testing.T) {
 	}
 	if got := cliInstall("https://g.example", "dev"); strings.Contains(got, "curl") || !strings.Contains(got, "releases") {
 		t.Errorf("a development build: %s", got)
+	}
+}
+
+func TestHygieneTeamFilter(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	sc := e.ws.Scope()
+	pay, _ := e.st.EnsureService(ctx, sc, "payments")
+	web, _ := e.st.EnsureService(ctx, sc, "web")
+	pay.Owner, web.Owner = "team-pay", "team-web"
+	if err := e.st.UpdateService(ctx, pay); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.UpdateService(ctx, web); err != nil {
+		t.Fatal(err)
+	}
+	snap := store.NewID()
+	_, _ = e.st.InsertSnapshot(ctx, store.Snapshot{ID: snap, Scope: sc, TargetID: e.tgt.ID, CollectedAt: time.Now(), Complete: true, Payload: json.RawMessage(`{}`)})
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, SnapshotID: snap, TargetID: e.tgt.ID, At: time.Now(), Upsert: []store.Instance{
+		{
+			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: pay.ID, WorkloadID: "p", WorkloadKind: "deployment", WorkloadName: "payments",
+			ContainerName: "app", Image: "ghcr.io/acme/payments:latest", Tag: "latest", Running: 1, IsMain: true,
+		},
+		{
+			TargetID: e.tgt.ID, EnvironmentID: e.prod.ID, ServiceID: web.ID, WorkloadID: "w", WorkloadKind: "deployment", WorkloadName: "web",
+			ContainerName: "app", Image: "ghcr.io/acme/web:stable", Tag: "stable", Running: 1, IsMain: true,
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	viewer := e.as(store.RoleViewer)
+	_, page := get(t, viewer, e.srv.URL+"/hygiene?kind=moving-tag&team=team-pay", nil)
+	if !strings.Contains(page, "ghcr.io/acme/payments:latest") || strings.Contains(page, "ghcr.io/acme/web:stable") {
+		t.Fatal("the team filter shows another team's images")
+	}
+	if !strings.Contains(page, `<option value="team-web">`) || !strings.Contains(page, `href="/hygiene?kind=retagged&amp;team=team-pay"`) {
+		t.Fatal("no team choice, or the kinds lose the team")
 	}
 }

@@ -22,15 +22,24 @@ all with `aws cloudformation delete-stack --stack-name goliash-agent`.
 ## Add AWS to an agent you already run
 
 An agent on a Docker host or in a Kubernetes cluster can watch AWS too: **Agents → the agent → Add AWS to this
-agent**. Pick the region, the services and how the agent gets credentials (a read-only IAM user's keys, the role
-of the EC2 instance or pod, or a profile). The page writes, for that agent:
+agent**.
 
-1. the read-only IAM policy for exactly those services, and the `aws` commands that give it to a new IAM user or
-   to the instance's role (with the hop limit EC2 needs for containers);
-2. the lines for its `goliash-agent.yml` (or Helm values);
+**On EC2 with an instance role** (agent 1.153.0 or newer) there is one step. The agent reads its region and role from
+the instance metadata and reports them; the page then shows one `aws iam put-role-policy` command with that role
+and the read-only policy in it (run it anywhere with IAM access, e.g. AWS CloudShell). Within 15 minutes the agent
+looks again and adds what the role may now read; nothing to set on the agent, no restart. An instance without a
+role gets the commands that create one and attach it. If the container gets no metadata token, the page says so
+and gives the command that raises the hop limit to 2.
+
+**Otherwise** pick the region, the services and how the agent gets credentials (a read-only IAM user's keys, a
+pod's role, or a profile). The page writes:
+
+1. the read-only IAM policy for exactly those services, and the `aws` commands that give it to a new IAM user or a
+   role;
+2. the lines for `~/goliash-agent/compose.yml` (or the Helm values);
 3. the command that restarts it.
 
-After the restart the agent finds what the credentials may read:
+Then the agent finds what the credentials may read:
 
 - **With an enrollment code**, it adds those targets by itself.
 - **With a token**, it shows them on its page under **Found here, not watched**: tick them, pick an environment,
@@ -59,7 +68,7 @@ code, a log group and the service. Parameters:
 ## Terraform
 
 The Terraform module in `deploy/ecs/goliash-agent` runs the agent as a Fargate service. Its task role may only call
-`ecs:List*`, `ecs:Describe*`, `ecr:ListImages`, and for signatures and SBOMs of ECR images
+`ecs:List*`, `ecs:Describe*`, `ecr:ListImages`, `ecr:DescribeImages` and `ecr:GetLifecyclePolicy` (when each image was pushed, and what the lifecycle policy deletes), `elasticloadbalancing:DescribeTargetGroups` and `DescribeLoadBalancers` (which load balancers face the internet), and for signatures and SBOMs of ECR images
 `ecr:GetAuthorizationToken`, `ecr:BatchGetImage` and `ecr:GetDownloadUrlForLayer`.
 
 ```hcl
@@ -112,7 +121,11 @@ service gets in the matrix, Updates, notifications and reports:
 - **The versions RDS offers** in the region, as its upstream releases. A newer minor or major version shows as
   *upstream* drift and on Updates.
 - **End of standard support** (from endoflife.date), as *end of life*. After that date AWS moves the database to
-  RDS Extended Support and charges for it per vCPU and hour, unless the upgrade happens first.
+  RDS Extended Support and charges for it per vCPU and hour, unless the upgrade happens first. Goliash reads the
+  vCPUs from the instance class (an Aurora or Multi-AZ cluster adds up its instances) and shows the bill on
+  [Updates](/guide/versions/#updates): **Extended Support $292/month** for 4 vCPUs, $0.10 an hour each for two
+  years and $0.20 from the third, at US East list prices. Aurora Serverless, billed per ACU, shows that it is
+  charged, without an amount.
 - **Public accessibility.** A database with `PubliclyAccessible` is *exposed*, with its endpoint, and its upgrades
   come first.
 
@@ -157,7 +170,7 @@ This watches the clusters themselves; the workloads inside a cluster come from a
 - **The versions EKS offers** are its upstream releases, so the next Kubernetes version shows on Updates.
 - **End of standard support** comes from endoflife.date (`amazon-eks`), as *end of life*. After it, AWS keeps the
   cluster in extended support and charges for it per cluster and hour, unless the cluster's upgrade policy says
-  otherwise.
+  otherwise: $0.60 instead of $0.10, which Updates shows as **Extended Support $365/month**.
 - **A public API endpoint** open to `0.0.0.0/0` makes the cluster *exposed*.
 - **Tags:** `goliash.ignore=true` and `goliash.env` on the cluster work as on databases; node groups take the
   cluster's tags, then their own.

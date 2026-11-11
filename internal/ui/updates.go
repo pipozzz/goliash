@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,8 +36,25 @@ type UpdatesView struct {
 	Markdown     string // the list as a markdown checklist, to copy into a ticket
 	Total        int    // before filters
 	Watched      []WatchedItem
-	Overdue      int  // upgrades past the workspace's remediation deadline, before the urgency filter
-	OnlyOverdue  bool // ?due=over: only those
+	Overdue      int    // upgrades past the workspace's remediation deadline, before the urgency filter
+	OnlyOverdue  bool   // ?due=over: only those
+	Kinds        []kind // where the upgrades run, for the filter's buttons
+	Calendar     bool   // ?view=calendar: the upgrades with a date, by month
+	Months       []CalendarMonth
+}
+
+// CalendarMonth is one month of the calendar: the upgrades whose end of life or deadline falls in it.
+type CalendarMonth struct {
+	Label string // "November 2026", or "Past" for what is overdue
+	Past  bool
+	Items []CalendarItem
+}
+
+// CalendarItem is one dated upgrade: when, and what ends or is due then.
+type CalendarItem struct {
+	Date time.Time
+	What string // "end of life" or "deadline: exploited vulnerability"
+	UpdateItem
 }
 
 // WatchedItem is a service watched for its releases that runs nowhere Goliash knows.
@@ -57,12 +75,14 @@ type UpdateItem struct {
 	Service, ServiceURL, App, Owner, Env string
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
+	Remedy                               string    // with no Target: what fixes its exploited vulnerability
 	SecurityFix                          string    // what the releases up to Target say they fix
 	Breaking                             []string  // what the releases up to Target say breaks: "2.0.0: Removed …"
 	Due                                  time.Time // the remediation deadline, zero without one
 	DueFor                               string    // for which reason: "exploited vulnerability"
 	DaysLeft                             int       // until Due: negative once past
 	Watched                              []string  // the security watches covering the service
+	Where                                []string  // where it runs there, as filter words: region:eu-west-1 …
 	EOLPassed                            bool
 	On                                   string // the targets running Running, when others run newer versions
 	Since                                time.Time
@@ -73,11 +93,26 @@ type UpdateItem struct {
 	Exploited                            []string
 	Exposed                              []string // how the running version can be reached from outside
 	Maintenance                          []string // the patches the platform has waiting for it
+	MaintenanceOnly                      bool     // only what waits at the platform: no newer version, Remedy says what to do
+	Path                                 []string // the versions the upgrade goes through, Target last; nil when direct
+	PathNote                             string   // why: "one minor version at a time"
+	PRTarget                             string   // the version a pull request moves to: the first stop of Path, else Target
+	Risk                                 string   // low, medium or high: how much the upgrade may break
+	AutoHeld                             string   // why the version policy's automatic pull request waits for a person
+	Trouble                              string   // what the version to move to did where it ran: "1.28.0 rolled back in prod (payments) …"
+	RiskWhy                              string   // why, for its tooltip
+	Extended                             string   // what AWS charges past the end of standard support: "$292/month"
+	ExtendedTitle                        string   // and in full, with when and how
+	ExtendedStarted                      bool     // AWS charges for it already
+	ExtendedUSD                          string   // the monthly amount for the CSV, "" when not known
 	Critical                             int
 	Vulns                                versions.VulnDelta // what the upgrade does to known vulnerabilities, when known
 	Brief                                string             // what to ask Goli for a briefing on this upgrade; empty without Goli
 	PRs                                  []PromotePR        // Argo CD applications the upgrade can be opened in as a pull request
 	ServiceID, EnvID                     string
+	Kinds                                []string     // where it runs (lambda, ecs …), for icons and the filter
+	What                                 string       // what it is when its name does not say: "Node.js runtime"
+	Same                                 string       // the upgrade it shares with other rows (same image, versions, environment), for folding them
 	Ticket                               *TicketView  // the open ticket filed for it, if any
 	TicketChannels                       []ChannelOpt // trackers a ticket can be filed in by hand
 }
@@ -108,10 +143,10 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 	match := versions.Matcher(q)
 	csvHeaders(w, "upgrades")
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance"})
+	_ = cw.Write([]string{"service", "application", "owner", "environment", "running", "on", "target", "urgency", "jump", "behind", "since", "end_of_life", "eol_passed", "exploited", "critical", "security_fix", "breaking", "watches", "due", "days_left", "release_notes", "exposed", "maintenance", "remedy", "extended_support_monthly_usd", "risk"})
 	for _, it := range v.Items {
 		exploited := strings.Join(it.Exploited, " ")
-		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " ")) {
+		if q != "" && !match(it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.EOL, exploited, it.SecurityFix, strings.Join(it.Watched, " "), strings.Join(it.Breaking, " "), strings.Join(it.Where, " ")) {
 			continue
 		}
 		since, due, left := "", "", ""
@@ -123,7 +158,7 @@ func (s *Server) updatesCSV(w http.ResponseWriter, r *http.Request, p auth.Princ
 		}
 		_ = cw.Write([]string{
 			it.Service, it.App, it.Owner, it.Env, it.Running, it.On, it.Target, it.LevelLabel, it.Jump, it.Behind, since,
-			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "),
+			it.EOL, strconv.FormatBool(it.EOLPassed), exploited, strconv.Itoa(it.Critical), it.SecurityFix, strings.Join(it.Breaking, " | "), strings.Join(it.Watched, " "), due, left, it.TargetURL, strings.Join(it.Exposed, "; "), strings.Join(it.Maintenance, "; "), it.Remedy, it.ExtendedUSD, it.Risk,
 		})
 	}
 	cw.Flush()
@@ -198,7 +233,7 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		}
 	}
 	q := r.URL.Query()
-	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1, OnlyOverdue: q.Get("due") == "over"}
+	v := UpdatesView{Base: withFlash(s.base(ctx, p, "updates", "Updates"), r), Team: q.Get("team"), Env: q.Get("env"), Level: -1, OnlyOverdue: q.Get("due") == "over", Calendar: q.Get("view") == "calendar"}
 	v.Views = s.viewTabs(ctx, r, p, "/updates")
 	if l := q.Get("level"); l != "" {
 		for i := range versions.UrgencyLabels {
@@ -218,7 +253,9 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		return UpdatesView{}, err
 	}
 	now := time.Now()
-	for _, u := range versions.LoadUpdates(ctx, s.store, p.Scope, o, acks, now) {
+	kinds := serviceKinds(o)
+	whereIdx := o.WhereIndex()
+	for _, u := range versions.LoadWork(ctx, s.store, p.Scope, o, acks, now) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
 		}
@@ -231,17 +268,38 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 			Env: u.Environment.Name, Running: u.Running, Target: u.Target, TargetURL: u.TargetURL, Jump: string(u.Jump),
 			Behind: u.Behind, EOL: u.EOL, EOLPassed: u.EOLPassed, Since: u.Since, Level: u.Urgency, On: strings.Join(u.On, ", "),
 			LevelLabel: versions.UrgencyLabels[u.Urgency], LevelClass: levelClasses[u.Urgency], Skip: nextVersion(u.Target),
-			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
+			Remedy: u.Remedy, Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, MaintenanceOnly: u.MaintenanceOnly, Critical: u.Critical, Vulns: u.Vulns, SecurityFix: u.SecurityFix, Breaking: u.Breaking, Watched: watched[u.Service.ID],
 			Due: u.Due, DueFor: u.DueFor, ServiceID: u.Service.ID, EnvID: u.Environment.ID, Ticket: open[ticketKey(u.Service.ID, u.Environment.ID, u.App)],
-			TicketChannels: trackers,
+			TicketChannels: trackers, Path: u.Path, PathNote: u.PathNote, PRTarget: u.Target,
+			Risk: u.Risk, RiskWhy: riskWhy(u.Risk, u.RiskReasons), Trouble: u.Trouble,
+		}
+		if len(u.Path) > 0 {
+			it.PRTarget = u.Path[0]
+		}
+		if es := u.ExtendedSupport; es != nil {
+			it.Extended, it.ExtendedTitle, it.ExtendedStarted = "Extended Support", "AWS Extended Support: "+es.String()+", at US East list prices", es.Started(time.Now())
+			if es.Monthly > 0 {
+				it.Extended += " " + versions.Dollars(es.Monthly) + "/month"
+				it.ExtendedUSD = strconv.FormatFloat(es.Monthly, 'f', 0, 64)
+			}
 		}
 		if !u.Due.IsZero() {
 			it.DaysLeft = u.DaysLeft(now)
 		}
+		it.Kinds, it.What = kinds[u.Service.ID], rowWhat(o.Refs[u.Service.ID].Repo)
+		it.Where = whereIdx[u.Service.ID+"|"+u.Environment.ID]
+		if repo := o.Refs[u.Service.ID].Repo; repo != "" {
+			it.Same = strings.Join([]string{repo, u.Running, u.Target, u.Environment.Name, strconv.Itoa(u.Urgency)}, "|")
+		}
 		if p.Can(store.RoleMember) || s.demoPulls() {
-			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, u.Target)
+			it.PRs = s.upgradePRs(ctx, p.Scope, o, apps, u.Service.ID, u.Environment.Name, u.Running, it.PRTarget)
 			for _, pr := range it.PRs {
 				v.Bulk = v.Bulk || pr.URL == "" && p.Can(store.RoleMember) && !s.demoPulls()
+				if pr.URL == "" && it.AutoHeld == "" {
+					s.autoMu.Lock()
+					it.AutoHeld = s.autoHeld[p.Scope.WorkspaceID+"|"+pr.TargetID+"|"+pr.WorkloadID+"|"+it.PRTarget]
+					s.autoMu.Unlock()
+				}
 			}
 		}
 		if s.goliOn() && u.Running != "" && u.Target != "" {
@@ -272,7 +330,121 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		return UpdatesView{}, err
 	}
 	v.Markdown = md.String()
+	// A key shared by one row is no fold; the kinds present become the filter's buttons.
+	same := map[string]int{}
+	rows := make([]MatrixRow, 0, len(v.Items))
+	for _, it := range v.Items {
+		same[it.Same]++
+		rows = append(rows, MatrixRow{Kinds: it.Kinds})
+	}
+	for i := range v.Items {
+		if same[v.Items[i].Same] < 2 {
+			v.Items[i].Same = ""
+		}
+	}
+	v.Kinds = kindOptions(rows)
+	var more []CalendarItem
+	if v.Calendar {
+		more = s.calendarEOL(ctx, o, v)
+	}
+	v.Months = calendarMonths(v.Items, more, time.Now())
 	return v, nil
+}
+
+// calendarHorizon is how far ahead the calendar lists ends of life of what runs.
+const calendarHorizon = 18 * 31 * 24 * time.Hour
+
+// calendarEOL are the ends of life of every version that runs, beyond the upgrades: the release cycle's date from
+// endoflife.date, up to calendarHorizon ahead, for the calendar.
+func (s *Server) calendarEOL(ctx context.Context, o versions.Overview, v UpdatesView) []CalendarItem {
+	if s.checker == nil {
+		return nil
+	}
+	kinds := serviceKinds(o)
+	limit := time.Now().Add(calendarHorizon)
+	var out []CalendarItem
+	for _, row := range o.Matrix.Rows {
+		svc := row.Service
+		if v.Team != "" && svc.Owner != v.Team {
+			continue
+		}
+		repo := o.Refs[svc.ID].Repo
+		for i, c := range row.Cells {
+			env := o.Matrix.Environments[i].Name
+			if v.Env != "" && env != v.Env {
+				continue
+			}
+			for _, ver := range c.Versions {
+				date, cycle, ok := s.checker.EOLOf(versions.CacheOnly(ctx), svc, repo, ver.Tag)
+				if !ok || date.After(limit) {
+					continue
+				}
+				out = append(out, CalendarItem{Date: date, What: "end of life of " + cycle, UpdateItem: UpdateItem{
+					Service: svc.Name, ServiceURL: serviceURL(svc.Name), Owner: svc.Owner, Env: env, Running: ver.Version(),
+					Kinds: kinds[svc.ID], What: rowWhat(repo),
+				}})
+			}
+		}
+	}
+	return out
+}
+
+// calendarMonths puts the upgrades with a date (an end of life, a remediation deadline) in order, by month, what is
+// past first.
+func calendarMonths(items []UpdateItem, more []CalendarItem, now time.Time) []CalendarMonth {
+	dated := append([]CalendarItem(nil), more...)
+	listed := map[string]bool{}
+	for _, it := range items {
+		if it.EOL != "" {
+			listed[it.Service+"|"+it.Env] = true
+		}
+	}
+	dated = slices.DeleteFunc(dated, func(c CalendarItem) bool { return listed[c.Service+"|"+c.Env] }) // the upgrade's own line has it
+	for _, it := range items {
+		if !it.Due.IsZero() {
+			dated = append(dated, CalendarItem{Date: it.Due, What: "deadline: " + it.DueFor, UpdateItem: it})
+		}
+		if it.EOL != "" {
+			if d, err := time.Parse(time.DateOnly, it.EOL); err == nil {
+				dated = append(dated, CalendarItem{Date: d, What: "end of life", UpdateItem: it})
+			}
+		}
+	}
+	sort.SliceStable(dated, func(i, j int) bool { return dated[i].Date.Before(dated[j].Date) })
+	var out []CalendarMonth
+	today := now.Truncate(24 * time.Hour)
+	for _, d := range dated {
+		label, past := d.Date.Format("January 2006"), d.Date.Before(today)
+		if past {
+			label = "Past"
+		}
+		if len(out) == 0 || out[len(out)-1].Label != label {
+			out = append(out, CalendarMonth{Label: label, Past: past})
+		}
+		out[len(out)-1].Items = append(out[len(out)-1].Items, d)
+	}
+	return out
+}
+
+// updateSearch is what the filter matches a row by: what it shows, its kinds (type:lambda) and what it is.
+func updateSearch(it UpdateItem) string {
+	parts := []string{it.Service, it.App, it.Owner, it.Env, it.On, it.Running, it.Target, it.Remedy, it.Jump, it.LevelLabel, it.What, kindTokens(it.Kinds)}
+	parts = append(parts, it.Where...)
+	parts = append(parts, it.Exploited...)
+	parts = append(parts, it.Exposed...)
+	if it.EOL != "" {
+		parts = append(parts, "end of life", it.EOL)
+	}
+	if it.Risk != "" {
+		parts = append(parts, "risk:"+it.Risk, it.Risk+" risk")
+	}
+	if len(it.Maintenance) > 0 {
+		parts = append(parts, "waiting pending", strings.Join(it.Maintenance, " "))
+	}
+	if it.Trouble != "" {
+		parts = append(parts, "troubled", it.Trouble)
+	}
+	return strings.ToLower(strings.Join(parts, " "))
 }
 
 // updateMarkdown is one checklist line: "- [ ] postgres (auth) @ prod: 15.6 → 15.8 (end of life 2026-09-01)".
@@ -288,6 +460,9 @@ func updateMarkdown(it UpdateItem) string {
 	}
 	if it.Target != "" {
 		b.WriteString(" → " + it.Target)
+	}
+	if it.Target == "" && it.Remedy != "" {
+		b.WriteString(" (fix: " + it.Remedy + ")")
 	}
 	var why []string
 	if it.EOL != "" {
@@ -357,6 +532,9 @@ func updatesURL(v UpdatesView, key, value string) string {
 	if v.OnlyOverdue {
 		q.Set("due", "over")
 	}
+	if v.Calendar {
+		q.Set("view", "calendar")
+	}
 	if value == "" {
 		q.Del(key)
 	} else {
@@ -372,6 +550,23 @@ func sortedSet(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// watchedOnly names the services with an upstream that run nowhere Goliash knows (added by hand to watch their
+// releases), sorted: the matrix has no row for them.
+func watchedOnly(o versions.Overview) []string {
+	running := map[string]bool{}
+	for _, row := range o.Matrix.Rows {
+		running[row.Service.ID] = true
+	}
+	var out []string
+	for id, svc := range o.Services {
+		if !running[id] && svc.Upstream != "" {
+			out = append(out, svc.Name)
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -426,6 +621,60 @@ func allDue(v UpdatesView) UpdatesView {
 // exposedTitle says how something can be reached from outside.
 func exposedTitle(ways []string) string { return "Reachable from outside: " + strings.Join(ways, "; ") }
 
+// ExposedGroup is one kind of way in from outside, with the names of each: load balancer target group ×14.
+type ExposedGroup struct {
+	Kind  string // "load balancer target group (internal or not: not known)"
+	Names []string
+}
+
+// exposedKinds are the ways in the collectors describe, the longest first: what follows is the name.
+var exposedKinds = []string{
+	"load balancer target group ", "load balancer ", "LoadBalancer service ", "NodePort service ", "HTTPRoute ",
+	"ingress ", "function URL ",
+}
+
+// exposedGroups groups the ways a service is reachable by kind, so fourteen target groups read as one line.
+func exposedGroups(ways []string) []ExposedGroup {
+	var out []ExposedGroup
+	index := map[string]int{}
+	for _, w := range ways {
+		kind, name := "", w
+		for _, k := range exposedKinds {
+			if rest, ok := strings.CutPrefix(w, k); ok {
+				kind, name = strings.TrimSpace(k), rest
+				break
+			}
+		}
+		if i := strings.LastIndex(name, " ("); kind != "" && i > 0 && strings.HasSuffix(name, ")") {
+			kind, name = kind+name[i:], name[:i] // "(internal or not: not known)" is the kind's, not each name's
+		}
+		i, ok := index[kind]
+		if !ok {
+			i = len(out)
+			index[kind] = i
+			out = append(out, ExposedGroup{Kind: kind})
+		}
+		out[i].Names = append(out[i].Names, name)
+	}
+	return out
+}
+
+// exposedSummary is the ways in, in a few words: "load balancer target group ×14, ingress ×2".
+func exposedSummary(groups []ExposedGroup) string {
+	parts := make([]string, 0, len(groups))
+	for _, g := range groups {
+		kind := g.Kind
+		if i := strings.Index(kind, " ("); i > 0 {
+			kind = kind[:i]
+		}
+		if kind == "" {
+			kind = "other"
+		}
+		parts = append(parts, kind+" ×"+itoa(len(g.Names)))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // maintenanceTitle says which patches the platform has waiting.
 func maintenanceTitle(m []string) string { return "Waiting at the platform: " + strings.Join(m, "; ") }
 
@@ -466,4 +715,48 @@ func (s *Server) fileTicket(w http.ResponseWriter, r *http.Request, p auth.Princ
 	}
 	s.audit(r.Context(), p, "ticket.file", "ticket", t.ExternalKey, "url", t.URL)
 	return back(w, r, ret, "notice", "Ticket "+t.ExternalKey+" filed: "+t.URL)
+}
+
+// stillExploited are the exploited vulnerabilities of the running version that the version to move to does not fix.
+func stillExploited(exploited []string, d versions.VulnDelta) []string {
+	var out []string
+	for _, id := range exploited {
+		if !slices.ContainsFunc(d.Fixed, func(v versions.VulnRef) bool { return v.ID == id }) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// joinArrow writes versions as a path: 1.32 → 1.33.
+func joinArrow(vs []string) string { return strings.Join(vs, " → ") }
+
+// riskWhy says an upgrade's risk and why, for its tooltip: "Medium risk: a major version; 3.2.0 runs already elsewhere".
+func riskWhy(risk string, reasons []string) string {
+	if risk == "" {
+		return ""
+	}
+	return strings.ToUpper(risk[:1]) + risk[1:] + " risk: " + strings.Join(reasons, "; ")
+}
+
+// riskClass is the badge colour of an upgrade's risk.
+func riskClass(risk string) string {
+	switch risk {
+	case versions.RiskHigh:
+		return "badge eol"
+	case versions.RiskMedium:
+		return "badge warn"
+	}
+	return "badge ok"
+}
+
+// maintenanceLabel names what waits at the platform: a reboot (a host whose kernel or libraries were updated) or
+// patches.
+func maintenanceLabel(m []string) string {
+	for _, x := range m {
+		if !strings.HasPrefix(x, "reboot required") {
+			return "patch pending"
+		}
+	}
+	return "reboot pending"
 }

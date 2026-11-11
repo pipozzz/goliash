@@ -43,20 +43,20 @@ resource "aws_iam_role" "task" {
 data "aws_iam_policy_document" "read_ecs" {
   statement {
     sid       = "ReadOnlyEcs"
-    actions   = ["ecs:List*", "ecs:Describe*"]
+    actions   = ["ecs:List*", "ecs:Describe*", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeLoadBalancers"]
     resources = ["*"]
   }
   statement {
     sid = "ReadEcrImages"
     # Tags, and the manifests, signatures, attestations and SBOMs of running images.
-    actions   = ["ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+    actions   = ["ecr:ListImages", "ecr:DescribeImages", "ecr:GetLifecyclePolicy", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
     resources = ["*"]
   }
   dynamic "statement" {
     for_each = var.watch_lambda ? [1] : []
     content {
       sid       = "ReadLambda"
-      actions   = ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs"]
+      actions   = ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs", "lambda:GetLayerVersion"]
       resources = ["*"]
     }
   }

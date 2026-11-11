@@ -113,6 +113,11 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 - **Is CVE-X running?** Packages from those SBOMs checked daily against OSV (Debian, Ubuntu, Alpine, Wolfi,
   Chainguard and language ecosystems), exploited-in-the-wild (CISA KEV) first, with the version that fixes each, how
   long each has run, *past due* once CISA's date for fixing it passes, and an alert when one starts running.
+- **Findings you can act on, not noise.** Where the distribution has no fix, Goliash says whether a newer release of
+  it has one (*fixed in Debian 13 (trixie)*) or upstream fixed it, and which version to run (*· latest 1.31.8*).
+  Kernel packages in containers, packages past upstream's fix (nginx.org's nginx against Debian's advisory) and what
+  the image's publisher rules out in VEX are left out, each listed with its reason; people mark the rest *not
+  affected*, with a review date, for the monthly report.
 - **Fixed before scanners know.** A project ships the fix before its CVE reaches OSV and the distributions: Goliash
   reads release notes (a CVE, GHSA or GO id, *security release*) and project feeds (php.net) and announces a security
   release to every service running an older version the hour it appears — PHP built from source included, which
@@ -388,6 +393,7 @@ The protocol is in [`api/agent-v1.yaml`](api/agent-v1.yaml); the server validate
 | `internal/agent` | Agent loop | Apache-2.0 |
 | `internal/collectors/{kubernetes,ecs,nomad,swarm,docker,compose}` | Read-only collectors | Apache-2.0 |
 | `internal/registry` | OCI Distribution API client | Apache-2.0 |
+| `internal/pkgscan` | Application packages from their manifests (images without an SBOM, Lambda code) | Apache-2.0 |
 | `api/agent-v1.yaml` | Agent protocol (OpenAPI 3.0) | Apache-2.0 |
 | `pkg/agentproto` | Protocol types and client, generated from the spec | Apache-2.0 |
 | `pkg/buildinfo` | Build metadata | Apache-2.0 |

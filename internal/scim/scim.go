@@ -36,15 +36,15 @@ const (
 type Handler struct {
 	store *store.Store
 	token string
-	roles auth.GroupRoles
-	base  string // the public URL of /scim/v2, for resource locations
+	roles func() auth.GroupRoles // read at each change, so roles set up in Goliash apply at once
+	base  string                 // the public URL of /scim/v2, for resource locations
 	log   *slog.Logger
 	mux   *http.ServeMux
 }
 
 // New returns the SCIM handler; requests must carry token as a bearer token. roles may be empty: people then get a
 // viewer role in the first workspace, and groups are kept without deciding anything.
-func New(st *store.Store, token string, roles auth.GroupRoles, publicURL string, log *slog.Logger) *Handler {
+func New(st *store.Store, token string, roles func() auth.GroupRoles, publicURL string, log *slog.Logger) *Handler {
 	h := &Handler{store: st, token: token, roles: roles, base: strings.TrimSuffix(publicURL, "/") + "/scim/v2", log: log, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /scim/v2/ServiceProviderConfig", h.serviceProviderConfig)
 	h.mux.HandleFunc("GET /scim/v2/ResourceTypes", h.resourceTypes)
@@ -444,7 +444,8 @@ func (h *Handler) grant(ctx context.Context, userID string) error {
 	if err != nil || u.Role == store.RoleOwner {
 		return err
 	}
-	if len(h.roles) == 0 {
+	roles := h.roles()
+	if len(roles) == 0 {
 		ws, err := h.store.ListWorkspaces(ctx)
 		if err != nil || len(ws) == 0 {
 			return err
@@ -462,7 +463,7 @@ func (h *Handler) grant(ctx context.Context, userID string) error {
 	for _, g := range groups {
 		names = append(names, g.DisplayName, g.ExternalID)
 	}
-	grants, ok := h.roles.For(names)
+	grants, ok := roles.For(names)
 	if !ok {
 		grants = auth.Grants{OrgRole: store.RoleViewer, Workspaces: map[string]string{}} // signed in, sees nothing
 	}

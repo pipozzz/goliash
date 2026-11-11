@@ -327,10 +327,14 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 	ctx := context.Background()
 	l := newLab(t)
 	l.run(map[string]string{"prod-a": "1.27.2"})
-	const nginx = "docker.io/library/nginx"
+	const nginx = "docker.io/acme/nginx" // a private repository on Docker Hub; the library has none
+	l.svc.Upstream = nginx
+	if err := l.st.UpdateService(ctx, l.svc); err != nil {
+		t.Fatal(err)
+	}
 	l.tags.denied = map[string]bool{nginx: true}
 	repos := func() string {
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -344,7 +348,7 @@ func TestPrivateRepositoryOnPublicRegistry(t *testing.T) {
 	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
 		t.Fatal(err)
 	}
-	if got := repos(); got != "docker.io/library/nginx@docker.io registry.internal.example/team/payments@registry.internal.example" {
+	if got := repos(); got != "docker.io/acme/nginx@docker.io registry.internal.example/team/payments@registry.internal.example" {
 		t.Fatalf("handed to agents: %s", got)
 	}
 	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
@@ -463,7 +467,7 @@ func TestMovingTagThroughAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	lookups := func() []agentproto.DigestLookup {
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -515,7 +519,7 @@ func TestRegistryCredentialsOnServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	agents := func() int {
-		checks, err := l.checker.PrivateRepositories(ctx, l.sc)
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -581,5 +585,97 @@ func TestNewerGoliash(t *testing.T) {
 	}
 	if v, _ := l.checker.NewerGoliash(ctx, "dev"); v != "" {
 		t.Fatalf("dev build: %q", v)
+	}
+}
+
+// A private repository goes to the agents whose targets run it, not to an agent elsewhere (another AWS account,
+// whose refusal would overwrite the tags the right agent found); one no agent runs goes to every agent.
+func TestPrivateRepositoriesByAgent(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	runs, _ := l.st.CreateAgent(ctx, l.sc, "runs-payments", "h1")
+	other, _ := l.st.CreateAgent(ctx, l.sc, "elsewhere", "h2")
+	if err := l.st.SetTargetAgent(ctx, l.sc, l.targets["prod-a"].ID, runs.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.st.SetTargetAgent(ctx, l.sc, l.targets["dev-1"].ID, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	l.run(map[string]string{"prod-a": "1.27.2"})
+	watched, _ := l.st.EnsureService(ctx, l.sc, "billing")
+	watched.Upstream = "registry.internal.example/team/billing"
+	if err := l.st.UpdateService(ctx, watched); err != nil {
+		t.Fatal(err)
+	}
+	repos := func(agentID string) string {
+		checks, err := l.checker.PrivateRepositories(ctx, l.sc, agentID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, c := range checks {
+			out = append(out, c.Repository)
+		}
+		return strings.Join(out, " ")
+	}
+	if got := repos(runs.ID); got != "registry.internal.example/team/billing registry.internal.example/team/payments" {
+		t.Errorf("the agent running it: %s", got)
+	}
+	if got := repos(other.ID); got != "registry.internal.example/team/billing" {
+		t.Errorf("another agent: %s", got)
+	}
+}
+
+// An image named like an official one that Docker Hub does not have was built where it runs: it is not handed to
+// the agents as private (and one handed over before is taken back), and says so.
+func TestBuiltLocally(t *testing.T) {
+	ctx := context.Background()
+	l := newLab(t)
+	l.run(map[string]string{"prod-a": "1.27.2"})
+	const repo = "docker.io/library/nginx"
+	l.tags.denied = map[string]bool{repo: true}
+	if err := l.st.SetPrivateUpstream(ctx, l.sc, l.svc.ID, repo); err != nil { // handed over by an older release
+		t.Fatal(err)
+	}
+	if err := l.checker.CheckUpstreams(ctx, l.sc); err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := l.st.GetService(ctx, l.sc, l.svc.ID)
+	_, msg, _ := l.st.UpstreamStatus(ctx, l.sc, l.svc.ID)
+	if svc.PrivateUpstream != "" || msg != BuiltLocally {
+		t.Fatalf("private upstream %q, error %q", svc.PrivateUpstream, msg)
+	}
+	checks, _ := l.checker.PrivateRepositories(ctx, l.sc, "")
+	for _, c := range checks {
+		if c.Repository == repo {
+			t.Fatal("handed to the agents")
+		}
+	}
+	o, _ := LoadOverview(ctx, l.st, l.sc)
+	if u, ok := WhyUnknown(o, l.svc.ID); !ok || u.Short != "built locally" {
+		t.Fatalf("unknown %+v", u)
+	}
+}
+
+// A security refresh on request runs once per workspace at a time, in the background, and says when it is done.
+func TestRefreshSecurity(t *testing.T) {
+	l := newLab(t)
+	release, finished := make(chan struct{}), make(chan struct{})
+	if !l.checker.RefreshSecurity(l.sc, func() { <-release; close(finished) }) {
+		t.Fatal("first refresh refused")
+	}
+	if l.checker.RefreshSecurity(l.sc, nil) {
+		t.Fatal("a second refresh ran beside the first")
+	}
+	close(release)
+	<-finished
+	again := false
+	for i := 0; i < 100 && !again; i++ {
+		if again = l.checker.RefreshSecurity(l.sc, nil); !again {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if !again {
+		t.Fatal("no refresh after the first finished")
 	}
 }

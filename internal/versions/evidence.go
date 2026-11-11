@@ -139,7 +139,7 @@ func (c *Checker) pendingInspections(ctx context.Context, sc store.Scope, active
 	for _, in := range active {
 		repo := ParseImage(in.Image).Repo()
 		key := repo + "@" + in.Digest
-		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || (fresh(known[key], now) && !NeedsLicenses(sboms[key])) ||
+		if in.Digest == "" || seen[key] || auth.Reads(repo) || PackageRepo(repo) || (fresh(known[key], now) && !NeedsLicenses(sboms[key]) && !NeedsAppPackages(sboms[key])) ||
 			len(out[repo]) >= inspectPerRepo || !validDigest(in.Digest) {
 			continue
 		}
@@ -180,6 +180,11 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 	}
 	auth, bases := c.registryAuth(ctx, sc), newBaseLookups()
 	for _, in := range found {
+		if in.Tag != nil && *in.Tag != "" { // a release asked for by tag, that runs nowhere yet
+			if err := c.store.SetReleaseImage(ctx, sc, store.ReleaseImage{Repo: repo, Tag: *in.Tag, Digest: in.Digest}); err != nil {
+				return err
+			}
+		}
 		ev := store.ImageEvidence{Repo: repo, Digest: in.Digest, Found: in.Found}
 		if in.Error != nil {
 			ev.Error = *in.Error
@@ -213,16 +218,40 @@ func (c *Checker) RecordInspections(ctx context.Context, sc store.Scope, repo st
 		if err := c.store.SetImageEvidence(ctx, sc, ev); err != nil {
 			return err
 		}
+		if in.Vex != nil {
+			rec := store.ImageVEX{Repo: repo, Digest: in.Digest, Statements: make([]store.VEXStatement, 0, len(in.Vex))}
+			for _, v := range in.Vex {
+				rec.Statements = append(rec.Statements, store.VEXStatement{
+					Vulnerability: v.Vulnerability, Status: v.Status, Justification: deref(v.Justification), Impact: deref(v.Impact),
+					Packages: v.Packages, Author: deref(v.Author),
+				})
+			}
+			if err := c.store.SetImageVEX(ctx, sc, rec); err != nil {
+				return err
+			}
+		}
 		fromPackages := in.PurlsFrom != nil && *in.PurlsFrom == agentproto.Packages
 		if (ev.SBOM || fromPackages) && len(in.Purls) > 0 {
 			src := "sbom"
 			if fromPackages && !ev.SBOM {
 				src = "packages"
 			}
-			if err := c.store.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses, Source: src}); err != nil {
+			rec := store.ImageSBOM{Repo: repo, Digest: in.Digest, Purls: in.Purls, Licenses: in.Licenses, Source: src}
+			if src == "packages" {
+				rec.GoLinked = in.GoLinked
+			}
+			if err := c.store.SetImageSBOM(ctx, sc, rec); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// deref is an optional field's value, "" when absent.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

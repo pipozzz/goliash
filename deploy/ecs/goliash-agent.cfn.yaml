@@ -138,18 +138,18 @@ Resources:
             Statement:
               - Sid: ReadOnlyEcs
                 Effect: Allow
-                Action: ["ecs:List*", "ecs:Describe*"]
+                Action: ["ecs:List*", "ecs:Describe*", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeLoadBalancers"]
                 Resource: "*"
               - Sid: ReadEcrImages
                 Effect: Allow
                 # Tags, and the manifests, signatures, attestations and SBOMs of running images.
-                Action: ["ecr:ListImages", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+                Action: ["ecr:ListImages", "ecr:DescribeImages", "ecr:GetLifecyclePolicy", "ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
                 Resource: "*"
               - !If
                 - Lambda
                 - Sid: ReadLambda
                   Effect: Allow
-                  Action: ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs"]
+                  Action: ["lambda:ListFunctions", "lambda:GetFunction", "lambda:ListAliases", "lambda:ListFunctionUrlConfigs", "lambda:GetLayerVersion"]
                   Resource: "*"
                 - !Ref AWS::NoValue
               - !If

@@ -213,6 +213,9 @@ templ promotionVulns(d versions.VulnDelta) {
 			if len(d.New) > 0 {
 				<div>{ "new: " + vulnIDs(d.New) }</div>
 			}
+			if d.Unreleased {
+				<div class="muted">read from its image in the registry: it runs nowhere yet</div>
+			}
 		</div>
 	</details>
 }

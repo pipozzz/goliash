@@ -18,7 +18,7 @@ const cardItems = 20
 
 // arrow says what changed in versions, or "" when nothing to show.
 func arrow(it Item) string {
-	if it.Type == "update" || it.From != "" && it.To != "" && it.Type != "drift_detected" && it.Type != EventGitOps {
+	if showsArrow(it) {
 		return orDash(it.From) + " → " + orDash(it.To)
 	}
 	return ""

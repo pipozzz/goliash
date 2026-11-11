@@ -103,7 +103,7 @@ func (s *Store) CreateEnvironment(ctx context.Context, sc Scope, name string, po
 }
 
 // ListEnvironments returns a workspace's environments in promotion order.
-func (s *Store) ListEnvironments(ctx context.Context, sc Scope) ([]Environment, error) {
+func (s *Store) listEnvironments(ctx context.Context, sc Scope) ([]Environment, error) {
 	rows, err := s.query(ctx, s.db, `
 		SELECT id, name, position, created_at FROM environments
 		WHERE org_id = ? AND workspace_id = ?

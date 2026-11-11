@@ -28,6 +28,9 @@ type AppFamily struct {
 var derivedSources = map[string]bool{
 	"nomad job": true, "namespace": true, "compose project": true, "com.docker.compose.project": true, "com.docker.stack.namespace": true,
 	SourceWorkload: true,
+	// Stacks are often one per function or per developer (shop-api-dev-ana, shop-api-dev-bo): a family per first
+	// word keeps a region's functions from being hundreds of applications.
+	"CloudFormation stack": true,
 }
 
 // AppFamilies maps each application to its family. Applications from generated
@@ -165,12 +168,22 @@ func FamilyOf(app string, apps []string) string {
 	return app
 }
 
+// CodeOwnersTeam is the team a repository's CODEOWNERS gives a path on a branch, "" for none.
+type CodeOwnersTeam func(ctx context.Context, repo, branch, path string) (string, error)
+
+// OwnerSources are where owners come from besides labels and applications; each may be nil.
+type OwnerSources struct {
+	CodeOwners CodeOwnersTeam
+	Catalog    func(ctx context.Context) ([]CatalogComponent, error) // a Backstage catalog
+}
+
 // FillOwners gives services the team Goliash can tell for them, without overriding
 // people: a service's owner set by hand stays; otherwise the team its workloads'
-// labels name (goliash.team, team, owner) wins, else its application's team. Owners
-// Goliash set follow later changes of the labels or the application's team. A
-// service whose labels or applications disagree is left alone. It returns what it set.
-func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string, error) {
+// labels name (goliash.team, team, owner) wins, then the team of its Backstage
+// component, then the team CODEOWNERS gives the path its GitOps application deploys
+// from, else its application's team. Owners Goliash set follow later changes of these.
+// A service whose sources disagree is left alone. It returns what it set.
+func FillOwners(ctx context.Context, st *store.Store, sc store.Scope, src OwnerSources) ([]string, error) {
 	services, err := st.ListServices(ctx, sc)
 	if err != nil {
 		return nil, err
@@ -187,6 +200,14 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string,
 			}
 			labelTeams[in.ServiceID][in.Team] = true
 		}
+	}
+	ownedTeams, err := codeOwnerTeams(ctx, st, sc, active, src.CodeOwners)
+	if err != nil {
+		return nil, err
+	}
+	catalogTeams, err := catalogTeams(ctx, services, active, src.Catalog)
+	if err != nil {
+		return nil, err
 	}
 	teams, err := st.AppTeams(ctx, sc)
 	if err != nil {
@@ -211,6 +232,18 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string,
 			}
 		case len(lt) > 1:
 			continue // its workloads name different teams: leave it to people
+		case len(catalogTeams[svc.ID]) == 1:
+			for t := range catalogTeams[svc.ID] {
+				team, source = t, "backstage"
+			}
+		case len(catalogTeams[svc.ID]) > 1:
+			continue
+		case len(ownedTeams[svc.ID]) == 1:
+			for t := range ownedTeams[svc.ID] {
+				team, source = t, "codeowners"
+			}
+		case len(ownedTeams[svc.ID]) > 1:
+			continue
 		default:
 			team, source = agreedTeam(apps[svc.ID], teams), "app"
 		}
@@ -223,6 +256,101 @@ func FillOwners(ctx context.Context, st *store.Store, sc store.Scope) ([]string,
 		named = append(named, svc.Name+" → "+team+" ("+source+")")
 	}
 	return named, nil
+}
+
+// catalogTeams is, by service, the teams owning the Backstage components that are it: by the goliash.dev/service
+// annotation, else by the component's name, or by backstage.io/kubernetes-id naming one of its workloads. A catalog
+// that cannot be read is skipped until the next check.
+func catalogTeams(ctx context.Context, services []store.Service, active []store.Instance, catalog func(context.Context) ([]CatalogComponent, error)) (map[string]map[string]bool, error) {
+	if catalog == nil {
+		return nil, nil
+	}
+	comps, err := catalog(ctx)
+	if err != nil || len(comps) == 0 {
+		return nil, ctx.Err()
+	}
+	byName, byWorkload := map[string]string{}, map[string]map[string]bool{}
+	for _, s := range services {
+		byName[strings.ToLower(s.Name)] = s.ID
+	}
+	for _, in := range active {
+		if in.ServiceID != "" && in.WorkloadName != "" {
+			w := strings.ToLower(in.WorkloadName)
+			if byWorkload[w] == nil {
+				byWorkload[w] = map[string]bool{}
+			}
+			byWorkload[w][in.ServiceID] = true
+		}
+	}
+	out := map[string]map[string]bool{}
+	add := func(id, team string) {
+		if out[id] == nil {
+			out[id] = map[string]bool{}
+		}
+		out[id][team] = true
+	}
+	for _, c := range comps {
+		if c.Team == "" {
+			continue
+		}
+		name := c.Service
+		if name == "" {
+			name = c.Name
+		}
+		if id, ok := byName[strings.ToLower(name)]; ok {
+			add(id, c.Team)
+			continue
+		}
+		if c.Service == "" && c.KubernetesID != "" {
+			for id := range byWorkload[strings.ToLower(c.KubernetesID)] {
+				add(id, c.Team)
+			}
+		}
+	}
+	return out, nil
+}
+
+// codeOwnerTeams is, by service, the teams CODEOWNERS gives the paths its workloads' GitOps applications deploy
+// from. A repository that cannot be read is skipped: CODEOWNERS only adds owners, and the next check tries again.
+func codeOwnerTeams(ctx context.Context, st *store.Store, sc store.Scope, active []store.Instance, codeOwners CodeOwnersTeam) (map[string]map[string]bool, error) {
+	if codeOwners == nil {
+		return nil, nil
+	}
+	apps, err := st.ListWorkloadGitOps(ctx, sc)
+	if err != nil || len(apps) == 0 {
+		return nil, err
+	}
+	byWorkload := map[string]store.WorkloadGitOps{}
+	for _, a := range apps {
+		byWorkload[a.TargetID+"|"+a.WorkloadID] = a
+	}
+	out := map[string]map[string]bool{}
+	asked := map[string]string{}
+	for _, in := range active {
+		a, ok := byWorkload[in.TargetID+"|"+in.WorkloadID]
+		repo := RepoWebURL(a.Repo) // "" for a Helm chart repository
+		if in.ServiceID == "" || !ok || repo == "" {
+			continue
+		}
+		key := repo + "@" + a.TargetRevision + ":" + a.Path
+		team, seen := asked[key]
+		if !seen {
+			if team, err = codeOwners(ctx, repo, a.TargetRevision, a.Path); err != nil {
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				team = ""
+			}
+			asked[key] = team
+		}
+		if team != "" {
+			if out[in.ServiceID] == nil {
+				out[in.ServiceID] = map[string]bool{}
+			}
+			out[in.ServiceID][team] = true
+		}
+	}
+	return out, nil
 }
 
 // agreedTeam is the team of a service's applications when they agree on one.
