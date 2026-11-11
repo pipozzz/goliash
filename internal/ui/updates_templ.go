@@ -1079,7 +1079,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		} else if it.Target == "" && it.Remedy != "" {
+		} else if it.Target == "" && it.Remedy != "" && len(it.HostFixes) == 0 {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 110, "<div class=\"remedy\"><span class=\"muted\">no newer release known · fix:</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
