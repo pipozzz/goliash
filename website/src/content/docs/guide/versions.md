@@ -178,6 +178,9 @@ image, say): its line says *no newer release known · fix:* and what fixes it �
 node:22-alpine* when the current build of its base no longer has it, a base on a newer release of its distribution,
 or the package version that fixes it. Mitigated vulnerabilities, and ones the image's VEX or its distribution says do
 not apply, do not add a line.
+A Linux server's exploited vulnerabilities are on its operating system's line (*ubuntu*, one per environment): the line
+names the servers (*server mail-01*, a link to its page) and, under the version, each package that has one and what
+fixes it — *telnet 0.17+2.5-3ubuntu4 · upgrade to 2:2.5-3ubuntu4.1*, or *upgrade to a newer version* for a kernel.
 
 A line also says what the upgrade does to known vulnerabilities: *fixes 206 vulnerabilities (2 exploited) · brings
 110 new ones*, and *v3.0.11 still has CVE-…* when it leaves an exploited one. When the version to move to runs

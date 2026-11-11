@@ -70,8 +70,32 @@ type UpdateLevel struct {
 	Count        int
 }
 
+// ServerLink is a server a line is about.
+type ServerLink struct{ ID, Name string }
+
+// HostFixLine is one package of a server with exploited vulnerabilities, and what fixes them.
+type HostFixLine struct {
+	Server, Package, Remedy string
+	CVEs                    []string
+}
+
+// hostFixLines groups a line's exploited server packages by server and package.
+func hostFixLines(fixes []versions.HostFix) []HostFixLine {
+	var out []HostFixLine
+	for _, h := range fixes {
+		if n := len(out); n > 0 && out[n-1].Server == h.Server && out[n-1].Package == h.Package {
+			out[n-1].CVEs = append(out[n-1].CVEs, h.CVE)
+			continue
+		}
+		out = append(out, HostFixLine{Server: h.Server, Package: h.Package, Remedy: h.Remedy(), CVEs: []string{h.CVE}})
+	}
+	return out
+}
+
 // UpdateItem is one upgrade.
 type UpdateItem struct {
+	Servers                              []ServerLink  // the servers whose operating system the line is
+	HostFixes                            []HostFixLine // their packages with exploited vulnerabilities
 	Service, ServiceURL, App, Owner, Env string
 	Running, Target, TargetURL           string
 	Jump, Behind, EOL                    string
@@ -255,6 +279,10 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 	now := time.Now()
 	kinds := serviceKinds(o)
 	whereIdx := o.WhereIndex()
+	targetName := map[string]string{}
+	for _, t := range o.Targets {
+		targetName[t.ID] = t.Name
+	}
 	for _, u := range versions.LoadWork(ctx, s.store, p.Scope, o, acks, now) {
 		if u.Service.Owner != "" {
 			teams[u.Service.Owner] = true
@@ -276,6 +304,13 @@ func (s *Server) updatesView(r *http.Request, p auth.Principal) (UpdatesView, er
 		if len(u.Path) > 0 {
 			it.PRTarget = u.Path[0]
 		}
+		for _, id := range u.Servers {
+			if name := targetName[id]; name != "" {
+				it.Servers = append(it.Servers, ServerLink{ID: id, Name: name})
+			}
+		}
+		sort.Slice(it.Servers, func(i, j int) bool { return it.Servers[i].Name < it.Servers[j].Name })
+		it.HostFixes = hostFixLines(u.HostFixes)
 		if es := u.ExtendedSupport; es != nil {
 			it.Extended, it.ExtendedTitle, it.ExtendedStarted = "Extended Support", "AWS Extended Support: "+es.String()+", at US East list prices", es.Started(time.Now())
 			if es.Monthly > 0 {
@@ -431,6 +466,12 @@ func updateSearch(it UpdateItem) string {
 	parts := []string{it.Service, it.App, it.Owner, it.Env, it.On, it.Running, it.Target, it.Remedy, it.Jump, it.LevelLabel, it.What, kindTokens(it.Kinds)}
 	parts = append(parts, it.Where...)
 	parts = append(parts, it.Exploited...)
+	for _, sv := range it.Servers {
+		parts = append(parts, sv.Name)
+	}
+	for _, h := range it.HostFixes {
+		parts = append(parts, h.Package)
+	}
 	parts = append(parts, it.Exposed...)
 	if it.EOL != "" {
 		parts = append(parts, "end of life", it.EOL)
@@ -458,10 +499,17 @@ func updateMarkdown(it UpdateItem) string {
 	if it.On != "" {
 		b.WriteString(" on " + it.On)
 	}
+	if len(it.Servers) > 0 {
+		names := make([]string, len(it.Servers))
+		for i, sv := range it.Servers {
+			names[i] = sv.Name
+		}
+		b.WriteString(" on " + serverWord(len(names)) + strings.Join(names, ", "))
+	}
 	if it.Target != "" {
 		b.WriteString(" → " + it.Target)
 	}
-	if it.Target == "" && it.Remedy != "" {
+	if it.Target == "" && it.Remedy != "" && len(it.HostFixes) == 0 {
 		b.WriteString(" (fix: " + it.Remedy + ")")
 	}
 	var why []string
@@ -489,6 +537,9 @@ func updateMarkdown(it UpdateItem) string {
 	}
 	if it.TargetURL != "" {
 		b.WriteString(" — " + it.TargetURL)
+	}
+	for _, h := range it.HostFixes {
+		b.WriteString("\n  - " + h.Server + ": " + h.Package + ", " + h.Remedy + " (" + strings.Join(h.CVEs, ", ") + ")")
 	}
 	return b.String() + "\n"
 }
@@ -759,4 +810,12 @@ func maintenanceLabel(m []string) string {
 		}
 	}
 	return "reboot pending"
+}
+
+// serverWord introduces the servers a line is about.
+func serverWord(n int) string {
+	if n == 1 {
+		return "server "
+	}
+	return "servers "
 }

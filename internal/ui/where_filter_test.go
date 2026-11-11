@@ -278,3 +278,39 @@ func TestServerPage(t *testing.T) {
 		t.Error("a server's page offers grouping by application")
 	}
 }
+
+// TestServerExploitedInUpdates: a server's exploited vulnerabilities show on the operating system's line of
+// Updates with the server, the package that has them and what fixes it.
+func TestServerExploitedInUpdates(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	host, err := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: e.prod.ID, Platform: "host", Name: "mail-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	osSvc, _ := e.st.EnsureService(ctx, sc, "ubuntu")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: host.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: host.ID, EnvironmentID: e.prod.ID, ServiceID: osSvc.ID, WorkloadID: "os/ubuntu", WorkloadKind: "host_os", WorkloadName: "ubuntu",
+		ContainerName: "ubuntu", Image: "docker.io/library/ubuntu:24.04", Tag: "24.04", Running: 1, IsMain: true, CodeDigest: "sha256:h",
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	telnet := "pkg:deb/ubuntu/telnet@0.17+2.5-3ubuntu4?arch=amd64&os_version=24.04&upstream=inetutils"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: store.LambdaCodeRepo, Digest: "sha256:h", Source: "code", Purls: []string{telnet}})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{telnet: {"UBUNTU-CVE-2026-24061"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{
+		ID: "UBUNTU-CVE-2026-24061", Aliases: []string{"CVE-2026-24061"}, Severity: "CRITICAL",
+		Fixes: map[string][]string{"Ubuntu:24.04:LTS|inetutils": {"2:2.5-3ubuntu4.1"}},
+	})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2026-24061", DateAdded: time.Now().Format(time.DateOnly)}})
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/updates", nil)
+	for _, want := range []string{
+		"exploited CVE-2026-24061", "server ", "/targets/" + host.ID, ">mail-01<",
+		"<code>telnet 0.17+2.5-3ubuntu4</code>", "upgrade to 2:2.5-3ubuntu4.1",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("updates page misses %q", want)
+		}
+	}
+}
