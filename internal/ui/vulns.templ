@@ -143,6 +143,8 @@ templ VulnsPage(v VulnsView) {
 													<span class="fix" title={ "The images were built on an older " + u.Rebuild + " than its tag has now, whose current build no longer has it: rebuild them with --pull" }>{ "→ fixed by a rebuild on " + u.Rebuild }</span>
 												} else if u.Fix != "" {
 													<span class="fix">{ "→ fixed in " + u.Fix }</span>
+												} else if u.FixNewer {
+													<span class="fix" title="The distribution fixed it in a version newer than this one: upgrade the package (apt upgrade), then reboot for a kernel">→ fixed in a newer version</span>
 												} else if u.Newer != nil {
 													<span class="fix" title={ u.Newer.Advice(u.Current) }>{ "→ fixed in " + u.Newer.Label() }</span>
 												} else if u.Upstream != nil {

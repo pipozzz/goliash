@@ -532,6 +532,9 @@ func remedy(a Affected) string {
 		return "a base on " + name
 	case a.Fix != "":
 		return a.Package + " " + a.Fix
+	case a.FixNewer:
+		name, _ := splitPackage(a.Package)
+		return "a newer " + name
 	case a.EOLOS != "":
 		return "a base on a supported release: " + a.EOLOS + " is past its end of life and gets no fixes"
 	}

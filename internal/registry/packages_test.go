@@ -81,6 +81,12 @@ Architecture: amd64
 Source: openssl (3.0.2-0ubuntu1.15)
 Version: 3.0.2-0ubuntu1.15
 
+Package: telnet
+Status: install ok installed
+Architecture: amd64
+Source: inetutils (2:2.2-2ubuntu0.1)
+Version: 0.17+2.2-2ubuntu0.1
+
 Package: removed-thing
 Status: deinstall ok config-files
 Version: 1.0
@@ -100,7 +106,9 @@ func TestImagePackagesUbuntu(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.15?arch=amd64&os_version=22.04&upstream=openssl " +
-		"pkg:deb/ubuntu/nginx@1.18.0-6ubuntu14.4?arch=amd64&os_version=22.04"
+		"pkg:deb/ubuntu/nginx@1.18.0-6ubuntu14.4?arch=amd64&os_version=22.04 " +
+		// Built from a source package of another version: the source's, for its advisories.
+		"pkg:deb/ubuntu/telnet@0.17+2.2-2ubuntu0.1?arch=amd64&os_version=22.04&upstream=inetutils%402%3A2.2-2ubuntu0.1"
 	if got := strings.Join(sbom.Purls, " "); got != want {
 		t.Errorf("purls:\n%s\nwant\n%s", got, want)
 	}

@@ -68,6 +68,8 @@ type ServerPackage struct {
 	Exploited     int
 	Severity      string // the worst: CRITICAL, HIGH …
 	Fix           string // the newest version that fixes one of them: upgrading to it fixes all those with a fix
+	FixNewer      bool   // some are fixed in a newer version, which one not read (a kernel's records weigh gigabytes)
+	Fixable       int    // how many of them a newer version fixes
 	Search        string
 }
 
@@ -534,6 +536,10 @@ func (s *Server) serverView(ctx context.Context, p auth.Principal, t store.Targe
 					if severityOrder(f.Severity) > severityOrder(sp.Severity) {
 						sp.Severity = f.Severity
 					}
+					if a.Fix != "" || a.FixNewer {
+						sp.Fixable++
+					}
+					sp.FixNewer = sp.FixNewer || a.FixNewer
 					if a.Fix != "" && (sp.Fix == "" || versions.CompareDistroVersions(a.Fix, sp.Fix) > 0) {
 						sp.Fix = a.Fix // the newest fix: upgrading to it fixes every one with a fix
 					}

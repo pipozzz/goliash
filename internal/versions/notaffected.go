@@ -41,6 +41,25 @@ func kernelPackage(pkg string) bool {
 	return false
 }
 
+// kernelBuildPackage reports whether a package is the kernel's headers or its user-space tools
+// (linux-aws-6.17-headers-6.17.0-1009, linux-tools-6.17.0-1010-aws, linux-libc-dev): built from the kernel's source,
+// so every kernel CVE matches it, yet none of the kernel code a CVE fixes runs from it.
+func kernelBuildPackage(pkg string) bool {
+	name, _ := splitPackage(pkg)
+	switch name {
+	case "linux-libc-dev", "linux-headers", "linux-api-headers", "linux-tools-common", "linux-cloud-tools-common",
+		"kernel-headers", "kernel-devel", "kernel-tools", "kernel-tools-libs":
+		return true
+	}
+	for _, p := range []string{"linux-headers-", "linux-tools-", "linux-cloud-tools-", "linux-kbuild-", "linux-compiler-", "kernel-devel-"} {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	// A flavour's own: linux-aws-6.17-headers-6.17.0-1009, linux-aws-6.17-tools-6.17.0-1010.
+	return strings.HasPrefix(name, "linux-") && (strings.Contains(name, "-headers-") || strings.Contains(name, "-tools-"))
+}
+
 // autoNotAffected says why Goliash leaves an affected package out of a finding by itself, "" when it does not.
 func autoNotAffected(a Affected) string {
 	switch {
@@ -74,6 +93,9 @@ func autoNotAffected(a Affected) string {
 	case a.Distro == DistroUnimportant:
 		name, _ := splitPackage(a.Package)
 		return name + ": Debian rates it unimportant for this release, as its build is not affected in practice; no security update is planned (Debian security tracker)"
+	case kernelBuildPackage(a.Package) && a.Host:
+		name, _ := splitPackage(a.Package)
+		return name + ": the kernel's headers or tools, built from its source; the code a kernel vulnerability fixes runs in the kernel itself"
 	case kernelPackage(a.Package) && !a.Host:
 		name, _ := splitPackage(a.Package)
 		return name + ": a kernel package in the image; the container runs on its host's kernel, which is patched with the nodes"

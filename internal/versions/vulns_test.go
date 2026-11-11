@@ -210,7 +210,8 @@ func TestCheckVulnerabilities(t *testing.T) {
 	if err := l.checker.CheckVulnerabilities(ctx, l.sc); err != nil {
 		t.Fatal(err)
 	}
-	if reg.reads.Load() != 1 || batches.Load() != 1 {
+	// One batch for the packages, one for the newest version of the Debian one: what a newer version fixes.
+	if reg.reads.Load() != 1 || batches.Load() != 2 {
 		t.Fatalf("sbom reads %d, osv batches %d", reg.reads.Load(), batches.Load())
 	}
 	if sboms, _ := l.st.ListImageSBOMs(ctx, l.sc); sboms["docker.io/library/nginx@sha256:abc"].Licenses["pkg:npm/lodash@4.17.15"] != "MIT" {
@@ -218,7 +219,7 @@ func TestCheckVulnerabilities(t *testing.T) {
 	}
 	// Within the TTLs, neither the SBOM nor OSV is asked again.
 	_ = l.checker.CheckVulnerabilities(ctx, l.sc)
-	if reg.reads.Load() != 1 || batches.Load() != 1 {
+	if reg.reads.Load() != 1 || batches.Load() != 2 {
 		t.Fatalf("asked again: sbom %d, osv %d", reg.reads.Load(), batches.Load())
 	}
 
