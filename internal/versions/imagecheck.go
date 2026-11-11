@@ -294,6 +294,12 @@ func (c *Checker) checkVulns(ctx context.Context, purls []string, out *ImageChec
 		return err
 	}
 	now := c.now()
+	if answers, err := c.amazonLinuxVulns(ctx, purls); err == nil && len(answers) > 0 { // Amazon Linux: ALAS
+		_ = c.store.SetPackageVulns(ctx, answers)
+		for p, ids := range answers {
+			known[p] = store.PackageVulns{Purl: p, Vulns: ids, CheckedAt: now}
+		}
+	}
 	if c.osv != nil {
 		var stale []string
 		for _, p := range purls {

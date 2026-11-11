@@ -188,11 +188,14 @@ func undercounted(purls []string) string {
 		if _, known := rpmEcosystems[strings.ToLower(ns)]; known {
 			return ""
 		}
+		if _, _, _, amazon := amazonPurl(p); amazon {
+			return "" // Amazon Linux 2023 and 2: their own advisories (ALAS)
+		}
 		name := rpmDistroNames[strings.ToLower(ns)]
 		if name == "" {
 			name = ns
 		}
-		return "OSV has no advisories for " + name + "'s packages, so their vulnerabilities are not listed (an SBOM from a scanner that knows them, or a Red Hat, Rocky or AlmaLinux base, covers them)."
+		return "No advisories are known for " + name + "'s packages, so their vulnerabilities are not listed (an SBOM from a scanner that knows them, or a Red Hat, Rocky, AlmaLinux or Amazon Linux 2023 base, covers them)."
 	}
 	return ""
 }
