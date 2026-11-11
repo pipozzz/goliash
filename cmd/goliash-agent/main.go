@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/memlimit"
+
 	"github.com/pipozzz/goliash/internal/agent"
 	"github.com/pipozzz/goliash/internal/collectors"
 	"github.com/pipozzz/goliash/internal/collectors/compose"
@@ -67,6 +69,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "log format %q: use text or json\n", *logFormat)
 		os.Exit(2)
 	}
+	memlimit.Set(log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

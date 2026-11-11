@@ -22,7 +22,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_DEBIAN_TRACKER_URL` | | Debian's tracker | Where [Debian's security tracker](https://security-tracker.debian.org) data is read from, to correct OSV where it lags (a release that never had the vulnerable code, a CVE not assessed yet), or `off`. Nothing about the images is sent |
 | `GOLIASH_GOPROXY` | | `https://proxy.golang.org` | The Go module proxy asked which version is tagged at the commit a Go program in an image was built from (Traefik and most vendors build from their release's checkout), or `off`. Asked only about modules the Go vulnerability database lists, never a company's own. Read by the server and the agents |
 | `GOLIASH_NVD` | | on | `off` stops asking [NVD](https://nvd.nist.gov) for the CVEs of running product versions (PostgreSQL 16.2, nginx 1.25.3…), and for the versions a CVE affects upstream when a distribution has no fix ([Upstream fixes](/guide/security/#upstream-fixes)). Only products, versions and CVE IDs are sent |
-| `GOMEMLIMIT` | | ⅔ of the container's memory limit, else of the machine's | Go's soft memory limit: near it the garbage collector works harder instead of letting the heap grow into swap. Set it to choose another, e.g. `300MiB` |
+| `GOMEMLIMIT` | | ⅔ of the container's memory limit; without one, ¼ of the machine's (at least 192 MiB), as it shares the machine | Go's soft memory limit: near it the garbage collector works harder instead of letting the heap grow into swap. Set it to choose another, e.g. `300MiB` |
 | `GOLIASH_PPROF` | | | An address such as `127.0.0.1:6060` to serve Go's profiles (`/debug/pprof/`) on, for finding what is slow or large on a running server. Keep it on localhost |
 | `GOLIASH_NVD_API_KEY` | | | An [NVD API key](https://nvd.nist.gov/developers/request-an-api-key): 50 requests in 30 seconds instead of 5, so new versions and upstream fixes are looked up sooner |
 | `GOLIASH_AI_API_KEY` | | | The model provider's API key that turns on [Goli](/guide/goli/), the assistant; also `GOLIASH_AI_PROVIDER` (`anthropic` or `openai`), `GOLIASH_AI_API_KEY_FILE`, `GOLIASH_AI_MODEL` (`claude-opus-5-5`), `GOLIASH_AI_EFFORT`, `GOLIASH_AI_BASE_URL`, `GOLIASH_AI_PER_HOUR`, `GOLIASH_AI_PER_DAY`, `GOLIASH_AI_PLAN_SUMMARY` and `GOLIASH_AI_DIGEST_SUMMARY` |
@@ -205,6 +205,7 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_COMPOSE_DIRS` | | | Comma-separated directories `compose` targets may read files from |
 | `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
+| `GOMEMLIMIT` | | ⅔ of the container's memory limit; without one, ¼ of the machine's (at least 192 MiB) | Go's soft memory limit, as for the server: on a small host the agent shares, it keeps the heap out of swap |
 
 Everything else (targets, intervals, which registries to check) the agent reads from the server. With an
 [enrollment code](/install/#enrollment-codes) the agent adds the targets it finds itself.
