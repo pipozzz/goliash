@@ -144,7 +144,7 @@ func gitLabelSnippets(service string, platforms []string) []GitLabelSnippet {
   goliash.git.repo: https://github.com/acme/infra
   goliash.git.path: compose/` + service + `/compose.yaml`})
 		case "ecs":
-			out = append(out, GitLabelSnippet{"As tags on the ECS service or task definition:", `goliash.git.repo = https://github.com/acme/infra
+			out = append(out, GitLabelSnippet{"As tags on the ECS service:", `goliash.git.repo = https://github.com/acme/infra
 goliash.git.path = ecs/` + service + `/task-definition.json`})
 		}
 	}
