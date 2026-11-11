@@ -296,7 +296,10 @@ func (f imageFiles) purls(ctx context.Context) ([]string, error) {
 }
 
 // osPackage is an installed package as a package database records it.
-type osPackage struct{ name, version, arch, source, epoch string }
+type osPackage struct {
+	name, version, arch, source, epoch string
+	sourceVersion                      string // dpkg's, when the source package's version is not the binary's
+}
 
 // dpkgPackages reads a dpkg status file: the installed packages of its stanzas.
 func dpkgPackages(b []byte) []osPackage {
@@ -317,7 +320,10 @@ func dpkgPackages(b []byte) []osPackage {
 			case "Architecture":
 				p.arch = v
 			case "Source":
-				p.source, _, _ = strings.Cut(v, " ")
+				// "inetutils (2:2.5-3ubuntu4.2)": a source package whose version is not the binary's.
+				src, ver, _ := strings.Cut(v, " ")
+				p.source = src
+				p.sourceVersion = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(ver), "("), ")")
 			case "Status":
 				installed = strings.HasSuffix(v, " installed")
 			}
@@ -388,7 +394,10 @@ func debPurl(distro, osVersion string, p osPackage) string {
 	if osVersion != "" {
 		q.Set("os_version", osVersion)
 	}
-	if p.source != "" && p.source != p.name {
+	switch {
+	case p.source != "" && p.sourceVersion != "" && p.sourceVersion != p.version:
+		q.Set("upstream", p.source+"@"+p.sourceVersion) // advisories speak of the source's version
+	case p.source != "" && p.source != p.name:
 		q.Set("upstream", p.source)
 	}
 	return "pkg:deb/" + distro + "/" + p.name + "@" + url.PathEscape(p.version) + "?" + q.Encode()

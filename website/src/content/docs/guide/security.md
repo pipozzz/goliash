@@ -500,6 +500,20 @@ kernel, so Goliash leaves them out of the image's findings and lists them, group
 package in the image*). The host's kernel is patched with the nodes; dropping those packages from the final stage of
 the build makes the SBOM smaller too.
 
+On a **Linux server** the kernel's packages are the kernel it runs, and only those of the running kernel count:
+kernels installed and not booted are left out by the agent, and the kernel's headers and user-space tools
+(`linux-headers-…`, `linux-aws-6.17-headers-…`, `linux-tools-…`, `linux-tools-common`) go under **Not affected**,
+since the code a kernel CVE fixes runs in the kernel itself. Ubuntu lists every kernel CVE it has not ruled out for a
+kernel flavour (thousands), and each of its kernel records lists every kernel build: gigabytes, too much to read.
+Goliash asks OSV instead which of them the newest version of the package would still have: the others are *fixed in
+a newer version* (`apt upgrade`, then a reboot), without the exact version. It reads the whole record of a kernel CVE
+only when it is exploited.
+
+A package built from a source package of another version (`telnet 0.17+2.5-3ubuntu4.2` from `inetutils
+2:2.5-3ubuntu4.2`, `bsdutils 1:2.38.1` from `util-linux 2.38.1`) is compared with its advisories by the source's
+version, which is the one they speak of. Goliash asks OSV for every page of a package's answer, so a kernel's count
+is not cut at a thousand.
+
 ## Images without an SBOM
 
 Goliash knows an image's vulnerabilities from the packages it contains. It takes them from the first of:

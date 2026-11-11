@@ -560,6 +560,7 @@ func vulnURL(id string) string { return "https://osv.dev/vulnerability/" + id }
 type PackageUse struct {
 	Package  string
 	Fix      string
+	FixNewer bool // fixed in a newer version, which one not read
 	Where    []ServicePlace
 	Upstream *versions.UpstreamFix
 	Newer    *versions.NewerRelease
@@ -591,7 +592,7 @@ func byPackage(f versions.VulnFinding) []PackageUse {
 		if !ok {
 			i = len(out)
 			index[a.Package] = i
-			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current, Distro: a.Distro, Rebuild: a.Rebuild})
+			out = append(out, PackageUse{Package: a.Package, Fix: a.Fix, FixNewer: a.FixNewer, Upstream: a.Upstream, Newer: a.Newer, Current: a.Current, Distro: a.Distro, Rebuild: a.Rebuild})
 		} else if out[i].Rebuild != a.Rebuild {
 			out[i].Rebuild = ""
 		}

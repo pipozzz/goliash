@@ -55,7 +55,8 @@ type osvQuery struct {
 		Ecosystem string `json:"ecosystem,omitempty"`
 		Purl      string `json:"purl,omitempty"`
 	} `json:"package"`
-	Version string `json:"version,omitempty"`
+	Version   string `json:"version,omitempty"`
+	PageToken string `json:"page_token,omitempty"` // the next page of a package with more answers than one holds
 }
 
 // osvQueryFor turns a package URL into an OSV query: Debian, Ubuntu, Alpine, Wolfi and Chainguard packages by
@@ -173,7 +174,11 @@ func osvPrimary(purl string) (osvQuery, bool) {
 		q.Package.Ecosystem = map[string]string{"debian": "Debian", "ubuntu": "Ubuntu"}[distro] + ":" + osVersion
 		q.Package.Name, q.Version = name, version
 		if src := qs.Get("upstream"); src != "" { // the source package OSV files Debian advisories under
-			q.Package.Name = strings.SplitN(src, "@", 2)[0]
+			name, version, _ := strings.Cut(src, "@")
+			q.Package.Name = name
+			if version != "" { // the source's own version, when a binary's differs (telnet 0.17+2.5 of inetutils 2:2.5)
+				q.Version = version
+			}
 		}
 	case "apk":
 		if eco := map[string]string{"wolfi": "Wolfi", "chainguard": "Chainguard"}[strings.ToLower(strings.SplitN(rest, "/", 2)[0])]; eco != "" {
@@ -271,6 +276,39 @@ func rpmSource(upstream string) string {
 // QueryBatch returns the IDs of the vulnerabilities affecting each package URL; packages OSV cannot be asked
 // about are left out.
 func (o *OSV) QueryBatch(ctx context.Context, purls []string) (map[string][]string, error) {
+	return o.queryAll(ctx, purls, "")
+}
+
+// newestVersion is a version newer than any a distribution will publish: dpkg compares the epoch first.
+const newestVersion = "999:999999999"
+
+// QueryNewest returns, for Debian and Ubuntu packages, the vulnerabilities that would still affect the newest
+// version of each: those a package has and this one has not, a newer version fixes. It costs a query of IDs, not
+// the records, which for a Linux kernel weigh gigabytes (thousands of them, each listing every kernel build).
+func (o *OSV) QueryNewest(ctx context.Context, purls []string) (map[string][]string, error) {
+	var asked []string
+	for _, p := range purls {
+		if newestAsked(p) {
+			asked = append(asked, p)
+		}
+	}
+	if len(asked) == 0 {
+		return map[string][]string{}, nil
+	}
+	return o.queryAll(ctx, asked, newestVersion)
+}
+
+// newestAsked reports whether a package's newest version can be asked about: Debian and Ubuntu, whose
+// advisories OSV matches by version range.
+func newestAsked(p string) bool {
+	qs := osvQueries(p)
+	return len(qs) > 0 && (strings.HasPrefix(qs[0].Package.Ecosystem, "Debian:") || strings.HasPrefix(qs[0].Package.Ecosystem, "Ubuntu:"))
+}
+
+// NewestKey is where the answer for a package's newest version is kept, next to the package's own.
+func NewestKey(p string) string { return p + "#newest" }
+
+func (o *OSV) queryAll(ctx context.Context, purls []string, version string) (map[string][]string, error) {
 	out := map[string][]string{}
 	// Each round asks the next query of every package the earlier ones found nothing for.
 	for round := 0; ; round++ {
@@ -281,7 +319,11 @@ func (o *OSV) QueryBatch(ctx context.Context, purls []string) (map[string][]stri
 				continue
 			}
 			if qs := osvQueries(p); round < len(qs) {
-				queries = append(queries, qs[round])
+				q := qs[round]
+				if version != "" {
+					q.Version = version
+				}
+				queries = append(queries, q)
 				asked = append(asked, p)
 			}
 		}
@@ -295,38 +337,49 @@ func (o *OSV) QueryBatch(ctx context.Context, purls []string) (map[string][]stri
 }
 
 func (o *OSV) queryBatch(ctx context.Context, queries []osvQuery, asked []string, out map[string][]string) error {
-	for start := 0; start < len(queries); start += 1000 {
-		end := min(start+1000, len(queries))
-		body, _ := json.Marshal(map[string]any{"queries": queries[start:end]})
-		var res struct {
-			Results []struct {
-				Vulns []struct {
-					ID       string    `json:"id"`
-					Modified time.Time `json:"modified"`
-				} `json:"vulns"`
-			} `json:"results"`
-		}
-		if err := o.post(ctx, "/querybatch", body, &res); err != nil {
-			return err
-		}
-		for i, r := range res.Results {
-			if start+i >= len(asked) {
-				break
+	// OSV answers at most a thousand vulnerabilities a query, and a page token for the rest: a Linux kernel has
+	// thousands. The next pages are asked until none is left.
+	for page := 0; len(queries) > 0 && page < 50; page++ {
+		var more []osvQuery
+		var moreAsked []string
+		for start := 0; start < len(queries); start += 1000 {
+			end := min(start+1000, len(queries))
+			body, _ := json.Marshal(map[string]any{"queries": queries[start:end]})
+			var res struct {
+				Results []struct {
+					Vulns []struct {
+						ID       string    `json:"id"`
+						Modified time.Time `json:"modified"`
+					} `json:"vulns"`
+					NextPageToken string `json:"next_page_token"`
+				} `json:"results"`
 			}
-			ids := []string{}
-			o.mu.Lock()
-			if o.modified == nil {
-				o.modified = map[string]time.Time{}
+			if err := o.post(ctx, "/querybatch", body, &res); err != nil {
+				return err
 			}
-			for _, v := range r.Vulns {
-				ids = append(ids, v.ID)
-				if v.Modified.After(o.modified[v.ID]) {
-					o.modified[v.ID] = v.Modified
+			for i, r := range res.Results {
+				if start+i >= len(asked) {
+					break
+				}
+				p := asked[start+i]
+				ids := out[p]
+				if page == 0 || ids == nil {
+					ids = []string{}
+				}
+				for _, v := range r.Vulns {
+					ids = append(ids, v.ID)
+					o.noteModified(v.ID, v.Modified)
+				}
+				out[p] = ids
+				if r.NextPageToken != "" {
+					q := queries[start+i]
+					q.PageToken = r.NextPageToken
+					more = append(more, q)
+					moreAsked = append(moreAsked, p)
 				}
 			}
-			o.mu.Unlock()
-			out[asked[start+i]] = ids
 		}
+		queries, asked = more, moreAsked
 	}
 	return nil
 }
@@ -340,39 +393,43 @@ type OSVVuln struct {
 	Fixes    map[string][]string // "ecosystem|package" -> versions that fix it
 }
 
+// osvRecord is the part of an OSV vulnerability record Goliash reads.
+type osvRecord struct {
+	ID               string    `json:"id"`
+	Modified         time.Time `json:"modified"`
+	Aliases          []string  `json:"aliases"`
+	Upstream         []string  `json:"upstream"`
+	Summary          string    `json:"summary"`
+	Details          string    `json:"details"`
+	DatabaseSpecific struct {
+		Severity string `json:"severity"`
+	} `json:"database_specific"`
+	Severities []struct {
+		Type  string `json:"type"`
+		Score string `json:"score"`
+	} `json:"severity"`
+	Affected []struct {
+		Package struct {
+			Name      string `json:"name"`
+			Ecosystem string `json:"ecosystem"`
+		} `json:"package"`
+		EcosystemSpecific struct {
+			Urgency string `json:"urgency"` // Debian's: unimportant, low, medium, high
+			Imports []struct {
+				Path string `json:"path"` // a Go package with the vulnerable code: net/http
+			} `json:"imports"`
+		} `json:"ecosystem_specific"`
+		Ranges []struct {
+			Events []struct {
+				Fixed string `json:"fixed"`
+			} `json:"events"`
+		} `json:"ranges"`
+	} `json:"affected"`
+}
+
 // Vuln reads one vulnerability record.
 func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
-	var rec struct {
-		ID               string   `json:"id"`
-		Aliases          []string `json:"aliases"`
-		Upstream         []string `json:"upstream"`
-		Summary          string   `json:"summary"`
-		Details          string   `json:"details"`
-		DatabaseSpecific struct {
-			Severity string `json:"severity"`
-		} `json:"database_specific"`
-		Severities []struct {
-			Type  string `json:"type"`
-			Score string `json:"score"`
-		} `json:"severity"`
-		Affected []struct {
-			Package struct {
-				Name      string `json:"name"`
-				Ecosystem string `json:"ecosystem"`
-			} `json:"package"`
-			EcosystemSpecific struct {
-				Urgency string `json:"urgency"` // Debian's: unimportant, low, medium, high
-				Imports []struct {
-					Path string `json:"path"` // a Go package with the vulnerable code: net/http
-				} `json:"imports"`
-			} `json:"ecosystem_specific"`
-			Ranges []struct {
-				Events []struct {
-					Fixed string `json:"fixed"`
-				} `json:"events"`
-			} `json:"ranges"`
-		} `json:"affected"`
-	}
+	var rec osvRecord
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.BaseURL+"/vulns/"+url.PathEscape(id), nil)
 	if err != nil {
 		return OSVVuln{}, err
@@ -380,6 +437,22 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 	if err := o.do(req, &rec); err != nil {
 		return OSVVuln{}, err
 	}
+	return rec.vuln(), nil
+}
+
+func (o *OSV) noteModified(id string, at time.Time) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.modified == nil {
+		o.modified = map[string]time.Time{}
+	}
+	if at.After(o.modified[id]) {
+		o.modified[id] = at
+	}
+}
+
+// vuln is what Goliash keeps of a record.
+func (rec osvRecord) vuln() OSVVuln {
 	v := OSVVuln{ID: rec.ID, Aliases: append(rec.Aliases, rec.Upstream...), Summary: rec.Summary, Severity: strings.ToUpper(rec.DatabaseSpecific.Severity), Fixes: map[string][]string{}}
 	negligible := false // Ubuntu's priority, for all its releases
 	for _, s := range rec.Severities {
@@ -410,7 +483,7 @@ func (o *OSV) Vuln(ctx context.Context, id string) (OSVVuln, error) {
 	if v.Summary == "" {
 		v.Summary = strings.SplitN(strings.TrimSpace(rec.Details), "\n", 2)[0]
 	}
-	return v, nil
+	return v
 }
 
 var cveInID = regexp.MustCompile(`CVE-\d{4}-\d{4,}`)

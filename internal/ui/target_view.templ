@@ -310,10 +310,18 @@ templ serverPanel(sv ServerView) {
 										}
 									</td>
 									<td data-label="Fixed in" class="mono">
-										if pk.Vulns > 0 && pk.Fix == "" {
-											<span class="muted">no fix yet</span>
-										} else {
-											{ pk.Fix }
+										switch {
+											case pk.Vulns == 0:
+											case pk.Fixable == 0:
+												<span class="muted">no fix yet</span>
+											case pk.Fix != "":
+												{ pk.Fix }
+												if pk.Fixable < pk.Vulns {
+													<span class="muted">{ " (" + itoa(pk.Fixable) + " of " + itoa(pk.Vulns) + ")" }</span>
+												}
+											default:
+												<span title="The distribution fixed them in a version newer than this one: apt upgrade, then reboot for a kernel">a newer version</span>
+												<span class="muted">{ " (" + itoa(pk.Fixable) + " of " + itoa(pk.Vulns) + ")" }</span>
 										}
 									</td>
 								</tr>

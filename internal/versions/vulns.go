@@ -6,6 +6,7 @@ package versions
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 	"slices"
 	"sort"
@@ -104,9 +105,26 @@ func NeedsAppPackages(b store.ImageSBOM) bool {
 	if b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(appPackagesFrom) {
 		return true
 	}
+	// Read before a Debian or Ubuntu package built from a source of another version (bsdutils 1:2.38.1 of
+	// util-linux 2.38.1) named the source's version, which its advisories are compared with: read again, once.
+	if b.Source == "packages" && !b.FetchedAt.IsZero() && b.FetchedAt.Before(sourceVersionsFrom) && hasDeb(b.Purls) {
+		return true
+	}
 	// Read before the packages its Go executables link were kept: read again, once, so Go advisories about
 	// packages none links leave its findings.
 	return b.Source == "packages" && !b.GoLinkedRead && b.Error == "" && hasGo(b.Purls)
+}
+
+// sourceVersionsFrom is when Debian and Ubuntu packages started to name their source package's version.
+var sourceVersionsFrom = time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)
+
+func hasDeb(purls []string) bool {
+	for _, p := range purls {
+		if strings.HasPrefix(p, "pkg:deb/") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasGo(purls []string) bool {
@@ -126,6 +144,8 @@ const (
 	osvPerRun      = 5000           // packages asked per workspace and run
 	detailsPerRun  = 500            // vulnerability records read per run
 	detailsRefresh = 7 * 24 * time.Hour
+	distroRefresh  = 30 * 24 * time.Hour // Debian's and Ubuntu's records, which change date every day
+	heavyPackage   = 200                 // vulnerabilities that make a package's records too heavy to read all
 )
 
 // CheckVulnerabilities reads the SBOMs of running images that have one, asks OSV which known vulnerabilities
@@ -299,6 +319,20 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 		if err != nil {
 			return err
 		}
+		// What a newer version of each fixes, for the packages with vulnerabilities: IDs, a fraction of the records.
+		var withVulns []string
+		for _, p := range stale {
+			if len(answers[p]) > 0 {
+				withVulns = append(withVulns, p)
+			}
+		}
+		newest, err := c.osv.QueryNewest(ctx, withVulns)
+		if err != nil {
+			return err
+		}
+		for p, ids := range newest {
+			answers[NewestKey(p)] = ids
+		}
 		if err := c.store.SetPackageVulns(ctx, answers); err != nil {
 			return err
 		}
@@ -306,42 +340,106 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 			known[p] = store.PackageVulns{Purl: p, Vulns: ids, CheckedAt: now}
 		}
 	}
+	if more, err := c.store.PackageVulnsOf(ctx, newestKeys(purls)); err == nil {
+		maps.Copy(known, more)
+	}
 
 	// The records of the vulnerabilities found, for their CVE aliases, summary and severity.
 	records, err := c.store.ListVulns(ctx)
 	if err != nil {
 		return err
 	}
-	fetched := 0
-	asked := map[string]bool{}
+	kev, _, _ := c.store.KnownExploited(ctx)
+	// fixAppeared lists the records that say no version fixes a package, where OSV now answers that a newer one
+	// does: read again, for the version.
+	fixAppeared := map[string]bool{}
 	for _, p := range purls {
+		nk, ok := known[NewestKey(p)]
+		if !ok {
+			continue
+		}
+		still := map[string]bool{}
+		for _, id := range nk.Vulns {
+			still[id] = true
+		}
 		for _, id := range known[p].Vulns {
-			if asked[id] || fetched >= detailsPerRun {
-				continue
-			}
-			asked[id] = true
-			if strings.HasPrefix(id, "ALAS") { // Amazon Linux's advisories come with their packages, not from OSV
-				continue
-			}
-			// Kept until it is a week old, or OSV says it changed since (a distribution added a fix).
-			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) &&
-				(slices.Contains(r.Fixes[fixesFormat], fixesFormatNow) || !distroRecord(id)) {
-				continue
-			}
-			fetched++
-			v, err := c.osv.Vuln(ctx, id)
-			if err != nil {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				continue
-			}
-			if err := c.store.SetVuln(ctx, store.Vuln{ID: v.ID, Aliases: v.Aliases, Summary: v.Summary, Severity: v.Severity, Fixes: v.Fixes}); err != nil {
-				return err
+			if r, ok := records[id]; ok && !still[id] && len(fixesFor(p, r.Fixes)) == 0 {
+				fixAppeared[id] = true
 			}
 		}
 	}
+	fresh := func(id string) bool {
+		r, ok := records[id]
+		if !ok || r.Fixes == nil || fixAppeared[id] {
+			return false
+		}
+		if distroRecord(id) && !strings.HasPrefix(id, "GO-") {
+			// Debian and Ubuntu publish their records again every day, changed or not: a record is read again when
+			// a fix appears (above), when Goliash reads more of it, or after a month.
+			return now.Sub(r.FetchedAt) < distroRefresh && slices.Contains(r.Fixes[fixesFormat], fixesFormatNow)
+		}
+		// Kept until it is a week old, or OSV says it changed since (a fix added).
+		return now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) &&
+			(slices.Contains(r.Fixes[fixesFormat], fixesFormatNow) || !distroRecord(id))
+	}
+	// Which records to read, the most useful first: those exploited in the wild, then those of packages with few
+	// vulnerabilities. A Linux kernel has thousands, each record listing every build of every kernel (gigabytes):
+	// its records are read only when exploited, and a newer version's answer says which have a fix.
+	type want struct {
+		id   string
+		rank int
+	}
+	var wants []want
+	rank := map[string]int{}
+	for _, p := range purls {
+		n := len(known[p].Vulns)
+		for _, id := range known[p].Vulns {
+			if strings.HasPrefix(id, "ALAS") || fresh(id) { // Amazon Linux's advisories come with their packages
+				continue
+			}
+			r := n
+			if _, ok := kev[CVEOf(id)]; ok {
+				r = 0
+			} else if n >= heavyPackage && known[NewestKey(p)].CheckedAt.After(time.Time{}) {
+				continue // the newest version's answer stands in for its records
+			}
+			if old, ok := rank[id]; !ok || r < old {
+				if !ok {
+					wants = append(wants, want{id: id})
+				}
+				rank[id] = r
+			}
+		}
+	}
+	for i := range wants {
+		wants[i].rank = rank[wants[i].id]
+	}
+	sort.SliceStable(wants, func(i, j int) bool { return wants[i].rank < wants[j].rank })
+	for i, w := range wants {
+		if i >= detailsPerRun {
+			break
+		}
+		v, err := c.osv.Vuln(ctx, w.id)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			continue
+		}
+		if err := c.store.SetVuln(ctx, store.Vuln{ID: v.ID, Aliases: v.Aliases, Summary: v.Summary, Severity: v.Severity, Fixes: v.Fixes}); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// newestKeys are the keys of the newest versions' answers of packages.
+func newestKeys(purls []string) []string {
+	out := make([]string, 0, len(purls))
+	for _, p := range purls {
+		out = append(out, NewestKey(p))
+	}
+	return out
 }
 
 // Affected is one running image a vulnerability is in.
@@ -355,9 +453,12 @@ type Affected struct {
 	GoUnlinked                   string
 	Service, Env, Image, Package string
 	Fix                          string // the version of the package that fixes it, when known
-	ServiceID, EnvironmentID     string
-	Since                        time.Time // since when the image has run there (its earliest target)
-	Exposed                      []string  // how it can be reached from outside its cluster or host, if it can
+	// FixNewer says a newer version of the package fixes it, by OSV's answer for the newest one, when the record
+	// that would say which version was not read (a Linux kernel's weigh gigabytes).
+	FixNewer                 bool
+	ServiceID, EnvironmentID string
+	Since                    time.Time // since when the image has run there (its earliest target)
+	Exposed                  []string  // how it can be reached from outside its cluster or host, if it can
 	// Mitigation is what was done there instead of an upgrade, for an exploited vulnerability with no fix.
 	Mitigation *store.Mitigation
 	// Upstream is what NVD says of the product upstream, when the distribution's advisory has no fix.
@@ -638,6 +739,19 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		return r, err
 	}
 	r.Unasked = len(purls) - len(pv)
+	// What the newest version of each package still has: an advisory missing there is fixed by a newer version,
+	// even when its record (too heavy, for a kernel) was not read for which.
+	stillNewest := map[string]map[string]bool{}
+	if nv, err := st.PackageVulnsOf(ctx, newestKeys(purls)); err == nil {
+		for _, p := range purls {
+			if k, ok := nv[NewestKey(p)]; ok {
+				stillNewest[p] = map[string]bool{}
+				for _, id := range k.Vulns {
+					stillNewest[p][id] = true
+				}
+			}
+		}
+	}
 	records, err := st.ListVulns(ctx)
 	if err != nil {
 		return r, err
@@ -688,7 +802,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			if severityRank(rec.Severity) > severityRank(f.Severity) {
 				f.Severity = rec.Severity
 			}
-			fix := chooseFix(purlVersion(p), fixesFor(p, rec.Fixes))
+			fix := chooseFix(advisoryVersion(p), fixesFor(p, rec.Fixes))
 			var newer *NewerRelease // once a package and advisory, not once an image that has them
 			current := ""
 			if fix == "" {
@@ -701,8 +815,12 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			if m := minorFor(p, rec.Fixes); m != "" && (distro == "" || distro == DistroUndetermined) {
 				distro = m // the distribution's own record says it plans no update: OSV has it before the tracker
 			}
+			fixNewer := false
+			if still, ok := stillNewest[p]; ok && fix == "" && !still[id] {
+				fixNewer = true // OSV: the newest version no longer has it
+			}
 			eolOS := ""
-			if fix == "" {
+			if fix == "" && !fixNewer {
 				eolOS = eolOSOf(ctx, p, eolMemo)
 			}
 			imports := importsFor(p, rec.Fixes)
@@ -714,8 +832,10 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 				a.Distro = distro
 				a.Newer, a.Current = newer, current
 				a.EOLOS = eolOS
+				a.FixNewer = fixNewer
 				a.Rebuild = rebuilds[u.key].fixes(p, ids)
 				if i := where.index(f, a); i >= 0 {
+					f.Affected[i].FixNewer = f.Affected[i].FixNewer || fixNewer
 					if f.Affected[i].Rebuild == "" {
 						f.Affected[i].Rebuild = a.Rebuild
 					}
@@ -810,7 +930,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					a.Mitigation = m
 				}
 			}
-			f.Fixable = f.Fixable || a.Fix != "" || a.Newer != nil || a.Rebuild != "" || (a.Upstream != nil && a.Upstream.Affected)
+			f.Fixable = f.Fixable || a.Fix != "" || a.FixNewer || a.Newer != nil || a.Rebuild != "" || (a.Upstream != nil && a.Upstream.Affected)
 			if !a.Since.IsZero() && (f.Since.IsZero() || a.Since.Before(f.Since)) {
 				f.Since = a.Since
 			}
@@ -965,6 +1085,15 @@ func indexAffected(list []Affected, a Affected) int {
 		}
 	}
 	return -1
+}
+
+// advisoryVersion is the version a package's advisories speak of: its source package's version where it is
+// filed under its source package (telnet 0.17+2.5-3ubuntu4.2 is built from inetutils 2:2.5-3ubuntu4.2).
+func advisoryVersion(p string) string {
+	if qs := osvQueries(p); len(qs) > 0 && qs[0].Version != "" {
+		return qs[0].Version
+	}
+	return purlVersion(p)
 }
 
 // purlVersion is the version of a package URL.

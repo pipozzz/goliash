@@ -248,19 +248,27 @@ func TestServerPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	ssl := "pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.12?arch=amd64&os_version=22.04&upstream=openssl"
+	kernel := "pkg:deb/ubuntu/linux-image-5.15.0-119-generic@5.15.0-119.129?arch=amd64&os_version=22.04&upstream=linux"
+	headers := "pkg:deb/ubuntu/linux-headers-5.15.0-119@5.15.0-119.129?arch=all&os_version=22.04&upstream=linux"
 	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{
 		Repo: store.LambdaCodeRepo, Digest: "sha256:h", Source: "code",
-		Purls: []string{ssl, "pkg:deb/ubuntu/sudo@1.9.9-1ubuntu2.4?arch=amd64&os_version=22.04"},
+		Purls: []string{ssl, "pkg:deb/ubuntu/sudo@1.9.9-1ubuntu2.4?arch=amd64&os_version=22.04", kernel, headers},
 	})
-	_ = e.st.SetPackageVulns(ctx, map[string][]string{ssl: {"UBUNTU-CVE-2024-5535"}})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{
+		ssl: {"UBUNTU-CVE-2024-5535"},
+		// The kernel's records are not read (gigabytes); the newest kernel no longer has one of its two.
+		kernel: {"UBUNTU-CVE-2026-10001", "UBUNTU-CVE-2026-10002"}, versions.NewestKey(kernel): {"UBUNTU-CVE-2026-10002"},
+		headers: {"UBUNTU-CVE-2026-10001", "UBUNTU-CVE-2026-10002"},
+	})
 	_ = e.st.SetVuln(ctx, store.Vuln{
 		ID: "UBUNTU-CVE-2024-5535", Aliases: []string{"CVE-2024-5535"}, Severity: "HIGH",
 		Fixes: map[string][]string{"Ubuntu:22.04:LTS|openssl": {"3.0.2-0ubuntu1.17"}},
 	})
 	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/targets/"+host.ID, nil)
 	for _, want := range []string{
-		">Server<", "Ubuntu 22.04", "reboot pending", "23 waiting, 9 of them security", "1 vulnerability", "in 2 packages",
-		"Packages (2)", ">libssl3<", "3.0.2-0ubuntu1.17", "none known", "operating system",
+		">Server<", "Ubuntu 22.04", "reboot pending", "23 waiting, 9 of them security", "3 vulnerabilities", "in 4 packages",
+		"Packages (4)", ">libssl3<", "3.0.2-0ubuntu1.17", "none known", "operating system",
+		">linux-image-5.15.0-119-generic<", "a newer version", "(1 of 2)",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("server page misses %q", want)
