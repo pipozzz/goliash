@@ -74,7 +74,7 @@ func autoNotAffected(a Affected) string {
 	case a.Distro == DistroUnimportant:
 		name, _ := splitPackage(a.Package)
 		return name + ": Debian rates it unimportant for this release, as its build is not affected in practice; no security update is planned (Debian security tracker)"
-	case kernelPackage(a.Package):
+	case kernelPackage(a.Package) && !a.Host:
 		name, _ := splitPackage(a.Package)
 		return name + ": a kernel package in the image; the container runs on its host's kernel, which is patched with the nodes"
 	}

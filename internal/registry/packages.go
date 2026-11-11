@@ -407,3 +407,9 @@ func apkPurl(distro, osVersion string, p osPackage) string {
 	}
 	return "pkg:apk/" + distro + "/" + p.name + "@" + url.PathEscape(p.version) + "?" + q.Encode()
 }
+
+// OSPurls lists the packages a server's package databases name, as an image's would be: its os-release, and the
+// dpkg status file (with status.d entries, by package), the apk database or RPM's rpmdb.sqlite, whichever it has.
+func OSPurls(ctx context.Context, osRelease, dpkg []byte, dpkgD map[string][]byte, apk, rpm []byte) ([]string, error) {
+	return imageFiles{osRelease: osRelease, dpkg: dpkg, dpkgD: dpkgD, apk: apk, rpm: rpm}.purls(ctx)
+}

@@ -171,3 +171,67 @@ func TestRebootRequired(t *testing.T) {
 		t.Error("RPM kernel releases out of order")
 	}
 }
+
+// The host's packages go for vulnerabilities by digest, as image packages would be named; of the kernel's only the
+// running one's, and the digest stays while the database does not change.
+func TestHostPackagesForVulnerabilities(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("etc/os-release", "ID=ubuntu\nVERSION_ID=\"24.04\"\n")
+	stanza := func(name, version, source string) string {
+		s := "Package: " + name + "\nStatus: install ok installed\nArchitecture: amd64\nVersion: " + version + "\n"
+		if source != "" {
+			s += "Source: " + source + "\n"
+		}
+		return s + "\n"
+	}
+	write("var/lib/dpkg/status", stanza("openssl", "3.0.13-0ubuntu3.5", "")+
+		stanza("linux-image-6.8.0-1012-aws", "6.8.0-1012.13", "linux-signed-aws")+
+		stanza("linux-image-6.8.0-1015-aws", "6.8.0-1015.16", "linux-signed-aws")+
+		stanza("linux-modules-6.8.0-1012-aws", "6.8.0-1012.13", "linux-aws")+
+		stanza("linux-libc-dev", "6.8.0-51.52", "linux"))
+	write("osrelease", "6.8.0-1015-aws\n")
+	c, err := New(context.Background(), agentproto.Target{Host: &agentproto.HostSettings{Root: &root}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hc := c.(*Collector)
+	hc.osrelease = filepath.Join(root, "osrelease")
+	res, err := hc.Collect(context.Background())
+	if err != nil || len(res.Code) != 1 {
+		t.Fatalf("%+v %v", res.Code, err)
+	}
+	purls := strings.Join(res.Code[0].Purls, "\n")
+	for _, want := range []string{"pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.5", "pkg:deb/ubuntu/linux-image-6.8.0-1015-aws@6.8.0-1015.16"} {
+		if !strings.Contains(purls, want) {
+			t.Errorf("missing %s in\n%s", want, purls)
+		}
+	}
+	for _, gone := range []string{"linux-image-6.8.0-1012-aws", "linux-modules-6.8.0-1012-aws", "linux-libc-dev"} {
+		if strings.Contains(purls, gone) {
+			t.Errorf("%s kept: a kernel that does not run, or headers", gone)
+		}
+	}
+	var digest string
+	for _, w := range res.Workloads {
+		if w.Kind == agentproto.HostOs && w.CodeDigest != nil {
+			digest = *w.CodeDigest
+		}
+	}
+	if digest == "" || digest != res.Code[0].Digest {
+		t.Fatalf("the OS workload does not name its packages: %q", digest)
+	}
+	again, _ := hc.Collect(context.Background())
+	if len(again.Code) != 1 || again.Code[0].Digest != digest {
+		t.Fatal("the digest changed with nothing changed")
+	}
+}
