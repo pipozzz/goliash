@@ -84,8 +84,11 @@ func TestOSVQuery(t *testing.T) {
 	if strings.Join(rocky, " ") != "openssl openssl-libs" {
 		t.Errorf("Rocky queries %v", rocky)
 	}
-	if got := undercounted([]string{"pkg:rpm/amzn/curl@8.21.0-5.amzn2023?os_version=2023"}); !strings.Contains(got, "Amazon Linux") {
-		t.Errorf("Amazon Linux: %q", got)
+	if got := undercounted([]string{"pkg:rpm/fedora/curl@8.21.0-5.fc42?os_version=42"}); !strings.Contains(got, "Fedora") {
+		t.Errorf("Fedora: %q", got)
+	}
+	if got := undercounted([]string{"pkg:rpm/amzn/curl@8.21.0-5.amzn2023?os_version=2023"}); got != "" {
+		t.Errorf("Amazon Linux 2023 has its own advisories: %q", got)
 	}
 	if got := undercounted([]string{"pkg:rpm/rocky/curl@7.76.1-26.el9?os_version=9.3", "pkg:npm/x@1"}); got != "" {
 		t.Errorf("Rocky: %q", got)

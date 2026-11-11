@@ -512,8 +512,11 @@ Goliash knows an image's vulnerabilities from the packages it contains. It takes
    `/lib/apk/db/installed` (Alpine, Wolfi, Chainguard) or the RPM database `rpmdb.sqlite` (Red Hat UBI 9, Rocky
    and AlmaLinux 9, Fedora, Amazon Linux 2023), and `/etc/os-release`. Red Hat, Rocky and AlmaLinux packages are
    checked against their distribution's advisories in OSV, by the full version with its epoch (`1:3.0.7-27.el9`);
-   for Red Hat only advisories with a fix, not the CVEs Red Hat lists as unfixed. OSV has nothing for Fedora and
-   Amazon Linux: their images are flagged as undercounted. Older RPM releases (RHEL 8, Amazon Linux 2) keep a
+   for Red Hat only advisories with a fix, not the CVEs Red Hat lists as unfixed. Amazon Linux 2023 (and Amazon
+   Linux 2, in an SBOM) is checked against Amazon's own advisories (ALAS), which OSV does not have: Goliash reads
+   them once a day from the release's `updateinfo.xml` and compares versions as `rpm` does, with the CVEs each
+   fixes. OSV has nothing for Fedora, CentOS or Oracle Linux: their images (and hosts) are flagged as undercounted,
+   not shown as clean. Older RPM releases (RHEL 8, Amazon Linux 2) keep a
    Berkeley DB, which is not read. An image built `FROM ubuntu:22.04`
    with `apt-get install nginx php8.1-fpm` is checked against Ubuntu's own advisories, which know Ubuntu's patched
    builds: `nginx 1.18.0-6ubuntu14.4` is not taken for an old upstream 1.18. The application's own dependencies come

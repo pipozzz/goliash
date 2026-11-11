@@ -494,6 +494,9 @@ func fixKeys(q osvQuery) []string {
 }
 
 func fixesFor(purl string, fixes map[string][]string) []string {
+	if k, ok := alasKey(purl); ok { // Amazon Linux: its advisories, not OSV's
+		return fixes[k]
+	}
 	for _, q := range osvQueries(purl) {
 		for _, k := range fixKeys(q) {
 			if f := fixes[k]; len(f) > 0 {

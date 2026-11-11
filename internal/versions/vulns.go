@@ -270,10 +270,25 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	if err != nil {
 		return err
 	}
-	var stale []string
+	var stale, amazon []string
 	for _, p := range purls {
 		if k, ok := known[p]; !ok || now.Sub(k.CheckedAt) >= osvTTL {
+			if _, _, _, isAmazon := amazonPurl(p); isAmazon {
+				amazon = append(amazon, p) // Amazon Linux's own advisories: OSV has none
+				continue
+			}
 			stale = append(stale, p)
+		}
+	}
+	if len(amazon) > 0 {
+		answers, err := c.amazonLinuxVulns(ctx, amazon)
+		if err != nil && ctx.Err() == nil {
+			c.log.WarnContext(ctx, "amazon linux advisories not read", "err", err)
+		}
+		if len(answers) > 0 {
+			if err := c.store.SetPackageVulns(ctx, answers); err != nil {
+				return err
+			}
 		}
 	}
 	if len(stale) > osvPerRun {
@@ -305,6 +320,9 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 				continue
 			}
 			asked[id] = true
+			if strings.HasPrefix(id, "ALAS") { // Amazon Linux's advisories come with their packages, not from OSV
+				continue
+			}
 			// Kept until it is a week old, or OSV says it changed since (a distribution added a fix).
 			if r, ok := records[id]; ok && r.Fixes != nil && now.Sub(r.FetchedAt) < detailsRefresh && !c.osv.Modified(id).After(r.FetchedAt) &&
 				(slices.Contains(r.Fixes[fixesFormat], fixesFormatNow) || !distroRecord(id)) {
