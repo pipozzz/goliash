@@ -153,3 +153,29 @@ func TestKernelBuildPackage(t *testing.T) {
 		t.Error("the running kernel's modules left out")
 	}
 }
+
+// The records an older Goliash read of a kernel's thousands of vulnerabilities are forgotten, but those exploited
+// and those another package has.
+func TestUnusedRecords(t *testing.T) {
+	kernel, ssl := "pkg:deb/ubuntu/linux-image-6.17.0-1010-aws@6.17.0-1010.10", "pkg:deb/ubuntu/libssl3@3.0.13"
+	now := time.Now()
+	var ids []string
+	for i := range heavyPackage {
+		ids = append(ids, fmt.Sprintf("UBUNTU-CVE-2026-%05d", i))
+	}
+	known := map[string]store.PackageVulns{
+		kernel: {Vulns: ids, CheckedAt: now}, NewestKey(kernel): {Vulns: ids[:10], CheckedAt: now},
+		ssl: {Vulns: []string{ids[1], "UBUNTU-CVE-2025-9999"}, CheckedAt: now},
+	}
+	records := map[string]store.Vuln{ids[0]: {}, ids[1]: {}, ids[2]: {}, "UBUNTU-CVE-2025-9999": {}}
+	kev := map[string]store.Exploited{"CVE-2026-00002": {}}
+	got := unusedRecords([]string{kernel, ssl}, known, records, kev)
+	if len(got) != 1 || got[0] != ids[0] {
+		t.Fatalf("dropped %v", got)
+	}
+	// Without the newest version's answer the records are what says which version fixes them: kept.
+	delete(known, NewestKey(kernel))
+	if got := unusedRecords([]string{kernel, ssl}, known, records, kev); len(got) != 0 {
+		t.Fatalf("dropped %v", got)
+	}
+}
