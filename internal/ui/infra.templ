@@ -1,0 +1,110 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ InfraPage(v InfraView) {
+	@Layout(v.Base) {
+		<div class="head">
+			<div>
+				<h1>Infrastructure</h1>
+				@aboutText("Where everything runs: cloud, account and region, each target a tile coloured by how current its services are. Red needs attention, amber is behind, green is up to date, grey has nothing mapped yet.")
+			</div>
+			if v.Targets > 1 {
+				<span class="actions">
+					@pageFilter("main .infra-tile", "Filter targets, environments, platforms")
+				</span>
+			}
+		</div>
+		if v.Targets == 0 {
+			<section class="panel">
+				<div class="empty">No targets yet. <a href="/connect">Connect a cluster or host</a> and it shows up here.</div>
+			</section>
+		} else {
+			<p class="infra-sum legend-dots">
+				<span>{ itoa(v.Targets) } targets</span>
+				if v.Bad > 0 {
+					<span><i class="dot bad"></i> { itoa(v.Bad) } need attention</span>
+				}
+				if v.Stale > 0 {
+					<span><i class="dot unmapped"></i> { itoa(v.Stale) } not reporting</span>
+				}
+				<span class="infra-legend"><i class="dot bad"></i> attention <i class="dot warn"></i> behind <i class="dot ok"></i> up to date <i class="dot unmapped"></i> not mapped</span>
+			</p>
+			for _, c := range v.Clouds {
+				<section class="panel infra-cloud" data-group>
+					<div class="panel-head"><h2>{ c.Name }</h2></div>
+					<div class="infra-accounts">
+						for _, a := range c.Accounts {
+							<div class="infra-account" data-group>
+								<h3 class={ templ.KV("mono", a.Known) }>
+									{ a.Name }
+									if a.Bad > 0 {
+										<span class="badge bad">{ itoa(a.Bad) } need attention</span>
+									}
+								</h3>
+								for _, rg := range a.Regions {
+									<div class="infra-region" data-group>
+										if rg.Name != "" {
+											<h4>{ rg.Name }</h4>
+										}
+										<div class="infra-tiles">
+											for _, t := range rg.Targets {
+												@infraTile(t)
+											}
+										</div>
+									</div>
+								}
+							</div>
+						}
+					</div>
+				</section>
+			}
+		}
+	}
+}
+
+templ infraTile(t InfraTarget) {
+	<a href={ templ.SafeURL("/targets/" + t.ID) } class={ "infra-tile", t.Health, templ.KV("stale", t.Stale) } title={ t.Title } data-search={ t.Search }>
+		<span class="infra-name">
+			if t.Icon != "" {
+				<svg class="kind-icon" viewBox="0 0 16 16" aria-hidden="true"><path d={ t.Icon }></path></svg>
+			}
+			{ t.Name }
+		</span>
+		<span class="infra-meta">
+			if t.Env != "" {
+				<span class="badge env-tag">{ t.Env }</span>
+			}
+			<span>{ t.Kind }</span>
+		</span>
+		<span class="infra-counts">
+			if t.Workloads == 0 {
+				<span>nothing running</span>
+			} else {
+				if t.Bad > 0 {
+					<span class="c-bad">{ itoa(t.Bad) } attention</span>
+				}
+				if t.Warn > 0 {
+					<span class="c-warn">{ itoa(t.Warn) } behind</span>
+				}
+				if t.OK > 0 {
+					<span class="c-ok">{ itoa(t.OK) } current</span>
+				}
+				if t.Unmapped > 0 {
+					<span>{ itoa(t.Unmapped) } unmapped</span>
+				}
+			}
+		</span>
+		if t.Stale || t.Reboot {
+			<span class="infra-flags">
+				if t.Stale {
+					<span class="badge warn">not reporting</span>
+				}
+				if t.Reboot {
+					<span class="badge warn">reboot pending</span>
+				}
+			</span>
+		}
+	</a>
+}

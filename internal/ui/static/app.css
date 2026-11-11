@@ -1563,3 +1563,29 @@ svg a:hover text.lane.link { fill: var(--accent); }
 .server-packages { padding: 0 16px 14px; }
 .server-packages > summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
 tr.muted-row td { color: var(--muted); }
+/* Infrastructure map */
+.infra-sum { margin: 0 0 14px; gap: 6px 18px; }
+.infra-sum .dot { margin-right: 2px; }
+.infra-legend { margin-left: auto; }
+.infra-legend .dot { margin: 0 2px 0 8px; }
+.infra-accounts { display: grid; gap: 16px; padding: 4px 16px 16px; }
+.infra-account { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.infra-account h3 { margin: 0 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.infra-account h3.mono { font-family: var(--mono); }
+.infra-region + .infra-region { margin-top: 12px; }
+.infra-region h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.infra-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.infra-tile { --health: var(--faint); display: flex; flex-direction: column; gap: 4px; padding: 9px 11px; border: 1px solid var(--line); border-left: 4px solid var(--health); border-radius: var(--radius); background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0; }
+.infra-tile:hover { border-color: var(--health); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.infra-tile.ok { --health: var(--ok); }
+.infra-tile.warn { --health: var(--warn); }
+.infra-tile.bad { --health: var(--bad); background: var(--bad-soft); }
+.infra-tile.empty { opacity: .7; }
+.infra-tile.stale { border-style: dashed; border-left-style: solid; }
+.infra-name { font-weight: 600; display: flex; gap: 6px; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.infra-name .kind-icon { width: 14px; height: 14px; flex: none; fill: currentColor; color: var(--muted); }
+.infra-meta, .infra-counts, .infra-flags { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; color: var(--muted); align-items: center; }
+.infra-counts .c-bad { color: var(--bad); font-weight: 600; }
+.infra-counts .c-warn { color: var(--warn); }
+.infra-counts .c-ok { color: var(--ok); }
+@media (max-width: 640px) { .infra-accounts { padding: 4px 10px 12px; } .infra-legend { margin-left: 0; } }
