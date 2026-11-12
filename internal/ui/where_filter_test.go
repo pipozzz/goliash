@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -341,5 +342,42 @@ func TestServiceSecurityOfServerOS(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("ubuntu's page misses %q", want)
 		}
+	}
+}
+
+// A server's OS and packages are no images: the supply-chain evidence does not count them as not checked.
+func TestEvidenceLeavesServersOut(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	viewer := e.as(store.RoleViewer)
+	unchecked := func() string {
+		_, page := get(t, viewer, e.srv.URL+"/security", nil)
+		i := strings.Index(page, `id="evidence"`)
+		if i < 0 {
+			return "none"
+		}
+		sec := page[i:]
+		j := strings.Index(sec, "Not checked")
+		return strings.Join(strings.Fields(regexp.MustCompile(`<[^>]+>`).ReplaceAllString(sec[max(0, j-80):j], " ")), " ")
+	}
+	before := unchecked()
+	host, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: e.prod.ID, Platform: "host", Name: "mail-01"})
+	osSvc, _ := e.st.EnsureService(ctx, sc, "ubuntu")
+	nginx, _ := e.st.EnsureService(ctx, sc, "nginx")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: host.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{
+		{
+			TargetID: host.ID, EnvironmentID: e.prod.ID, ServiceID: osSvc.ID, WorkloadID: "os/ubuntu", WorkloadKind: "host_os", WorkloadName: "ubuntu",
+			ContainerName: "ubuntu", Image: "docker.io/library/ubuntu:24.04", Tag: "24.04", Running: 1, IsMain: true, CodeDigest: "sha256:h",
+		},
+		{
+			TargetID: host.ID, EnvironmentID: e.prod.ID, ServiceID: nginx.ID, WorkloadID: "pkg/nginx", WorkloadKind: "host_package", WorkloadName: "nginx",
+			ContainerName: "nginx", Image: "docker.io/library/nginx:1.24.0", Tag: "1.24.0", Running: 1, IsMain: true,
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if after := unchecked(); after != before {
+		t.Errorf("a server's OS and packages counted as images not checked: before %q, after %q", before, after)
 	}
 }
