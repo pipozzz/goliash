@@ -195,10 +195,10 @@ func (s *Store) ListImageSBOMs(ctx context.Context, sc Scope) (map[string]ImageS
 	return copyMap(v), err
 }
 
-// ListVulns returns every vulnerability record kept, by ID.
+// ListVulns returns every vulnerability record kept, by ID. It is not kept in memory: the table holds the records
+// of every package ever seen, and a report needs those of what runs (VulnsOf).
 func (s *Store) ListVulns(ctx context.Context) (map[string]Vuln, error) {
-	v, err := keep(s, "osv_vulns", []string{"osv_vulns"}, func() (map[string]Vuln, error) { return s.listVulns(ctx) })
-	return copyMap(v), err
+	return s.listVulns(ctx)
 }
 
 type kevList struct {

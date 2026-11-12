@@ -197,13 +197,43 @@ func (s *Store) listVulns(ctx context.Context) (map[string]Vuln, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 	out := map[string]Vuln{}
+	return out, scanVulns(rows, out)
+}
+
+// VulnsOf returns the records kept of the given IDs, by ID: what a report needs, not the whole table, which keeps
+// the records of every package ever seen.
+func (s *Store) VulnsOf(ctx context.Context, ids []string) (map[string]Vuln, error) {
+	out := make(map[string]Vuln, len(ids))
+	for start := 0; start < len(ids); start += 500 {
+		chunk := ids[start:min(start+500, len(ids))]
+		args := make([]any, len(chunk))
+		marks := make([]byte, 0, 2*len(chunk))
+		for i, id := range chunk {
+			args[i] = id
+			if i > 0 {
+				marks = append(marks, ',')
+			}
+			marks = append(marks, '?')
+		}
+		rows, err := s.query(ctx, s.db, `SELECT id, aliases, summary, severity, fixes, fetched_at FROM osv_vulns WHERE id IN (`+string(marks)+`)`, args...)
+		if err != nil {
+			return nil, err
+		}
+		if err := scanVulns(rows, out); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func scanVulns(rows *sql.Rows, out map[string]Vuln) error {
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var v Vuln
 		var aliases, fixes string
 		if err := rows.Scan(&v.ID, &aliases, &v.Summary, &v.Severity, &fixes, &v.FetchedAt); err != nil {
-			return nil, err
+			return err
 		}
 		_ = json.Unmarshal([]byte(aliases), &v.Aliases)
 		if fixes != "" {
@@ -212,7 +242,90 @@ func (s *Store) listVulns(ctx context.Context) (map[string]Vuln, error) {
 		}
 		out[v.ID] = v
 	}
-	return out, rows.Err()
+	return rows.Err()
+}
+
+// PruneOSV removes OSV's answers for packages no image's SBOM lists any more (with their newest versions'), and the
+// records no answer kept names: the cache of public data otherwise only grows, and reports read from it. It returns
+// how many rows went.
+func (s *Store) PruneOSV(ctx context.Context) (int64, error) {
+	listed := map[string]bool{}
+	rows, err := s.query(ctx, s.db, `SELECT purls FROM image_sboms`)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		var purls []string
+		_ = json.Unmarshal([]byte(raw), &purls)
+		for _, p := range purls {
+			listed[p] = true
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	var gone []string
+	named := map[string]bool{}
+	rows, err = s.query(ctx, s.db, `SELECT purl, vulns FROM osv_packages`)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var purl, raw string
+		if err := rows.Scan(&purl, &raw); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		if !listed[strings.TrimSuffix(purl, "#newest")] {
+			gone = append(gone, purl)
+			continue
+		}
+		var ids []string
+		_ = json.Unmarshal([]byte(raw), &ids)
+		for _, id := range ids {
+			named[id] = true
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	var orphans []string
+	rows, err = s.query(ctx, s.db, `SELECT id FROM osv_vulns`)
+	if err != nil {
+		return 0, err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		if !named[id] {
+			orphans = append(orphans, id)
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		for _, p := range gone {
+			if _, err := s.exec(ctx, tx, `DELETE FROM osv_packages WHERE purl = ?`, p); err != nil {
+				return err
+			}
+		}
+		for _, id := range orphans {
+			if _, err := s.exec(ctx, tx, `DELETE FROM osv_vulns WHERE id = ?`, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return int64(len(gone) + len(orphans)), err
 }
 
 func jsonList(v []string) string {

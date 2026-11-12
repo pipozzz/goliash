@@ -96,3 +96,37 @@ func TestVulnerabilityStore(t *testing.T) {
 		}
 	})
 }
+
+// Reports read the records they need, by ID; the answers and records of packages no image has any more go.
+func TestVulnsOfAndPruneOSV(t *testing.T) {
+	forEachDialect(t, func(t *testing.T, s *Store) {
+		ctx := context.Background()
+		f := setup(t, s)
+		sc := f.ws.Scope()
+		ssl, gone := "pkg:deb/debian/openssl@3.0.11", "pkg:deb/debian/linux-libc-dev@6.1.106-3"
+		if err := s.SetImageSBOM(ctx, sc, ImageSBOM{Repo: "docker.io/library/nginx", Digest: "sha256:a", Purls: []string{ssl}}); err != nil {
+			t.Fatal(err)
+		}
+		_ = s.SetPackageVulns(ctx, map[string][]string{
+			ssl: {"DEBIAN-CVE-2024-5535"}, ssl + "#newest": {}, gone: {"DEBIAN-CVE-2024-1086", "DEBIAN-CVE-2024-5535"},
+		})
+		for _, id := range []string{"DEBIAN-CVE-2024-5535", "DEBIAN-CVE-2024-1086"} {
+			if err := s.SetVuln(ctx, Vuln{ID: id, Aliases: []string{strings.TrimPrefix(id, "DEBIAN-")}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := s.VulnsOf(ctx, []string{"DEBIAN-CVE-2024-5535", "DEBIAN-CVE-2099-0001"})
+		if err != nil || len(got) != 1 || got["DEBIAN-CVE-2024-5535"].Aliases[0] != "CVE-2024-5535" {
+			t.Fatalf("VulnsOf %+v %v", got, err)
+		}
+		n, err := s.PruneOSV(ctx)
+		if err != nil || n != 2 { // the kernel package's answer, and the record only it named
+			t.Fatalf("pruned %d %v", n, err)
+		}
+		left, _ := s.PackageVulnsOf(ctx, []string{ssl, ssl + "#newest", gone})
+		all, _ := s.ListVulns(ctx)
+		if len(left) != 2 || len(all) != 1 || all["DEBIAN-CVE-2024-5535"].ID == "" {
+			t.Fatalf("left %v, records %v", left, all)
+		}
+	})
+}

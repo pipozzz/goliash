@@ -385,7 +385,7 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	}
 
 	// The records of the vulnerabilities found, for their CVE aliases, summary and severity.
-	records, err := c.store.ListVulns(ctx)
+	records, err := recordsOf(ctx, c.store, known)
 	if err != nil {
 		return err
 	}
@@ -832,7 +832,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 		}
 	}
-	records, err := st.ListVulns(ctx)
+	records, err := recordsOf(ctx, st, pv)
 	if err != nil {
 		return r, err
 	}
@@ -1086,6 +1086,20 @@ func rebuildBases(ctx context.Context, st *store.Store, images map[string]bool, 
 	if err != nil {
 		return nil, err
 	}
+	// The records of the bases' vulnerabilities the report did not read for the images: read now, into its map.
+	var missing []string
+	for _, k := range vulns {
+		for _, id := range k.Vulns {
+			if _, ok := records[id]; !ok {
+				missing = append(missing, id)
+			}
+		}
+	}
+	more, err := st.VulnsOf(ctx, missing)
+	if err != nil {
+		return nil, err
+	}
+	maps.Copy(records, more)
 	for _, b := range builds {
 		b.vulns, b.records = vulns, records
 	}
@@ -1484,4 +1498,21 @@ func unlinked(imports, linked []string) string {
 		}
 	}
 	return strings.Join(imports, ", ")
+}
+
+// recordsOf reads the records of the vulnerabilities OSV answered for the given packages, and only those.
+func recordsOf(ctx context.Context, st *store.Store, answers ...map[string]store.PackageVulns) (map[string]store.Vuln, error) {
+	seen := map[string]bool{}
+	var ids []string
+	for _, m := range answers {
+		for _, k := range m {
+			for _, id := range k.Vulns {
+				if !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	return st.VulnsOf(ctx, ids)
 }
