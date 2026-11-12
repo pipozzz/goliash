@@ -52,7 +52,7 @@ templ VulnsPage(v VulnsView) {
 			<button type="submit">Check</button>
 		</form>
 		if !v.Enabled {
-			<div class="notice error">Vulnerability lookups are off on this server (GOLIASH_OSV_URL=off).</div>
+			<div class="notice error">Vulnerability lookups are off on this server: it was started with GOLIASH_OSV_URL=off, or with -eol=false, which turns off every lookup of public data.</div>
 		}
 		if v.Check != nil {
 			@imageCheck(*v.Check, vulnsHref(v, "", ""))

@@ -247,7 +247,7 @@ func VulnsPage(v VulnsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if !v.Enabled {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"notice error\">Vulnerability lookups are off on this server (GOLIASH_OSV_URL=off).</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"notice error\">Vulnerability lookups are off on this server: it was started with GOLIASH_OSV_URL=off, or with -eol=false, which turns off every lookup of public data.</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -1442,9 +1442,9 @@ func SecurityPage(v SecurityView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var85 string
-					templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.Vulns.FromPackages, "image has", "images have") + " no SBOM: Goliash read its system packages (dpkg, apk) from the image, not its application's dependencies.")
+					templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.Vulns.FromPackages, "image has", "images have") + " no SBOM: Goliash read its system packages (dpkg, apk, RPM) from the image, not its application's dependencies.")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 261, Col: 196}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 261, Col: 201}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 					if templ_7745c5c3_Err != nil {
