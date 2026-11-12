@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -197,5 +199,70 @@ func TestIgnoredKernelPackages(t *testing.T) {
 	got := unusedRecords([]string{ssl}, []string{libc}, known, records, nil)
 	if len(got) != 1 || got[0] != "DEBIAN-CVE-2025-1" {
 		t.Fatalf("dropped %v", got)
+	}
+}
+
+// A managed service's engine has no image to read and no SBOM to add: it is not a blind spot of the SBOM coverage.
+func TestManagedNotBlind(t *testing.T) {
+	l := newLab(t)
+	ctx := t.Context()
+	tgt := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{
+		{
+			TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "db", WorkloadName: "billing-db", ContainerName: "postgres",
+			Image: "rds.amazonaws.com/postgres:13.15", Tag: "13.15", Digest: "sha256:rds", Running: 1, IsMain: true,
+		},
+		{
+			TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "w", WorkloadName: "web", ContainerName: "web",
+			Image: "example.com/web:1", Tag: "1", Digest: "sha256:abc", Running: 1, IsMain: true,
+		},
+		{
+			TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "fn", WorkloadName: "resizer", ContainerName: "resizer",
+			Image: "public.ecr.aws/lambda/python:3.12", Tag: "3.12", Digest: "sha256:py", Running: 1, IsMain: true,
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	r, err := LoadVulnReport(ctx, l.st, l.sc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Images != 2 || len(r.Blind) != 2 {
+		t.Fatalf("images %d, blind %+v", r.Images, r.Blind)
+	}
+	for _, b := range r.Blind {
+		if b.Image == "rds.amazonaws.com/postgres:13.15" {
+			t.Error("a managed engine listed without an SBOM")
+		}
+		if strings.Contains(b.Image, "lambda") && !strings.Contains(b.Why, ".zip function") {
+			t.Errorf("a .zip function told to give the registry access: %s", b.Why)
+		}
+	}
+}
+
+// A USN names several CVEs, not all of them in every release: Ubuntu 22.04's sudo 1.9.9 does not have
+// CVE-2025-32463 (exploited; chroot, 1.9.14 on), though USN-7604-1 names it. The per-CVE record decides.
+func TestNoticeDoesNotJoinCVEs(t *testing.T) {
+	l := newLab(t)
+	ctx := t.Context()
+	tgt := l.targets["prod-a"]
+	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: l.svc.ID, WorkloadID: "w", WorkloadName: "web", ContainerName: "web",
+		Image: "example.com/web:1", Tag: "1", Digest: "sha256:abc", Running: 1, IsMain: true,
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	sudo := "pkg:deb/ubuntu/sudo@1.9.9-1ubuntu2.4?arch=amd64&os_version=22.04"
+	_ = l.st.SetImageSBOM(ctx, l.sc, store.ImageSBOM{Repo: "example.com/web", Digest: "sha256:abc", Purls: []string{sudo}, Source: "packages"})
+	_ = l.st.SetPackageVulns(ctx, map[string][]string{sudo: {"UBUNTU-CVE-2025-32462", "USN-7604-1"}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "UBUNTU-CVE-2025-32462", Aliases: []string{"CVE-2025-32462"}, Fixes: map[string][]string{}})
+	_ = l.st.SetVuln(ctx, store.Vuln{ID: "USN-7604-1", Aliases: []string{"CVE-2025-32462", "CVE-2025-32463"}, Fixes: map[string][]string{}})
+	_ = l.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2025-32463", DateAdded: "2025-09-29"}})
+	r, err := LoadVulnReport(ctx, l.st, l.sc, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Findings) != 1 || r.Findings[0].Key != "CVE-2025-32462" || r.Findings[0].Exploited != nil || slices.Contains(r.Findings[0].Aliases, "CVE-2025-32463") {
+		t.Fatalf("findings %+v", r.Findings)
 	}
 }
