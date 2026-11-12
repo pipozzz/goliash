@@ -582,6 +582,12 @@ details.acked:not([open]) > summary { border-bottom: 0; }
 details.acked table { opacity: 0.75; }
 /* Put off, per update: a small menu; the table's scroll box lets it out while open. */
 table.updates td.update-actions { width: 1%; white-space: nowrap; text-align: right; vertical-align: middle; }
+/* The actions of a line one under another, right-aligned: a pull request per target, a ticket, put off. */
+table.updates .actions-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+table.updates .pr-pick { display: inline-flex; align-items: center; gap: 8px; }
+table.updates .actions-stack > *, table.updates .pr-pick > * { flex: none; white-space: nowrap; }
+table.updates .gitops-pr small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+table.updates td.open-for { white-space: nowrap; }
 .put-off > summary { font-size: 12.5px; padding: 4px 9px; border: 1px solid var(--line); }
 .put-off .menu-list { min-width: 240px; }
 .put-off .menu-field { display: block; padding: 2px 2px 6px; }

@@ -538,6 +538,7 @@ type Affected struct {
 	// that would say which version was not read (a Linux kernel's weigh gigabytes).
 	FixNewer                 bool
 	ServiceID, EnvironmentID string
+	App                      string    // the application, when the service is split by application
 	Since                    time.Time // since when the image has run there (its earliest target)
 	Exposed                  []string  // how it can be reached from outside its cluster or host, if it can
 	// Mitigation is what was done there instead of an upgrade, for an exploited vulnerability with no fix.
@@ -746,11 +747,11 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		return r, err
 	}
 	type use struct {
-		service, env, image, serviceID, envID, key string
-		since                                      time.Time
-		exposed                                    []string
-		host                                       bool   // a server's own packages: its kernel is the one it runs
-		server                                     string // and its name
+		service, env, image, serviceID, envID, key, app string
+		since                                           time.Time
+		exposed                                         []string
+		host                                            bool   // a server's own packages: its kernel is the one it runs
+		server                                          string // and its name
 	}
 	serverName := map[string]string{}
 	if ts, err := st.ListTargets(ctx, sc); err == nil {
@@ -762,6 +763,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	}
 	byPurl := map[string][]use{}
 	images := map[string]bool{}
+	split := SplitServices(active)
 	for _, in := range active {
 		key := in.PackagesKey(ParseImage(in.Image).Repo())
 		if key == "" || (envID != "" && in.EnvironmentID != envID) {
@@ -815,7 +817,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			name = in.WorkloadName
 		}
 		for _, p := range sboms[key].Purls {
-			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, in.FirstSeenAt, in.Exposed, in.WorkloadKind == "host_os", serverName[in.TargetID]})
+			byPurl[p] = append(byPurl[p], use{name, envName[in.EnvironmentID], in.Image, in.ServiceID, in.EnvironmentID, key, lineApp(split, in), in.FirstSeenAt, in.Exposed, in.WorkloadKind == "host_os", serverName[in.TargetID]})
 		}
 	}
 	purls := make([]string, 0, len(byPurl))
@@ -918,7 +920,7 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 			}
 			imports := importsFor(p, rec.Fixes)
 			for _, u := range byPurl[p] {
-				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, Since: u.since, Exposed: u.exposed}
+				a := Affected{Service: u.service, Env: u.env, Image: u.image, Package: purlName(p), Fix: fix, ServiceID: u.serviceID, EnvironmentID: u.envID, App: u.app, Since: u.since, Exposed: u.exposed}
 				a.GoUnlinked = unlinked(imports, sboms[u.key].GoLinked)
 				a.Host, a.Server = u.host, u.server
 				a.VEX = vexFor(vex[u.key].Statements, ids, p)
@@ -1166,7 +1168,7 @@ func severityRank(s string) int {
 type affectedIndex map[*VulnFinding]map[string]int
 
 func affectedKey(a Affected) string {
-	return a.Service + "\x00" + a.Env + "\x00" + a.Image + "\x00" + a.Package
+	return a.Service + "\x00" + a.App + "\x00" + a.Env + "\x00" + a.Image + "\x00" + a.Package
 }
 
 func (x affectedIndex) index(f *VulnFinding, a Affected) int {

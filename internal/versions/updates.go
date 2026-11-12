@@ -223,7 +223,7 @@ func sortUpdates(out []Update) {
 // WithVulnerabilities adds what the running images are known to carry to each update and puts those with a
 // vulnerability exploited in the wild first: upgrading is how most of them go away.
 func WithVulnerabilities(us []Update, r VulnReport) []Update {
-	type key struct{ svc, env string }
+	type key struct{ svc, app, env string }
 	exploited, critical, since := map[key][]string{}, map[key]int{}, map[key]time.Time{}
 	hostFixes := map[key][]HostFix{}
 	for _, f := range r.Findings {
@@ -232,7 +232,7 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 				if !a.Host {
 					continue
 				}
-				k := key{a.ServiceID, a.EnvironmentID}
+				k := key{a.ServiceID, a.App, a.EnvironmentID}
 				h := HostFix{CVE: f.Key, Server: a.Server, Package: a.Package, Fix: a.Fix, FixNewer: a.FixNewer}
 				if !slices.Contains(hostFixes[k], h) {
 					hostFixes[k] = append(hostFixes[k], h)
@@ -241,7 +241,7 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 		}
 		seen := map[key]bool{}
 		for _, a := range f.Affected {
-			k := key{a.ServiceID, a.EnvironmentID}
+			k := key{a.ServiceID, a.App, a.EnvironmentID}
 			first := !seen[k]
 			seen[k] = true
 			switch {
@@ -264,7 +264,7 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 		}
 	}
 	for i := range us {
-		k := key{us[i].Service.ID, us[i].Environment.ID}
+		k := key{us[i].Service.ID, us[i].App, us[i].Environment.ID}
 		us[i].Exploited, us[i].Critical, us[i].ExploitedSince = exploited[k], critical[k], since[k]
 		sort.Strings(us[i].Exploited)
 		us[i].HostFixes = hostFixes[k]
@@ -292,7 +292,8 @@ func WithExposure(us []Update, active []store.Instance) []Update {
 }
 
 func withExposureAt(us []Update, active []store.Instance, now time.Time) []Update {
-	type key struct{ svc, env string }
+	type key struct{ svc, app, env string }
+	split := SplitServices(active)
 	ways, maint, servers := map[key][]string{}, map[key][]string{}, map[key][]string{}
 	type engine struct {
 		repo, version string
@@ -303,7 +304,7 @@ func withExposureAt(us []Update, active []store.Instance, now time.Time) []Updat
 		if !in.IsMain {
 			continue
 		}
-		k := key{in.ServiceID, in.EnvironmentID}
+		k := key{in.ServiceID, lineApp(split, in), in.EnvironmentID}
 		if in.WorkloadKind == "host_os" && in.RemovedAt.IsZero() && !slices.Contains(servers[k], in.TargetID) {
 			servers[k] = append(servers[k], in.TargetID)
 		}
@@ -326,7 +327,7 @@ func withExposureAt(us []Update, active []store.Instance, now time.Time) []Updat
 		}
 	}
 	for i := range us {
-		k := key{us[i].Service.ID, us[i].Environment.ID}
+		k := key{us[i].Service.ID, us[i].App, us[i].Environment.ID}
 		us[i].Exposed, us[i].Maintenance, us[i].Servers = ways[k], maint[k], servers[k]
 		if us[i].EOL == "" {
 			continue
@@ -481,10 +482,10 @@ func securityUpTo(o Overview, svc, running, target string) string {
 // newer release is known of: what runs it in each environment, with what would fix it. Vulnerabilities mitigated
 // there, or that the image's publisher or distribution says do not apply, are left out.
 func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now time.Time) []Update {
-	type key struct{ svc, env string }
+	type key struct{ svc, app, env string }
 	listed := map[key]bool{}
 	for _, u := range us {
-		listed[key{u.Service.ID, u.Environment.ID}] = true
+		listed[key{u.Service.ID, u.App, u.Environment.ID}] = true
 	}
 	added := map[key]*Update{}
 	var order []key
@@ -493,7 +494,7 @@ func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now 
 			continue
 		}
 		for _, a := range f.Affected {
-			k := key{a.ServiceID, a.EnvironmentID}
+			k := key{a.ServiceID, a.App, a.EnvironmentID}
 			if a.ServiceID == "" || a.EnvironmentID == "" || listed[k] || a.Mitigation != nil || a.Distro == DistroNotAffected || a.Distro == DistroUnimportant || a.Distro == DistroNegligible ||
 				a.VEX != nil && (a.VEX.Status == "not_affected" || a.VEX.Status == "fixed") {
 				continue
@@ -501,7 +502,7 @@ func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now 
 			u := added[k]
 			if u == nil {
 				img := ParseImage(a.Image)
-				u = &Update{Service: o.Services[a.ServiceID], Environment: o.Envs[a.EnvironmentID], Running: img.Tag, Since: a.Since}
+				u = &Update{Service: o.Services[a.ServiceID], App: a.App, Environment: o.Envs[a.EnvironmentID], Running: img.Tag, Since: a.Since}
 				added[k] = u
 				order = append(order, k)
 			}
@@ -528,22 +529,23 @@ func WithUnpatched(us []Update, o Overview, r VulnReport, acks []store.Ack, now 
 // reboot, a managed database's pending patches) and the list has nothing else: it is work to do, though no newer
 // version is.
 func WithMaintenance(us []Update, o Overview, active []store.Instance, acks []store.Ack, now time.Time) []Update {
-	type key struct{ svc, env string }
+	type key struct{ svc, app, env string }
 	listed := map[key]bool{}
 	for _, u := range us {
-		listed[key{u.Service.ID, u.Environment.ID}] = true
+		listed[key{u.Service.ID, u.App, u.Environment.ID}] = true
 	}
+	split := SplitServices(active)
 	added := map[key]*Update{}
 	var order []key
 	for _, in := range active {
-		k := key{in.ServiceID, in.EnvironmentID}
+		k := key{in.ServiceID, lineApp(split, in), in.EnvironmentID}
 		if !in.IsMain || len(in.Maintenance) == 0 || in.ServiceID == "" || in.EnvironmentID == "" || listed[k] {
 			continue
 		}
 		u := added[k]
 		if u == nil {
 			u = &Update{
-				Service: o.Services[in.ServiceID], Environment: o.Envs[in.EnvironmentID], Running: ParseImage(in.Image).Tag,
+				Service: o.Services[in.ServiceID], App: k.app, Environment: o.Envs[in.EnvironmentID], Running: ParseImage(in.Image).Tag,
 				Since: now, Urgency: UrgencyPatch, MaintenanceOnly: true,
 			}
 			added[k] = u
