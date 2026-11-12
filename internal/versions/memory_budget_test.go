@@ -18,8 +18,8 @@ import (
 const reportBudget = 120 << 20
 
 func TestReportMemoryBudget(t *testing.T) {
-	if testing.Short() {
-		t.Skip("measures allocations")
+	if testing.Short() || raceDetector {
+		t.Skip("measures allocations, which the race detector multiplies (main's CI runs with it, pull requests without)")
 	}
 	l := newLab(t)
 	ctx := t.Context()
