@@ -234,8 +234,9 @@ func TestCheckVulnerabilities(t *testing.T) {
 	if r.Images != 1 || r.WithSBOM != 1 || r.Packages != 2 || len(r.Findings) != 2 || r.Pending != 0 || r.Unasked != 0 {
 		t.Fatalf("report %+v", r)
 	}
-	// The Debian advisories of one CVE are one finding, exploited and so first, with the version that fixes it.
-	if f := r.Findings[0]; f.Key != "CVE-2024-5535" || len(f.IDs) != 2 || f.Exploited == nil || !f.Exploited.Ransomware ||
+	// The Debian record of the CVE is the finding, exploited and so first, with the version that fixes it; the DSA
+	// notice, which can name several CVEs, is left out where Debian has a record per CVE.
+	if f := r.Findings[0]; f.Key != "CVE-2024-5535" || len(f.IDs) != 1 || f.Exploited == nil || !f.Exploited.Ransomware ||
 		f.Affected[0].Service != l.svc.Name || f.Affected[0].Package != "openssl 3.0.11-1~deb12u2" || f.Affected[0].Fix != "3.0.15-1~deb12u1" {
 		t.Errorf("first finding %+v", f)
 	}

@@ -433,8 +433,9 @@ func (c *Checker) CheckVulnerabilities(ctx context.Context, sc store.Scope) erro
 	rank := map[string]int{}
 	for _, p := range purls {
 		n := len(known[p].Vulns)
+		perCVE := perCVERecords(known[p].Vulns)
 		for _, id := range known[p].Vulns {
-			if strings.HasPrefix(id, "ALAS") || fresh(id) { // Amazon Linux's advisories come with their packages
+			if strings.HasPrefix(id, "ALAS") || fresh(id) || perCVE && distroNotice(id) { // Amazon Linux's advisories come with their packages; a notice is not used where per-CVE records are
 				continue
 			}
 			r := n
@@ -768,6 +769,11 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 		}
 		if !images[key] {
 			images[key] = true
+			if Managed(ParseImage(in.Image).Repo()) {
+				// A managed service's engine (RDS, ElastiCache, EKS…): AWS runs and patches it, there is no image to
+				// read or SBOM to add; its CVEs are looked up by engine version (product findings).
+				continue
+			}
 			r.Images++
 			b := sboms[key]
 			switch {
@@ -797,6 +803,9 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 					why = hostBlindWhy(b)
 				case in.CodeDigest != "":
 					why = codeBlindWhy(b)
+				case LambdaRuntime(ParseImage(in.Image).Repo()) != "":
+					// A .zip function, named by its runtime's AWS base image: the server reads no image for it.
+					why = "a .zip function: its agent sends the packages of its code (GOLIASH_LAMBDA_CODE, on by default), and has not yet"
 				}
 				r.Blind = append(r.Blind, BlindImage{Image: in.Image, Service: name, Environment: envName[in.EnvironmentID], Source: svcSource[in.ServiceID], Why: why})
 			}
@@ -849,7 +858,11 @@ func loadVulnReport(ctx context.Context, st *store.Store, sc store.Scope, envID 
 	pending := map[string]bool{}
 	eolMemo := map[ImageOS]string{}
 	for p, k := range pv {
+		perCVE := perCVERecords(k.Vulns)
 		for _, id := range k.Vulns {
+			if perCVE && distroNotice(id) {
+				continue // the package's own record of each CVE says it; the notice would join them into one
+			}
 			rec, have := records[id]
 			if !have && CVEOf(id) == "" {
 				pending[id] = true
@@ -1515,4 +1528,25 @@ func recordsOf(ctx context.Context, st *store.Store, answers ...map[string]store
 		}
 	}
 	return st.VulnsOf(ctx, ids)
+}
+
+// perCVERecords reports whether a package's advisories include a distribution's record per CVE.
+func perCVERecords(ids []string) bool {
+	return slices.ContainsFunc(ids, func(id string) bool {
+		return strings.HasPrefix(id, "UBUNTU-CVE-") || strings.HasPrefix(id, "DEBIAN-CVE-")
+	})
+}
+
+// distroNotice reports whether an advisory is a distribution's security notice (Ubuntu's USN, Debian's DSA and
+// DLA): one notice covers several CVEs, not all of them in every release it names. Kept as a finding, it joins
+// them into one, and one exploited elsewhere marks the package exploited where it does not apply: USN-7604-1 named
+// CVE-2025-32463 (sudo's chroot, 1.9.14 on) for Ubuntu 22.04's sudo 1.9.9. Where the distribution has a record per
+// CVE (UBUNTU-CVE-, DEBIAN-CVE-), those say which CVEs the package has.
+func distroNotice(id string) bool {
+	for _, p := range []string{"USN-", "DSA-", "DLA-", "DTSA-"} {
+		if strings.HasPrefix(id, p) {
+			return true
+		}
+	}
+	return false
 }

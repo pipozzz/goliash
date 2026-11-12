@@ -457,6 +457,10 @@ monthly report, grouped by reason, with *Goliash* as who said so:
   affected in practice (CVE-2026-123158 hits OpenSSH built with musl and no PAM, as on Alpine; Debian's is built with
   glibc and PAM), even when CISA lists it as exploited elsewhere. The tracker's data is read
   once a day while Debian images run; `GOLIASH_DEBIAN_TRACKER_URL` names a mirror or turns it off.
+- a distribution's security notices (Ubuntu's USN, Debian's DSA and DLA) where it has a record per CVE: one notice
+  covers several CVEs, not all of them in every release it names, and would join them into one finding. USN-7604-1
+  names CVE-2025-32463, exploited, for sudo; Ubuntu 22.04's sudo 1.9.9 does not have it (the chroot option came in
+  1.9.14). The record of each CVE says which the package has.
 
 An image on a Debian release past its security support (Debian 11 since its LTS ended) is flagged as undercounted:
 advisories for it stopped, so a vulnerability found since is not listed for it, however serious. Move it to a

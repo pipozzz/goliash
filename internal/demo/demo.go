@@ -546,7 +546,34 @@ func seedEvidence(ctx context.Context, st *store.Store, sc store.Scope) error {
 	if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: store.LambdaCodeRepo, Digest: demoHostDigest, Purls: demoHostPackages, Source: "code"}); err != nil {
 		return err
 	}
+	// The images of the releases upgrades move to, read as Goliash reads them: what upgrading fixes and brings is
+	// then the demo's, not a comparison of its short SBOMs with the real images on Docker Hub.
+	for _, repo := range releaseRepos(tagsAfter) {
+		for _, tag := range tagsAfter[repo] {
+			purls := demoSBOM(repo, tag)
+			if len(purls) == 0 {
+				continue
+			}
+			d := demoDigest(repo + ":" + tag)
+			if err := st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: repo, Digest: d, Purls: purls, Licenses: demoLicenses(purls)}); err != nil {
+				return err
+			}
+			if err := st.SetReleaseImage(ctx, sc, store.ReleaseImage{Repo: repo, Tag: tag, Digest: d}); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+// releaseRepos are the repositories of tagsAfter, in order.
+func releaseRepos(m map[string][]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // demoSBOM lists some packages of an example image, as its SBOM would: Debian 12 packages of the official
@@ -566,7 +593,7 @@ func demoSBOM(repo, tag string) []string {
 	case "docker.io/library/nginx":
 		return append(base, deb("curl@7.88.1-10+deb12u5", "libxml2@2.9.14+dfsg-1.3~deb12u1")...)
 	case "ghcr.io/acme/payments-api":
-		if tag == "1.6.0" { // the release that upgraded log4j: promoting it fixes Log4Shell
+		if tag >= "1.6.0" { // the release that upgraded log4j (and the ones after): promoting it fixes Log4Shell
 			return []string{
 				"pkg:maven/org.apache.logging.log4j/log4j-core@2.17.1", "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.15.2",
 				"pkg:maven/com.itextpdf/itextpdf@5.5.13.3",
