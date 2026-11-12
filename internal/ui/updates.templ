@@ -254,7 +254,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 							if len(it.Servers) > 1 {
 								<span class="muted">{ h.Server + ": " }</span>
 							}
-							<code>{ h.Package }</code> { "· " + h.Remedy }
+							<code>{ h.Package }</code> <span class="fix-to">{ "· " + h.Remedy }</span>
 						</li>
 					}
 				</ul>
