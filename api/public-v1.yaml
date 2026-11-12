@@ -869,6 +869,22 @@ paths:
                       type: array
                       items: { type: string }
                       example: [a major version, 3.2.0 runs already elsewhere]
+                    servers:
+                      type: array
+                      items: { type: string }
+                      description: The Linux servers whose operating system the line is (every server of an environment shares it).
+                      example: [mail-01]
+                    server_packages:
+                      type: array
+                      description: The servers' packages with an exploited vulnerability, and what fixes each.
+                      items:
+                        type: object
+                        properties:
+                          cve: { type: string, example: CVE-2025-32462 }
+                          server: { type: string, example: mail-01 }
+                          package: { type: string, example: sudo 1.9.9-1ubuntu2.4 }
+                          fix: { type: string, description: "The version that fixes it, when known", example: 1.9.9-1ubuntu2.5 }
+                          fixed_in_newer: { type: boolean, description: "A newer version fixes it, which one is not known (a kernel)" }
                     path:
                       type: array
                       items: { type: string }
