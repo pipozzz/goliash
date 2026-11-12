@@ -314,3 +314,32 @@ func TestServerExploitedInUpdates(t *testing.T) {
 		}
 	}
 }
+
+// A server's OS service page lists the server and its vulnerabilities, though the OS has no image digest.
+func TestServiceSecurityOfServerOS(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := context.Background()
+	sc := e.ws.Scope()
+	host, _ := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: e.prod.ID, Platform: "host", Name: "mail-01"})
+	osSvc, _ := e.st.EnsureService(ctx, sc, "ubuntu")
+	if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, TargetID: host.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{{
+		TargetID: host.ID, EnvironmentID: e.prod.ID, ServiceID: osSvc.ID, WorkloadID: "os/ubuntu", WorkloadKind: "host_os", WorkloadName: "ubuntu",
+		ContainerName: "ubuntu", Image: "docker.io/library/ubuntu:24.04", Tag: "24.04", Running: 1, IsMain: true, CodeDigest: "sha256:h",
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	sudo := "pkg:deb/ubuntu/sudo@1.9.15p5-3ubuntu5?arch=amd64&os_version=24.04"
+	_ = e.st.SetImageSBOM(ctx, sc, store.ImageSBOM{Repo: store.LambdaCodeRepo, Digest: "sha256:h", Source: "code", Purls: []string{sudo}})
+	_ = e.st.SetPackageVulns(ctx, map[string][]string{sudo: {"UBUNTU-CVE-2025-32463"}})
+	_ = e.st.SetVuln(ctx, store.Vuln{
+		ID: "UBUNTU-CVE-2025-32463", Aliases: []string{"CVE-2025-32463"}, Severity: "CRITICAL",
+		Fixes: map[string][]string{"Ubuntu:24.04:LTS|sudo": {"1.9.15p5-3ubuntu5.24.04.1"}},
+	})
+	_ = e.st.SetKnownExploited(ctx, []store.Exploited{{CVE: "CVE-2025-32463", DateAdded: "2025-09-29"}})
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/services/ubuntu", nil)
+	for _, want := range []string{"ubuntu:24.04 on mail-01", "CVE-2025-32463", "1 exploited vulnerability"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("ubuntu's page misses %q", want)
+		}
+	}
+}

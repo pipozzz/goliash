@@ -825,7 +825,9 @@ templ serviceSecurity(v ServiceView) {
 									<span class="muted">—</span>
 								}
 							</td>
-							if !im.Checked {
+							if im.Packages {
+								<td colspan="3" class="muted" data-label="Evidence">packages from its agent; no image to sign</td>
+							} else if !im.Checked {
 								<td colspan="3" class="muted" data-label="Evidence">not checked yet</td>
 							} else {
 								<td data-label="Signed">
