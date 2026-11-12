@@ -323,7 +323,7 @@ func (c *Checker) checkVulns(ctx context.Context, purls []string, out *ImageChec
 			}
 		}
 	}
-	records, err := c.store.ListVulns(ctx)
+	records, err := recordsOf(ctx, c.store, known)
 	if err != nil {
 		return err
 	}

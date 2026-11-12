@@ -15,6 +15,7 @@ type HousekeepingResult struct {
 	Sessions      int64
 	LoginTokens   int64
 	History       int64
+	OSV           int64 // OSV answers and records of packages no image has any more
 }
 
 // historyKept is how long ended instance periods are kept for time travel.
@@ -26,7 +27,8 @@ const historyKept = 400 * 24 * time.Hour
 //     instances and events; a snapshot is only needed until it is processed);
 //   - delivered notifications older than 30 days, and ones given up on after 30 days;
 //   - expired sessions and sign-in tokens.
-//   - instance history periods that ended more than 400 days ago.
+//   - instance history periods that ended more than 400 days ago;
+//   - once a day, OSV's answers for packages no image has any more, and the records only they had.
 //
 // Unprocessed snapshots are never removed.
 func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingResult, error) {
@@ -68,8 +70,18 @@ func (s *Store) Housekeep(ctx context.Context, keepSnapshots int) (HousekeepingR
 		n, _ := res.RowsAffected()
 		*step.n += n
 	}
+	if last := s.osvPruned.Load(); now.Unix()-last >= int64(osvPruneEvery/time.Second) {
+		n, err := s.PruneOSV(ctx)
+		if err != nil {
+			return r, err
+		}
+		s.osvPruned.Store(now.Unix())
+		r.OSV = n
+	}
 	return r, nil
 }
+
+const osvPruneEvery = 24 * time.Hour
 
 // CountSnapshots returns how many snapshots are stored, for tests and metrics.
 func (s *Store) CountSnapshots(ctx context.Context) (int, error) {

@@ -228,7 +228,7 @@ func releaseDeltas(ctx context.Context, st *store.Store, sc store.Scope, o Overv
 	if err != nil {
 		return err
 	}
-	records, err := st.ListVulns(ctx)
+	records, err := recordsOf(ctx, st, pv)
 	if err != nil {
 		return err
 	}

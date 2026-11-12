@@ -53,6 +53,8 @@ type Store struct {
 	// releasesGen counts this process's writes to releases, so a cache of them knows when it is stale.
 	releasesGen atomic.Uint64
 
+	osvPruned atomic.Int64 // when PruneOSV last ran (Unix seconds): once a day
+
 	tables tableGens // writes per table, for cache
 	cache  readCache // whole tables pages read again and again
 }

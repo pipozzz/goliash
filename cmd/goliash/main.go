@@ -1927,7 +1927,7 @@ func housekeeping(ctx context.Context, db *store.Store, log *slog.Logger, keep i
 			log.Error("housekeeping failed", "err", err)
 		case r != (store.HousekeepingResult{}):
 			log.Info("housekeeping", "snapshots", r.Snapshots, "notifications", r.Notifications,
-				"sessions", r.Sessions, "login_tokens", r.LoginTokens)
+				"sessions", r.Sessions, "login_tokens", r.LoginTokens, "osv", r.OSV)
 		}
 		select {
 		case <-ctx.Done():

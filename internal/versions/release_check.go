@@ -117,7 +117,7 @@ func CheckRelease(ctx context.Context, st *store.Store, sc store.Scope, ref stri
 	if err != nil {
 		return out, err
 	}
-	records, err := st.ListVulns(ctx)
+	records, err := recordsOf(ctx, st, pv)
 	if err != nil {
 		return out, err
 	}
