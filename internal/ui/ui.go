@@ -3550,21 +3550,42 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		pos int
 	}
 	var rows []row
+	serverName := map[string]string{}
+	if ts, err := s.store.ListTargets(ctx, sc); err == nil {
+		for _, t := range ts {
+			if t.Platform == "host" {
+				serverName[t.ID] = t.Name
+			}
+		}
+	}
 	for _, in := range active {
-		if in.ServiceID != svc.ID || !in.IsMain || in.Digest == "" {
+		// A Linux server's OS and a .zip function have no image digest: their packages are kept by the code's.
+		code := in.Digest == "" && in.CodeDigest != ""
+		if in.ServiceID != svc.ID || !in.IsMain || in.Digest == "" && !code {
 			continue
 		}
 		repo := versions.ParseImage(in.Image).Repo()
-		k := in.EnvironmentID + "|" + repo + "@" + in.Digest
-		if seen[k] || versions.PackageRepo(repo) {
+		digest := in.Digest
+		if code {
+			digest = in.CodeDigest
+		}
+		k := in.EnvironmentID + "|" + repo + "@" + digest
+		if seen[k] || versions.PackageRepo(repo) && !code {
 			continue
 		}
 		seen[k] = true
 		ev, ok := known[repo+"@"+in.Digest]
+		image := securityImage(in.Image, serverName[in.TargetID])
 		rows = append(rows, row{ImageSecurity{
-			Env: envName[in.EnvironmentID], Image: in.Image, Digest: in.Digest,
+			Env: envName[in.EnvironmentID], Image: image, Digest: digest,
 			Checked: ok && !ev.CheckedAt.IsZero(), Signed: ev.Signed, SBOM: ev.SBOM, Provenance: ev.Provenance, Size: ev.Size,
 		}, envPos[in.EnvironmentID]})
+		if code {
+			rows[len(rows)-1].Packages = true // a server's OS or a .zip function: packages its agent sends, no image
+			if len(sboms[in.PackagesKey(repo)].Purls) > 0 {
+				out.WithSBOM++
+			}
+		}
 		if len(ev.Signers) > 0 {
 			rows[len(rows)-1].Signer, rows[len(rows)-1].SignerFull = shortSigner(ev.Signers[0].Identity), ev.Signers[0].Identity
 		}
@@ -3575,10 +3596,10 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 		if len(ev.BaseChain) > 0 {
 			rows[len(rows)-1].Chain = versions.ChainText(ev.BaseChain)
 		}
-		if g, ok := versions.GoOf(sboms[repo+"@"+in.Digest].Purls); ok {
+		if g, ok := versions.GoOf(sboms[in.PackagesKey(repo)].Purls); ok {
 			rows[len(rows)-1].Go, rows[len(rows)-1].GoPast = g, versions.GoPastEOL(ctx, g)
 		}
-		if o, ok := versions.OSOf(sboms[repo+"@"+in.Digest].Purls); ok {
+		if o, ok := versions.OSOf(sboms[in.PackagesKey(repo)].Purls); ok {
 			r := &rows[len(rows)-1]
 			r.OS = o.String()
 			if cy, _, ok := versions.OSCycle(ctx, o); ok {
@@ -3669,7 +3690,7 @@ func (s *Server) serviceSecurity(ctx context.Context, sc store.Scope, svc store.
 	for _, f := range rep.Findings {
 		counted := map[int]bool{}
 		for _, a := range f.Affected {
-			if i, ok := imageAt[[2]string{a.Env, a.Image}]; ok && a.ServiceID == svc.ID && !counted[i] {
+			if i, ok := imageAt[[2]string{a.Env, securityImage(a.Image, a.Server)}]; ok && a.ServiceID == svc.ID && !counted[i] {
 				counted[i] = true
 				out.Images[i].Vulns++
 				if a.Rebuild != "" {
@@ -3799,3 +3820,12 @@ func keepFields(r *http.Request, old, cfg map[string]any, keys ...string) {
 
 // sendsOut reports whether a channel reaches people outside Goliash: the bell every workspace starts with does not.
 func sendsOut(c store.Channel) bool { return c.Type != "inapp" }
+
+// securityImage is how a service's Security panel names what runs: the image, and for a Linux server's operating
+// system the server too, as every server of an environment runs the same one.
+func securityImage(image, server string) string {
+	if server == "" {
+		return image
+	}
+	return image + " on " + server
+}

@@ -1714,6 +1714,7 @@ type NotAffectedView struct {
 type ImageSecurity struct {
 	Env, Image, Digest                string
 	Checked, Signed, SBOM, Provenance bool
+	Packages                          bool  // no image: a server's OS or a .zip function, whose packages its agent sends
 	Size                              int64 // bytes pulled; 0 when unknown
 	Delta                             int64 // against the first (production) image's size, when both are known
 	DeltaFrom                         string
