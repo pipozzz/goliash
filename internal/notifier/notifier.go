@@ -884,7 +884,7 @@ func Describe(it Item) string {
 			}
 			flags = " (" + strings.Join(words, ", ") + ")"
 		}
-		return fmt.Sprintf("%s: %s%s in %s%s", where, cve, flags, it.From, fix)
+		return fmt.Sprintf("%s: %s%s in %s%s%s", where, cve, flags, it.From, on, fix)
 	case "agent_stale":
 		return fmt.Sprintf("agent %s has not sent a heartbeat for 10 minutes; its targets are stale", it.Target)
 	case EventGoliashRelease:
