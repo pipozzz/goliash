@@ -187,6 +187,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /services/{name}/ack", s.page(m, s.ack))
 	mux.Handle("POST /services/{name}/check", s.page(m, s.checkNow))
 	mux.Handle("GET /events", s.page(v, s.events))
+	// The menu calls the page History: its address as one would guess it.
+	mux.HandleFunc("GET /history", func(w http.ResponseWriter, r *http.Request) {
+		target := url.URL{Path: "/events", RawQuery: r.URL.Query().Encode()} // a path of this site, the filters re-encoded
+		http.Redirect(w, r, target.String(), http.StatusMovedPermanently)    //nolint:gosec // fixed same-site path
+	})
 	mux.Handle("GET /promotions", s.page(v, s.promotions))
 	mux.Handle("GET /delivery", s.page(v, s.promotions))
 	mux.Handle("GET /gitops", s.page(v, s.gitOpsPage))
