@@ -1487,7 +1487,7 @@ html.goli-done .goli-bell { animation: goli-ring 0.45s ease-in-out 3; }
 .team-bar.none { background: var(--line); height: 2px !important; }
 /* Security: On this page, and the time-to-patch chart and teams on phones. */
 .page-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
-.page-nav a { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 13px; text-decoration: none; }
+.page-nav a { margin: 0; display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 13px; text-decoration: none; }
 .page-nav a:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
 .page-nav a small { color: var(--muted); font-size: 12px; }
 .page-nav a.warn small { color: var(--bad); font-weight: 600; }
@@ -1509,6 +1509,12 @@ main section[id] { scroll-margin-top: 72px; }
 .kind-icon { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .board-foot .kind-icons { display: flex; margin: 0 0 4px; color: inherit; opacity: 0.75; }
 .kind-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+/* On a phone the platforms are one row that scrolls sideways, not a screen of filters before the list. */
+@media (max-width: 720px) {
+  .kind-filter { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; max-width: 100%; }
+  .kind-filter::-webkit-scrollbar { display: none; }
+  .kind-chip { flex: none; }
+}
 .kind-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; }
 .kind-chip .kind-icon { color: var(--muted); }
 .kind-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
@@ -1592,3 +1598,5 @@ tr.muted-row td { color: var(--muted); }
 .infra-counts .c-warn { color: var(--warn); }
 .infra-counts .c-ok { color: var(--ok); }
 @media (max-width: 640px) { .infra-accounts { padding: 4px 10px 12px; } .infra-legend { margin-left: 0; } }
+
+.head-alert { margin: 6px 0 0; }

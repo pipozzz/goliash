@@ -23,6 +23,9 @@ templ ServicePage(v ServiceView) {
 				if v.What != "" {
 					<p class="sub">{ v.What }</p>
 				}
+				if v.Security.Exploited > 0 {
+					<p class="head-alert"><a class="badge exploited" href="#security" title="Exploited in the wild (CISA KEV), in the images it runs">{ plural(v.Security.Exploited, "exploited vulnerability", "exploited vulnerabilities") + " →" }</a></p>
+				}
 			</div>
 			if v.CanMember {
 				<form method="post" action={ templ.URL("/services/" + v.Name + "/check") } class="inline">
