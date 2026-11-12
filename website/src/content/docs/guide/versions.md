@@ -143,7 +143,8 @@ Goliash reads support dates from [endoflife.date](https://endoflife.date): it kn
 (postgres → PostgreSQL, through the site's package URLs, or the catalog's `eol` field), picks the release cycle of
 the running version (15.6 → 15, 7.2.4 → 7.2) and opens `eol` drift 60 days before that cycle stops being supported,
 or at once when it already has. Set `"eol": "postgresql"` in a service's policy to name the product yourself, or
-`"eol": "none"` to turn it off. Without internet access, start the server with `-eol=false`.
+`"eol": "none"` to turn it off. Without internet access, start the server with `-eol=false`. This also turns off
+the vulnerability lookups (OSV, CISA KEV, Debian's tracker and NVD).
 
 ### Declared versus running
 

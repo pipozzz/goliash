@@ -3,7 +3,8 @@ title: Configuration
 description: 'Environment variables for the Goliash server: database, public URL, e-mail, OIDC, passwords, registries and more.'
 ---
 
-Settings come from environment variables; most have a matching flag.
+Settings come from environment variables. A few of them also have a flag, shown in the tables; some settings are
+flags only.
 
 ## Server (`goliash serve`)
 
@@ -12,7 +13,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_DATABASE_URL` | `-database` | `goliash.db` (`/data/goliash.db` in the image) | SQLite file path, or a `postgres://` URL |
 | `GOLIASH_PUBLIC_URL` | `-public-url` | `http://localhost:8080` | The address people use; sign-in links and cookies depend on it |
 | `GOLIASH_LISTEN` | `-listen` | `:8080` | HTTP listen address |
-| `GOLIASH_SECRET_KEY` | | | 32-byte key (base64 or hex) that encrypts channel secrets |
+| `GOLIASH_SECRET_KEY` | | | 32-byte key (base64 or hex) that encrypts secrets at rest: notification channel settings, the single sign-on client secret and private registry credentials |
 | `GOLIASH_SECRET_KEY_FILE` | | | File with the key, instead of the variable |
 | `GOLIASH_GITHUB_TOKEN` | | | Token for GitHub release lookups; raises the rate limit |
 | `GOLIASH_GITLAB_URL` | | | A self-hosted GitLab whose releases may be read, e.g. `https://gitlab.example.com` |
@@ -25,10 +26,11 @@ Settings come from environment variables; most have a matching flag.
 | `GOMEMLIMIT` | | ⅔ of the container's memory limit; without one, ¼ of the machine's (at least 192 MiB), as it shares the machine | Go's soft memory limit: near it the garbage collector works harder instead of letting the heap grow into swap. Set it to choose another, e.g. `300MiB` |
 | `GOLIASH_PPROF` | | | An address such as `127.0.0.1:6060` to serve Go's profiles (`/debug/pprof/`) on, for finding what is slow or large on a running server. Keep it on localhost |
 | `GOLIASH_NVD_API_KEY` | | | An [NVD API key](https://nvd.nist.gov/developers/request-an-api-key): 50 requests in 30 seconds instead of 5, so new versions and upstream fixes are looked up sooner |
-| `GOLIASH_AI_API_KEY` | | | The model provider's API key that turns on [Goli](/guide/goli/), the assistant; also `GOLIASH_AI_PROVIDER` (`anthropic` or `openai`), `GOLIASH_AI_API_KEY_FILE`, `GOLIASH_AI_MODEL` (`claude-opus-5-5`), `GOLIASH_AI_EFFORT`, `GOLIASH_AI_BASE_URL`, `GOLIASH_AI_PER_HOUR`, `GOLIASH_AI_PER_DAY`, `GOLIASH_AI_PLAN_SUMMARY` and `GOLIASH_AI_DIGEST_SUMMARY` |
+| `GOLIASH_AI_API_KEY` | | | The model provider's API key that turns on [Goli](/guide/goli/), the assistant; also `GOLIASH_AI_PROVIDER` (`anthropic` or `openai`), `GOLIASH_AI_API_KEY_FILE`, `GOLIASH_AI_MODEL` (`claude-opus-5-5`), `GOLIASH_AI_EFFORT`, `GOLIASH_AI_BASE_URL`, `GOLIASH_AI_API` (with `openai`: `responses` or `chat`; default `responses` without a base URL, `chat` with one), `GOLIASH_AI_PER_HOUR`, `GOLIASH_AI_PER_DAY`, `GOLIASH_AI_PLAN_SUMMARY` and `GOLIASH_AI_DIGEST_SUMMARY` |
 | `GOLIASH_GOLI_SEASON` | | | What Goli, the mascot, wears: by default it follows the calendar (a pumpkin around Halloween, a Santa hat in December, a scarf in January and February, sunglasses in July and August); `off` never, or `halloween`, `christmas`, `winter`, `summer` always |
 | `GOLIASH_SLACK_SIGNING_SECRET` | | | With `GOLIASH_SLACK_GOLI_TOKEN`, turns on Goli's `/goli` command for a Slack app; see [Goli in Slack](/guide/goli/#goli-in-slack). `GOLIASH_SLACK_IN_CHANNEL=true` answers in the channel |
-| `GOLIASH_DOCS_ASSISTANT` | | | URL of a product's documentation as one text: Goli answers questions about it for a website at `POST /goli/docs`; see [Goli on your website](/guide/goli/#goli-on-your-website) |
+| `GOLIASH_DOCS_ASSISTANT` | | | URL of a product's documentation as one text: Goli answers questions about it for a website at `POST /goli/docs`. `GOLIASH_DOCS_ASSISTANT_ORIGINS`, `_MODEL`, `_PER_HOUR` and `_PER_DAY` tune it; see [Goli on your website](/guide/goli/#goli-on-your-website) |
+| `GOLIASH_DEMO_GOLI` | | off | `true` offers Goli on a public demo (`-demo-user`), limited per visitor address; see [On a public demo](/guide/goli/#on-a-public-demo) |
 | `GOLIASH_UPDATE_CHECK` | | on | `off` stops the Status page and the `goliash_release` notification from asking `ghcr.io/pipozzz/goliash` for a newer release of Goliash (only its tag list is read). Agents older than the server are flagged on the Status page either way |
 | `GOLIASH_ARGOCD_URL` | | | The Argo CD UI, e.g. `https://argocd.example.com`: application names on service pages link to it. See [Argo CD](/guide/argocd/) |
 | `GOLIASH_GITOPS_TOKEN` | | | A GitHub token that may write contents and pull requests of the GitOps repositories: upgrades open as pull requests from the Argo CD panel. See [Argo CD](/guide/argocd/#upgrade-with-a-pull-request) |
@@ -40,7 +42,7 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_BACKSTAGE_TOKEN` | | | A static token from Backstage's external access, when its catalog asks for one |
 | `GOLIASH_CODEOWNERS` | | on | `off` stops reading services' [owners from CODEOWNERS](/guide/apps/#teams) of the GitOps repositories with the GitOps tokens |
 | `GOLIASH_ALLOWED_REGISTRIES` | | | Comma-separated registries or prefixes images may come from (image hygiene) |
-| `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
+| `GOLIASH_DEBUG` | `-debug` | off | Debug logging. Empty, `0`, `false`, `off` and `no` leave it off; any other value turns it on |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
 | `GOLIASH_ARGS` | | | The command and flags when the container gets none, e.g. `try -public -reset 1h` on a platform where setting a variable is easier than a command |
 | `GOLIASH_LOG_LEVEL` | `-log-level` | `info` | `debug`, `info`, `warn` or `error` |
@@ -48,11 +50,11 @@ Settings come from environment variables; most have a matching flag.
 | `GOLIASH_BACKUP_DIR` | `-backup-dir` | — | SQLite: write a backup here at start and every day |
 | `GOLIASH_BACKUP_KEEP` | `-backup-keep` | `7` | Backups kept in the backup directory |
 | | `-demo-user` | | A public read-only demo: every visitor is signed in as this existing viewer and every change is refused. `goliash try -public` sets it up |
+| | `-demo-pulls` | `false` | Example data: show the pull requests GitOps upgrades would open, and open none. `goliash try` sets it |
 | | `-collect` | `true` | Collect targets that have no agent in the server itself |
 | | `-upstream-interval` | `1h` | How often public registries are checked |
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
-| | `-eol` | `true` | Report end-of-life release cycles from endoflife.date |
-
+| | `-eol` | `true` | Report end-of-life release cycles from endoflife.date. `false` also turns off the OSV, CISA KEV, Debian tracker and NVD lookups, for a server without internet access |
 | `GOLIASH_BOOTSTRAP` | | | Bootstrap configuration (YAML or JSON), see below |
 | `GOLIASH_BOOTSTRAP_FILE` | | | File with the bootstrap configuration, instead of the variable |
 
@@ -73,7 +75,8 @@ environments:
 targets:
   - name: nomad
     environment: prod
-    platform: nomad                # kubernetes, ecs, nomad, swarm, docker or compose
+    platform: nomad                # kubernetes, ecs, nomad, swarm, docker, compose, host, lambda, rds,
+                                   # elasticache, eks, opensearch, msk or manual
     poll_interval_seconds: 60
     # agent: prod-eu               # empty: the server collects the target itself
     settings:
@@ -160,7 +163,7 @@ of Goliash in step with its own:
 
 - **New people** are created when the app is assigned to them. They can then sign in with OIDC (or a magic link).
 - **Deactivation** (`active: false`, when someone leaves or is unassigned) ends their sessions and the apps they
-  let in at once, and refuses every way to sign in. Reactivating restores them. Settings → People marks them
+  let in at once, and refuses every way to sign in. Reactivating restores them. Settings → Workspace settings → People marks them
   *deactivated*. Deleting removes them.
 - **Pushed groups** decide roles as `GOLIASH_GROUP_ROLES` maps them, the same mapping OIDC sign-in uses: someone
   in no mapped group has an account but no workspace. Without `GOLIASH_GROUP_ROLES`, new people are viewers of the
@@ -177,8 +180,9 @@ the same, authentication *HTTP Header* with the token, and turn on *Push Groups*
 
 ## CLI
 
-Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and `-workspace`
-(`GOLIASH_WORKSPACE`, default the first workspace). Flags go after the command: `goliash matrix -workspace acme`.
+Commands that work on the database take `-database` (`GOLIASH_DATABASE_URL`) and `-workspace`
+(`GOLIASH_WORKSPACE`, default the first workspace). `ask`, `mcp`, `verify`, `login` and `logout` talk to a server
+instead, and `try` makes a database of its own. Flags go after the command: `goliash matrix -workspace acme`.
 
 ## Agent (`goliash-agent`)
 
@@ -191,19 +195,25 @@ Every command other than `serve` takes `-database` (`GOLIASH_DATABASE_URL`) and 
 | `GOLIASH_AGENT_NAME` | | found where it runs | Name of an enrolling agent and of the target it finds |
 | `GOLIASH_AGENT_ID` | | found where it runs | What tells this installation apart when it enrolls with a code for many agents |
 | `GOLIASH_AWS` | | on | `off` stops the agent from asking EC2 instance metadata for its region and role |
+| `GOLIASH_CLOUD_METADATA` | | on | `off` stops the agent from asking Google Cloud and Azure instance metadata for its project or subscription, region and zone (shown where an agent runs) |
 | `GOLIASH_REDISCOVER` | | `15m` | How often the agent looks again for what it could collect, and enrolls or registers again when it finds more; `off` looks only at start |
 | `GOLIASH_AWS_REGIONS` | | | More AWS regions an enrolling agent adds ECS clusters and Lambda functions of, comma-separated |
 | `GOLIASH_ECS_CLUSTERS` | | every cluster | Only these ECS clusters, by name, comma-separated |
 | `GOLIASH_ECS_EXCLUDE` | | | ECS clusters, by name, an enrolling agent leaves out (the CloudFormation template sets its own cluster) |
 | `GOLIASH_LAMBDA_ALIASES` | | | Lambda aliases named otherwise than environments, e.g. `live=prod,canary=-` (`-` leaves one out) |
 | `GOLIASH_LAMBDA` | | on | `off` stops an enrolling agent from adding its AWS region's Lambda functions |
+| `GOLIASH_RDS`, `GOLIASH_ELASTICACHE`, `GOLIASH_EKS`, `GOLIASH_OPENSEARCH`, `GOLIASH_MSK` | | on | `off` stops an enrolling agent from adding its AWS regions' RDS databases, ElastiCache caches, EKS clusters, OpenSearch domains or MSK clusters |
 | `GOLIASH_LAMBDA_CODE` | | on | `off` stops the agent from downloading .zip Lambda functions' code and layers to read the packages in them ([Collectors](/reference/collectors/)) |
 | `GOLIASH_TARGETS` | | | Targets an enrolling agent declares, as a JSON array of [agent protocol targets](/reference/agent-protocol/) without `id` |
+| `GOLIASH_INCLUDE_NAMESPACES`, `GOLIASH_EXCLUDE_NAMESPACES` | | every namespace | Comma-separated Kubernetes namespaces the target an enrolling agent finds in its cluster covers, or leaves out |
+| `GOLIASH_READ_PULL_SECRETS` | | `false` | `true` lets the agent read the image pull secrets running pods reference, to check private registries (needs `get` on secrets; Helm: `rbac.readPullSecrets`). The secrets never leave the agent |
+| `GOLIASH_HOST_ROOT` | | | Where the host's root is mounted (`/host` in a container, `/` for an agent installed on the host): the agent adds the host's operating system and packages as a target. See [Collectors](/reference/collectors/) |
+| `GOLIASH_GOPROXY` | | `https://proxy.golang.org` | As for the server: the Go module proxy asked which version a Go program in an image was built from, or `off` |
 | `GOLIASH_DATA_DIR` | `-data-dir` | `data` (`/data` in the image) | Buffered snapshots while the server is unreachable |
 | `GOLIASH_CREDENTIALS_DIR` | | `/etc/goliash-agent/credentials` | Directory of credential files |
 | `GOLIASH_CREDENTIAL_<NAME>` | | | A credential; see [Collectors](/reference/collectors/#credentials) |
 | `GOLIASH_COMPOSE_DIRS` | | | Comma-separated directories `compose` targets may read files from |
-| `GOLIASH_DEBUG` | `-debug` | off | Debug logging |
+| `GOLIASH_DEBUG` | `-debug` | off | Debug logging; values as for the server |
 | `GOLIASH_LOG_FORMAT` | `-log-format` | `text` | `json` for log collectors |
 | `GOMEMLIMIT` | | ⅔ of the container's memory limit; without one, ¼ of the machine's (at least 192 MiB) | Go's soft memory limit, as for the server: on a small host the agent shares, it keeps the heap out of swap |
 

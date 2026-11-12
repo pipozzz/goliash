@@ -5,7 +5,7 @@ description: 'Watch Amazon ECS clusters, Lambda functions and private ECR reposi
 
 ## Try it in one line
 
-**Connect → Amazon ECS → Get the command** in Goliash gives this with your server and a fresh enrollment code. It
+**Connect → AWS, without a server → Get the command** in Goliash gives this with your server and a fresh enrollment code. It
 deploys the agent with CloudFormation into the default VPC, as a Fargate service in a small cluster of its own:
 
 ```sh
@@ -21,7 +21,7 @@ all with `aws cloudformation delete-stack --stack-name goliash-agent`.
 
 ## Add AWS to an agent you already run
 
-An agent on a Docker host or in a Kubernetes cluster can watch AWS too: **Agents → the agent → Add AWS to this
+An agent on a Docker host or in a Kubernetes cluster can watch AWS too: **Agents and targets → the agent → Add AWS to this
 agent**.
 
 **On EC2 with an instance role** (agent 1.153.0 or newer) there is one step. The agent reads its region and role from
@@ -216,7 +216,8 @@ and are left out.
 
 ## Upgrading the stack
 
-**Agents → Update** gives the command. It fetches the template of the new version, so the task role gains what the
+Open the agent under **Agents and targets**: when it is older than the server, its **Update to …** panel
+gives the command. It fetches the template of the new version, so the task role gains what the
 new version reads (RDS, ElastiCache, EKS, OpenSearch, MSK, Lambda function URLs), and keeps your parameters.
 
 ## What the ECS collector reports

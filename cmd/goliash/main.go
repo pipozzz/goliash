@@ -93,7 +93,9 @@ const usage = `Usage:
                                           prints an enrollment code once: agents started with it register themselves
   goliash enroll list                     enrollment codes with their environment and agents
   goliash enroll revoke -id ID            no agent can enroll with the code any more
-  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose|lambda -name NAME [-settings JSON] [-poll SECONDS]
+  goliash target create -agent NAME -env NAME -platform PLATFORM -name NAME [-settings JSON] [-poll SECONDS]
+                                          PLATFORM: kubernetes, ecs, nomad, swarm, docker, compose, host, lambda,
+                                          rds, elasticache, eks, opensearch, msk or manual
   goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
                                           every running container with image and digest (audits, SBOM)
@@ -119,9 +121,12 @@ const usage = `Usage:
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party|auto]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|teams|gchat|discord|telegram|ntfy|grafana|pagerduty|opsgenie|webhook|email|push|inapp -name NAME [-url URL] [-secret S]
-                         [-token T] [-chat-id ID] [-to a@b,c@d]
+  goliash channel create -type TYPE -name NAME [-url URL] [-secret S] [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
+                         [-project P] [-repo OWNER/NAME] [-team T] [-teams MAP] [-labels L] [-email E]
+                         [-issue-type T] [-story-type T]
+                         TYPE: slack, teams, gchat, discord, telegram, ntfy, grafana, pagerduty, opsgenie, webhook,
+                         email, push, inapp, or a ticket tracker: gitlab_issues, github_issues, jira, linear, shortcut
   goliash channel test -name NAME
   goliash badges reset                    invalidate every badge address handed out
   goliash service rename -name NAME -to NAME [-merge]   rename a service, or join it with the one named
@@ -150,8 +155,9 @@ const usage = `Usage:
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
-Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db) and
--workspace SLUG (env GOLIASH_WORKSPACE, default: the first workspace).
+Commands that work on the database take -database (env GOLIASH_DATABASE_URL, default goliash.db) and
+-workspace SLUG (env GOLIASH_WORKSPACE, default: the first workspace). ask, mcp, verify, login and
+logout talk to a server instead, and try makes a database of its own.
 `
 
 // commandLine is the command and flags to run: those given, or, when none are,
@@ -441,7 +447,7 @@ func serve(ctx context.Context, args []string) error {
 	listen := fs.String("listen", envOr("GOLIASH_LISTEN", ":8080"), "HTTP listen address (env GOLIASH_LISTEN)")
 	upstreamEvery := fs.Duration("upstream-interval", time.Hour, "how often public registries are checked for new tags")
 	collect := fs.Bool("collect", true, "collect targets that have no agent in the server itself")
-	eol := fs.Bool("eol", true, "report end-of-life release cycles from endoflife.date")
+	eol := fs.Bool("eol", true, "report end-of-life release cycles from endoflife.date; false also turns off the OSV, CISA KEV, Debian tracker and NVD lookups (offline)")
 	keepSnapshots := fs.Int("keep-snapshots", 20, "processed snapshots kept per target; older ones are deleted hourly")
 	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")

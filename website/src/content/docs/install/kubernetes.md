@@ -108,8 +108,10 @@ helm upgrade goliash-agent oci://ghcr.io/pipozzz/charts/goliash-agent -n goliash
 
 ## Verify the charts
 
+`<version>` is the chart version, which equals the Goliash version:
+
 ```sh
-cosign verify ghcr.io/pipozzz/charts/goliash:0.2.0 \
+cosign verify ghcr.io/pipozzz/charts/goliash:<version> \
   --certificate-identity-regexp '^https://github.com/pipozzz/goliash/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

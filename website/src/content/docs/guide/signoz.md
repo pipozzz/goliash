@@ -22,7 +22,7 @@ by hand.
 
 ## 1. A token for the collector
 
-`/metrics` needs an API token with the viewer role. Create one under **Users → API tokens**, or:
+`/metrics` needs an API token with the viewer role. Create one under **Settings → Workspace settings → API tokens**, or:
 
 ```sh
 goliash token create -name signoz -role viewer

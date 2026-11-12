@@ -12,7 +12,7 @@ description: 'Sign in with passwords, links or OIDC, roles per workspace, API to
   owner. With SMTP configured, people request links by e-mail on the sign-in page. A link opens a page that signs
   in with a button, so a chat's link preview or a mail scanner, which opens links but presses no buttons, does not
   use it up.
-- **Invitations.** **Settings → People → Invite** gives an e-mail address a role and shows a sign-in link for it,
+- **Invitations.** **Invite** under **Settings → Workspace settings → People** gives an e-mail address a role and shows a sign-in link for it,
   which works once, for 7 days; with SMTP configured Goliash e-mails it too. Signing in with it, someone without a
   password yet lands on their account page and is asked to set one, or add a passkey (not with single sign-on). **Sign-in link** beside a person makes
   a new one (an expired invitation, a lost password).
@@ -38,7 +38,7 @@ a consent page names the app, the person picks a workspace and allows it, and th
 only. **Your account → Apps with access** lists them, with when each last read, and **Revoke** ends one. An app
 loses access when its person leaves the workspace, and after 30 days unused. See [MCP](/reference/mcp/#remote-http).
 
-Admins see every app reading the workspace under **Users → Apps with access**: the app, whose it is, when it was
+Admins see every app reading the workspace under **Settings → Workspace settings → Apps with access**: the app, whose it is, when it was
 allowed and last read; **Revoke** ends anyone's. Allowing and revoking are in the audit log. One address can
 register at most twenty apps an hour.
 

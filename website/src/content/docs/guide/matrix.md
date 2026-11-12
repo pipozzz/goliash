@@ -154,7 +154,7 @@ mapped), and problems come first. The filter above the cards matches names, serv
 | Status | Needs attention, behind, not mapped, up to date. |
 
 A workload's application is the first of these labels it has: the workspace's own label key (set under
-**Settings → Users → Applications**, for example `example.com/app`), `goliash.app`, `app.kubernetes.io/part-of`,
+**Settings → Workspace settings → Applications**, for example `example.com/app`), `goliash.app`, `app.kubernetes.io/part-of`,
 `app.kubernetes.io/instance` (the Helm release), `release`, `com.docker.compose.project` and
 `com.docker.stack.namespace`. Without any of them, a Nomad job's name stands in, else its namespace.
 
