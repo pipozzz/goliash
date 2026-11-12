@@ -1603,6 +1603,9 @@ tr.muted-row td { color: var(--muted); }
 .infra-counts .c-bad { color: var(--bad); font-weight: 600; }
 .infra-counts .c-warn { color: var(--warn); }
 .infra-counts .c-ok { color: var(--ok); }
+/* On a red tile the green and amber counts take some of the text colour: 4.5:1 there too, in either theme. */
+.infra-tile.bad .c-ok { color: color-mix(in srgb, var(--ok) 80%, var(--ink)); }
+.infra-tile.bad .c-warn { color: color-mix(in srgb, var(--warn) 80%, var(--ink)); }
 @media (max-width: 640px) { .infra-accounts { padding: 4px 10px 12px; } .infra-legend { margin-left: 0; } }
 
 .head-alert { margin: 6px 0 0; }
