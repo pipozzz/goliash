@@ -388,7 +388,9 @@ func (n *Notifier) handle(ctx context.Context, sc store.Scope, events []store.Ev
 			}
 		}
 		if dedup == "" {
-			dedup = fmt.Sprintf("%s|%s|%s|%s|%d", e.Type, e.ServiceID, e.EnvironmentID, e.ToVersion, e.At.UnixNano())
+			// An event handed over before it was stored has no ID; one check's events share their time, so what tells
+			// them apart is in the key too: the application of a split service, the target, and the kind of drift.
+			dedup = fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%d", e.Type, e.ServiceID, e.App, e.EnvironmentID, e.TargetID, e.ToVersion, e.Note, e.At.UnixNano())
 		}
 		if err := n.enqueue(ctx, sc, rules, item, dedup); err != nil {
 			return err

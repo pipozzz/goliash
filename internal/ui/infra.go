@@ -91,13 +91,19 @@ func (s *Server) infrastructure(w http.ResponseWriter, r *http.Request, p auth.P
 			byTarget[list[i].ID] = &tiles[k][i]
 		}
 	}
+	targetName := map[string]string{}
+	for _, t := range o.Targets {
+		targetName[t.ID] = t.Name
+	}
 	seen := map[string]bool{}
 	for _, in := range active {
 		it := byTarget[in.TargetID]
-		if it == nil || !in.IsMain || !in.RemovedAt.IsZero() || seen[in.WorkloadID] {
+		// A workload ID is unique within its target only: every Ubuntu server has os/ubuntu.
+		wk := in.TargetID + "|" + in.WorkloadID
+		if it == nil || !in.IsMain || !in.RemovedAt.IsZero() || seen[wk] {
 			continue
 		}
-		seen[in.WorkloadID] = true
+		seen[wk] = true
 		it.Workloads++
 		if in.WorkloadKind == string(agentproto.HostOs) {
 			for _, m := range in.Maintenance {
@@ -109,7 +115,7 @@ func (s *Server) infrastructure(w http.ResponseWriter, r *http.Request, p auth.P
 			continue
 		}
 		var drifts []DriftBadge
-		for _, d := range o.DriftsIn(in.ServiceID, in.App, in.EnvironmentID) {
+		for _, d := range o.DriftsOn(in.ServiceID, in.App, in.EnvironmentID, targetName[in.TargetID]) {
 			drifts = append(drifts, driftBadge(d))
 		}
 		switch healthOf(drifts, true) {

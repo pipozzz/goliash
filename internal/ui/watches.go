@@ -126,7 +126,9 @@ func (s *Server) dueCounts(ctx context.Context, sc store.Scope) (overdue, soon i
 		return 0, 0, err
 	}
 	now := time.Now()
-	for _, u := range versions.LoadUpdates(ctx, s.store, sc, o, acks, now) {
+	// The work list, as Updates and the deadline alerts count it: with what runs an exploited vulnerability and has
+	// no newer release.
+	for _, u := range versions.LoadWork(ctx, s.store, sc, o, acks, now) {
 		switch {
 		case u.Acked || u.Due.IsZero():
 		case u.Overdue(now):

@@ -515,7 +515,7 @@ func updateMarkdown(it UpdateItem) string {
 	var why []string
 	if it.EOL != "" {
 		if it.EOLPassed {
-			why = append(why, "end of life since "+it.EOL)
+			why = append(why, versions.EOLSince(it.EOL))
 		} else {
 			why = append(why, "end of life on "+it.EOL)
 		}
@@ -819,3 +819,6 @@ func serverWord(n int) string {
 	}
 	return "servers "
 }
+
+// eolSince says since when a cycle is past its end of life, as the templates show it.
+func eolSince(eol string) string { return versions.EOLSince(eol) }

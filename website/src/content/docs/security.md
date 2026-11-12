@@ -61,10 +61,10 @@ appear in the log.
 ## Verify a release
 
 Images and the release checksums are signed with [cosign](https://github.com/sigstore/cosign) in the release
-workflow, without long-lived keys:
+workflow, without long-lived keys. Put the version you run in place of `<version>`, e.g. `1.0.0`:
 
 ```sh
-cosign verify ghcr.io/pipozzz/goliash:0.1.0 \
+cosign verify ghcr.io/pipozzz/goliash:<version> \
   --certificate-identity-regexp '^https://github.com/pipozzz/goliash/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```

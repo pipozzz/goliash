@@ -309,7 +309,7 @@ templ updateRow(it UpdateItem, canAck bool, ret string) {
 				}
 				if it.EOL != "" {
 					if it.EOLPassed {
-						<span class="badge eol">{ "end of life since " + it.EOL }</span>
+						<span class="badge eol">{ eolSince(it.EOL) }</span>
 					} else {
 						<span class="badge eol">{ "end of life " + it.EOL }</span>
 					}

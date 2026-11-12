@@ -7,7 +7,6 @@ The server binary is also its command-line tool. It works directly on the databa
 runs, for example with `docker compose exec goliash goliash …` or `kubectl exec deploy/goliash -- goliash …`.
 
 ```text
-Usage:
   goliash [serve] [flags]                 run the server
   goliash env create -name NAME [-position N]
   goliash agent create -name NAME         prints the agent token once
@@ -18,29 +17,48 @@ Usage:
                                           prints an enrollment code once: agents started with it register themselves
   goliash enroll list                     enrollment codes with their environment and agents
   goliash enroll revoke -id ID            no agent can enroll with the code any more
-  goliash target create -agent NAME -env NAME -platform kubernetes|ecs|nomad|swarm|docker|compose|lambda -name NAME [-settings JSON] [-poll SECONDS]
-  goliash matrix                          service × environment versions
-  goliash events [-service NAME] [-limit N]
-  goliash drift                           open drifts
+  goliash target create -agent NAME -env NAME -platform PLATFORM -name NAME [-settings JSON] [-poll SECONDS]
+                                          PLATFORM: kubernetes, ecs, nomad, swarm, docker, compose, host, lambda,
+                                          rds, elasticache, eks, opensearch, msk or manual
+  goliash matrix [-at 2026-09-12T14:00]   service × environment versions, now or as of a time
   goliash inventory [-at T] [-environment E] [-format table|csv|cyclonedx]
                                           every running container with image and digest (audits, SBOM)
+  goliash hygiene                         moving tags, retagged images, untrusted registries, missing digests
   goliash images SERVICE                  its running images: size against budget, base, signed, SBOM, provenance, last layer change
   goliash licenses [-class attention|all|CLASS] [-environment E] [-os] [-fail-on CLASSES]
                                           licenses of packages in running images, copyleft and unknown first;
                                           -fail-on network-copyleft,source-available exits 1 when one runs
+  goliash login [-no-browser] URL         sign the CLI in through the browser (OAuth, read only) for ask and mcp
+  goliash logout [URL]                    end that sign-in
+  goliash mcp [-server URL] [-token T]    MCP server on stdin/stdout for AI assistants (env GOLIASH_URL, GOLIASH_TOKEN)
+  goliash ask [-server URL] [-token T] [-i] QUESTION
+                                          ask Goli, the assistant; the answer streams to stdout (env GOLIASH_URL, GOLIASH_TOKEN);
+                                          -i keeps the conversation going
+  goliash verify [-server URL] [-token T] [-service S] [-sbom FILE] [-fail-on RULES] [-json] IMAGE
+                                          in CI, before a deploy: exits 1 when the image carries a vulnerability
+                                          exploited in the wild, is past its end of life or is not signed as its
+                                          service's policy wants (env GOLIASH_URL, GOLIASH_TOKEN)
+  goliash events [-service NAME] [-env NAME] [-since 2h] [-limit N]
+  goliash drift                           open drifts
+  goliash promotions                      versions waiting for the next environment, with their releases
+  goliash delivery [-window 720h]         deploys per environment and lead times between environments
   goliash check [-service NAME]           check upstream registries now
   goliash service set -name NAME [-upstream REPO] [-owner O] [-app A] [-kind own|third_party|auto]
                       [-track patch|minor|major] [-pin-major N] [-tag-filter REGEXP] [-prerelease]
-  goliash channel create -type slack|webhook|email|push -name NAME [-url URL] [-secret S] [-to a@b,c@d]
+  goliash channel create -type TYPE -name NAME [-url URL] [-secret S] [-token T] [-chat-id ID] [-to a@b,c@d]
                          [-smtp-addr HOST:PORT -smtp-from ADDR [-smtp-username U] [-smtp-tls starttls|tls|none]]
+                         [-project P] [-repo OWNER/NAME] [-team T] [-teams MAP] [-labels L] [-email E]
+                         [-issue-type T] [-story-type T]
+                         TYPE: slack, teams, gchat, discord, telegram, ntfy, grafana, pagerduty, opsgenie, webhook,
+                         email, push, inapp, or a ticket tracker: gitlab_issues, github_issues, jira, linear, shortcut
   goliash channel test -name NAME
-  goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
-                        [-services a,b] [-owners x] [-apps webshop] [-envs prod] [-min-jump minor] [-digest-hour 8]
-                        [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash badges reset                    invalidate every badge address handed out
   goliash service rename -name NAME -to NAME [-merge]   rename a service, or join it with the one named
   goliash app rename -from NAME [-to NAME] show an application under another name (an existing one merges)
   goliash team rename -from NAME -to NAME   rename a team on all its services
+  goliash notify create -channel NAME [-events new_release,drift_detected] [-mode instant|daily|weekly]
+                        [-services a,b] [-owners x] [-apps webshop] [-envs prod] [-min-jump minor] [-digest-hour 8]
+                        [-timezone Europe/Bratislava] [-quiet 22-7]
   goliash ack -service NAME -kind release|drift [-until-version 2.1.0] [-for 336h] [-env prod]
   goliash workspace create -name N -slug S [-envs]   a workspace per client or team
   goliash workspace list
@@ -61,8 +79,9 @@ Usage:
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
-Every command takes -database (env GOLIASH_DATABASE_URL, default goliash.db) and
--workspace SLUG (env GOLIASH_WORKSPACE, default: the first workspace).
+Commands that work on the database take -database (env GOLIASH_DATABASE_URL, default goliash.db) and
+-workspace SLUG (env GOLIASH_WORKSPACE, default: the first workspace). ask, mcp, verify, login and
+logout talk to a server instead, and try makes a database of its own.
 ```
 
 Changes made with the CLI are recorded in the audit log like changes in the UI.

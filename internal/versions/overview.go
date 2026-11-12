@@ -5,7 +5,9 @@ package versions
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -79,6 +81,42 @@ func (o Overview) DriftsIn(serviceID, app, envID string) []store.Drift {
 		return o.AppDrifts[serviceID+"|"+app+"|"+envID]
 	}
 	return o.Drifts[serviceID+"|"+envID]
+}
+
+// DriftsOn is DriftsIn for one target: a drift whose older version runs on other targets of the environment only
+// (its On names them) is theirs, and in targets that disagree only those not on the newest version are behind.
+func (o Overview) DriftsOn(serviceID, app, envID, target string) []store.Drift {
+	var out []store.Drift
+	for _, d := range o.DriftsIn(serviceID, app, envID) {
+		var det DriftDetail
+		_ = json.Unmarshal(d.Detail, &det)
+		switch {
+		case len(det.On) > 0 && !slices.Contains(det.On, target):
+			continue
+		case d.Kind == "inconsistent" && onNewest(det.Targets, target):
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// onNewest reports whether target runs the newest of the versions targets that disagree run.
+func onNewest(targets map[string]string, target string) bool {
+	mine, ok := targets[target]
+	if !ok {
+		return false
+	}
+	v, ok := ParseVersion(mine)
+	if !ok {
+		return false
+	}
+	for _, other := range targets {
+		if o, ok := ParseVersion(other); ok && o.Compare(v) > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // LoadOverview reads the matrix, upstream state and open drifts of a workspace.

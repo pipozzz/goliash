@@ -44,7 +44,7 @@ import (
 func main() {
 	server := flag.String("server", os.Getenv("GOLIASH_SERVER_URL"), "Goliash server URL (env GOLIASH_SERVER_URL)")
 	dataDir := flag.String("data-dir", envOr("GOLIASH_DATA_DIR", "data"), "directory for buffered snapshots (env GOLIASH_DATA_DIR)")
-	debug := flag.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
+	debug := flag.Bool("debug", debugOn(os.Getenv("GOLIASH_DEBUG")), "debug logging (env GOLIASH_DEBUG)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	logFormat := flag.String("log-format", envOr("GOLIASH_LOG_FORMAT", "text"), "text or json (env GOLIASH_LOG_FORMAT)")
 	flag.Parse()
@@ -359,4 +359,13 @@ func (p *platforms) watch(ctx context.Context, every time.Duration, again func()
 			return
 		}
 	}
+}
+
+// debugOn reads GOLIASH_DEBUG: set, it turns debug logging on, but for the values that say off.
+func debugOn(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "false", "off", "no":
+		return false
+	}
+	return true
 }
