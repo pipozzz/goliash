@@ -396,7 +396,8 @@ func (s *Server) evidenceSummary(r *http.Request, p auth.Principal, prodID strin
 	}
 	seen := map[string]bool{}
 	for _, in := range active {
-		if in.EnvironmentID != prodID {
+		// Images only: a server's OS and packages, or a .zip function's code, have nothing to sign or attest.
+		if in.EnvironmentID != prodID || in.CodeDigest != "" || in.WorkloadKind == "host_os" || in.WorkloadKind == "host_package" {
 			continue
 		}
 		repo := versions.ParseImage(in.Image).Repo()
