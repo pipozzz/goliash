@@ -203,3 +203,32 @@ func TestDriftsOnTarget(t *testing.T) {
 		t.Errorf("target b: %d drifts", len(got))
 	}
 }
+
+// A service split by application: each application's vulnerabilities are its own line's.
+func TestSplitAppLines(t *testing.T) {
+	split := map[string]bool{"s": true}
+	if lineApp(split, store.Instance{ServiceID: "s", App: "shop"}) != "shop" || lineApp(split, store.Instance{ServiceID: "t", App: "shop"}) != "" {
+		t.Fatal("lineApp")
+	}
+	active := []store.Instance{
+		{ServiceID: "s", EnvironmentID: "prod", App: "shop", IsMain: true},
+		{ServiceID: "s", EnvironmentID: "prod", App: "billing", IsMain: true},
+		{ServiceID: "t", EnvironmentID: "prod", App: "shop", IsMain: true},
+	}
+	if got := SplitServices(active); !got["s"] || got["t"] {
+		t.Fatalf("split %v", got)
+	}
+	r := VulnReport{Findings: []VulnFinding{{
+		Key: "CVE-2026-1234", Exploited: &store.Exploited{CVE: "CVE-2026-1234", DateAdded: "2026-01-01"},
+		Affected: []Affected{{ServiceID: "s", App: "shop", EnvironmentID: "prod"}},
+	}}}
+	us := WithVulnerabilities([]Update{
+		{Service: store.Service{ID: "s"}, App: "billing", Environment: store.Environment{ID: "prod"}},
+		{Service: store.Service{ID: "s"}, App: "shop", Environment: store.Environment{ID: "prod"}},
+	}, r)
+	for _, u := range us {
+		if (len(u.Exploited) > 0) != (u.App == "shop") {
+			t.Errorf("%s: exploited %v", u.App, u.Exploited)
+		}
+	}
+}

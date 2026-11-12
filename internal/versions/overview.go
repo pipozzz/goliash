@@ -237,6 +237,35 @@ func loadOverview(ctx context.Context, st *store.Store, sc store.Scope) (Overvie
 	return o, nil
 }
 
+// SplitServices are the services split by application, by the matrix's rule from what runs: two applications run
+// the service in one environment. Each application's upgrades, vulnerabilities and exposure are then its own line.
+func SplitServices(active []store.Instance) map[string]bool {
+	apps := map[[2]string]map[string]bool{}
+	out := map[string]bool{}
+	for _, in := range active {
+		if !in.IsMain || in.ServiceID == "" || !in.RemovedAt.IsZero() {
+			continue
+		}
+		k := [2]string{in.ServiceID, in.EnvironmentID}
+		if apps[k] == nil {
+			apps[k] = map[string]bool{}
+		}
+		apps[k][in.App] = true
+		if len(apps[k]) > 1 {
+			out[in.ServiceID] = true
+		}
+	}
+	return out
+}
+
+// lineApp is the application an instance's line of a service is about: its own when the service is split, else none.
+func lineApp(split map[string]bool, in store.Instance) string {
+	if split[in.ServiceID] {
+		return in.App
+	}
+	return ""
+}
+
 func splitApps(m Matrix) map[string]bool {
 	out := map[string]bool{}
 	for _, r := range m.Rows {
