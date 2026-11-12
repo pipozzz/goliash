@@ -295,6 +295,8 @@ func TestChooseFix(t *testing.T) {
 		{"3.0.11-1~deb12u2", []string{"3.0.15-1~deb12u1"}, "3.0.15-1~deb12u1"},
 		{"weird", []string{"1.0", "2.0"}, "2.0"},
 		{"1.0", nil, ""},
+		{"2.14.1", []string{"2.12.2"}, ""},                                  // only an older branch's fix: no downgrade
+		{"2.35-0ubuntu3.6", []string{"2.35-0ubuntu3.8"}, "2.35-0ubuntu3.8"}, // equal as read: kept
 	} {
 		if got := chooseFix(c.running, c.fixes); got != c.want {
 			t.Errorf("%s %v: %q, want %q", c.running, c.fixes, got, c.want)

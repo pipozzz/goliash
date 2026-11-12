@@ -445,7 +445,7 @@ func serve(ctx context.Context, args []string) error {
 	keepSnapshots := fs.Int("keep-snapshots", 20, "processed snapshots kept per target; older ones are deleted hourly")
 	publicURL := fs.String("public-url", envOr("GOLIASH_PUBLIC_URL", "http://localhost:8080"),
 		"URL people use to reach this server, for sign-in links and cookies (env GOLIASH_PUBLIC_URL)")
-	debug := fs.Bool("debug", os.Getenv("GOLIASH_DEBUG") != "", "debug logging (env GOLIASH_DEBUG)")
+	debug := fs.Bool("debug", debugOn(os.Getenv("GOLIASH_DEBUG")), "debug logging (env GOLIASH_DEBUG)")
 	logFormat := fs.String("log-format", envOr("GOLIASH_LOG_FORMAT", "text"), "text or json (env GOLIASH_LOG_FORMAT)")
 	logLevel := fs.String("log-level", envOr("GOLIASH_LOG_LEVEL", "info"), "debug, info, warn or error (env GOLIASH_LOG_LEVEL)")
 	drain := fs.Duration("drain", envDuration("GOLIASH_DRAIN", 0),
@@ -1050,7 +1050,7 @@ func targetCreate(ctx context.Context, args []string, out io.Writer) error {
 	fs, dsn := newFlags("target create")
 	agentName := fs.String("agent", "", "agent that collects the target (empty: the server collects it)")
 	envName := fs.String("env", "", "environment the target belongs to")
-	platform := fs.String("platform", "", "kubernetes, ecs, nomad, swarm, docker or compose")
+	platform := fs.String("platform", "", "kubernetes, ecs, nomad, swarm, docker, compose, host, lambda, rds, elasticache, eks, opensearch, msk or manual")
 	name := fs.String("name", "", "target name, e.g. prod-eu-1")
 	settings := fs.String("settings", "", `platform settings as JSON, e.g. {"ecs":{"region":"eu-west-1"}}`)
 	poll := fs.Int("poll", 300, "full snapshot interval in seconds")
@@ -1059,6 +1059,9 @@ func targetCreate(ctx context.Context, args []string, out io.Writer) error {
 	}
 	if *envName == "" || *platform == "" || *name == "" {
 		return errors.New("-env, -platform and -name are required")
+	}
+	if !knownPlatform(*platform) {
+		return fmt.Errorf("unknown platform %q: one of %s", *platform, strings.Join(platformNames(), ", "))
 	}
 	raw := json.RawMessage(*settings)
 	if *settings == "" {
@@ -3005,3 +3008,25 @@ func gitOpsRouter() gitops.Router {
 	}
 	return r
 }
+
+// debugOn reads GOLIASH_DEBUG: set, it turns debug logging on, but for the values that say off.
+func debugOn(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "false", "off", "no":
+		return false
+	}
+	return true
+}
+
+// platformNames are the platforms a target can be on, as the agent protocol names them.
+func platformNames() []string {
+	return []string{
+		string(agentproto.Kubernetes), string(agentproto.Ecs), string(agentproto.Nomad), string(agentproto.Swarm),
+		string(agentproto.Docker), string(agentproto.Compose), string(agentproto.Host), string(agentproto.Lambda),
+		string(agentproto.Rds), string(agentproto.Elasticache), string(agentproto.Eks), string(agentproto.Opensearch),
+		string(agentproto.Msk), string(agentproto.Manual),
+	}
+}
+
+// knownPlatform reports whether a target can be on platform: a typo would make one nothing ever collects.
+func knownPlatform(platform string) bool { return slices.Contains(platformNames(), platform) }

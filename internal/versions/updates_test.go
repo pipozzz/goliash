@@ -163,3 +163,43 @@ func TestUpdatesEOLOnNewest(t *testing.T) {
 		t.Fatalf("older running %+v", us)
 	}
 }
+
+// The deadline of an exploited vulnerability runs from when it was first known to run exploited there: the earliest
+// of the line's images, whatever order they come in.
+func TestExploitedSinceEarliestImage(t *testing.T) {
+	jan, mar, oct := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "2026-03-01", time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	r := VulnReport{Findings: []VulnFinding{{
+		Key: "CVE-2026-1234", Exploited: &store.Exploited{CVE: "CVE-2026-1234", DateAdded: mar},
+		Affected: []Affected{
+			{ServiceID: "s", EnvironmentID: "e", Image: "b", Since: oct},
+			{ServiceID: "s", EnvironmentID: "e", Image: "a", Since: jan},
+		},
+	}}}
+	us := WithVulnerabilities([]Update{{Service: store.Service{ID: "s"}, Environment: store.Environment{ID: "e"}}}, r)
+	if want := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC); !us[0].ExploitedSince.Equal(want) || len(us[0].Exploited) != 1 {
+		t.Fatalf("exploited %v since %v, want once since %v", us[0].Exploited, us[0].ExploitedSince, want)
+	}
+}
+
+// A cycle endoflife.date marks ended with no date is past its end of life all the same.
+func TestEOLWithoutDate(t *testing.T) {
+	u := Update{EOL: EOLEnded, EOLPassed: true}
+	if urgency(u) != UrgencyEOLPassed || EOLSince(EOLEnded) != "end of life" || EOLSince("2026-04-30") != "end of life since 2026-04-30" {
+		t.Fatalf("urgency %d, %q", urgency(u), EOLSince(EOLEnded))
+	}
+}
+
+// A drift whose older version runs on one target of the environment is that target's, not the others'.
+func TestDriftsOnTarget(t *testing.T) {
+	o := Overview{Drifts: map[string][]store.Drift{"s|prod": {
+		{Kind: "upstream", Detail: []byte(`{"running":"1.3","other":"1.4","on":["b"]}`)},
+		{Kind: "inconsistent", Detail: []byte(`{"targets":{"a":"1.4","b":"1.3"}}`)},
+		{Kind: "env", Detail: []byte(`{"running":"1.3","other":"1.4"}`)},
+	}}}
+	if got := o.DriftsOn("s", "", "prod", "a"); len(got) != 1 || got[0].Kind != "env" {
+		t.Errorf("target a: %+v", got)
+	}
+	if got := o.DriftsOn("s", "", "prod", "b"); len(got) != 3 {
+		t.Errorf("target b: %d drifts", len(got))
+	}
+}

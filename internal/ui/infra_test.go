@@ -51,3 +51,26 @@ func TestInfrastructureMap(t *testing.T) {
 		t.Error("outside a cloud listed first")
 	}
 }
+
+// Every Ubuntu server has the workload os/ubuntu: each counts its own.
+func TestInfrastructureSameWorkloadOnTwoServers(t *testing.T) {
+	e := newUIEnv(t)
+	ctx := t.Context()
+	sc := e.ws.Scope()
+	for _, name := range []string{"mail-01", "mail-02"} {
+		h, err := e.st.CreateTarget(ctx, store.Target{Scope: sc, EnvironmentID: e.prod.ID, Platform: "host", Name: name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: sc, SnapshotID: store.NewID(), TargetID: h.ID, At: time.Now(), Upsert: []store.Instance{{
+			TargetID: h.ID, EnvironmentID: e.prod.ID, WorkloadID: "os/ubuntu", WorkloadKind: "host_os", WorkloadName: "ubuntu",
+			ContainerName: "ubuntu", Image: "docker.io/library/ubuntu:24.04", Tag: "24.04", Running: 1, IsMain: true,
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, page := get(t, e.as(store.RoleViewer), e.srv.URL+"/infrastructure", nil)
+	if strings.Count(page, "nothing running") != 0 {
+		t.Error("a server whose OS another server shares counts nothing running")
+	}
+}

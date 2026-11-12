@@ -1721,9 +1721,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var94 string
-				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs("end of life since " + it.EOL)
+				templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(eolSince(it.EOL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 312, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 312, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 				if templ_7745c5c3_Err != nil {

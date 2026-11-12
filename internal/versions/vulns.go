@@ -1214,7 +1214,8 @@ func purlVersion(p string) string {
 }
 
 // chooseFix picks the version to move to among those that fix an advisory: the lowest above the running
-// one (log4j 2.14.1 -> 2.15.0, not the 2.12.2 of an older branch), else the last listed.
+// one (log4j 2.14.1 -> 2.15.0, not the 2.12.2 of an older branch); none when every fix is below it (2.12.2 alone
+// for 2.14.1 would be a downgrade); the last listed when the versions do not compare.
 func chooseFix(running string, fixes []string) string {
 	if len(fixes) == 0 {
 		return ""
@@ -1223,21 +1224,28 @@ func chooseFix(running string, fixes []string) string {
 	if !ok {
 		return fixes[len(fixes)-1]
 	}
-	best, found := "", false
+	best, found, unsure := "", false, false
 	var low Version
 	for _, f := range fixes {
 		v, ok := ParseVersion(f)
-		if !ok || v.Compare(cur) <= 0 {
+		if !ok || v.Compare(cur) == 0 {
+			unsure = true // unreadable, or equal as read (2.35-0ubuntu3.6 and 2.35-0ubuntu3.8): not known to be lower
+			continue
+		}
+		if v.Compare(cur) < 0 {
 			continue
 		}
 		if !found || v.Compare(low) < 0 {
 			best, low, found = f, v, true
 		}
 	}
-	if !found {
+	switch {
+	case found:
+		return best
+	case unsure:
 		return fixes[len(fixes)-1]
 	}
-	return best
+	return "" // every fix is of an older branch: none to move to, not a downgrade to recommend
 }
 
 // AlertVulnerabilities announces, once per service and environment, the vulnerabilities exploited in the

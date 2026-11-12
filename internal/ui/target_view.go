@@ -207,7 +207,7 @@ func (s *Server) targetView(w http.ResponseWriter, r *http.Request, p auth.Princ
 		if svc, ok := o.Services[in.ServiceID]; ok && in.ServiceID != "" {
 			c.Service, c.ServiceURL, c.Owner = svc.Name, serviceURL(svc.Name), svc.Owner
 			services[svc.ID] = true
-			for _, d := range o.DriftsIn(svc.ID, in.App, t.EnvironmentID) {
+			for _, d := range o.DriftsOn(svc.ID, in.App, t.EnvironmentID, t.Name) {
 				c.Drifts = append(c.Drifts, driftBadge(d))
 			}
 			if up, ok := o.Upstreams[svc.ID]; ok && up.HasLatest {

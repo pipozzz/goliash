@@ -335,6 +335,19 @@ func CycleFor(tag string, cycles []EOLCycle) (EOLCycle, bool) {
 	return best, bestParts > 0
 }
 
+// EOLEnded stands for the end-of-life date of a cycle that ended on a date nobody published: it is past, and still
+// an end of life for the urgency, deadlines and posture that read the date.
+const EOLEnded = "ended"
+
+// EOLSince says since when a cycle is past its end of life: "end of life since 2026-04-30", or "end of life" when
+// no date is known.
+func EOLSince(eol string) string {
+	if eol == EOLEnded || eol == "" {
+		return "end of life"
+	}
+	return "end of life since " + eol
+}
+
 // EOLDrifts lists cells whose running release cycle has reached its end of life, or
 // will within eolWarning.
 func EOLDrifts(m Matrix, cycles map[string][]EOLCycle, now time.Time) []WantedDrift {
@@ -360,7 +373,7 @@ func EOLDrifts(m Matrix, cycles map[string][]EOLCycle, now time.Time) []WantedDr
 				if !ended && !soon {
 					continue
 				}
-				d := DriftDetail{Running: running, Other: c.Name, On: cell.On(oldest)}
+				d := DriftDetail{Running: running, Other: c.Name, On: cell.On(oldest), EOL: EOLEnded}
 				if !c.EOLFrom.IsZero() {
 					d.EOL = c.EOLFrom.Format("2006-01-02")
 				}

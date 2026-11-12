@@ -422,3 +422,14 @@ func TestChannelCreateTracker(t *testing.T) {
 		t.Fatalf("channel %s %v", ch.Type, cfg)
 	}
 }
+
+func TestDebugOnAndPlatforms(t *testing.T) {
+	for v, want := range map[string]bool{"": false, "false": false, "0": false, "off": false, "1": true, "true": true, "yes": true} {
+		if debugOn(v) != want {
+			t.Errorf("GOLIASH_DEBUG=%q: %v", v, !want)
+		}
+	}
+	if !knownPlatform("host") || !knownPlatform("rds") || knownPlatform("kubernets") {
+		t.Error("platforms")
+	}
+}

@@ -242,13 +242,15 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 		seen := map[key]bool{}
 		for _, a := range f.Affected {
 			k := key{a.ServiceID, a.EnvironmentID}
-			if seen[k] {
-				continue
-			}
+			first := !seen[k]
 			seen[k] = true
 			switch {
 			case f.Exploited != nil:
-				exploited[k] = append(exploited[k], f.Key)
+				// Counted once per line; known exploited there since the earliest of its images (the deadline runs
+				// from it), whatever order the images come in.
+				if first {
+					exploited[k] = append(exploited[k], f.Key)
+				}
 				known := a.Since
 				if added, err := time.Parse(time.DateOnly, f.Exploited.DateAdded); err == nil && added.After(known) {
 					known = added
@@ -256,7 +258,7 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 				if s, ok := since[k]; !known.IsZero() && (!ok || known.Before(s)) {
 					since[k] = known
 				}
-			case strings.EqualFold(f.Severity, "CRITICAL"):
+			case strings.EqualFold(f.Severity, "CRITICAL") && first:
 				critical[k]++
 			}
 		}
