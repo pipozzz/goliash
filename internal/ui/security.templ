@@ -258,7 +258,7 @@ templ SecurityPage(v SecurityView) {
 						{ itoa(v.Vulns.WithSBOM) } of { itoa(v.Vulns.Images) } images with an SBOM;
 						{ itoa(v.Vulns.Fixable) } with a fixed version out.
 						if v.Vulns.FromPackages > 0 {
-							<span class="muted">{ plural(v.Vulns.FromPackages, "image has", "images have") + " no SBOM: Goliash read its system packages (dpkg, apk) from the image, not its application's dependencies." }</span>
+							<span class="muted">{ plural(v.Vulns.FromPackages, "image has", "images have") + " no SBOM: Goliash read its system packages (dpkg, apk, RPM) from the image, not its application's dependencies." }</span>
 						}
 					</p>
 					if v.Vulns.Exploited > 0 {

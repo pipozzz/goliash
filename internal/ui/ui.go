@@ -591,7 +591,7 @@ func (s *Server) firstSteps(ctx context.Context, sc store.Scope, g MatrixGrid) (
 		{Title: "Connect a cluster or host", Text: "Kubernetes, Docker, Swarm, Nomad, ECS, Lambda, a Linux server or Compose files: pick one and get a single command: the agent it starts registers itself and adds what it finds.", Href: "/connect", Action: "Connect", Done: g.Targets > 0 && len(envs) > 0},
 		{Title: "Get the first report", Text: "Start the agent with the command Connect shows. The matrix fills in within a minute of its first report.", Href: "/agents", Action: "Open agents", Done: data},
 		{Title: "Map workloads to services", Text: "Label workloads with goliash.service, map their images once in the inbox, or let Goliash map them automatically; new workloads follow.", Href: "/inbox#auto-map", Action: "Open the inbox", Done: len(g.Rows) > 0},
-		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: len(chans) > 0, Optional: true},
+		{Title: "Get notified", Text: "Send new releases and drift to Slack, Discord, Telegram, ntfy, Grafana, a webhook or e-mail.", Href: "/notifications", Action: "Add a channel", Done: slices.ContainsFunc(chans, sendsOut), Optional: true},
 		{Title: "Invite your team", Text: "Viewers read, members map services and acknowledge, admins configure.", Href: "/settings", Action: "Invite people", Done: users > 1, Optional: true},
 	}
 	// The first step not done, required ones first, is the one to take now.
@@ -3796,3 +3796,6 @@ func keepFields(r *http.Request, old, cfg map[string]any, keys ...string) {
 		}
 	}
 }
+
+// sendsOut reports whether a channel reaches people outside Goliash: the bell every workspace starts with does not.
+func sendsOut(c store.Channel) bool { return c.Type != "inapp" }
