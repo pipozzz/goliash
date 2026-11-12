@@ -922,6 +922,12 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 		Due          string        `json:"due,omitempty"`
 		DueFor       string        `json:"due_for,omitempty"`
 		DaysLeft     *int          `json:"days_left,omitempty"`
+		Servers      []string      `json:"servers,omitempty"`
+		HostFixes    []apiHostFix  `json:"server_packages,omitempty"`
+	}
+	targetName := map[string]string{}
+	for _, t := range o.Targets {
+		targetName[t.ID] = t.Name
 	}
 	out := []apiUpdate{}
 	now := time.Now()
@@ -938,6 +944,7 @@ func (h *PublicHandler) updates(w http.ResponseWriter, r *http.Request, p auth.P
 			EOL: u.EOL, Urgency: versions.UrgencyLabels[u.Urgency], Since: u.Since, Acknowledged: u.Acked,
 			Exploited: u.Exploited, Exposed: u.Exposed, Maintenance: u.Maintenance, Critical: u.Critical, Vulns: toAPIVulnDelta(u.Vulns), SecurityFix: u.SecurityFix,
 			Breaking: u.Breaking, Due: due, DueFor: u.DueFor, DaysLeft: left, Extended: toAPIExtended(u.ExtendedSupport), Path: u.Path, Risk: u.Risk, RiskReasons: u.RiskReasons, Trouble: u.Trouble, Only: u.MaintenanceOnly,
+			Servers: names(u.Servers, targetName), HostFixes: toAPIHostFixes(u.HostFixes),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -1767,5 +1774,37 @@ func toAPIExtended(e *versions.ExtendedSupport) *apiExtended {
 		m := math.Round(e.Monthly)
 		out.MonthlyUSD = &m
 	}
+	return out
+}
+
+// apiHostFix is an exploited vulnerability in a package of a server, and what fixes it.
+type apiHostFix struct {
+	CVE      string `json:"cve"`
+	Server   string `json:"server"`
+	Package  string `json:"package"`
+	Fix      string `json:"fix,omitempty"`
+	FixNewer bool   `json:"fixed_in_newer,omitempty"`
+}
+
+func toAPIHostFixes(list []versions.HostFix) []apiHostFix {
+	out := make([]apiHostFix, 0, len(list))
+	for _, h := range list {
+		out = append(out, apiHostFix{CVE: h.CVE, Server: h.Server, Package: h.Package, Fix: h.Fix, FixNewer: h.FixNewer})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// names are the names of the targets, by ID, in order.
+func names(ids []string, name map[string]string) []string {
+	var out []string
+	for _, id := range ids {
+		if n := name[id]; n != "" {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
 	return out
 }
