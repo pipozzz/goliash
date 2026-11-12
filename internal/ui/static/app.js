@@ -21,13 +21,24 @@
     live.classList.toggle("off", !online);
     live.textContent = online ? "Live" : online === null ? "Connecting…" : "Reconnecting…";
   }
+  // A browser retries a dropped stream by itself, but gives up for good (readyState CLOSED) once a retry is refused:
+  // a server restarting for an upgrade. Then the page connects again by itself, waiting longer each time.
+  let wait = 5000;
   function connect() {
     if (!window.EventSource) return;
     const es = new EventSource("/ui/stream");
     es.addEventListener("changed", function () { htmx.trigger(document.body, "goliash:changed"); });
     es.addEventListener("version", function (e) { if (e.data && e.data !== pageVersion()) upgraded(); });
-    es.onopen = function () { online = true; showLive(); };
-    es.onerror = function () { online = false; showLive(); };
+    es.onopen = function () { online = true; wait = 5000; showLive(); };
+    es.onerror = function () {
+      online = false;
+      showLive();
+      if (es.readyState === EventSource.CLOSED) {
+        es.close();
+        setTimeout(connect, wait);
+        wait = Math.min(wait * 2, 60000);
+      }
+    };
   }
   // After an upgrade the page still runs the old release's code. In the background (another tab, the installed
   // app out of sight) it reloads when it is looked at again; in front of someone, it offers to, without taking
