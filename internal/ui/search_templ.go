@@ -357,9 +357,9 @@ func SearchPage(v SearchView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var20 templ.SafeURL
-							templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(h.URL))
+							templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(h.URL))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `search.templ`, Line: 68, Col: 50}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `search.templ`, Line: 68, Col: 45}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 							if templ_7745c5c3_Err != nil {
@@ -372,7 +372,7 @@ func SearchPage(v SearchView) templ.Component {
 							var templ_7745c5c3_Var21 string
 							templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(h.Label)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `search.templ`, Line: 68, Col: 101}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `search.templ`, Line: 68, Col: 96}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 							if templ_7745c5c3_Err != nil {

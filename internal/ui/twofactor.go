@@ -196,10 +196,7 @@ func (s *Server) resetTwoFactor(w http.ResponseWriter, r *http.Request, p auth.P
 // strongSession reports whether a session meets a two-factor requirement: the person
 // has an app code (asked at every sign-in), signed in with single sign-on, or with a
 // passkey, which proves the device and its unlock.
-func strongSession(p auth.Principal) bool {
-	return p.User.TOTPEnabled || strings.HasPrefix(p.Method, "oidc") ||
-		strings.HasPrefix(p.Method, "passkey") || strings.HasSuffix(p.Method, "+passkey")
-}
+func strongSession(p auth.Principal) bool { return p.StrongSession() }
 
 // needsTwoFactor reports whether a session must set up two-factor sign-in before
 // anything but its account page: the organization requires it, the person has none,

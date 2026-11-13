@@ -581,7 +581,7 @@ templ envNotes(e ServiceEnv) {
 				<span class="badge warn" title={ maintenanceTitle(e.Maintenance) }>{ maintenanceLabel(e.Maintenance) }</span>
 			}
 			for _, t := range e.Tickets {
-				<a class="badge neutral" href={ templ.SafeURL(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>
+				<a class="badge neutral" href={ safeLink(t.URL) } target="_blank" rel="noopener" title="The ticket filed for its upgrade here">{ t.Key }</a>
 			}
 		</div>
 		if len(e.Exposed) > 2 {
@@ -1045,7 +1045,7 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 							}
 							<td data-label="Application">
 								if a.AppURL != "" {
-									<a href={ templ.SafeURL(a.AppURL) } rel="noopener" target="_blank"><strong>{ a.App }</strong></a>
+									<a href={ safeLink(a.AppURL) } rel="noopener" target="_blank"><strong>{ a.App }</strong></a>
 								} else {
 									<strong>{ a.App }</strong>
 								}
@@ -1054,7 +1054,7 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 							<td data-label="Where">{ a.Environment }<div class="targets">{ a.Target }</div></td>
 							<td data-label="From">
 								if a.RepoURL != "" {
-									<a href={ templ.SafeURL(a.RepoURL) } rel="noopener" target="_blank" class="mono">{ a.Repo }</a>
+									<a href={ safeLink(a.RepoURL) } rel="noopener" target="_blank" class="mono">{ a.Repo }</a>
 								} else {
 									<span class="mono">{ orDash(a.Repo) }</span>
 								}
@@ -1067,12 +1067,12 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 							</td>
 							<td data-label="Synced" class="mono">
 								if a.CommitURL != "" {
-									<a href={ templ.SafeURL(a.CommitURL) } rel="noopener" target="_blank">{ a.Revision }</a>
+									<a href={ safeLink(a.CommitURL) } rel="noopener" target="_blank">{ a.Revision }</a>
 								} else {
 									{ orDash(a.Revision) }
 								}
 								if a.CompareURL != "" {
-									<div class="targets"><a href={ templ.SafeURL(a.CompareURL) } rel="noopener" target="_blank" title="What changed in Git since the commit synced before">changes</a> @timeAgo(a.RevisionAt)</div>
+									<div class="targets"><a href={ safeLink(a.CompareURL) } rel="noopener" target="_blank" title="What changed in Git since the commit synced before">changes</a> @timeAgo(a.RevisionAt)</div>
 								}
 							</td>
 							<td data-label="State">
@@ -1099,12 +1099,12 @@ templ gitOpsPanel(apps []GitOpsView, canEdit, all bool) {
 									<div class="git-pins" title={ a.Path + " on " + a.TargetRevision + " pins " + a.GitPins + "; " + a.Tag + " runs: the change has not been synced" }>Git pins <span class="mono">{ a.GitPins }</span>, runs <span class="mono">{ a.Tag }</span></div>
 								}
 								if a.PRURL != "" {
-									<a class="gitops-pr" href={ templ.SafeURL(a.PRURL) } target="_blank" rel="noopener" title={ othersTitle(a.PRTitle) }>{ pullLabel(a.To, a.PRState) }</a>@prChecks(a.PRChecks)
+									<a class="gitops-pr" href={ safeLink(a.PRURL) } target="_blank" rel="noopener" title={ othersTitle(a.PRTitle) }>{ pullLabel(a.To, a.PRState) }</a>@prChecks(a.PRChecks)
 								} else if canEdit && a.To != "" {
 									<a class="button secondary gitops-pr" href={ templ.URL("/services/" + url.PathEscape(a.Service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.To, gitOpsReturn(all))) } title={ "See the pull request that pins " + a.To + " in " + a.Path + " before opening it" }>Open PR → { a.To }</a>
 								}
 								if a.RollbackPRURL != "" {
-									<a class="gitops-pr" href={ templ.SafeURL(a.RollbackPRURL) } target="_blank" rel="noopener">Rollback PR → { a.Rollback }</a>
+									<a class="gitops-pr" href={ safeLink(a.RollbackPRURL) } target="_blank" rel="noopener">Rollback PR → { a.Rollback }</a>
 								} else if canEdit && a.Rollback != "" {
 									<a class="button secondary gitops-pr rollback" href={ templ.URL("/services/" + url.PathEscape(a.Service) + "/gitops/preview?" + previewQuery(a.TargetID, a.WorkloadID, a.Rollback, gitOpsReturn(all))) } title={ "Why: " + a.RollbackWhy + ". See the pull request that pins " + a.Rollback + " again before opening it." }>Rollback PR → { a.Rollback }</a>
 								}

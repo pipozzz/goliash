@@ -2197,9 +2197,9 @@ func servicePanel(v TilesView, c TileCell) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var120 templ.SafeURL
-					templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pr.URL))
+					templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(pr.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tiles.templ`, Line: 346, Col: 55}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tiles.templ`, Line: 346, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 					if templ_7745c5c3_Err != nil {
@@ -2212,7 +2212,7 @@ func servicePanel(v TilesView, c TileCell) templ.Component {
 					var templ_7745c5c3_Var121 string
 					templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.ResolveAttributeValue(pr.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tiles.templ`, Line: 346, Col: 105}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tiles.templ`, Line: 346, Col: 100}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var121)
 					if templ_7745c5c3_Err != nil {
@@ -2225,7 +2225,7 @@ func servicePanel(v TilesView, c TileCell) templ.Component {
 					var templ_7745c5c3_Var122 string
 					templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(pr.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tiles.templ`, Line: 346, Col: 118}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `tiles.templ`, Line: 346, Col: 113}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 					if templ_7745c5c3_Err != nil {

@@ -893,9 +893,9 @@ func SecurityPage(v SecurityView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var55 templ.SafeURL
-							templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pr.URL))
+							templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(pr.URL))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 161, Col: 66}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 161, Col: 61}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 							if templ_7745c5c3_Err != nil {
@@ -908,7 +908,7 @@ func SecurityPage(v SecurityView) templ.Component {
 							var templ_7745c5c3_Var56 string
 							templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(othersTitle(pr.Title))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 161, Col: 129}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 161, Col: 124}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 							if templ_7745c5c3_Err != nil {
@@ -921,7 +921,7 @@ func SecurityPage(v SecurityView) templ.Component {
 							var templ_7745c5c3_Var57 string
 							templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(pullLabel(ex.Target, pr.State))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 161, Col: 164}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `security.templ`, Line: 161, Col: 159}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 							if templ_7745c5c3_Err != nil {

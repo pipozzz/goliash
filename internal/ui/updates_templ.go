@@ -1509,9 +1509,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var82 templ.SafeURL
-			templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(it.Ticket.URL))
+			templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(it.Ticket.URL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 283, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 283, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 			if templ_7745c5c3_Err != nil {
@@ -1524,7 +1524,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 			var templ_7745c5c3_Var83 string
 			templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(it.Ticket.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 283, Col: 197}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 283, Col: 192}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 			if templ_7745c5c3_Err != nil {
@@ -1912,9 +1912,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var103 templ.SafeURL
-					templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pr.URL))
+					templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(pr.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 351, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 351, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
 					if templ_7745c5c3_Err != nil {
@@ -1927,7 +1927,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 					var templ_7745c5c3_Var104 string
 					templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.ResolveAttributeValue(othersTitle(pr.Title))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 351, Col: 120}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 351, Col: 115}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var104)
 					if templ_7745c5c3_Err != nil {
@@ -1940,7 +1940,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 					var templ_7745c5c3_Var105 string
 					templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(pullLabel(it.PRTarget, pr.State))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 351, Col: 157}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 351, Col: 152}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 					if templ_7745c5c3_Err != nil {
@@ -2035,9 +2035,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var109 templ.SafeURL
-					templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pr.URL))
+					templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(pr.URL))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 371, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 371, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 					if templ_7745c5c3_Err != nil {
@@ -2050,7 +2050,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 					var templ_7745c5c3_Var110 string
 					templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.ResolveAttributeValue(othersTitle(pr.Title))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 371, Col: 119}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 371, Col: 114}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var110)
 					if templ_7745c5c3_Err != nil {
@@ -2063,7 +2063,7 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 					var templ_7745c5c3_Var111 string
 					templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(pullLabel(it.PRTarget, pr.State))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 371, Col: 156}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 371, Col: 151}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 					if templ_7745c5c3_Err != nil {

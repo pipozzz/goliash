@@ -106,6 +106,13 @@ func (h *PublicHandler) with(role string, next principalHandler) http.Handler {
 			writeProblem(w, http.StatusForbidden, "Forbidden", "this needs the "+role+" role")
 			return
 		}
+		// A browser session held to two-factor sign-in, without it yet, reads no more here than in the pages.
+		if p.Via == "session" && !p.StrongSession() {
+			if required, err := h.store.RequireTwoFactor(r.Context(), p.User.OrgID); err == nil && required {
+				writeProblem(w, http.StatusForbidden, "Forbidden", "the organization requires two-factor sign-in: set it up under Your account")
+				return
+			}
+		}
 		next(w, r, p)
 	})
 }

@@ -65,7 +65,7 @@ templ SearchPage(v SearchView) {
 								}
 								<div class="search-hit">
 									if h.External {
-										<a class="u" href={ templ.SafeURL(h.URL) } target="_blank" rel="noopener"><strong>{ h.Label }</strong></a>
+										<a class="u" href={ safeLink(h.URL) } target="_blank" rel="noopener"><strong>{ h.Label }</strong></a>
 									} else {
 										<a class="u" href={ templ.URL(h.URL) }><strong>{ h.Label }</strong></a>
 									}
