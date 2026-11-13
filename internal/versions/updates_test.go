@@ -232,3 +232,28 @@ func TestSplitAppLines(t *testing.T) {
 		}
 	}
 }
+
+// A kernel vulnerability the kernel installed on the server, waiting for a reboot, fixes: reboot, not upgrade.
+func TestRebootFixesKernel(t *testing.T) {
+	active := []store.Instance{{TargetID: "srv", WorkloadKind: "host_os", Maintenance: []string{
+		"reboot required: kernel 6.14.0-1018-aws installed, 6.14.0-1015-aws runs",
+	}}}
+	us := []Update{{HostFixes: []HostFix{
+		{CVE: "CVE-1", ServerID: "srv", Package: "linux-modules-6.14.0-1015-aws 6.14.0-1015.15~24.04.1", Fix: "6.14.0-1018.18~24.04.1"},
+		{CVE: "CVE-2", ServerID: "srv", Package: "linux-modules-6.14.0-1015-aws 6.14.0-1015.15~24.04.1", Fix: "6.14.0-1020.20~24.04.1"},
+		{CVE: "CVE-3", ServerID: "srv", Package: "linux-image-6.14.0-1015-aws 6.14.0-1015.15~24.04.1", FixNewer: true},
+		{CVE: "CVE-4", ServerID: "srv", Package: "sudo 1.9.15p5-3ubuntu5", Fix: "1.9.15p5-3ubuntu5.24.04.1"},
+	}}}
+	got := withReboots(us, active)[0].HostFixes
+	want := []string{
+		"reboot: kernel 6.14.0-1018-aws is installed and fixes it", // the installed kernel is the fix
+		"upgrade to 6.14.0-1020.20~24.04.1",                        // the fix is newer than what is installed
+		"upgrade to a newer version",                               // which newer one fixes it is not known
+		"upgrade to 1.9.15p5-3ubuntu5.24.04.1",                     // not the kernel
+	}
+	for i, h := range got {
+		if h.Remedy() != want[i] {
+			t.Errorf("%s: %q, want %q", h.CVE, h.Remedy(), want[i])
+		}
+	}
+}
