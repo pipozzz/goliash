@@ -529,6 +529,7 @@ func serve(ctx context.Context, args []string) error {
 	checker.SetGitLab(versions.NewGitLab(os.Getenv("GOLIASH_GITLAB_URL"), os.Getenv("GOLIASH_GITLAB_TOKEN")))
 	// Owners from the CODEOWNERS of the repositories GitOps applications deploy from, read with the GitOps
 	// tokens; GOLIASH_CODEOWNERS=off leaves them out.
+	warnGitOpsScope(ctx, db, log)
 	if r := gitOpsRouter(); len(r) > 0 && os.Getenv("GOLIASH_CODEOWNERS") != "off" {
 		checker.SetCodeOwners(gitops.NewCodeOwners(r).Team)
 	}
@@ -3015,7 +3016,20 @@ func gitOpsRouter() gitops.Router {
 	if token, base := os.Getenv("GOLIASH_GITOPS_GITEA_TOKEN"), os.Getenv("GOLIASH_GITEA_URL"); token != "" && base != "" {
 		r = append(r, gitops.NewGitea(token, base))
 	}
-	return r
+	// The repositories the token may be used on, when not every one it reaches (several workspaces' agents report
+	// the repositories they deploy from).
+	return gitops.Restrict(r, splitList(os.Getenv("GOLIASH_GITOPS_REPOS")))
+}
+
+// warnGitOpsScope warns when a GitOps token serves several workspaces with no list of repositories it may be used
+// on: an admin of one workspace could have its agent report another's repository.
+func warnGitOpsScope(ctx context.Context, db *store.Store, log *slog.Logger) {
+	if len(gitOpsRouter()) == 0 || os.Getenv("GOLIASH_GITOPS_REPOS") != "" {
+		return
+	}
+	if ws, err := db.ListWorkspaces(ctx); err == nil && len(ws) > 1 {
+		log.Warn("a GitOps token serves several workspaces: set GOLIASH_GITOPS_REPOS to the repositories it may open pull requests in")
+	}
 }
 
 // debugOn reads GOLIASH_DEBUG: set, it turns debug logging on, but for the values that say off.
