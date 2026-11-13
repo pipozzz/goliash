@@ -49,7 +49,15 @@ jobs:
           echo "$GITHUB_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
           for chart in goliash goliash-agent; do
             helm package "deploy/helm/$chart" --version "$version" --app-version "$version" -d charts
-            digest=$(helm push "charts/$chart-$version.tgz" oci://ghcr.io/pipozzz/charts 2>&1 | tee /dev/stderr | awk '/^Digest:/{print $2}')
+            # ghcr.io now and then answers a push with 'failed to perform "Tag" on destination: … not found':
+            # the blob it just took is not visible yet. Pushing again a few seconds later goes through.
+            digest=""
+            for attempt in 1 2 3 4; do
+              digest=$(helm push "charts/$chart-$version.tgz" oci://ghcr.io/pipozzz/charts 2>&1 | tee /dev/stderr | awk '/^Digest:/{print $2}')
+              test -n "$digest" && break
+              echo "push of $chart failed (attempt $attempt); trying again" >&2
+              sleep $((attempt * 10))
+            done
             test -n "$digest"
             cosign sign --yes "ghcr.io/pipozzz/charts/$chart@$digest"
           done
