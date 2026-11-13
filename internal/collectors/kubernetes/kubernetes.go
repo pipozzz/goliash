@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -30,7 +31,7 @@ import (
 )
 
 // syncTimeout bounds how long Collect waits for the informer caches to fill.
-const syncTimeout = 2 * time.Minute
+var syncTimeout = 2 * time.Minute // a variable for tests
 
 // New is the collectors.Factory for Kubernetes targets. It uses in-cluster
 // credentials when running in a pod, otherwise the local kubeconfig (KUBECONFIG
@@ -89,6 +90,7 @@ type Collector struct {
 
 	mu        sync.Mutex
 	started   bool
+	waited    bool // a collect waited syncTimeout for the caches once: later ones do not wait again
 	synced    chan struct{}
 	watchErrs map[string]watchErr
 
@@ -134,6 +136,7 @@ func newCollector(cs k8sclient.Interface, s agentproto.KubernetesSettings) *Coll
 		watchErrs: map[string]watchErr{},
 	}
 	for name, inf := range c.informer {
+		_ = inf.SetTransform(slim)
 		_ = inf.SetWatchErrorHandler(func(_ *cache.Reflector, err error) {
 			c.mu.Lock()
 			c.watchErrs[name] = watchErr{msg: err.Error(), at: time.Now()}
@@ -235,14 +238,33 @@ func mapsEqual(a, b map[string]string) bool {
 // Collect returns every workload in the selected namespaces with the images its
 // running pods use. Before the first sync it waits for the caches.
 func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
-	timer := time.NewTimer(syncTimeout)
+	wait := syncTimeout
+	c.mu.Lock()
+	if c.waited {
+		wait = time.Millisecond // waited once already: what has synced is collected, not waited for every time
+	}
+	c.mu.Unlock()
+	timer := time.NewTimer(wait)
 	defer timer.Stop()
+	var unsynced []string
 	select {
 	case <-c.synced:
 	case <-ctx.Done():
 		return collectors.Result{}, ctx.Err()
 	case <-timer.C:
-		return collectors.Result{}, fmt.Errorf("kubernetes caches did not sync within %s: %s", syncTimeout, c.errorSummary())
+		c.mu.Lock()
+		c.waited = true
+		c.mu.Unlock()
+		// One resource the agent may not list (cronjobs or jobs under a narrower role) keeps the caches from
+		// syncing: what did sync is collected, the result marked incomplete. Without pods there is nothing to say.
+		for _, name := range sortedNames(c.informer) {
+			if !c.informer[name].HasSynced() {
+				unsynced = append(unsynced, name)
+			}
+		}
+		if slices.Contains(unsynced, "pods") || slices.Contains(unsynced, "deployments") {
+			return collectors.Result{}, fmt.Errorf("kubernetes caches did not sync within %s: %s", syncTimeout, c.errorSummary())
+		}
 	}
 
 	f := c.factory
@@ -318,10 +340,23 @@ func (c *Collector) Collect(ctx context.Context) (collectors.Result, error) {
 			}
 		}
 	}
-	if errs := c.currentErrors(); len(errs) > 0 {
+	errs := c.currentErrors()
+	for _, name := range unsynced {
+		errs = append(errs, "kubernetes "+name+" could not be listed (not synced): their workloads are left out")
+	}
+	if len(errs) > 0 {
 		res.Complete, res.Errors = false, errs
 	}
 	return res, nil
+}
+
+func sortedNames(m map[string]cache.SharedIndexInformer) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (c *Collector) selected(ns string) bool {
@@ -536,3 +571,19 @@ func Digest(imageID string) string {
 	}
 	return d
 }
+
+// slim drops from a cached object what Goliash never reads and what makes most of a large cluster's objects:
+// server-side apply's managed fields and kubectl's copy of the last applied manifest.
+func slim(obj any) (any, error) {
+	if m, ok := obj.(metav1.Object); ok {
+		m.SetManagedFields(nil)
+		if a := m.GetAnnotations(); a[lastApplied] != "" {
+			a = maps.Clone(a)
+			delete(a, lastApplied)
+			m.SetAnnotations(a)
+		}
+	}
+	return obj, nil
+}
+
+const lastApplied = "kubectl.kubernetes.io/last-applied-configuration"
