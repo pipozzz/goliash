@@ -55,6 +55,7 @@ flags only.
 | | `-upstream-interval` | `1h` | How often public registries are checked |
 | | `-keep-snapshots` | `20` | Processed snapshots kept per target |
 | | `-eol` | `true` | Report end-of-life release cycles from endoflife.date. `false` also turns off the OSV, CISA KEV, Debian tracker and NVD lookups, for a server without internet access |
+| `GOLIASH_PRIVATE_NETWORKS` | | `allow` | Addresses typed in (notification channels, ticket trackers, private registries, release notes pages) never reach loopback or link-local addresses, such as the cloud metadata service. Private networks are reachable by default; `deny` refuses them too, `all` lifts the guard (a proxy on localhost) |
 | `GOLIASH_BOOTSTRAP` | | | Bootstrap configuration (YAML or JSON), see below |
 | `GOLIASH_BOOTSTRAP_FILE` | | | File with the bootstrap configuration, instead of the variable |
 

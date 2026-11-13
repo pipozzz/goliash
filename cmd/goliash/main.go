@@ -43,6 +43,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/netguard"
+
 	_ "time/tzdata" // rules' time zones, also in images without /usr/share/zoneinfo
 
 	"github.com/pipozzz/goliash/internal/memlimit"
@@ -518,6 +520,7 @@ func serve(ctx context.Context, args []string) error {
 
 	svc := ingest.New(db, log)
 	reg := registry.New()
+	reg.HTTP = netguard.Client(30 * time.Second) // private registries' addresses are typed in
 	// A Go module proxy, for the version of a Go program built from a release's checkout: asked only about
 	// modules the Go vulnerability database lists, never a company's own. "off" leaves those programs out.
 	reg.GoProxy = registry.GoProxySetting(os.Getenv("GOLIASH_GOPROXY"))
@@ -2088,7 +2091,7 @@ func cliAudit(ctx context.Context, db *store.Store, ws store.Workspace, action s
 
 // senders are the notification senders: every channel type, web push included.
 func senders(db *store.Store, publicURL string) map[string]notifier.Sender {
-	hc := &http.Client{Timeout: 30 * time.Second}
+	hc := netguard.Client(30 * time.Second) // channel addresses are typed in: not the server itself, nor its cloud's metadata
 	out := notifier.DefaultSenders(hc, smtpFromEnv())
 	subject := pushSubject(publicURL)
 	if subject == "" {

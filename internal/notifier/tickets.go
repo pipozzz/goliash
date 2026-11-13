@@ -7,10 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/pipozzz/goliash/internal/netguard"
 
 	"github.com/pipozzz/goliash/internal/store"
 	"github.com/pipozzz/goliash/internal/tickets"
@@ -21,7 +22,7 @@ import (
 const ticketCheckEvery = 10 * time.Minute
 
 // ticketHTTP is the client trackers are called with.
-var ticketHTTP = &http.Client{Timeout: 30 * time.Second}
+var ticketHTTP = netguard.Client(30 * time.Second) // tracker addresses are typed in
 
 // ErrNoUpgrade is returned for a ticket asked for something with no upgrade to do: a ticket is filed per upgrade,
 // and closed once it is deployed.
