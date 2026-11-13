@@ -211,3 +211,15 @@ func TestUbuntuLTSOnly(t *testing.T) {
 		t.Fatalf("latest %+v", up.Latest)
 	}
 }
+
+// Node.js is offered its next even, long-term support major, in the same flavour as what runs.
+func TestNodeLTSOnly(t *testing.T) {
+	p, _, err := PolicyFor(store.Service{}, "docker.io/library/node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := []string{"20-alpine", "22-alpine", "23-alpine", "24-alpine", "25-alpine", "25", "24", "24-bookworm"}
+	if up := Latest(tags, "22-alpine", p); !up.HasLatest || up.Latest.Raw != "24-alpine" {
+		t.Fatalf("latest %+v", up.Latest)
+	}
+}

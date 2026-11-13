@@ -5,7 +5,7 @@
 # these images and has no version policy of its own:
 #
 #   image:              registry/repository, as Goliash normalizes it (docker.io/library/nginx)
-#   policy:             default version policy (track, pin_major, tag_filter, prerelease, drift_alert_after)
+#   policy:             default version policy (track, pin_major, tag_filter, major_filter, prerelease, drift_alert_after)
 #   github:             owner/repo whose GitHub releases give release dates and changelog links
 #   gitlab:             gitlab.com/group/project whose GitLab releases give release dates and links
 #   github_tag_prefix:  text before the version in release tags, e.g. "release-" (nginx); also for gitlab
@@ -91,6 +91,8 @@
   eol: nodejs
   github: nodejs/node
   github_tag_prefix: v
+  # Even majors become long-term support releases; odd ones live six months.
+  policy: { major_filter: '[02468]$' }
 - image: docker.io/library/php
   cpe: [php:php]
   eol: php

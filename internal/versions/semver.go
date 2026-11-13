@@ -155,10 +155,13 @@ func (v Version) JumpTo(to Version) Jump {
 
 // Policy is a service's version policy, stored as JSON on the service.
 type Policy struct {
-	TagFilter  string `json:"tag_filter,omitempty"` // regexp tags must match; default: same shape as the running tag
-	Track      Jump   `json:"track,omitempty"`      // smallest jump worth an alert; default patch
-	PinMajor   *int   `json:"pin_major,omitempty"`  // newer majors are information, not alerts
-	Prerelease bool   `json:"prerelease,omitempty"` // consider alpha, beta, rc
+	TagFilter string `json:"tag_filter,omitempty"` // regexp tags must match; default: same shape as the running tag
+	// MajorFilter is a regexp a release's major version must match, the tag's shape still compared: "[02468]$"
+	// keeps Node.js to its even, long-term support majors.
+	MajorFilter string `json:"major_filter,omitempty"`
+	Track       Jump   `json:"track,omitempty"`      // smallest jump worth an alert; default patch
+	PinMajor    *int   `json:"pin_major,omitempty"`  // newer majors are information, not alerts
+	Prerelease  bool   `json:"prerelease,omitempty"` // consider alpha, beta, rc
 	// AnyPrecision compares versions however many parts they have: a managed engine's offered versions (Valkey 8.1)
 	// with what runs (8.0.1, or a serverless cache's 8). Set for managed engines, never stored.
 	AnyPrecision bool `json:"-"`
@@ -339,6 +342,11 @@ func ParsePolicy(raw []byte) (Policy, error) {
 			return p, fmt.Errorf("tag_filter: %w", err)
 		}
 	}
+	if p.MajorFilter != "" {
+		if _, err := regexp.Compile(p.MajorFilter); err != nil {
+			return p, fmt.Errorf("major_filter: %w", err)
+		}
+	}
 	switch p.Track {
 	case JumpNone, JumpPatch, JumpMinor, JumpMajor:
 	default:
@@ -372,9 +380,12 @@ type Upstream struct {
 // sorted newest first.
 func Candidates(tags []string, running string, p Policy) []Version {
 	cur, curOK := ParseVersion(running)
-	var filter *regexp.Regexp
+	var filter, major *regexp.Regexp
 	if p.TagFilter != "" {
 		filter, _ = regexp.Compile(p.TagFilter)
+	}
+	if p.MajorFilter != "" {
+		major, _ = regexp.Compile(p.MajorFilter)
 	}
 	var out []Version
 	seen := map[string]bool{}
@@ -384,6 +395,9 @@ func Candidates(tags []string, running string, p Policy) []Version {
 		}
 		v, ok := ParseVersion(t)
 		if !ok {
+			continue
+		}
+		if major != nil && !major.MatchString(strconv.Itoa(v.part(0))) {
 			continue
 		}
 		if v.Pre != "" && !p.Prerelease && (!curOK || cur.Pre == "") {
