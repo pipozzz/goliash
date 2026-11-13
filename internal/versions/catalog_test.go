@@ -235,3 +235,15 @@ func TestJavaLTSOnly(t *testing.T) {
 		t.Fatalf("latest %+v", up.Latest)
 	}
 }
+
+// .NET is offered its next long-term support major.
+func TestDotnetLTSOnly(t *testing.T) {
+	p, _, err := PolicyFor(store.Service{}, "mcr.microsoft.com/dotnet/aspnet")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := []string{"8.0", "9.0", "10.0", "11.0", "8.0-alpine", "10.0-alpine"}
+	if up := Latest(tags, "8.0", p); !up.HasLatest || up.Latest.Raw != "10.0" {
+		t.Fatalf("latest %+v", up.Latest)
+	}
+}
