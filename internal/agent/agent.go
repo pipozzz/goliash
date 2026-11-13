@@ -361,11 +361,17 @@ func (a *Agent) sendLoop(ctx context.Context) error {
 				"buffered", a.outbox.len())
 		}
 		timer := time.NewTimer(wait)
+		// After a failure the backoff stands: a new snapshot waits with the others (the server away, or asking to
+		// slow down), rather than trying again at every collect.
+		notify := a.outbox.notify
+		if err != nil {
+			notify = nil
+		}
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			return nil
-		case <-a.outbox.notify:
+		case <-notify:
 			timer.Stop()
 		case <-timer.C:
 		}

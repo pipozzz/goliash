@@ -128,6 +128,8 @@ func (f *imageFiles) hidden(name string) bool {
 
 // readLayer reads one layer (a gzip, zstd or plain tar) for the files not found in a newer one.
 func (c *Client) readLayer(ctx context.Context, url, repo string, creds Credentials, fs *imageFiles) error {
+	ctx, cancel := context.WithTimeout(context.WithValue(ctx, longBody{}, true), layerTimeout)
+	defer cancel()
 	resp, err := c.request(ctx, http.MethodGet, url, repo, creds, "*/*")
 	if err != nil {
 		return err

@@ -180,8 +180,23 @@ func (c *Client) do(ctx context.Context, method, rawURL, auth string, creds Cred
 	case creds.Username != "":
 		req.SetBasicAuth(creds.Username, creds.Password)
 	}
-	return c.HTTP.Do(req)
+	hc := c.HTTP
+	if ctx.Value(longBody{}) != nil && hc.Timeout != 0 {
+		// The client's timeout counts reading the body: a layer of hundreds of MB takes longer. The caller's context
+		// bounds it instead.
+		cp := *hc
+		cp.Timeout = 0
+		hc = &cp
+	}
+	return hc.Do(req)
 }
+
+// longBody marks a context whose request reads a large body (an image layer): its deadline, not the client's
+// timeout, bounds it.
+type longBody struct{}
+
+// layerTimeout bounds reading one image layer.
+const layerTimeout = 10 * time.Minute
 
 var challengeParam = regexp.MustCompile(`(\w+)="([^"]*)"`)
 

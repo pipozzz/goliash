@@ -437,8 +437,20 @@ func (b *builder) add(meta metav1.ObjectMeta, kind agentproto.WorkloadKind, desi
 	}
 	b.order = append(b.order, uid)
 	b.workloads[uid] = w
-	b.templates[uid] = spec.Containers
+	b.templates[uid] = podContainers(spec)
 	b.running[uid] = map[containerKey]int{}
+}
+
+// podContainers are the containers that run for a pod's life: its containers, and its native sidecars, init
+// containers with restartPolicy Always (Kubernetes 1.29 on: Istio, Vault agent, log shippers).
+func podContainers(spec corev1.PodSpec) []corev1.Container {
+	out := append([]corev1.Container(nil), spec.Containers...)
+	for _, c := range spec.InitContainers {
+		if c.RestartPolicy != nil && *c.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func (b *builder) addPod(uid string, p *corev1.Pod) {
@@ -447,10 +459,10 @@ func (b *builder) addPod(uid string, p *corev1.Pod) {
 		return
 	}
 	statuses := map[string]corev1.ContainerStatus{}
-	for _, cs := range p.Status.ContainerStatuses {
+	for _, cs := range append(append([]corev1.ContainerStatus(nil), p.Status.ContainerStatuses...), p.Status.InitContainerStatuses...) {
 		statuses[cs.Name] = cs
 	}
-	for _, c := range p.Spec.Containers {
+	for _, c := range podContainers(p.Spec) {
 		k := containerKey{name: c.Name, image: c.Image}
 		if cs, ok := statuses[c.Name]; ok {
 			if cs.State.Running == nil {

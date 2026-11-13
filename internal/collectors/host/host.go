@@ -38,6 +38,9 @@ type Collector struct {
 	// which shares the kernel.
 	osrelease string
 	kernels   []string // the kernel packages' versions, as the package database lists them
+	// The RPM database's packages, read again only when it changes.
+	rpmStamp string
+	rpmPkgs  map[string]string
 
 	// The host's packages for vulnerabilities, read again only when its package database changes.
 	dbStamp string
@@ -163,6 +166,7 @@ func (c *Collector) osPackages(ctx context.Context) (collectors.CodePackages, bo
 	}
 	purls = runningKernelOnly(purls, running)
 	if len(purls) == 0 && code.Error == "" {
+		c.dbStamp, c.code = stamp, collectors.CodePackages{} // nothing, read again only when the database changes
 		return collectors.CodePackages{}, false
 	}
 	sum := sha256.Sum256([]byte(strings.Join(purls, "\n")))
@@ -188,7 +192,8 @@ func runningKernelOnly(purls []string, running string) []string {
 			if kernelRelease(name) != running {
 				continue // another kernel, installed and not running
 			}
-		case name == "kernel" || name == "kernel-core" || name == "kernel-modules" || name == "kernel-default":
+		case name == "kernel" || name == "kernel-core" || name == "kernel-default" || strings.HasPrefix(name, "kernel-modules"):
+			// kernel-modules, -core and -extra (RHEL and Rocky 9.1 on) are installed once per kernel version.
 			if v := strings.TrimPrefix(version, "0:"); !strings.HasPrefix(running, v) {
 				continue
 			}
@@ -235,9 +240,14 @@ func sortedKeys(m map[string]string) []string {
 // rebootRequired says what waits for a reboot: Debian's and Ubuntu's /var/run/reboot-required (with the packages
 // that asked for it), or a kernel installed newer than the one running. Nothing when neither is known.
 func (c *Collector) rebootRequired(pkgs map[string]string) []string {
-	if _, err := os.Stat(filepath.Join(c.root, "var", "run", "reboot-required")); err == nil {
+	// /var/run is a link to /run, which inside the agent's container is the container's own: the host's is under
+	// the root mounted for it, as run/.
+	for _, dir := range []string{"run", filepath.Join("var", "run")} {
+		if _, err := os.Stat(filepath.Join(c.root, dir, "reboot-required")); err != nil {
+			continue
+		}
 		m := "reboot required"
-		if b, err := os.ReadFile(filepath.Join(c.root, "var", "run", "reboot-required.pkgs")); err == nil { //nolint:gosec // a fixed file under the host's root
+		if b, err := os.ReadFile(filepath.Join(c.root, dir, "reboot-required.pkgs")); err == nil { //nolint:gosec // a fixed file under the host's root
 			if names := uniqueLines(string(b)); len(names) > 0 {
 				m += ": " + strings.Join(names, ", ") + " updated"
 			}
@@ -373,7 +383,17 @@ func (c *Collector) packages(ctx context.Context) (map[string]string, error) {
 		return parseApk(f)
 	}
 	for _, p := range rpmDBs {
-		b, err := readLimited(filepath.Join(c.root, p), maxRPMDB)
+		path := filepath.Join(c.root, p)
+		fi, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		// The database is read (up to 256 MB, copied to a file for SQLite) only when it changed.
+		stamp := fmt.Sprintf("%s:%d:%d", p, fi.Size(), fi.ModTime().UnixNano())
+		if stamp == c.rpmStamp {
+			return c.rpmPkgs, nil
+		}
+		b, err := readLimited(path, maxRPMDB)
 		if err != nil {
 			continue
 		}
@@ -382,12 +402,14 @@ func (c *Collector) packages(ctx context.Context) (map[string]string, error) {
 			return nil, fmt.Errorf("reading the RPM database %s: %w", p, err)
 		}
 		out := make(map[string]string, len(ps))
+		var kernels []string // those installed now: a kernel removed since is no longer one to reboot into
 		for _, pk := range ps {
 			out[pk.Name] = pk.Version
 			if pk.Name == "kernel" || pk.Name == "kernel-core" || pk.Name == "kernel-default" {
-				c.kernels = append(c.kernels, pk.Version)
+				kernels = append(kernels, pk.Version)
 			}
 		}
+		c.kernels, c.rpmStamp, c.rpmPkgs = kernels, stamp, out
 		return out, nil
 	}
 	if _, err := os.Stat(filepath.Join(c.root, "var", "lib", "rpm", "Packages")); err == nil {
