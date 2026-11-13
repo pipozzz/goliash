@@ -69,7 +69,7 @@ func TestServerCollectAllowed(t *testing.T) {
 func TestChannelSecretStaysWithItsAddress(t *testing.T) {
 	old := map[string]any{"url": "https://grafana.example.com", "token": "glsa_stored"}
 	edit := func(form url.Values) (map[string]any, string) {
-		r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+		r, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		return channelConfig(r, "grafana", old)
 	}
