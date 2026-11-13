@@ -36,13 +36,19 @@ func TestAllowed(t *testing.T) {
 func TestClientRefusesLoopback(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer srv.Close()
-	if _, err := Client(0).Get(srv.URL); err == nil {
+	get := func() error {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+		resp, err := Client(0).Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		return err
+	}
+	if get() == nil {
 		t.Fatal("reached a loopback address")
 	}
 	t.Setenv("GOLIASH_PRIVATE_NETWORKS", "all")
-	resp, err := Client(0).Get(srv.URL)
-	if err != nil {
+	if err := get(); err != nil {
 		t.Fatalf("with the guard lifted: %v", err)
 	}
-	_ = resp.Body.Close()
 }
