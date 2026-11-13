@@ -187,7 +187,13 @@ func main() {
 
 func run(ctx context.Context, args []string, out io.Writer) error {
 	cmd := "serve"
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+	if len(args) > 0 {
+		switch args[0] {
+		case "-version", "--version", "-h", "-help", "--help":
+			cmd, args = args[0], args[1:] // not flags of serve, which a leading "-" otherwise means
+		}
+	}
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") && cmd == "serve" {
 		cmd, args = args[0], args[1:]
 		if len(args) > 0 && args[0] == "create" && (cmd == "env" || cmd == "agent" || cmd == "target" || cmd == "rule") {
 			cmd, args = cmd+" create", args[1:]
@@ -326,7 +332,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	case "version", "-version", "--version":
 		_, _ = fmt.Fprintln(out, "goliash", buildinfo.String())
 		return nil
-	case "help", "-h", "--help":
+	case "help", "-h", "-help", "--help":
 		_, _ = fmt.Fprint(out, usage)
 		return nil
 	default:
@@ -1193,10 +1199,21 @@ func driftCmd(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "SERVICE\tENV\tKIND\tSINCE\tDETAIL")
+	var all []store.Drift
 	for _, ds := range o.Drifts {
-		for _, d := range ds {
+		all = append(all, ds...)
+	}
+	// Oldest first, as the API lists them: the same order every time.
+	sort.SliceStable(all, func(i, j int) bool {
+		if !all[i].Since.Equal(all[j].Since) {
+			return all[i].Since.Before(all[j].Since)
+		}
+		return all[i].ID < all[j].ID
+	})
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "SERVICE\tAPP\tENV\tKIND\tSINCE\tDETAIL")
+	{
+		for _, d := range all {
 			var det versions.DriftDetail
 			_ = json.Unmarshal(d.Detail, &det)
 			detail := det.Running + " behind " + det.Other
@@ -1217,8 +1234,8 @@ func driftCmd(ctx context.Context, args []string, out io.Writer) error {
 				sort.Strings(parts)
 				detail = strings.Join(parts, " ")
 			}
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", o.Services[d.ServiceID].Name, o.Envs[d.EnvironmentID].Name,
-				d.Kind, time.Since(d.Since).Round(time.Minute), detail)
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", o.Services[d.ServiceID].Name, orDashCLI(d.App), o.Envs[d.EnvironmentID].Name,
+				d.Kind, ago(time.Since(d.Since)), detail)
 		}
 	}
 	return tw.Flush()
@@ -3053,3 +3070,21 @@ func platformNames() []string {
 
 // knownPlatform reports whether a target can be on platform: a typo would make one nothing ever collects.
 func knownPlatform(platform string) bool { return slices.Contains(platformNames(), platform) }
+
+func orDashCLI(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+// ago says how long, as people do: 11d, 5h, 40m.
+func ago(d time.Duration) string {
+	switch {
+	case d >= 48*time.Hour:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	case d >= time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dm", int(d.Minutes()))
+}

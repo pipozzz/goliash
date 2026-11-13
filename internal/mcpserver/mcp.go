@@ -10,10 +10,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -97,18 +99,24 @@ type (
 	updatesIn struct {
 		Owner       string `json:"owner,omitempty" jsonschema:"only services of this team (owner)"`
 		Environment string `json:"environment,omitempty"`
-		Urgency     string `json:"urgency,omitempty" jsonschema:"only this urgency: end of life, end of life soon, major, minor, behind previous env or patch"`
+		Service     string `json:"service,omitempty" jsonschema:"only this service"`
+		Server      string `json:"server,omitempty" jsonschema:"only the lines about this Linux server (its target name)"`
+		Urgency     string `json:"urgency,omitempty" jsonschema:"only this urgency: exploited vulnerability, security fix, end of life, end of life soon, major, minor, behind previous env or patch"`
 	}
 	changesIn struct {
 		Since       string `json:"since,omitempty" jsonschema:"how far back, e.g. 2h, 30m or 7d, or from a time (RFC 3339, e.g. 2026-10-02T07:00:00Z); default 24h"`
 		Before      string `json:"before,omitempty" jsonschema:"only changes before this time (RFC 3339): with since, a window in the past, e.g. the hour around an incident"`
 		Environment string `json:"environment,omitempty"`
 		Service     string `json:"service,omitempty"`
+		Type        string `json:"type,omitempty" jsonschema:"only this kind of change: deployed, version_changed, removed, new_release, drift_detected or drift_resolved"`
+		Limit       int    `json:"limit,omitempty" jsonschema:"at most this many, default 200"`
 	}
 	inventoryIn struct {
 		At          string `json:"at,omitempty" jsonschema:"a past time (UTC); empty means now"`
 		Environment string `json:"environment,omitempty"`
 		Service     string `json:"service,omitempty"`
+		Target      string `json:"target,omitempty" jsonschema:"only what runs on this target or server, e.g. mail-01"`
+		Limit       int    `json:"limit,omitempty" jsonschema:"at most this many containers, default 200"`
 	}
 	searchIn struct {
 		Query string `json:"query" jsonschema:"words that must all appear: a service, image (ghcr.io/acme), version (1.27), workload, GitOps application, CVE, package (openssl), team…"`
@@ -117,6 +125,8 @@ type (
 		Query         string `json:"query,omitempty" jsonschema:"a CVE or advisory ID (CVE-2021-44228), a package (openssl) or a service"`
 		Environment   string `json:"environment,omitempty" jsonschema:"only this environment, e.g. prod"`
 		ExploitedOnly bool   `json:"exploited_only,omitempty" jsonschema:"only vulnerabilities exploited in the wild (CISA KEV)"`
+		ExposedOnly   bool   `json:"exposed_only,omitempty" jsonschema:"only those in images reachable from outside"`
+		Limit         int    `json:"limit,omitempty" jsonschema:"at most this many findings, most urgent first, default 50"`
 	}
 	notesIn struct {
 		Service string `json:"service" jsonschema:"the service name"`
@@ -130,27 +140,92 @@ type (
 		Environment  string `json:"environment,omitempty" jsonschema:"only in this environment"`
 		UntilVersion string `json:"until_version,omitempty" jsonschema:"quiet until this version runs"`
 		Until        string `json:"until,omitempty" jsonschema:"quiet until this time, RFC 3339"`
+		Reason       string `json:"reason,omitempty" jsonschema:"why: required when the workspace asks for a reason (accepted risk)"`
 	}
 )
 
-// filter keeps the items of a list whose fields equal the given values.
+// filter keeps the items of a list whose fields equal the given values (case aside).
 func filter(data any, fields map[string]string) any {
+	out, _ := filterChecked(data, fields)
+	return out
+}
+
+// filterChecked is filter that says so when a value matches no item at all (a typo, an environment that does not
+// exist), with the values there are: an empty answer would read as "nothing there".
+func filterChecked(data any, fields map[string]string) (any, error) {
 	list, ok := data.([]any)
 	if !ok {
-		return data
+		return data, nil
 	}
 	out := []any{}
+	seen := map[string]map[string]bool{}
 	for _, item := range list {
 		m, _ := item.(map[string]any)
 		keep := true
 		for k, v := range fields {
-			if v != "" && fmt.Sprint(m[k]) != v {
+			if v == "" {
+				continue
+			}
+			if seen[k] == nil {
+				seen[k] = map[string]bool{}
+			}
+			for _, have := range values(m[k]) {
+				seen[k][have] = true
+			}
+			if !slices.ContainsFunc(values(m[k]), func(have string) bool { return strings.EqualFold(have, v) }) {
 				keep = false
 			}
 		}
 		if keep {
 			out = append(out, item)
 		}
+	}
+	if len(out) > 0 || len(list) == 0 {
+		return out, nil
+	}
+	for k, v := range fields {
+		if v == "" || slices.ContainsFunc(sortedKeys(seen[k]), func(have string) bool { return strings.EqualFold(have, v) }) {
+			continue
+		}
+		known := sortedKeys(seen[k])
+		if len(known) > 30 {
+			known = append(known[:30], "…")
+		}
+		return nil, fmt.Errorf("no %s %q here; there are: %s", k, v, strings.Join(known, ", "))
+	}
+	return out, nil
+}
+
+// values are a field's values: one, or each of a list (servers).
+func values(v any) []string {
+	switch x := v.(type) {
+	case nil:
+		return nil
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, e := range x {
+			out = append(out, fmt.Sprint(e))
+		}
+		return out
+	}
+	return []string{fmt.Sprint(v)}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// limited keeps the first n items of a list, saying how many there were: a tool's answer goes into an assistant's
+// context, which thousands of items would fill.
+func limited(list []any, n int) map[string]any {
+	out := map[string]any{"total": len(list), "items": list}
+	if len(list) > n {
+		out["items"], out["truncated"] = list[:n], true
 	}
 	return out
 }
@@ -159,8 +234,11 @@ func filter(data any, fields map[string]string) any {
 func NewServer(c *Client) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "goliash", Title: "Goliash", Version: buildinfo.Version}, &mcp.ServerOptions{
 		Instructions: "Goliash knows what runs where, on which version, in which environment (Kubernetes, ECS, Nomad, " +
-			"Docker, Compose), the newest upstream releases, and where versions drift apart. Use matrix for the overview, " +
-			"service for one service, drifts for what needs attention, changes for what changed recently.",
+			"Docker, Compose, Linux servers), the newest upstream releases, where versions drift apart, and the known " +
+			"vulnerabilities of what runs. Start with search when unsure which tool knows; updates for what to upgrade first " +
+			"(exploited vulnerabilities and security fixes lead), vulnerabilities for \"is it running?\", matrix for the " +
+			"overview, service for one service, changes for what changed recently, and status before trusting an answer " +
+			"that looks stale.",
 	})
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: new(bool)}
 
@@ -225,22 +303,28 @@ func NewServer(c *Client) *mcp.Server {
 			if err != nil {
 				return nil, Result{}, err
 			}
-			return nil, Result{Data: filter(data, map[string]string{"kind": in.Kind, "environment": in.Environment, "service": in.Service})}, nil
+			out, err := filterChecked(data, map[string]string{"kind": in.Kind, "environment": in.Environment, "service": in.Service})
+			return nil, Result{Data: out}, err
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "updates", Annotations: readOnly,
-		Description: "What to upgrade, most urgent first: per service (and application) and environment, the running " +
-			"version, the version to move to with its release notes, and why (end of life, a major or minor jump, behind " +
-			"the previous environment), and, when the target already runs somewhere, the known vulnerabilities the upgrade " +
-			"fixes and brings. Acknowledged items are marked. Use it to plan upgrades.",
+		Description: "What to upgrade, most urgent first (urgency: exploited vulnerability, security fix, end of life, end " +
+			"of life soon, major, minor, behind previous env, patch): per service (and application) and environment, the " +
+			"running version, the version to move to with its release notes (or remedy when there is none, e.g. a rebuild " +
+			"or a reboot), exploited CVEs, due and days_left against the remediation deadline, risk, maintenance waiting at " +
+			"the platform, and, when the target already runs somewhere, the known vulnerabilities the upgrade fixes and " +
+			"brings. For a Linux server's operating system: servers it is about, and server_packages with each exploited " +
+			"package and what fixes it (reboot_into when an installed kernel does). Acknowledged items are marked. Use it " +
+			"to plan upgrades.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in updatesIn) (*mcp.CallToolResult, Result, error) {
 			data, err := c.do(ctx, http.MethodGet, "/api/v1/updates", nil, nil)
 			if err != nil {
 				return nil, Result{}, err
 			}
-			return nil, Result{Data: filter(data, map[string]string{"owner": in.Owner, "environment": in.Environment, "urgency": in.Urgency})}, nil
+			out, err := filterChecked(data, map[string]string{"owner": in.Owner, "environment": in.Environment, "urgency": in.Urgency, "service": in.Service, "servers": in.Server})
+			return nil, Result{Data: out}, err
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -310,7 +394,14 @@ func NewServer(c *Client) *mcp.Server {
 			"give since and before as times around it.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in changesIn) (*mcp.CallToolResult, Result, error) {
-			q := url.Values{"since": {"24h"}, "limit": {"200"}}
+			limit := in.Limit
+			if limit <= 0 || limit > 1000 {
+				limit = 200
+			}
+			q := url.Values{"since": {"24h"}, "limit": {fmt.Sprint(limit)}}
+			if in.Type != "" {
+				q.Set("type", in.Type)
+			}
 			if in.Since != "" {
 				q.Set("since", in.Since)
 			}
@@ -324,6 +415,11 @@ func NewServer(c *Client) *mcp.Server {
 				q.Set("service", in.Service)
 			}
 			data, err := c.do(ctx, http.MethodGet, "/api/v1/events", q, nil)
+			if list, ok := data.([]any); ok && len(list) >= limit {
+				// As many as asked for: older ones may be cut off. The oldest's time continues as before.
+				last, _ := list[len(list)-1].(map[string]any)
+				return nil, Result{Data: map[string]any{"items": list, "truncated": true, "continue_before": last["at"]}}, err
+			}
 			return nil, Result{Data: data}, err
 		})
 
@@ -375,8 +471,34 @@ func NewServer(c *Client) *mcp.Server {
 			if in.ExploitedOnly {
 				q.Set("exploited", "true")
 			}
+			if in.ExposedOnly {
+				q.Set("exposed", "true")
+			}
 			data, err := c.do(ctx, http.MethodGet, "/api/v1/vulnerabilities", q, nil)
-			return nil, Result{Data: data}, err
+			if err != nil {
+				return nil, Result{}, err
+			}
+			limit := in.Limit
+			if limit <= 0 {
+				limit = 50
+			}
+			if m, ok := data.(map[string]any); ok {
+				if list, ok := m["findings"].([]any); ok {
+					for _, f := range list { // a finding's places beyond 20 are counted, not listed
+						if fm, ok := f.(map[string]any); ok {
+							if aff, ok := fm["affected"].([]any); ok && len(aff) > 20 {
+								fm["affected"], fm["affected_total"] = aff[:20], len(aff)
+							}
+						}
+					}
+					l := limited(list, limit)
+					m["findings"], m["findings_total"] = l["items"], l["total"]
+					if l["truncated"] != nil {
+						m["truncated"] = true
+					}
+				}
+			}
+			return nil, Result{Data: data}, nil
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -392,7 +514,8 @@ func NewServer(c *Client) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "inventory", Annotations: readOnly,
-		Description: "Every running container (sidecars included) with image, tag and digest, now or at a past time; " +
+		Description: "Every running container (sidecars included) with image, tag and digest, now or at a past time, " +
+			"by environment, service or target (\"what runs on mail-01?\"); " +
 			"with the image's size (bytes pulled) and whether it is built on its base as the base is now (base_status), when read.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in inventoryIn) (*mcp.CallToolResult, Result, error) {
@@ -404,7 +527,18 @@ func NewServer(c *Client) *mcp.Server {
 			if err != nil {
 				return nil, Result{}, err
 			}
-			return nil, Result{Data: filter(data, map[string]string{"environment": in.Environment, "service": in.Service})}, nil
+			out, err := filterChecked(data, map[string]string{"environment": in.Environment, "service": in.Service, "target": in.Target})
+			if err != nil {
+				return nil, Result{}, err
+			}
+			limit := in.Limit
+			if limit <= 0 {
+				limit = 200
+			}
+			if list, ok := out.([]any); ok {
+				return nil, Result{Data: limited(list, limit)}, nil
+			}
+			return nil, Result{Data: out}, nil
 		})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -462,12 +596,17 @@ func NewServer(c *Client) *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "acknowledge",
 		Annotations: &mcp.ToolAnnotations{Title: "Acknowledge a release or drift", DestructiveHint: &no, OpenWorldHint: &no},
-		Description: "Quiet notifications for a service (optionally in one environment) until a version runs or a time " +
-			"passes. Needs a token with the member role. Confirm with the user before calling.",
+		Description: "Quiet notifications for a service (optionally in one environment) until a version runs " +
+			"(until_version) or a time passes (until): one of the two is required. A workspace may ask for a reason; " +
+			"pending true in the answer means it waits for an admin's approval and quiets nothing until then. Needs a " +
+			"token with the member role. Confirm with the user before calling.",
 	},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in ackIn) (*mcp.CallToolResult, Result, error) {
 			body := map[string]any{"service": in.Service, "kind": in.Kind}
-			for k, v := range map[string]string{"environment": in.Environment, "until_version": in.UntilVersion, "until": in.Until} {
+			if in.UntilVersion == "" && in.Until == "" {
+				return nil, Result{}, errors.New("set until_version (quiet until this version runs) or until (an RFC 3339 time)")
+			}
+			for k, v := range map[string]string{"environment": in.Environment, "until_version": in.UntilVersion, "until": in.Until, "reason": in.Reason} {
 				if v != "" {
 					body[k] = v
 				}

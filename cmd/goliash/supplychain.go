@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -48,14 +49,22 @@ func licensesCmd(ctx context.Context, args []string, out io.Writer) error {
 	}
 	fail := map[string]bool{}
 	for _, c := range splitList(*failOn) {
+		if !knownClass(c) {
+			return fmt.Errorf("-fail-on %q: not a license class; use %s", c, classNames())
+		}
 		fail[c] = true
 	}
+	if *class != "attention" && *class != "all" && !knownClass(*class) {
+		return fmt.Errorf("-class %q: use attention, all or %s", *class, classNames())
+	}
+	var failedOn []string
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "CLASS\tPACKAGE\tVERSION\tLICENSE\tRUNNING IN")
 	failed := false
 	for _, p := range rep.Packages {
 		if !p.OS && fail[string(p.Class)] {
 			failed = true
+			failedOn = append(failedOn, p.Name+" "+p.Version+" ("+string(p.Class)+")")
 		}
 		switch {
 		case p.OS && !*withOS,
@@ -80,7 +89,7 @@ func licensesCmd(ctx context.Context, args []string, out io.Writer) error {
 		_, _ = fmt.Fprintf(out, "\n%d images' SBOMs were read before licenses were kept; they are read again soon.\n", rep.LicensesUnread)
 	}
 	if failed {
-		return errFound
+		return fmt.Errorf("%w: %s", errFound, strings.Join(failedOn, ", "))
 	}
 	return nil
 }
@@ -180,4 +189,16 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+func knownClass(c string) bool {
+	return slices.Contains(versions.LicenseClasses, versions.LicenseClass(c))
+}
+
+func classNames() string {
+	names := make([]string, len(versions.LicenseClasses))
+	for i, c := range versions.LicenseClasses {
+		names[i] = string(c)
+	}
+	return strings.Join(names, ", ")
 }
