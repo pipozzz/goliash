@@ -1898,6 +1898,9 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 		}
 		t.AgentID = a.ID
 	}
+	if t.AgentID == "" && !serverCollectAllowed(p, platform) {
+		return back(w, r, "/agents", "error", "A target without an agent is collected by the server itself, with its own access: only organization admins can add one. Pick an agent.")
+	}
 	if _, err := s.store.CreateTarget(ctx, t); err != nil {
 		return back(w, r, "/agents", "error", "Could not create the target; is the name taken?")
 	}
@@ -2051,12 +2054,32 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 // the browser. problem is a message for the person when something is missing.
 func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[string]any, problem string) {
 	_ = r.ParseForm()
-	field := func(form, key string) string {
+	given := func(form string) string {
 		// The add form has a field per channel type, some with the same name (url): the one filled in counts.
 		for _, v := range r.Form[form] {
 			if v = strings.TrimSpace(v); v != "" {
 				return v
 			}
+		}
+		return ""
+	}
+	// A secret left empty keeps the stored one, but not when the channel now points elsewhere: it would go there.
+	moved := false
+	for _, k := range []string{"url", "smtp_addr"} {
+		v, was := given(k), old[k]
+		if u, err := url.Parse(v); k == "url" && err == nil {
+			v = u.String() // as stored
+		}
+		if v != "" && was != nil && v != was {
+			moved = true
+		}
+	}
+	field := func(form, key string) string {
+		if v := given(form); v != "" {
+			return v
+		}
+		if moved && channelSecrets[key] {
+			return ""
 		}
 		if v, ok := old[key].(string); ok {
 			return v
@@ -2583,6 +2606,9 @@ func (s *Server) inviteUser(w http.ResponseWriter, r *http.Request, p auth.Princ
 		if orgRole != "" || store.OrgWide(u.Role) {
 			return back(w, r, "/settings", "error", email+" already has an account.")
 		}
+		if !p.OrgWide() {
+			return back(w, r, "/settings", "error", email+" already has an account: an organization admin can add them to this workspace.")
+		}
 	} else if err != nil {
 		return err
 	}
@@ -2630,8 +2656,27 @@ func (s *Server) manageable(ctx context.Context, p auth.Principal, id string) (s
 	return u, roles[u.ID], true
 }
 
+// accountManageable returns a user whose account (sign-in, second factor, password, sessions) the principal may
+// act on: an organization admin anyone they may manage, a workspace admin only people who use no other workspace.
+func (s *Server) accountManageable(ctx context.Context, p auth.Principal, id string) (store.User, bool) {
+	u, _, ok := s.manageable(ctx, p, id)
+	if !ok || p.OrgWide() {
+		return u, ok
+	}
+	ws, err := s.store.UserWorkspaces(ctx, u)
+	if err != nil {
+		return store.User{}, false
+	}
+	for _, a := range ws {
+		if a.Workspace.ID != p.Scope.WorkspaceID {
+			return store.User{}, false
+		}
+	}
+	return u, true
+}
+
 func (s *Server) userLink(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
+	u, ok := s.accountManageable(r.Context(), p, r.PathValue("id"))
 	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}
@@ -3829,3 +3874,13 @@ func securityImage(image, server string) string {
 	}
 	return image + " on " + server
 }
+
+// serverCollectAllowed reports whether the principal may have the server itself collect a target of platform: it
+// does so with the server's own access (its cluster account, Docker socket, cloud role), so only organization
+// admins may, but for Compose files, read from Git through the public-only client.
+func serverCollectAllowed(p auth.Principal, platform string) bool {
+	return platform == "compose" || p.OrgWide()
+}
+
+// channelSecrets are the channel settings that are credentials, kept on an edit only while the address stays.
+var channelSecrets = map[string]bool{"token": true, "bot_token": true, "secret": true, "smtp_password": true}

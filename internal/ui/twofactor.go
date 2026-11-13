@@ -176,7 +176,7 @@ func (s *Server) disableTwoFactor(w http.ResponseWriter, r *http.Request, p auth
 // resetTwoFactor turns someone's two-factor sign-in off (admins), e.g. after a lost
 // phone without recovery codes, and signs them out everywhere.
 func (s *Server) resetTwoFactor(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
+	u, ok := s.accountManageable(r.Context(), p, r.PathValue("id"))
 	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}

@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pipozzz/goliash/internal/netguard"
+
 	"github.com/pipozzz/goliash/internal/store"
 )
 
@@ -170,7 +172,7 @@ type textPage struct {
 }
 
 func newTextFeeds() *textFeeds {
-	return &textFeeds{http: &http.Client{Timeout: 20 * time.Second}, pages: map[string]textPage{}}
+	return &textFeeds{http: netguard.Client(20 * time.Second), pages: map[string]textPage{}} // a policy's changelog address is typed in
 }
 
 // text is a page's text, its markup stripped and its spaces folded.
