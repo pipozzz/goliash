@@ -54,6 +54,11 @@
 - image: docker.io/library/caddy
   cpe: [caddyserver:caddy]
   github: caddyserver/caddy
+- image: docker.io/library/eclipse-temurin
+  changelog: https://adoptium.net/temurin/release-notes/
+  eol: eclipse-temurin
+  # Java's long-term support releases come every two years, four versions apart (17, 21, 25, then 29).
+  policy: { major_filter: '^(8|11|17|21|25|29|33|37)$' }
 - image: docker.io/library/golang
   cpe: [golang:go]
   eol: go
