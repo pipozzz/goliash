@@ -207,7 +207,7 @@ func (s *Server) signOutOthers(w http.ResponseWriter, r *http.Request, p auth.Pr
 
 // signOutUser signs a person out everywhere (admins, from Workspace settings).
 func (s *Server) signOutUser(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
+	u, ok := s.accountManageable(r.Context(), p, r.PathValue("id"))
 	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}
@@ -222,7 +222,7 @@ func (s *Server) signOutUser(w http.ResponseWriter, r *http.Request, p auth.Prin
 // removePassword takes a person's password away (admins), e.g. when it leaked.
 // They sign in with a link or single sign-on and may set a new one.
 func (s *Server) removePassword(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
-	u, _, ok := s.manageable(r.Context(), p, r.PathValue("id"))
+	u, ok := s.accountManageable(r.Context(), p, r.PathValue("id"))
 	if !ok {
 		return back(w, r, "/settings", "error", "Unknown user.")
 	}
