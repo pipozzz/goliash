@@ -1784,12 +1784,13 @@ type apiHostFix struct {
 	Package  string `json:"package"`
 	Fix      string `json:"fix,omitempty"`
 	FixNewer bool   `json:"fixed_in_newer,omitempty"`
+	Reboot   string `json:"reboot_into,omitempty"` // a kernel installed on the server, waiting for a reboot, that fixes it
 }
 
 func toAPIHostFixes(list []versions.HostFix) []apiHostFix {
 	out := make([]apiHostFix, 0, len(list))
 	for _, h := range list {
-		out = append(out, apiHostFix{CVE: h.CVE, Server: h.Server, Package: h.Package, Fix: h.Fix, FixNewer: h.FixNewer})
+		out = append(out, apiHostFix{CVE: h.CVE, Server: h.Server, Package: h.Package, Fix: h.Fix, FixNewer: h.FixNewer, Reboot: h.Reboot})
 	}
 	if len(out) == 0 {
 		return nil

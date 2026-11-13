@@ -6,8 +6,10 @@ package versions
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,11 +88,16 @@ type HostFix struct {
 	CVE, Server, Package string // Package is the name and version installed
 	Fix                  string // the version that fixes it, empty when unknown
 	FixNewer             bool   // a newer version fixes it, which one not known
+	ServerID             string // the server's target
+	// Reboot names the kernel installed on the server, waiting for a reboot, that fixes it: the upgrade is done.
+	Reboot string
 }
 
 // Remedy says what fixes it, in a few words.
 func (h HostFix) Remedy() string {
 	switch {
+	case h.Reboot != "":
+		return "reboot: kernel " + h.Reboot + " is installed and fixes it"
 	case h.Fix != "":
 		return "upgrade to " + h.Fix
 	case h.FixNewer:
@@ -233,7 +240,7 @@ func WithVulnerabilities(us []Update, r VulnReport) []Update {
 					continue
 				}
 				k := key{a.ServiceID, a.App, a.EnvironmentID}
-				h := HostFix{CVE: f.Key, Server: a.Server, Package: a.Package, Fix: a.Fix, FixNewer: a.FixNewer}
+				h := HostFix{CVE: f.Key, Server: a.Server, Package: a.Package, Fix: a.Fix, FixNewer: a.FixNewer, ServerID: a.ServerID}
 				if !slices.Contains(hostFixes[k], h) {
 					hostFixes[k] = append(hostFixes[k], h)
 				}
@@ -381,6 +388,9 @@ func loadUpdates(ctx context.Context, st *store.Store, sc store.Scope, o Overvie
 	}
 	if rerr == nil {
 		us = WithVulnerabilities(us, r)
+		if aerr == nil {
+			us = withReboots(us, active)
+		}
 		if idx, err := loadVulnIndex(ctx, st, sc, r); err == nil {
 			for i := range us {
 				u := &us[i]
@@ -638,4 +648,71 @@ func FirstStop(o Overview, svc, running, target string) string {
 // BreakingUpTo is what the release notes from running up to target say breaks, quoted: "2.0.0: Removed …".
 func BreakingUpTo(o Overview, svc, running, target string) []string {
 	return breakingUpTo(o, svc, running, target)
+}
+
+// installedKernel reads the kernel a server's maintenance says is installed, waiting for a reboot.
+var installedKernel = regexp.MustCompile(`^reboot required: kernel (\S+) installed`)
+
+// withReboots marks the vulnerabilities of a server's kernel packages that the kernel it has installed, waiting
+// for a reboot, fixes: rebooting is what is left to do, not upgrading a package.
+func withReboots(us []Update, active []store.Instance) []Update {
+	installed := map[string]string{} // server target ID -> kernel installed
+	for _, in := range active {
+		if in.WorkloadKind != "host_os" {
+			continue
+		}
+		for _, m := range in.Maintenance {
+			if k := installedKernel.FindStringSubmatch(m); k != nil {
+				installed[in.TargetID] = k[1]
+			}
+		}
+	}
+	for i := range us {
+		fixes := us[i].HostFixes
+		for j := range fixes {
+			h := &fixes[j]
+			if k := installed[h.ServerID]; k != "" && kernelPackage(h.Package) && kernelFixes(k, h) {
+				h.Reboot = k
+			}
+		}
+	}
+	return us
+}
+
+// kernelFixes reports whether an installed kernel (7.0.0-1017-aws) is at or past the version that fixes h
+// (7.0.0-1012.12). When only "a newer version" is known to fix it, which one is not: the installed kernel may not.
+func kernelFixes(kernel string, h *HostFix) bool {
+	k, ok := kernelVersion(kernel)
+	if !ok || h.Fix == "" {
+		return false
+	}
+	f, ok := kernelVersion(h.Fix)
+	return ok && compareInts(k, f) >= 0
+}
+
+var kernelNumbers = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)-(\d+)`)
+
+// kernelVersion is a kernel's version and ABI number: 7.0.0-1017-aws and 7.0.0-1017.18~24.04.1 are both 7 0 0 1017.
+func kernelVersion(v string) ([]int, bool) {
+	m := kernelNumbers.FindStringSubmatch(v)
+	if m == nil {
+		return nil, false
+	}
+	out := make([]int, 4)
+	for i := range out {
+		out[i], _ = strconv.Atoi(m[i+1])
+	}
+	return out, true
+}
+
+func compareInts(a, b []int) int {
+	for i := range a {
+		if a[i] != b[i] {
+			if a[i] < b[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
 }

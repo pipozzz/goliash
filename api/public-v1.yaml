@@ -885,6 +885,7 @@ paths:
                           package: { type: string, example: sudo 1.9.9-1ubuntu2.4 }
                           fix: { type: string, description: "The version that fixes it, when known", example: 1.9.9-1ubuntu2.5 }
                           fixed_in_newer: { type: boolean, description: "A newer version fixes it, which one is not known (a kernel)" }
+                          reboot_into: { type: string, description: "A kernel installed on the server, waiting for a reboot, that fixes it: reboot rather than upgrade", example: 6.14.0-1018-aws }
                     path:
                       type: array
                       items: { type: string }
