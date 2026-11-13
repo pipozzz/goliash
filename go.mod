@@ -14,7 +14,7 @@ tool (
 require (
 	github.com/a-h/templ v0.3.1070
 	github.com/anthropics/anthropic-sdk-go v1.84.0
-	github.com/aws/aws-sdk-go-v2 v1.47.7
+	github.com/aws/aws-sdk-go-v2 v1.47.8
 	github.com/aws/aws-sdk-go-v2/config v1.33.15
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.4
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.104.1
