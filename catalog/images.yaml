@@ -120,6 +120,12 @@
 - image: docker.io/library/traefik
   cpe: [traefik:traefik]
   github: traefik/traefik
+- image: docker.io/library/ubuntu
+  changelog: https://wiki.ubuntu.com/Releases
+  eol: ubuntu
+  # A server or base image moves from one LTS release to the next (24.04 -> 26.04), not to an interim release
+  # supported for nine months (26.10); a service's own policy can say otherwise.
+  policy: { tag_filter: '^[0-9][02468]\.04$' }
 - image: docker.io/opensearchproject/opensearch
   github: opensearch-project/OpenSearch
   policy: { track: minor }

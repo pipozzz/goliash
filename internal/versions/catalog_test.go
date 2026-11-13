@@ -199,3 +199,15 @@ func TestSourceFromImageLabel(t *testing.T) {
 		t.Fatalf("catalog source lost: %s", p.GitHub)
 	}
 }
+
+// A server on Ubuntu LTS is offered the next LTS, not an interim release.
+func TestUbuntuLTSOnly(t *testing.T) {
+	p, _, err := PolicyFor(store.Service{}, "docker.io/library/ubuntu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	up := Latest([]string{"22.04", "24.04", "24.10", "25.04", "25.10", "26.04", "26.10", "latest", "noble"}, "24.04", p)
+	if !up.HasLatest || up.Latest.Raw != "26.04" {
+		t.Fatalf("latest %+v", up.Latest)
+	}
+}
