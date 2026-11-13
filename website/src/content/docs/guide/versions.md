@@ -68,6 +68,7 @@ page, with `goliash service set`, or through the catalog.
 | `track` | The smallest jump worth an alert: `patch`, `minor` or `major`. | `patch` |
 | `pin_major` | Stay on this major: newer majors are shown, not alerted. | none |
 | `tag_filter` | A regular expression tags must match. | tags shaped like the running one |
+| `major_filter` | A regular expression a release's major version must match, tags still compared like with like: `[02468]$` keeps to even majors. | from catalog (Node.js: even, long-term support majors; Ubuntu keeps to LTS releases with a `tag_filter`) |
 | `prerelease` | Consider alpha, beta and rc versions. | `false` |
 | `auto_pr` | Per environment, the biggest jump Goliash opens a pull request for by itself, in the repository its [Argo CD or Flux](/guide/argocd/#automatic-pull-requests) application deploys from: `{"dev": "minor"}`. | none |
 | `drift_alert_after` | How long drift lasts before it is announced, per kind, e.g. `{"env": "72h"}`. | see below |
