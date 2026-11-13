@@ -1898,6 +1898,9 @@ func (s *Server) createTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 		}
 		t.AgentID = a.ID
 	}
+	if t.AgentID == "" && !serverCollectAllowed(p, platform) {
+		return back(w, r, "/agents", "error", "A target without an agent is collected by the server itself, with its own access: only organization admins can add one. Pick an agent.")
+	}
 	if _, err := s.store.CreateTarget(ctx, t); err != nil {
 		return back(w, r, "/agents", "error", "Could not create the target; is the name taken?")
 	}
@@ -3850,4 +3853,11 @@ func securityImage(image, server string) string {
 		return image
 	}
 	return image + " on " + server
+}
+
+// serverCollectAllowed reports whether the principal may have the server itself collect a target of platform: it
+// does so with the server's own access (its cluster account, Docker socket, cloud role), so only organization
+// admins may, but for Compose files, read from Git through the public-only client.
+func serverCollectAllowed(p auth.Principal, platform string) bool {
+	return platform == "compose" || p.OrgWide()
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pipozzz/goliash/internal/auth"
 	"github.com/pipozzz/goliash/internal/store"
 )
 
@@ -52,5 +53,14 @@ func TestWorkspaceAdminAccountScope(t *testing.T) {
 	_, _, _ = post(t, c, e.srv.URL+"/settings/users", url.Values{"email": {elsewhere.Email}, "role": {store.RoleViewer}})
 	if roles, _ := e.st.WorkspaceRoles(ctx, e.ws.ID); roles[elsewhere.ID] != "" {
 		t.Error("a workspace admin added someone who already has an account")
+	}
+}
+
+// A target the server collects itself, with its own access, is for organization admins to add, but Compose files.
+func TestServerCollectAllowed(t *testing.T) {
+	ws := auth.Principal{Via: "session", User: store.User{Role: store.RoleMember}}
+	org := auth.Principal{Via: "session", User: store.User{Role: store.RoleAdmin}}
+	if serverCollectAllowed(ws, "kubernetes") || serverCollectAllowed(ws, "docker") || !serverCollectAllowed(ws, "compose") || !serverCollectAllowed(org, "kubernetes") {
+		t.Error("serverCollectAllowed")
 	}
 }

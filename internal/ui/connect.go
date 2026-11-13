@@ -372,6 +372,9 @@ func (s *Server) connectCreate(w http.ResponseWriter, r *http.Request, p auth.Pr
 	t := store.Target{Scope: p.Scope, EnvironmentID: env.ID, Platform: info.Key, Name: name, Settings: settings}
 	switch by := f.Get("by"); by {
 	case "server":
+		if !serverCollectAllowed(p, info.Key) {
+			return again("The server itself collects with its own access: only organization admins can choose it. Start an agent instead.")
+		}
 		v.ByServer = true
 	case "new", "":
 		agentName := strings.TrimSpace(f.Get("agent_name"))

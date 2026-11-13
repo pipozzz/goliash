@@ -222,6 +222,11 @@ func (s *Server) updateTarget(w http.ResponseWriter, r *http.Request, p auth.Pri
 	}
 	var compact bytes.Buffer
 	_ = json.Compact(&compact, []byte(settings))
+	var before bytes.Buffer
+	_ = json.Compact(&before, t.Settings)
+	if t.AgentID == "" && !bytes.Equal(before.Bytes(), compact.Bytes()) && !serverCollectAllowed(p, t.Platform) {
+		return back(w, r, self, "error", "The server itself collects this target, with its own access: only organization admins can change its settings.")
+	}
 	poll, err := strconv.Atoi(strings.TrimSpace(r.FormValue("poll")))
 	if err != nil || poll < 30 || poll > 86400 {
 		return back(w, r, self, "error", "Poll every 30 to 86400 seconds.")
