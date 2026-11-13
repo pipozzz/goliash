@@ -2054,12 +2054,32 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request, p auth.Pr
 // the browser. problem is a message for the person when something is missing.
 func channelConfig(r *http.Request, typ string, old map[string]any) (cfg map[string]any, problem string) {
 	_ = r.ParseForm()
-	field := func(form, key string) string {
+	given := func(form string) string {
 		// The add form has a field per channel type, some with the same name (url): the one filled in counts.
 		for _, v := range r.Form[form] {
 			if v = strings.TrimSpace(v); v != "" {
 				return v
 			}
+		}
+		return ""
+	}
+	// A secret left empty keeps the stored one, but not when the channel now points elsewhere: it would go there.
+	moved := false
+	for _, k := range []string{"url", "smtp_addr"} {
+		v, was := given(k), old[k]
+		if u, err := url.Parse(v); k == "url" && err == nil {
+			v = u.String() // as stored
+		}
+		if v != "" && was != nil && v != was {
+			moved = true
+		}
+	}
+	field := func(form, key string) string {
+		if v := given(form); v != "" {
+			return v
+		}
+		if moved && channelSecrets[key] {
+			return ""
 		}
 		if v, ok := old[key].(string); ok {
 			return v
@@ -3861,3 +3881,6 @@ func securityImage(image, server string) string {
 func serverCollectAllowed(p auth.Principal, platform string) bool {
 	return platform == "compose" || p.OrgWide()
 }
+
+// channelSecrets are the channel settings that are credentials, kept on an edit only while the address stays.
+var channelSecrets = map[string]bool{"token": true, "bot_token": true, "secret": true, "smtp_password": true}

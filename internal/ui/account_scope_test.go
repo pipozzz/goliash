@@ -64,3 +64,22 @@ func TestServerCollectAllowed(t *testing.T) {
 		t.Error("serverCollectAllowed")
 	}
 }
+
+// Editing a channel to point elsewhere asks for its secret again, rather than sending the stored one there.
+func TestChannelSecretStaysWithItsAddress(t *testing.T) {
+	old := map[string]any{"url": "https://grafana.example.com", "token": "glsa_stored"}
+	edit := func(form url.Values) (map[string]any, string) {
+		r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(form.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		return channelConfig(r, "grafana", old)
+	}
+	if cfg, problem := edit(url.Values{"url": {"https://grafana.example.com"}}); problem != "" || cfg["token"] != "glsa_stored" {
+		t.Errorf("same address: %v %q", cfg, problem)
+	}
+	if cfg, problem := edit(url.Values{"url": {"https://elsewhere.example"}}); problem == "" || cfg["token"] == "glsa_stored" {
+		t.Errorf("new address kept the stored token: %v", cfg)
+	}
+	if cfg, problem := edit(url.Values{"url": {"https://elsewhere.example"}, "token": {"glsa_new"}}); problem != "" || cfg["token"] != "glsa_new" {
+		t.Errorf("new address with a new token: %v %q", cfg, problem)
+	}
+}
