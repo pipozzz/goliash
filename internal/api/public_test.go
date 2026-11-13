@@ -493,3 +493,22 @@ func TestWhereInfoMetrics(t *testing.T) {
 		}
 	}
 }
+
+// A browser session held to two-factor sign-in, without it yet, reads no more through the API than in the pages;
+// API tokens are not sessions.
+func TestAPISessionRequiresTwoFactor(t *testing.T) {
+	e := newPublicEnv(t)
+	if code, _ := e.call(e.viewer, http.MethodGet, "/api/v1/services", "", ""); code != http.StatusOK {
+		t.Fatalf("before the requirement: %d", code)
+	}
+	ws, _ := e.st.EnsureDefaultWorkspace(context.Background())
+	if err := e.st.SetRequireTwoFactor(context.Background(), ws.OrgID, true); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := e.call(e.viewer, http.MethodGet, "/api/v1/services", "", ""); code != http.StatusForbidden {
+		t.Errorf("a link session without a second factor read the API: %d", code)
+	}
+	if code, _ := e.call(http.DefaultClient, http.MethodGet, "/api/v1/services", e.token, ""); code != http.StatusOK {
+		t.Errorf("an API token: %d", code)
+	}
+}

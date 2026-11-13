@@ -83,3 +83,18 @@ func TestChannelSecretStaysWithItsAddress(t *testing.T) {
 		t.Errorf("new address with a new token: %v %q", cfg, problem)
 	}
 }
+
+func TestSafeLink(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://github.com/acme/deploy/pull/1": "https://github.com/acme/deploy/pull/1",
+		"/services/web":                         "/services/web",
+		"javascript:alert(1)":                   "#",
+		" JavaScript:alert(1)":                  "#",
+		"//evil.example/x":                      "#",
+		"data:text/html,x":                      "#",
+	} {
+		if got := string(safeLink(in)); got != want {
+			t.Errorf("%q: %q", in, got)
+		}
+	}
+}

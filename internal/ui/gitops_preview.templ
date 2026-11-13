@@ -14,7 +14,7 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 			</div>
 		</div>
 		<dl class="facts">
-			<div class="fact"><dt>Repository</dt><dd><a href={ templ.SafeURL(v.RepoURL) } target="_blank" rel="noopener" class="mono">{ v.Repo }</a></dd></div>
+			<div class="fact"><dt>Repository</dt><dd><a href={ safeLink(v.RepoURL) } target="_blank" rel="noopener" class="mono">{ v.Repo }</a></dd></div>
 			<div class="fact"><dt>Branch</dt><dd class="mono">{ v.Head }<div class="targets">{ "from " + orDash(v.From) }</div></dd></div>
 			<div class="fact"><dt>Title</dt><dd>{ v.Title }</dd></div>
 		</dl>
@@ -51,7 +51,7 @@ templ GitOpsPreviewPage(v GitOpsPreviewView) {
 		}
 		<div class="actions">
 			if v.OpenAlready != "" {
-				<a class="button" href={ templ.SafeURL(v.OpenAlready) } target="_blank" rel="noopener">Open the pull request it opened</a>
+				<a class="button" href={ safeLink(v.OpenAlready) } target="_blank" rel="noopener">Open the pull request it opened</a>
 			} else if v.CanOpen {
 				<form method="post" action={ templ.URL(v.OpenURL) }>
 					if len(v.Fields) > 0 {

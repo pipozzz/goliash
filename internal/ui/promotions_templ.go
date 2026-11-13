@@ -479,9 +479,9 @@ func PromotionsPage(v PromotionsView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var25 templ.SafeURL
-								templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(pr.URL))
+								templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(pr.URL))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 98, Col: 62}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 98, Col: 57}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 								if templ_7745c5c3_Err != nil {
@@ -494,7 +494,7 @@ func PromotionsPage(v PromotionsView) templ.Component {
 								var templ_7745c5c3_Var26 string
 								templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(pullLabel(p.To, pr.State))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 98, Col: 123}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 98, Col: 118}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 								if templ_7745c5c3_Err != nil {
@@ -1181,9 +1181,9 @@ func pullsPanel(pulls []PullView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var57 templ.SafeURL
-			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(p.URL))
+			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinURLErrs(safeLink(p.URL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 244, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 244, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
@@ -1196,7 +1196,7 @@ func pullsPanel(pulls []PullView) templ.Component {
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(p.From + " → " + p.To)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 244, Col: 134}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 244, Col: 129}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {

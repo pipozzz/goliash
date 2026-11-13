@@ -53,6 +53,13 @@ type Principal struct {
 // OrgWide reports whether the principal manages the whole organization (owner or admin).
 func (p Principal) OrgWide() bool { return p.Via == "session" && store.OrgWide(p.User.Role) }
 
+// StrongSession reports whether the session was signed in with a second factor: a one-time code, a passkey, or
+// single sign-on, which brings its own.
+func (p Principal) StrongSession() bool {
+	return p.User.TOTPEnabled || strings.HasPrefix(p.Method, "oidc") ||
+		strings.HasPrefix(p.Method, "passkey") || strings.HasSuffix(p.Method, "+passkey")
+}
+
 // WorkspaceCookie remembers which workspace a browser works in.
 const WorkspaceCookie = "goliash_ws"
 
@@ -102,6 +109,7 @@ type Auth struct {
 	byClient   *limiter           // failed password sign-ins per client address
 	byEmail    *limiter           // failed password sign-ins per e-mail
 	byRegister *limiter           // OAuth client registrations per client address
+	byLinkMail *limiter           // sign-in links e-mailed per address, so the form floods no one's mailbox
 	webauthn   *webauthn.WebAuthn // nil when the public URL cannot carry passkeys
 	demo       *store.User        // a public demo: everyone is signed in as this viewer
 
@@ -145,6 +153,7 @@ func New(st *store.Store, log *slog.Logger, publicURL string, mail MailFunc) (*A
 		store: st, log: log, publicURL: u, mail: mail, passwords: true, sessionTTL: sessionTTL,
 		byClient: newLimiter(st, "client", 30, 15*time.Minute), byEmail: newLimiter(st, "email", 8, 15*time.Minute),
 		byRegister: newLimiter(st, "oauth-register", 20, time.Hour),
+		byLinkMail: newLimiter(st, "mail-link", 3, 15*time.Minute),
 		webauthn:   newWebAuthn(u.Scheme+"://"+u.Host, u.Hostname(), u.Scheme),
 	}, nil
 }
@@ -456,6 +465,12 @@ func (a *Auth) requestLink(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	// Three links per address in 15 minutes: the form must not flood a mailbox; the answer stays the same.
+	key := strings.ToLower(u.Email)
+	if a.byLinkMail.blocked(r.Context(), key) {
+		return
+	}
+	a.byLinkMail.fail(r.Context(), key)
 	link, err := a.LoginLink(r.Context(), u)
 	if err != nil {
 		a.log.ErrorContext(r.Context(), "creating sign-in link failed", "err", err)

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
+
 	"github.com/pipozzz/goliash/internal/mapping"
 	"github.com/pipozzz/goliash/internal/notifier"
 	"github.com/pipozzz/goliash/internal/store"
@@ -1939,4 +1941,14 @@ func sinceText(at string) string {
 		return ""
 	}
 	return " since " + at
+}
+
+// safeLink marks a link that comes from an agent, an upstream or a tracker safe to render when it is http(s) or a
+// path of this site; anything else (a javascript: URL) becomes "#".
+func safeLink(u string) templ.SafeURL {
+	l := strings.ToLower(strings.TrimSpace(u))
+	if strings.HasPrefix(l, "https://") || strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "/") && !strings.HasPrefix(l, "//") {
+		return templ.SafeURL(u)
+	}
+	return "#"
 }

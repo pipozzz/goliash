@@ -379,3 +379,20 @@ func mustURL(s string) *url.URL {
 	u, _ := url.Parse(s)
 	return u
 }
+
+// Three sign-in links an address in 15 minutes: the form floods no mailbox, and answers the same.
+func TestMagicLinkMailLimit(t *testing.T) {
+	h := newHarness(t, true)
+	ctx := context.Background()
+	u, _ := h.st.CreateUser(ctx, h.ws.OrgID, "ana@example.com", "Ana", store.RoleMember)
+	_ = h.st.SetMembership(ctx, u.ID, h.ws.ID, store.RoleMember)
+	c := h.client()
+	for range 5 {
+		if got := post(t, c, h.srv.URL+"/auth/magic", url.Values{"email": {"Ana@Example.com"}}); got != "login sent=1" {
+			t.Fatalf("answer %q", got)
+		}
+	}
+	if len(h.mails) != 3 {
+		t.Fatalf("%d mails", len(h.mails))
+	}
+}
