@@ -30,11 +30,17 @@ import (
 func (a *Agent) registryLoop(ctx context.Context) {
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
+	// Results the server did not take: sent again, with backoff, rather than checking every registry and reading
+	// every image again (a layer can be a GB) each minute while the server is away.
+	var pending *agentproto.RegistryResults
+	var next time.Time // when the next full check is due
+	retry := time.Minute
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-a.registriesChanged:
+			pending = nil // what to check changed: check again rather than send the old results
 			if !timer.Stop() {
 				select {
 				case <-timer.C:
@@ -54,6 +60,18 @@ func (a *Agent) registryLoop(ctx context.Context) {
 		}
 		a.mu.Unlock()
 
+		if pending != nil && time.Now().Before(next) {
+			if err := a.client.registryResults(ctx, *pending); err != nil && ctx.Err() == nil {
+				a.log.Warn("sending registry results failed", "err", err)
+				retry = min(retry*2, 15*time.Minute)
+				timer.Reset(min(retry, time.Until(next)))
+				continue
+			}
+			pending, retry = nil, time.Minute
+			timer.Reset(time.Until(next))
+			continue
+		}
+		pending = nil
 		if len(checks) > 0 {
 			res := agentproto.RegistryResults{CheckedAt: time.Now().UTC(), Results: a.checkRegistries(ctx, checks)}
 			// A refused or failed check is tried again sooner: a permission given meanwhile shows within minutes.
@@ -63,9 +81,12 @@ func (a *Agent) registryLoop(ctx context.Context) {
 					break
 				}
 			}
+			next = time.Now().Add(interval)
 			if err := a.client.registryResults(ctx, res); err != nil && ctx.Err() == nil {
 				a.log.Warn("sending registry results failed", "err", err)
-				interval = time.Minute
+				pending, retry = &res, time.Minute
+				timer.Reset(retry)
+				continue
 			}
 		}
 		timer.Reset(interval)

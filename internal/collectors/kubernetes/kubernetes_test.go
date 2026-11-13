@@ -361,3 +361,17 @@ func TestRegistryKeychain(t *testing.T) {
 		t.Fatal("read a secret of an unselected namespace")
 	}
 }
+
+// A native sidecar (an init container with restartPolicy Always) runs for the pod's life: it is reported, an
+// ordinary init container is not.
+func TestNativeSidecarReported(t *testing.T) {
+	always := corev1.ContainerRestartPolicyAlways
+	spec := corev1.PodSpec{
+		InitContainers: []corev1.Container{{Name: "migrate", Image: "app:1"}, {Name: "istio-proxy", Image: "istio/proxyv2:1.24.1", RestartPolicy: &always}},
+		Containers:     []corev1.Container{{Name: "app", Image: "app:1"}},
+	}
+	got := podContainers(spec)
+	if len(got) != 2 || got[0].Name != "app" || got[1].Name != "istio-proxy" {
+		t.Fatalf("%+v", got)
+	}
+}

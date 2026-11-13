@@ -235,3 +235,31 @@ func TestHostPackagesForVulnerabilities(t *testing.T) {
 		t.Fatal("the digest changed with nothing changed")
 	}
 }
+
+// In the agent's container, the host's /var/run leads to the container's /run: the host's file is read under run/.
+func TestRebootRequiredUnderRun(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "run"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(root, "run", "reboot-required"), []byte("*** System restart required ***\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(root, "run", "reboot-required.pkgs"), []byte("libc6\nopenssl\nlibc6\n"), 0o600)
+	c := &Collector{root: root, osrelease: filepath.Join(root, "nothing")}
+	if got := c.rebootRequired(nil); len(got) != 1 || got[0] != "reboot required: libc6, openssl updated" {
+		t.Fatalf("%q", got)
+	}
+}
+
+// On RHEL and Rocky 9 every installed kernel brings kernel-modules-core and -extra: only the running one's count.
+func TestRunningKernelModulesOnly(t *testing.T) {
+	purls := []string{
+		"pkg:rpm/rocky/kernel-modules-core@5.14.0-503.11.1.el9_5?arch=x86_64",
+		"pkg:rpm/rocky/kernel-modules-core@5.14.0-427.13.1.el9_4?arch=x86_64",
+		"pkg:rpm/rocky/kernel-modules-extra@5.14.0-427.13.1.el9_4?arch=x86_64",
+		"pkg:rpm/rocky/openssl@3.0.7-27.el9?arch=x86_64",
+	}
+	got := runningKernelOnly(purls, "5.14.0-503.11.1.el9_5.x86_64")
+	if len(got) != 2 || got[0] != purls[0] || got[1] != purls[3] {
+		t.Fatalf("%v", got)
+	}
+}
