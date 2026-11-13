@@ -152,3 +152,34 @@ func TestHTTPHandlerNeedsAToken(t *testing.T) {
 		t.Fatalf("status %d", resp.StatusCode)
 	}
 }
+
+// A filter value no item has (a typo) is an error naming the values there are, not an empty answer; case aside.
+func TestFilterChecked(t *testing.T) {
+	data := []any{
+		map[string]any{"environment": "prod", "urgency": "security fix", "servers": []any{"mail-01"}},
+		map[string]any{"environment": "staging", "urgency": "minor"},
+	}
+	if out, err := filterChecked(data, map[string]string{"environment": "PROD"}); err != nil || len(out.([]any)) != 1 {
+		t.Errorf("case: %v %v", out, err)
+	}
+	if out, err := filterChecked(data, map[string]string{"servers": "mail-01"}); err != nil || len(out.([]any)) != 1 {
+		t.Errorf("list field: %v %v", out, err)
+	}
+	if _, err := filterChecked(data, map[string]string{"urgency": "bogus"}); err == nil || !strings.Contains(err.Error(), "minor, security fix") {
+		t.Errorf("typo: %v", err)
+	}
+	// A real value with nothing left after another filter is an empty answer.
+	if out, err := filterChecked(data, map[string]string{"environment": "staging", "urgency": "security fix"}); err != nil || len(out.([]any)) != 0 {
+		t.Errorf("both real: %v %v", out, err)
+	}
+}
+
+func TestLimited(t *testing.T) {
+	l := limited([]any{1, 2, 3}, 2)
+	if l["total"] != 3 || l["truncated"] != true || len(l["items"].([]any)) != 2 {
+		t.Errorf("%v", l)
+	}
+	if l := limited([]any{1}, 2); l["truncated"] != nil {
+		t.Errorf("%v", l)
+	}
+}
