@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -34,12 +33,8 @@ type syncWindow struct {
 
 // argoSyncWindows reads every AppProject's sync windows, by project name.
 func (c *Collector) argoSyncWindows(ctx context.Context) map[string][]syncWindow {
-	list, err := c.dyn.Resource(argoProjects).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil
-	}
 	out := map[string][]syncWindow{}
-	for _, p := range list.Items {
+	if err := c.eachResource(ctx, argoProjects, func(p *unstructured.Unstructured) {
 		ws, _, _ := unstructured.NestedSlice(p.Object, "spec", "syncWindows")
 		for _, w := range ws {
 			m, ok := w.(map[string]any)
@@ -50,6 +45,8 @@ func (c *Collector) argoSyncWindows(ctx context.Context) map[string][]syncWindow
 				out[p.GetName()] = append(out[p.GetName()], sw)
 			}
 		}
+	}); err != nil {
+		return nil
 	}
 	return out
 }

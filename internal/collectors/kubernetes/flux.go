@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -48,11 +47,13 @@ func (c *Collector) flux(ctx context.Context) fluxObjects {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	list := func(gvr schema.GroupVersionResource) []unstructured.Unstructured {
-		l, err := c.dyn.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
-		if err != nil { // no Flux, no permission or a passing failure: the workloads still count
+		var items []unstructured.Unstructured
+		if err := c.eachResource(ctx, gvr, func(u *unstructured.Unstructured) {
+			items = append(items, *u)
+		}); err != nil { // no Flux, no permission or a passing failure: the workloads still count
 			return nil
 		}
-		return l.Items
+		return items
 	}
 	ks, hrs := list(fluxKustomizations), list(fluxHelmReleases)
 	if len(ks) == 0 && len(hrs) == 0 {

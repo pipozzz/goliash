@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -41,16 +40,12 @@ func (c *Collector) argoCD(ctx context.Context) map[workloadKey]agentproto.GitOp
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	list, err := c.dyn.Resource(argoApplications).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
-	if err != nil { // no Argo CD here, no permission, or a passing failure: the workloads still count
-		return nil
-	}
-	windows := c.argoSyncWindows(ctx)
+	windows := c.argoSyncWindows(ctx) // first, so each application is read once and not kept
 	now := c.clock()
 	out := map[workloadKey]agentproto.GitOps{}
-	for _, app := range list.Items {
-		g := argoGitOps(app)
-		blockedBy(&g, app, windows, now)
+	err := c.eachResource(ctx, argoApplications, func(app *unstructured.Unstructured) {
+		g := argoGitOps(*app)
+		blockedBy(&g, *app, windows, now)
 		resources, _, _ := unstructured.NestedSlice(app.Object, "status", "resources")
 		for _, r := range resources {
 			res, ok := r.(map[string]any)
@@ -63,6 +58,9 @@ func (c *Collector) argoCD(ctx context.Context) map[workloadKey]agentproto.GitOp
 			}
 			out[workloadKey{kind, str(res["namespace"]), str(res["name"])}] = g
 		}
+	})
+	if err != nil { // no Argo CD here, no permission, or a passing failure: the workloads still count
+		return nil
 	}
 	return out
 }
