@@ -144,6 +144,24 @@
 - image: docker.io/prom/prometheus
   cpe: [prometheus:prometheus]
   github: prometheus/prometheus
+- image: mcr.microsoft.com/dotnet/aspnet
+  eol: dotnet
+  github: dotnet/runtime
+  github_tag_prefix: v
+  # Even majors are long-term support (three years), odd ones standard term support.
+  policy: { major_filter: '[02468]$' }
+- image: mcr.microsoft.com/dotnet/runtime
+  eol: dotnet
+  github: dotnet/runtime
+  github_tag_prefix: v
+  # Even majors are long-term support (three years), odd ones standard term support.
+  policy: { major_filter: '[02468]$' }
+- image: mcr.microsoft.com/dotnet/sdk
+  eol: dotnet
+  github: dotnet/runtime
+  github_tag_prefix: v
+  # Even majors are long-term support (three years), odd ones standard term support.
+  policy: { major_filter: '[02468]$' }
 - image: quay.io/argoproj/argocd
   cpe: [argoproj:argo_cd, linuxfoundation:argo-cd]
   eol: argo-cd
