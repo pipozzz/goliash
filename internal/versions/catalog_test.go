@@ -223,3 +223,15 @@ func TestNodeLTSOnly(t *testing.T) {
 		t.Fatalf("latest %+v", up.Latest)
 	}
 }
+
+// Java is offered its next long-term support release, in the flavour that runs.
+func TestJavaLTSOnly(t *testing.T) {
+	p, _, err := PolicyFor(store.Service{}, "docker.io/library/eclipse-temurin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags := []string{"17-jre", "21-jre", "22-jre", "23-jre", "24-jre", "25-jre", "25-jdk", "26-jre"}
+	if up := Latest(tags, "21-jre", p); !up.HasLatest || up.Latest.Raw != "25-jre" {
+		t.Fatalf("latest %+v", up.Latest)
+	}
+}
