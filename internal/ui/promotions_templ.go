@@ -558,9 +558,9 @@ func PromotionsPage(v PromotionsView) templ.Component {
 							}
 							if len(p.PRs) > 1 {
 								var templ_7745c5c3_Var30 string
-								templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(" (" + pr.Target + ")")
+								templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(" (" + prPlace(p.PRs, pr) + ")")
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 104, Col: 38}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `promotions.templ`, Line: 104, Col: 47}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 								if templ_7745c5c3_Err != nil {

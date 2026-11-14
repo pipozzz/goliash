@@ -1991,9 +1991,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var108 string
-						templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(pr.Target)
+						templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(prPlace(it.PRs, pr))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 356, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 356, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 						if templ_7745c5c3_Err != nil {
@@ -2096,9 +2096,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var113 string
-					templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs("Open a pull request for " + it.Service + " " + it.PRTarget + " on " + pr.Target)
+					templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs("Open a pull request for " + it.Service + " " + it.PRTarget + " on " + prPlace(it.PRs, pr))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 375, Col: 112}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 375, Col: 122}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 					if templ_7745c5c3_Err != nil {
@@ -2140,9 +2140,9 @@ func updateRow(it UpdateItem, canAck bool, ret string) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var116 string
-						templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(pr.Target)
+						templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(prPlace(it.PRs, pr))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 380, Col: 27}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `updates.templ`, Line: 380, Col: 37}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 						if templ_7745c5c3_Err != nil {

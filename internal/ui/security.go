@@ -1199,3 +1199,16 @@ func unmitigatedCount(r versions.VulnReport) int {
 	}
 	return n
 }
+
+// exploitedTail ends the brief's line on running exploited vulnerabilities: they run, and which are past
+// CISA's due date.
+func exploitedTail(n int, pastDue []string) string {
+	out := " runs"
+	if n != 1 {
+		out = " run"
+	}
+	if len(pastDue) > 0 {
+		out += ", " + itoa(len(pastDue)) + " past CISA's due date: " + strings.Join(pastDue, ", ")
+	}
+	return out
+}

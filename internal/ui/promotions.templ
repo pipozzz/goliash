@@ -101,7 +101,7 @@ templ PromotionsPage(v PromotionsView) {
 												<a class="button secondary gitops-pr noprint" href={ templ.URL("/services/" + p.Service + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, p.Version, "/delivery")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
 													{ "Open PR → " + p.To }
 													if len(p.PRs) > 1 {
-														{ " (" + pr.Target + ")" }
+														{ " (" + prPlace(p.PRs, pr) + ")" }
 													}
 												</a>
 											}
