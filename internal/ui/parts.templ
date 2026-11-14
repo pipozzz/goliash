@@ -23,9 +23,13 @@ templ timeline(events []EventView, showService bool) {
 					@timeAgo(e.At)
 					<div class="ev">
 						<span class={ "kind", e.Type }>{ e.Label }</span>
-						<span class="what">{ e.Text }</span>
-						if showService && e.ServiceURL != "" {
-							<a class="where" href={ templ.URL(e.ServiceURL) }>{ e.Service }</a>
+						if rest, ok := leadingService(e, showService); ok {
+							<span class="what"><a class="u" href={ templ.URL(e.ServiceURL) }>{ e.Service }</a>{ rest }</span>
+						} else {
+							<span class="what">{ e.Text }</span>
+							if showService && e.ServiceURL != "" {
+								<a class="where" href={ templ.URL(e.ServiceURL) }>{ e.Service }</a>
+							}
 						}
 						if e.Ask != "" {
 							<button type="button" class="link ask-goli noprint" data-goli-ask={ e.Ask } title="Goli looks at everything else that changed around this time">Around this</button>

@@ -163,7 +163,7 @@ templ SecurityPage(v SecurityView) {
 												<div class="noprint"><a class="button secondary gitops-pr" href={ templ.URL(serviceURL(ex.Service.Name) + "/gitops/preview?" + previewQuery(pr.TargetID, pr.WorkloadID, ex.Target, "/security")) } title={ "See the pull request in the repository " + pr.App + " deploys from before opening it" }>
 													Open PR
 													if len(v.PRs[ex.Service.ID+"|"+ex.Environment.ID]) > 1 {
-														{ " (" + pr.Target + ")" }
+														{ " (" + prPlace(v.PRs[ex.Service.ID+"|"+ex.Environment.ID], pr) + ")" }
 													}
 												</a></div>
 											}
@@ -647,10 +647,7 @@ templ sinceYesterday(v SecurityView) {
 				}
 				if v.Brief.Exploited > 0 {
 					<li>
-						<a class="u" href="/security/vulns?kev=1">{ plural(v.Brief.Exploited, "vulnerability", "vulnerabilities") + " exploited in the wild" }</a> run
-						if len(v.Brief.PastDue) > 0 {
-							{ ", " + itoa(len(v.Brief.PastDue)) + " past CISA's due date: " + strings.Join(v.Brief.PastDue, ", ") }
-						}
+						<a class="u" href="/security/vulns?kev=1">{ plural(v.Brief.Exploited, "vulnerability", "vulnerabilities") + " exploited in the wild" }</a>{ exploitedTail(v.Brief.Exploited, v.Brief.PastDue) }
 					</li>
 				}
 				if len(v.Brief.Overdue) > 0 {

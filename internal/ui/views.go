@@ -1952,3 +1952,42 @@ func safeLink(u string) templ.SafeURL {
 	}
 	return "#"
 }
+
+// prPlace names where a pull request would be opened, among others for the same upgrade: its target, or its
+// application when another of them is on the same target.
+func prPlace(prs []PromotePR, pr PromotePR) string {
+	if pr.App == "" {
+		return pr.Target
+	}
+	for _, o := range prs {
+		if o.Target == pr.Target && o.WorkloadID != pr.WorkloadID {
+			return pr.App
+		}
+	}
+	return pr.Target
+}
+
+// clearKinds are the hygiene checks that found nothing, but the one shown: they are named in a line instead of
+// taking a tile each.
+func clearKinds(kinds []HygieneKind, current string) []HygieneKind {
+	var out []HygieneKind
+	for _, k := range kinds {
+		if k.Count == 0 && k.Kind != current {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// leadingService is the rest of an event's text when the text starts with its service's name, which is then
+// the link to the service instead of a second mention after the text.
+func leadingService(e EventView, showService bool) (string, bool) {
+	if !showService || e.ServiceURL == "" || e.Service == "" {
+		return "", false
+	}
+	rest, ok := strings.CutPrefix(e.Text, e.Service)
+	if !ok || (rest != "" && !strings.ContainsAny(rest[:1], " :(@")) {
+		return "", false
+	}
+	return rest, true
+}

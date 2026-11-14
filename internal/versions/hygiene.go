@@ -23,7 +23,7 @@ type Finding struct {
 	Severity string // warning or info
 	Image    string // repository:tag
 	Detail   string
-	Where    []string // "env / target / workload / container"
+	Where    []string // "env / target / workload / container", see placeOf
 	Teams    []string // the owners of the services running it
 }
 
@@ -56,7 +56,7 @@ func Hygiene(active []store.Instance, envName, targetName map[string]string, all
 			order = append(order, key)
 		}
 		g := byImage[key]
-		g.where = append(g.where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		g.where = append(g.where, placeOf(envName[i.EnvironmentID], targetName[i.TargetID], i.WorkloadName, i.ContainerName))
 		if i.Digest != "" {
 			g.digests[i.Digest] = true
 		}
@@ -255,7 +255,7 @@ func OutdatedBases(active []store.Instance, evidence map[string]store.ImageEvide
 			byImage[key] = f
 			order = append(order, key)
 		}
-		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		f.Where = append(f.Where, placeOf(envName[i.EnvironmentID], targetName[i.TargetID], i.WorkloadName, i.ContainerName))
 	}
 	sort.Strings(order)
 	out := make([]Finding, 0, len(order))
@@ -297,7 +297,7 @@ func OverBudget(active []store.Instance, evidence map[string]store.ImageEvidence
 			byImage[key] = f
 			order = append(order, key)
 		}
-		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		f.Where = append(f.Where, placeOf(envName[i.EnvironmentID], targetName[i.TargetID], i.WorkloadName, i.ContainerName))
 	}
 	sort.Strings(order)
 	out := make([]Finding, 0, len(order))
@@ -356,7 +356,7 @@ func UnexpectedSigners(active []store.Instance, evidence map[string]store.ImageE
 			byImage[key] = f
 			order = append(order, key)
 		}
-		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		f.Where = append(f.Where, placeOf(envName[i.EnvironmentID], targetName[i.TargetID], i.WorkloadName, i.ContainerName))
 	}
 	sort.Strings(order)
 	out := make([]Finding, 0, len(order))
@@ -433,7 +433,7 @@ func QuietUpstreams(active []store.Instance, releases map[string][]store.Release
 			byService[i.ServiceID] = f
 			order = append(order, i.ServiceID)
 		}
-		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		f.Where = append(f.Where, placeOf(envName[i.EnvironmentID], targetName[i.TargetID], i.WorkloadName, i.ContainerName))
 	}
 	out := make([]Finding, 0, len(order))
 	for _, id := range order {
@@ -489,12 +489,22 @@ func ExpiringImages(active []store.Instance, expiring []store.TagTime, envName, 
 			found[key] = f
 			order = append(order, key)
 		}
-		f.Where = append(f.Where, envName[i.EnvironmentID]+" / "+targetName[i.TargetID]+" / "+i.WorkloadName+" / "+i.ContainerName)
+		f.Where = append(f.Where, placeOf(envName[i.EnvironmentID], targetName[i.TargetID], i.WorkloadName, i.ContainerName))
 	}
 	out := make([]Finding, 0, len(order))
 	for _, k := range order {
 		sort.Strings(found[k].Where)
 		out = append(out, *found[k])
+	}
+	return out
+}
+
+// placeOf is where an image runs: "env / target / workload / container", the container left out when it is
+// named like its workload, as it most often is.
+func placeOf(env, target, workload, container string) string {
+	out := env + " / " + target + " / " + workload
+	if container != "" && container != workload {
+		out += " / " + container
 	}
 	return out
 }

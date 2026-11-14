@@ -312,7 +312,7 @@ func TestHygieneTeamFilter(t *testing.T) {
 	if !strings.Contains(page, "ghcr.io/acme/payments:latest") || strings.Contains(page, "ghcr.io/acme/web:stable") {
 		t.Fatal("the team filter shows another team's images")
 	}
-	if !strings.Contains(page, `<option value="team-web">`) || !strings.Contains(page, `href="/hygiene?kind=retagged&amp;team=team-pay"`) {
+	if !strings.Contains(page, `<option value="team-web">`) || !strings.Contains(page, `href="/hygiene?team=team-pay"`) {
 		t.Fatal("no team choice, or the kinds lose the team")
 	}
 }

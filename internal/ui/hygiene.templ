@@ -47,13 +47,26 @@ templ HygienePage(v HygieneView) {
 					<span>All findings</span>
 				</a>
 				for _, k := range v.Kinds {
-					<a href={ templ.URL(hygieneURL(k.Kind, v.Team)) } class={ "tile", templ.KV("current", v.Kind == k.Kind), templ.KV("warn", k.Warn && k.Count > 0), templ.KV("zero", k.Count == 0) }>
-						<strong>{ itoa(k.Count) }</strong>
-						<span>{ k.Label }</span>
-						<small>{ k.Help }</small>
-					</a>
+					if k.Count > 0 || v.Kind == k.Kind {
+						<a href={ templ.URL(hygieneURL(k.Kind, v.Team)) } class={ "tile", templ.KV("current", v.Kind == k.Kind), templ.KV("warn", k.Warn && k.Count > 0), templ.KV("zero", k.Count == 0) }>
+							<strong>{ itoa(k.Count) }</strong>
+							<span>{ k.Label }</span>
+							<small>{ k.Help }</small>
+						</a>
+					}
 				}
 			</nav>
+			if clear := clearKinds(v.Kinds, v.Kind); len(clear) > 0 {
+				<p class="muted all-clear">
+					Also checked, nothing found:
+					for i, k := range clear {
+						if i > 0 {
+							{ ", " }
+						}
+						<span title={ k.Help }>{ k.Label }</span>
+					}
+				</p>
+			}
 		}
 		if len(v.DigestHints) > 0 {
 			<section class="panel">
