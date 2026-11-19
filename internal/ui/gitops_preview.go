@@ -72,10 +72,7 @@ func (s *Server) previewGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.
 	if !ok {
 		return back(w, r, path, "error", "That upgrade is no longer offered; the page is reloaded with what runs now.")
 	}
-	ret := q.Get("return")
-	if ret != "/delivery" && ret != "/updates" && ret != "/security" && ret != "/gitops" && ret != "/tiles" {
-		ret = ""
-	}
+	ret := prReturn(q.Get("return"))
 	if ret != "" {
 		u.page = ret
 	}
