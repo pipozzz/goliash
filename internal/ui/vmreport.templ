@@ -69,8 +69,10 @@ templ VMReportPage(v VMReportView) {
 									<td>{ u.BehindSince.Format("2 Jan") }</td>
 									<td>
 										if u.Pull != nil {
-											<a href={ safeLink(u.Pull.URL) } target="_blank" rel="noopener">{ "merged " + u.Pull.MergedAt.Format("2 Jan") }</a>
-											<div class="targets">{ "opened " + u.Pull.OpenedAt.Format("2 Jan") + " by " + pullOpener(u.Pull.OpenedBy) }</div>
+											<a href={ safeLink(u.Pull.URL) } target="_blank" rel="noopener">{ pullMerged(u.Pull) }</a>
+											if by := pullBy(u.Pull); by != "" {
+												<div class="targets">{ by }</div>
+											}
 										} else {
 											<span class="muted">—</span>
 										}
@@ -287,7 +289,7 @@ templ VMReportPage(v VMReportView) {
 				<li><strong>Vulnerabilities</strong> are matched with OSV against each image's packages, read from its SBOM attestation or its package database; product CVEs come from GitHub security advisories and NVD. Images without either are listed as blind spots on the Security page.</li>
 				<li><strong>Exploited in the wild</strong> means listed in CISA's Known Exploited Vulnerabilities catalog; its due date is CISA's (BOD 22-01).</li>
 				<li><strong>Time to patch</strong> runs from the publication of the first release newer than the version that ran, to the deploy of an upgrade in production. Rollbacks and versions with no known release are left out.</li>
-				<li><strong>Pull request</strong> is the one Goliash opened for the upgrade and saw merged before the deploy: who asked for it, when it was opened and when it was merged. An upgrade that came another way (CI, Renovate, by hand) has none.</li>
+				<li><strong>Pull request</strong> is the one that brought the upgrade: one Goliash opened and saw merged before the deploy (who asked for it, when it was opened and merged), else the one the forge says merged the commit the GitOps application had synced when the version came up (Renovate's, a person's), when a GitOps token reaches the repository. An upgrade deployed another way (CI, by hand) has none.</li>
 				<li><strong>A security fix</strong> is an upgrade whose releases on the way say they fix vulnerabilities (CVE ids or a security note); <strong>in time</strong> means deployed within the deadline for security fixes.</li>
 				<li><strong>Accepted risks</strong> are acknowledgements recorded in Goliash, with who made them and when they end.</li>
 				<li><strong>Not affected</strong> records that a reported vulnerability does not apply to a service (a backported fix, a component that is not there, code that is never reached); it leaves the findings until it is withdrawn, and is reviewed by its date. Goliash also leaves out a package its distribution's advisory has no fix for when NVD's version ranges for the upstream product show the version that runs is past the fix.</li>

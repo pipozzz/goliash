@@ -319,6 +319,37 @@ func pullLabel(to, state string) string {
 	return label
 }
 
+// LookUpDeployPulls asks the forges which pull request merged the commit behind each recent deploy, so the monthly
+// report names Renovate's and people's as well as the ones Goliash opened. A repository no token reaches waits.
+func (s *Server) LookUpDeployPulls(ctx context.Context) error {
+	c, ok := s.pulls.(gitops.CommitPuller)
+	if !ok {
+		return nil
+	}
+	pending, err := s.store.PendingDeployCommits(ctx, time.Now().AddDate(0, -2, 0), 200)
+	if err != nil {
+		return err
+	}
+	for _, d := range pending {
+		repo := versions.RepoWebURL(d.Repo)
+		if repo == "" || !s.pulls.Supports(repo) {
+			continue
+		}
+		p, found, err := c.CommitPull(ctx, repo, d.Revision)
+		if err != nil {
+			s.log.WarnContext(ctx, "finding the pull request of a deployed commit failed", "repo", repo, "commit", d.Revision, "err", err)
+			continue
+		}
+		if !found {
+			p = gitops.MergedPull{}
+		}
+		if err := s.store.SetDeployCommitPull(ctx, d.Scope, d.ID, p.URL, p.Title, p.By, p.MergedAt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RefreshPulls asks the forges what became of the open pull requests Goliash opened.
 func (s *Server) RefreshPulls(ctx context.Context) error {
 	if s.pulls == nil {

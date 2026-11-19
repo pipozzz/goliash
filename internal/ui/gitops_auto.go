@@ -28,6 +28,9 @@ func (s *Server) RunAutoPRs(ctx context.Context, interval time.Duration) {
 		if err := s.RefreshPulls(ctx); err != nil && ctx.Err() == nil {
 			s.log.Error("reading pull requests' state failed", "err", err)
 		}
+		if err := s.LookUpDeployPulls(ctx); err != nil && ctx.Err() == nil {
+			s.log.Error("finding deployed commits' pull requests failed", "err", err)
+		}
 		if n, err := s.AutoPRs(ctx); err != nil && ctx.Err() == nil {
 			s.log.Error("automatic pull requests failed", "err", err)
 		} else if n > 0 {

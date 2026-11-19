@@ -111,3 +111,23 @@ func TestPullFor(t *testing.T) {
 		t.Errorf("an upgrade that came another way has a pull request: %+v", p)
 	}
 }
+
+// An upgrade Goliash did not open takes the pull request the forge says merged the commit deployed with it.
+func TestCommitPull(t *testing.T) {
+	deployed := time.Date(2026, 10, 12, 10, 0, 0, 0, time.UTC)
+	s := PatchSample{ServiceID: "svc", To: "1.2.0", At: deployed}
+	merged := deployed.Add(-time.Hour)
+	commits := []store.DeployCommit{
+		{ServiceID: "svc", EnvironmentID: "staging", To: "1.2.0", DeployedAt: deployed, PullURL: "https://x/pull/1"},
+		{ServiceID: "svc", EnvironmentID: "prod", To: "1.2.0", DeployedAt: deployed}, // looked up: no pull request
+		{ServiceID: "svc", EnvironmentID: "prod", To: "1.2.0", DeployedAt: deployed.Add(-72 * time.Hour), PullURL: "https://x/pull/2"},
+		{ServiceID: "svc", EnvironmentID: "prod", To: "1.2.0", DeployedAt: deployed.Add(time.Minute), PullURL: "https://x/pull/3", PullBy: "renovate[bot]", PullMergedAt: merged},
+	}
+	p := commitPull(commits, s, "prod")
+	if p == nil || p.URL != "https://x/pull/3" || p.OpenedBy != "renovate[bot]" || p.State != "merged" || !p.MergedAt.Equal(merged) || !p.OpenedAt.IsZero() {
+		t.Errorf("pull = %+v, want Renovate's, merged before the deploy, opening date unknown", p)
+	}
+	if p := commitPull(commits[:3], s, "prod"); p != nil {
+		t.Errorf("a commit without a pull request, or deployed days apart, gives %+v", p)
+	}
+}

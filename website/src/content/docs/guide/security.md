@@ -684,8 +684,10 @@ The page shows the last environment (production) by default; *Every environment*
   made to hand to an auditor for NIS2 (Article 21), ISO 27001 (A.8.8), SOC 2 (CC7.1) or DORA: the remediation
   deadlines in force, production's posture at the month's end, every upgrade deployed with its time to patch and
   whether its security fix met the deadline (the *security fixes in time* share), the pull request that brought it
-  (who asked for it, when it was opened and merged: the trail from *the fix came out* to *it runs in production*,
-  for upgrades opened from Goliash), each team's month, what runs
+  (who asked for it, when it was opened and merged: the trail from *the fix came out* to *it runs in production*;
+  for an upgrade Goliash did not open, Renovate's or a person's, the pull request the forge says merged the commit
+  the Argo CD or Flux application had synced when the version came up, when a
+  [GitOps token](/guide/argocd/#upgrade-with-a-pull-request) reaches the repository), each team's month, what runs
   exploited or past its deadline as the report is made, the accepted risks with who accepted them and until when,
   and how each number is counted. Arrows move between months; **Export CSV** gives the month's upgrades and **Print
   or save as PDF** the whole report. The month-end posture needs Goliash to have run then: it is read from the daily
