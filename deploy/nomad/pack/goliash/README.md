@@ -31,9 +31,31 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 | `nomad_token` | `""` | ACL token with `list-jobs` and `read-job`, when ACLs are on. |
 | `secret_key` | `""` | Encrypts channel secrets. Empty = generated on the volume. |
 | `github_token` | `""` | Optional, for release notes lookups. |
+| `gitlab_url` | `""` | A GitLab of your own (default gitlab.com). |
+| `gitea_url` | `""` | Your Gitea or Forgejo; required for pull requests there. |
 | `data_volume` | `goliash_data` | `/data` — SQLite database and secret key. |
 | `image` | `ghcr.io/pipozzz/goliash:1.269.0` | Image. Pin a tag in production. |
 | `resources` | `{ cpu = 200, memory = 256 }` | Task resources. |
+
+## Pull requests
+
+Goliash opens an upgrade as a [pull request](https://goliash.dev/guide/argocd/#upgrade-with-a-pull-request) in the
+repository you deploy from once it has a token for it. Put the token in the job's Nomad Variable, which only the
+job reads:
+
+```sh
+nomad var put nomad/jobs/goliash GOLIASH_GITOPS_TOKEN=github_pat_…
+```
+
+| Item | What it is |
+| --- | --- |
+| `GOLIASH_GITOPS_TOKEN` | GitHub: a fine-grained token limited to the deploy repositories, *Contents* and *Pull requests* read and write. |
+| `GOLIASH_GITOPS_GITLAB_TOKEN` | GitLab: a project or group access token with the `api` scope and the Developer role. Set `gitlab_url` for a GitLab of your own. |
+| `GOLIASH_GITOPS_GITEA_TOKEN` | Gitea or Forgejo: an access token with `write:repository`. Needs `gitea_url`. |
+| `GOLIASH_GITOPS_REPOS` | Optional: the repositories the tokens may be used on, comma-separated. |
+
+`nomad var put` replaces the whole Variable: name the items it already holds too (`nomad var get nomad/jobs/goliash`
+shows them). The job restarts when the Variable changes.
 
 ## Notes
 

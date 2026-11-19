@@ -82,6 +82,18 @@ variable "github_token" {
   default     = ""
 }
 
+variable "gitlab_url" {
+  description = "Address of a GitLab of your own, for release lookups and pull requests (default gitlab.com). Its token goes in the Nomad Variable (README)."
+  type        = string
+  default     = ""
+}
+
+variable "gitea_url" {
+  description = "Address of your Gitea or Forgejo, e.g. https://git.example.com: required to open pull requests there. Its token goes in the Nomad Variable (README)."
+  type        = string
+  default     = ""
+}
+
 variable "data_volume" {
   description = "Named volume for the SQLite database and the secret key (/data)."
   type        = string

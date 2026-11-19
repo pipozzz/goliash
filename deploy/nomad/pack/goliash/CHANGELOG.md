@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- `gitlab_url` and `gitea_url`: the address of a GitLab, Gitea or Forgejo of your own.
+- README: which items of the Nomad Variable let Goliash open upgrades as pull requests.
+
 ## 0.2.0
 
 - Secrets from the job's Nomad Variable (`nomad/jobs/<job name>`): its `GOLIASH_*` items and `NOMAD_TOKEN` become
