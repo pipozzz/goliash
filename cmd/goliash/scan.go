@@ -95,8 +95,7 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 		return errors.New("nothing to scan: no kubeconfig context and no Docker socket found (name one with -kube-context or -docker-host)")
 	}
 	if *publicURL == "" {
-		port := (*listen)[strings.LastIndex(*listen, ":")+1:]
-		*publicURL = "http://localhost:" + port
+		*publicURL = localURL(*listen)
 	}
 	dir, err := os.MkdirTemp("", "goliash-scan-")
 	if err != nil {

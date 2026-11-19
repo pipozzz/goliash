@@ -109,3 +109,20 @@ func TestScanSummarize(t *testing.T) {
 		t.Error("a service not looked at yet: not done")
 	}
 }
+
+// A throwaway server prints a link to where it listens, not to the default port.
+func TestLocalURL(t *testing.T) {
+	for listen, want := range map[string]string{
+		":8080":          "http://localhost:8080",
+		":9000":          "http://localhost:9000",
+		"127.0.0.1:8099": "http://localhost:8099",
+		"0.0.0.0:80":     "http://localhost:80",
+		"10.0.0.5:8080":  "http://10.0.0.5:8080",
+		"[::1]:8081":     "http://localhost:8081",
+		"nonsense":       "http://localhost:8080",
+	} {
+		if got := localURL(listen); got != want {
+			t.Errorf("localURL(%q) = %q, want %q", listen, got, want)
+		}
+	}
+}
