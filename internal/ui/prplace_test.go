@@ -43,3 +43,13 @@ func TestLeadingService(t *testing.T) {
 		t.Error("the service page does not link the service")
 	}
 }
+
+// An Open PR comes back to the page it was pressed on, when that page offers pull requests.
+func TestPRReturn(t *testing.T) {
+	if prReturn("/today") != "/today" || prReturn("/updates") != "/updates" || prReturn("https://evil.example") != "" || prReturn("/settings") != "" {
+		t.Error("prReturn")
+	}
+	if previewReturn("/today") != "/today" || previewReturn("/updates?level=0") != "/updates" || previewReturn("") != "/updates" {
+		t.Error("previewReturn")
+	}
+}

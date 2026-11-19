@@ -114,13 +114,30 @@ func (s *Server) findUpgrade(ctx context.Context, sc store.Scope, service, targe
 	return u, true, nil
 }
 
+// prReturn is the page an opened pull request goes back to, when it is one that offers them; else "".
+func prReturn(ret string) string {
+	switch ret {
+	case "/delivery", "/updates", "/security", "/gitops", "/tiles", "/today":
+		return ret
+	}
+	return ""
+}
+
+// previewReturn is where a row's Open PR comes back to: Today for Today's rows, else Updates.
+func previewReturn(ret string) string {
+	if ret == "/today" {
+		return ret
+	}
+	return "/updates"
+}
+
 // openGitOpsPR opens the pull request a form names: an upgrade from a service page or the Updates page, or a
 // promotion from the Delivery page.
 func (s *Server) openGitOpsPR(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
 	ctx := r.Context()
 	name := r.PathValue("name")
 	path := "/services/" + url.PathEscape(name)
-	if ret := r.FormValue("return"); ret == "/delivery" || ret == "/updates" || ret == "/security" || ret == "/gitops" || ret == "/tiles" {
+	if ret := prReturn(r.FormValue("return")); ret != "" {
 		path = ret
 	}
 	if s.pulls == nil {

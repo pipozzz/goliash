@@ -13,7 +13,7 @@ Delivery and Security to find it.
 | **Since yesterday** | What changed: new security releases for what runs, vulnerabilities newly listed as exploited, fixes merged and not deployed |
 
 Each upgrade has the same actions as on Updates: **Open PR** when Argo CD, Flux or `goliash.git.*` labels say where
-its version is pinned, **Put off** with a reason, **Brief** from Goli. Majors, minors and patches that can wait are
+its version is pinned (opened, it brings you back to Today), **Put off** with a reason, **Brief** from Goli. Majors, minors and patches that can wait are
 only counted, with a link to [Updates](/guide/versions/).
 
 When nothing has to be done, the page says so — that is the state to aim for.

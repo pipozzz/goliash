@@ -156,9 +156,12 @@ func TestOpenGitOpsPR(t *testing.T) {
 		t.Fatal("a viewer is offered a pull request on the Security page")
 	}
 	_, body, _ = post(t, member, e.srv.URL+"/services/"+url.PathEscape(svc)+"/gitops/pr",
-		url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {newer}})
+		url.Values{"target_id": {e.tgt.ID}, "workload_id": {"w1"}, "to": {newer}, "return": {"/today"}})
 	if !strings.Contains(body, "Pull request opened: https://github.com/acme/deploy/pull/7") || len(pulls.got) != 1 {
 		t.Fatalf("not opened: %d", len(pulls.got))
+	}
+	if !strings.Contains(body, "<title>Today") {
+		t.Error("a pull request opened from Today does not come back to it")
 	}
 	b := pulls.got[0]
 	if b.Repo != "https://github.com/acme/deploy" || b.Branch != "main" || b.Path != "apps/evil/prod" || b.From != apps[0].Tag ||
