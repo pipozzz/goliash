@@ -787,7 +787,7 @@ func TestAgentPage(t *testing.T) {
 func TestHeaderMenusAndMatrixFilter(t *testing.T) {
 	e := newUIEnv(t)
 	_, viewer := get(t, e.as(store.RoleViewer), e.srv.URL+"/", nil)
-	for _, want := range []string{`href="/hygiene"`, `href="/agents"`, `href="/notifications"`, `href="/account"`, `id="matrix-q"`, `data-search="`, "Time travel"} {
+	for _, want := range []string{`href="/agents"`, `href="/notifications"`, `href="/account"`, `id="matrix-q"`, `data-search="`, "Time travel"} {
 		if !strings.Contains(viewer, want) {
 			t.Errorf("viewer page misses %s", want)
 		}
@@ -799,8 +799,8 @@ func TestHeaderMenusAndMatrixFilter(t *testing.T) {
 	if !strings.Contains(owner, `href="/settings"`) || !strings.Contains(owner, `href="/workspaces"`) {
 		t.Error("owner misses admin menu entries")
 	}
-	if !strings.Contains(owner, `<a href="/hygiene" aria-current="page"`) {
-		t.Error("hygiene is not the current page")
+	if !strings.Contains(owner, `<a href="/security" aria-current="page"`) || !strings.Contains(owner, `<a href="/security">Security</a> / image hygiene`) {
+		t.Error("image hygiene is not shown as a part of Security")
 	}
 	// Time travel has no filter (it shows a past state).
 	if _, past := get(t, e.as(store.RoleMember), e.srv.URL+"/?at=2026-01-01T00:00", nil); strings.Contains(past, `id="matrix-q"`) {

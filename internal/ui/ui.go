@@ -1364,7 +1364,7 @@ func (s *Server) hygiene(w http.ResponseWriter, r *http.Request, p auth.Principa
 	if err != nil {
 		return err
 	}
-	v := HygieneView{Base: s.base(r.Context(), p, "hygiene", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Team: r.URL.Query().Get("team")}
+	v := HygieneView{Base: s.base(r.Context(), p, "security", "Image hygiene"), Kind: r.URL.Query().Get("kind"), Team: r.URL.Query().Get("team")}
 	teams := map[string]bool{}
 	for _, f := range findings {
 		for _, t := range f.Teams {
