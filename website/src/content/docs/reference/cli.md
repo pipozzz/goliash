@@ -172,5 +172,17 @@ are read. Nothing is written to the cluster or the Docker host, and nothing is k
 | `-listen` | `127.0.0.1:8080` | Where the throwaway server listens: local only, as it shows your real data |
 | `-wait` | `2m` | How long to wait for the first results before printing what is known |
 
-The binary for your machine is on the [releases page](https://github.com/pipozzz/goliash/releases). To keep
-watching, with history and notifications, see [Getting started](/getting-started/).
+To keep watching, with history and notifications, see [Getting started](/getting-started/).
+
+### Install the command
+
+On Linux and macOS:
+
+```sh
+curl -fsSL https://goliash.dev/install.sh | sh
+```
+
+[The script](https://github.com/pipozzz/goliash/blob/main/website/public/install.sh) downloads the latest release's
+archive for your system, checks it against the release's checksums and puts `goliash` into `~/.local/bin`, without
+sudo. `GOLIASH_INSTALL_DIR` names another directory and `GOLIASH_VERSION` another release. For Windows, or to do it
+by hand, the archives are on the [releases page](https://github.com/pipozzz/goliash/releases).
