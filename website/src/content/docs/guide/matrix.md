@@ -312,7 +312,7 @@ Every snapshot is compared with the previous one of the same target. The differe
 | Event | When |
 | --- | --- |
 | `deployed` | A workload appears. |
-| `version_changed` | A workload runs a different tag. A changed digest under the same tag is noted as a retag. |
+| `version_changed` | A workload runs a different tag. A changed digest under the same tag is noted as a retag. On History and the service page it links the pull request that brought the version (*PR #412 · renovate[bot]*) when one is known: one Goliash opened, or the one the forge says merged the commit an Argo CD or Flux application synced. |
 | `removed` | A workload disappears. |
 | `new_release` | An upstream release newer than everything known appears. |
 | `drift_detected`, `drift_resolved` | Drift is announced, or ends. |

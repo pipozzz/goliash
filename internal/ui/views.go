@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -629,6 +630,71 @@ type EventView struct {
 	Env        string
 	Target     string
 	Ask        string // what to ask Goli about what happened around this event; empty without Goli
+	PullURL    string // for a new version: the pull request that brought it, when known
+	PullLabel  string // "PR #412 · renovate[bot]"
+}
+
+// eventPull is a merged pull request that brought a version to an environment, for the timeline.
+type eventPull struct{ url, by string }
+
+// eventPulls are the merged pull requests that brought versions, by service, environment and version: those
+// Goliash opened, and those the forges say merged a commit deployed (Renovate's, people's).
+func (s *Server) eventPulls(ctx context.Context, sc store.Scope, o versions.Overview, since time.Time) map[string]eventPull {
+	out := map[string]eventPull{}
+	envID := map[string]string{}
+	for id, e := range o.Envs {
+		envID[e.Name] = id
+	}
+	if commits, err := s.store.ListDeployCommits(ctx, sc, since); err == nil {
+		for _, d := range commits {
+			if d.PullURL != "" {
+				out[d.ServiceID+"|"+d.EnvironmentID+"|"+d.To] = eventPull{d.PullURL, d.PullBy}
+			}
+		}
+	}
+	if pulls, err := s.store.ListGitOpsPulls(ctx, sc); err == nil {
+		for _, p := range pulls {
+			if p.State == "merged" {
+				out[p.ServiceID+"|"+envID[p.Environment]+"|"+p.To] = eventPull{p.URL, pullOpener(p.OpenedBy)}
+			}
+		}
+	}
+	return out
+}
+
+// oldestEvent is when the oldest of the events happened (they come newest first), less a day: deploy commits are
+// read from then.
+func oldestEvent(evs []store.Event) time.Time {
+	if len(evs) == 0 {
+		return time.Now()
+	}
+	return evs[len(evs)-1].At.Add(-24 * time.Hour)
+}
+
+// withPulls links each new version in the timeline to the pull request that brought it, when known.
+func withPulls(views []EventView, evs []store.Event, pulls map[string]eventPull) {
+	for i, e := range evs {
+		if i >= len(views) || (e.Type != "version_changed" && e.Type != "deployed") {
+			continue
+		}
+		if p, ok := pulls[e.ServiceID+"|"+e.EnvironmentID+"|"+e.ToVersion]; ok {
+			views[i].PullURL, views[i].PullLabel = p.url, pullLabelOf(p)
+		}
+	}
+}
+
+// pullLabelOf names a pull request by its number and who opened it: "PR #412 · renovate[bot]".
+func pullLabelOf(p eventPull) string {
+	label := "pull request"
+	if i := strings.LastIndex(p.url, "/"); i >= 0 && i < len(p.url)-1 {
+		if _, err := strconv.Atoi(p.url[i+1:]); err == nil {
+			label = "PR #" + p.url[i+1:]
+		}
+	}
+	if p.by != "" {
+		label += " · " + p.by
+	}
+	return label
 }
 
 // askAround fills in, for changes that can start an incident, what to ask Goli about everything else that changed
