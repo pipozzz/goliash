@@ -19,32 +19,7 @@ templ PromotionsPage(v PromotionsView) {
 			</div>
 			@pageFilter("main table tbody tr, main .app-promote", "Filter services, versions, environments")
 		</div>
-		if len(v.Rollouts) > 0 {
-			<section class="panel">
-				<div class="panel-head"><h2>Rollouts that do not finish</h2>@panelInfo("replicas not where the platform was asked to put them")</div>
-				<div class="scroll" tabindex="0">
-					<table class="cards">
-						<thead><tr><th>Service</th><th>Where</th><th>What</th><th>Since</th></tr></thead>
-						<tbody>
-							for _, is := range v.Rollouts {
-								<tr>
-									<td data-label="Service" class="svc"><a href={ templ.URL("/services/" + is.Service) }><strong>{ is.Service }</strong></a></td>
-									<td data-label="Where">
-										{ is.Environment }
-										<div class="targets">{ is.Target + " · " + is.Workload }</div>
-									</td>
-									<td data-label="What">
-										<span class={ "badge", rolloutBadge(is.Kind) }>{ rolloutLabel(is.Kind) }</span>
-										<div class="targets">{ rolloutDetail(is) }</div>
-									</td>
-									<td data-label="Since">@timeAgo(is.Since)</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
-			</section>
-		}
+		@rolloutsPanel(v.Rollouts)
 		<section class="panel">
 			<div class="panel-head"><h2>Deploys per week</h2>@panelInfo("versions that arrived, by environment, last 12 weeks")</div>
 			@stackedBars(v.Deploys, "Deploys per week by environment, last 12 weeks")
@@ -276,4 +251,34 @@ templ pullsPanel(pulls []PullView) {
 			</table>
 		</div>
 	</section>
+}
+
+// rolloutsPanel lists the rollouts that do not finish, when there are any.
+templ rolloutsPanel(issues []versions.RolloutIssue) {
+	if len(issues) > 0 {
+		<section class="panel">
+			<div class="panel-head"><h2>Rollouts that do not finish</h2>@panelInfo("replicas not where the platform was asked to put them")</div>
+			<div class="scroll" tabindex="0">
+				<table class="cards">
+					<thead><tr><th>Service</th><th>Where</th><th>What</th><th>Since</th></tr></thead>
+					<tbody>
+						for _, is := range issues {
+							<tr>
+								<td data-label="Service" class="svc"><a href={ templ.URL("/services/" + is.Service) }><strong>{ is.Service }</strong></a></td>
+								<td data-label="Where">
+									{ is.Environment }
+									<div class="targets">{ is.Target + " · " + is.Workload }</div>
+								</td>
+								<td data-label="What">
+									<span class={ "badge", rolloutBadge(is.Kind) }>{ rolloutLabel(is.Kind) }</span>
+									<div class="targets">{ rolloutDetail(is) }</div>
+								</td>
+								<td data-label="Since">@timeAgo(is.Since)</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	}
 }

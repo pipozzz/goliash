@@ -1,0 +1,71 @@
+// Copyright 2026 The Goliash Authors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package ui
+
+templ TodayPage(v TodayView) {
+	@Layout(v.Base) {
+		<div class="page-head">
+			<div>
+				<h1>Today</h1>
+				@about("What to do first: upgrades that cannot wait, rollouts that do not finish and what changed since yesterday.") {
+					<p>One list of what to do first, from what the other pages know: upgrades for a vulnerability exploited in the wild, a security release, a release cycle past its end of life or anything past your deadline; rollouts that do not finish; and what changed since yesterday. Everything else waits on <a href="/updates">Updates</a>.</p>
+				}
+			</div>
+		</div>
+		if len(v.Urgent) == 0 && len(v.Rollouts) == 0 {
+			<section class="panel">
+				<div class="empty">
+					Nothing has to be done today: no exploited vulnerability runs, no security release waits, nothing is past its end of life and every rollout finished.
+					if v.Later > 0 {
+						<a href="/updates">{ plural(v.Later, "upgrade", "upgrades") + " can wait" }</a>.
+					}
+				</div>
+			</section>
+		}
+		@rolloutsPanel(v.Rollouts)
+		if len(v.Urgent) > 0 {
+			<section class="panel">
+				<div class="panel-head">
+					<h2>Upgrade first</h2>
+					@panelInfo("An exploited vulnerability, a release that fixes vulnerabilities, a release cycle past its end of life, or past your deadline: most urgent first, production first.")
+				</div>
+				<div class="scroll" tabindex="0">
+					<table class="updates cards no-bulk">
+						<thead>
+							<tr>
+								<th>Service</th>
+								<th>Environment</th>
+								<th>Upgrade</th>
+								<th>Why</th>
+								<th>Open for</th>
+								if v.CanMember {
+									<th><span class="sr-only">Actions</span></th>
+								}
+							</tr>
+						</thead>
+						<tbody>
+							for _, it := range v.Urgent {
+								@updateRow(it, v.CanMember, "/today")
+							}
+						</tbody>
+					</table>
+				</div>
+				if v.UrgentTotal > len(v.Urgent) || v.Later > 0 {
+					<p class="panel-body muted">
+						if v.UrgentTotal > len(v.Urgent) {
+							<a href="/updates">{ plural(v.UrgentTotal-len(v.Urgent), "more that cannot wait", "more that cannot wait") }</a>
+							if v.Later > 0 {
+								{ " · " }
+							}
+						}
+						if v.Later > 0 {
+							<a href="/updates">{ plural(v.Later, "upgrade", "upgrades") + " that can wait" }</a>
+						}
+					</p>
+				}
+			</section>
+		}
+		@sinceYesterday(SecurityView{Brief: v.Brief, At: v.At})
+	}
+}
