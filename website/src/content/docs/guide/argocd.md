@@ -160,7 +160,9 @@ to its API address (`https://github.example.com/api/v3`). For GitLab set `GOLIAS
 group access token with the `api` scope and the Developer role, on gitlab.com or the instance in `GOLIASH_GITLAB_URL`.
 For **Gitea or Forgejo** (Codeberg too) set `GOLIASH_GITEA_URL` to the instance (`https://git.example.com`) and
 `GOLIASH_GITOPS_GITEA_TOKEN` to an access token with `write:repository`; it needs Gitea 1.20 or Forgejo 1.20 or
-newer. Several can be set at once: each repository goes to the forge of its host. Only members and admins see the button; each pull request is
+newer. Several can be set at once: each repository goes to the forge of its host. With the Helm chart, put the
+tokens in a Secret (keys `github-token`, `gitlab-token`, `gitea-token`, each optional) and name it in
+`gitops.existingSecret`; the addresses are `gitops.githubAPI`, `gitops.gitlabURL` and `gitops.giteaURL`. Only members and admins see the button; each pull request is
 in the audit log.
 
 ## Set up

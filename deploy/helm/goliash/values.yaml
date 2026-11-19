@@ -50,6 +50,20 @@ goli:
   digestSummary: false  # digests of three or more events open with Goli's take
   perDay: ""          # questions everyone may ask per day, per replica: a cost ceiling (server default none)
 
+# Upgrades as pull requests (https://goliash.dev/guide/argocd/#upgrade-with-a-pull-request): off until existingSecret names a
+# Secret holding a token for the repositories you deploy from. Each key is optional; a forge whose key is missing
+# is left out. Create it with, for example:
+#   kubectl create secret generic goliash-gitops --from-literal=github-token=github_pat_...
+gitops:
+  existingSecret: ""
+  githubTokenKey: github-token
+  gitlabTokenKey: gitlab-token
+  giteaTokenKey: gitea-token
+  githubAPI: ""       # GitHub Enterprise: https://github.example.com/api/v3
+  gitlabURL: ""       # a GitLab of your own (default gitlab.com)
+  giteaURL: ""        # Gitea or Forgejo: required with a gitea token
+  repos: ""           # the repositories the tokens may be used on, comma-separated (default: any they reach)
+
 # Servers. With PostgreSQL more than one may run: they all serve the UI, the API and
 # agents, and one of them (chosen through the database) runs the background work. With
 # SQLite there is exactly one. Several servers share GOLIASH_SECRET_KEY through envFromSecret.
