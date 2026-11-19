@@ -84,8 +84,16 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 	noDocker := fs.Bool("no-docker", false, "do not read Docker")
 	env := fs.String("env", "prod", "the environment to show what is found as")
 	wait := fs.Duration("wait", 2*time.Minute, "how long to wait for the first results before printing what is known")
+	once := fs.Bool("once", false, "print what is behind and stop, without the server to look around in: for CI")
+	failOn := fs.String("fail-on", "eol", "with -once, exit with status 3 when something is: eol (past end of life), major (a major behind, or eol), any (behind at all), none")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if _, ok := scanFails[*failOn]; !ok {
+		return fmt.Errorf("-fail-on %q: eol, major, any or none", *failOn)
+	}
+	if *once && !flagSet(fs, "listen") {
+		*listen = "127.0.0.1:0" // nobody opens it: any free port, so two scans can run at once
 	}
 	targets := scanTargets(*kubeContext, *dockerHost, *noKube, *noDocker, os.Getenv, func(p string) bool {
 		_, err := os.Stat(p)
@@ -128,8 +136,12 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 		}
 	}
 	_, _ = fmt.Fprintf(out, "\n  Reading %s (read-only; nothing is installed or changed) …\n", strings.Join(names, " and "))
+	serveArgs := []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "error", "-upstream-interval", "1m"}
+	if *once {
+		return scanOnce(ctx, out, dsn, *wait, *failOn, serveArgs)
+	}
 	go func() {
-		sum := scanWait(ctx, dsn, *wait)
+		sum, _ := scanWait(ctx, dsn, *wait, 15)
 		if ctx.Err() != nil {
 			return
 		}
@@ -138,7 +150,56 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 			"  (signs you in; works once, for 15 minutes). Stop with Ctrl-C: nothing is kept.\n"+
 			"  To keep watching it: https://goliash.dev/getting-started/\n\n", link)
 	}()
-	return serve(ctx, []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "error", "-upstream-interval", "1m"})
+	return serve(ctx, serveArgs)
+}
+
+// scanOnce runs the throwaway server only until what runs has been compared with its upstream, prints every row,
+// and fails as -fail-on says.
+func scanOnce(ctx context.Context, out io.Writer, dsn string, wait time.Duration, failOn string, serveArgs []string) error {
+	sctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	served := make(chan error, 1)
+	go func() {
+		err := serve(sctx, serveArgs)
+		cancel() // a server that cannot start ends the wait
+		served <- err
+	}()
+	sum, c := scanWait(sctx, dsn, wait, 0)
+	cancel()
+	if err := <-served; err != nil {
+		return err
+	}
+	if ctx.Err() != nil {
+		return nil
+	}
+	_, _ = fmt.Fprint(out, sum, "\n")
+	if scanFails[failOn](c) {
+		return exitStatus(3)
+	}
+	return nil
+}
+
+// scanCounts is what a scan found behind: services past end of life, a major release behind, behind at all.
+type scanCounts struct{ EOL, Major, Behind int }
+
+// scanFails says, per -fail-on, whether what was found fails the scan.
+var scanFails = map[string]func(scanCounts) bool{
+	"eol":   func(c scanCounts) bool { return c.EOL > 0 },
+	"major": func(c scanCounts) bool { return c.EOL > 0 || c.Major > 0 },
+	"any":   func(c scanCounts) bool { return c.Behind > 0 },
+	"none":  func(scanCounts) bool { return false },
+}
+
+// exitStatus ends goliash with that status and nothing more to say: the output already said why.
+type exitStatus int
+
+func (e exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+
+// flagSet says whether a flag was given on the command line.
+func flagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) { set = set || f.Name == name })
+	return set
 }
 
 // scanSetup prepares the throwaway workspace: its targets, collected by the server, images mapped to services by
@@ -177,51 +238,52 @@ func scanSetup(ctx context.Context, db *store.Store, ws store.Workspace, targets
 }
 
 // scanWait waits until every service found has been compared with its upstream, or for at most the given time,
-// and returns the summary to print.
-func scanWait(ctx context.Context, dsn string, wait time.Duration) string {
+// and returns the summary to print, of at most rows rows (0: all), and what it counts.
+func scanWait(ctx context.Context, dsn string, wait time.Duration, rows int) (string, scanCounts) {
 	deadline := time.Now().Add(wait)
 	var last string
+	var counts scanCounts
 	for {
 		select {
 		case <-ctx.Done():
-			return last
+			return last, counts
 		case <-time.After(3 * time.Second):
 		}
-		sum, done := scanSummary(ctx, dsn)
+		sum, c, done := scanSummary(ctx, dsn, rows)
 		if sum != "" {
-			last = sum
+			last, counts = sum, c
 		}
 		if done || time.Now().After(deadline) {
 			if last == "" {
-				return "\n  Nothing found yet: the page below says what each target reports.\n"
+				return "\n  Nothing found yet: Goliash's page says what each target reports.\n", counts
 			}
-			return last
+			return last, counts
 		}
 	}
 }
 
 // scanSummary reads what is known so far: what runs and what is behind. done says every service was compared
 // with its upstream.
-func scanSummary(ctx context.Context, dsn string) (string, bool) {
+func scanSummary(ctx context.Context, dsn string, rows int) (string, scanCounts, bool) {
 	db, err := store.Open(ctx, dsn)
 	if err != nil {
-		return "", false
+		return "", scanCounts{}, false
 	}
 	defer func() { _ = db.Close() }()
 	ws, err := db.EnsureDefaultWorkspace(ctx)
 	if err != nil {
-		return "", false
+		return "", scanCounts{}, false
 	}
 	o, err := versions.LoadOverview(ctx, db, ws.Scope())
 	if err != nil || len(o.Services) == 0 {
-		return "", false
+		return "", scanCounts{}, false
 	}
-	return summarize(o)
+	return summarize(o, rows)
 }
 
 // summarize words an overview for the terminal: how many services run, and those behind their upstream or past
-// end of life, the biggest jump first.
-func summarize(o versions.Overview) (string, bool) {
+// end of life, the biggest jump first: at most most rows (0: all), and what they count.
+func summarize(o versions.Overview, most int) (string, scanCounts, bool) {
 	checked := 0
 	for id := range o.Services {
 		if !o.CheckedAt[id].IsZero() || o.CheckErrs[id] != "" {
@@ -264,17 +326,23 @@ func summarize(o versions.Overview) (string, bool) {
 		return rows[i].service < rows[j].service
 	})
 	var b strings.Builder
-	behind := map[string]bool{}
+	behind, eol, major := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, r := range rows {
 		behind[r.service] = true
+		switch r.kind {
+		case "end of life":
+			eol[r.service] = true
+		case "major":
+			major[r.service] = true
+		}
 	}
+	counts := scanCounts{EOL: len(eol), Major: len(major), Behind: len(behind)}
 	_, _ = fmt.Fprintf(&b, "\n  %d services run, %d compared with their upstream, %d behind.\n\n", len(o.Services), checked, len(behind))
 	if len(rows) > 0 {
 		tw := tabwriter.NewWriter(&b, 0, 0, 3, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "  SERVICE\tBEHIND\tVERSION")
-		const most = 15
 		for i, r := range rows {
-			if i == most {
+			if most > 0 && i == most {
 				_, _ = fmt.Fprintf(tw, "  … and %d more\t\t\n", len(rows)-most)
 				break
 			}
@@ -282,5 +350,5 @@ func summarize(o versions.Overview) (string, bool) {
 		}
 		_ = tw.Flush()
 	}
-	return b.String(), checked == len(o.Services)
+	return b.String(), counts, checked == len(o.Services)
 }
