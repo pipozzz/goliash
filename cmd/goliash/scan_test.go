@@ -93,7 +93,10 @@ func TestScanSummarize(t *testing.T) {
 			"b|e": {{ServiceID: "b", Kind: "upstream", Detail: detail(versions.DriftDetail{Running: "7.2.4", Other: "8.0.0", Jump: "major"})}},
 		},
 	}
-	sum, done := summarize(o)
+	sum, c, done := summarize(o, 15)
+	if c != (scanCounts{EOL: 1, Major: 1, Behind: 2}) {
+		t.Errorf("counts %+v", c)
+	}
 	if !done {
 		t.Error("every service was looked at, one with an error: that is done")
 	}
@@ -105,7 +108,7 @@ func TestScanSummarize(t *testing.T) {
 		t.Errorf("order is not end of life, major, minor:\n%s", sum)
 	}
 	delete(o.CheckErrs, "c")
-	if _, done := summarize(o); done {
+	if _, _, done := summarize(o, 0); done {
 		t.Error("a service not looked at yet: not done")
 	}
 }
@@ -123,6 +126,29 @@ func TestLocalURL(t *testing.T) {
 	} {
 		if got := localURL(listen); got != want {
 			t.Errorf("localURL(%q) = %q, want %q", listen, got, want)
+		}
+	}
+}
+
+// -fail-on picks what fails a scan in CI.
+func TestScanFails(t *testing.T) {
+	minor, major, eol := scanCounts{Behind: 1}, scanCounts{Major: 1, Behind: 1}, scanCounts{EOL: 1, Behind: 1}
+	for _, c := range []struct {
+		on   string
+		in   scanCounts
+		want bool
+	}{
+		{"eol", eol, true},
+		{"eol", major, false},
+		{"major", major, true},
+		{"major", eol, true},
+		{"major", minor, false},
+		{"any", minor, true},
+		{"any", scanCounts{}, false},
+		{"none", eol, false},
+	} {
+		if got := scanFails[c.on](c.in); got != c.want {
+			t.Errorf("-fail-on %s with %+v: %v", c.on, c.in, got)
 		}
 	}
 }

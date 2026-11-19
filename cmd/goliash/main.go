@@ -183,6 +183,10 @@ func main() {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(2)
 		}
+		var status exitStatus
+		if errors.As(err, &status) {
+			os.Exit(int(status))
+		}
 		slog.Error("goliash failed", "err", err)
 		os.Exit(1)
 	}

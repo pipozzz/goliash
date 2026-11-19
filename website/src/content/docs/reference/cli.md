@@ -171,6 +171,23 @@ are read. Nothing is written to the cluster or the Docker host, and nothing is k
 | `-env` | `prod` | The environment what is found is shown as |
 | `-listen` | `127.0.0.1:8080` | Where the throwaway server listens: local only, as it shows your real data |
 | `-wait` | `2m` | How long to wait for the first results before printing what is known |
+| `-once` | | Print every row and stop, without the server to look around in |
+| `-fail-on` | `eol` | With `-once`, exit with status 3 when something is past end of life (`eol`), a major release behind or past end of life (`major`), behind at all (`any`), or never (`none`) |
+
+### In CI
+
+`-once` makes it a check: it prints everything behind, stops, and fails when something runs past its end of life.
+A job with access to the cluster, for example:
+
+```yaml
+- name: Nothing past end of life in the cluster
+  run: |
+    curl -fsSL https://goliash.dev/install.sh | sh
+    ~/.local/bin/goliash scan -once -no-docker -kube-context prod
+```
+
+Exit status 3 is what was found (status 1 is a scan that could not run). `-fail-on major` is stricter, `-fail-on none`
+only reports.
 
 To keep watching, with history and notifications, see [Getting started](/getting-started/).
 
