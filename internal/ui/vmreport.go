@@ -72,16 +72,20 @@ func (s *Server) vmReportCSV(w http.ResponseWriter, r *http.Request, p auth.Prin
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="goliash-vulnerability-management-`+month.Format("2006-01")+`.csv"`)
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"service", "owner", "from", "to", "behind_since", "deployed", "days_to_patch", "security_fix", "within_deadline"})
+	_ = cw.Write([]string{"service", "owner", "from", "to", "behind_since", "deployed", "days_to_patch", "security_fix", "within_deadline", "pull_request", "pr_opened", "pr_opened_by", "pr_merged"})
 	for _, u := range rep.Upgrades {
 		in := ""
 		if u.InTime != nil {
 			in = strconv.FormatBool(*u.InTime)
 		}
-		_ = cw.Write([]string{
+		pr := []string{"", "", "", ""}
+		if u.Pull != nil {
+			pr = []string{u.Pull.URL, u.Pull.OpenedAt.Format(time.DateOnly), pullOpener(u.Pull.OpenedBy), u.Pull.MergedAt.Format(time.DateOnly)}
+		}
+		_ = cw.Write(append([]string{
 			u.Service, u.Owner, u.From, u.To, u.BehindSince.UTC().Format(time.DateOnly), u.At.UTC().Format(time.DateOnly),
 			strconv.Itoa(u.Days), u.SecurityFix, in,
-		})
+		}, pr...))
 	}
 	cw.Flush()
 	return cw.Error()
@@ -148,4 +152,12 @@ func vmServices(f versions.VulnFinding) string {
 		}
 	}
 	return strings.Join(out, ", ")
+}
+
+// pullOpener names who asked for a pull request: a person, or the version policy.
+func pullOpener(by string) string {
+	if by == "auto-pr" {
+		return "the version policy"
+	}
+	return by
 }

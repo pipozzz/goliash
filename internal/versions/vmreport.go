@@ -64,6 +64,22 @@ type VMUpgrade struct {
 	PatchSample
 	SecurityFix string // what the releases on the way fixed (CVE ids, or "security"); "" when nothing known
 	InTime      *bool  // within the security-fix deadline; nil when not a security fix or no deadline is set
+	// Pull is the pull request Goliash opened that brought the version, merged before the deploy: who asked for it
+	// and when it was opened and merged, the trail from the fix to production. Nil when it came another way.
+	Pull *store.GitOpsPull
+}
+
+// pullFor finds the merged pull request that brought an upgrade to an environment: the same service and version,
+// merged before the deploy (Goliash sees a merge when it next asks the forge, so an hour's slack).
+func pullFor(pulls []store.GitOpsPull, s PatchSample, env string) *store.GitOpsPull {
+	for i := range pulls {
+		p := &pulls[i]
+		if p.ServiceID == s.ServiceID && p.To == s.To && p.Environment == env && p.State == "merged" &&
+			!p.MergedAt.IsZero() && !p.MergedAt.After(s.At.Add(time.Hour)) {
+			return p
+		}
+	}
+	return nil
 }
 
 // VMTeam is one team's month.
@@ -126,6 +142,10 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 			}
 		}
 	}
+	pulls, err := st.ListGitOpsPulls(ctx, sc)
+	if err != nil {
+		return r, err
+	}
 	teams := map[string]*VMTeam{}
 	teamDays := map[string][]int{}
 	var days []int
@@ -133,7 +153,7 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 		if !s.At.Before(r.To) {
 			continue
 		}
-		u := VMUpgrade{PatchSample: s, SecurityFix: securityUpTo(o, s.ServiceID, s.From, s.To)}
+		u := VMUpgrade{PatchSample: s, SecurityFix: securityUpTo(o, s.ServiceID, s.From, s.To), Pull: pullFor(pulls, s, pos.Prod.Name)}
 		t := teams[s.Owner]
 		if t == nil {
 			t = &VMTeam{Owner: s.Owner}
