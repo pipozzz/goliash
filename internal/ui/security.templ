@@ -724,7 +724,11 @@ templ patchChart(v SecurityView) {
 	<section class="panel" id="time-to-patch">
 		<div class="panel-head">
 			<h2>{ "Time to patch in " + v.Prod.Name }</h2>
-			@panelInfo("For each upgrade deployed to production: the days from the first release after the version it replaced to the deploy. Bars are the month's median, the lighter part its 90th percentile.")
+			<span class="muted">
+				<a href="/security/patching.csv" hx-boost="false">The upgrades as CSV</a>
+				{ " " }
+				@panelInfo("For each upgrade deployed to production: the days from the first release after the version it replaced to the deploy. Bars are the month's median, the lighter part its 90th percentile.")
+			</span>
 		</div>
 		<div class="panel-body patch-chart" role="img" aria-label={ "Time to patch in " + v.Prod.Name + ", median days per month" }>
 			for _, m := range v.PatchMonths {

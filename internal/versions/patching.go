@@ -89,10 +89,15 @@ type TeamPatching struct {
 // PatchMonths is how many months the team trend and the time-to-patch chart cover.
 const PatchMonths = 6
 
+// PatchSince is where the time-to-patch chart starts: the first day of the oldest of its months.
+func PatchSince(now time.Time) time.Time {
+	return monthStart(now).AddDate(0, -(PatchMonths - 1), 0)
+}
+
 // LoadTeamPatching sums production up per team, slowest first: most past their deadline, then longest behind.
 // It returns the upgrades it counted too, for PatchByMonth.
 func LoadTeamPatching(ctx context.Context, st *store.Store, sc store.Scope, o Overview, pos Posture, updates []Update, now time.Time) ([]TeamPatching, []PatchSample, error) {
-	samples, err := PatchTimes(ctx, st, sc, o, pos.Prod.ID, monthStart(now).AddDate(0, -(PatchMonths-1), 0))
+	samples, err := PatchTimes(ctx, st, sc, o, pos.Prod.ID, PatchSince(now))
 	if err != nil {
 		return nil, nil, err
 	}

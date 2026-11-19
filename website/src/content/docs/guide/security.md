@@ -648,7 +648,8 @@ Every upgrade deployed to production closes an exposure: from when the first rel
 (its publication date, else when Goliash found it) to the deploy. Those days are the **time to patch**.
 **Time to patch in prod** draws it month by month for the last six months, the median and the 90th percentile, with
 how many upgrades each month had; rollbacks and staging do not count, and a version deployed to several targets
-counts once.
+counts once. **The upgrades as CSV** on the panel (`/security/patching.csv`) is the list behind the chart: one row
+per upgrade with its service, owner, the versions, since when it was behind, the deploy and the days.
 
 **Patching by team** sums production up per team (a service's owner): services in production, how many run behind
 a newer release and for how long (median), how many upgrades are past their deadline, how many were deployed in the
