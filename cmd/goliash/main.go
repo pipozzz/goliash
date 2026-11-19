@@ -1999,16 +1999,33 @@ func healthcheck(ctx context.Context) error {
 	return nil
 }
 
+// localURL is the address a server listening on listen is opened at from this machine: the port it took, on
+// localhost unless it listens on one address that is not the loopback.
+func localURL(listen string) string {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil || port == "" {
+		return "http://localhost:8080"
+	}
+	switch host {
+	case "", "0.0.0.0", "::", "127.0.0.1", "::1":
+		host = "localhost"
+	}
+	return "http://" + net.JoinHostPort(host, port)
+}
+
 // tryCmd runs a throwaway server with example data and prints a link that signs
 // you in: one command to see Goliash. Everything is gone when it stops.
 func tryCmd(ctx context.Context, args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("try", flag.ContinueOnError)
 	listen := fs.String("listen", ":8080", "HTTP listen address")
-	publicURL := fs.String("public-url", "http://localhost:8080", "URL you open it at")
+	publicURL := fs.String("public-url", "", "URL you open it at (default: http://localhost and the port it listens on)")
 	public := fs.Bool("public", false, "a public demo: every visitor is signed in as a read-only viewer")
 	reset := fs.Duration("reset", 0, "stop after this long (e.g. 1h), so a restart brings fresh data")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *publicURL == "" {
+		*publicURL = localURL(*listen)
 	}
 	dir, err := os.MkdirTemp("", "goliash-try-")
 	if err != nil {
