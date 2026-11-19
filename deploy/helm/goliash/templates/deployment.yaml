@@ -111,6 +111,31 @@ spec:
             - { name: GOLIASH_AI_PER_DAY, value: {{ .perDay | quote }} }
             {{- end }}
             {{- end }}
+            {{- with .Values.gitops }}
+            {{- if .existingSecret }}
+            - name: GOLIASH_GITOPS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: {{ .existingSecret }}, key: {{ .githubTokenKey }}, optional: true }
+            - name: GOLIASH_GITOPS_GITLAB_TOKEN
+              valueFrom:
+                secretKeyRef: { name: {{ .existingSecret }}, key: {{ .gitlabTokenKey }}, optional: true }
+            - name: GOLIASH_GITOPS_GITEA_TOKEN
+              valueFrom:
+                secretKeyRef: { name: {{ .existingSecret }}, key: {{ .giteaTokenKey }}, optional: true }
+            {{- end }}
+            {{- if .githubAPI }}
+            - { name: GOLIASH_GITOPS_GITHUB_API, value: {{ .githubAPI | quote }} }
+            {{- end }}
+            {{- if .gitlabURL }}
+            - { name: GOLIASH_GITLAB_URL, value: {{ .gitlabURL | quote }} }
+            {{- end }}
+            {{- if .giteaURL }}
+            - { name: GOLIASH_GITEA_URL, value: {{ .giteaURL | quote }} }
+            {{- end }}
+            {{- if .repos }}
+            - { name: GOLIASH_GITOPS_REPOS, value: {{ .repos | quote }} }
+            {{- end }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
             {{- end }}

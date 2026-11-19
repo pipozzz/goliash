@@ -34,6 +34,17 @@ With SQLite the secret key is otherwise created next to the database on the volu
 names your own instead). Upgrades keep it, and so does `helm uninstall`: the encrypted channel secrets and private
 registry credentials in the database need it, so back it up with the database.
 
+To let Goliash [open upgrades as pull requests](/guide/argocd/#upgrade-with-a-pull-request), put a token for the
+repositories you deploy from in a Secret and name it:
+
+```sh
+kubectl -n goliash create secret generic goliash-gitops --from-literal=github-token=github_pat_...
+helm upgrade goliash oci://ghcr.io/pipozzz/charts/goliash -n goliash --reuse-values --set gitops.existingSecret=goliash-gitops
+```
+
+The keys are `github-token`, `gitlab-token` and `gitea-token`, each optional; `gitops.githubAPI`, `gitops.gitlabURL`
+and `gitops.giteaURL` are the addresses of a GitHub Enterprise, GitLab or Gitea of your own.
+
 With PostgreSQL the chart may run several servers: `--set replicaCount=2` (one leads the background work; see
 [Several servers](/install/#several-servers)). Updates then roll one pod at a time and a PodDisruptionBudget keeps
 one running. With SQLite the chart refuses more than one.

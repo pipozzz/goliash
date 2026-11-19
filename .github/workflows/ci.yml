@@ -211,6 +211,8 @@ jobs:
           ! helm template t deploy/helm/goliash | grep -q GOLIASH_SECRET_KEY   # SQLite: the key file on the volume
           helm template t deploy/helm/goliash --set database.url=postgres://x --set replicaCount=2 | grep -q PodDisruptionBudget
           ! helm template t deploy/helm/goliash --set replicaCount=2 > /dev/null 2>&1   # SQLite: one server only
+          helm template t deploy/helm/goliash --set gitops.existingSecret=g --set gitops.gitlabURL=https://gitlab.example.com | grep -q 'name: g, key: gitlab-token, optional: true'
+          ! helm template t deploy/helm/goliash | grep -q GOLIASH_GITOPS   # nothing without the Secret
           helm template t deploy/helm/goliash-agent --set token.existingSecret=s > /dev/null
       - uses: hashicorp/setup-terraform@v4
       - name: Terraform module is valid
