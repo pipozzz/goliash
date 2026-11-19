@@ -280,6 +280,33 @@ func (s *Server) securityCSV(w http.ResponseWriter, r *http.Request, p auth.Prin
 	return cw.Error()
 }
 
+// patchingCSV is every upgrade behind the time-to-patch chart: what was deployed to production, and how long the
+// service had run behind before it.
+func (s *Server) patchingCSV(w http.ResponseWriter, r *http.Request, p auth.Principal) error {
+	ctx, now := r.Context(), time.Now()
+	o, err := versions.LoadOverview(ctx, s.store, p.Scope)
+	if err != nil {
+		return err
+	}
+	pos, err := versions.LoadPosture(ctx, s.store, p.Scope, o, now)
+	if err != nil {
+		return err
+	}
+	samples, err := versions.PatchTimes(ctx, s.store, p.Scope, o, pos.Prod.ID, versions.PatchSince(now))
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="goliash-time-to-patch-`+now.UTC().Format("20060102")+`.csv"`)
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"service", "owner", "from", "to", "behind_since", "deployed", "days"})
+	for _, sm := range samples {
+		_ = cw.Write([]string{sm.Service, sm.Owner, sm.From, sm.To, sm.BehindSince.UTC().Format(time.DateOnly), sm.At.UTC().Format(time.DateOnly), strconv.Itoa(sm.Days)})
+	}
+	cw.Flush()
+	return cw.Error()
+}
+
 // exposureClass colours an exposure by its age, or by end of life.
 func exposureClass(ex versions.Exposure) string {
 	switch {
