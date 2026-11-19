@@ -12,9 +12,14 @@ in; nothing is kept when you stop it:
 docker run --rm -p 8080:8080 ghcr.io/pipozzz/goliash try
 ```
 
-To see your own cluster or Docker host instead of example data, still with nothing installed, run
+To see your own cluster or Docker host instead of example data, with nothing installed in them, run
 [`goliash scan`](/reference/cli/#scan-your-own-data-nothing-installed): it reads the current Kubernetes context and
 the local Docker, read-only, and prints what is behind.
+
+```sh
+curl -fsSL https://goliash.dev/install.sh | sh
+goliash scan
+```
 
 The rest of this page starts a server to keep with Docker Compose, shows example data, and connects your first
 orchestrator. It takes about five minutes.

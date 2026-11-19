@@ -47,8 +47,15 @@ A throwaway server with three weeks of example data: open the link it prints and
 kept when you stop it. Or look around the **[live demo](https://demo.goliash.dev)** first, no install. To run it
 for real, see [Getting started](https://goliash.dev/getting-started/).
 
-Or point it at what you run, with nothing installed: [`goliash scan`](https://goliash.dev/reference/cli/#scan-your-own-data-nothing-installed)
-reads your current Kubernetes context and local Docker, read-only, and prints what is behind in about a minute.
+Or point it at what you run, with nothing installed in your cluster:
+
+```sh
+curl -fsSL https://goliash.dev/install.sh | sh   # the goliash command into ~/.local/bin, checked against the release's checksums
+goliash scan
+```
+
+[`goliash scan`](https://goliash.dev/reference/cli/#scan-your-own-data-nothing-installed) reads your current
+Kubernetes context and local Docker, read-only, and prints what is behind in about a minute.
 
 ## Everything it does
 

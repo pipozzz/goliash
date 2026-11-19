@@ -31,6 +31,13 @@ jobs:
           cache-dependency-path: website/package-lock.json
       - run: npm ci
       - run: npm run build
+      - name: The install script is sound
+        run: shellcheck public/install.sh
+      - name: The install script installs the latest release
+        if: github.event_name == 'pull_request'
+        run: |
+          GOLIASH_INSTALL_DIR="$RUNNER_TEMP/bin" sh public/install.sh
+          "$RUNNER_TEMP/bin/goliash" version
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
