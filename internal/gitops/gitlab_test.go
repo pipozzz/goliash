@@ -132,3 +132,57 @@ func TestPullState(t *testing.T) {
 		t.Errorf("merged at %v", got.MergedAt)
 	}
 }
+
+// A merge request's pipeline is read as passing, failing or pending, and a merge request without one says nothing.
+func TestGitLabPullChecks(t *testing.T) {
+	status := ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/api/v4/projects/acme%2Fdeploy/merge_requests/7" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.EscapedPath())
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if status == "" {
+			_, _ = w.Write([]byte(`{"head_pipeline":null}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"head_pipeline":{"status":"` + status + `"}}`))
+	}))
+	defer srv.Close()
+	g := NewGitLab("glpat", srv.URL)
+	mr := srv.URL + "/acme/deploy/-/merge_requests/7"
+	for st, want := range map[string]string{"success": "passing", "failed": "failing", "canceled": "failing", "running": "pending", "skipped": "", "": ""} {
+		status = st
+		if got, err := g.PullChecks(t.Context(), mr); err != nil || got != want {
+			t.Errorf("pipeline %q: %q, %v; want %q", st, got, err, want)
+		}
+	}
+	if _, err := g.PullChecks(t.Context(), "https://gitlab.example.org/acme/deploy/-/merge_requests/7"); err == nil {
+		t.Error("a merge request on another host was read")
+	}
+	if _, err := g.PullChecks(t.Context(), srv.URL+"/acme/deploy"); err == nil {
+		t.Error("an address that is no merge request was read")
+	}
+}
+
+// The open merge requests of a project come back as pulls, so one Renovate opened is linked, not doubled.
+func TestGitLabOpenPulls(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/api/v4/projects/acme%2Fdeploy/merge_requests" || r.URL.Query().Get("state") != "opened" {
+			t.Errorf("unexpected %s %s?%s", r.Method, r.URL.EscapedPath(), r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`[{"web_url":"https://gitlab.example.com/acme/deploy/-/merge_requests/3","title":"Update postgres to 17.2","source_branch":"renovate/postgres-17.x"}]`))
+	}))
+	defer srv.Close()
+	g := NewGitLab("glpat", srv.URL)
+	pulls, err := g.OpenPulls(t.Context(), srv.URL+"/acme/deploy.git")
+	if err != nil || len(pulls) != 1 {
+		t.Fatalf("pulls %+v, %v", pulls, err)
+	}
+	if p := pulls[0]; !strings.HasSuffix(p.URL, "/merge_requests/3") || p.Title != "Update postgres to 17.2" || p.Branch != "renovate/postgres-17.x" {
+		t.Errorf("pull %+v", p)
+	}
+	if _, err := g.OpenPulls(t.Context(), "https://gitlab.example.org/acme/deploy"); err == nil {
+		t.Error("a project on another host was read")
+	}
+}
