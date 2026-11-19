@@ -173,6 +173,7 @@ are read. Nothing is written to the cluster or the Docker host, and nothing is k
 | `-wait` | `2m` | How long to wait for the first results before printing what is known |
 | `-once` | | Print every row and stop, without the server to look around in |
 | `-fail-on` | `eol` | With `-once`, exit with status 3 when something is past end of life (`eol`), a major release behind or past end of life (`major`), behind at all (`any`), or never (`none`) |
+| `-format` | `text` | With `-once`, `json` for a program or `markdown` for a job's summary; what it is doing goes to stderr then |
 
 ### In CI
 
@@ -188,6 +189,16 @@ A job with access to the cluster, for example:
 
 Exit status 3 is what was found (status 1 is a scan that could not run). `-fail-on major` is stricter, `-fail-on none`
 only reports.
+
+`-format markdown` writes a table for the job's summary, so the run shows what is behind without opening its log
+(GitHub Actions; on GitLab, post it as a merge request note):
+
+```yaml
+    ~/.local/bin/goliash scan -once -no-docker -kube-context prod -format markdown >> "$GITHUB_STEP_SUMMARY"
+```
+
+`-format json` gives the counts (`end_of_life`, `major_behind`, `behind`), every row (`service`, `kind`, `running`,
+`newest`, or `cycle` and `ended` for end of life) and `failed`, for a dashboard or a script of your own.
 
 To keep watching, with history and notifications, see [Getting started](/getting-started/).
 

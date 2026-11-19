@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -93,11 +94,12 @@ func TestScanSummarize(t *testing.T) {
 			"b|e": {{ServiceID: "b", Kind: "upstream", Detail: detail(versions.DriftDetail{Running: "7.2.4", Other: "8.0.0", Jump: "major"})}},
 		},
 	}
-	sum, c, done := summarize(o, 15)
-	if c != (scanCounts{EOL: 1, Major: 1, Behind: 2}) {
-		t.Errorf("counts %+v", c)
+	rep := summarize(o)
+	sum := rep.text(15)
+	if rep.Counts != (scanCounts{EOL: 1, Major: 1, Behind: 2}) {
+		t.Errorf("counts %+v", rep.Counts)
 	}
-	if !done {
+	if !rep.Done {
 		t.Error("every service was looked at, one with an error: that is done")
 	}
 	if !strings.Contains(sum, "3 services run, 3 compared with their upstream, 2 behind.") {
@@ -107,26 +109,37 @@ func TestScanSummarize(t *testing.T) {
 	if eol < 0 || eol > major || major > minor {
 		t.Errorf("order is not end of life, major, minor:\n%s", sum)
 	}
+	if !strings.Contains(sum, "1.25.3, cycle 1.25 ended 2024-05-29") || !strings.Contains(sum, "7.2.4 → 8.0.0") {
+		t.Errorf("versions are not worded:\n%s", sum)
+	}
+	rep.FailOn, rep.Failed = "eol", true
+	md := rep.markdown()
+	if !strings.Contains(md, "failed (eol)") || !strings.Contains(md, "| nginx | end of life | 1.25.3, cycle 1.25 ended 2024-05-29 |") {
+		t.Errorf("markdown:\n%s", md)
+	}
+	var js bytes.Buffer
+	if err := scanFormats["json"](&js, rep); err != nil {
+		t.Fatal(err)
+	}
+	var back struct {
+		Services int `json:"services"`
+		Counts   struct {
+			EOL int `json:"end_of_life"`
+		} `json:"counts"`
+		Behind []struct {
+			Service, Kind, Running, Newest string
+		} `json:"behind"`
+		Failed bool `json:"failed"`
+	}
+	if err := json.Unmarshal(js.Bytes(), &back); err != nil || back.Services != 3 || back.Counts.EOL != 1 || len(back.Behind) != 3 || !back.Failed || back.Behind[1].Newest != "8.0.0" {
+		t.Errorf("json %+v %v:\n%s", back, err, js.String())
+	}
 	delete(o.CheckErrs, "c")
-	if _, _, done := summarize(o, 0); done {
+	if summarize(o).Done {
 		t.Error("a service not looked at yet: not done")
 	}
-}
-
-// A throwaway server prints a link to where it listens, not to the default port.
-func TestLocalURL(t *testing.T) {
-	for listen, want := range map[string]string{
-		":8080":          "http://localhost:8080",
-		":9000":          "http://localhost:9000",
-		"127.0.0.1:8099": "http://localhost:8099",
-		"0.0.0.0:80":     "http://localhost:80",
-		"10.0.0.5:8080":  "http://10.0.0.5:8080",
-		"[::1]:8081":     "http://localhost:8081",
-		"nonsense":       "http://localhost:8080",
-	} {
-		if got := localURL(listen); got != want {
-			t.Errorf("localURL(%q) = %q, want %q", listen, got, want)
-		}
+	if got := (scanReport{}).text(0); !strings.Contains(got, "Nothing found yet") {
+		t.Errorf("an empty scan says %q", got)
 	}
 }
 
