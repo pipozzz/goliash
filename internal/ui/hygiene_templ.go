@@ -52,7 +52,7 @@ func HygienePage(v HygieneView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><h1>Image hygiene</h1>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"head\"><div><p><a href=\"/security\">Security</a> / image hygiene</p><h1>Image hygiene</h1>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -82,7 +82,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var3 string
 						templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Kind)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 25, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 26, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 						if templ_7745c5c3_Err != nil {
@@ -105,7 +105,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var4 string
 						templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(t)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 32, Col: 27}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 33, Col: 27}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 						if templ_7745c5c3_Err != nil {
@@ -128,7 +128,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var5 string
 						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(t)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 32, Col: 59}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 33, Col: 59}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 						if templ_7745c5c3_Err != nil {
@@ -174,7 +174,7 @@ func HygienePage(v HygieneView) templ.Component {
 				var templ_7745c5c3_Var7 templ.SafeURL
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(hygieneURL("", v.Team)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 45, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 46, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -200,7 +200,7 @@ func HygienePage(v HygieneView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(v.Total))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 46, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 47, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -224,7 +224,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var11 templ.SafeURL
 						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(hygieneURL(k.Kind, v.Team)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 51, Col: 53}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 52, Col: 53}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 						if templ_7745c5c3_Err != nil {
@@ -250,7 +250,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var13 string
 						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(k.Count))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 52, Col: 30}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 53, Col: 30}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 						if templ_7745c5c3_Err != nil {
@@ -263,7 +263,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var14 string
 						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(k.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 53, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 54, Col: 22}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
@@ -276,7 +276,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(k.Help)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 54, Col: 22}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 55, Col: 22}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -302,7 +302,7 @@ func HygienePage(v HygieneView) templ.Component {
 							var templ_7745c5c3_Var16 string
 							templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(", ")
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 64, Col: 13}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 65, Col: 13}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 							if templ_7745c5c3_Err != nil {
@@ -316,7 +316,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var17 string
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(k.Help)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 66, Col: 26}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 67, Col: 26}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 						if templ_7745c5c3_Err != nil {
@@ -329,7 +329,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var18 string
 						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(k.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 66, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 67, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -371,7 +371,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(h.Target)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 80, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 81, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -384,7 +384,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(h.Platform)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 80, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 81, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -397,7 +397,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(h.Images))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 81, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 82, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -410,7 +410,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(h.Advice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 82, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 83, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -453,7 +453,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(f.Image)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 102, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 103, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -488,7 +488,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(findingLabel(f.Kind))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 104, Col: 73}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 105, Col: 73}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -501,7 +501,7 @@ func HygienePage(v HygieneView) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(f.Detail)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 105, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 106, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -519,7 +519,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var28 string
 						templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(explainFinding(f))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 107, Col: 96}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 108, Col: 96}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 						if templ_7745c5c3_Err != nil {
@@ -542,7 +542,7 @@ func HygienePage(v HygieneView) templ.Component {
 						var templ_7745c5c3_Var29 string
 						templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(w)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 112, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `hygiene.templ`, Line: 113, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 						if templ_7745c5c3_Err != nil {

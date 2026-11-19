@@ -90,7 +90,7 @@ changelog:
     - { title: Fixes, regexp: '^.*?fix(\(.+\))??!?:.+$', order: 1 }
     - { title: Other, order: 999 }
   filters:
-    exclude: ['^chore\(deps\)', '^docs:', '^test:']
+    exclude: ['^chore\(deps\)', '^chore\(nomad\)', '^docs:', '^test:']
 
 release:
   prerelease: auto
