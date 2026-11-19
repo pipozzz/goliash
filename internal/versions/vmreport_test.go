@@ -92,3 +92,22 @@ func TestVMReport(t *testing.T) {
 		t.Error("no deadline should have no SLA")
 	}
 }
+
+// The pull request of an upgrade is the merged one for that service, version and environment, merged before the
+// deploy.
+func TestPullFor(t *testing.T) {
+	deployed := time.Date(2026, 10, 12, 10, 0, 0, 0, time.UTC)
+	s := PatchSample{ServiceID: "svc", To: "1.2.0", At: deployed}
+	pulls := []store.GitOpsPull{
+		{ID: "other-env", ServiceID: "svc", To: "1.2.0", Environment: "staging", State: "merged", MergedAt: deployed.Add(-time.Hour)},
+		{ID: "open", ServiceID: "svc", To: "1.2.0", Environment: "prod", State: "open"},
+		{ID: "after", ServiceID: "svc", To: "1.2.0", Environment: "prod", State: "merged", MergedAt: deployed.Add(48 * time.Hour)},
+		{ID: "it", ServiceID: "svc", To: "1.2.0", Environment: "prod", State: "merged", MergedAt: deployed.Add(-2 * time.Hour)},
+	}
+	if p := pullFor(pulls, s, "prod"); p == nil || p.ID != "it" {
+		t.Errorf("pull = %+v, want the one merged in prod before the deploy", p)
+	}
+	if p := pullFor(pulls[:3], s, "prod"); p != nil {
+		t.Errorf("an upgrade that came another way has a pull request: %+v", p)
+	}
+}
