@@ -86,8 +86,15 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 	wait := fs.Duration("wait", 2*time.Minute, "how long to wait for the first results before printing what is known")
 	once := fs.Bool("once", false, "print what is behind and stop, without the server to look around in: for CI")
 	failOn := fs.String("fail-on", "eol", "with -once, exit with status 3 when something is: eol (past end of life), major (a major behind, or eol), any (behind at all), none")
+	format := fs.String("format", "text", "with -once, what to print: text, json, or markdown (for a CI job's summary)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if _, ok := scanFormats[*format]; !ok {
+		return fmt.Errorf("-format %q: text, json or markdown", *format)
+	}
+	if *format != "text" && !*once {
+		return errors.New("-format needs -once")
 	}
 	if _, ok := scanFails[*failOn]; !ok {
 		return fmt.Errorf("-fail-on %q: eol, major, any or none", *failOn)
@@ -135,17 +142,21 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 			names = append(names, "Docker")
 		}
 	}
-	_, _ = fmt.Fprintf(out, "\n  Reading %s (read-only; nothing is installed or changed) …\n", strings.Join(names, " and "))
+	progress := out
+	if *format != "text" { // what is printed is for a program: say what happens elsewhere
+		progress = os.Stderr
+	}
+	_, _ = fmt.Fprintf(progress, "\n  Reading %s (read-only; nothing is installed or changed) …\n", strings.Join(names, " and "))
 	serveArgs := []string{"-database", dsn, "-listen", *listen, "-public-url", *publicURL, "-log-level", "error", "-upstream-interval", "1m"}
 	if *once {
-		return scanOnce(ctx, out, dsn, *wait, *failOn, serveArgs)
+		return scanOnce(ctx, out, dsn, *wait, *failOn, *format, serveArgs)
 	}
 	go func() {
-		sum, _ := scanWait(ctx, dsn, *wait, 15)
+		rep, _ := scanWait(ctx, dsn, *wait)
 		if ctx.Err() != nil {
 			return
 		}
-		_, _ = fmt.Fprint(out, sum)
+		_, _ = fmt.Fprint(out, rep.text(15))
 		_, _ = fmt.Fprintf(out, "\n  Everything else — vulnerabilities, history, pull requests — is at\n\n  %s\n\n"+
 			"  (signs you in; works once, for 15 minutes). Stop with Ctrl-C: nothing is kept.\n"+
 			"  To keep watching it: https://goliash.dev/getting-started/\n\n", link)
@@ -155,7 +166,7 @@ func scanCmd(ctx context.Context, args []string, out io.Writer) error {
 
 // scanOnce runs the throwaway server only until what runs has been compared with its upstream, prints every row,
 // and fails as -fail-on says.
-func scanOnce(ctx context.Context, out io.Writer, dsn string, wait time.Duration, failOn string, serveArgs []string) error {
+func scanOnce(ctx context.Context, out io.Writer, dsn string, wait time.Duration, failOn, format string, serveArgs []string) error {
 	sctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	served := make(chan error, 1)
@@ -164,7 +175,7 @@ func scanOnce(ctx context.Context, out io.Writer, dsn string, wait time.Duration
 		cancel() // a server that cannot start ends the wait
 		served <- err
 	}()
-	sum, c := scanWait(sctx, dsn, wait, 0)
+	rep, _ := scanWait(sctx, dsn, wait)
 	cancel()
 	if err := <-served; err != nil {
 		return err
@@ -172,15 +183,22 @@ func scanOnce(ctx context.Context, out io.Writer, dsn string, wait time.Duration
 	if ctx.Err() != nil {
 		return nil
 	}
-	_, _ = fmt.Fprint(out, sum, "\n")
-	if scanFails[failOn](c) {
+	rep.FailOn, rep.Failed = failOn, scanFails[failOn](rep.Counts)
+	if err := scanFormats[format](out, rep); err != nil {
+		return err
+	}
+	if rep.Failed {
 		return exitStatus(3)
 	}
 	return nil
 }
 
 // scanCounts is what a scan found behind: services past end of life, a major release behind, behind at all.
-type scanCounts struct{ EOL, Major, Behind int }
+type scanCounts struct {
+	EOL    int `json:"end_of_life"`
+	Major  int `json:"major_behind"`
+	Behind int `json:"behind"`
+}
 
 // scanFails says, per -fail-on, whether what was found fails the scan.
 var scanFails = map[string]func(scanCounts) bool{
@@ -238,117 +256,187 @@ func scanSetup(ctx context.Context, db *store.Store, ws store.Workspace, targets
 }
 
 // scanWait waits until every service found has been compared with its upstream, or for at most the given time,
-// and returns the summary to print, of at most rows rows (0: all), and what it counts.
-func scanWait(ctx context.Context, dsn string, wait time.Duration, rows int) (string, scanCounts) {
+// and returns what is known; found is false when nothing runs yet.
+func scanWait(ctx context.Context, dsn string, wait time.Duration) (scanReport, bool) {
 	deadline := time.Now().Add(wait)
-	var last string
-	var counts scanCounts
+	var last scanReport
+	found := false
 	for {
 		select {
 		case <-ctx.Done():
-			return last, counts
+			return last, found
 		case <-time.After(3 * time.Second):
 		}
-		sum, c, done := scanSummary(ctx, dsn, rows)
-		if sum != "" {
-			last, counts = sum, c
+		if rep, ok := scanSummary(ctx, dsn); ok {
+			last, found = rep, true
 		}
-		if done || time.Now().After(deadline) {
-			if last == "" {
-				return "\n  Nothing found yet: Goliash's page says what each target reports.\n", counts
-			}
-			return last, counts
+		if last.Done || time.Now().After(deadline) {
+			return last, found
 		}
 	}
 }
 
-// scanSummary reads what is known so far: what runs and what is behind. done says every service was compared
-// with its upstream.
-func scanSummary(ctx context.Context, dsn string, rows int) (string, scanCounts, bool) {
+// scanSummary reads what is known so far: what runs and what is behind; ok is false while nothing runs.
+func scanSummary(ctx context.Context, dsn string) (scanReport, bool) {
 	db, err := store.Open(ctx, dsn)
 	if err != nil {
-		return "", scanCounts{}, false
+		return scanReport{}, false
 	}
 	defer func() { _ = db.Close() }()
 	ws, err := db.EnsureDefaultWorkspace(ctx)
 	if err != nil {
-		return "", scanCounts{}, false
+		return scanReport{}, false
 	}
 	o, err := versions.LoadOverview(ctx, db, ws.Scope())
 	if err != nil || len(o.Services) == 0 {
-		return "", scanCounts{}, false
+		return scanReport{}, false
 	}
-	return summarize(o, rows)
+	return summarize(o), true
 }
 
-// summarize words an overview for the terminal: how many services run, and those behind their upstream or past
-// end of life, the biggest jump first: at most most rows (0: all), and what they count.
-func summarize(o versions.Overview, most int) (string, scanCounts, bool) {
-	checked := 0
+// scanReport is what a scan found: how many services run, how many were compared with their upstream, and those
+// behind it or past end of life, end of life first, then the biggest jump.
+type scanReport struct {
+	Services int        `json:"services"`
+	Checked  int        `json:"compared"`
+	Counts   scanCounts `json:"counts"`
+	Rows     []scanRow  `json:"behind"`
+	Done     bool       `json:"complete"`          // every service was compared
+	FailOn   string     `json:"fail_on,omitempty"` // with -once
+	Failed   bool       `json:"failed"`
+}
+
+// scanRow is one service behind: a release cycle past its end of life, or a jump to the newest release.
+type scanRow struct {
+	Service string `json:"service"`
+	Kind    string `json:"kind"` // end of life, major, minor or patch
+	Running string `json:"running"`
+	To      string `json:"newest,omitempty"`
+	Cycle   string `json:"cycle,omitempty"`
+	Ended   string `json:"ended,omitempty"`
+}
+
+// detail words a row's versions: "15.6 → 18.7", "1.25.3, cycle 1.25 ended 2024-05-29".
+func (r scanRow) detail() string {
+	if r.Kind == "end of life" {
+		return r.Running + ", cycle " + r.Cycle + " ended " + r.Ended
+	}
+	return r.Running + " → " + r.To
+}
+
+// summarize reads an overview into what a scan reports.
+func summarize(o versions.Overview) scanReport {
+	rep := scanReport{Services: len(o.Services), Rows: []scanRow{}}
 	for id := range o.Services {
 		if !o.CheckedAt[id].IsZero() || o.CheckErrs[id] != "" {
-			checked++
+			rep.Checked++
 		}
 	}
-	type row struct{ service, kind, detail string }
-	var rows []row
+	rep.Done = rep.Checked == rep.Services
 	rank := map[string]int{"major": 0, "minor": 1, "patch": 2}
-	seen := map[string]bool{}
+	seen := map[scanRow]bool{}
 	for _, ds := range o.Drifts {
 		for _, d := range ds {
 			var det versions.DriftDetail
 			_ = json.Unmarshal(d.Detail, &det)
-			name := o.Services[d.ServiceID].Name
-			var r row
+			r := scanRow{Service: o.Services[d.ServiceID].Name, Running: det.Running}
 			switch d.Kind {
 			case "upstream":
-				r = row{name, string(det.Jump), det.Running + " → " + det.Other}
+				r.Kind, r.To = string(det.Jump), det.Other
 			case "eol":
-				r = row{name, "end of life", det.Running + ", cycle " + det.Other + " ended " + det.EOL}
+				r.Kind, r.Cycle, r.Ended = "end of life", det.Other, det.EOL
 			default:
 				continue
 			}
-			if key := r.service + "|" + r.kind + "|" + r.detail; !seen[key] {
-				seen[key] = true
-				rows = append(rows, r)
+			if !seen[r] {
+				seen[r] = true
+				rep.Rows = append(rep.Rows, r)
 			}
 		}
 	}
-	sort.Slice(rows, func(i, j int) bool {
-		ri, iok := rank[rows[i].kind]
-		rj, jok := rank[rows[j].kind]
+	sort.Slice(rep.Rows, func(i, j int) bool {
+		a, b := rep.Rows[i], rep.Rows[j]
+		ri, iok := rank[a.Kind]
+		rj, jok := rank[b.Kind]
 		if iok != jok {
 			return !iok // end of life first
 		}
 		if ri != rj {
 			return ri < rj
 		}
-		return rows[i].service < rows[j].service
+		return a.Service < b.Service
 	})
-	var b strings.Builder
 	behind, eol, major := map[string]bool{}, map[string]bool{}, map[string]bool{}
-	for _, r := range rows {
-		behind[r.service] = true
-		switch r.kind {
+	for _, r := range rep.Rows {
+		behind[r.Service] = true
+		switch r.Kind {
 		case "end of life":
-			eol[r.service] = true
+			eol[r.Service] = true
 		case "major":
-			major[r.service] = true
+			major[r.Service] = true
 		}
 	}
-	counts := scanCounts{EOL: len(eol), Major: len(major), Behind: len(behind)}
-	_, _ = fmt.Fprintf(&b, "\n  %d services run, %d compared with their upstream, %d behind.\n\n", len(o.Services), checked, len(behind))
-	if len(rows) > 0 {
+	rep.Counts = scanCounts{EOL: len(eol), Major: len(major), Behind: len(behind)}
+	return rep
+}
+
+// headline is the report in one sentence.
+func (r scanReport) headline() string {
+	if r.Services == 0 {
+		return "Nothing found yet: Goliash's page says what each target reports."
+	}
+	return fmt.Sprintf("%d services run, %d compared with their upstream, %d behind.", r.Services, r.Checked, r.Counts.Behind)
+}
+
+// text words the report for the terminal, with at most most rows (0: all).
+func (r scanReport) text(most int) string {
+	var b strings.Builder
+	_, _ = fmt.Fprintf(&b, "\n  %s\n\n", r.headline())
+	if len(r.Rows) > 0 {
 		tw := tabwriter.NewWriter(&b, 0, 0, 3, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "  SERVICE\tBEHIND\tVERSION")
-		for i, r := range rows {
+		for i, row := range r.Rows {
 			if most > 0 && i == most {
-				_, _ = fmt.Fprintf(tw, "  … and %d more\t\t\n", len(rows)-most)
+				_, _ = fmt.Fprintf(tw, "  … and %d more\t\t\n", len(r.Rows)-most)
 				break
 			}
-			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", r.service, r.kind, r.detail)
+			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", row.Service, row.Kind, row.detail())
 		}
 		_ = tw.Flush()
 	}
-	return b.String(), counts, checked == len(o.Services)
+	return b.String()
+}
+
+// markdown words the report for a CI job's summary ($GITHUB_STEP_SUMMARY, a merge request note).
+func (r scanReport) markdown() string {
+	var b strings.Builder
+	title := "What runs, and what is behind"
+	if r.Failed {
+		title += " — failed (" + r.FailOn + ")"
+	}
+	_, _ = fmt.Fprintf(&b, "### %s\n\n%s\n", title, r.headline())
+	if len(r.Rows) > 0 {
+		b.WriteString("\n| Service | Behind | Version |\n|---|---|---|\n")
+		for _, row := range r.Rows {
+			_, _ = fmt.Fprintf(&b, "| %s | %s | %s |\n", mdCell(row.Service), row.Kind, mdCell(row.detail()))
+		}
+	}
+	b.WriteString("\nRead by [goliash scan](https://goliash.dev/reference/cli/#scan-your-own-data-nothing-installed).\n")
+	return b.String()
+}
+
+// mdCell keeps a value from breaking a Markdown table.
+func mdCell(s string) string {
+	return strings.NewReplacer("|", "\\|", "\n", " ").Replace(s)
+}
+
+// scanFormats print a finished scan.
+var scanFormats = map[string]func(io.Writer, scanReport) error{
+	"text":     func(w io.Writer, r scanReport) error { _, err := fmt.Fprint(w, r.text(0), "\n"); return err },
+	"markdown": func(w io.Writer, r scanReport) error { _, err := fmt.Fprint(w, r.markdown()); return err },
+	"json": func(w io.Writer, r scanReport) error {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(r)
+	},
 }
