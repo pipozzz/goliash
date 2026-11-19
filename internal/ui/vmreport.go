@@ -80,7 +80,7 @@ func (s *Server) vmReportCSV(w http.ResponseWriter, r *http.Request, p auth.Prin
 		}
 		pr := []string{"", "", "", ""}
 		if u.Pull != nil {
-			pr = []string{u.Pull.URL, u.Pull.OpenedAt.Format(time.DateOnly), pullOpener(u.Pull.OpenedBy), u.Pull.MergedAt.Format(time.DateOnly)}
+			pr = []string{u.Pull.URL, dateOrEmpty(u.Pull.OpenedAt), pullOpener(u.Pull.OpenedBy), dateOrEmpty(u.Pull.MergedAt)}
 		}
 		_ = cw.Write(append([]string{
 			u.Service, u.Owner, u.From, u.To, u.BehindSince.UTC().Format(time.DateOnly), u.At.UTC().Format(time.DateOnly),
@@ -152,6 +152,33 @@ func vmServices(f versions.VulnFinding) string {
 		}
 	}
 	return strings.Join(out, ", ")
+}
+
+// pullMerged is a pull request's link text: when it was merged, when known.
+func pullMerged(p *store.GitOpsPull) string {
+	if p.MergedAt.IsZero() {
+		return "merged"
+	}
+	return "merged " + p.MergedAt.Format("2 Jan")
+}
+
+// pullBy says who opened a pull request, and when when known: "opened 3 Nov by alice", "by renovate[bot]".
+func pullBy(p *store.GitOpsPull) string {
+	switch {
+	case p.OpenedBy == "":
+		return ""
+	case p.OpenedAt.IsZero():
+		return "by " + pullOpener(p.OpenedBy)
+	}
+	return "opened " + p.OpenedAt.Format("2 Jan") + " by " + pullOpener(p.OpenedBy)
+}
+
+// dateOrEmpty is a date for a spreadsheet, or nothing when it is not known.
+func dateOrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.DateOnly)
 }
 
 // pullOpener names who asked for a pull request: a person, or the version policy.

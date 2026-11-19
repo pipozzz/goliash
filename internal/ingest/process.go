@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"time"
 
@@ -123,8 +124,14 @@ func (s *Service) process(ctx context.Context, snap store.Snapshot) error {
 	if err := s.store.ApplySnapshot(ctx, changes); err != nil {
 		return err
 	}
-	if err := s.store.SetWorkloadGitOps(ctx, sc, target.ID, gitOps(payload.Workloads), payload.Complete, payload.CollectedAt); err != nil {
+	gops := gitOps(payload.Workloads)
+	if err := s.store.SetWorkloadGitOps(ctx, sc, target.ID, gops, payload.Complete, payload.CollectedAt); err != nil {
 		return err
+	}
+	for _, d := range deployCommits(sc, changes, gops) {
+		if err := s.store.RecordDeployCommit(ctx, d); err != nil {
+			return err
+		}
 	}
 	// What was mapped automatically stays so through a rule per image, as the inbox would make it.
 	repos := make([]string, 0, len(autoMapped))
@@ -176,6 +183,37 @@ func (s *Service) RunProcessor(ctx context.Context, interval time.Duration) {
 // OnEvents registers a callback for events produced by snapshot processing
 // (notifications). It must be set before RunProcessor starts.
 func (s *Service) OnEvents(fn func(store.Scope, []store.Event)) { s.onEvents = fn }
+
+// deployCommits are the commits behind the snapshot's version changes: for a workload a GitOps application
+// deploys, the commit it had synced when the new version came up, so the pull request that merged it can be found.
+// A revision that is not a commit (a Helm chart's version) is left out.
+func deployCommits(sc store.Scope, changes store.SnapshotChanges, gops []store.WorkloadGitOps) []store.DeployCommit {
+	byWorkload := map[string]store.WorkloadGitOps{}
+	for _, g := range gops {
+		byWorkload[g.WorkloadID] = g
+	}
+	workload := map[string]string{}
+	for _, i := range changes.Upsert {
+		workload[i.ID] = i.WorkloadID
+	}
+	var out []store.DeployCommit
+	for _, e := range changes.Events {
+		if e.Type != "version_changed" || e.ServiceID == "" || e.Note == "retag" {
+			continue
+		}
+		g, ok := byWorkload[workload[e.InstanceID]]
+		if !ok || g.Repo == "" || !commitRevision.MatchString(g.Revision) {
+			continue
+		}
+		out = append(out, store.DeployCommit{
+			Scope: sc, ServiceID: e.ServiceID, EnvironmentID: e.EnvironmentID, To: e.ToVersion, Repo: g.Repo, Revision: g.Revision, DeployedAt: e.At,
+		})
+	}
+	return out
+}
+
+// commitRevision is a Git commit as GitOps tools report it, short or full.
+var commitRevision = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 
 // gitOps are the GitOps applications a snapshot reports for its workloads: Argo CD and Flux as the collectors
 // read them, or a Git repository a workload names in its labels (Nomad meta, Docker and Compose labels, ECS tags):

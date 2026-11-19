@@ -64,8 +64,9 @@ type VMUpgrade struct {
 	PatchSample
 	SecurityFix string // what the releases on the way fixed (CVE ids, or "security"); "" when nothing known
 	InTime      *bool  // within the security-fix deadline; nil when not a security fix or no deadline is set
-	// Pull is the pull request Goliash opened that brought the version, merged before the deploy: who asked for it
-	// and when it was opened and merged, the trail from the fix to production. Nil when it came another way.
+	// Pull is the pull request that brought the version, merged before the deploy: one Goliash opened (who asked
+	// for it, when it was opened and merged), else the one the forge says merged the commit deployed (Renovate's, a
+	// person's; when it was opened is not known). The trail from the fix to production; nil when none is known.
 	Pull *store.GitOpsPull
 }
 
@@ -77,6 +78,20 @@ func pullFor(pulls []store.GitOpsPull, s PatchSample, env string) *store.GitOpsP
 		if p.ServiceID == s.ServiceID && p.To == s.To && p.Environment == env && p.State == "merged" &&
 			!p.MergedAt.IsZero() && !p.MergedAt.After(s.At.Add(time.Hour)) {
 			return p
+		}
+	}
+	return nil
+}
+
+// commitPull is the pull request the forge says merged the commit a GitOps application had synced when the
+// upgrade reached the environment, as a pull without an opening date.
+func commitPull(commits []store.DeployCommit, s PatchSample, envID string) *store.GitOpsPull {
+	for _, d := range commits {
+		if d.ServiceID == s.ServiceID && d.To == s.To && d.EnvironmentID == envID && d.PullURL != "" &&
+			d.DeployedAt.Sub(s.At).Abs() <= 24*time.Hour {
+			return &store.GitOpsPull{
+				ServiceID: d.ServiceID, To: d.To, URL: d.PullURL, OpenedBy: d.PullBy, State: "merged", MergedAt: d.PullMergedAt,
+			}
 		}
 	}
 	return nil
@@ -146,6 +161,10 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 	if err != nil {
 		return r, err
 	}
+	commits, err := st.ListDeployCommits(ctx, sc, from.Add(-24*time.Hour))
+	if err != nil {
+		return r, err
+	}
 	teams := map[string]*VMTeam{}
 	teamDays := map[string][]int{}
 	var days []int
@@ -154,6 +173,9 @@ func LoadVMReport(ctx context.Context, st *store.Store, sc store.Scope, from, no
 			continue
 		}
 		u := VMUpgrade{PatchSample: s, SecurityFix: securityUpTo(o, s.ServiceID, s.From, s.To), Pull: pullFor(pulls, s, pos.Prod.Name)}
+		if u.Pull == nil {
+			u.Pull = commitPull(commits, s, pos.Prod.ID)
+		}
 		t := teams[s.Owner]
 		if t == nil {
 			t = &VMTeam{Owner: s.Owner}
