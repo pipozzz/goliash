@@ -29,12 +29,24 @@
 - image: docker.io/bitnami/redis
   cpe: [redis:redis]
   github: redis/redis
+- image: docker.io/directus/directus
+  github: directus/directus
 - image: docker.io/envoyproxy/envoy
   cpe: [envoyproxy:envoy]
   github: envoyproxy/envoy
+- image: docker.io/fluent/fluent-bit
+  cpe: [treasuredata:fluent_bit]
+  github: fluent/fluent-bit
+- image: docker.io/gitea/gitea
+  cpe: [gitea:gitea]
+  github: go-gitea/gitea
 - image: docker.io/gitlab/gitlab-runner
+  cpe: [gitlab:runner, gitlab:gitlab_runner]
   gitlab: gitlab.com/gitlab-org/gitlab-runner
   policy: { track: minor }
+- image: docker.io/goharbor/harbor-core
+  cpe: [linuxfoundation:harbor]
+  github: goharbor/harbor
 - image: docker.io/grafana/grafana
   cpe: [grafana:grafana]
   eol: grafana
@@ -51,6 +63,9 @@
   cpe: [hashicorp:vault]
   eol: hashicorp-vault
   github: hashicorp/vault
+- image: docker.io/istio/pilot
+  cpe: [istio:istio]
+  github: istio/istio
 - image: docker.io/library/caddy
   cpe: [caddyserver:caddy]
   github: caddyserver/caddy
@@ -85,6 +100,7 @@
   changelog: https://dev.mysql.com/doc/relnotes/mysql/{version}/en/
   policy: { track: minor }
 - image: docker.io/library/nats
+  cpe: [linuxfoundation:nats-server]
   github: nats-io/nats-server
 - image: docker.io/library/nginx
   cpe: [f5:nginx, f5:nginx_open_source]
@@ -119,6 +135,9 @@
 - image: docker.io/library/redis
   cpe: [redis:redis]
   github: redis/redis
+- image: docker.io/library/registry
+  cpe: [distribution_project:distribution, docker:registry]
+  github: distribution/distribution
 - image: docker.io/library/ruby
   cpe: [ruby-lang:ruby]
   changelog: https://www.ruby-lang.org/en/downloads/releases/#ruby-{version}
@@ -133,9 +152,20 @@
   # A server or base image moves from one LTS release to the next (24.04 -> 26.04), not to an interim release
   # supported for nine months (26.10); a service's own policy can say otherwise.
   policy: { tag_filter: '^[0-9][02468]\.04$' }
+- image: docker.io/louislam/uptime-kuma
+  cpe: [uptime.kuma:uptime_kuma, uptime-kuma_project:uptime-kuma]
+  github: louislam/uptime-kuma
+- image: docker.io/n8nio/n8n
+  cpe: [n8n:n8n]
+  github: n8n-io/n8n
+  github_tag_prefix: 'n8n@'
 - image: docker.io/opensearchproject/opensearch
+  cpe: [amazon:opensearch]
   github: opensearch-project/OpenSearch
   policy: { track: minor }
+- image: docker.io/outlinewiki/outline
+  cpe: [getoutline:outline]
+  github: outline/outline
 - image: docker.io/prom/alertmanager
   cpe: [prometheus:alertmanager]
   github: prometheus/alertmanager
@@ -144,6 +174,27 @@
 - image: docker.io/prom/prometheus
   cpe: [prometheus:prometheus]
   github: prometheus/prometheus
+- image: docker.io/vaultwarden/server
+  cpe: [dani-garcia:vaultwarden]
+  github: dani-garcia/vaultwarden
+- image: docker.io/velero/velero
+  cpe: [vmware:velero]
+  github: vmware-tanzu/velero
+- image: ghcr.io/dexidp/dex
+  cpe: [linuxfoundation:dex]
+  github: dexidp/dex
+- image: ghcr.io/goauthentik/server
+  cpe: [goauthentik:authentik]
+  github: goauthentik/authentik
+  github_tag_prefix: version/
+- image: ghcr.io/immich-app/immich-server
+  github: immich-app/immich
+- image: ghcr.io/kyverno/kyverno
+  cpe: [kyverno:kyverno, nirmata:kyverno]
+  github: kyverno/kyverno
+- image: ghcr.io/zitadel/zitadel
+  cpe: [zitadel:zitadel]
+  github: zitadel/zitadel
 - image: mcr.microsoft.com/dotnet/aspnet
   eol: dotnet
   github: dotnet/runtime
@@ -166,7 +217,11 @@
   cpe: [argoproj:argo_cd, linuxfoundation:argo-cd]
   eol: argo-cd
   github: argoproj/argo-cd
+- image: quay.io/cilium/cilium
+  cpe: [cilium:cilium]
+  github: cilium/cilium
 - image: quay.io/jetstack/cert-manager-controller
+  cpe: [cert-manager:cert-manager]
   eol: cert-manager
   github: cert-manager/cert-manager
 - image: quay.io/keycloak/keycloak
@@ -174,6 +229,9 @@
   eol: keycloak
   github: keycloak/keycloak
   policy: { track: minor }
+- image: quay.io/oauth2-proxy/oauth2-proxy
+  cpe: [oauth2_proxy_project:oauth2_proxy]
+  github: oauth2-proxy/oauth2-proxy
 - image: quay.io/prometheus/alertmanager
   cpe: [prometheus:alertmanager]
   github: prometheus/alertmanager
