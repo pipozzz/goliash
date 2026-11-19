@@ -66,7 +66,7 @@ func TestTwoFactorSignIn(t *testing.T) {
 	if _, loc := postTo(c, "/auth/2fa", url.Values{"code": {"000000"}}); loc != "/login/2fa?error=code" {
 		t.Fatalf("wrong code: %q", loc)
 	}
-	if _, loc := postTo(c, "/auth/2fa", url.Values{"code": {now}}); loc != "/" || !signedIn(c) {
+	if _, loc := postTo(c, "/auth/2fa", url.Values{"code": {now}}); loc != DefaultLanding || !signedIn(c) {
 		t.Fatalf("right code: %q", loc)
 	}
 	sessions, _ := h.st.ListSessions(ctx, u.ID)
@@ -81,7 +81,7 @@ func TestTwoFactorSignIn(t *testing.T) {
 		t.Fatalf("replayed code: %q", loc)
 	}
 	// A recovery code works once.
-	if _, loc := postTo(c2, "/auth/2fa", url.Values{"recovery": {"AAAA BBBB CCCC"}}); loc != "/" || !signedIn(c2) {
+	if _, loc := postTo(c2, "/auth/2fa", url.Values{"recovery": {"AAAA BBBB CCCC"}}); loc != DefaultLanding || !signedIn(c2) {
 		t.Fatalf("recovery code: %q", loc)
 	}
 	c3 := browser()

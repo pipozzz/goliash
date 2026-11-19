@@ -25,11 +25,15 @@ func (a *Auth) RememberLanding(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// landing is where a sign-in ends: the remembered page, once, or the matrix.
+// DefaultLanding is where a sign-in ends when no page was asked for: the Today page, which sends people who chose
+// a home view on to it.
+const DefaultLanding = "/today?home=1"
+
+// landing is where a sign-in ends: the remembered page, once, or DefaultLanding.
 func (a *Auth) landing(w http.ResponseWriter, r *http.Request) string {
 	c, err := r.Cookie(landingCookie)
 	if err != nil {
-		return "/"
+		return DefaultLanding
 	}
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure follows the public URL scheme; plain http is for local use
 		Name: landingCookie, Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.publicURL.Scheme == "https",
@@ -37,7 +41,7 @@ func (a *Auth) landing(w http.ResponseWriter, r *http.Request) string {
 	})
 	// Not the UI's own endpoints (the live stream, partials): earlier releases could remember those.
 	if !localPath(c.Value) || strings.HasPrefix(c.Value, "/ui/") {
-		return "/"
+		return DefaultLanding
 	}
 	return c.Value
 }
