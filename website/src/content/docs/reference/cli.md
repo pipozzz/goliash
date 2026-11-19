@@ -76,6 +76,9 @@ runs, for example with `docker compose exec goliash goliash …` or `kubectl exe
   goliash try [-listen :8080] [-public] [-reset 1h]
                                           a throwaway server with example data and a link that signs you in;
                                           -public makes it a read-only demo for everyone, -reset restarts it fresh
+  goliash scan [-kube-context C] [-docker-host H] [-no-kubernetes] [-no-docker] [-env prod]
+                                          what runs here and what is behind, with nothing installed: reads the current
+                                          Kubernetes context and the local Docker, read-only, in a throwaway server
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
@@ -133,3 +136,41 @@ goliash events -service payments-api -limit 20
 goliash service set -name postgres -track minor -pin-major 15
 goliash ack -service postgres -kind release -until-version 17.0
 ```
+
+## Scan: your own data, nothing installed
+
+`goliash scan` answers "what runs here, and what is behind?" in about a minute, before you set anything up. It
+reads the current context of your kubeconfig and the local Docker (`DOCKER_HOST` or the socket), read-only, in a
+throwaway server on `127.0.0.1:8080`, and prints what it found:
+
+```text
+$ goliash scan
+
+  Reading the Kubernetes context shop and Docker (read-only; nothing is installed or changed) …
+
+  4 services run, 4 compared with their upstream, 4 behind.
+
+  SERVICE    BEHIND        VERSION
+  nginx      end of life   1.25.3, cycle 1.25 ended 2024-05-29
+  postgres   major         15.6 → 18.7
+  traefik    minor         v3.1.2 → 3.7.19
+
+  Everything else — vulnerabilities, history, pull requests — is at
+
+  http://localhost:8080/auth/magic?token=…
+```
+
+The link opens the whole of Goliash on what was found: the matrix, Updates, vulnerabilities as the images' SBOMs
+are read. Nothing is written to the cluster or the Docker host, and nothing is kept when you stop it with Ctrl-C.
+
+| Flag | Default | |
+|---|---|---|
+| `-kube-context` | the current context | The kubeconfig context to read |
+| `-docker-host` | `DOCKER_HOST`, else the local socket | The Docker API to read |
+| `-no-kubernetes`, `-no-docker` | | Leave one out |
+| `-env` | `prod` | The environment what is found is shown as |
+| `-listen` | `127.0.0.1:8080` | Where the throwaway server listens: local only, as it shows your real data |
+| `-wait` | `2m` | How long to wait for the first results before printing what is known |
+
+The binary for your machine is on the [releases page](https://github.com/pipozzz/goliash/releases). To keep
+watching, with history and notifications, see [Getting started](/getting-started/).

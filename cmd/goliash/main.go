@@ -154,6 +154,9 @@ const usage = `Usage:
   goliash try [-listen :8080] [-public] [-reset 1h]
                                           a throwaway server with example data and a link that signs you in;
                                           -public makes it a read-only demo for everyone, -reset restarts it fresh
+  goliash scan [-kube-context C] [-docker-host H] [-no-kubernetes] [-no-docker] [-env prod]
+                                          what runs here and what is behind, with nothing installed: reads the current
+                                          Kubernetes context and the local Docker, read-only, in a throwaway server
   goliash demo                            fill the workspace with three weeks of example data
   goliash version
 
@@ -319,6 +322,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return demoCmd(ctx, args, out)
 	case "try":
 		return tryCmd(ctx, args, out)
+	case "scan":
+		return scanCmd(ctx, args, out)
 	case "backup":
 		return backupCmd(ctx, args, out)
 	case "badges reset":
