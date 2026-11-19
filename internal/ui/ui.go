@@ -1057,6 +1057,7 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 		return err
 	}
 	v.Events = eventViews(evs, o)
+	withPulls(v.Events, evs, s.eventPulls(ctx, p.Scope, o, oldestEvent(evs)))
 	if s.goliOn() {
 		askAround(v.Events)
 	}
@@ -1281,6 +1282,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request, p auth.Principal
 		return err
 	}
 	v.Events = eventViews(evs, o)
+	withPulls(v.Events, evs, s.eventPulls(ctx, p.Scope, o, oldestEvent(evs)))
 	if s.goliOn() {
 		askAround(v.Events)
 	}
