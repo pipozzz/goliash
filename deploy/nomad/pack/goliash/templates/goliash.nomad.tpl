@@ -73,6 +73,12 @@ job "[[ var "job_name" . ]]" {
         [[- if ne (var "nomad_token" .) "" ]]
         GOLIASH_CREDENTIAL_NOMAD = "[[ var "nomad_token" . ]]"
         [[- end ]]
+        [[- if ne (var "gitlab_url" .) "" ]]
+        GOLIASH_GITLAB_URL = "[[ var "gitlab_url" . ]]"
+        [[- end ]]
+        [[- if ne (var "gitea_url" .) "" ]]
+        GOLIASH_GITEA_URL = "[[ var "gitea_url" . ]]"
+        [[- end ]]
         [[- if ne (var "recovery_email" .) "" ]]
         GOLIASH_RECOVERY_EMAIL = "[[ var "recovery_email" . ]]"
         [[- end ]]
