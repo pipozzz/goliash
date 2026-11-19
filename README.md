@@ -16,13 +16,20 @@
   <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/pipozzz/goliash">
 </p>
 
-Goliash watches what actually runs, builds a **service × environment matrix** with the running and the newest
-upstream version, and tells you when a new release ships or when environments drift apart — staging on 1.5.0 while
-prod is still on 1.3.2, or two prod clusters disagreeing.
+**Renovate knows what your repositories pin. Scanners know what is in an image. Goliash knows what actually
+runs** — on every platform you have — and follows each fix until it is in production.
 
 <p align="center">
   <img alt="The Goliash matrix: services against dev, staging and prod with running versions, drift badges and the latest upstream release" src="docs/assets/matrix.png" width="900">
 </p>
+
+| | |
+|---|---|
+| **One picture of what runs** | A service × environment matrix across Kubernetes, ECS, Lambda, Nomad, Swarm, Compose hosts, Linux servers and managed databases: the running version, the newest upstream release, and where environments or clusters disagree. Read from the runtime, so it is true even where no repository pins a version. |
+| **What to do first** | One list for today: a vulnerability exploited in the wild, a security release, a version past its end of life — production first, each with the pull request that fixes it (GitHub, GitLab, Gitea, Forgejo; Argo CD, Flux, Helm values, Compose, Nomad, ECS, Terraform). |
+| **Proof it reached production** | A merge is not a deploy: Goliash follows a version from its release, through the pull request, to the moment it runs, and says when a merged fix does not. The monthly report shows how long every fix took — the evidence NIS2, DORA, SOC 2 and ISO 27001 ask for. |
+
+[How it compares with Renovate, Trivy, Dependency-Track and Argo CD →](https://goliash.dev/guide/compare/)
 
 **Documentation: [goliash.dev](https://goliash.dev/)**
 
@@ -43,7 +50,14 @@ for real, see [Getting started](https://goliash.dev/getting-started/).
 Or point it at what you run, with nothing installed: [`goliash scan`](https://goliash.dev/reference/cli/#scan-your-own-data-nothing-installed)
 reads your current Kubernetes context and local Docker, read-only, and prints what is behind in about a minute.
 
-## Features
+## Everything it does
+
+The three things above are the point. Around them is a lot of detail, each part documented at
+[goliash.dev](https://goliash.dev/):
+
+<details>
+<summary><strong>The full list</strong></summary>
+
 
 - **One matrix for every orchestrator.** Kubernetes (watch), Amazon ECS, AWS Lambda (per alias), Nomad, Docker Swarm
   and plain Docker/Compose hosts, side by side, per environment — with replicas, targets and rollouts in progress,
@@ -155,7 +169,11 @@ reads your current Kubernetes context and local Docker, read-only, and prints wh
   Swarm, Nomad, CloudFormation and Terraform manifests included. A newer Goliash is announced, and called out when
   it brings security fixes.
 
-Out of scope: deploying or upgrading services (that is CI's or Renovate's job), CVE scanning, library versions in code.
+</details>
+
+**Out of scope:** deploying or syncing anything (CI and GitOps do that; Goliash only reads and opens pull requests),
+blocking a build or an admission on a finding, and library versions in source code that is not built into a running
+image.
 
 ## How it works
 
@@ -232,10 +250,11 @@ and updates live over server-sent events.
 
 | Page | What it is for |
 | --- | --- |
+| Today | where a sign-in lands: rollouts that do not finish, the upgrades that cannot wait and what changed since yesterday |
 | Matrix | service × environment with versions, replicas, targets, drift badges and the latest upstream; filter (`/`) and "only with drift"; a time travel timeline to scrub, step or play back deployments; CSV and CycloneDX SBOM export; cards on phones; a first-run checklist when empty |
 | Service | where it runs, upstream releases, history, version policy, acknowledgements, "check upstream now"; delete once it runs nowhere |
 | Inbox | unmapped workloads with a suggested name; mapping creates a rule for that image; the list of mapping rules |
-| Hygiene | moving tags, tags pushed again, untrusted registries and images without a digest, summarised by kind |
+| Security → Image hygiene | moving tags, tags pushed again, untrusted registries and images without a digest, summarised by kind |
 | Delivery | versions waiting for the next environment with the releases they bring; deploys and lead times per environment; a printable monthly report per workspace |
 | History | every event, filterable by service, environment and type |
 | Settings → Agents and targets | agents and targets with collector health; environments (rename, reorder); edit targets; add agents with install commands, rotate or revoke tokens, rename and delete agents, move or delete targets |
