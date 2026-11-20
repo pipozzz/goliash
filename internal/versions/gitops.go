@@ -173,10 +173,13 @@ func CommitWebURL(web, revision string) string {
 }
 
 // CompareWebURL is the page of a repository's forge that shows what changed from one commit to another, or ""
-// when either is not a commit or the forge is unknown (Bitbucket's needs more than the two).
+// when either is not a commit.
 func CompareWebURL(web, from, to string) string {
-	if web == "" || !commitSHA.MatchString(from) || !commitSHA.MatchString(to) || strings.Contains(web, "bitbucket.org") {
+	if web == "" || !commitSHA.MatchString(from) || !commitSHA.MatchString(to) {
 		return ""
+	}
+	if strings.Contains(web, "bitbucket.org") { // the newer (source) first, then the older (destination)
+		return web + "/branches/compare/" + to + "%0D" + from
 	}
 	if strings.Contains(web, "gitlab") {
 		return web + "/-/compare/" + from + "..." + to
