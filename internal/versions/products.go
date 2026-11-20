@@ -84,6 +84,15 @@ var componentCPEs = map[string][]string{
 	"libxml2": {"xmlsoft:libxml2"}, "mariadb": {"mariadb:mariadb"}, "mysql": {"oracle:mysql_server", "oracle:mysql"},
 	"memcached": {"memcached:memcached"}, "caddy": {"caddyserver:caddy"}, "traefik": {"traefik:traefik"},
 	"envoy": {"envoyproxy:envoy"}, "keycloak": {"redhat:keycloak"}, "grafana": {"grafana:grafana"},
+	"varnish": {"varnish_cache_project:varnish_cache", "varnish-software:varnish_cache", "varnish-cache:varnish"},
+	"squid":   {"squid-cache:squid"}, "bind": {"isc:bind"}, "unbound": {"nlnetlabs:unbound"},
+	"lighttpd": {"lighttpd:lighttpd"}, "libvips": {"libvips:libvips"}, "vips": {"libvips:libvips"},
+	"ghostscript": {"artifex:ghostscript", "ghostscript:ghostscript"}, "poppler": {"freedesktop:poppler"},
+	"libpng": {"libpng:libpng"}, "libjpeg-turbo": {"libjpeg-turbo:libjpeg-turbo"}, "libwebp": {"webmproject:libwebp"},
+	"pcre2": {"pcre:pcre2"}, "expat": {"libexpat_project:libexpat"}, "libexpat": {"libexpat_project:libexpat"},
+	"libxslt": {"xmlsoft:libxslt"}, "gnutls": {"gnu:gnutls"}, "deno": {"deno:deno"},
+	"trafficserver": {"apache:traffic_server"}, "exim": {"exim:exim"}, "postfix": {"postfix:postfix"},
+	"dovecot": {"dovecot:dovecot"}, "openssh": {"openbsd:openssh"},
 }
 
 // parseComponents reads a dev.goliash.components label: name=version pairs separated by commas or spaces, a name

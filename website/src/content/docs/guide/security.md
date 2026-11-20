@@ -571,7 +571,8 @@ LABEL dev.goliash.components="nginx=1.27.2, php=8.3.12, openssl=3.3.2"
 
 Usual names are known (nginx, php, openssl, node, python, ruby, go, postgresql, redis, haproxy, curl, httpd, tomcat,
 openjdk, imagemagick, ffmpeg, git, sqlite, zlib, libxml2, mariadb, mysql, memcached, caddy, traefik, envoy,
-keycloak, grafana); anything else by its NVD product, `vendor:product=version`
+keycloak, grafana, varnish, squid, bind, unbound, lighttpd, libvips, ghostscript, poppler, libpng, libjpeg-turbo,
+libwebp, pcre2, expat, libxslt, gnutls, deno, trafficserver, exim, postfix, dovecot, openssh); anything else by its NVD product, `vendor:product=version`
 (`apache:http_server=2.4.62`). A build argument keeps it in step with the build: `ARG NGINX_VERSION` …
 `LABEL dev.goliash.components="nginx=${NGINX_VERSION}"`. The label is read with the image's evidence, by the
 server or, for registries only they reach, by the agents (1.141 and later). The Security page lists production's images without an SBOM, why
