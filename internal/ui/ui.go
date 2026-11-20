@@ -1050,6 +1050,9 @@ func (s *Server) service(w http.ResponseWriter, r *http.Request, p auth.Principa
 			}
 			deploys = s.withRunningInstances(ctx, p.Scope, svc.ID, deploys)
 			v.Versions = versionTimeline(deploys, envs, names, s.instanceParts(ctx, p.Scope, deploys), time.Now(), 30*24*time.Hour)
+			if running, err := s.runningInstances(ctx, p.Scope, svc.ID); err == nil {
+				v.Versions.SetRunning(running)
+			}
 		}
 	}
 	evs, err := s.store.ListEvents(ctx, p.Scope, store.EventFilter{ServiceID: svc.ID, Limit: 25})
@@ -3315,6 +3318,28 @@ func (s *Server) instanceParts(ctx context.Context, sc store.Scope, events []sto
 		}
 	}
 	return parts
+}
+
+// runningInstances are the service's instances that run now: still seen, and not scaled to nothing (an ECS service
+// replaced by the next version's and kept with no task). Platforms that report no counts (Lambda, Compose, a
+// manual service) run while seen.
+func (s *Server) runningInstances(ctx context.Context, sc store.Scope, serviceID string) (map[string]bool, error) {
+	active, err := s.store.ListActiveInstances(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, in := range active {
+		if in.ServiceID == serviceID && !scaledToZero(in) {
+			out[in.ID] = true
+		}
+	}
+	return out, nil
+}
+
+// scaledToZero says an instance is asked to run no replica and runs none.
+func scaledToZero(in store.Instance) bool {
+	return in.Running == 0 && in.Desired != nil && *in.Desired == 0
 }
 
 // withRunningInstances adds a deploy, at first sight, for each running instance of the service the events do
