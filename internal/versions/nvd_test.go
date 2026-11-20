@@ -156,3 +156,17 @@ func TestDeclaredComponents(t *testing.T) {
 		t.Fatalf("findings %+v", r.Findings)
 	}
 }
+
+// Software people often build into images is known by its usual name, as the products NVD files it under.
+func TestParseComponentsMore(t *testing.T) {
+	var got []string
+	for _, u := range parseComponents("varnish=7.6.1, squid=6.12 libvips=8.16.0 ghostscript=10.04.0 expat=2.6.4 openssh=9.9") {
+		got = append(got, u.CPE+"@"+u.Version)
+	}
+	want := "varnish_cache_project:varnish_cache@7.6.1 varnish-software:varnish_cache@7.6.1 varnish-cache:varnish@7.6.1 " +
+		"squid-cache:squid@6.12 libvips:libvips@8.16.0 artifex:ghostscript@10.4.0 ghostscript:ghostscript@10.4.0 " +
+		"libexpat_project:libexpat@2.6.4 openbsd:openssh@9.9"
+	if strings.Join(got, " ") != want {
+		t.Errorf("components:\n%s\nwant\n%s", strings.Join(got, " "), want)
+	}
+}
