@@ -50,6 +50,21 @@ type Timeline struct {
 	labelW   float64 // the label column's width when it must match another chart's
 }
 
+// SetRunning says which lanes run now from the instances that do (seen and with containers running): events alone
+// cannot tell, as an ECS service replaced by the next version's may be kept with no task, or deleted while another
+// instance of the service runs on the target, which records no removal.
+func (t *Timeline) SetRunning(running map[string]bool) {
+	for i := range t.Lanes {
+		t.Lanes[i].Running = false
+		for _, id := range t.Lanes[i].instance {
+			if running[id] {
+				t.Lanes[i].Running = true
+				break
+			}
+		}
+	}
+}
+
 // Split parts the chart into the lanes that run now and those that no longer do (a workload removed, an ECS
 // service replaced by the next version's), both with the same label column so they line up. A service that runs
 // nowhere keeps every lane in the first.
@@ -75,7 +90,8 @@ type Lane struct {
 	Env      string
 	TargetID string // the target the lane is, when it is one: its name links to it
 	Segments []Segment
-	Running  bool // its workload runs now: its last event is no removal
+	Running  bool     // its workload runs now (see SetRunning)
+	instance []string // the instances its events are of
 }
 
 // Segment is one version running between two moments, as fractions of the timeline.
@@ -322,10 +338,13 @@ func buildLane(evs []store.Event, name string, from, now time.Time, window time.
 		}
 		lane.Segments = append(lane.Segments, seg)
 	}
-	// It runs while any of its workloads' last event is no removal: blue/green starts the new one before it
-	// removes the old.
+	// Until SetRunning says from what runs now, it runs while any of its workloads' last event is no removal:
+	// blue/green starts the new one before it removes the old.
 	last := map[string]string{}
 	for _, ev := range evs {
+		if _, ok := last[ev.InstanceID]; !ok {
+			lane.instance = append(lane.instance, ev.InstanceID)
+		}
 		last[ev.InstanceID] = ev.Type
 	}
 	for _, typ := range last {

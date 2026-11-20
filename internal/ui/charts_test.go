@@ -293,3 +293,43 @@ func TestVersionTimelineSplit(t *testing.T) {
 		t.Errorf("a service that runs nowhere hides its only lanes: %+v / %+v", all.Lanes, none.Lanes)
 	}
 }
+
+// What runs now decides, not the events: an ECS service deleted while the next version's runs on the target leaves
+// no removal, and one kept with no task leaves none either.
+func TestVersionTimelineSetRunning(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	day := 24 * time.Hour
+	envs := []store.Environment{{ID: "prod", Name: "production"}}
+	evs := []store.Event{
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "v235", ToVersion: "6.0.235", At: now.Add(-20 * day)},
+		{Type: "version_changed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "v253", ToVersion: "6.0.253", At: now.Add(-5 * day)},
+		{Type: "version_changed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "v257", ToVersion: "6.0.257", At: now.Add(-1 * day)},
+	}
+	parts := map[string]string{"v235": "svc-6-0-235", "v253": "svc-6-0-253", "v257": "svc-6-0-257"}
+	tl := versionTimeline(evs, envs, map[string]string{"ecs": "ecs"}, parts, now, 30*day)
+	if r, g := tl.Split(); len(g.Lanes) != 0 || len(r.Lanes) != 3 {
+		t.Fatalf("events alone fold nothing here: %d running, %d gone", len(r.Lanes), len(g.Lanes))
+	}
+	tl.SetRunning(map[string]bool{"v257": true}) // 235 deleted, 253 scaled to zero
+	running, gone := tl.Split()
+	if len(running.Lanes) != 1 || !strings.Contains(running.Lanes[0].Env, "6-0-257") || len(gone.Lanes) != 2 {
+		t.Errorf("running %+v, gone %+v", running.Lanes, gone.Lanes)
+	}
+}
+
+func TestScaledToZero(t *testing.T) {
+	zero, one := 0, 1
+	for _, c := range []struct {
+		in   store.Instance
+		want bool
+	}{
+		{store.Instance{Running: 0, Desired: &zero}, true},  // an ECS service kept with no task
+		{store.Instance{Running: 0, Desired: &one}, false},  // starting, or crashing: still meant to run
+		{store.Instance{Running: 0}, false},                 // Lambda, Compose: no counts
+		{store.Instance{Running: 2, Desired: &zero}, false}, // draining
+	} {
+		if got := scaledToZero(c.in); got != c.want {
+			t.Errorf("scaledToZero(%+v) = %v", c.in, got)
+		}
+	}
+}
