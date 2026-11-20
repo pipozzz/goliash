@@ -38,7 +38,7 @@ require (
 	github.com/pressly/goose/v3 v3.29.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mod v0.43.0
-	golang.org/x/oauth2 v0.37.0
+	golang.org/x/oauth2 v0.38.0
 	golang.org/x/term v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.37.2
