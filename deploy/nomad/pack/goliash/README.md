@@ -34,7 +34,7 @@ Then open the task logs: the first start logs a one-time sign-in link for `owner
 | `gitlab_url` | `""` | A GitLab of your own (default gitlab.com). |
 | `gitea_url` | `""` | Your Gitea or Forgejo; required for pull requests there. |
 | `data_volume` | `goliash_data` | `/data` — SQLite database and secret key. |
-| `image` | `ghcr.io/pipozzz/goliash:1.273.0` | Image. Pin a tag in production. |
+| `image` | `ghcr.io/pipozzz/goliash:1.274.0` | Image. Pin a tag in production. |
 | `resources` | `{ cpu = 200, memory = 256 }` | Task resources. |
 
 ## Pull requests
