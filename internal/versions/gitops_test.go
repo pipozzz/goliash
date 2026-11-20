@@ -28,6 +28,19 @@ func TestGitOpsLinks(t *testing.T) {
 	if got := CommitWebURL("https://gitlab.example.com/ops/deploy", "abc1234"); got != "https://gitlab.example.com/ops/deploy/-/commit/abc1234" {
 		t.Errorf("gitlab commit %q", got)
 	}
+	for web, want := range map[string]string{
+		"https://github.com/acme/deploy":        "https://github.com/acme/deploy/compare/aaaaaaa...bbbbbbb",
+		"https://gitlab.example.com/ops/deploy": "https://gitlab.example.com/ops/deploy/-/compare/aaaaaaa...bbbbbbb",
+		"https://bitbucket.org/acme/deploy":     "https://bitbucket.org/acme/deploy/branches/compare/bbbbbbb%0Daaaaaaa",
+		"https://codeberg.org/acme/deploy":      "https://codeberg.org/acme/deploy/compare/aaaaaaa...bbbbbbb",
+	} {
+		if got := CompareWebURL(web, "aaaaaaa", "bbbbbbb"); got != want {
+			t.Errorf("CompareWebURL(%q) = %q, want %q", web, got, want)
+		}
+	}
+	if got := CompareWebURL("https://bitbucket.org/acme/deploy", "15.5.0", "bbbbbbb"); got != "" {
+		t.Errorf("a chart version compared as a commit: %q", got)
+	}
 	if got := CommitWebURL("https://github.com/acme/deploy", "15.5.0"); got != "" {
 		t.Errorf("a chart version linked as a commit: %q", got)
 	}
