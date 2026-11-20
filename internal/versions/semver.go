@@ -183,6 +183,9 @@ type Policy struct {
 	Security string `json:"security,omitempty"`
 	// CPE names the product in NVD ("postgresql:postgresql"), whose CVEs are looked up by the running version.
 	CPE []string `json:"cpe,omitempty"`
+	// Advisories names the GitHub repository whose security advisories are read when it is not GitHub: its
+	// releases come from elsewhere (php/php-src for PHP, released on php.net).
+	Advisories string `json:"advisories,omitempty"`
 	// BaseImage names the image the service's own image is built on ("node:18-alpine"), for images that
 	// do not declare it; "none" turns base image tracking off.
 	BaseImage string `json:"base_image,omitempty"`
@@ -270,6 +273,9 @@ func policyFor(svc store.Service, repo string) (Policy, PolicySource, error) {
 	}
 	if p.Security == "" {
 		p.Security = entry.Security
+	}
+	if p.Advisories == "" {
+		p.Advisories = entry.Advisories
 	}
 	if len(p.CPE) == 0 {
 		p.CPE = entry.CPE

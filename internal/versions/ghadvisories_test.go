@@ -92,6 +92,11 @@ func TestProductAdvisoriesFirst(t *testing.T) {
 			_, _ = w.Write([]byte(`[{"ghsa_id":"GHSA-4789-qfc9-5f9q","cve_id":"CVE-2025-49844","summary":"Lua use-after-free","severity":"critical",
 				"published_at":"2025-10-03T00:00:00Z","cvss_severities":{"cvss_v3":{"score":9.9}},
 				"vulnerabilities":[{"vulnerable_version_range":"All","patched_versions":"6.2.20, 7.2.11, 7.4.6, 8.0.4, 8.2.2"}]}]`))
+		case "/repos/php/php-src/security-advisories": // PHP: released on php.net, advised in php-src
+			_, _ = w.Write([]byte(`[{"ghsa_id":"GHSA-qc49-hpvq-g2w6","cve_id":"CVE-2026-129289","summary":"PHP-FPM request smuggling","severity":"critical",
+				"published_at":"2026-11-19T14:08:40Z","vulnerabilities":[
+				{"package":{"ecosystem":"php","name":"sapi-fpm"},"vulnerable_version_range":"< 8.2.36","patched_versions":"8.2.36"},
+				{"package":{"ecosystem":"php","name":"sapi-fpm"},"vulnerable_version_range":">= 8.3.0, < 8.3.37","patched_versions":"8.3.37"}]}]`))
 		default:
 			_, _ = w.Write([]byte(`[]`))
 		}
@@ -110,33 +115,41 @@ func TestProductAdvisoriesFirst(t *testing.T) {
 	l.checker.SetNVD(&NVD{BaseURL: nvd.URL, APIKey: "k", HTTP: nvd.Client()})
 	cache, _ := l.st.EnsureService(ctx, l.sc, "cache")
 	db, _ := l.st.EnsureService(ctx, l.sc, "db")
+	web, _ := l.st.EnsureService(ctx, l.sc, "web")
 	tgt := l.targets["prod-a"]
 	if err := l.st.ApplySnapshot(ctx, store.SnapshotChanges{Scope: l.sc, TargetID: tgt.ID, SnapshotID: store.NewID(), At: time.Now(), Upsert: []store.Instance{
 		{TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: cache.ID, WorkloadID: "c", WorkloadName: "cache", ContainerName: "redis", Image: "redis:7.2.4", Tag: "7.2.4", Digest: "sha256:r", Running: 1, IsMain: true},
 		{TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: db.ID, WorkloadID: "d", WorkloadName: "db", ContainerName: "postgres", Image: "postgres:16.2", Tag: "16.2", Digest: "sha256:p", Running: 1, IsMain: true},
+		{TargetID: tgt.ID, EnvironmentID: tgt.EnvironmentID, ServiceID: web.ID, WorkloadID: "w", WorkloadName: "web", ContainerName: "php", Image: "php:8.3.20-fpm", Tag: "8.3.20-fpm", Digest: "sha256:h", Running: 1, IsMain: true},
 	}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.checker.CheckProductVulns(ctx, l.sc); err != nil {
 		t.Fatal(err)
 	}
-	if nvdCalls.Load() != 1 { // postgresql only: redis has its own advisories
+	if nvdCalls.Load() != 1 { // postgresql only: redis and PHP have their own advisories
 		t.Fatalf("NVD asked %d times", nvdCalls.Load())
 	}
 	r, err := LoadVulnReport(ctx, l.st, l.sc, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var redis *VulnFinding
+	var redis, php *VulnFinding
 	for i, f := range r.Findings {
-		if f.Key == "CVE-2025-49844" {
+		switch f.Key {
+		case "CVE-2025-49844":
 			redis = &r.Findings[i]
+		case "CVE-2026-129289":
+			php = &r.Findings[i]
 		}
+	}
+	if php == nil || php.Affected[0].Fix != "8.3.37" {
+		t.Fatalf("PHP's advisory from php-src: %+v", php)
 	}
 	if redis == nil || redis.Severity != "CRITICAL" || redis.Affected[0].Package != "redis 7.2.4" || redis.Affected[0].Fix != "7.2.11" {
 		t.Fatalf("redis finding %+v in %+v", redis, r.Findings)
 	}
-	if len(r.Findings) != 3 { // and postgresql's two from NVD
+	if len(r.Findings) != 4 { // and postgresql's two from NVD
 		t.Errorf("findings %d", len(r.Findings))
 	}
 }
