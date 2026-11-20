@@ -12,7 +12,7 @@ tool (
 )
 
 require (
-	github.com/a-h/templ v0.3.1070
+	github.com/a-h/templ v0.3.1118
 	github.com/anthropics/anthropic-sdk-go v1.84.0
 	github.com/aws/aws-sdk-go-v2 v1.47.8
 	github.com/aws/aws-sdk-go-v2/config v1.33.17
@@ -27,19 +27,19 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.131.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.9
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/getkin/kin-openapi v0.152.0
+	github.com/getkin/kin-openapi v0.153.0
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/klauspost/compress v1.20.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/oapi-codegen/runtime v1.9.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pressly/goose/v3 v3.29.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mod v0.43.0
-	golang.org/x/oauth2 v0.37.0
-	golang.org/x/term v0.47.0
+	golang.org/x/oauth2 v0.38.0
+	golang.org/x/term v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
@@ -49,8 +49,8 @@ require (
 )
 
 require (
-	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e // indirect
-	github.com/andybalholm/brotli v1.2.6 // indirect
+	github.com/a-h/parse v0.0.42 // indirect
+	github.com/andybalholm/brotli v1.3.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.22 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.17 // indirect
@@ -104,7 +104,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -113,8 +113,6 @@ require (
 	github.com/natefinch/atomic v1.0.1 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/oapi-codegen/oapi-codegen/v2 v2.8.0 // indirect
-	github.com/oasdiff/yaml v0.1.1 // indirect
-	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -143,10 +141,10 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
-	golang.org/x/net v0.61.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	go.yaml.in/yaml/v4 v4.0.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect

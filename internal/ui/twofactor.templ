@@ -117,7 +117,7 @@ templ TwoFactorSetupPage(v TwoFactorSetupView) {
 		} else {
 			<section class="panel">
 				<div class="panel-body setup-2fa">
-					<img src={ v.QR } width="200" height="200" alt="QR code for your authenticator app"/>
+					<img src={ templ.SafeURL(v.QR) } width="200" height="200" alt="QR code for your authenticator app"/>
 					<div class="stack">
 						<p><strong>1.</strong> Scan the code with your authenticator app, or enter the key by hand:</p>
 						<code class="mono key">{ v.Secret }</code>
