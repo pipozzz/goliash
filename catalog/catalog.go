@@ -31,8 +31,11 @@ type Entry struct {
 	Security string `yaml:"security"`
 	// CPE names the product in NVD ("postgresql:postgresql", the vendor and product of its CPE), whose CVEs are
 	// looked up by the running version; several when NVD has used more than one over the years.
-	CPE    []string       `yaml:"cpe"`
-	Policy map[string]any `yaml:"policy"`
+	CPE []string `yaml:"cpe"`
+	// Advisories names the GitHub repository ("owner/repo") whose security advisories say which versions a CVE
+	// affects, when releases are read elsewhere (PHP's from php.net, its advisories from php/php-src).
+	Advisories string         `yaml:"advisories"`
+	Policy     map[string]any `yaml:"policy"`
 }
 
 // PolicyJSON returns the entry's default policy as stored on services.

@@ -47,6 +47,9 @@ func TestCatalogEntries(t *testing.T) {
 		if e.GitHub != "" && !ghRepo.MatchString(e.GitHub) {
 			t.Errorf("%s: github %q is not owner/repo", image, e.GitHub)
 		}
+		if e.Advisories != "" && !ghRepo.MatchString(e.Advisories) {
+			t.Errorf("%s: advisories %q is not owner/repo", image, e.Advisories)
+		}
 		if e.Changelog != "" && !strings.HasPrefix(e.Changelog, "https://") {
 			t.Errorf("%s: changelog must be https", image)
 		}

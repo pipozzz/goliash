@@ -15,9 +15,11 @@ import (
 func (c *Checker) SetNVD(n *NVD) { c.nvd = n }
 
 const (
-	nvdTTL     = 24 * time.Hour // how long NVD's answer for a product version is trusted
-	nvdPerRun  = 8              // product versions asked per workspace and run (NVD is slow without a key)
-	minVersion = 2              // parts a version needs to be looked up: 16.2, not 16
+	// nvdTTL is how long an answer for a product version is trusted: NVD adds the products to a CVE days after
+	// publishing it, and a CVE should show within hours of it.
+	nvdTTL     = 6 * time.Hour
+	nvdPerRun  = 8 // product versions asked per workspace and run (NVD is slow without a key)
+	minVersion = 2 // parts a version needs to be looked up: 16.2, not 16
 )
 
 // productVersion is the product version an instance runs, for NVD: the number of its tag (16.2-alpine is 16.2),
@@ -48,14 +50,18 @@ func (u productUse) fromGitHub() bool { return strings.HasPrefix(u.CPE, githubSo
 func productsOf(svc store.Service, in store.Instance, resolved map[string]string, ev store.ImageEvidence) []productUse {
 	var out []productUse
 	if svc.ID != "" {
-		if p, _, err := PolicyFor(svc, ParseImage(in.Image).Repo()); err == nil && (len(p.CPE) > 0 || p.GitHub != "") {
+		if p, _, err := PolicyFor(svc, ParseImage(in.Image).Repo()); err == nil && (len(p.CPE) > 0 || p.GitHub != "" || p.Advisories != "") {
 			if version := productVersion(in, resolved); version != "" {
-				name := p.GitHub[strings.LastIndex(p.GitHub, "/")+1:]
+				advisories := p.Advisories
+				if advisories == "" {
+					advisories = p.GitHub
+				}
+				name := advisories[strings.LastIndex(advisories, "/")+1:]
 				if len(p.CPE) > 0 {
 					name = productName(p.CPE[0])
 				}
-				if p.GitHub != "" { // its own advisories first: they are what NVD is not asked about when there are any
-					out = append(out, productUse{CPE: githubSource + p.GitHub, Version: version, Name: name, Own: true})
+				if advisories != "" { // its own advisories first: they are what NVD is not asked about when there are any
+					out = append(out, productUse{CPE: githubSource + advisories, Version: version, Name: name, Own: true})
 				}
 				for _, c := range p.CPE {
 					out = append(out, productUse{CPE: c, Version: version, Name: productName(c), Own: true})

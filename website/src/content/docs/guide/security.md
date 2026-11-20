@@ -274,12 +274,14 @@ from source, so it is in no package database and often only loosely in an SBOM. 
 version of the product itself, from the best source there is:
 
 1. **the project's own GitHub security advisories**, when its repository publishes any (Redis, Keycloak, Grafana,
-   Traefik, Caddy, Envoy, Argo CD, RabbitMQ, NATS, CoreDNS, Prometheus…): the affected versions and the fix as the
-   authors write them, read every 6 hours. Ranges are read as projects write them (`< 26.4.14`, `>= v3.0.0, <=
+   Traefik, Caddy, Envoy, Argo CD, RabbitMQ, NATS, CoreDNS, Prometheus…, and PHP's from `php/php-src` though PHP
+   is released on php.net): the affected versions and the fix as the authors write them, the day they are
+   published, read every 6 hours. Ranges are read as projects write them (`< 26.4.14`, `>= v3.0.0, <=
    v3.7.15`, `All` with a fix per release line); an advisory without a fix and without an upper bound counts for
    half a year after it is published. Then NVD is not asked about that product;
-2. **[NVD](https://nvd.nist.gov)** for the others (PostgreSQL, nginx, PHP, Vault…), by the catalog's `cpe` or the
-   version policy's, once a day per product version: `postgres:16.2-alpine` is PostgreSQL 16.2, and a moving tag
+2. **[NVD](https://nvd.nist.gov)** for the others (PostgreSQL, nginx, Vault…), by the catalog's `cpe` or the
+   version policy's, every 6 hours per product version (NVD names the affected products a day or more after a CVE
+   is published, and only then can a lookup by product find it): `postgres:16.2-alpine` is PostgreSQL 16.2, and a moving tag
 (`postgres:16`) counts by the version its digest resolved to. Each CVE comes with its severity (NVD's own CVSS
 score first) and the first fixed version of its range (*postgresql 16.2, fixed in 16.3*), next to the SBOM's
 findings: the same CVE from both is one finding, CISA's exploited list applies to it, and a critical or exploited
