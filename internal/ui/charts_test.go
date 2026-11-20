@@ -261,3 +261,35 @@ func TestFindingLabels(t *testing.T) {
 		}
 	}
 }
+
+// The lanes that run now come first; those whose workloads were removed fold away, lined up with them. A lane
+// whose new workload started before its old one was removed still runs.
+func TestVersionTimelineSplit(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	day := 24 * time.Hour
+	envs := []store.Environment{{ID: "prod", Name: "production"}}
+	evs := []store.Event{
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "old", ToVersion: "6.0.234", At: now.Add(-20 * day)},
+		{Type: "removed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "old", At: now.Add(-15 * day)},
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "new", ToVersion: "6.0.257", At: now.Add(-2 * day)},
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "b2", ToVersion: "2.0", At: now.Add(-3 * day)},
+		{Type: "removed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "b1", At: now.Add(-3*day + time.Minute)},
+		{Type: "deployed", EnvironmentID: "prod", TargetID: "ecs", InstanceID: "b1", ToVersion: "1.0", At: now.Add(-10 * day)},
+	}
+	parts := map[string]string{
+		"old": "service-6-0-234-a-very-long-name-that-widens-the-labels", "new": "service-6-0-257", "b1": "bluegreen", "b2": "bluegreen",
+	}
+	tl := versionTimeline(evs, envs, map[string]string{"ecs": "ecs"}, parts, now, 30*day)
+	running, gone := tl.Split()
+	if len(running.Lanes) != 2 || len(gone.Lanes) != 1 || !strings.Contains(gone.Lanes[0].Env, "6-0-234") {
+		t.Fatalf("running %+v, gone %+v", running.Lanes, gone.Lanes)
+	}
+	if running.LabelWidth() != gone.LabelWidth() || running.LabelWidth() != tl.LabelWidth() {
+		t.Errorf("the two charts' labels do not line up: %v and %v", running.LabelWidth(), gone.LabelWidth())
+	}
+	gone.Lanes[0].Running = false
+	all, none := Timeline{Lanes: gone.Lanes}.Split()
+	if len(all.Lanes) != 1 || len(none.Lanes) != 0 {
+		t.Errorf("a service that runs nowhere hides its only lanes: %+v / %+v", all.Lanes, none.Lanes)
+	}
+}

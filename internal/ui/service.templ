@@ -162,7 +162,14 @@ templ ServicePage(v ServiceView) {
 		if len(v.Versions.Lanes) > 0 {
 			<section class="panel">
 				<div class="panel-head"><h2>Versions over time</h2>@panelInfo("last 30 days; hover for dates")</div>
-				@versionChart(v.Versions)
+				{{ running, gone := v.Versions.Split() }}
+				@versionChart(running)
+				if len(gone.Lanes) > 0 {
+					<details class="gone-lanes">
+						<summary>{ plural(len(gone.Lanes), "workload", "workloads") + " that no longer run" }</summary>
+						@versionChart(gone)
+					</details>
+				}
 			</section>
 		}
 		<div class="grid-2">
