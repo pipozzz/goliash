@@ -254,7 +254,8 @@ with the upgrade plan sends it every week; see [Upgrade plan](/guide/notificatio
 The **Delivery** page opens with two charts: versions that arrived per week and environment over the last twelve
 weeks, and how much drift was open each day of the last thirty, by kind. Every service page shows **Versions over
 time**: which version ran in each environment (one lane per target where an environment has several) over the last
-thirty days; hover a bar for its dates. The charts are drawn on the server, follow the light or dark theme and need
+thirty days; hover a bar for its dates. Lanes of workloads that no longer run (removed, or an ECS service replaced
+by the next version's) fold under *N workloads that no longer run*, so the chart opens on what runs now. The charts are drawn on the server, follow the light or dark theme and need
 no script.
 
 ![The Delivery page: deploys per week as stacked bars by environment, and open drift per day as lines over gradient areas](../../../assets/delivery.png)

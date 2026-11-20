@@ -47,6 +47,27 @@ type Timeline struct {
 	From, To time.Time
 	Lanes    []Lane
 	Ticks    []Tick
+	labelW   float64 // the label column's width when it must match another chart's
+}
+
+// Split parts the chart into the lanes that run now and those that no longer do (a workload removed, an ECS
+// service replaced by the next version's), both with the same label column so they line up. A service that runs
+// nowhere keeps every lane in the first.
+func (t Timeline) Split() (running, gone Timeline) {
+	running, gone = t, t
+	running.Lanes, gone.Lanes = nil, nil
+	for _, l := range t.Lanes {
+		if l.Running {
+			running.Lanes = append(running.Lanes, l)
+		} else {
+			gone.Lanes = append(gone.Lanes, l)
+		}
+	}
+	if len(running.Lanes) == 0 {
+		return t, Timeline{}
+	}
+	running.labelW, gone.labelW = t.LabelWidth(), t.LabelWidth()
+	return running, gone
 }
 
 // Lane is one environment of a Timeline.
@@ -54,6 +75,7 @@ type Lane struct {
 	Env      string
 	TargetID string // the target the lane is, when it is one: its name links to it
 	Segments []Segment
+	Running  bool // its workload runs now: its last event is no removal
 }
 
 // Segment is one version running between two moments, as fractions of the timeline.
@@ -299,6 +321,15 @@ func buildLane(evs []store.Event, name string, from, now time.Time, window time.
 			seg.Title += ", still running"
 		}
 		lane.Segments = append(lane.Segments, seg)
+	}
+	// It runs while any of its workloads' last event is no removal: blue/green starts the new one before it
+	// removes the old.
+	last := map[string]string{}
+	for _, ev := range evs {
+		last[ev.InstanceID] = ev.Type
+	}
+	for _, typ := range last {
+		lane.Running = lane.Running || typ != "removed"
 	}
 	return lane, len(lane.Segments) > 0
 }
@@ -612,7 +643,7 @@ func (t Timeline) LabelWidth() float64 {
 	for _, l := range t.Lanes {
 		longest = max(longest, len([]rune(laneLabel(l.Env))))
 	}
-	return max(150, float64(longest)*6.2+14)
+	return max(150, float64(longest)*6.2+14, t.labelW)
 }
 
 // LaneH is the height of a lane: lower when there are many, so a service on a dozen workloads stays one screen.

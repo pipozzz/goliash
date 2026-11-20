@@ -1610,3 +1610,5 @@ tr.muted-row td { color: var(--muted); }
 
 .head-alert { margin: 6px 0 0; }
 .no-bulk .bulk-pick { display: none; } /* Today: pull requests open one by one, the bulk form is on Updates */
+.gone-lanes { padding: 0 0 4px; }
+.gone-lanes > summary { font-size: 13px; padding: 0 16px 10px; }
